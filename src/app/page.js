@@ -51,6 +51,7 @@ export default function Home() {
           <ul>
             <li><a href="/csr">Client-Side Rendering (CSR) demo</a></li>
             <li><a href="/ssr">Server-Side Rendering (SSR) demo</a></li>
+            <li><a href="/bootstrap-demo">Bootstrap demo</a></li>
             <li><a href="/api">API index</a> — try <a href="/api/time">/api/time</a></li>
           </ul>
         </div>

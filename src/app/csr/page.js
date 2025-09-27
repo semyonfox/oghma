@@ -43,7 +43,7 @@ export default function CSRPage() {
             <section style={{ marginTop: 16 }}>
                 <h2>Client counter</h2>
                 <p>Count: {count}</p>
-                <button onClick={() => setCount(c => c + 1)}>Increment</button>
+                <button className="btn btn-outline-light" onClick={() => setCount(c => c + 1)}>Increment</button>
             </section>
 
             <p style={{ marginTop: 24, color: "#555" }}>
