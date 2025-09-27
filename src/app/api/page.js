@@ -1,9 +1,16 @@
-// Api logic will go in here
-
-// quick example to return server time
-export async function GET(request) {
-    const serverTime = new Date().toISOString();
-    return new Response(JSON.stringify({ time: serverTime }), {
-        headers: { 'Content-Type': 'application/json' },
-    });
+export default function ApiIndexPage() {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1>API Index</h1>
+      <p>This project exposes a simple demo API endpoint.</p>
+      <ul>
+        <li>
+          <a href="/api/time">GET /api/time</a> — returns server time and a random number
+        </li>
+      </ul>
+      <p>
+        Tip: The CSR and SSR demo pages both call this endpoint using <code>fetch</code>.
+      </p>
+    </main>
+  );
 }
