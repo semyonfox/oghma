@@ -42,8 +42,13 @@ CT216-Project/
 │       ├── globals.css         # Global styles
 │       ├── csr/                # Client-Side Rendering example
 │       │   └── page.js
-│       └── ssr/                # Server-Side Rendering example
-│           └── page.js
+│       ├── ssr/                # Server-Side Rendering example
+│       │   ├── page.js
+│       │   └── Counter.js      # Client component used on the SSR page
+│       └── api/                # API routes and index page
+│           ├── page.js         # API index
+│           └── time/
+│               └── route.js    # GET /api/time endpoint
 ├── public/                     # Static assets (images, icons)
 ├── package.json                # Project dependencies and scripts
 ├── eslint.config.mjs          # ESLint configuration
@@ -111,6 +116,22 @@ export default async function SSRPage() {
     );
 }
 ```
+
+## API Demo
+
+A simple API endpoint is provided at `GET /api/time`.
+
+- Location: `src/app/api/time/route.js`
+- Returns: the current server time, a Unix epoch, and a random number
+- Try it in the browser: visit `/api/time`
+
+Both demo pages use this endpoint:
+- CSR (`/csr`): fetches on the client with `fetch('/api/time')`
+- SSR (`/ssr`): fetches on the server with an absolute URL derived from request headers
+
+Note on fetch vs Axios:
+- For this demo we use the native `fetch` API for simplicity and zero dependencies.
+- As your app grows and you need features like interceptors, retries, cancellation tokens, or standardized error handling across browsers, consider switching to Axios.
 
 ## Adding New Pages
 
