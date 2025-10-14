@@ -1,5 +1,3 @@
-import BootstrapInit from "./BootstrapInit";
-
 export const metadata = {
   title: "Bootstrap Demo",
 };
@@ -7,8 +5,6 @@ export const metadata = {
 export default function BootstrapDemoPage() {
   return (
     <main className={`container py-4`}>
-      <BootstrapInit />
-
       <h1 className="mb-4">Bootstrap Demo</h1>
       <p className="text-muted">Quick tour of common Bootstrap 5 components, utilities, and JS features.</p>
 
