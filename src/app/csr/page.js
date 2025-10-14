@@ -20,7 +20,7 @@ export default function CSRPage() {
                 if (!cancelled) setError(String(err));
             }
         }
-        load();
+        load().then(r => console.log("fetch complete", r));
         return () => { cancelled = true; };
     }, []);
 

@@ -25,7 +25,7 @@ export default function BootstrapClient() {
       })
       .catch(() => {
         // If importing the ESM entry fails, load the UMD bundle for side-effects
-        import("bootstrap/dist/js/bootstrap.bundle.min.js").catch(() => {});
+        import("bootstrap/dist/js/bootstrap.bundle.js").catch(() => {});
       });
   }, []);
   return null;
