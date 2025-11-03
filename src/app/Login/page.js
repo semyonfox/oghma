@@ -1,9 +1,9 @@
 'use client'
-import axios from '../api/axios';
+import axios from 'axios';
 import {useRef, useState, useEffect, useContext} from 'react';
 import AuthContext from '@/context/AuthProvider';
 
-const LOGIN_URL = process.env.LOGIN_URL;
+const LOGIN_URL = "http://localhost:5000/auth/login";
 
 
 const Page = () => {
