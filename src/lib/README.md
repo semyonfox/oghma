@@ -13,3 +13,6 @@ Typical files:
 - `db.js` (server-only) — database connection/config
 
 For full project structure and SSR/CSR details, see: ../../README.md
+
+/*
+verification as well as storing user data*/
