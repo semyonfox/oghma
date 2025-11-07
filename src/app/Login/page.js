@@ -1,10 +1,13 @@
+/*
+* This login was adapted from Dave Gray's "React User Login and Authentication with Axios", and altered using nextJS*/
+
 'use client'
 import axios from 'axios';
 import {useRef, useState, useEffect, useContext} from 'react';
 import AuthContext from '@/context/AuthProvider';
+import sql from "@/lib/db.js";
 
 const LOGIN_URL = "http://localhost:5000/auth/login";
-
 
 const Page = () => {
     const {setAuth} = useContext(AuthContext);
@@ -40,6 +43,7 @@ const Page = () => {
             setUser(''); //refreshing the login
             setPwd('');
             setSuccess(true); //letting the person into the web app
+
         } catch (err) { //error cases for the login
             if (!err?.response) {
                 setErrMsg('No Server Response');
