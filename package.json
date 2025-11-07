@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "devStart": "nodemon server.js",
+    "devStart": "nodemon middleware.js",
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
@@ -15,6 +15,8 @@
     "bootstrap": "^5.3.8",
     "express": "^5.1.0",
     "next": "15.5.4",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-scripts": "^0.0.0"
