@@ -12,6 +12,7 @@
 */
 
 // taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
+/*
 import bcrypt from "bcrypt";
 import sql from "@/lib/db";
 import jwt from 'jsonwebtoken';
@@ -55,7 +56,7 @@ export async function POST(request) {
         return NextResponse.json({error: 'An error occurred while creating your account.'});
     }
 }
-
+*/
 /*
     function hash(req, res, next) {
         const hashedPassword = await bcrypt.hash(pwd, 13);
@@ -70,9 +71,8 @@ export async function POST(request) {
 
     }
 
- */
 
     function JWTCall(req, res, next) {
     }
 }
-
+*/
