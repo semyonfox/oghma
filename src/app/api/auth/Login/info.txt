@@ -1,5 +1,0 @@
-this is the login/register for the api
-it will have route.js
-this is so it knows what it needs to do when you call the function
-make a network request
-it also has a logic test before returning hte response but not needed yet
