@@ -41,27 +41,28 @@ export async function POST(request) {
             if (isValid) {
                 // 2. Prepare data for insertion into database
                 const validatedFields = {username, password: userPwd};
-                const {username: name, password} = validatedFields;
-                // e.g. Hash the user's password before storing it
-                const hashedPassword = await bcrypt.hash(password, 10);
+                const {username: name, password} = validatedFields
 
                 // 3. Insert the user into the database or call a Library API
-                const data = await sql`
-                    INSERT INTO login ("userName", password)
-                    VALUES (${name}, ${hashedPassword})
-                    RETURNING "userID"`;
+                const data = await sql`SELECT "userID", "userName", password FROM login WHERE "userName" = ${username.trim()};`
 
                 const user = data[0] //this contains the returned row from INSERT - used for jwt payload
 
                 if (!user) {
-                    return NextResponse.json({error: 'An error occurred while creating your account.'});
+                    return NextResponse.json({error: 'Invalid username or password'});
+                }
+
+                const matchingPassword = await bcrypt.compare(password, user.password);
+
+                if (!matchingPassword) {
+                    return NextResponse.json({error: 'Invalid username password'});
                 }
 
                 // 4. Create user session (generating/returning JWT)
                 // sourced from jsonwebtoken library documentation: https://github.com/auth0/node-jsonwebtoken#usage (accessed 09/11/25)
                 const token = jwt.sign({userID: user.userID, username: name},
                     process.env.JWT_SECRET,
-                    {expiresIn: '7D'}
+                    {expiresIn: '7d'}
                 );
 
                 const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); //expires in a week from when it was made
