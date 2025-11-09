@@ -17,7 +17,6 @@ import sql from "@/lib/db";
 import jwt from 'jsonwebtoken';
 import {cookies} from "next/headers";
 import {NextResponse} from "next/server";
-import {redirect} from "next/navigation";
 
 export async function POST(request) {
     //error handling sourced from nextjs beta docs, accessed 09/11/2025: https://nextjs.org/docs/app/api-reference/file-conventions/route#error-handling
@@ -28,6 +27,7 @@ export async function POST(request) {
     const userPwd = body.password;
 
     let isValid = true;
+
     function validateFields() {
 
         if (username == null || username == "") {
@@ -50,41 +50,59 @@ export async function POST(request) {
             const hashedPassword = await bcrypt.hash(password, 10);
 
             // 3. Insert the user into the database or call a Library API
-            const data = await sql`
-                    INSERT INTO login ("userName", password)
-                    VALUES (${name}, ${hashedPassword})
-                    RETURNING "userID"`;
-
-            const user = data[0] //this contains the returned row from INSERT - used for jwt payload
-
-            if (!user) {
-                return NextResponse.json({error: 'An error occurred while creating your account.'});
+            const existingUser = await sql`
+                SELECT "userID"
+                FROM login
+                WHERE "userName" = ${username}`
+            if (existingUser.length > 0) {
+                return NextResponse.json(
+                    {error: "User already exists"},
+                    {status: 409}
+                )
             }
+            const data = await sql`
+                INSERT INTO login ("userName", password)
+                VALUES (${name}, ${hashedPassword})
+                RETURNING "userID"`;
 
-            // 4. Create user session (generating/returning JWT)
-            // sourced from jsonwebtoken library documentation: https://github.com/auth0/node-jsonwebtoken#usage (accessed 09/11/25)
-            const token = jwt.sign({userID: user.userID, username: name},
-                process.env.JWT_SECRET,
-                {expiresIn: '7d'}
-            );
+            const user = data[0]; //this contains the returned row from INSERT - used for jwt payload
+                if (!user) {
+                    return NextResponse.json({error: 'An error occurred while creating your account.'});
+                }
 
-            const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); //expires in a week from when it was made
+                // 4. Create user session (generating/returning JWT)
+                // sourced from jsonwebtoken library documentation: https://github.com/auth0/node-jsonwebtoken#usage (accessed 09/11/25)
+                const token = jwt.sign({userID: user.userID, username: name},
+                    process.env.JWT_SECRET,
+                    {expiresIn: '7d'}
+                );
 
-            cookies().set('session', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                expires: expires,
-                sameSite: 'lax',
-                path: '/' //this just means the cookie can be accessed on all routes
-            });
+                const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); //expires in a week from when it was made
 
-            // 5. Redirect user
-            redirect('/'); //sends them to the home page
-        } else if (!isValid) {
+                cookies().set('session', token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    expires: expires,
+                    sameSite: 'lax',
+                    path: '/' //this just means the cookie can be accessed on all routes
+                });
+            } else if (!isValid) {
             return NextResponse.json({error: 'missing fields'});
         }
-    } catch (error) {
-        console.error('Error:', error);
-        return NextResponse.json({error: 'internal server error'});
-    }
+
+        return NextResponse.json({
+                success: true,
+                user: {userID: user.userID, username: user.userName }
+            },
+            { status: 201}
+        );
+
+    } catch (error)
+{
+    console.error('Error:', error);
+    return NextResponse.json({error: 'internal server error'});
 }
+
+}
+
+
