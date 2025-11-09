@@ -3,30 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "devStart": "nodemon middleware.js",
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "axios": "^1.12.2",
-    "bcrypt": "^6.0.0",
     "bootstrap": "^5.3.8",
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "next": "15.5.4",
-    "pg": "^8.16.3",
     "postgres": "^3.4.7",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-scripts": "^0.0.0"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "eslint": "^9",
-    "eslint-config-next": "15.5.4",
-    "nodemon": "^3.1.10"
+    "eslint-config-next": "15.5.4"
   }
 }
