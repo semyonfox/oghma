@@ -1,15 +1,16 @@
 /*
-* This login was adapted from Dave Gray's "React User Login and Authentication with Axios", and altered using nextJS*/
+* This login was adapted from Dave Gray's "React User login and Authentication with Axios", and altered using nextJS*/
 
 'use client'
-import axios from 'axios';
 import {useRef, useState, useEffect, useContext} from 'react';
-import AuthContext from '@/context/AuthProvider';
+//import AuthContext from '@/context/AuthProvider';
+// import sql from "@/lib/db.js";
+import Link from "next/link";
 
-const LOGIN_URL = "/api/login";
+const LOGIN_URL = "http://localhost:3000/api/auth/login";
 
 const Page = () => {
-    const {setAuth} = useContext(AuthContext);
+    // const {setAuth} = useContext(AuthContext);
     const userRef = useRef(null);
     const errRef = useRef(null);
 
@@ -29,30 +30,34 @@ const Page = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post(LOGIN_URL,
-                JSON.stringify({user,pwd}),
-                {
-                    headers: {'Content-Type': 'application/json'},
-                    withCredentials: true
+            const response = await fetch(LOGIN_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user, pwd}),
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                if (response.status === 400) {
+                    setErrMsg('Missing Username or Password');
+                } else if (response.status === 401) {
+                    setErrMsg('Unauthorized');
+                } else {
+                    setErrMsg('Login Failed');
                 }
-            );
-            console.log(JSON.stringify(response?.data));
-            const accessToken = response?.data?.accessToken; //optional chaining
-            const roles = response?.data?.roles;
+                errRef.current.focus();
+                return;
+            }
+            const data = await response.json();
+            console.log(JSON.stringify(data));
+            const accessToken = data?.accessToken; //optional chaining
+            const roles = data?.roles;
             setUser(''); //refreshing the login
             setPwd('');
             setSuccess(true); //letting the person into the web app
+            setAuth && setAuth({ user, pwd, roles, accessToken });
 
         } catch (err) { //error cases for the login
-            if (!err?.response) {
-                setErrMsg('No Server Response');
-            } else if (err.response?.status === 400) {
-                setErrMsg('Missing Username or Password');
-            } else if (err.response?.status === 401) {
-                setErrMsg('Unauthorized');
-            } else {
-                setErrMsg('Login Failed');
-            }
+            setErrMsg('No Server Response');
             errRef.current.focus();
         }
     }
@@ -63,13 +68,13 @@ const Page = () => {
                     <h1>You are logged in!</h1>
                     <br />
                     <p>
-                        <a href="#">Go to Home</a>
+                        <Link href="/">Go to Home</Link>
                     </p>
                 </section>
             ) : (
         <section>
             <p ref={errRef} className={errMsg ? "errMsg" : "offscreen"} aria-live="assertive">{errMsg}</p>
-            <h1>Sign in</h1>
+            <h1>Log in</h1>
             <form onSubmit={handleSubmit}>
                 <label htmlFor="username">Username:</label>
                 <input type="text"
@@ -89,13 +94,13 @@ const Page = () => {
                     value={pwd}
                     required
                 />
-                <button>Sign in</button>
+                <button>Log in</button>
             </form>
             <p>
                 Need a Account?<br />
                 <span className="line">
                     {/*router link*/}
-                    <a href="/Register">Sign Up</a>
+                    <Link href="/register">Sign Up</Link>
                 </span>
             </p>
         </section>
