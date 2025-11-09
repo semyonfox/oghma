@@ -5,9 +5,8 @@
 import axios from 'axios';
 import {useRef, useState, useEffect, useContext} from 'react';
 import AuthContext from '@/context/AuthProvider';
-import sql from "@/lib/db.js";
 
-const LOGIN_URL = "http://localhost:5000/auth/login";
+const LOGIN_URL = "/api/login";
 
 const Page = () => {
     const {setAuth} = useContext(AuthContext);
@@ -69,7 +68,6 @@ const Page = () => {
                 </section>
             ) : (
         <section>
-            <AuthContext />
             <p ref={errRef} className={errMsg ? "errMsg" : "offscreen"} aria-live="assertive">{errMsg}</p>
             <h1>Sign in</h1>
             <form onSubmit={handleSubmit}>
