@@ -12,9 +12,8 @@
 *
 * NOTE: this is optional - a good analogy is that if the auth directory is the
 * bartender at massimo's, middleware.js is the bouncer that checks your ID
-* */
 
-const express = require ('express'); //not needed
+
 const app = express();
 const cors = require("cors");
 const users = []
@@ -38,3 +37,4 @@ function weHateCORS(req,res){
         res.json(users)
     });
 }
+*/
