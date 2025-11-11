@@ -4,10 +4,10 @@
 'use client'
 import {useRef, useState, useEffect, useContext} from 'react';
 //import AuthContext from '@/context/AuthProvider';
-// import sql from "@/lib/db.js";
+// import sql from "@/lib/pgsql.js";
 import Link from "next/link";
 
-const LOGIN_URL = "http://localhost:3000/api/auth/login";
+const LOGIN_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`;
 
 const Page = () => {
     // const {setAuth} = useContext(AuthContext);
@@ -33,31 +33,38 @@ const Page = () => {
             const response = await fetch(LOGIN_URL, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({user, pwd}),
+                body: JSON.stringify({email: user, password: pwd}),
                 credentials: 'include',
             });
             if (!response.ok) {
-                if (response.status === 400) {
-                    setErrMsg('Missing Username or Password');
-                } else if (response.status === 401) {
-                    setErrMsg('Unauthorized');
-                } else {
+                // more inclusive error handling
+                console.log('Login failed with status:', response.status);
+                try {
+                    const errorData = await response.json();
+                    setErrMsg(errorData.error || 'Login Failed');
+                    console.log('Server error message:', errorData.error);
+                } catch (parseErr) {
+                    // If response isn't JSON, use generic message
                     setErrMsg('Login Failed');
+                    console.error('Error parsing error response:', parseErr);
                 }
+                setPwd(''); // Clear password on error for security
                 errRef.current.focus();
                 return;
             }
             const data = await response.json();
-            console.log(JSON.stringify(data));
-            const accessToken = data?.accessToken; //optional chaining
-            const roles = data?.roles;
+            console.log('Login successful:', JSON.stringify(data));
+            // Clear form and set success state
             setUser(''); //refreshing the login
             setPwd('');
             setSuccess(true); //letting the person into the web app
-            setAuth && setAuth({ user, pwd, roles, accessToken });
+            // Note: enable when AuthContext is implemented
+            // setAuth({ user, pwd, roles: data?.roles, accessToken: data?.accessToken });
 
         } catch (err) { //error cases for the login
+            console.error('Login error - no server response:', err);
             setErrMsg('No Server Response');
+            setPwd(''); // Clear password on error for security
             errRef.current.focus();
         }
     }
@@ -73,17 +80,18 @@ const Page = () => {
                 </section>
             ) : (
         <section>
-            <p ref={errRef} className={errMsg ? "errMsg" : "offscreen"} aria-live="assertive">{errMsg}</p>
+            <p id="error-msg" ref={errRef} role="alert" className={errMsg ? "errMsg" : "offscreen"} aria-live="assertive">{errMsg}</p>
             <h1>Log in</h1>
             <form onSubmit={handleSubmit}>
-                <label htmlFor="username">Username:</label>
-                <input type="text"
-                   id ="username"
+                <label htmlFor="email">Email:</label>
+                <input type="email"
+                   id ="email"
                    ref={userRef}
                    autoComplete="off"
                    onChange={(e) => setUser(e.target.value)}
                    value={user}
                    required
+                   aria-describedby="error-msg"
                 />
 
                 <label htmlFor="password">Password:</label>
@@ -93,6 +101,7 @@ const Page = () => {
                     onChange={(e) => setPwd(e.target.value)}
                     value={pwd}
                     required
+                    aria-describedby="error-msg"
                 />
                 <button>Log in</button>
             </form>
