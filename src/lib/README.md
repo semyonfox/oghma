@@ -10,7 +10,7 @@ Guidelines:
 Typical files:
 - `utils.js` — shared helpers
 - `api.js` — thin client-side fetch helpers
-- `db.js` (server-only) — database connection/config
+- `pgsql.js` (server-only) — database connection/config
 
 For full project structure and SSR/CSR details, see: ../../README.md
 
