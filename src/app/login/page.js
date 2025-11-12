@@ -2,12 +2,10 @@
 * This login was adapted from Dave Gray's "React User login and Authentication with Axios", and altered using nextJS*/
 
 'use client'
-import {useRef, useState, useEffect, useContext} from 'react';
+import {useRef, useState, useEffect} from 'react';
 //import AuthContext from '@/context/AuthProvider';
-// import sql from "@/lib/pgsql.js";
 import Link from "next/link";
-
-const LOGIN_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`;
+import { login, getErrorMessage } from '@/lib/apiClient';
 
 const Page = () => {
     // const {setAuth} = useContext(AuthContext);
@@ -30,29 +28,7 @@ const Page = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(LOGIN_URL, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email: user, password: pwd}),
-                credentials: 'include',
-            });
-            if (!response.ok) {
-                // more inclusive error handling
-                console.log('Login failed with status:', response.status);
-                try {
-                    const errorData = await response.json();
-                    setErrMsg(errorData.error || 'Login Failed');
-                    console.log('Server error message:', errorData.error);
-                } catch (parseErr) {
-                    // If response isn't JSON, use generic message
-                    setErrMsg('Login Failed');
-                    console.error('Error parsing error response:', parseErr);
-                }
-                setPwd(''); // Clear password on error for security
-                errRef.current.focus();
-                return;
-            }
-            const data = await response.json();
+            const data = await login(user, pwd);
             console.log('Login successful:', JSON.stringify(data));
             // Clear form and set success state
             setUser(''); //refreshing the login
@@ -62,59 +38,91 @@ const Page = () => {
             // setAuth({ user, pwd, roles: data?.roles, accessToken: data?.accessToken });
 
         } catch (err) { //error cases for the login
-            console.error('Login error - no server response:', err);
-            setErrMsg('No Server Response');
+            console.error('Login error:', err);
+            setErrMsg(getErrorMessage(err));
             setPwd(''); // Clear password on error for security
             errRef.current.focus();
         }
     }
     return (
-        <>
-            {success ? (
-                <section>
-                    <h1>You are logged in!</h1>
-                    <br />
-                    <p>
-                        <Link href="/">Go to Home</Link>
-                    </p>
-                </section>
-            ) : (
-        <section>
-            <p id="error-msg" ref={errRef} role="alert" className={errMsg ? "errMsg" : "offscreen"} aria-live="assertive">{errMsg}</p>
-            <h1>Log in</h1>
-            <form onSubmit={handleSubmit}>
-                <label htmlFor="email">Email:</label>
-                <input type="email"
-                   id ="email"
-                   ref={userRef}
-                   autoComplete="off"
-                   onChange={(e) => setUser(e.target.value)}
-                   value={user}
-                   required
-                   aria-describedby="error-msg"
-                />
+        <div className="min-vh-100 d-flex align-items-center justify-content-center bg-dark">
+            <div className="container">
+                <div className="row justify-content-center">
+                    <div className="col-md-5 col-lg-4">
+                        {success ? (
+                            <div className="card bg-dark border-success shadow-lg">
+                                <div className="card-body text-center p-5">
+                                    <h2 className="text-success fw-bold mb-3">Login Successful!</h2>
+                                    <p className="text-light-emphasis mb-4">You are now logged in.</p>
+                                    <Link href="/" className="btn btn-success btn-lg">
+                                        Go to Home
+                                    </Link>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="card bg-dark border-secondary shadow-lg">
+                                <div className="card-body p-4">
+                                    <h1 className="text-center text-light mb-4 fs-3 fw-bold">
+                                        Login to SocsBoard
+                                    </h1>
 
-                <label htmlFor="password">Password:</label>
-                <input
-                    type="password"
-                    id="password"
-                    onChange={(e) => setPwd(e.target.value)}
-                    value={pwd}
-                    required
-                    aria-describedby="error-msg"
-                />
-                <button>Log in</button>
-            </form>
-            <p>
-                Need a Account?<br />
-                <span className="line">
-                    {/*router link*/}
-                    <Link href="/register">Sign Up</Link>
-                </span>
-            </p>
-        </section>
-            )}
-        </>
+                                    {errMsg && (
+                                        <div id="error-msg" ref={errRef} role="alert" aria-live="assertive" className="alert alert-danger mb-3">
+                                            <strong>Error:</strong> {errMsg}
+                                        </div>
+                                    )}
+
+                                    <form onSubmit={handleSubmit}>
+                                        <div className="mb-3">
+                                            <label htmlFor="email" className="form-label text-light">Email</label>
+                                            <input
+                                                type="email"
+                                                id="email"
+                                                ref={userRef}
+                                                autoComplete="off"
+                                                onChange={(e) => setUser(e.target.value)}
+                                                value={user}
+                                                required
+                                                aria-describedby="error-msg"
+                                                className="form-control form-control-lg bg-dark text-light border-secondary"
+                                                placeholder="Enter your email"
+                                            />
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <label htmlFor="password" className="form-label text-light">Password</label>
+                                            <input
+                                                type="password"
+                                                id="password"
+                                                onChange={(e) => setPwd(e.target.value)}
+                                                value={pwd}
+                                                required
+                                                aria-describedby="error-msg"
+                                                className="form-control form-control-lg bg-dark text-light border-secondary"
+                                                placeholder="Enter your password"
+                                            />
+                                        </div>
+
+                                        <button type="submit" className="btn btn-primary btn-lg w-100 mb-3">
+                                            Login
+                                        </button>
+                                    </form>
+
+                                    <hr className="border-secondary" />
+
+                                    <p className="text-center text-light mb-0">
+                                        Need an account?{' '}
+                                        <Link href="/register" className="text-primary text-decoration-none fw-bold">
+                                            Register
+                                        </Link>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
     )
 }
 
