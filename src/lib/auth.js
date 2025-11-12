@@ -1,6 +1,6 @@
 /**
  * Shared Authentication Utilities
- * Provides reusable functions for validation, JWT handling, and session management
+ * Provides reusable functions for JWT handling, session management, and auth responses
  * Consolidates all the common auth logic in one place
  */
 
@@ -8,116 +8,6 @@ import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-// ============================================================
-// VALIDATION UTILITIES
-// ============================================================
-
-/**
- * Validates email format using regex
- * @param {string} email - Email address to validate
- * @returns {boolean} - True if email is valid
- */
-export function validateEmail(email) {
-    if (!email || typeof email !== 'string') {
-        return false;
-    }
-
-    // RFC 5322 simplified email regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
-}
-
-/**
- * Validates password strength
- * @param {string} password - Password to validate
- * @returns {{ isValid: boolean, errors: string[] }} - Validation result with specific errors
- */
-export function validatePassword(password) {
-    const errors = [];
-
-    if (!password || typeof password !== 'string') {
-        errors.push('Password is required');
-        return { isValid: false, errors };
-    }
-
-    if (password.length < 8) {
-        errors.push('Password must be at least 8 characters long');
-    }
-
-    if (!/[A-Z]/.test(password)) {
-        errors.push('Password must contain at least one uppercase letter');
-    }
-
-    if (!/[a-z]/.test(password)) {
-        errors.push('Password must contain at least one lowercase letter');
-    }
-
-    if (!/[0-9]/.test(password)) {
-        errors.push('Password must contain at least one number');
-    }
-
-    return {
-        isValid: errors.length === 0,
-        errors
-    };
-}
-
-/**
- * Validates required fields are present and not empty
- * @param {Object} fields - Object with field names as keys and values to validate
- * @returns {{ isValid: boolean, missingFields: string[] }} - Validation result
- */
-export function validateRequiredFields(fields) {
-    const missingFields = [];
-
-    for (const [fieldName, fieldValue] of Object.entries(fields)) {
-        if (fieldValue == null || fieldValue === '' || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
-            missingFields.push(fieldName);
-        }
-    }
-
-    return {
-        isValid: missingFields.length === 0,
-        missingFields
-    };
-}
-
-/**
- * Validates authentication credentials (email and password)
- * @param {string} email - Email to validate
- * @param {string} password - Password to validate
- * @param {boolean} checkPasswordStrength - Whether to check password strength (true for registration)
- * @returns {{ isValid: boolean, errors: Object }} - Validation result with specific errors
- */
-export function validateAuthCredentials(email, password, checkPasswordStrength = false) {
-    const errors = {};
-
-    // Validate required fields
-    const requiredValidation = validateRequiredFields({ email, password });
-    if (!requiredValidation.isValid) {
-        requiredValidation.missingFields.forEach(field => {
-            errors[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`;
-        });
-    }
-
-    // Validate email format
-    if (email && !validateEmail(email)) {
-        errors.email = 'Invalid email format';
-    }
-
-    // Validate password strength (for registration)
-    if (checkPasswordStrength && password) {
-        const passwordValidation = validatePassword(password);
-        if (!passwordValidation.isValid) {
-            errors.password = passwordValidation.errors.join('; ');
-        }
-    }
-
-    return {
-        isValid: Object.keys(errors).length === 0,
-        errors
-    };
-}
 
 // ============================================================
 // JWT UTILITIES
@@ -205,14 +95,12 @@ export async function clearSessionCookie() {
 
 /**
  * Validates the current session and returns the user data
+ * Useful for middleware and protected route handlers
  * @returns {Object|null} - User data from token or null if invalid
  */
 export async function validateSession() {
     const token = await getSessionCookie();
-    if (!token) {
-        return null;
-    }
-
+    if (!token) return null;
     return verifyJWTToken(token);
 }
 
@@ -242,7 +130,7 @@ export function createSuccessResponse(data, status = 200) {
  */
 export function createErrorResponse(message, status = 400, additionalData = {}) {
     return NextResponse.json(
-        { error: message, ...additionalData },
+        { success: false, error: message, ...additionalData },
         { status }
     );
 }
@@ -255,6 +143,7 @@ export function createErrorResponse(message, status = 400, additionalData = {}) 
 export function createValidationErrorResponse(errors) {
     return NextResponse.json(
         {
+            success: false,
             error: 'Validation failed',
             validationErrors: errors
         },
@@ -283,14 +172,42 @@ export async function createAuthSession(user, expiryDays = 1) {
     await createSessionCookie(token, expiryDays);
 
     // Return success response
-    return createSuccessResponse(
-        {
-            user: {
-                user_id: user.user_id,
-                email: user.email
-            }
-        },
-        200
-    );
+    return createSuccessResponse({
+        user: {
+            user_id: user.user_id,
+            email: user.email
+        }
+    });
 }
 
+// ============================================================
+// REQUEST VALIDATION UTILITIES
+// ============================================================
+
+/**
+ * Validates and parses JSON request body
+ * Checks Content-Type header and parses JSON in one step
+ * @param {Request} request - Next.js request object
+ * @returns {Promise<{data: any, error: NextResponse|null}>} - Parsed data or error response
+ */
+export async function parseJsonBody(request) {
+    // Validate Content-Type header
+    const contentType = request.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        return {
+            data: null,
+            error: createErrorResponse('Content-Type must be application/json', 415)
+        };
+    }
+
+    // Parse JSON body
+    try {
+        const data = await request.json();
+        return { data, error: null };
+    } catch (parseError) {
+        return { 
+            data: null, 
+            error: createErrorResponse('Invalid JSON in request body', 400) 
+        };
+    }
+}

@@ -9,18 +9,21 @@
 
 import bcrypt from "bcrypt";
 // taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
-import sql from "@/lib/pgsql.js";
+import sql from "@/database/pgsql.js";
+import { validateAuthCredentials } from "@/lib/validation.js";
 import {
-    validateAuthCredentials,
     createAuthSession,
     createErrorResponse,
-    createValidationErrorResponse
+    createValidationErrorResponse,
+    parseJsonBody
 } from "@/lib/auth.js";
 
 export async function POST(request) {
     try {
-        // 1. Parse and extract request body
-        const body = await request.json();
+        // 1. Parse and validate request body
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
+
         const { email, password } = body;
 
         // 2. Validate credentials format and password strength
