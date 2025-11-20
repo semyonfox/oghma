@@ -1,0 +1,23 @@
+version: '3.9'
+
+services:
+  # Next.js application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ct216_web
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - .env
+    networks:
+      ct2106:
+        ipv4_address: 172.30.10.8
+
+networks:
+  ct2106:
+    external: true
+
