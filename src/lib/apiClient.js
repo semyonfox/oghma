@@ -34,7 +34,7 @@ async function parseErrorResponse(response) {
         return await response.json();
     } catch (parseErr) {
         // If response isn't JSON, return generic error
-        return { error: `Request failed with status ${response.status}` };
+        return {error: `Request failed with status ${response.status}`};
     }
 }
 
@@ -175,23 +175,23 @@ export async function apiDelete(url, options = {}) {
 // ============================================================
 
 /**
- * Login user
+ * login user
  * @param {string} email - User email
  * @param {string} password - User password
  * @returns {Promise<Object>} - User data and success status
  */
 export async function login(email, password) {
-    return apiPost('/api/auth/login', { email, password });
+    return apiPost('/api/auth/login', {email, password});
 }
 
 /**
- * Register new user
+ * register new user
  * @param {string} email - User email
  * @param {string} password - User password
  * @returns {Promise<Object>} - User data and success status
  */
 export async function register(email, password) {
-    return apiPost('/api/auth/register', { email, password });
+    return apiPost('/api/auth/register', {email, password});
 }
 
 /**
