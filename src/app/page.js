@@ -1,104 +1,61 @@
-import Image from "next/image";
-import styles from "./page.module.css";
-
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.js</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+    <div className="min-vh-100 bg-dark bg-gradient">
+      {/* Hero Section */}
+        <div className="container py-5">
+          <div className="row justify-content-center text-center">
+            <div className="col-lg-8">
+              <h1 className="display-3 text-light fw-bold mb-4">
+                Welcome to <span className="text-primary">SocsBoard</span>
+              </h1>
+              <p className="lead text-light-emphasis">
+                A social platform for society-student interaction
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 24 }}>
-          <h2>Demo pages</h2>
-          <ul>
-            <li><a href="/csr">Client-Side Rendering (CSR) demo</a></li>
-            <li><a href="/ssr">Server-Side Rendering (SSR) demo</a></li>
-            <li><a href="/api">API index</a> — try <a href="/api/time">/api/time</a></li>
-          </ul>
+      {/* Main Content */}
+      <div className="container py-5">
+        <div className="row justify-content-center">
+          <div className="col-lg-8">
+            <h2 className="text-light text-center mb-5">Get Started</h2>
+
+            <div className="row g-4">
+              {/* Login Card */}
+              <div className="col-md-6">
+                <div className="card bg-dark border-primary shadow-lg h-100">
+                  <div className="card-body text-center p-4">
+                    <h5 className="text-light fw-bold mb-3">Login</h5>
+                    <p className="text-light-emphasis mb-4">
+                      Access your account and continue where you left off
+                    </p>
+                    <a href="/login" className="btn btn-primary w-100">
+                      Login
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Register Card */}
+              <div className="col-md-6">
+                <div className="card bg-dark border-success shadow-lg h-100">
+                  <div className="card-body text-center p-4">
+                    <h5 className="text-light fw-bold mb-3">Register</h5>
+                    <p className="text-light-emphasis mb-4">
+                      Create a new account and join our community
+                    </p>
+                    <a href="/register" className="btn btn-success w-100">
+                      Register
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
   );
 }
+
