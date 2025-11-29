@@ -1,0 +1,1017 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{parskip}
+\geometry{margin=1in}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\LARGE \textbf{SocsBoard} \\[1.5em]}
+    {\Large Software Requirements Specification \\[1em]}
+    {\large Version 1 \\[0.5em] 7/11/25 \\[2em]}
+    {\large Caoilfhionn Fitzpatrick, Samuel Regan, Semyon Fox, Shreyansh Singh \\[4em]}
+    Prepared for\\
+    CT216---Software Engineering I
+    \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+\subsection{Purpose}
+
+This Software Requirements Specification (SRS) document provides a comprehensive description of the University Society Platform (SocsBoard) project requirements. It details the functional and non-functional requirements, user stories, and acceptance criteria for the platform.
+
+\textbf{The SRS is intended for:}
+\begin{itemize}
+  \item The development team
+  \item The project manager (Semyon Fox) for reviews and approval management
+  \item Module instructors and academic assessors
+  \item Future maintainers and contributors
+  \item Stakeholders interested in the technical scope and deliverables
+\end{itemize}
+
+\textbf{This document serves as the foundation for:}
+\begin{itemize}
+    \item Development planning and task allocation
+    \item Testing and quality assurance
+    \item Project progress tracking
+    \item Academic evaluation
+\end{itemize}
+
+\subsection{Key Stakeholders}
+
+\begin{enumerate}[label=(\arabic*)]
+    \item \textbf{Project Manager:} Semyon
+    \begin{enumerate}
+        \item Responsible for pull request reviews and approvals
+        \item Manage merge conflicts and code quality
+        \item Facilitates architecture decisions
+        \item Coordinates team tasks
+    \end{enumerate}
+
+    \item \textbf{Development Team:} 4 full-stack developers
+    \begin{enumerate}
+        \item Build features through, end to end (frontend, backend, database)
+        \item Write tests and documentation for their features
+        \item Participate in code reviews
+        \item Own 2-3 features each
+    \end{enumerate}
+
+    \item \textbf{End Users:}
+    \begin{enumerate}
+        \item \textbf{Students:} Discover society events and updates, view society posts/events, show interest in an event and receive personalised recommendations
+        \item \textbf{Society Committee:} Create and manage events, posted content and view engagement analytics
+        \item \textbf{Sudo:} Platform management, user moderation, system monitoring
+    \end{enumerate}
+
+    \item \textbf{University Administration:}
+    \begin{enumerate}
+        \item Provide OAuth authentication services
+        \item Supply student data (by API access)
+        \item Approve production deployment
+    \end{enumerate}
+
+    \item \textbf{Academic Assessors:}
+    \begin{enumerate}
+        \item Module teaching staff evaluating deliverables
+        \item Assess technical implementation, documentation and knowledge
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Scope, Objectives and Goals}
+
+\subsubsection{Software System Identified}
+
+The \textbf{SocsBoard (University Society Platform)} is a full-stack web-based social and event platform with a recommendation engine that connects students with society events and social content through personalized relevance scoring.
+
+\textbf{Current Deployment:} The platform is currently hosted at \url{https://your-domain.com} using a Cloudflare Tunnel. The application runs securely within Docker containers with all databases isolated in a dedicated subnet on a private server infrastructure.
+
+\subsubsection{Scope}
+
+\textbf{What the system WILL do:}
+\begin{itemize}
+    \item Provide full event management capabilities, including creation, promotion, capacity tracking, and multilingual descriptions
+    \item Support social content sharing through posts, images, and informal updates
+    \item Deliver personalized recommendations based on user behavior, interests, and society memberships
+    \item Handle authentication through university OAuth (Microsoft Azure AD) with automatic synchronization of student data (course, department, year, memberships) (Subject to approval by ISS)
+    \item Ensure GDPR compliance and support both English and Irish UI languages, with optional translation for user-generated content
+    \item Provide analytics dashboards displaying engagement trends, demographics, and event performance metrics
+\end{itemize}
+
+\textbf{What the system will NOT do:}
+\begin{itemize}
+    \item Payment processing, ticketing, or any financial transactions
+    \item Private messaging or chat functionality
+    \item Academic features (grades, timetables, assignments)
+\end{itemize}
+
+\subsubsection{Benefits}
+
+\textbf{\textit{For Students:}}
+\begin{itemize}
+    \item Discover relevant events through personalized recommendations
+    \item Access all society activity in one centralized location
+    \item Benefit from multilingual support
+    \item Easily register for and track event attendance
+\end{itemize}
+
+\textbf{\textit{For Societies:}}
+\begin{itemize}
+    \item Promote events centrally
+    \item Share both formal and casual content
+    \item Analyze engagement metrics
+    \item Reach students beyond their current membership
+\end{itemize}
+
+\textbf{\textit{For the University:}}
+\begin{itemize}
+    \item Gain improved engagement insights
+    \item Track participation rates
+    \item Enhance student experience
+    \item Obtain data-driven visibility into campus life
+\end{itemize}
+
+\subsubsection{Technical Objectives}
+
+\textbf{Learning and Development:}
+\begin{itemize}
+    \item Develop full-stack expertise using Next.js, React, PostgreSQL, and Redis
+    \item Learn server-side rendering, client-side rendering, caching strategies, and OAuth implementation
+    \item Adopt DevOps practices including Docker, CI/CD pipelines, and AWS deployment
+    \item Build a multilingual application from the ground up
+\end{itemize}
+
+\textbf{Performance Targets:}
+\begin{itemize}
+    \item Fast page-load times for slower mobile connections, or bad WiFi coverage areas on campus
+    \item Support for 100+ concurrent users
+    \item Efficient Redis caching implementation
+\end{itemize}
+
+\textbf{Security Requirements:}
+\begin{itemize}
+    \item Secure OAuth implementation with no password storage
+    \item Protection against XSS/CSRF/SQL-injection attacks
+    \item GDPR compliance
+\end{itemize}
+
+\textbf{Scalability Goals:}
+\begin{itemize}
+    \item Database architecture that supports potentially thousands of users
+    \item Extensible system design
+    \item Cache-based recommendation engine
+    \item Horizontal scaling capability
+\end{itemize}
+
+\subsubsection{Project Goals}
+
+\textbf{\textit{Academic:}}
+\begin{itemize}
+    \item Deliver a functional prototype by Christmas with documentation and demonstrations
+    \item Achieve high module performance
+    \item Demonstrate strong software engineering practices throughout development
+\end{itemize}
+
+\textbf{\textit{Career Development:}}
+\begin{itemize}
+    \item Produce a portfolio-quality project showcasing industry-standard tooling experience
+    \item Improve teamwork and code review skills
+    \item Create compelling interview talking points
+\end{itemize}
+
+\textbf{\textit{Real-World Impact:}}
+\begin{itemize}
+    \item Address the genuine problem of student event discovery
+    \item Enable potential campus deployment
+    \item Gather feedback from actual users
+    \item Iterate based on live usage patterns
+\end{itemize}
+
+\subsection{References}
+
+\subsubsection{Project Documentation}
+
+This SRS references the following internal project documents:
+
+\begin{enumerate}
+    \item \textbf{PROJECT\_OVERVIEW.md}
+    \begin{itemize}
+        \item Complete project scope and evolution
+        \item 8-week timeline
+        \item Team structure and approach
+        \item Source: \texttt{/docs/PROJECT\_OVERVIEW.md}
+    \end{itemize}
+
+    \item \textbf{ARCHITECTURE\_AND\_TECH\_STACK.md}
+    \begin{itemize}
+        \item Technical architecture decisions
+        \item Database schema design
+        \item Technology stack rationale
+        \item Source: \texttt{/docs/ARCHITECTURE\_AND\_TECH\_STACK.md}
+    \end{itemize}
+
+    \item \textbf{INFRASTRUCTURE\_AND\_DEVOPS.md}
+    \begin{itemize}
+        \item Docker setup and deployment
+        \item CI/CD pipeline configuration
+        \item AWS migration strategy
+        \item Source: \texttt{/docs/INFRASTRUCTURE\_AND\_DEVOPS.md}
+    \end{itemize}
+
+    \item \textbf{REDIS\_CACHING\_GUIDE.md}
+    \begin{itemize}
+        \item Redis implementation details
+        \item Caching strategies and patterns
+        \item Performance optimization
+        \item Source: \texttt{/docs/REDIS\_CACHING\_GUIDE.md}
+    \end{itemize}
+
+    \item \textbf{Stack Diagram.excalidraw.md}
+    \begin{itemize}
+        \item Visual system architecture
+        \item Component relationships
+        \item Source: \texttt{/docs/Stack Diagram.excalidraw.md}
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{External References}
+
+The following external documentation and technical resources are referenced:
+
+\begin{itemize}
+    \item \textbf{Next.js Documentation} (v14+) \\
+    Available at: \url{https://nextjs.org/docs}
+
+    \item \textbf{React Documentation} (v18+) \\
+    Available at: \url{https://react.dev}
+
+    \item \textbf{PostgreSQL Documentation} (v15+) \\
+    Available at: \url{https://www.postgresql.org/docs/15/}
+
+    \item \textbf{Redis Documentation} (v7+) \\
+    Available at: \url{https://redis.io/docs}
+
+    \item \textbf{Bootstrap Documentation} (v5.3) \\
+    Available at: \url{https://getbootstrap.com/docs/5.3/}
+
+    \item \textbf{next-intl Documentation} \\
+    Available at: \url{https://next-intl-docs.vercel.app}
+
+    \item \textbf{Microsoft Azure AD OAuth Documentation} \\
+    Available at: \url{https://learn.microsoft.com/en-us/azure/active-directory/}
+\end{itemize}
+
+\subsubsection{Module Requirements}
+
+\begin{itemize}
+    \item \textbf{CT216 Software Engineering I Course Outline} \\
+    University College, Academic Year 2025/26
+
+    \item \textbf{Project Brief:} Full-stack web application using HTML, CSS, JavaScript, and Node.js
+
+    \item \textbf{Assessment Criteria:} 40\% of module grade
+
+    \item \textbf{Submission Deadlines:}
+    \begin{itemize}
+        \item Prototype: Christmas break
+        \item Total project time: 6 months
+    \end{itemize}
+\end{itemize}
+
+\subsection{Overview}
+
+This SRS document is organized into the following sections:
+
+\textbf{Section 1: Introduction} - Establishes the document's purpose, identifies key stakeholders and their roles, defines the project scope with clear boundaries, lists reference documents, and provides this structural overview.
+
+\textbf{Section 2: Functional Requirements} - Contains user stories organized by epic (Authentication, Events, Social Posts, Recommendations, etc.) with acceptance criteria, plus interface requirements covering UI design philosophy and API structure.
+
+\textbf{Section 3: Project Timeline} - Outlines development phases, key milestones, and risk management strategies. Detailed Gantt charts maintained separately.
+
+\textbf{Appendices} - Supplementary material including glossary and additional technical details. Appendix content is informational and not part of the formal requirements unless explicitly stated.
+
+\newpage
+\section{Functional Requirements}
+
+\subsection{User Stories}
+
+\subsubsection{Epic 1: User Authentication \& Profile Management}
+
+\textbf{User Story 1.1: University OAuth Login}
+\begin{itemize}
+    \item ``As a student or society member, I want to log in using my university account credentials so that I can access the platform securely without creating a separate password.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User can click ``Login with University Account'' button on the landing page
+        \item User is redirected to Microsoft Azure AD authentication page
+        \item System receives OAuth callback and exchanges authorization code for access token
+        \item System creates or updates user record in the database
+        \item User is redirected to personalized dashboard
+        \item User remains logged in across browser sessions
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 1.2: User Profile Setup}
+\begin{itemize}
+    \item ``As a new user, I want to complete my profile with interests and preferences so that I receive personalized recommendations.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item After first login, user is prompted to complete profile
+        \item User can select interests from predefined categories (sports, music, technology, arts, etc.)
+        \item User can set language preference (Irish or English)
+        \item Changes are saved and reflected immediately
+        \item Recommendations are updated based on new interests
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 1.3: Session Management}
+\begin{itemize}
+    \item ``As a logged-in user, I want to stay logged in securely across sessions so that I don't have to re-authenticate every visit.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User session is stored in Redis with TTL
+        \item User can manually log out, invalidating their session
+        \item User sees ``Session expired'' message after inactivity period
+        \item Multiple concurrent sessions are supported
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 2: Event Discovery \& Management}
+
+\textbf{User Story 2.1: Browse Events}
+\begin{itemize}
+    \item ``As a student, I want to browse upcoming events so that I can discover activities that interest me.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Landing page shows list of upcoming events sorted by date
+        \item Each event card displays: title, society name, date/time, location, thumbnail
+        \item Events show remaining capacity if limited
+        \item User can filter by date range, society, and category
+        \item User can search events by keyword
+        \item ``Recommended for You'' section appears at top
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 2.2: View Event Details}
+\begin{itemize}
+    \item ``As a student, I want to view detailed information about an event so that I can decide whether to attend.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Event detail page shows full description, date, location, society info
+        \item Shows number of registered attendees and capacity
+        \item ``Register'' button visible (or ``Registered'' if already registered)
+        \item Translation badge shows if content is auto-translated
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 2.3: Register for Event}
+\begin{itemize}
+    \item ``As a student, I want to register for an event so that I can attend and receive updates.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User clicks ``Register'' button on event detail page
+        \item If capacity limit reached, user is added to waitlist
+        \item User sees confirmation message
+        \item User can unregister by clicking ``Cancel Registration''
+        \item Capacity count updates accordingly
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 2.4: Create Event (Society Admin)}
+\begin{itemize}
+    \item ``As a society committee member, I want to create a new event so that students can discover and attend it.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User with society admin role sees ``Create Event'' button
+        \item Form includes: title, description, date/time, location, capacity, image, category
+        \item Language options: provide both languages, auto-translate, or single language
+        \item Event can be saved as draft or published
+        \item Event appears in listings immediately upon publishing
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 2.5: Edit/Delete Event}
+\begin{itemize}
+    \item ``As a society committee member, I want to edit or delete an event so that I can correct mistakes or cancel events.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Society admin sees ``Edit'' and ``Delete'' buttons on their events
+        \item Edit opens form pre-filled with existing data
+        \item Delete requires confirmation
+        \item Registered users notified if event is cancelled
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 2.6: Calendar Integration}
+\begin{itemize}
+    \item ``As a student, I want to add events to my personal calendar so that I don't miss events I'm interested in.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item ``Add to Calendar'' button visible on event detail pages
+        \item Generates .ics file compatible with major calendar applications
+        \item Calendar integration for registered events and expressed interest
+        \item Calendar entries include: event title, date/time, location, description, society info
+        \item Supports Google Calendar, Apple Calendar, Outlook, and other iCalendar-compatible applications
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 3: Social Posts \& Society Interaction}
+
+\textbf{User Story 3.1: Create Social Post}
+\begin{itemize}
+    \item ``As a society member, I want to post casual content so that I can engage with students informally.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Society member sees ``Create Post'' button
+        \item Form includes text content and optional image upload
+        \item Post appears in society feed immediately
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 3.2: View Social Feed}
+\begin{itemize}
+    \item ``As a student, I want to see posts from societies I follow so that I can stay updated.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User sees ``Social Feed'' section on dashboard
+        \item Feed shows posts from followed societies
+        \item Posts display: society name, content, image, timestamp
+        \item Posts sorted by recency or relevance
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 3.3: Interact with Posts}
+\begin{itemize}
+    \item ``As a student, I want to like or ignore posts so that the system learns my preferences.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item User can click ``Like'' button on any post
+        \item User can click ``Not Interested'' to hide post
+        \item Interactions recorded for recommendation algorithm
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 3.4: Follow/Unfollow Society}
+\begin{itemize}
+    \item ``As a student, I want to follow societies I'm interested in so that I see their events and posts.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item ``Follow'' button on society profile page
+        \item Button toggles to ``Following'' when clicked
+        \item User can unfollow at any time
+        \item Followed societies appear on user dashboard
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 4: Personalized Recommendations}
+
+\textbf{User Story 4.1: Receive Event Recommendations}
+\begin{itemize}
+    \item ``As a student, I want to see personalized event recommendations so that I discover relevant activities without searching.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item ``Recommended for You'' section on dashboard
+        \item Shows top recommended events
+        \item Each recommendation shows reason (``Because you attended...'', ``Popular in your department'')
+        \item Recommendations based on: society memberships, past attendance, stated interests, department
+        \item User can dismiss recommendations (``Not Interested'')
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 4.2: Recommendation Feedback}
+\begin{itemize}
+    \item ``As a student, I want to provide feedback on recommendations so that the system improves over time.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Each recommendation has ``Interested'' and ``Not Interested'' buttons
+        \item Feedback influences future recommendations
+        \item User can see why content was recommended
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 5: Multilingual Support}
+
+\textbf{User Story 5.1: Switch Language}
+\begin{itemize}
+    \item ``As a user, I want to switch between English and Irish so that I can use the platform in my preferred language.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Language selector visible in navigation header
+        \item UI elements change immediately on selection
+        \item Language preference saved
+        \item User-generated content displays in selected language if available
+        \item Fallback to English with notice if translation unavailable
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 5.2: Create Multilingual Content}
+\begin{itemize}
+    \item ``As a society admin, I want to create content in both English and Irish so that all students can engage.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Event/post form has tabs for both languages
+        \item User can provide manual translations
+        \item Auto-translate option available (DeepL API)
+        \item Translation quality badge displayed on content
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 6: Society Dashboard \& Analytics}
+
+\textbf{User Story 6.1: View Society Dashboard}
+\begin{itemize}
+    \item ``As a society committee member, I want to access a dashboard with all management tools so that I can efficiently manage events and posts.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Dashboard shows: upcoming events, recent posts, follower count
+        \item Quick actions: ``Create Event'', ``Create Post''
+        \item Analytics summary visible
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 6.2: View Engagement Analytics}
+\begin{itemize}
+    \item ``As a society committee member, I want to see analytics about engagement so that I can understand what content resonates.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Analytics show: registration trends, attendance rates, post engagement, follower growth
+        \item Demographics breakdown: department, year of study
+        \item Data visualized with charts
+        \item Filterable by date range
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{Epic 7: Administrative Functions}
+
+\textbf{User Story 7.1: Moderate Content}
+\begin{itemize}
+    \item ``As a super admin, I want to review and moderate content so that the platform remains safe and appropriate.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Admin panel shows reported posts and events
+        \item Admin can delete or hide inappropriate content
+        \item Admin can ban users with confirmation
+        \item Actions logged in audit trail
+    \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 7.2: View Platform Analytics}
+\begin{itemize}
+    \item ``As a super admin, I want to view platform-wide analytics so that I can monitor system health and usage.''
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Shows: total users, active users, total events, total posts
+        \item Most popular societies
+        \item Trends visualized with charts
+    \end{enumerate}
+\end{itemize}
+
+\subsection{Interface Requirements}
+
+\subsubsection{User Interfaces}
+
+\textbf{Design Philosophy:}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|p{4cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Interface} & \textbf{Approach} & \textbf{Rationale} \\
+\hline
+Society Dashboard / Admin & Desktop-first & Complex data tables, analytics charts, multi-field forms - optimized for larger screens \\
+\hline
+Student Interface & Mobile-first & Casual browsing, quick event check-ins, social feed scrolling - primary use case is phone \\
+\hline
+\end{tabular}
+\end{table}
+
+\textit{Note: Future consideration for Cordova wrapper for app store distribution - trades native experience for increased app size.}
+
+\textbf{UI/UX Design Principles:}
+
+\begin{itemize}
+    \item \textbf{Consistent \& Modern:} Clean, unified design language across all interfaces with smooth transitions and modern aesthetics
+    \item \textbf{Accessible:} Easy to use for all users regardless of technical ability
+    \item \textbf{Feed-Based Discovery:} Instagram-like scrolling experience for recommendations, designed to be engaging without being ``doomscrolly''
+    \item \textbf{Perplexity-Inspired Sidebar:} Clean navigation with main options:
+    \begin{itemize}
+        \item Search
+        \item Explore
+        \item Societies
+        \item Events
+        \item Calendar
+        \item Dashboard (conditional - only visible to society admins)
+    \end{itemize}
+\end{itemize}
+
+\textbf{Unauthenticated Access:}
+\begin{itemize}
+    \item Platform viewable without login (non-personalized results)
+    \item All user interactions blocked until authentication
+    \item Browse events, societies, and content in read-only mode
+    \item Login required for: following, liking, registering, posting, analytics
+\end{itemize}
+
+\textbf{Key Interface Components:}
+
+\begin{enumerate}
+    \item \textbf{Landing Page (Unauthenticated)}
+    \begin{itemize}
+        \item Hero section with platform tagline and login button
+        \item Featured events preview (non-personalized)
+        \item Language selector
+        \item Perplexity-style sidebar with limited navigation
+    \end{itemize}
+
+    \item \textbf{Student Dashboard (Authenticated)}
+    \begin{itemize}
+        \item Feed-based recommendation display (Instagram-like scrolling)
+        \item Upcoming registered events with calendar view
+        \item Social feed from followed societies
+        \item Sidebar navigation: Search, Explore, Societies, Events, Calendar
+        \item Integrated calendar view showing registered events and events of interest
+    \end{itemize}
+
+    \item \textbf{Event Detail Page}
+    \begin{itemize}
+        \item Full event information with banner image
+        \item Registration button with capacity indicator (login required)
+        \item ``Add to Calendar'' button for calendar integration
+        \item Society information card
+        \item Similar events suggestions
+    \end{itemize}
+
+    \item \textbf{Calendar View}
+    \begin{itemize}
+        \item Monthly/weekly calendar displaying registered events
+        \item Visual indicators for events with expressed interest
+        \item ``Add to Personal Calendar'' integration (.ics export)
+        \item Filter by society or event type
+        \item Click event to view details
+    \end{itemize}
+
+    \item \textbf{Society Dashboard (Committee View)}
+    \begin{itemize}
+        \item Event/post management with CRUD actions
+        \item Analytics overview with charts
+        \item Follower metrics
+        \item Additional ``Dashboard'' option in sidebar
+    \end{itemize}
+
+    \item \textbf{Social Feed}
+    \begin{itemize}
+        \item Card-based post layout with smooth scrolling
+        \item Infinite scroll (engaging but not addictive)
+        \item Like and ``Not Interested'' actions (authenticated only)
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Calendar Features Summary:}
+\begin{itemize}
+    \item In-platform calendar view for all registered events and events of interest
+    \item Export to personal calendars via .ics file generation
+    \item Compatible with Google Calendar, Apple Calendar, Outlook, and other iCalendar applications
+    \item Automatic calendar entries for event registrations
+    \item Optional calendar integration for expressed interest
+\end{itemize}
+
+\textit{Mockups to be created using Excalidraw/Figma and stored in \texttt{/mockups/} directory.}
+
+\subsubsection{API Interface}
+
+RESTful JSON API with JWT authentication.
+
+\textbf{Endpoint Groups:}
+\begin{itemize}
+    \item \texttt{/api/auth/*} - OAuth login, callback, logout, token refresh
+    \item \texttt{/api/users/*} - Profile management, interests
+    \item \texttt{/api/events/*} - Event CRUD, registration, search
+    \item \texttt{/api/posts/*} - Post CRUD, feed
+    \item \texttt{/api/societies/*} - Society profiles, follow/unfollow, analytics
+    \item \texttt{/api/recommendations} - Personalized content
+    \item \texttt{/api/interactions} - Likes, ignores, feedback
+    \item \texttt{/api/translate} - DeepL API proxy
+\end{itemize}
+
+\textbf{Rate Limiting:} 100 req/min (authenticated), 20 req/min (unauthenticated)
+
+\textbf{Authentication:} JWT token in \texttt{Authorization: Bearer <token>} header
+
+\subsubsection{External System Interfaces}
+
+\begin{enumerate}
+    \item \textbf{University OAuth (Microsoft Azure AD)}
+    \begin{itemize}
+        \item OAuth 2.0 authorization code flow
+        \item Scopes: openid, profile, email, User.Read
+        \item Callback URL configured in Azure portal
+    \end{itemize}
+
+    \item \textbf{Student Data API} (Subject to ISS approval)
+    \begin{itemize}
+        \item Sync student data: courses, department, year, society memberships
+        \item Daily sync via cron job + manual refresh option
+    \end{itemize}
+
+    \item \textbf{DeepL Translation API}
+    \begin{itemize}
+        \item Auto-translate user-generated content
+        \item English $\leftrightarrow$ Irish translations
+        \item Usage monitoring to stay within quota
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Infrastructure}
+
+\textbf{Current Deployment Architecture:}
+\begin{itemize}
+    \item \textbf{Hosting:} Self-hosted server accessible via \url{https://your-domain.com}
+    \item \textbf{Cloudflare Tunnel:} Secure tunnel for external access without exposing server ports
+    \item \textbf{Cloudflare CDN:} Global content delivery with automatic caching
+    \item \textbf{Docker Containerization:} All services (Next.js, PostgreSQL, Redis) run in isolated containers
+    \item \textbf{Network Security:} Dedicated subnet isolating databases from external access
+    \item \textbf{SSL/TLS:} Cloudflare-managed certificates for HTTPS
+\end{itemize}
+
+\textbf{Recommendation Algorithm Implementation Strategy:}
+
+\begin{itemize}
+    \item \textbf{Initial Deployment:} Python-based implementation for rapid development and quick deployment
+    \begin{itemize}
+        \item Fast iteration and testing of recommendation logic
+        \item Serves as production baseline during Semester 2 development
+        \item Allows team to validate algorithm effectiveness early
+    \end{itemize}
+
+    \item \textbf{Optional C++/Rust Rewrite:} Personal development opportunity for project manager (Semyon)
+    \begin{itemize}
+        \item Timeline-dependent: only pursued if project timeline permits
+        \item Primary purpose: systems programming language learning
+        \item Not required for project completion or assessment
+        \item Would provide performance improvements if implemented
+    \end{itemize}
+\end{itemize}
+
+\textbf{Planned Infrastructure Improvements:}
+
+\textit{Note: The following are preliminary plans and not definitive implementations. Final architecture may vary based on performance requirements and resource constraints.}
+
+\begin{itemize}
+    \item \textbf{Internal Nginx Proxy:}
+    \begin{itemize}
+        \item Nginx layer between Cloudflare and Next.js for enhanced caching
+        \item Cache static assets locally to reduce Cloudflare CDN misses
+        \item Load balancing across multiple Next.js instances if needed
+        \item Additional request filtering and rate limiting
+    \end{itemize}
+\end{itemize}
+
+\newpage
+\section{Project Timeline}
+
+\subsection{Project Overview}
+
+\textbf{Total Duration:} Academic Year 2025/26 (Two Semesters)
+
+\textbf{Semester 1 (Completed):}
+\begin{itemize}
+    \item Planning and requirements gathering
+    \item Technology stack research and selection
+    \item Infrastructure setup and deployment testing
+    \item GitHub repository setup with CI/CD foundations
+    \item Basic authentication system (bcrypt-based, custom implementation)
+    \item PostgreSQL database (single table)
+    \item Basic UI (home, login, register pages with generic styling)
+    \item Deployment to production server (\url{https://your-domain.com})
+\end{itemize}
+
+\textbf{Semester 2 (12 Weeks):} Main development phase - all remaining features
+
+\textbf{Final Submission:} End of Semester 2, Summer 2026
+
+\subsection{Semester 2 Development Approach (12 Weeks)}
+
+\textbf{Development Model:} Parallel feature development with 4 developers working independently on assigned features. Each developer owns 2-3 features end-to-end (frontend, backend, database).
+
+\subsubsection{Infrastructure Setup Phase (Weeks 1-2)}
+Shared infrastructure setup performed by team:
+\begin{itemize}
+    \item Database schema expansion and finalization
+    \item OAuth migration from custom auth to Microsoft Azure AD
+    \item Redis setup and caching infrastructure
+    \item API rate limiting and authentication framework
+\end{itemize}
+
+\subsubsection{Parallel Feature Development (Weeks 3-10)}
+
+\textbf{Feature Teams (Parallel):}
+
+\begin{enumerate}
+    \item \textbf{Events System} (Developer A)
+    \begin{itemize}
+        \item Event CRUD operations (create, read, update, delete)
+        \item Registration and capacity management
+        \item Event search and filtering
+        \item Timeline: Weeks 3-10 (ongoing refinement)
+    \end{itemize}
+
+    \item \textbf{Societies \& Social Posts} (Developer B)
+    \begin{itemize}
+        \item Society profiles and management
+        \item Follow/unfollow functionality
+        \item Post creation and feed display
+        \item Post interactions (like, ignore)
+        \item Timeline: Weeks 3-10 (ongoing refinement)
+    \end{itemize}
+
+    \item \textbf{Recommendation Engine} (Developer C)
+    \begin{itemize}
+        \item Python-based algorithm implementation
+        \item Batch processing and caching with Redis
+        \item Scoring logic based on interests, attendance, department
+        \item Timeline: Weeks 3-10 (ongoing refinement and optimization)
+    \end{itemize}
+
+    \item \textbf{Multilingual Support \& Calendar Integration} (Developer D)
+    \begin{itemize}
+        \item next-intl configuration and UI language switching
+        \item DeepL API integration for auto-translation
+        \item Calendar view and .ics export functionality
+        \item UI/UX polish and accessibility improvements
+        \item Timeline: Weeks 3-10 (ongoing refinement)
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Integration Points:}
+\begin{itemize}
+    \item Weekly code reviews and integration testing
+    \item API contract testing between features
+    \item Shared database and Redis access
+    \item Continuous integration via GitHub Actions
+\end{itemize}
+
+\subsection{Key Milestones}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|c|p{8cm}|}
+\hline
+\textbf{Milestone} & \textbf{Week} & \textbf{Deliverable} \\
+\hline
+M0 (Complete) & S1 & Basic auth, database, deployment, planning \\
+\hline
+M1 & Week 2 & Infrastructure setup complete: OAuth, Redis, database schema finalized \\
+\hline
+M2 & Week 6 & All features in alpha: Events, Societies/Posts, Recommendations, Multilingual \\
+\hline
+M3 & Week 9 & All features functionally complete with integration testing \\
+\hline
+M4 & Week 10 & UI/UX polish, accessibility, performance optimization \\
+\hline
+M5 & Week 11 & Comprehensive testing, bug fixes, production readiness \\
+\hline
+M6 & Week 12 & Final documentation, demo, submission \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Gantt Charts}
+
+\textit{[PLACEHOLDER: Detailed Gantt charts to be created and maintained separately]}
+
+\subsection{Risk Management}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|p{4cm}|c|c|p{5cm}|}
+\hline
+\textbf{Risk} & \textbf{Prob.} & \textbf{Impact} & \textbf{Mitigation} \\
+\hline
+University OAuth approval delayed & Medium & High & Continue with custom auth, add OAuth if approved \\
+\hline
+Student API access denied & High & Medium & Manual profile setup, no automatic sync \\
+\hline
+Timeline slippage (12 weeks) & High & High & Prioritize core features: events, societies, basic recommendations \\
+\hline
+Team member unavailable & Medium & Medium & PM can assist development, task redistribution \\
+\hline
+Recommendation algorithm complexity & Medium & High & Start with simple scoring, optimize later \\
+\hline
+Multilingual implementation time & Medium & Medium & English-only MVP, add Irish if time permits \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{MVP Core Features (Must-Have):}
+\begin{itemize}
+    \item Events system (CRUD, registration, basic search)
+    \item Societies (profiles, following)
+    \item Basic recommendation algorithm
+    \item Responsive UI with feed layout
+\end{itemize}
+
+\textbf{Secondary Features (Nice-to-Have):}
+\begin{itemize}
+    \item Social posts and interactions
+    \item Calendar integration (.ics export)
+    \item Analytics dashboard
+    \item Multilingual support (Irish)
+    \item DeepL auto-translation
+    \item University OAuth migration
+\end{itemize}
+
+\textbf{Stretch Goals (If Time Permits):}
+\begin{itemize}
+    \item Advanced recommendation algorithm (Python/Rust rewrite)
+    \item Internal Nginx caching layer
+    \item Push notifications
+    \item Student API integration
+\end{itemize}
+
+\newpage
+\section*{A. Appendices}
+
+\textit{The information contained in these appendices is supplementary and informational. It is not considered part of the formal requirements unless explicitly referenced in Sections 1-3.}
+
+\subsection*{A.1 Glossary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|p{3cm}|p{10cm}|}
+\hline
+\textbf{Term} & \textbf{Definition} \\
+\hline
+API & Application Programming Interface \\
+\hline
+CSRF & Cross-Site Request Forgery - security vulnerability \\
+\hline
+GDPR & General Data Protection Regulation - EU data privacy law \\
+\hline
+JWT & JSON Web Token - authentication token format \\
+\hline
+OAuth & Open Authorization - delegated authentication standard \\
+\hline
+RBAC & Role-Based Access Control \\
+\hline
+Redis & In-memory data store for caching and sessions \\
+\hline
+SSR/CSR & Server-Side Rendering / Client-Side Rendering \\
+\hline
+TTL & Time To Live - cache expiration time \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{A.2 Technology Stack Summary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|p{3cm}|p{10cm}|}
+\hline
+\textbf{Layer} & \textbf{Technology} \\
+\hline
+Frontend & Next.js 14+, React 18, Bootstrap 5, TypeScript \\
+\hline
+Backend & Next.js API Routes, JWT \\
+\hline
+Database & PostgreSQL 15+ \\
+\hline
+Cache & Redis 7+ \\
+\hline
+Proxy & Nginx \\
+\hline
+DevOps & Docker, GitHub Actions \\
+\hline
+Cloud & AWS (ECS/RDS/ElastiCache) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{A.3 Database Tables Overview}
+
+Core tables (full schema in ARCHITECTURE\_AND\_TECH\_STACK.md):
+
+\begin{itemize}
+    \item \texttt{users} - Student/member profiles
+    \item \texttt{student\_data} - Synced university data
+    \item \texttt{societies} - Society information
+    \item \texttt{society\_members} - Memberships and roles
+    \item \texttt{events} - Event metadata
+    \item \texttt{event\_translations} - Multilingual event content
+    \item \texttt{posts} - Social posts with JSONB translations
+    \item \texttt{registrations} - Event attendance
+    \item \texttt{interactions} - Likes, ignores, interests
+    \item \texttt{recommendations} - Pre-computed suggestions
+    \item \texttt{user\_interests} - User-selected interests
+\end{itemize}
+
+\end{document}

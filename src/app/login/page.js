@@ -1,35 +1,35 @@
 /*
 * This login was adapted from Dave Gray's "React User login and Authentication with Axios", and altered using nextJS*/
 
-'use client'
-import {useRef, useState, useEffect} from 'react';
+'use client';
+import {useEffect, useRef, useState} from 'react';
 //import AuthContext from '@/context/AuthProvider';
 import Link from "next/link";
-import { login, getErrorMessage } from '@/lib/apiClient';
+import {getErrorMessage, login} from '@/lib/apiClient';
 
 const Page = () => {
     // const {setAuth} = useContext(AuthContext);
     const userRef = useRef(null);
     const errRef = useRef(null);
 
-    const[user, setUser] = useState(''); /*four states of the page*/
-    const[pwd, setPwd] = useState('');
-    const[errMsg, setErrMsg] = useState('');
-    const[success, setSuccess] = useState(false);
+    const [user, setUser] = useState(''); /*four states of the page*/
+    const [pwd, setPwd] = useState('');
+    const [errMsg, setErrMsg] = useState('');
+    const [success, setSuccess] = useState(false);
 
     useEffect(() => {
         userRef.current.focus();
-    }, [])
+    }, []);
 
     useEffect(() => {
         setErrMsg('');
-    }, [user, pwd]) /*clear out any errors for next attempt*/
+    }, [user, pwd]); /*clear out any errors for next attempt*/
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             const data = await login(user, pwd);
-            console.log('Login successful:', JSON.stringify(data));
+            console.log('login successful:', JSON.stringify(data));
             // Clear form and set success state
             setUser(''); //refreshing the login
             setPwd('');
@@ -38,12 +38,12 @@ const Page = () => {
             // setAuth({ user, pwd, roles: data?.roles, accessToken: data?.accessToken });
 
         } catch (err) { //error cases for the login
-            console.error('Login error:', err);
+            console.error('login error:', err);
             setErrMsg(getErrorMessage(err));
             setPwd(''); // Clear password on error for security
             errRef.current.focus();
         }
-    }
+    };
     return (
         <div className="min-vh-100 d-flex align-items-center justify-content-center bg-dark">
             <div className="container">
@@ -67,7 +67,8 @@ const Page = () => {
                                     </h1>
 
                                     {errMsg && (
-                                        <div id="error-msg" ref={errRef} role="alert" aria-live="assertive" className="alert alert-danger mb-3">
+                                        <div id="error-msg" ref={errRef} role="alert" aria-live="assertive"
+                                             className="alert alert-danger mb-3">
                                             <strong>Error:</strong> {errMsg}
                                         </div>
                                     )}
@@ -108,7 +109,7 @@ const Page = () => {
                                         </button>
                                     </form>
 
-                                    <hr className="border-secondary" />
+                                    <hr className="border-secondary"/>
 
                                     <p className="text-center text-light mb-0">
                                         Need an account?{' '}
@@ -124,6 +125,6 @@ const Page = () => {
             </div>
         </div>
     )
-}
+};
 
 export default Page;
