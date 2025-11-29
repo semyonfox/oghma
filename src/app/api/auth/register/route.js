@@ -1,4 +1,4 @@
-/* * Register Route Handler
+/* * register Route Handler
  * Creates new user account with validated credentials
  * 1. Validate request fields and password strength
  * 2. Check if user already exists
@@ -7,24 +7,19 @@
  * 5. Return success response
  */
 
-import bcrypt from "bcrypt";
 // taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
 import sql from "@/database/pgsql.js";
-import { validateAuthCredentials } from "@/lib/validation.js";
-import {
-    createAuthSession,
-    createErrorResponse,
-    createValidationErrorResponse,
-    parseJsonBody
-} from "@/lib/auth.js";
+import {validateAuthCredentials} from "@/lib/validation.js";
+import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
+import bcrypt from "bcrypt";
 
 export async function POST(request) {
     try {
         // 1. Parse and validate request body
-        const { data: body, error: parseError } = await parseJsonBody(request);
+        const {data: body, error: parseError} = await parseJsonBody(request);
         if (parseError) return parseError;
 
-        const { email, password } = body;
+        const {email, password} = body;
 
         // 2. Validate credentials format and password strength
         const validation = validateAuthCredentials(email, password, true);
@@ -49,8 +44,7 @@ export async function POST(request) {
         // 5. Insert new user into database
         const data = await sql`
             INSERT INTO public.login (email, hashed_password)
-            VALUES (${email.trim()}, ${hashedPassword})
-            RETURNING user_id, email
+            VALUES (${email.trim()}, ${hashedPassword}) RETURNING user_id, email
         `;
 
         const user = data[0];
@@ -67,5 +61,3 @@ export async function POST(request) {
         return createErrorResponse('Internal server error', 500);
     }
 }
-
-
