@@ -1,5 +1,5 @@
 /*
- * Login Route Handler
+ * login Route Handler
  * Validates credentials, authenticates user, and creates session
  * 1. Validate request fields
  * 2. Query database for user
@@ -11,21 +11,16 @@
 import bcrypt from "bcrypt";
 import sql from "@/database/pgsql.js";
 // taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
-import { validateAuthCredentials } from "@/lib/validation.js";
-import {
-    createAuthSession,
-    createErrorResponse,
-    createValidationErrorResponse,
-    parseJsonBody
-} from "@/lib/auth.js";
+import {validateAuthCredentials} from "@/lib/validation.js";
+import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 
 export async function POST(request) {
     try {
         // 1. Parse and validate request body
-        const { data: body, error: parseError } = await parseJsonBody(request);
+        const {data: body, error: parseError} = await parseJsonBody(request);
         if (parseError) return parseError;
 
-        const { email, password } = body;
+        const {email, password} = body;
 
         // 2. Validate credentials format
         const validation = validateAuthCredentials(email, password, false);
@@ -35,8 +30,8 @@ export async function POST(request) {
 
         // 3. Query database for user
         const data = await sql`
-            SELECT user_id, email, hashed_password 
-            FROM public.login 
+            SELECT user_id, email, hashed_password
+            FROM public.login
             WHERE email = ${email.trim()};
         `;
 
@@ -57,7 +52,7 @@ export async function POST(request) {
         return await createAuthSession(user, 1);
 
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('login error:', error);
         return createErrorResponse('Internal server error', 500);
     }
 }
