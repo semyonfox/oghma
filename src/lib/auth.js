@@ -5,8 +5,8 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import {cookies} from 'next/headers';
+import {NextResponse} from 'next/server';
 
 
 // ============================================================
@@ -38,7 +38,7 @@ export function generateJWTToken(payload, expiresIn = '1d') {
     return jwt.sign(
         payload,
         process.env.JWT_SECRET,
-        { expiresIn }
+        {expiresIn}
     );
 }
 
@@ -70,7 +70,7 @@ export async function createSessionCookie(token, expiryDays = 1) {
 
     (await cookies()).set('session', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'development',
         expires: expires,
         sameSite: 'lax',
         path: '/'
@@ -116,8 +116,8 @@ export async function validateSession() {
  */
 export function createSuccessResponse(data, status = 200) {
     return NextResponse.json(
-        { success: true, ...data },
-        { status }
+        {success: true, ...data},
+        {status}
     );
 }
 
@@ -130,8 +130,8 @@ export function createSuccessResponse(data, status = 200) {
  */
 export function createErrorResponse(message, status = 400, additionalData = {}) {
     return NextResponse.json(
-        { success: false, error: message, ...additionalData },
-        { status }
+        {success: false, error: message, ...additionalData},
+        {status}
     );
 }
 
@@ -147,7 +147,7 @@ export function createValidationErrorResponse(errors) {
             error: 'Validation failed',
             validationErrors: errors
         },
-        { status: 400 }
+        {status: 400}
     );
 }
 
@@ -164,7 +164,7 @@ export function createValidationErrorResponse(errors) {
 export async function createAuthSession(user, expiryDays = 1) {
     // Generate JWT token
     const token = generateJWTToken(
-        { user_id: user.user_id, email: user.email },
+        {user_id: user.user_id, email: user.email},
         `${expiryDays}d`
     );
 
@@ -203,11 +203,11 @@ export async function parseJsonBody(request) {
     // Parse JSON body
     try {
         const data = await request.json();
-        return { data, error: null };
+        return {data, error: null};
     } catch (parseError) {
-        return { 
-            data: null, 
-            error: createErrorResponse('Invalid JSON in request body', 400) 
+        return {
+            data: null,
+            error: createErrorResponse('Invalid JSON in request body', 400)
         };
     }
 }

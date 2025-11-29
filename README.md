@@ -1,95 +1,218 @@
 # SocsBoard
 
-Student event platform for our CT216 project. Right now it's just login/register working.
+**University Society Platform - CT216 Software Engineering Project**
 
-**Quick Deployment:** See [docs/QUICKSTART.md](docs/QUICKSTART.md) for fast ct2106 stack integration  
-**Setup:** See [SETUP.md](SETUP.md)  
-**Roadmap:** See [docs/Plan.md](docs/Plan.md)
+A full-stack social platform connecting university students with society events and content through personalized recommendations, featuring multilingual support (Irish + English).
 
-## Documentation map
+---
 
-- [`SETUP.md`](SETUP.md) – Full local development instructions plus environment guidance
-- [`docs/QUICKSTART.md`](docs/QUICKSTART.md) – Five-minute checklist to get the Docker app online
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) – Canonical production guide (env, DB, Cloudflare, troubleshooting)
-- [`docs/CLOUDFLARE_TUNNEL.md`](docs/CLOUDFLARE_TUNNEL.md) – Tunnel-specific steps and token reference
-- [`DEPLOYMENT_CHECKLIST.md`](DEPLOYMENT_CHECKLIST.md) – Sign-off list for releases
-
-## Development setup
+## 🚀 Quick Start
 
 ```bash
-npm install                   # install dependencies
-cp .env.example .env.local    # tweak for your local database
-npm run dev                   # start Next.js (http://localhost:3000)
+# 1. Install dependencies
+npm install
+
+# 2. Set up environment
+cp .env.example .env.local
+# Edit .env.local with your database credentials
+
+# 3. Start development server
+npm run dev
 ```
 
-Need a Postgres instance? The schema for the `login` table lives in `database/setup.sql`. Update `DATABASE_URL` in
-`.env.local` to point at your database before running `npm run dev`.
+**Visit:** `http://localhost:3000`
 
-## What works
+For detailed setup instructions, see [SETUP.md](SETUP.md)
 
-- ✅ Register with email/password
-- ✅ Login with JWT auth
+---
+
+## 📚 Documentation
+
+**Complete documentation is in the [`docs/`](docs/) folder:**
+
+- **[docs/README.md](docs/README.md)** - Documentation index and navigation guide
+- **[SETUP.md](SETUP.md)** - Local development setup
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment guide
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture and design
+- **[docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)** - Formal requirements specification
+
+### Documentation Structure
+
+```
+docs/
+├── README.md                    # Documentation hub (start here)
+├── ARCHITECTURE.md              # System design
+├── REQUIREMENTS.md              # Formal SRS
+├── DEVELOPMENT_GUIDE.md         # Dev workflow
+├── DEPLOYMENT.md                # Deployment guide
+├── decisions/                   # Architecture decision records
+│   ├── 01_project_choice.md    # Why this project
+│   ├── 02_tech_stack.md        # Technology rationale
+│   ├── 03_database_design.md   # Database decisions
+│   └── 04_recommendation_system.md # Algorithm design
+└── guides/                      # Implementation guides
+    ├── redis_caching.md         # Caching strategies
+    ├── cloudflare_setup.md      # Cloudflare Tunnel
+    └── aws_migration.md         # AWS deployment
+```
+
+---
+
+## ✅ Current Status
+
+**Phase:** Active development
+
+**Completed:**
+- ✅ User registration with email/password
+- ✅ Login with JWT authentication
 - ✅ Password hashing (bcrypt)
-- ✅ Session cookies
-- ✅ PostgreSQL database
+- ✅ Session management with HTTP-only cookies
+- ✅ PostgreSQL database integration
+- ✅ Docker containerization
+- ✅ Bootstrap UI framework
 
-## Tech stack
+**In Progress:**
+- 🔄 User dashboard and profile pages
+- 🔄 Protected routes and authorization
+- 🔄 Events system (CRUD operations)
 
-- Next.js 16 (App Router)
-- React 19
-- PostgreSQL
-- JWT + bcrypt
+**Next Up:**
+- 📋 Event registration and attendance
+- 📋 Social posts feed
+- 📋 Recommendation engine
+- 📋 Multilingual support (Irish/English)
+- 📋 AWS deployment
 
-## Project structure
+---
+
+## 🏗️ Tech Stack
+
+- **Frontend:** Next.js 16 (App Router), React 19, Bootstrap 5
+- **Backend:** Next.js API Routes, JWT authentication
+- **Database:** PostgreSQL
+- **Auth:** JWT + bcrypt
+- **DevOps:** Docker, GitHub Actions
+- **Deployment:** Cloudflare Tunnel (current), AWS (planned)
+
+**Why these choices?** See [docs/decisions/02_tech_stack.md](docs/decisions/02_tech_stack.md)
+
+---
+
+## 🔧 Development
+
+### Project Structure
 
 ```
-src/
-├── app/
-│   ├── page.js              # Homepage
-│   ├── login/page.js        # Login page
-│   ├── register/page.js     # Register page
-│   └── api/auth/            # Auth endpoints
-├── lib/                     # Utility functions
-├── database/                # PostgreSQL setup
-└── context/                 # React context (not used yet)
+ct216_project/
+├── src/
+│   ├── app/
+│   │   ├── api/auth/           # Authentication API endpoints
+│   │   ├── login/              # Login page
+│   │   ├── register/           # Registration page
+│   │   └── page.js             # Homepage
+│   ├── lib/                    # Utility functions (auth, DB)
+│   └── database/               # Database setup and schema
+├── docs/                        # Documentation
+├── database/                    # SQL schema files
+├── docker-compose.yml          # Docker configuration
+└── Dockerfile                  # Container definition
 ```
 
-## API endpoints
+### API Endpoints
 
-**POST /api/auth/register**
+**Authentication:**
+- `POST /api/auth/register` - Create new user account
+- `POST /api/auth/login` - Authenticate and get JWT token
 
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass123"
-}
-```
+**Planned:**
+- `GET /api/events` - List events
+- `POST /api/events` - Create event (authenticated)
+- `GET /api/events/[id]` - Event details
+- `POST /api/events/[id]/register` - Register for event
 
-**POST /api/auth/login**
-
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass123"
-}
-```
-
-## Commands
+### Commands
 
 ```bash
-npm run dev    # Start dev server
-npm run build  # Build for production
-npm run lint   # Check code
+npm run dev      # Start development server (port 3000)
+npm run build    # Build for production
+npm run lint     # Run ESLint
+npm run start    # Start production server
 ```
 
-## Docker Deployment
+---
 
-Production images are built with the included multi-stage `Dockerfile`. For day-to-day use:
+## 🐳 Docker Deployment
 
-1. Copy `.env.production.template` to `.env` and fill in the secrets (the shared `socsboard_user` account is already
-   wired up)
-2. Run `docker compose up -d` to build and start `ct216_web`
-3. Follow the Cloudflare steps in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#cloudflare-tunnel) to expose
-   `https://ct216.semyon.ie`
+### Quick Deploy
 
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for verification, maintenance, and troubleshooting details.
+```bash
+# 1. Set up environment
+cp .env.production.template .env
+# Edit .env with your production credentials
+
+# 2. Start containers
+docker compose up -d
+
+# 3. Verify
+docker logs ct216_web
+```
+
+### Cloudflare Tunnel
+
+To expose the app via `https://ct216.semyon.ie`:
+
+1. See [docs/guides/cloudflare_setup.md](docs/guides/cloudflare_setup.md) for tunnel configuration
+2. Or follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete deployment guide
+
+---
+
+## 📊 Database Schema
+
+**Current:**
+
+```sql
+CREATE TABLE login (
+    user_id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+**Planned:** See [database/setup.sql](database/setup.sql) for complete schema including events, registrations, and society tables.
+
+---
+
+## 🤝 Contributing
+
+1. Create a feature branch: `git checkout -b feature/your-feature`
+2. Make your changes
+3. Test locally: `npm run dev`
+4. Commit: `git commit -m "feat: add your feature"`
+5. Push: `git push origin feature/your-feature`
+6. Open a pull request
+
+See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete development workflow.
+
+---
+
+## 📞 Need Help?
+
+- **Setup issues:** Check [SETUP.md](SETUP.md)
+- **Deployment:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- **Architecture questions:** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Documentation:** Browse [docs/README.md](docs/README.md)
+
+---
+
+## 🎓 Project Info
+
+**Module:** CT216 - Software Engineering I
+**Team Size:** 4 members
+**Duration:** 8 weeks development
+**Status:** Active development
+
+---
+
+**Last Updated:** 2025-01-25
+**Version:** 3.0 (Consolidated documentation refactoring)
