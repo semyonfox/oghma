@@ -130,9 +130,9 @@ docker ps | grep cloudflare
 
 ## Success Criteria
 
-- ✅ All checklist items above completed
-- ✅ Users can register and log in
-- ✅ Monitoring and backups in place
+- [x] All checklist items above completed
+- [x] Users can register and log in
+- [x] Monitoring and backups in place
 
 ## References
 

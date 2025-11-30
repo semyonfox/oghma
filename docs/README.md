@@ -80,10 +80,10 @@ A platform that:
 
 **Phase:** Active development
 **Completed:**
-- ✅ User authentication (registration, login, JWT)
-- ✅ Database setup and schema
-- ✅ Docker containerization
-- ✅ Basic UI framework
+- [x] User authentication (registration, login, JWT)
+- [x] Database setup and schema
+- [x] Docker containerization
+- [x] Basic UI framework
 
 **In Progress:**
 - 🔄 User dashboard and profile management
