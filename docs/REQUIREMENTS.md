@@ -312,7 +312,7 @@ This SRS document is organized into the following sections:
 **User Story 2.6: Calendar Integration**
 - "As a student, I want to add events to my personal calendar so that I don't miss events I'm interested in."
 - **Acceptance Criteria:**
-  1. "Add to Calendar" button visible on event detail pages
+  1. "Add to Calendar" button visible on event detail page
   2. Generates .ics file compatible with major calendar applications
   3. Calendar integration for registered events and expressed interest
   4. Calendar entries include: event title, date/time, location, description, society info
@@ -384,6 +384,8 @@ This SRS document is organized into the following sections:
   3. Language preference saved
   4. User-generated content displays in selected language if available
   5. Fallback to English with notice if translation unavailable
+  6. Translator dashboard available for managing translations
+  7. Users can request human translations via ticketing system
 
 **User Story 5.2: Create Multilingual Content**
 - "As a society admin, I want to create content in both English and Irish so that all students can engage."
@@ -392,6 +394,21 @@ This SRS document is organized into the following sections:
   2. User can provide manual translations
   3. Auto-translate option available (DeepL API)
   4. Translation quality badge displayed on content
+  5. Translator role can review and edit translations via dashboard
+  6. Human translation requests can be submitted for educational purposes
+
+**User Story 5.3: Upload Multilingual Posters**
+- "As a society admin, I want to upload posters with optional translations so that events are visually appealing and accessible to all."
+- **Acceptance Criteria:**
+  1. Event creation form includes an option to upload posters
+  2. Posters can have an optional Irish version
+  3. Posters are displayed alongside event details
+  4. Translator role can add additional language versions of posters
+
+**Future Scope:**
+- Expand language support beyond English and Irish to include other languages such as Hindi, Chinese, French, etc.
+- Enable crowdsourced translations for user-generated content and posters
+- Build a community-driven translation system with incentives for contributors
 
 ---
 
@@ -633,7 +650,7 @@ RESTful JSON API with JWT authentication.
 |------|-------------|--------|------------|
 | University OAuth approval delayed | Medium | High | Continue with custom auth, add OAuth if approved |
 | Student API access denied | High | Medium | Manual profile setup, no automatic sync |
-| Timeline slippage (12 weeks) | High | High | Prioritize core features: events, societies, basic recommendations |
+| Timeline slippage | High | High | Prioritize core features: events, societies, basic recommendations |
 | Team member unavailable | Medium | Medium | PM can assist development, task redistribution |
 | Recommendation algorithm complexity | Medium | High | Start with simple scoring, optimize later |
 | Multilingual implementation time | Medium | Medium | English-only MVP, add Irish if time permits |

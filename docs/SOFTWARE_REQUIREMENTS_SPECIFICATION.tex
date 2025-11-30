@@ -104,6 +104,9 @@ The \textbf{SocsBoard (University Society Platform)} is a full-stack web-based s
     \item Deliver personalized recommendations based on user behavior, interests, and society memberships
     \item Handle authentication through university OAuth (Microsoft Azure AD) with automatic synchronization of student data (course, department, year, memberships) (Subject to approval by ISS)
     \item Ensure GDPR compliance and support both English and Irish UI languages, with optional translation for user-generated content
+    \item Allow users to create events in English, provide their own translations, or use AI for automatic translations
+    \item Enable a separate translator role to manage translations via a dedicated dashboard
+    \item Support ticket-based human translation requests for educational purposes, such as students learning a language
     \item Provide analytics dashboards displaying engagement trends, demographics, and event performance metrics
 \end{itemize}
 
@@ -523,6 +526,25 @@ This SRS document is organized into the following sections:
         \item Auto-translate option available (DeepL API)
         \item Translation quality badge displayed on content
     \end{enumerate}
+\end{itemize}
+
+\textbf{User Story 5.3: Upload Multilingual Posters}
+\begin{itemize}
+    \item \textbf{Description:} As a society admin, I want to upload posters with optional translations so that events are visually appealing and accessible to all.
+    \item \textbf{Acceptance Criteria:}
+    \begin{enumerate}
+        \item Event creation form includes an option to upload posters.
+        \item Posters can have an optional Irish version.
+        \item Posters are displayed alongside event details.
+        \item Translator role can add additional language versions of posters.
+    \end{enumerate}
+\end{itemize}
+
+\textbf{Future Scope:}
+\begin{itemize}
+    \item Expand language support beyond English and Irish to include other languages such as Hindi, Chinese, French, etc.
+    \item Enable crowdsourced translations for user-generated content and posters.
+    \item Build a community-driven translation system with incentives for contributors.
 \end{itemize}
 
 \subsubsection{Epic 6: Society Dashboard \& Analytics}
