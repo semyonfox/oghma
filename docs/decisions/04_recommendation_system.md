@@ -306,7 +306,7 @@ Single-method systems miss critical signals. Hybrid captures all three.
 - [x] **RSVP/Register** (+5 points) - Strongest positive signal
 - 🎉 **Attended** (+8 points) - Ultimate validation
 - 👀 **Clicked/Viewed** (+1 point) - Interest signal
-- ⏱️ **Time on page** (+0-2 points) - Engagement proxy
+-  **Time on page** (+0-2 points) - Engagement proxy
 
 ### Interaction Weighting
 
