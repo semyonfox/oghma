@@ -58,18 +58,18 @@ docs/
 
 ---
 
-## ✅ Current Status
+## [x] Current Status
 
 **Phase:** Active development
 
 **Completed:**
-- ✅ User registration with email/password
-- ✅ Login with JWT authentication
-- ✅ Password hashing (bcrypt)
-- ✅ Session management with HTTP-only cookies
-- ✅ PostgreSQL database integration
-- ✅ Docker containerization
-- ✅ Bootstrap UI framework
+- [x] User registration with email/password
+- [x] Login with JWT authentication
+- [x] Password hashing (bcrypt)
+- [x] Session management with HTTP-only cookies
+- [x] PostgreSQL database integration
+- [x] Docker containerization
+- [x] Bootstrap UI framework
 
 **In Progress:**
 - 🔄 User dashboard and profile pages
