@@ -57,12 +57,12 @@ For each technology choice, we evaluated:
 
 | Framework | Pros | Cons | Decision |
 |-----------|------|------|----------|
-| **Next.js** | SSR/CSR hybrid, API routes, great DX, industry-standard | Learning curve (App Router new) | ✅ **CHOSEN** |
-| **Create React App** | Simple, familiar | No SSR, separate backend needed, deprecated | ❌ Rejected |
-| **Remix** | Modern, fast | Smaller community, less mature | ❌ Too new |
-| **Vue + Nuxt** | Easier learning curve | Less industry demand than React | ❌ React more valuable |
-| **SvelteKit** | Fastest, simplest | Tiny community, risky for jobs | ❌ Too niche |
-| **Vanilla JS** | No framework overhead | Reinventing wheel, slow development | ❌ Not practical |
+| **Next.js** | SSR/CSR hybrid, API routes, great DX, industry-standard | Learning curve (App Router new) | [x] **CHOSEN** |
+| **Create React App** | Simple, familiar | No SSR, separate backend needed, deprecated | [ ] Rejected |
+| **Remix** | Modern, fast | Smaller community, less mature | [ ] Too new |
+| **Vue + Nuxt** | Easier learning curve | Less industry demand than React | [ ] React more valuable |
+| **SvelteKit** | Fastest, simplest | Tiny community, risky for jobs | [ ] Too niche |
+| **Vanilla JS** | No framework overhead | Reinventing wheel, slow development | [ ] Not practical |
 
 ### Why Next.js?
 
@@ -181,11 +181,11 @@ export async function POST(request: Request) {
 
 | Database | Pros | Cons | Decision |
 |----------|------|------|----------|
-| **PostgreSQL** | JSONB support, ACID, robust, industry-standard | More complex than MySQL | ✅ **CHOSEN** |
-| **MySQL** | Simple, familiar | No JSONB, less flexible | ❌ Need JSONB for translations |
-| **MongoDB** | Flexible schema, easy to start | No relational integrity, overkill | ❌ Need relations (users ↔ events) |
-| **SQLite** | No setup, embedded | Single file, not scalable | ❌ Not production-ready |
-| **Supabase** | Managed PostgreSQL, real-time | Vendor lock-in, learning curve | ❌ Want full control |
+| **PostgreSQL** | JSONB support, ACID, robust, industry-standard | More complex than MySQL | [x] **CHOSEN** |
+| **MySQL** | Simple, familiar | No JSONB, less flexible | [ ] Need JSONB for translations |
+| **MongoDB** | Flexible schema, easy to start | No relational integrity, overkill | [ ] Need relations (users ↔ events) |
+| **SQLite** | No setup, embedded | Single file, not scalable | [ ] Not production-ready |
+| **Supabase** | Managed PostgreSQL, real-time | Vendor lock-in, learning curve | [ ] Want full control |
 
 ### Why PostgreSQL?
 
@@ -230,7 +230,7 @@ await prisma.$transaction(async (tx) => {
   }
   await tx.registration.create({ data: { userId, eventId: id } });
 });
-// ✅ Only one registration succeeds, other gets error
+// [x] Only one registration succeeds, other gets error
 ```
 
 **Why Not MongoDB?**
@@ -306,12 +306,12 @@ interactions
 
 | ORM/Driver | Pros | Cons | Decision |
 |------------|------|------|----------|
-| **pg (node-postgres)** | Full SQL control, lightweight, industry-standard | Manual type definitions, more boilerplate | ✅ **PRIMARY** |
-| **Prisma** | Type-safe, auto-generated types, easy migrations | Less control over complex queries, abstraction layer | ✅ **OPTIONAL** (for simple CRUD) |
-| **Drizzle ORM** | Type-safe, SQL-like, modern | New, smaller community | ❌ Too new (risky) |
-| **TypeORM** | Mature, feature-rich | Heavy, complex, opinionated | ❌ Overkill for our needs |
-| **Sequelize** | Popular, many features | Older API, less type-safe | ❌ Prisma better for type safety |
-| **Knex.js** | SQL builder, flexible | No type safety, manual types | ❌ pg better for raw SQL |
+| **pg (node-postgres)** | Full SQL control, lightweight, industry-standard | Manual type definitions, more boilerplate | [x] **PRIMARY** |
+| **Prisma** | Type-safe, auto-generated types, easy migrations | Less control over complex queries, abstraction layer | [x] **OPTIONAL** (for simple CRUD) |
+| **Drizzle ORM** | Type-safe, SQL-like, modern | New, smaller community | [ ] Too new (risky) |
+| **TypeORM** | Mature, feature-rich | Heavy, complex, opinionated | [ ] Overkill for our needs |
+| **Sequelize** | Popular, many features | Older API, less type-safe | [ ] Prisma better for type safety |
+| **Knex.js** | SQL builder, flexible | No type safety, manual types | [ ] pg better for raw SQL |
 
 ### Why `pg` (node-postgres)?
 
@@ -465,11 +465,11 @@ const events = await sql<Event[]>`SELECT * FROM events`;
 
 | Cache | Pros | Cons | Decision |
 |-------|------|------|----------|
-| **Redis** | Industry-standard, fast, rich data types | Licensing changes (2024) | ✅ **CHOSEN** |
-| **Valkey** | Open-source Redis fork, identical API | New (2024), less mature | ✅ **FALLBACK** |
-| **Memcached** | Simple, fast | No data structures, no persistence | ❌ Redis more powerful |
-| **In-Memory Cache (Node)** | No setup needed | Not shared across instances, limited | ❌ Need shared cache for scaling |
-| **PostgreSQL (as cache)** | No extra service | Slow compared to in-memory | ❌ Defeats purpose of caching |
+| **Redis** | Industry-standard, fast, rich data types | Licensing changes (2024) | [x] **CHOSEN** |
+| **Valkey** | Open-source Redis fork, identical API | New (2024), less mature | [x] **FALLBACK** |
+| **Memcached** | Simple, fast | No data structures, no persistence | [ ] Redis more powerful |
+| **In-Memory Cache (Node)** | No setup needed | Not shared across instances, limited | [ ] Need shared cache for scaling |
+| **PostgreSQL (as cache)** | No extra service | Slow compared to in-memory | [ ] Defeats purpose of caching |
 
 ### Why Redis?
 
@@ -633,11 +633,11 @@ return JSON.parse(cached);
 
 | Framework | Pros | Cons | Decision |
 |-----------|------|------|----------|
-| **Bootstrap** | Fast prototyping, familiar, responsive grid | "Bootstrap look" (generic) | ✅ **CHOSEN** |
-| **Tailwind CSS** | Utility-first, customizable, modern | Verbose HTML, learning curve | ❌ Too slow for 8 weeks |
-| **Material UI** | Polished, React components | Heavy, opinionated design | ❌ Overkill |
-| **Chakra UI** | Modern, accessible | Smaller community | ❌ Bootstrap more familiar |
-| **Custom CSS** | Full control, unique design | Reinventing wheel, slow | ❌ Not enough time |
+| **Bootstrap** | Fast prototyping, familiar, responsive grid | "Bootstrap look" (generic) | [x] **CHOSEN** |
+| **Tailwind CSS** | Utility-first, customizable, modern | Verbose HTML, learning curve | [ ] Too slow for 8 weeks |
+| **Material UI** | Polished, React components | Heavy, opinionated design | [ ] Overkill |
+| **Chakra UI** | Modern, accessible | Smaller community | [ ] Bootstrap more familiar |
+| **Custom CSS** | Full control, unique design | Reinventing wheel, slow | [ ] Not enough time |
 
 ### Why Bootstrap?
 
@@ -772,9 +772,9 @@ return JSON.parse(cached);
 
 | Language | Pros | Cons | Decision |
 |----------|------|------|----------|
-| **TypeScript** | Type safety, catch bugs early, great IDE support | Learning curve, more boilerplate | ✅ **CHOSEN** |
-| **JavaScript (vanilla)** | No learning curve, faster to write | No type safety, runtime errors | ❌ Too risky for team project |
-| **Python** | Simpler syntax | No frontend support (Next.js is JS-based) | ❌ Not compatible with Next.js |
+| **TypeScript** | Type safety, catch bugs early, great IDE support | Learning curve, more boilerplate | [x] **CHOSEN** |
+| **JavaScript (vanilla)** | No learning curve, faster to write | No type safety, runtime errors | [ ] Too risky for team project |
+| **Python** | Simpler syntax | No frontend support (Next.js is JS-based) | [ ] Not compatible with Next.js |
 
 ### Why TypeScript?
 
@@ -804,7 +804,7 @@ function registerUser(email: string, name: string) {
   // and 'eamil' does not exist in type User.
 }
 
-// Error caught BEFORE deployment ✅
+// Error caught BEFORE deployment [x]
 ```
 
 #### 2. **IDE Autocomplete (Faster Development)**
@@ -863,7 +863,7 @@ console.log(event.title, event.location);
 // ERROR: Property 'location' does not exist on type Event.
 
 // Person B fixes code:
-console.log(event.name, event.place);  // ✅ Works!
+console.log(event.name, event.place);  // [x] Works!
 ```
 
 #### 4. **Industry Standard**
@@ -925,11 +925,11 @@ function createEvent(data) {
 
 | Auth Method | Pros | Cons | Decision |
 |-------------|------|------|----------|
-| **OAuth (University SSO)** | No password storage, trusted, official | University approval needed | ✅ **CHOSEN** |
-| **Email + Password** | Simple, full control | Security risk, password storage | ❌ Backup only |
-| **NextAuth.js** | Easy setup, multiple providers | Abstraction layer, learning curve | ❌ Want to understand OAuth directly |
-| **Firebase Auth** | Dead simple | Vendor lock-in, costs | ❌ Want self-hosted |
-| **Auth0** | Feature-rich, enterprise | Expensive, overkill | ❌ OAuth sufficient |
+| **OAuth (University SSO)** | No password storage, trusted, official | University approval needed | [x] **CHOSEN** |
+| **Email + Password** | Simple, full control | Security risk, password storage | [ ] Backup only |
+| **NextAuth.js** | Easy setup, multiple providers | Abstraction layer, learning curve | [ ] Want to understand OAuth directly |
+| **Firebase Auth** | Dead simple | Vendor lock-in, costs | [ ] Want self-hosted |
+| **Auth0** | Feature-rich, enterprise | Expensive, overkill | [ ] OAuth sufficient |
 
 ### Why University OAuth?
 
@@ -1029,11 +1029,11 @@ await redis.setEx(`session:${sessionId}`, 86400, userId);
 
 | i18n Library | Pros | Cons | Decision |
 |--------------|------|------|----------|
-| **next-intl** | Built for Next.js App Router, type-safe, SSR | Newer library | ✅ **CHOSEN** |
-| **react-i18next** | Popular, mature | Not optimized for Next.js SSR | ❌ next-intl better for Next.js |
-| **next-translate** | Good Next.js integration | Less active development | ❌ next-intl more modern |
-| **FormatJS** | Powerful, ICU message format | Complex setup | ❌ Overkill |
-| **Custom Solution** | Full control | Reinventing wheel | ❌ Not enough time |
+| **next-intl** | Built for Next.js App Router, type-safe, SSR | Newer library | [x] **CHOSEN** |
+| **react-i18next** | Popular, mature | Not optimized for Next.js SSR | [ ] next-intl better for Next.js |
+| **next-translate** | Good Next.js integration | Less active development | [ ] next-intl more modern |
+| **FormatJS** | Powerful, ICU message format | Complex setup | [ ] Overkill |
+| **Custom Solution** | Full control | Reinventing wheel | [ ] Not enough time |
 
 ### Why next-intl?
 
@@ -1076,9 +1076,9 @@ return <h1>{t('welcome')}</h1>;
 **TypeScript Autocomplete:**
 ```typescript
 const t = useTranslations('home');
-t('welcome');   // ✅ Valid
-t('subtitle');  // ✅ Valid
-t('invalid');   // ❌ TypeScript error!
+t('welcome');   // [x] Valid
+t('subtitle');  // [x] Valid
+t('invalid');   // [ ] TypeScript error!
 ```
 
 #### 3. **URL-Based Locales**
@@ -1200,10 +1200,10 @@ jobs:
 
 | Service | Pros | Cons | Decision |
 |---------|------|------|----------|
-| **DeepL** | Best quality for Irish, affordable | Paid (after 500k chars) | ✅ **CHOSEN** |
-| **Google Translate** | Free tier, widely used | Lower quality for Irish | ❌ DeepL better quality |
-| **Microsoft Translator** | Free tier, integrated with Azure | Lower quality than DeepL | ❌ DeepL better |
-| **Manual Translation** | Highest quality | Slow, not scalable | ✅ **PREFERRED** (but optional) |
+| **DeepL** | Best quality for Irish, affordable | Paid (after 500k chars) | [x] **CHOSEN** |
+| **Google Translate** | Free tier, widely used | Lower quality for Irish | [ ] DeepL better quality |
+| **Microsoft Translator** | Free tier, integrated with Azure | Lower quality than DeepL | [ ] DeepL better |
+| **Manual Translation** | Highest quality | Slow, not scalable | [x] **PREFERRED** (but optional) |
 
 ### Why DeepL?
 

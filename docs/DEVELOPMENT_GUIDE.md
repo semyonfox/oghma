@@ -242,12 +242,12 @@ Please review again."
 
 **1. Use Explicit Types (Not `any`):**
 ```typescript
-// ❌ Bad
+// [ ] Bad
 function getEvent(id: any): any {
   return fetch(`/api/events/${id}`);
 }
 
-// ✅ Good
+// [x] Good
 type Event = {
   id: string;
   title: string;
@@ -262,7 +262,7 @@ async function getEvent(id: string): Promise<Event> {
 
 **2. Use Interfaces for Objects:**
 ```typescript
-// ✅ Good
+// [x] Good
 interface User {
   id: string;
   email: string;
@@ -276,7 +276,7 @@ function updateUser(user: User): Promise<void> {
 
 **3. Use Enums for Constants:**
 ```typescript
-// ✅ Good
+// [x] Good
 enum EventStatus {
   Published = 'published',
   Draft = 'draft',
@@ -365,23 +365,23 @@ export function EventCard({ event, onRegister }: EventCardProps) {
 
 **1. Don't Mutate State Directly:**
 ```typescript
-// ❌ Bad
+// [ ] Bad
 const [events, setEvents] = useState<Event[]>([]);
 events.push(newEvent); // Mutating state directly!
 
-// ✅ Good
+// [x] Good
 setEvents([...events, newEvent]);
 ```
 
 **2. Don't Forget to Handle Errors:**
 ```typescript
-// ❌ Bad
+// [ ] Bad
 async function fetchEvents() {
   const response = await fetch('/api/events');
   return response.json();
 }
 
-// ✅ Good
+// [x] Good
 async function fetchEvents(): Promise<Event[]> {
   try {
     const response = await fetch('/api/events');
@@ -398,10 +398,10 @@ async function fetchEvents(): Promise<Event[]> {
 
 **3. Don't Use `console.log` in Production:**
 ```typescript
-// ❌ Bad
+// [ ] Bad
 console.log('User registered:', user);
 
-// ✅ Good (use proper logging)
+// [x] Good (use proper logging)
 import { logger } from '@/lib/logger';
 logger.info('User registered', { userId: user.id });
 ```
@@ -567,7 +567,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
 ## Best Practices Summary
 
-✅ **DO:**
+[x] **DO:**
 - Write descriptive commit messages
 - Ask questions early (don't struggle alone)
 - Test your code before pushing
@@ -575,7 +575,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 - Document complex logic
 - Review others' code (learn from each other)
 
-❌ **DON'T:**
+[ ] **DON'T:**
 - Push directly to `main` (always use PRs)
 - Commit secrets (.env files, API keys)
 - Leave commented-out code
