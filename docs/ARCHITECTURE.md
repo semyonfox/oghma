@@ -62,11 +62,11 @@ For visual diagrams, see [Stack Diagram.excalidraw.md](Stack%20Diagram.excalidra
 ### Monolithic Architecture
 
 **Why monolithic?**
-- ✅ Simpler deployment (single container)
-- ✅ Easier development (no inter-service communication)
-- ✅ Shared types and utilities
-- ✅ Better for team of 4 with 8-week timeline
-- ✅ Can migrate to microservices later if needed
+- [x] Simpler deployment (single container)
+- [x] Easier development (no inter-service communication)
+- [x] Shared types and utilities
+- [x] Better for team of 4 with 8-week timeline
+- [x] Can migrate to microservices later if needed
 
 ### Layered Architecture
 
