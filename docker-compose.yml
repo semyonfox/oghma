@@ -15,7 +15,7 @@ services:
       - PORT=3000
     env_file:
       - stack.env
-      - #.env.production # Uncomment this line to use production environment variables
+      # - .env.production Uncomment this line to use production environment variables
     networks:
       ct2106:
         ipv4_address: 172.30.10.8
