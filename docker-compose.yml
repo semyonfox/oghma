@@ -8,11 +8,14 @@ services:
       dockerfile: Dockerfile
     container_name: ct216_web
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
     env_file:
-      - .env
+      - stack.env
+      - #.env.production # Uncomment this line to use production environment variables
     networks:
       ct2106:
         ipv4_address: 172.30.10.8
