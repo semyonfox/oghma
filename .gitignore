@@ -32,8 +32,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files: ignore all env files by default but keep .env.example committed
 .env*
+!.env.example
+
+# local-specific envs
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# explicit entries for envs we want ignored
+.env.deploy
+stack.env
+
+# backups of old envs
+env.old/
 
 # vercel
 .vercel
@@ -42,15 +56,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local env files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
 .env
 
-
-CLAUDE.md
-CLAUDE.md
 .claude/
