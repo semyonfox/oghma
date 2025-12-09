@@ -39,11 +39,11 @@ Build a recommendation system that:
 
 ### Success Criteria
 
-- [x] Users see relevant events they wouldn't have found otherwise
-- [x] Click-through rate >15% on recommended events
-- [x] Recommendation refresh happens every 30 minutes
-- [x] System handles 500+ active users without performance degradation
-- [x] Societies gain analytics on recommendation effectiveness
+- Users see relevant events they wouldn't have found otherwise
+- Click-through rate >15% on recommended events
+- Recommendation refresh happens every 30 minutes
+- System handles 500+ active users without performance degradation
+- Societies gain analytics on recommendation effectiveness
 
 ---
 
@@ -99,34 +99,34 @@ We evaluated three languages for the recommendation engine:
 #### Option A: JavaScript/TypeScript (Next.js)
 
 **Pros:**
-- [x] Same language as rest of stack
-- [x] Easy integration with existing codebase
-- [x] Team already familiar
+- Same language as rest of stack
+- Easy integration with existing codebase
+- Team already familiar
 
 **Cons:**
-- [ ] Limited ML/recommendation libraries
-- [ ] Performance concerns for matrix operations
-- [ ] No mature collaborative filtering libraries
+- Limited ML/recommendation libraries
+- Performance concerns for matrix operations
+- No mature collaborative filtering libraries
 
-**Verdict:** [ ] Rejected - insufficient ML ecosystem
+**Verdict:** Rejected - insufficient ML ecosystem
 
 ---
 
 #### Option B: Rust
 
 **Initial Appeal:**
-- [x] Blazing fast performance
-- [x] Memory safety
-- [x] Learning opportunity for systems programming
-- [x] Excellent PostgreSQL drivers ([tokio-postgres](https://docs.rs/postgres), [diesel](https://diesel.rs))
-- [x] Recommendation libraries exist ([sbr-rs](https://github.com/maciejkula/sbr-rs))
+- Blazing fast performance
+- Memory safety
+- Learning opportunity for systems programming
+- Excellent PostgreSQL drivers ([tokio-postgres](https://docs.rs/postgres), [diesel](https://diesel.rs))
+- Recommendation libraries exist ([sbr-rs](https://github.com/maciejkula/sbr-rs))
 
 **Challenges Discovered:**
-- [ ] Steep learning curve (lifetimes, borrowing)
-- [ ] Small ML ecosystem compared to Python
-- [ ] Longer development time (8-week deadline tight)
-- [ ] sbr-rs library less mature than Python alternatives
-- [ ] Team has no prior Rust experience
+- Steep learning curve (lifetimes, borrowing)
+- Small ML ecosystem compared to Python
+- Longer development time (8-week deadline tight)
+- sbr-rs library less mature than Python alternatives
+- Team has no prior Rust experience
 
 **Investigation:**
 - Reviewed [sbr-rs documentation](https://github.com/maciejkula/sbr-rs) and examples
@@ -134,36 +134,36 @@ We evaluated three languages for the recommendation engine:
 - Benchmarked against Python implementations
 - Read case study: ["Serving ML at the speed of Rust"](https://shvbsle.in/serving-ml-at-the-speed-of-rust/)
 
-**Verdict:** [ ] Deferred - Great for future optimization, but too risky for initial implementation given timeline and team experience
+**Verdict:** Deferred - Great for future optimization, but too risky for initial implementation given timeline and team experience
 
 ---
 
 #### Option C: C++
 
 **Appeal:**
-- [x] High performance
-- [x] Mature ML libraries (TensorFlow C++ API, Vowpal Wabbit)
-- [x] Some team experience from coursework
+- High performance
+- Mature ML libraries (TensorFlow C++ API, Vowpal Wabbit)
+- Some team experience from coursework
 
 **Challenges:**
-- [ ] Manual memory management (error-prone)
-- [ ] Longer development time
-- [ ] Fewer high-level recommendation libraries than Python
-- [ ] PostgreSQL integration more complex
+- Manual memory management (error-prone)
+- Longer development time
+- Fewer high-level recommendation libraries than Python
+- PostgreSQL integration more complex
 
-**Verdict:** [ ] Rejected - Performance not worth the development overhead
+**Verdict:** Rejected - Performance not worth the development overhead
 
 ---
 
 #### Option D: Python (CHOSEN)
 
 **Pros:**
-- [x] **Mature ML ecosystem:** Surprise, LightFM, Implicit, scikit-learn
-- [x] **Fast libraries:** NumPy, SciPy use optimized C/Fortran under the hood
-- [x] **Rapid development:** Prototype to production in days, not weeks
-- [x] **Team familiarity:** All team members know Python
-- [x] **PostgreSQL integration:** Excellent support (psycopg2, SQLAlchemy)
-- [x] **Proven at scale:** Used by Netflix, Spotify, YouTube for recommendations
+- **Mature ML ecosystem:** Surprise, LightFM, Implicit, scikit-learn
+- **Fast libraries:** NumPy, SciPy use optimized C/Fortran under the hood
+- **Rapid development:** Prototype to production in days, not weeks
+- **Team familiarity:** All team members know Python
+- **PostgreSQL integration:** Excellent support (psycopg2, SQLAlchemy)
+- **Proven at scale:** Used by Netflix, Spotify, YouTube for recommendations
 
 **Performance Reality:**
 > "Python's speed with mainstream libraries [like NumPy] would be sufficient for expected usage. No need for custom native extensions unless scaling massively." - From evaluation
@@ -172,13 +172,13 @@ We evaluated three languages for the recommendation engine:
 
 | Library | Purpose | Performance | Ease of Use |
 |---------|---------|-------------|-------------|
-| **Surprise** | Collaborative filtering | Fast (NumPy/Cython) | ⭐⭐⭐⭐⭐ |
-| **LightFM** | Hybrid (CF + content) | Very fast (C++) | ⭐⭐⭐⭐ |
-| **Implicit** | Matrix factorization | Fast (Cython) | ⭐⭐⭐⭐ |
-| **scikit-learn** | Content-based, clustering | Fast (C/Cython) | ⭐⭐⭐⭐⭐ |
-| **TensorFlow/PyTorch** | Deep learning (overkill) | Very fast (GPU) | ⭐⭐ |
+| **Surprise** | Collaborative filtering | Fast (NumPy/Cython) |  |
+| **LightFM** | Hybrid (CF + content) | Very fast (C++) |  |
+| **Implicit** | Matrix factorization | Fast (Cython) |  |
+| **scikit-learn** | Content-based, clustering | Fast (C/Cython) |  |
+| **TensorFlow/PyTorch** | Deep learning (overkill) | Very fast (GPU) |  |
 
-**Verdict:** [x] **CHOSEN** - Optimal balance of speed, reliability, and development velocity
+**Verdict:** **CHOSEN** - Optimal balance of speed, reliability, and development velocity
 
 ---
 
@@ -192,10 +192,10 @@ We evaluated three languages for the recommendation engine:
 - Real-time updates when friends interact with events
 
 **Why Discarded:**
-- [ ] Too complex for MVP (8-week timeline)
-- [ ] University societies already provide implicit social connections
-- [ ] Co-attendance provides better signal than explicit friending
-- [ ] Privacy concerns (students may not want visible friend connections)
+- Too complex for MVP (8-week timeline)
+- University societies already provide implicit social connections
+- Co-attendance provides better signal than explicit friending
+- Privacy concerns (students may not want visible friend connections)
 
 **Alternative Adopted:**
 - Use **co-attendance patterns** for collaborative filtering
@@ -213,10 +213,10 @@ We evaluated three languages for the recommendation engine:
 - Own database and API
 
 **Why Discarded:**
-- [ ] Adds deployment complexity (Kubernetes, service mesh)
-- [ ] Network latency between services
-- [ ] Overkill for team of 4 with single server
-- [ ] Harder to debug and monitor
+- Adds deployment complexity (Kubernetes, service mesh)
+- Network latency between services
+- Overkill for team of 4 with single server
+- Harder to debug and monitor
 
 **Alternative Adopted:**
 - **Monolithic Python service** running in Docker container alongside Next.js
@@ -297,16 +297,16 @@ Single-method systems miss critical signals. Hybrid captures all three.
 ### User Feedback Signals
 
 **Explicit Feedback:**
-- 👍 **Like** (+3 points) - User explicitly likes event
-- 👎 **Dislike** (-5 points) - User explicitly dislikes event
-- 🙈 **Show Less** (-1 point) - Soft signal of disinterest
-- 🔕 **Ignore** (0 points) - Shown but no action
+- **Like** (+3 points) - User explicitly likes event
+- **Dislike** (-5 points) - User explicitly dislikes event
+- **Show Less** (-1 point) - Soft signal of disinterest
+- **Ignore** (0 points) - Shown but no action
 
 **Implicit Feedback:**
-- [x] **RSVP/Register** (+5 points) - Strongest positive signal
-- 🎉 **Attended** (+8 points) - Ultimate validation
-- 👀 **Clicked/Viewed** (+1 point) - Interest signal
--  **Time on page** (+0-2 points) - Engagement proxy
+- **RSVP/Register** (+5 points) - Strongest positive signal
+- **Attended** (+8 points) - Ultimate validation
+- **Clicked/Viewed** (+1 point) - Interest signal
+- **Time on page** (+0-2 points) - Engagement proxy
 
 ### Interaction Weighting
 
@@ -539,50 +539,50 @@ redis.setex(
 ## 8. Implementation Plan
 
 ### Phase 1: Data Collection (Week 1-2)
-- [x] Add interaction tracking to existing event pages
-- [x] Log clicks, RSVPs, likes, dislikes
-- [x] Build interaction history dataset
+- Add interaction tracking to existing event pages
+- Log clicks, RSVPs, likes, dislikes
+- Build interaction history dataset
 
 ### Phase 2: Python Service Setup (Week 3)
-- 📋 Create Docker container for Python service
-- 📋 Set up PostgreSQL connection (psycopg2)
-- 📋 Install ML libraries (surprise, implicit, scikit-learn)
-- 📋 Create batch job script
+- Create Docker container for Python service
+- Set up PostgreSQL connection (psycopg2)
+- Install ML libraries (surprise, implicit, scikit-learn)
+- Create batch job script
 
 ### Phase 3: Collaborative Filtering (Week 3-4)
-- 📋 Implement matrix factorization with `implicit` library
-- 📋 Train on interaction data
-- 📋 Generate recommendations for all users
-- 📋 Store in PostgreSQL + cache in Redis
+- Implement matrix factorization with `implicit` library
+- Train on interaction data
+- Generate recommendations for all users
+- Store in PostgreSQL + cache in Redis
 
 ### Phase 4: Content-Based Filtering (Week 4)
-- 📋 Extract event features (TF-IDF on descriptions)
-- 📋 Build user profiles from interaction history
-- 📋 Calculate similarity scores
-- 📋 Integrate with collaborative filtering
+- Extract event features (TF-IDF on descriptions)
+- Build user profiles from interaction history
+- Calculate similarity scores
+- Integrate with collaborative filtering
 
 ### Phase 5: Social Boost (Week 5)
-- 📋 Implement faculty/society matching
-- 📋 Add co-attendance analysis
-- 📋 Combine with other scores
+- Implement faculty/society matching
+- Add co-attendance analysis
+- Combine with other scores
 
 ### Phase 6: Integration & API (Week 5-6)
-- 📋 Create REST API endpoint: `GET /api/recommendations/:userId`
-- 📋 Integrate with Next.js frontend
-- 📋 Add recommendation widgets to dashboard
-- 📋 Implement impression tracking
+- Create REST API endpoint: `GET /api/recommendations/:userId`
+- Integrate with Next.js frontend
+- Add recommendation widgets to dashboard
+- Implement impression tracking
 
 ### Phase 7: Analytics Dashboard (Week 6-7)
-- 📋 Build society committee analytics
-- 📋 Show impression/click rates
-- 📋 Display recommendation sources
-- 📋 A/B testing framework
+- Build society committee analytics
+- Show impression/click rates
+- Display recommendation sources
+- A/B testing framework
 
 ### Phase 8: Optimization (Week 7-8)
-- 📋 Performance tuning (batch job <30 seconds)
-- 📋 Cold start handling
-- 📋 Cache optimization
-- 📋 Load testing
+- Performance tuning (batch job <30 seconds)
+- Cold start handling
+- Cache optimization
+- Load testing
 
 ---
 
@@ -739,7 +739,7 @@ Revisit Rust implementation if:
 ---
 
 **Last Updated:** 2025-01-25
-**Decision Status:** [x] Approved - Python-based hybrid recommender with Rust migration path
+**Decision Status:** Approved - Python-based hybrid recommender with Rust migration path
 **References:**
 - [PostgreSQL Rust driver](https://docs.rs/postgres)
 - [sbr-rs recommendation library](https://github.com/maciejkula/sbr-rs)
