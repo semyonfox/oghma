@@ -48,10 +48,13 @@ export function generateJWTToken(payload, expiresIn = '1d') {
  * @returns {Object|null} - Decoded payload or null if invalid
  */
 export function verifyJWTToken(token) {
+    // Validate secret first - this should throw loudly if misconfigured
+    validateJWTSecret();
+
     try {
-        validateJWTSecret();
         return jwt.verify(token, process.env.JWT_SECRET);
     } catch (error) {
+        // Only catch JWT verification errors (expired, invalid signature, etc.)
         return null;
     }
 }
@@ -70,7 +73,7 @@ export async function createSessionCookie(token, expiryDays = 1) {
 
     (await cookies()).set('session', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'development',
+        secure: process.env.NODE_ENV === 'production',
         expires: expires,
         sameSite: 'lax',
         path: '/'

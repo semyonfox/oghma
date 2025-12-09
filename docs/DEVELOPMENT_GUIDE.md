@@ -69,10 +69,12 @@ npm run dev
 ### Branching Strategy
 
 **Main Branches:**
+
 - `main` - Production-ready code (protected)
 - `develop` - Integration branch for features
 
 **Feature Branches:**
+
 - `feature/event-registration` - New features
 - `fix/login-bug` - Bug fixes
 - `refactor/database-queries` - Code refactoring
@@ -81,6 +83,7 @@ npm run dev
 ### Workflow Steps
 
 **1. Create Feature Branch:**
+
 ```bash
 git checkout main
 git pull origin main
@@ -88,6 +91,7 @@ git checkout -b feature/event-registration
 ```
 
 **2. Work on Feature:**
+
 ```bash
 # Make changes
 git add .
@@ -98,6 +102,7 @@ git push -u origin feature/event-registration
 ```
 
 **3. Open Pull Request:**
+
 - Go to GitHub
 - Click "New Pull Request"
 - Base: `main`, Compare: `feature/event-registration`
@@ -120,17 +125,20 @@ git push -u origin feature/event-registration
   ```
 
 **4. Code Review:**
+
 - Semyon (PM) reviews code
 - Address feedback
 - Push updates to same branch (PR updates automatically)
 
 **5. Merge:**
+
 - Semyon merges to `main`
 - Delete feature branch
 
 ### Commit Message Convention
 
 **Format:**
+
 ```
 <type>(<scope>): <subject>
 
@@ -140,6 +148,7 @@ git push -u origin feature/event-registration
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -149,6 +158,7 @@ git push -u origin feature/event-registration
 - `chore`: Build process, dependencies
 
 **Examples:**
+
 ```bash
 git commit -m "feat(events): add event registration endpoint"
 git commit -m "fix(auth): resolve JWT token expiration issue"
@@ -163,6 +173,7 @@ git commit -m "refactor(database): optimize recommendation queries"
 ### Pull Request Checklist
 
 **Before Opening PR:**
+
 - [ ] Code compiles without errors
 - [ ] All tests pass (if applicable)
 - [ ] Lint checks pass (`npm run lint`)
@@ -172,6 +183,7 @@ git commit -m "refactor(database): optimize recommendation queries"
 - [ ] README updated (if needed)
 
 **PR Description Must Include:**
+
 1. What changed
 2. Why it changed
 3. How to test
@@ -182,32 +194,38 @@ git commit -m "refactor(database): optimize recommendation queries"
 **Semyon (PM) Checks:**
 
 **1. Functionality:**
+
 - Does code work as expected?
 - Are edge cases handled?
 - Is error handling robust?
 
 **2. Code Quality:**
+
 - Is code readable and maintainable?
 - Are variables/functions well-named?
 - Is there unnecessary complexity?
 - Are there code smells (duplication, long functions)?
 
 **3. Performance:**
+
 - Are queries optimized?
 - Is caching used appropriately?
 - Are there N+1 query problems?
 
 **4. Security:**
+
 - Is input validated?
 - Are SQL injections prevented?
 - Is authentication/authorization checked?
 - Are secrets stored securely?
 
 **5. Testing:**
+
 - Are critical paths tested?
 - Are tests meaningful (not just for coverage)?
 
 **6. Documentation:**
+
 - Are complex functions documented?
 - Are API changes documented?
 - Is README updated?
@@ -215,6 +233,7 @@ git commit -m "refactor(database): optimize recommendation queries"
 ### Addressing Feedback
 
 **Process:**
+
 1. Read feedback carefully
 2. Ask questions if unclear
 3. Make requested changes
@@ -223,10 +242,12 @@ git commit -m "refactor(database): optimize recommendation queries"
 6. Request re-review
 
 **Example:**
+
 ```markdown
 Reviewer: "This function is too long. Can you split it into smaller functions?"
 
 You: "Good point! I've refactored it into 3 smaller functions:
+
 - validateEventData()
 - createEventRecord()
 - sendNotifications()
@@ -241,70 +262,80 @@ Please review again."
 ### TypeScript Guidelines
 
 **1. Use Explicit Types (Not `any`):**
+
 ```typescript
-// [ ] Bad
+// Bad
 function getEvent(id: any): any {
-  return fetch(`/api/events/${id}`);
+    return fetch(`/api/events/${id}`);
 }
 
-// [x] Good
+// Good
 type Event = {
-  id: string;
-  title: string;
-  eventDate: Date;
+    id: string;
+    title: string;
+    eventDate: Date;
 };
 
 async function getEvent(id: string): Promise<Event> {
-  const response = await fetch(`/api/events/${id}`);
-  return response.json();
+    const response = await fetch(`/api/events/${id}`);
+    return response.json();
 }
 ```
 
 **2. Use Interfaces for Objects:**
+
 ```typescript
-// [x] Good
+// Good
 interface User {
-  id: string;
-  email: string;
-  name: string;
+    id: string;
+    email: string;
+    name: string;
 }
 
 function updateUser(user: User): Promise<void> {
-  // ...
+    // ...
 }
 ```
 
 **3. Use Enums for Constants:**
+
 ```typescript
-// [x] Good
+// Good
 enum EventStatus {
-  Published = 'published',
-  Draft = 'draft',
-  Cancelled = 'cancelled',
+    Published = 'published',
+    Draft = 'draft',
+    Cancelled = 'cancelled',
 }
 
 const event: Event = {
-  status: EventStatus.Published,
+    status: EventStatus.Published,
 };
 ```
 
 ### Naming Conventions
 
 **Variables and Functions:**
+
 ```typescript
 // camelCase for variables and functions
 const userId = '123';
-function getUserById(id: string) {}
+
+function getUserById(id: string) {
+}
 ```
 
 **Types and Interfaces:**
+
 ```typescript
 // PascalCase for types and interfaces
 type Event = {};
-interface User {}
+
+interface User {
+}
 ```
 
 **Constants:**
+
 ```typescript
 // UPPER_SNAKE_CASE for constants
 const MAX_CAPACITY = 100;
@@ -312,6 +343,7 @@ const API_BASE_URL = 'https://api.example.com';
 ```
 
 **Files:**
+
 ```
 // kebab-case for files
 event-card.tsx
@@ -319,9 +351,27 @@ user-profile.tsx
 api-client.ts
 ```
 
+**IMPORTANT: Next.js App Router Folders:**
+
+```
+// ALWAYS use lowercase for route folders!
+// Next.js routes are CASE-SENSITIVE
+
+// WRONG - will cause 404 errors
+src/app/api/auth/Login/route.js    → /api/auth/Login (broken)
+src/app/api/auth/Register/route.js → /api/auth/Register (broken)
+
+// CORRECT
+src/app/api/auth/login/route.js    → /api/auth/login
+src/app/api/auth/register/route.js → /api/auth/register
+```
+
+> **Note:** If your API returns 404 and the route file exists, CHECK THE FOLDER NAME CASING FIRST!
+
 ### Code Organization
 
 **File Structure:**
+
 ```
 /src/
   ├── app/
@@ -339,71 +389,76 @@ api-client.ts
 ```
 
 **Component Structure:**
+
 ```typescript
 // event-card.tsx
 
 // 1. Imports
-import { Event } from '@/types';
+import {Event} from '@/types';
 import Link from 'next/link';
 
 // 2. Types (if component-specific)
 type EventCardProps = {
-  event: Event;
-  onRegister?: (eventId: string) => void;
+    event: Event;
+    onRegister?: (eventId: string) => void;
 };
 
 // 3. Component
-export function EventCard({ event, onRegister }: EventCardProps) {
-  // Logic here
-  return (
-    // JSX here
-  );
+export function EventCard({event, onRegister}: EventCardProps) {
+    // Logic here
+    return (
+        // JSX here
+    );
 }
 ```
 
 ### Avoid Common Mistakes
 
 **1. Don't Mutate State Directly:**
+
 ```typescript
-// [ ] Bad
+// Bad
 const [events, setEvents] = useState<Event[]>([]);
 events.push(newEvent); // Mutating state directly!
 
-// [x] Good
+// Good
 setEvents([...events, newEvent]);
 ```
 
 **2. Don't Forget to Handle Errors:**
+
 ```typescript
-// [ ] Bad
+// Bad
 async function fetchEvents() {
-  const response = await fetch('/api/events');
-  return response.json();
+    const response = await fetch('/api/events');
+    return response.json();
 }
 
-// [x] Good
+// Good
 async function fetchEvents(): Promise<Event[]> {
-  try {
-    const response = await fetch('/api/events');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+        const response = await fetch('/api/events');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Failed to fetch events:', error);
+        throw error;
     }
-    return response.json();
-  } catch (error) {
-    console.error('Failed to fetch events:', error);
-    throw error;
-  }
 }
 ```
 
 **3. Don't Use `console.log` in Production:**
+
 ```typescript
-// [ ] Bad
+// Bad
 console.log('User registered:', user);
 
-// [x] Good (use proper logging)
-import { logger } from '@/lib/logger';
-logger.info('User registered', { userId: user.id });
+// Good (use proper logging)
+import {logger} from '@/lib/logger';
+
+logger.info('User registered', {userId: user.id});
 ```
 
 ---
@@ -413,33 +468,36 @@ logger.info('User registered', { userId: user.id });
 ### Unit Testing (Optional for MVP)
 
 **Tools:**
+
 - Jest (test runner)
 - React Testing Library (component testing)
 
 **Example:**
+
 ```typescript
 // __tests__/lib/auth.test.ts
-import { validateJWT } from '@/lib/auth';
+import {validateJWT} from '@/lib/auth';
 
 describe('validateJWT', () => {
-  it('should validate correct JWT token', () => {
-    const token = 'valid-jwt-token';
-    const result = validateJWT(token);
-    expect(result.valid).toBe(true);
-  });
+    it('should validate correct JWT token', () => {
+        const token = 'valid-jwt-token';
+        const result = validateJWT(token);
+        expect(result.valid).toBe(true);
+    });
 
-  it('should reject expired JWT token', () => {
-    const token = 'expired-jwt-token';
-    const result = validateJWT(token);
-    expect(result.valid).toBe(false);
-    expect(result.error).toBe('Token expired');
-  });
+    it('should reject expired JWT token', () => {
+        const token = 'expired-jwt-token';
+        const result = validateJWT(token);
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('Token expired');
+    });
 });
 ```
 
 ### Manual Testing Checklist
 
 **For Every Feature:**
+
 1. **Happy Path:** Test expected workflow
 2. **Edge Cases:** Test with invalid inputs, empty data, max capacity
 3. **Error Handling:** Test with network errors, database errors
@@ -447,6 +505,7 @@ describe('validateJWT', () => {
 5. **Mobile:** Test on mobile devices (responsive design)
 
 **Example (Event Registration):**
+
 ```markdown
 - [ ] Register for event (happy path)
 - [ ] Register for full event (waitlist)
@@ -464,6 +523,7 @@ describe('validateJWT', () => {
 ### Code Documentation
 
 **JSDoc Comments for Public Functions:**
+
 ```typescript
 /**
  * Fetches a user by their ID.
@@ -477,11 +537,12 @@ describe('validateJWT', () => {
  * console.log(user.email);
  */
 export async function getUserById(id: string): Promise<User> {
-  // Implementation
+    // Implementation
 }
 ```
 
 **Inline Comments for Complex Logic:**
+
 ```typescript
 // Calculate recommendation score based on:
 // 1. Society membership (50 points)
@@ -494,6 +555,7 @@ const score = membershipScore + attendanceScore + similarityScore + randomBonus;
 ### API Documentation
 
 **Document All Endpoints:**
+
 ```typescript
 /**
  * POST /api/events/:id/register
@@ -519,14 +581,15 @@ const score = membershipScore + attendanceScore + similarityScore + randomBonus;
  *   "error": "Authentication required"
  * }
  */
-export async function POST(request: Request, { params }: { params: { id: string } }) {
-  // Implementation
+export async function POST(request: Request, {params}: { params: { id: string } }) {
+    // Implementation
 }
 ```
 
 ### README Updates
 
 **Update README When:**
+
 - Adding new environment variables
 - Adding new npm scripts
 - Changing deployment process
@@ -539,6 +602,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 ### Daily Standups (15 Minutes)
 
 **Format:**
+
 1. What I completed yesterday
 2. What I'm working on today
 3. Any blockers or help needed
@@ -551,6 +615,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 ### Weekly Reviews (1 Hour, Fridays)
 
 **Agenda:**
+
 1. Demo completed features (5 min per person)
 2. Review progress against timeline
 3. Discuss upcoming week's priorities
@@ -567,7 +632,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
 ## Best Practices Summary
 
-[x] **DO:**
+**DO:**
+
 - Write descriptive commit messages
 - Ask questions early (don't struggle alone)
 - Test your code before pushing
@@ -575,7 +641,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
 - Document complex logic
 - Review others' code (learn from each other)
 
-[ ] **DON'T:**
+**DON'T:**
+
 - Push directly to `main` (always use PRs)
 - Commit secrets (.env files, API keys)
 - Leave commented-out code
@@ -586,6 +653,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 ---
 
 **Related Documents:**
+
 - [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) - Project scope and timeline
 - [QUICKSTART.md](./QUICKSTART.md) - Quick deployment guide
 - [INFRASTRUCTURE_AND_DEVOPS.md](./INFRASTRUCTURE_AND_DEVOPS.md) - Deployment setup

@@ -6,7 +6,7 @@ A full-stack social platform connecting university students with society events 
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Install dependencies
@@ -26,7 +26,7 @@ For detailed setup instructions, see [SETUP.md](SETUP.md)
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 **Complete documentation is in the [`docs/`](docs/) folder:**
 
@@ -72,20 +72,20 @@ docs/
 - [x] Bootstrap UI framework
 
 **In Progress:**
-- 🔄 User dashboard and profile pages
-- 🔄 Protected routes and authorization
-- 🔄 Events system (CRUD operations)
+- User dashboard and profile pages
+- Protected routes and authorization
+- Events system (CRUD operations)
 
 **Next Up:**
-- 📋 Event registration and attendance
-- 📋 Social posts feed
-- 📋 Recommendation engine
-- 📋 Multilingual support (Irish/English)
-- 📋 AWS deployment
+- Event registration and attendance
+- Social posts feed
+- Recommendation engine
+- Multilingual support (Irish/English)
+- AWS deployment
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Bootstrap 5
 - **Backend:** Next.js API Routes, JWT authentication
@@ -98,7 +98,7 @@ docs/
 
 ---
 
-## 🔧 Development
+## Development
 
 ### Project Structure
 
@@ -141,7 +141,7 @@ npm run start    # Start production server
 
 ---
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Quick Deploy
 
@@ -166,7 +166,7 @@ To expose the app via `https://ct216.semyon.ie`:
 
 ---
 
-## 📊 Database Schema
+## Database Schema
 
 **Current:**
 
@@ -183,7 +183,7 @@ CREATE TABLE login (
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature`
 2. Make your changes
@@ -196,7 +196,7 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 
 ---
 
-## 📞 Need Help?
+## Need Help?
 
 - **Setup issues:** Check [SETUP.md](SETUP.md)
 - **Deployment:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
@@ -205,7 +205,7 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 
 ---
 
-## 🎓 Project Info
+## Project Info
 
 **Module:** CT216 - Software Engineering I
 **Team Size:** 4 members
