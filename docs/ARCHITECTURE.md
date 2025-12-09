@@ -62,11 +62,11 @@ For visual diagrams, see [Stack Diagram.excalidraw.md](Stack%20Diagram.excalidra
 ### Monolithic Architecture
 
 **Why monolithic?**
-- [x] Simpler deployment (single container)
-- [x] Easier development (no inter-service communication)
-- [x] Shared types and utilities
-- [x] Better for team of 4 with 8-week timeline
-- [x] Can migrate to microservices later if needed
+- Simpler deployment (single container)
+- Easier development (no inter-service communication)
+- Shared types and utilities
+- Better for team of 4 with 8-week timeline
+- Can migrate to microservices later if needed
 
 ### Layered Architecture
 
@@ -177,35 +177,35 @@ Unlike traditional setups with separate repos, Next.js is a **full-stack framewo
 ```
 ct216_project/
 ├── src/app/
-│   ├── api/                        # 🟦 BACKEND - API Routes
+│   ├── api/                        # BACKEND - API Routes
 │   │   ├── auth/
 │   │   │   ├── login/route.js      # POST /api/auth/login
 │   │   │   └── register/route.js   # POST /api/auth/register
 │   │   └── events/
 │   │       └── route.js            # GET/POST /api/events
 │   │
-│   ├── login/                      # 🟨 FRONTEND - Pages
+│   ├── login/                      # FRONTEND - Pages
 │   │   └── page.js                 # Login page UI
 │   ├── register/
 │   │   └── page.js                 # Registration page UI
 │   └── page.js                     # Homepage
 │
-├── src/lib/                        # 🟦 Shared utilities
+├── src/lib/                        # Shared utilities
 │   ├── db.js                       # Database connection
 │   └── auth.js                     # Auth helpers
 │
-└── src/database/                   # 🟦 Database setup
+└── src/database/                   # Database setup
     └── setup.sql                   # Schema definitions
 ```
 
 ### SSR vs CSR: When to Use Each
 
-**🔶 Use SSR (Server-Side Rendering) for:**
+**Use SSR (Server-Side Rendering) for:**
 - SEO-critical pages (homepage, event listings)
 - Fast first load (login, registration)
 - Public pages (anything Google needs to index)
 
-**🔷 Use CSR (Client-Side Rendering) for:**
+**Use CSR (Client-Side Rendering) for:**
 - Interactive dashboards (real-time updates)
 - Private pages (behind authentication)
 - Complex forms (multi-step, validation)

@@ -6,7 +6,7 @@ A full-stack social platform connecting university students with society events 
 
 ---
 
-## 📖 Quick Start
+## Quick Start
 
 **New to the project?** Start here:
 
@@ -17,7 +17,7 @@ A full-stack social platform connecting university students with society events 
 
 ---
 
-## 📚 Documentation Index
+## Documentation Index
 
 ### Core Documents
 
@@ -56,7 +56,7 @@ Detailed technical guides for specific features:
 
 ---
 
-## 🎯 Project Overview
+## Project Overview
 
 ### What We're Building
 
@@ -80,25 +80,25 @@ A platform that:
 
 **Phase:** Active development
 **Completed:**
-- [x] User authentication (registration, login, JWT)
-- [x] Database setup and schema
-- [x] Docker containerization
-- [x] Basic UI framework
+- User authentication (registration, login, JWT)
+- Database setup and schema
+- Docker containerization
+- Basic UI framework
 
 **In Progress:**
-- 🔄 User dashboard and profile management
-- 🔄 Protected routes and authorization
-- 🔄 Events system (CRUD operations)
+- User dashboard and profile management
+- Protected routes and authorization
+- Events system (CRUD operations)
 
 **Next Up:**
-- 📋 Social posts feed
-- 📋 Recommendation engine
-- 📋 Multilingual support
-- 📋 AWS deployment
+- Social posts feed
+- Recommendation engine
+- Multilingual support
+- AWS deployment
 
 ---
 
-## 🗂️ Navigation by Role
+## Navigation by Role
 
 ### For New Team Members
 
@@ -130,7 +130,7 @@ A platform that:
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 ct216_project/
@@ -158,7 +158,7 @@ ct216_project/
 
 ---
 
-## 📝 Contributing to Documentation
+## Contributing to Documentation
 
 When adding or updating documentation:
 
@@ -180,7 +180,7 @@ When adding or updating documentation:
 
 ---
 
-## 🎓 Module Context
+## Module Context
 
 **Module:** CT216 - Software Engineering I
 **Team Size:** 4 members
@@ -189,7 +189,7 @@ When adding or updating documentation:
 
 ---
 
-## 📞 Need Help?
+## Need Help?
 
 **For Technical Questions:**
 - Check relevant documentation above
