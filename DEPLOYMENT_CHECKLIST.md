@@ -1,4 +1,4 @@
-# 🚀 Deployment Checklist
+# Deployment Checklist
 
 Use this checklist when deploying ct216 to your ct2106 stack.
 
