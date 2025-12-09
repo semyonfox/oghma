@@ -213,10 +213,10 @@ After rejecting the CAD system, we brainstormed alternatives:
 #### 4. **Required Technologies Alignment**
 
 **Assignment Requirements:**
-- [x] HTML, CSS (Next.js + Bootstrap)
-- [x] JavaScript (React + Node.js)
-- [x] Node.js (Next.js backend, API routes)
-- [x] Database (PostgreSQL)
+- HTML, CSS (Next.js + Bootstrap)
+- JavaScript (React + Node.js)
+- Node.js (Next.js backend, API routes)
+- Database (PostgreSQL)
 
 **Bonus Skills:**
 - TypeScript (type safety)
@@ -334,13 +334,13 @@ The project evolved through several iterations:
 
 | Criterion | CAD System | Society Platform | Winner |
 |-----------|-----------|------------------|--------|
-| **Timeline Risk** | High (6-8 weeks just for basics) | Low (prototype in 4 weeks) | [x] Platform |
-| **Technical Depth** | Very High (WASM, 3D, geometry) | High (recommendations, caching, multilingual) | [x] Both |
-| **Work Division** | Poor (sequential bottlenecks) | Excellent (parallel features) | [x] Platform |
-| **Resume Value** | Very High (unique) | High (full-stack + algorithms) | [x] CAD (slight edge) |
-| **Real-World Use** | Unlikely (toy CAD) | High (campus deployment) | [x] Platform |
-| **Learning Outcomes** | Specialized (3D/WASM) | Broad (full-stack) | [x] Platform (for job market) |
-| **Completion Risk** | High (may not finish) | Low (MVP guaranteed) | [x] Platform |
+| **Timeline Risk** | High (6-8 weeks just for basics) | Low (prototype in 4 weeks) | Platform |
+| **Technical Depth** | Very High (WASM, 3D, geometry) | High (recommendations, caching, multilingual) | Both |
+| **Work Division** | Poor (sequential bottlenecks) | Excellent (parallel features) | Platform |
+| **Resume Value** | Very High (unique) | High (full-stack + algorithms) | CAD (slight edge) |
+| **Real-World Use** | Unlikely (toy CAD) | High (campus deployment) | Platform |
+| **Learning Outcomes** | Specialized (3D/WASM) | Broad (full-stack) | Platform (for job market) |
+| **Completion Risk** | High (may not finish) | Low (MVP guaranteed) | Platform |
 
 ### Final Vote (Week 4 Meeting)
 
@@ -385,16 +385,16 @@ The project evolved through several iterations:
 ### Risk Management
 
 **CAD System Risks:**
-- [ ] High technical complexity (WASM, geometry)
-- [ ] Poor documentation (OpenCascade.js)
-- [ ] Single point of failure (geometry expert)
-- [ ] No fallback plan
+- High technical complexity (WASM, geometry)
+- Poor documentation (OpenCascade.js)
+- Single point of failure (geometry expert)
+- No fallback plan
 
 **Society Platform Risks:**
-- [x] OAuth approval delayed → build mock OAuth first
-- [x] Student API unavailable → manual interest selection
-- [x] Timeline slippage → prioritize MVP features
-- [x] AWS costs → stay on homelab, document migration plan
+- OAuth approval delayed → build mock OAuth first
+- Student API unavailable → manual interest selection
+- Timeline slippage → prioritize MVP features
+- AWS costs → stay on homelab, document migration plan
 
 ---
 
