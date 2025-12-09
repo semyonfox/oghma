@@ -71,7 +71,7 @@ CREATE TABLE events (
 
 #### Pros
 
-[x] **Simple Queries:**
+**Simple Queries:**
 ```sql
 -- Get English event
 SELECT title_en, description_en FROM events WHERE id = '123';
@@ -80,13 +80,13 @@ SELECT title_en, description_en FROM events WHERE id = '123';
 SELECT title_ga, description_ga FROM events WHERE id = '123';
 ```
 
-[x] **Easy to Understand:** Flat table structure, no JOINs
+**Easy to Understand:** Flat table structure, no JOINs
 
-[x] **Fast for Fixed Languages:** Direct column access (no JSON parsing)
+**Fast for Fixed Languages:** Direct column access (no JSON parsing)
 
 #### Cons
 
-[ ] **NOT Scalable:**
+**NOT Scalable:**
 ```sql
 -- Adding French requires ALTER TABLE (risky in production)
 ALTER TABLE events
@@ -94,12 +94,12 @@ ALTER TABLE events
   ADD COLUMN description_fr TEXT;
 ```
 
-[ ] **Many NULL Columns:**
+**Many NULL Columns:**
 - If event only in English: `title_ga`, `description_ga` are NULL
 - If event only in Irish: `title_en`, `description_en` are NULL
 - Wasted space, sparse table
 
-[ ] **Code Duplication:**
+**Code Duplication:**
 ```typescript
 // Need separate handling for each language
 const title = locale === 'en' ? event.title_en :
@@ -107,13 +107,13 @@ const title = locale === 'en' ? event.title_en :
               event.title_en; // Fallback
 ```
 
-[ ] **Wide Tables:**
+**Wide Tables:**
 - 10 fields × 3 languages = 30 columns
 - Hard to maintain, read, debug
 
 #### Verdict
 
-**[ ] REJECTED:** Only suitable for **permanent** 2-language applications where languages **never** change.
+**REJECTED:** Only suitable for **permanent** 2-language applications where languages **never** change.
 
 **Not for us:** We want expandability (French, Spanish, etc. in future).
 
@@ -151,29 +151,29 @@ CREATE INDEX idx_event_translations_slug ON event_translations(slug);
 
 #### Pros
 
-[x] **Clean, Normalized Design:**
+**Clean, Normalized Design:**
 - One row per translation (no NULLs)
 - Separate concerns (metadata vs. content)
 - Easy to audit ("Who translated this? When?")
 
-[x] **Easy to Add Languages:**
+**Easy to Add Languages:**
 ```sql
 -- Add French translation (just INSERT, no schema change)
 INSERT INTO event_translations (event_id, language, title, description)
 VALUES ('123', 'fr', 'Atelier Python', 'Apprenez les bases de Python...');
 ```
 
-[x] **Strong Schema Validation:**
+**Strong Schema Validation:**
 - `title` is NOT NULL (guaranteed)
 - `language` is VARCHAR (validated)
 - Foreign key constraints (referential integrity)
 
-[x] **Industry Standard:**
+**Industry Standard:**
 - WordPress: `wp_posts` + `wp_postmeta` (similar pattern)
 - Drupal: `node` + `node_field_data` (similar pattern)
 - Shows professional database design knowledge (resume value)
 
-[x] **Easy to Query Specific Language:**
+**Easy to Query Specific Language:**
 ```sql
 -- Get all Irish events
 SELECT e.id, et.title, et.description
@@ -182,7 +182,7 @@ JOIN event_translations et ON e.id = et.event_id
 WHERE et.language = 'ga' AND e.status = 'published';
 ```
 
-[x] **Audit Trail:**
+**Audit Trail:**
 ```sql
 -- Add columns for tracking (optional)
 ALTER TABLE event_translations
@@ -192,7 +192,7 @@ ALTER TABLE event_translations
 
 #### Cons
 
-[ ] **Requires JOINs:**
+**Requires JOINs:**
 ```sql
 -- Every query needs JOIN
 SELECT e.*, et.title, et.description
@@ -201,12 +201,12 @@ JOIN event_translations et ON e.id = et.event_id
 WHERE e.id = '123' AND et.language = 'en';
 ```
 
-[ ] **Two Tables to Maintain:**
+**Two Tables to Maintain:**
 - Insert event → insert translation(s)
 - Update event → update translation(s)
 - Delete event → cascade delete translations
 
-[ ] **Slightly More Complex Queries:**
+**Slightly More Complex Queries:**
 ```sql
 -- Fallback logic (Irish if available, else English)
 SELECT
@@ -228,7 +228,7 @@ WHERE e.id = '123';
 
 #### Verdict
 
-[x] **CHOSEN for Events:** Best for structured content with formal fields.
+**CHOSEN for Events:** Best for structured content with formal fields.
 
 **Why:**
 - Events have strict schema (title, description, slug required)
@@ -260,11 +260,11 @@ CREATE INDEX idx_posts_translations ON posts USING GIN (translations);
 ```json
 {
   "en": {
-    "content": "Check out our trip to Galway! 🏔️",
+    "content": "Check out our trip to Galway! ",
     "autoTranslated": false
   },
   "ga": {
-    "content": "Féach ar ár dturas go Gaillimh! 🏔️",
+    "content": "Féach ar ár dturas go Gaillimh! ",
     "autoTranslated": true
   }
 }
@@ -272,7 +272,7 @@ CREATE INDEX idx_posts_translations ON posts USING GIN (translations);
 
 #### Pros
 
-[x] **No JOINs Needed:**
+**No JOINs Needed:**
 ```sql
 -- Get Irish post (single query, no JOIN)
 SELECT
@@ -283,7 +283,7 @@ FROM posts
 WHERE id = '123';
 ```
 
-[x] **Very Flexible:**
+**Very Flexible:**
 ```sql
 -- Add metadata without schema change
 UPDATE posts SET translations = jsonb_set(
@@ -293,7 +293,7 @@ UPDATE posts SET translations = jsonb_set(
 ) WHERE id = '123';
 ```
 
-[x] **Fast with GIN Indexes:**
+**Fast with GIN Indexes:**
 ```sql
 -- Check if Irish translation exists (indexed!)
 SELECT id FROM posts WHERE translations ? 'ga';
@@ -303,15 +303,15 @@ SELECT id FROM posts
 WHERE translations->'ga'->>'content' ILIKE '%Gaillimh%';
 ```
 
-[x] **Single Row Per Post:**
+**Single Row Per Post:**
 - Easier to reason about (one post = one row)
 - No orphaned translations (impossible)
 
-[x] **Modern PostgreSQL Feature:**
+**Modern PostgreSQL Feature:**
 - Shows advanced database knowledge (resume value)
 - JSONB is PostgreSQL's strength (not MySQL)
 
-[x] **Easy Metadata Addition:**
+**Easy Metadata Addition:**
 ```json
 {
   "en": {
@@ -326,11 +326,11 @@ WHERE translations->'ga'->>'content' ILIKE '%Gaillimh%';
 
 #### Cons
 
-[ ] **PostgreSQL-Specific:**
+**PostgreSQL-Specific:**
 - Cannot easily switch to MySQL (no JSONB support)
 - Vendor lock-in (but PostgreSQL unlikely to disappear)
 
-[ ] **Less Schema Validation:**
+**Less Schema Validation:**
 ```sql
 -- Database won't prevent this:
 INSERT INTO posts (translations) VALUES ('{"en": {"wrong_field": "oops"}}');
@@ -338,13 +338,13 @@ INSERT INTO posts (translations) VALUES ('{"en": {"wrong_field": "oops"}}');
 
 **Mitigation:** Application-level validation (TypeScript types, `zod` schemas)
 
-[ ] **Requires GIN Indexes for Performance:**
+**Requires GIN Indexes for Performance:**
 ```sql
 -- Without GIN index, JSONB queries are SLOW (table scan)
 CREATE INDEX idx_posts_translations ON posts USING GIN (translations);
 ```
 
-[ ] **Slightly More Complex Validation:**
+**Slightly More Complex Validation:**
 ```typescript
 // Application code must validate JSONB structure
 const postSchema = z.object({
@@ -365,7 +365,7 @@ const postSchema = z.object({
 
 #### Verdict
 
-[x] **CHOSEN for Posts:** Best for flexible, casual content.
+**CHOSEN for Posts:** Best for flexible, casual content.
 
 **Why:**
 - Posts are informal (memes, photos, announcements)
@@ -593,7 +593,7 @@ CREATE INDEX idx_user_interests_user ON user_interests(user_id);
 ```sql
 SELECT * FROM events WHERE society_id = '123';
 -- Sequential scan: O(n) - checks every row
--- 10,000 events × 10ms = 100 seconds [ ]
+-- 10,000 events × 10ms = 100 seconds 
 ```
 
 **With Index:**
@@ -601,7 +601,7 @@ SELECT * FROM events WHERE society_id = '123';
 CREATE INDEX idx_events_society ON events(society_id);
 SELECT * FROM events WHERE society_id = '123';
 -- Index scan: O(log n) - binary search
--- log₂(10,000) × 1ms = 14ms [x]
+-- log₂(10,000) × 1ms = 14ms 
 ```
 
 ### Our Indexes
@@ -623,12 +623,12 @@ SELECT * FROM events WHERE society_id = '123';
 ### Index Trade-Offs
 
 **Pros:**
-- [x] Faster queries (10-100x speedup)
-- [x] Better user experience (page load < 2s)
+- Faster queries (10-100x speedup)
+- Better user experience (page load < 2s)
 
 **Cons:**
-- [ ] Slower writes (index must update)
-- [ ] More disk space (~20% overhead)
+- Slower writes (index must update)
+- More disk space (~20% overhead)
 
 **Our Verdict:** Worth it (reads >> writes for our app).
 
@@ -640,11 +640,11 @@ SELECT * FROM events WHERE society_id = '123';
 
 | Criterion | Normalized (Events) | JSONB (Posts) | Decision |
 |-----------|---------------------|---------------|----------|
-| **Schema Validation** | Strong (DB-enforced) | Weak (app-level) | Normalized for events [x] |
-| **Flexibility** | Good (add languages) | Excellent (any structure) | JSONB for posts [x] |
+| **Schema Validation** | Strong (DB-enforced) | Weak (app-level) | Normalized for events |
+| **Flexibility** | Good (add languages) | Excellent (any structure) | JSONB for posts |
 | **Query Complexity** | Medium (JOINs) | Low (single table) | JSONB wins here |
 | **Performance** | ~10-20ms | ~8-15ms | Similar (both fast) |
-| **Resume Value** | Shows normalization | Shows modern PostgreSQL | Both valuable [x] |
+| **Resume Value** | Shows normalization | Shows modern PostgreSQL | Both valuable |
 
 ### When to Use Each Approach
 

@@ -8,9 +8,9 @@
 
 **Perfect for:**
 
-- 🔥 Popular society events that don't change often
-- 🔥 Frequently accessed data (trending posts, event details, recommendations)
-- 🔥 Data that's expensive to compute (recommendation scores, student analytics)
+- Popular society events that don't change often
+- Frequently accessed data (trending posts, event details, recommendations)
+- Data that's expensive to compute (recommendation scores, student analytics)
 
 ---
 
@@ -25,9 +25,9 @@
 ┌──────────────────────────────────────────────────┐
 │           NEXT.JS API ROUTE                       │
 │                                                   │
-│  1. Check Redis first ──→ Cache hit? Return! ✓   │
+│  1. Check Redis first ──→ Cache hit? Return!   │
 │                    ↓                              │
-│              Cache miss? ✗                        │
+│              Cache miss?                        │
 │                    ↓                              │
 │  2. Query PostgreSQL (slow)                       │
 │                    ↓                              │
@@ -192,7 +192,7 @@ export async function GET(
   const cached = await getCache(cacheKey);
   
   if (cached) {
-    console.log('✓ Cache HIT - returned in <1ms');
+    console.log('Cache HIT - returned in <1ms');
     return NextResponse.json({ 
       event: cached,
       source: 'cache' 
@@ -200,7 +200,7 @@ export async function GET(
   }
 
   // 2. Cache miss - query PostgreSQL
-  console.log('✗ Cache MISS - querying database...');
+  console.log('Cache MISS - querying database...');
   
   const result = await query(`
     SELECT 
@@ -231,7 +231,7 @@ export async function GET(
   const ttl = event.is_popular ? 3600 : 600; // 1 hour vs 10 minutes
   await setCache(cacheKey, event, ttl);
   
-  console.log(`✓ Stored in cache for ${ttl} seconds`);
+  console.log(`Stored in cache for ${ttl} seconds`);
 
   return NextResponse.json({ 
     event,
@@ -755,12 +755,12 @@ async function getStudentData(userId: string, accessToken: string) {
   // Try cache first (24 hour TTL)
   const cached = await redis.get(cacheKey);
   if (cached) {
-    console.log('✓ Student data from cache');
+    console.log('Student data from cache');
     return JSON.parse(cached);
   }
 
   // Fetch from university API
-  console.log('✗ Fetching from university API...');
+  console.log('Fetching from university API...');
   const response = await fetch(
     `${process.env.UNI_STUDENT_API_URL}/students/me`,
     {
