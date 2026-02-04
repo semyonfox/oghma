@@ -164,29 +164,30 @@ The **SocsBoard (University Society Platform)** is a full-stack web-based social
 
 This SRS references the following internal project documents:
 
-1. **PROJECT_OVERVIEW.md**
+1. **README.md & ARCHITECTURE.md**
    - Complete project scope and evolution
    - 8-week timeline
    - Team structure and approach
-   - Source: `/docs/PROJECT_OVERVIEW.md`
+   - Technical architecture decisions
+   - Source: `/docs/README.md` and `/docs/ARCHITECTURE.md`
 
-2. **ARCHITECTURE_AND_TECH_STACK.md**
+2. **ARCHITECTURE.md**
    - Technical architecture decisions
    - Database schema design
    - Technology stack rationale
-   - Source: `/docs/ARCHITECTURE_AND_TECH_STACK.md`
+   - Source: `/docs/ARCHITECTURE.md`
 
-3. **INFRASTRUCTURE_AND_DEVOPS.md**
+3. **DEPLOYMENT.md & AWS_MIGRATION.md**
    - Docker setup and deployment
    - CI/CD pipeline configuration
    - AWS migration strategy
-   - Source: `/docs/INFRASTRUCTURE_AND_DEVOPS.md`
+   - Source: `/docs/DEPLOYMENT.md` and `/docs/AWS_MIGRATION.md`
 
-4. **REDIS_CACHING_GUIDE.md**
+4. **guides/redis_caching.md**
    - Redis implementation details
    - Caching strategies and patterns
    - Performance optimization
-   - Source: `/docs/REDIS_CACHING_GUIDE.md`
+   - Source: `/docs/guides/redis_caching.md`
 
 5. **Stack Diagram.excalidraw.md**
    - Visual system architecture
@@ -709,7 +710,7 @@ RESTful JSON API with JWT authentication.
 
 ### A.3 Database Tables Overview
 
-Core tables (full schema in ARCHITECTURE_AND_TECH_STACK.md):
+Core tables (full schema in ARCHITECTURE.md):
 - `users` - Student/member profiles
 - `student_data` - Synced university data
 - `societies` - Society information

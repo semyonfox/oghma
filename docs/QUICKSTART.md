@@ -66,7 +66,7 @@ In the Zero Trust dashboard, edit the existing tunnel and add a hostname:
 - Type: `HTTP`
 - Service: `http://172.30.10.8:3000`
 
-The current tunnel token (for reference) lives in [`docs/CLOUDFLARE_TUNNEL.md`](CLOUDFLARE_TUNNEL.md).
+The current tunnel token (for reference) lives in [CLOUDFLARE_TUNNEL.md](./CLOUDFLARE_TUNNEL.md).
 
 ## 7. Public verification
 
@@ -98,7 +98,7 @@ docker exec -it ct216_web sh
   docker exec ct216_web ping -c 3 pg-db-ct2106
   docker exec ct216_web nc -zv pg-db-ct2106 5432
   ```
-- **Tunnel issues**: `docker ps | grep cloudflare` and follow [`docs/CLOUDFLARE_TUNNEL.md`](CLOUDFLARE_TUNNEL.md).
+- **Tunnel issues**: `docker ps | grep cloudflare` and follow [CLOUDFLARE_TUNNEL.md](./CLOUDFLARE_TUNNEL.md).
 
 ## 10. Network diagram
 

@@ -46,13 +46,13 @@ Detailed technical guides for specific features:
 | Document | Topic |
 |----------|-------|
 | **[guides/redis_caching.md](guides/redis_caching.md)** | Caching strategies and implementation |
-| **[guides/cloudflare_setup.md](guides/cloudflare_setup.md)** | Cloudflare Tunnel configuration |
-| **[guides/aws_migration.md](guides/aws_migration.md)** | AWS deployment and migration |
+| **[CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)** | Cloudflare Tunnel configuration |
+| **[AWS_MIGRATION.md](AWS_MIGRATION.md)** | AWS deployment and migration |
 
 ### Other Resources
 
 - **[Stack Diagram.excalidraw.md](Stack%20Diagram.excalidraw.md)** - Visual architecture diagrams
-- **[SOFTWARE_REQUIREMENTS_SPECIFICATION.tex](SOFTWARE_REQUIREMENTS_SPECIFICATION.tex)** - LaTeX source for formal SRS PDF
+- **[Wireframes.excalidraw.md](Wireframes.excalidraw.md)** - UI/UX wireframes
 
 ---
 
@@ -117,9 +117,9 @@ A platform that:
 
 ### For DevOps/Deployment
 
-1. [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide
-2. [guides/cloudflare_setup.md](guides/cloudflare_setup.md) - Tunnel configuration
-3. [guides/aws_migration.md](guides/aws_migration.md) - AWS deployment strategy
+1. [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide with checklist
+2. [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md) - Tunnel configuration
+3. [AWS_MIGRATION.md](AWS_MIGRATION.md) - AWS deployment strategy
 
 ### For Understanding Specific Features
 

@@ -1,23 +1,21 @@
-/* Minimal global styles relying on Bootstrap utilities */
-/* Font smoothing & base font (font family set via next/font in layout) */
-html, body {
-  max-width: 100vw;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366f1;
+  --color-secondary: #8b5cf6;
 }
 
-/* Optional subtle transition for cards & buttons (non-invasive) */
-.card { transition: box-shadow .15s ease-in-out; }
-.card:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.35); }
-.btn { transition: opacity .15s ease-in-out; }
-.btn:hover { opacity: .9; }
+html, body {
+  @apply overflow-x-hidden antialiased;
+}
 
-/* Custom scrollbar (optional). Remove if full purity desired */
-::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-track { background: #212529; }
-::-webkit-scrollbar-thumb { background: #343a40; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #495057; }
+/* Smooth transitions for interactive elements */
+@layer components {
+  .card-hover {
+    @apply transition-shadow duration-150 ease-in-out hover:shadow-lg;
+  }
 
-/* Remove previous custom overrides & gradients – now using Bootstrap's native .bg-dark + .bg-gradient */
-/* If you need a hero gradient stronger than Bootstrap's default, you can reintroduce a single utility here. */
+  .btn-hover {
+    @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
+  }
+}
