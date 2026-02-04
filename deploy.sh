@@ -68,4 +68,3 @@ echo "  172.30.10.7         - Redis (redis-ct2106)"
 echo "  172.30.10.8         - ct216 Web App (ct216_web)"
 echo ""
 echo "Access your app at: https://your-domain.com"
-

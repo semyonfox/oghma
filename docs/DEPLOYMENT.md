@@ -1,11 +1,11 @@
 # Docker Deployment Guide (Canonical)
 
-This is the main reference for deploying the ct216 app to your ct2106 stack with Docker and Cloudflare Tunnel.
+Deploy the ct216 app to the local `ct2106` Docker network with Docker Compose and Cloudflare Tunnel.
 
 ## 1. Topology & Assumptions
 
-- App runs as container `ct216_web` on the existing `ct2106` Docker network
-- Database is **external PostgreSQL** reachable at `100.118.61.122:2345`
+- App runs as container `ct216_web` on the `ct2106` Docker network
+- Database is **PostgreSQL container** (`pg-db-ct2106`) on the same network at `172.30.10.5:5432`
 - Database user is **`socsboard_user`** on database **`ct2106`**
 - Public URL is **https://your-domain.com** via Cloudflare Tunnel
 
@@ -20,13 +20,13 @@ This is the main reference for deploying the ct216 app to your ct2106 stack with
 
 ## 3. Environment variables (.env)
 
-The `.env` used in production should look like:
+The `.env` used for local network deployment should look like:
 
 ```bash
-# Database (shared socsboard account over Tailscale)
-DATABASE_URL=postgresql://socsboard_user:YOUR_PASSWORD@100.118.61.122:2345/ct2106
-DATABASE_HOST=100.118.61.122
-DATABASE_PORT=2345
+# Database (PostgreSQL container on ct2106 network)
+DATABASE_URL=postgresql://socsboard_user:YOUR_PASSWORD@pg-db-ct2106:5432/ct2106
+DATABASE_HOST=pg-db-ct2106
+DATABASE_PORT=5432
 DATABASE_USER=socsboard_user
 DATABASE_PASSWORD=YOUR_PASSWORD
 DATABASE_NAME=ct2106
@@ -49,15 +49,14 @@ For examples/templates see:
 
 ## 4. Database preparation
 
-Run the migration once to create the `login` table:
+Run the migration to create the `login` table:
 
 ```bash
-psql "postgresql://socsboard_user:YOUR_PASSWORD@100.118.61.122:2345/ct2106" \
-  -f database/setup.sql
+# Using docker exec (recommended)
+docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 < database/setup.sql
 
-# Optional: verify
-psql "postgresql://socsboard_user:YOUR_PASSWORD@100.118.61.122:2345/ct2106" \
-  -c "\\dt login"
+# Verify table created
+docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 -c "\\dt login"
 ```
 
 ## 5. Build & run with Docker Compose
@@ -158,18 +157,126 @@ curl http://172.30.10.8:3000/api/health
 docker ps | grep cloudflare
 ```
 
-## 10. Security checklist
+## 10. Deployment Checklist
+
+Use this checklist when deploying to ensure all steps are completed:
+
+### Pre-Deployment
+
+- [ ] Docker and Docker Compose installed on server
+- [ ] ct2106 network is up: `docker network inspect ct2106`
+- [ ] All prerequisites services running (PostgreSQL, Redis, Cloudflare Tunnel)
+- [ ] IP `172.30.10.8` is free on `ct2106`
+
+### Step 1: Prepare Environment
+
+- [ ] `.env` exists and contains:
+    - [ ] `DATABASE_URL` using `socsboard_user@pg-db-ct2106:5432/ct2106`
+    - [ ] `NEXT_PUBLIC_API_URL=https://your-domain.com`
+    - [ ] `JWT_SECRET` set to a strong random value (`openssl rand -base64 32`)
+- [ ] `.env` is not committed to git
+
+### Step 2: Database Setup
+
+- [ ] Run migration: `docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 < database/setup.sql`
+- [ ] Verify table: `docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 -c "\\dt login"`
+
+### Step 3: Build and Deploy
+
+- [ ] In project root, run: `docker compose up -d --build`
+- [ ] Confirm container: `docker ps | grep ct216_web`
+- [ ] Tail logs and wait for Ready: `docker logs -f ct216_web`
+
+### Step 4: Verify Internal Access
+
+- [ ] Health check OK: `curl http://172.30.10.8:3000/api/health`
+- [ ] Homepage loads: `curl http://172.30.10.8:3000`
+
+### Step 5: Configure Cloudflare Tunnel
+
+- [ ] In Zero Trust dashboard:
+    - [ ] Networks → Tunnels → select existing tunnel
+    - [ ] Add hostname:
+        - [ ] Subdomain: `ct216`
+        - [ ] Domain: `semyon.ie`
+        - [ ] Type: `HTTP`
+        - [ ] URL: `http://172.30.10.8:3000`
+- [ ] Wait 30–60 seconds for DNS/tunnel to settle
+
+### Step 6: Verify Public Access
+
+- [ ] Health check via domain: `curl https://your-domain.com/api/health`
+- [ ] Homepage via browser: `https://your-domain.com`
+- [ ] `/register` and `/login` load correctly
+
+### Step 7: Functional Testing
+
+- [ ] Create a test account via `/register`
+- [ ] Verify row appears in `login` table
+- [ ] Log in with that account
+- [ ] JWT cookie present and app behaves as logged-in
+
+### Step 8: Monitoring & Backup
+
+- [ ] Uptime check for `https://your-domain.com/api/health`
+- [ ] Log monitoring wired to `docker logs ct216_web`
+- [ ] DB backup strategy in place for `ct2106`
+- [ ] `.env` permissions tightened: `chmod 600 .env`
+
+### Step 9: Post-Deployment Verification
+
+- [ ] App is accessible via HTTPS at `https://your-domain.com`
+- [ ] Health endpoint returns `200 OK`
+- [ ] Login and registration both work
+- [ ] No obvious errors in browser console
+- [ ] Container marked `Up` with restart policy `unless-stopped`
+
+## 11. Rollback & Troubleshooting
+
+**Container won't start**
+```bash
+docker logs ct216_web
+docker network inspect ct2106 | grep 172.30.10.8
+```
+
+**Database connection errors**
+```bash
+# Verify database container running
+docker ps | grep pg-db-ct2106
+
+# Check network connectivity from ct216_web
+docker exec ct216_web ping -c 3 pg-db-ct2106
+docker exec ct216_web nc -zv pg-db-ct2106 5432
+```
+
+**Tunnel issues / 502 errors**
+```bash
+# Verify app is healthy first
+curl http://172.30.10.8:3000/api/health
+
+# Check cloudflared container
+docker ps | grep cloudflare
+docker logs $(docker ps -q --filter ancestor=cloudflare/cloudflared:latest)
+```
+
+**Quick recovery**
+```bash
+docker compose restart        # Restart container
+docker compose down && docker compose up -d --build  # Full rebuild
+```
+
+## 12. Security Checklist
 
 - [ ] `JWT_SECRET` is long and random (≥ 32 bytes)
 - [ ] `.env` is not committed to git
 - [ ] Database password is stored only in `.env` and password manager
 - [ ] Database access restricted to containers on `ct2106` network only
 - [ ] Cloudflare HTTPS enforced for `your-domain.com`
+- [ ] Secrets cleared from git history: `git log --all --full-history -- .env`
 
-## 11. Where to look next
+## 13. Where to look next
 
 - High-level overview: `README.md`
-- Local/dev vs prod split: `SETUP.md`
-- One-page deployment flow: `docs/QUICKSTART.md`
-- Step-by-step sign-off: `DEPLOYMENT_CHECKLIST.md`
-- Tunnel specifics: `docs/CLOUDFLARE_TUNNEL.md`
+- Local development setup: `SETUP.md`
+- One-page quick reference: `docs/QUICKSTART.md`
+- Tunnel configuration: `docs/CLOUDFLARE_TUNNEL.md`
