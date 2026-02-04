@@ -1,10 +1,8 @@
-import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
-import BootstrapClient from "@/components/bootstrapClient";
 import { Roboto } from 'next/font/google';
 
 const roboto = Roboto({
-    weight: ['400', '700'], // regular and bold
+    weight: ['400', '700'],
     subsets: ['latin'],
     display: 'swap',
 });
@@ -18,7 +16,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={roboto.className}>
-        <BootstrapClient />
         {children}
       </body>
     </html>

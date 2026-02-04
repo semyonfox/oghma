@@ -1,7 +1,7 @@
 # Documentation Refactoring Summary
 
 **Date:** 2025-01-25
-**Author:** Claude (via Semyon)
+**Author:** Semyon
 
 ## What Changed
 
@@ -332,7 +332,7 @@ This refactoring:
 
 ---
 
-**Refactored By:** Claude (via Semyon)
+**Refactored By:** Semyon
 **Date:** 2025-01-25
 **Version:** 3.0 (Major restructuring)
 

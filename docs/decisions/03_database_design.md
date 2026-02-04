@@ -689,9 +689,9 @@ SELECT * FROM events WHERE society_id = '123';
 ---
 
 **Related Documents:**
-- [02_TECHNOLOGY_DECISIONS.md](./02_TECHNOLOGY_DECISIONS.md) - Why we chose PostgreSQL
-- [ARCHITECTURE_AND_TECH_STACK.md](./ARCHITECTURE_AND_TECH_STACK.md) - System architecture
-- [SOFTWARE_REQUIREMENTS_SPECIFICATION.md](./SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Database schema details (Appendix A)
+- [02_tech_stack.md](./02_tech_stack.md) - Why we chose PostgreSQL
+- [../ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
+- [../REQUIREMENTS.md](../REQUIREMENTS.md) - Database schema details (Appendix A)
 
 ---
 

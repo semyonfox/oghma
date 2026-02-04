@@ -70,6 +70,8 @@ docs/
 - [x] PostgreSQL database integration
 - [x] Docker containerization
 - [x] Bootstrap UI framework
+- [x] Template UI components (auth, calendar, landing page)
+- [x] Merged with template repository
 
 **In Progress:**
 - User dashboard and profile pages
@@ -111,6 +113,9 @@ ct216_project/
 │   │   ├── register/           # Registration page
 │   │   └── page.js             # Homepage
 │   ├── lib/                    # Utility functions (auth, DB)
+│   ├── components/             # Reusable UI components
+│   │   ├── auth/              # Auth form templates
+│   │   └── ui/                # UI component templates
 │   └── database/               # Database setup and schema
 ├── docs/                        # Documentation
 ├── database/                    # SQL schema files
@@ -214,5 +219,5 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 
 ---
 
-**Last Updated:** 2025-01-25
-**Version:** 3.0 (Consolidated documentation refactoring)
+**Last Updated:** 2025-01-31
+**Version:** 3.1 (Merged with template repository)
