@@ -426,9 +426,9 @@ Week 4: Hybrid Platform (events + posts + recommendations) ← FINAL
 ---
 
 **Related Documents:**
-- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) - Complete project scope
-- [02_TECHNOLOGY_DECISIONS.md](./02_TECHNOLOGY_DECISIONS.md) - Why we chose specific technologies
-- [SOFTWARE_REQUIREMENTS_SPECIFICATION.md](./SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Formal requirements
+- [../README.md](../README.md) - Complete project scope
+- [02_tech_stack.md](./02_tech_stack.md) - Why we chose specific technologies
+- [../REQUIREMENTS.md](../REQUIREMENTS.md) - Formal requirements
 
 ---
 

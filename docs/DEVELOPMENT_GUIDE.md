@@ -461,6 +461,74 @@ import {logger} from '@/lib/logger';
 logger.info('User registered', {userId: user.id});
 ```
 
+### CSS & Styling with Tailwind CSS v4
+
+**Framework:** Tailwind CSS v4 (not Bootstrap)
+
+**Setup:**
+- CSS imported in `src/app/globals.css` using `@import "tailwindcss"`
+- PostCSS config in `postcss.config.js` with `@tailwindcss/postcss` plugin
+- Dark theme colors defined in `globals.css` using `@theme` directive
+- No `tailwind.config.js` needed (v4 eliminates this)
+
+**Key Dependencies:**
+- `tailwindcss` v4
+- `@tailwindcss/postcss` for PostCSS integration
+- `@headlessui/react` for unstyled accessible components
+- `@heroicons/react` for 20+ icon libraries
+
+**Styling Guidelines:**
+
+1. **Use Tailwind classes for all styling:**
+   ```jsx
+   // Good
+   <div className="flex items-center justify-between bg-gray-900 p-4">
+     <h1 className="text-2xl font-bold text-white">Title</h1>
+   </div>
+
+   // Bad - inline styles
+   <div style={{display: 'flex', padding: '1rem'}}>
+   ```
+
+2. **Responsive design with Tailwind prefixes:**
+   ```jsx
+   // Mobile-first approach
+   <div className="px-4 sm:px-6 lg:px-8">
+     <p className="text-sm md:text-base lg:text-lg">
+       Responsive text
+     </p>
+   </div>
+   ```
+
+3. **Use @layer components for custom utilities:**
+   ```css
+   /* In globals.css */
+   @layer components {
+     .btn-primary {
+       @apply px-4 py-2 rounded-md bg-indigo-500 text-white hover:bg-indigo-400;
+     }
+   }
+   ```
+
+4. **Color palette (see globals.css @theme):**
+   - Primary: Indigo (#6366f1)
+   - Secondary: Purple (#8b5cf6)
+   - Dark backgrounds: `bg-gray-900`, `bg-gray-800`
+   - Text: `text-white`, `text-gray-400`
+
+5. **Form inputs with consistent styling:**
+   ```jsx
+   <input
+     type="email"
+     className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500"
+   />
+   ```
+
+**Do NOT use:**
+- Bootstrap classes (all removed)
+- Inline `style` attributes (use Tailwind classes)
+- CSS modules (Tailwind handles all styling)
+
 ---
 
 ## 5. Testing Guidelines
@@ -654,9 +722,9 @@ export async function POST(request: Request, {params}: { params: { id: string } 
 
 **Related Documents:**
 
-- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) - Project scope and timeline
+- [README.md](./README.md) - Project overview and scope
 - [QUICKSTART.md](./QUICKSTART.md) - Quick deployment guide
-- [INFRASTRUCTURE_AND_DEVOPS.md](./INFRASTRUCTURE_AND_DEVOPS.md) - Deployment setup
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment setup
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "name": "@socsboard/backend-aws",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "private": true,
+  "dependencies": {
+    "@socsboard/core": "workspace:*"
+  }
+}

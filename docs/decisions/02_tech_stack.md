@@ -1242,9 +1242,9 @@ jobs:
 ---
 
 **Related Documents:**
-- [01_PROJECT_EVOLUTION.md](./01_PROJECT_EVOLUTION.md) - How we chose the project
-- [ARCHITECTURE_AND_TECH_STACK.md](./ARCHITECTURE_AND_TECH_STACK.md) - System architecture
-- [03_DATABASE_DESIGN_DECISIONS.md](./03_DATABASE_DESIGN_DECISIONS.md) - Database schema rationale
+- [01_project_choice.md](./01_project_choice.md) - How we chose the project
+- [../ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
+- [03_database_design.md](./03_database_design.md) - Database schema rationale
 
 ---
 

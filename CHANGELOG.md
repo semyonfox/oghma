@@ -1,22 +1,27 @@
-# Changes
+# Changelog
 
-Quick log of what's been done.
+All notable changes to this project will be documented in this file.
 
-## Nov 12, 2025
-- **Major docs cleanup**
-- Deleted old docs/example files
-- Simplified docs
-- Added NOTES.md for quick notes
-- Added bootstrap and basic ui
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Nov 11, 2025
-- Changed docs
-- Updated project plan
+## [Unreleased]
 
-## Nov 7, 2025
-- User registration working
-- User login working
-- JWT auth + bcrypt hashing
-- PostgreSQL setup
-- Basic validation
+### Added
+- Merged template components from initial branch (auth, calendar, landing page)
+- AWS backend configuration
+- Docker deployment setup
+- Comprehensive documentation (architecture, deployment, guides)
+- Database schema and PostgreSQL setup
+- API authentication (JWT + bcrypt)
+- User registration and login
+- Bootstrap and UI utilities
 
+### Changed
+- Major docs cleanup and simplification
+- Project restructuring for production deployment
+
+## Initial Development
+- Initial project setup with Next.js
+- Tailwind UI templates added
+- Basic validation and authentication logic
