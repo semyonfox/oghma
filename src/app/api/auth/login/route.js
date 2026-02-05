@@ -10,9 +10,10 @@
 
 import bcrypt from "bcrypt";
 import sql from "@/database/pgsql.js";
-// taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
+import {isRateLimited, recordFailedAttempt, clearFailedAttempts} from "@/lib/rateLimit.js";
+import {isAccountLocked, recordFailedLogin, clearFailedLogins, getLockoutMinutesRemaining} from "@/lib/accountLockout.js";
 
 export async function POST(request) {
     try {
@@ -28,7 +29,24 @@ export async function POST(request) {
             return createValidationErrorResponse(validation.errors);
         }
 
-        // 3. Query database for user
+        // 3. Check if account is locked due to too many failed attempts
+        if (isAccountLocked(email)) {
+            const minutesRemaining = getLockoutMinutesRemaining(email);
+            return createErrorResponse(
+                `Account temporarily locked. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}.`,
+                429
+            );
+        }
+
+        // 4. Check rate limit (prevents brute force even with multiple accounts)
+        if (isRateLimited(email)) {
+            return createErrorResponse(
+                'Too many login attempts. Please try again later.',
+                429
+            );
+        }
+
+        // 5. Query database for user
         const data = await sql`
             SELECT user_id, email, hashed_password
             FROM public.login
@@ -38,21 +56,30 @@ export async function POST(request) {
         const user = data[0];
 
         if (!user) {
+            // Record failed attempt for security tracking
+            recordFailedAttempt(email);
+            recordFailedLogin(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
-        // 4. Verify password
+        // 6. Verify password
         const matchingPassword = await bcrypt.compare(password, user.hashed_password);
 
         if (!matchingPassword) {
+            // Record failed attempt for security tracking
+            recordFailedAttempt(email);
+            recordFailedLogin(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
-        // 5. Create auth session (generates JWT, sets cookie, returns response)
+        // 7. Successful login - clear failed attempt counters
+        clearFailedAttempts(email);
+        clearFailedLogins(email);
+
+        // 8. Create auth session (generates JWT, sets cookie, returns response)
         return await createAuthSession(user, 1);
 
     } catch (error) {
-        console.error('login error:', error);
         return createErrorResponse('Internal server error', 500);
     }
 }
