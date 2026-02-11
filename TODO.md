@@ -1,122 +1,122 @@
 # TODO - Codebase Issues & Implementation Tasks
 
-## COMPLETED
-
-- [x] **Tailwind CSS v4 Setup** (Feb 4, 2025)
-  - Added `@tailwindcss/postcss`, `postcss`, `autoprefixer` to devDependencies
-  - Added `@headlessui/react` and `@heroicons/react` to dependencies
-  - Created `postcss.config.js` with Tailwind plugin
-  - Updated `globals.css` to use `@import "tailwindcss"` with custom theme
-  - Removed Bootstrap from layout.js and dependencies
-  - Integrated SignIn template into `/login` page with full functionality
-  - Integrated Register template into `/register` page with validation
-  - Deleted dead template component files (84KB saved)
-  - Updated DEVELOPMENT_GUIDE.md with Tailwind styling guidelines
+Active blockers and issues to address. See detailed implementation steps in REMEDIATION_ACTION_ITEMS.md.
 
 ---
 
 ## CRITICAL - Blocking Issues
 
-- [ ] **Create missing `/api/auth/logout` endpoint**
-  - File: `/src/app/api/auth/logout/route.js`
-  - Impact: Logout functionality completely broken
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 1
+### Code Quality & Structure
 
-- [ ] **Create missing `/api/auth/me` endpoint**
-  - File: `/src/app/api/auth/me/route.js`
-  - Impact: User profile retrieval and auth verification broken
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 2
+- [ ] **Delete dead code components** (empty directories, unused files)
+  - `/src/components/auth/` (empty directory)
+  - Task: `rm -rf src/components/{auth,ui}` if empty
+  - Impact: 84KB of bundle savings already done, just cleanup
 
-- [ ] **Add missing dependencies to package.json**
-  - Add: `@headlessui/react`, `@heroicons/react`
-  - Currently used in components but not declared
-  - Will cause import errors at runtime
+- [ ] **Remove duplicate monorepo structure**
+  - Delete: `/apps/web/`, `/apps/recommender/`, `/packages/`
+  - Keep: root `src/` and `src/app/`
+  - Delete: `pnpm-workspace.yaml`
+  - Impact: Cleaner project structure, fewer confusing directories
 
-- [ ] **Delete dead code components (84KB)**
-  - `/src/components/LandingPage.jsx`
-  - `/src/components/ui/CalendarMonthly.jsx`
-  - `/src/components/auth/SignIn.jsx`
-  - `/src/components/auth/Register.jsx`
-  - `/apps/web/src/pages/LandingPage.jsx`
-  - `/apps/web/src/components/auth/Register.jsx`
-  - `/apps/web/src/components/auth/SignIn.jsx`
-  - `/apps/web/src/components/ui/CalendarMonthly.jsx`
+- [ ] **Remove console.log statements**
+  - Locations: `/src/app/api/auth/login/route.js`, register/login pages
+  - Reason: Information leakage, not production-ready
+  - Details: See REMEDIATION_ACTION_ITEMS.md section 10
 
-## HIGH PRIORITY
+- [ ] **Fix Docker configuration mismatch**
+  - Dockerfile uses `npm ci`, project uses `pnpm`
+  - Fix: Update Dockerfile to use `pnpm install`
+  - Update: docker-compose references
 
-- [ ] **Fix version mismatch between root and apps/web**
-  - Unify Next.js: root ^16.0.10 vs apps/web 16.1.3
-  - Unify React: root ^19.1.0 vs apps/web 19.2.3
-  - Can cause runtime incompatibilities
+### Dependencies
 
-- [ ] **Consolidate next.config.mjs**
-  - Currently have conflicting configs in root and apps/web
-  - Unclear which is used
+- [ ] **Remove duplicate lock files**
+  - Keep: `pnpm-lock.yaml` (project uses pnpm)
+  - Delete: `package-lock.json` (188KB unused)
 
-- [ ] **Remove duplicate CSS framework**
-  - Currently loading both Bootstrap AND Tailwind (230KB+ waste)
-  - Keep Bootstrap, remove Tailwind from apps/web
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 5
+### Unused Code
 
-- [ ] **Fix Docker configuration**
-  - Dockerfile uses `npm ci` but project uses `pnpm`
-  - docker-compose.yml references missing `stack.env` file
-  - Update to use pnpm consistently
-
-- [ ] **Remove console statements in production code**
-  - `/src/app/api/auth/login/route.js` line 55
-  - `/src/app/register/page.js` lines 20, 25
-  - `/src/app/login/page.js` lines 32, 41
-  - Replace with proper logger or remove
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 10
-
-## MEDIUM PRIORITY
-
-- [ ] **Add security features**
-  - Rate limiting on auth endpoints (section 3 of REMEDIATION_ACTION_ITEMS.md)
-  - CSRF token validation (section 6)
-  - Account lockout mechanism (section 8)
-  - Security headers middleware (section 7)
-  - Reference: REMEDIATION_ACTION_ITEMS.md
-
-- [ ] **Set up testing framework**
-  - Install Jest and testing libraries
-  - Create jest.config.js
-  - Write core validation tests
-  - Write integration tests for auth endpoints
-  - Current coverage: 0%
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 9
-
-- [ ] **Fix AuthContext usage**
-  - AuthProvider.js is defined but never imported/used
-  - Either integrate it or delete it
-
-- [ ] **Simplify monorepo structure**
-  - `/packages/backend-aws/` - empty, remove or implement
-  - `/packages/backend-firebase/` - empty, remove or implement
-  - `/packages/core/` - empty, remove or implement
-  - `/apps/recommender/` - empty, remove or implement
-  - Reference: REMEDIATION_ACTION_ITEMS.md section 11
-
-- [ ] **Fix dynamic import in bootstrapClient.js**
-  - Line 8 uses `require()` in ES module context
-  - Use dynamic import instead
-
-## LOW PRIORITY
-
-- [ ] **Consolidate ESLint configs**
-  - Root and apps/web have different configurations
-  - Sync or use shared config
-
-- [ ] **Document monorepo setup**
-  - Current structure unclear with unused packages
+- [ ] **Remove unused AuthContext**
+  - File: `src/context/AuthProvider.js`
+  - Status: Defined but never imported
+  - Decision: Delete unless needed for future features
 
 ---
 
-## Notes
+## HIGH PRIORITY - Would Improve Developer Experience
 
-- See `REMEDIATION_ACTION_ITEMS.md` for detailed implementation steps and code samples
-- See `docs/REQUIREMENTS.md` for project specifications
-- See `docs/ARCHITECTURE.md` for system design
+- [ ] **Clean up unused IDE config**
+  - Consider: `.idea/` directory (IntelliJ config)
+  - Decision: Remove if not shared by team
 
-Last updated: 2025-02-04
+- [ ] **Simplify version mismatches**
+  - Root uses Next.js ^16.0.10, React ^19.1.0
+  - apps/web (unused) has different versions
+  - Impact: Once apps/web deleted, this is resolved
+
+---
+
+## MEDIUM PRIORITY - Security & Testing
+
+- [ ] **Set up testing framework**
+  - Install: Jest and testing libraries
+  - Create: jest.config.js
+  - Write: Core validation tests first
+  - Write: Integration tests for auth endpoints
+  - Current coverage: 0%
+  - Details: REMEDIATION_ACTION_ITEMS.md section 9
+
+- [ ] **Add security features** (gradual)
+  - Rate limiting on auth endpoints (section 3)
+  - CSRF token validation (section 6)
+  - Account lockout mechanism (section 8)
+  - Security headers middleware (section 7)
+
+---
+
+## LOW PRIORITY - Future Work
+
+- [ ] **ESLint config consolidation**
+  - Once apps/web deleted, keep root config only
+
+- [ ] **Improve GLOSSARY.md**
+  - Currently minimal (5 entries)
+  - Expand as team uses new terms
+
+- [ ] **Archive old documentation**
+  - Remove: `docs/ARCHIVE_REFACTORING_2025-01-25.md`
+  - Keep: Everything else
+
+---
+
+## COMPLETED ✅
+
+- [x] Tailwind CSS v4 setup and migration from Bootstrap
+- [x] Delete template components (LandingPage, Calendar, etc.)
+- [x] GitHub Actions + PR template
+- [x] Auth endpoints (logout, me) - see REMEDIATION_ACTION_ITEMS.md sections 1-2
+- [x] Rate limiting + account lockout (implemented with in-memory store)
+- [x] Security headers middleware (basic CSP, X-Frame-Options, etc.)
+- [x] Documentation refactoring (TEAM_GUIDE.md, TECH_LEAD_GUIDE.md created)
+- [x] Development patterns guide (DEVELOPMENT_PATTERNS.md created)
+
+---
+
+## Implementation Notes
+
+**REMEDIATION_ACTION_ITEMS.md contains:**
+- Detailed code examples for missing endpoints
+- Step-by-step fixes for each issue
+- Testing instructions for completed work
+- Implementation checklists
+
+**For detailed steps on any item:** Check REMEDIATION_ACTION_ITEMS.md
+
+**For developer onboarding:** See `docs/TEAM_GUIDE.md`
+
+**For tech lead checklist:** See `docs/TECH_LEAD_GUIDE.md`
+
+---
+
+Last updated: Feb 6, 2026
