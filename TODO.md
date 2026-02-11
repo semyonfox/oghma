@@ -1,6 +1,8 @@
-# TODO - Codebase Issues & Implementation Tasks
+# TODO - Active Blockers & Implementation Tasks
 
-Active blockers and issues to address. See detailed implementation steps in REMEDIATION_ACTION_ITEMS.md.
+Active blockers and issues to address. See detailed sprint planning in PLANNING.md.
+
+For completed items, see .archive/2025-02-06-REMEDIATION_ACTION_ITEMS.md
 
 ---
 
@@ -84,39 +86,16 @@ Active blockers and issues to address. See detailed implementation steps in REME
   - Currently minimal (5 entries)
   - Expand as team uses new terms
 
-- [ ] **Archive old documentation**
-  - Remove: `docs/ARCHIVE_REFACTORING_2025-01-25.md`
-  - Keep: Everything else
-
----
-
-## COMPLETED ✅
-
-- [x] Tailwind CSS v4 setup and migration from Bootstrap
-- [x] Delete template components (LandingPage, Calendar, etc.)
-- [x] GitHub Actions + PR template
-- [x] Auth endpoints (logout, me) - see REMEDIATION_ACTION_ITEMS.md sections 1-2
-- [x] Rate limiting + account lockout (implemented with in-memory store)
-- [x] Security headers middleware (basic CSP, X-Frame-Options, etc.)
-- [x] Documentation refactoring (TEAM_GUIDE.md, TECH_LEAD_GUIDE.md created)
-- [x] Development patterns guide (DEVELOPMENT_PATTERNS.md created)
-
 ---
 
 ## Implementation Notes
 
-**REMEDIATION_ACTION_ITEMS.md contains:**
-- Detailed code examples for missing endpoints
-- Step-by-step fixes for each issue
-- Testing instructions for completed work
-- Implementation checklists
+**For detailed implementation steps:** Check .archive/2025-02-06-REMEDIATION_ACTION_ITEMS.md
 
-**For detailed steps on any item:** Check REMEDIATION_ACTION_ITEMS.md
+**For developer onboarding:** See docs/TEAM_GUIDE.md
 
-**For developer onboarding:** See `docs/TEAM_GUIDE.md`
-
-**For tech lead checklist:** See `docs/TECH_LEAD_GUIDE.md`
+**For sprint planning:** See PLANNING.md
 
 ---
 
-Last updated: Feb 6, 2026
+Last updated: Feb 11, 2026
