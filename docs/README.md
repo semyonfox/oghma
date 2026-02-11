@@ -6,53 +6,87 @@ A full-stack social platform connecting university students with society events 
 
 ---
 
-## Quick Start
+## Quick Start by Role
 
-**New to the project?** Start here:
+### For New Team Members
+1. **[TEAM_GUIDE.md](TEAM_GUIDE.md)** - Complete onboarding (read this first!)
+2. **[SETUP.md](../SETUP.md)** - Set up your dev environment
+3. **[DEVELOPMENT_PATTERNS.md](DEVELOPMENT_PATTERNS.md)** - How to write code
+4. **[API_SPECS.md](API_SPECS.md)** - What you'll be building
 
-1. **[Project Overview](#project-overview)** - What we're building
-2. **[Setup Guide](../SETUP.md)** - Get your development environment running
-3. **[Development Guide](DEVELOPMENT_GUIDE.md)** - Start coding with our standards
-4. **[Deployment Guide](DEPLOYMENT.md)** - Deploy to production
+### For Experienced Developers
+1. **[DEVELOPMENT_PATTERNS.md](DEVELOPMENT_PATTERNS.md)** - Code patterns & examples
+2. **[API_SPECS.md](API_SPECS.md)** - Feature specifications
+3. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design
+4. **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** - Database structure
+
+### For Tech Leads
+1. **[TECH_LEAD_GUIDE.md](TECH_LEAD_GUIDE.md)** - Your responsibilities & checklist
+2. **[../PROJECT_PLAN.md](../PROJECT_PLAN.md)** - Sprint timeline & assignments
+3. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Design decisions
+4. **[decisions/](decisions/)** - Architecture decision records
+
+### For DevOps / Deployment
+1. **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** - AWS production deployment (recommended)
+2. **[RECOMMENDER_DEPLOYMENT.md](RECOMMENDER_DEPLOYMENT.md)** - Python API deployment (separate)
+3. **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** - Local Docker reference
+4. **[DEPLOYMENT.md](DEPLOYMENT.md)** - Docker deployment (deprecated, local dev only)
 
 ---
 
 ## Documentation Index
 
-### Core Documents
+### Onboarding & Getting Started
 
 | Document | Description |
 |----------|-------------|
+| **[TEAM_GUIDE.md](TEAM_GUIDE.md)** | Complete onboarding guide for new team members |
+| **[TECH_LEAD_GUIDE.md](TECH_LEAD_GUIDE.md)** | Tech lead responsibilities, code review checklist, decision-making |
+| **[DEVELOPMENT_PATTERNS.md](DEVELOPMENT_PATTERNS.md)** | Code patterns, examples, and standards to follow |
+| **[../SETUP.md](../SETUP.md)** | Local development environment setup |
+
+### Building Features
+
+| Document | Description |
+|----------|-------------|
+| **[API_SPECS.md](API_SPECS.md)** | API endpoint specifications (what to build) |
+| **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** | Database schema and table definitions |
+| **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** | Development workflow and standards |
 | **[REQUIREMENTS.md](REQUIREMENTS.md)** | Formal software requirements specification |
+
+### Architecture & Design
+
+| Document | Description |
+|----------|-------------|
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | System architecture and technical design |
-| **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** | Development workflow and coding standards |
-| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Production deployment guide |
-
-### Decision Records
-
-Why we made certain architectural and technology choices:
-
-| Document | Topic |
-|----------|-------|
-| **[decisions/01_project_choice.md](decisions/01_project_choice.md)** | Why we chose this project over alternatives |
-| **[decisions/02_tech_stack.md](decisions/02_tech_stack.md)** | Technology stack rationale (Next.js, PostgreSQL, Redis) |
-| **[decisions/03_database_design.md](decisions/03_database_design.md)** | Database schema and translation storage strategies |
+| **[decisions/01_project_choice.md](decisions/01_project_choice.md)** | Why we chose this project |
+| **[decisions/02_tech_stack.md](decisions/02_tech_stack.md)** | Technology stack rationale |
+| **[decisions/03_database_design.md](decisions/03_database_design.md)** | Database design decisions |
 | **[decisions/04_recommendation_system.md](decisions/04_recommendation_system.md)** | Recommendation algorithm design |
+
+### Deployment & Operations
+
+| Document | Description |
+|----------|-------------|
+| **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** | AWS Amplify + Lambda/ECS (RECOMMENDED PRODUCTION) |
+| **[RECOMMENDER_DEPLOYMENT.md](RECOMMENDER_DEPLOYMENT.md)** | Python recommender API deployment (separate service) |
+| **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** | Local Docker reference (dev only) |
+| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Docker deployment (deprecated—dev only) |
+| **[CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)** | Cloudflare Tunnel configuration |
 
 ### Implementation Guides
 
-Detailed technical guides for specific features:
-
-| Document | Topic |
-|----------|-------|
+| Document | Description |
+|----------|-------------|
 | **[guides/redis_caching.md](guides/redis_caching.md)** | Caching strategies and implementation |
-| **[CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)** | Cloudflare Tunnel configuration |
-| **[AWS_MIGRATION.md](AWS_MIGRATION.md)** | AWS deployment and migration |
+| **[../PROJECT_PLAN.md](../PROJECT_PLAN.md)** | Sprint timeline and team assignments |
+| **[../TODO.md](../TODO.md)** | Active blockers and tasks |
 
-### Other Resources
+### Reference Materials
 
 - **[Stack Diagram.excalidraw.md](Stack%20Diagram.excalidraw.md)** - Visual architecture diagrams
 - **[Wireframes.excalidraw.md](Wireframes.excalidraw.md)** - UI/UX wireframes
+- **[../GLOSSARY.md](../GLOSSARY.md)** - Technical term definitions
 
 ---
 
@@ -98,35 +132,10 @@ A platform that:
 
 ---
 
-## Navigation by Role
+## Quick Navigation
 
-### For New Team Members
-
-1. Read this README to understand the big picture
-2. Review [decisions/01_project_choice.md](decisions/01_project_choice.md) to see why we chose this project
-3. Study [decisions/02_tech_stack.md](decisions/02_tech_stack.md) to understand tech choices
-4. Follow [../SETUP.md](../SETUP.md) to set up your local environment
-5. Read [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for coding workflow
-
-### For Academic Assessors
-
-1. [REQUIREMENTS.md](REQUIREMENTS.md) - Formal requirements specification
-2. [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design
-3. [decisions/01_project_choice.md](decisions/01_project_choice.md) - Decision-making process
-4. [decisions/02_tech_stack.md](decisions/02_tech_stack.md) - Technology justification
-
-### For DevOps/Deployment
-
-1. [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide with checklist
-2. [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md) - Tunnel configuration
-3. [AWS_MIGRATION.md](AWS_MIGRATION.md) - AWS deployment strategy
-
-### For Understanding Specific Features
-
-- **Multilingual Support:** [decisions/03_database_design.md](decisions/03_database_design.md)
-- **Recommendations:** [decisions/04_recommendation_system.md](decisions/04_recommendation_system.md)
-- **Caching:** [guides/redis_caching.md](guides/redis_caching.md)
-- **Database Schema:** [decisions/03_database_design.md](decisions/03_database_design.md)
+### Just Started?
+→ **[TEAM_GUIDE.md](TEAM_GUIDE.md)** - Read this first (1 hour onboarding)
 
 ---
 
