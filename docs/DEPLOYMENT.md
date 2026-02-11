@@ -1,6 +1,15 @@
-# Docker Deployment Guide (Canonical)
+# Docker Deployment Guide (DEPRECATED)
 
-Deploy the ct216 app to the local `ct2106` Docker network with Docker Compose and Cloudflare Tunnel.
+> **⚠️ DEPRECATED:** This guide is for **local development only**. 
+> 
+> For **production AWS deployment**, see **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** instead.
+>
+> This Docker setup is maintained for:
+> - Local testing with Docker Compose
+> - Development environments
+> - Cloudflare Tunnel access during development
+>
+> For AWS production, use AWS Amplify Hosting for the frontend and separate AWS services (Lambda/ECS) for the Python recommender.
 
 ## 1. Topology & Assumptions
 

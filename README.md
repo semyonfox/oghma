@@ -28,13 +28,16 @@ For detailed setup instructions, see [SETUP.md](SETUP.md)
 
 ## Documentation
 
-**Complete documentation is in the [`docs/`](docs/) folder:**
+**Start here based on your role:**
 
-- **[docs/README.md](docs/README.md)** - Documentation index and navigation guide
-- **[SETUP.md](SETUP.md)** - Local development setup
-- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment guide
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture and design
-- **[docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)** - Formal requirements specification
+- **New to the team?** → [docs/TEAM_GUIDE.md](docs/TEAM_GUIDE.md) - Onboarding guide
+- **Setting up locally?** → [SETUP.md](SETUP.md) - Dev environment setup
+- **Ready to code?** → [docs/DEVELOPMENT_PATTERNS.md](docs/DEVELOPMENT_PATTERNS.md) - Code patterns & examples
+- **Building a feature?** → [docs/API_SPECS.md](docs/API_SPECS.md) - What to build
+- **Deploying to AWS?** → [docs/AMPLIFY_DEPLOYMENT.md](docs/AMPLIFY_DEPLOYMENT.md) - Production deployment (Recommended)
+- **Local Docker testing?** → [docs/DEPLOYMENT_QUICKSTART.md](docs/DEPLOYMENT_QUICKSTART.md) - Development reference
+
+**Complete documentation:** [docs/README.md](docs/README.md) - Full index and navigation
 
 ### Documentation Structure
 
@@ -146,7 +149,28 @@ npm run start    # Start production server
 
 ---
 
-## Docker Deployment
+## AWS Deployment (Recommended)
+
+This project is optimized for **AWS Amplify Hosting** with a separate Python recommender backend.
+
+**Production Deployment:**
+1. **Frontend** (Next.js) → [AWS Amplify Hosting](docs/AMPLIFY_DEPLOYMENT.md#part-1-deploy-frontend-nextjs-to-amplify)
+2. **Recommender API** (Python) → [AWS Lambda/ECS/App Runner](docs/AMPLIFY_DEPLOYMENT.md#part-2-deploy-recommender-python-to-aws-lambdaecs)
+3. **Database** (PostgreSQL) → [AWS RDS](docs/AMPLIFY_DEPLOYMENT.md#part-3-database-setup-rds)
+
+**Full guide:** See [docs/AMPLIFY_DEPLOYMENT.md](docs/AMPLIFY_DEPLOYMENT.md)
+
+### Why This Architecture?
+
+- **Amplify for frontend:** Optimal Next.js support, automatic CI/CD, global CDN
+- **Separate recommender:** Python ML models need different runtime, independent scaling
+- **Monorepo benefits:** Single repo, atomic commits, shared type definitions
+
+---
+
+## Docker Deployment (Development Only)
+
+For **local development testing**, use Docker Compose:
 
 ### Quick Deploy
 
@@ -162,12 +186,9 @@ docker compose up -d
 docker logs ct216_web
 ```
 
-### Cloudflare Tunnel
+**Note:** Docker deployment is for **local testing only**. For production, use AWS Amplify (see above).
 
-To expose the app via `https://your-domain.com`:
-
-1. See [docs/guides/cloudflare_setup.md](docs/guides/cloudflare_setup.md) for tunnel configuration
-2. Or follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete deployment guide
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete Docker guide.
 
 ---
 
