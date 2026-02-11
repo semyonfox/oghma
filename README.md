@@ -34,8 +34,7 @@ For detailed setup instructions, see [SETUP.md](SETUP.md)
 - **Setting up locally?** → [SETUP.md](SETUP.md) - Dev environment setup
 - **Ready to code?** → [docs/DEVELOPMENT_PATTERNS.md](docs/DEVELOPMENT_PATTERNS.md) - Code patterns & examples
 - **Building a feature?** → [docs/API_SPECS.md](docs/API_SPECS.md) - What to build
-- **Deploying to AWS?** → [docs/AMPLIFY_DEPLOYMENT.md](docs/AMPLIFY_DEPLOYMENT.md) - Production deployment (Recommended)
-- **Local Docker testing?** → [docs/DEPLOYMENT_QUICKSTART.md](docs/DEPLOYMENT_QUICKSTART.md) - Development reference
+- **Deploying to AWS?** → [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment
 
 **Complete documentation:** [docs/README.md](docs/README.md) - Full index and navigation
 
@@ -45,18 +44,16 @@ For detailed setup instructions, see [SETUP.md](SETUP.md)
 docs/
 ├── README.md                    # Documentation hub (start here)
 ├── ARCHITECTURE.md              # System design
+├── DECISIONS.md                 # Architecture decisions summary
 ├── REQUIREMENTS.md              # Formal SRS
 ├── DEVELOPMENT_GUIDE.md         # Dev workflow
-├── DEPLOYMENT.md                # Deployment guide
-├── decisions/                   # Architecture decision records
-│   ├── 01_project_choice.md    # Why this project
-│   ├── 02_tech_stack.md        # Technology rationale
-│   ├── 03_database_design.md   # Database decisions
-│   └── 04_recommendation_system.md # Algorithm design
-└── guides/                      # Implementation guides
-    ├── redis_caching.md         # Caching strategies
-    ├── cloudflare_setup.md      # Cloudflare Tunnel
-    └── aws_migration.md         # AWS deployment
+├── DEPLOYMENT.md                # AWS deployment guide
+├── guides/                      # Implementation guides
+│   └── redis_caching.md         # Caching strategies
+└── archive/                     # Historical research and decision records
+    ├── decisions/               # Detailed decision analysis
+    ├── 2025-02-AWS_MIGRATION_RESEARCH.md
+    └── Stack_Diagram.excalidraw.md
 ```
 
 ---
@@ -99,7 +96,7 @@ docs/
 - **DevOps:** Docker, GitHub Actions
 - **Deployment:** Cloudflare Tunnel (current), AWS (planned)
 
-**Why these choices?** See [docs/decisions/02_tech_stack.md](docs/decisions/02_tech_stack.md)
+**Why these choices?** See [docs/DECISIONS.md](docs/DECISIONS.md)
 
 ---
 
@@ -149,46 +146,45 @@ npm run start    # Start production server
 
 ---
 
-## AWS Deployment (Recommended)
+## AWS Deployment
 
-This project is optimized for **AWS Amplify Hosting** with a separate Python recommender backend.
+This project is deployed to AWS using Amplify for the Next.js frontend and Lambda for the Python recommendation service.
 
-**Production Deployment:**
-1. **Frontend** (Next.js) → [AWS Amplify Hosting](docs/AMPLIFY_DEPLOYMENT.md#part-1-deploy-frontend-nextjs-to-amplify)
-2. **Recommender API** (Python) → [AWS Lambda/ECS/App Runner](docs/AMPLIFY_DEPLOYMENT.md#part-2-deploy-recommender-python-to-aws-lambdaecs)
-3. **Database** (PostgreSQL) → [AWS RDS](docs/AMPLIFY_DEPLOYMENT.md#part-3-database-setup-rds)
+**Production Setup:**
+1. **Frontend (Next.js)** → AWS Amplify Hosting (SSR, CDN, CI/CD)
+2. **Recommender API (Python)** → AWS Lambda (serverless, auto-scaling)
+3. **Database (PostgreSQL)** → AWS RDS (managed database)
+4. **Cache (Redis)** → ElastiCache (managed Redis)
 
-**Full guide:** See [docs/AMPLIFY_DEPLOYMENT.md](docs/AMPLIFY_DEPLOYMENT.md)
+**Full deployment guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ### Why This Architecture?
 
-- **Amplify for frontend:** Optimal Next.js support, automatic CI/CD, global CDN
-- **Separate recommender:** Python ML models need different runtime, independent scaling
-- **Monorepo benefits:** Single repo, atomic commits, shared type definitions
+- **Amplify for frontend:** Native Next.js SSR support, automatic CI/CD from GitHub
+- **Lambda for recommender:** Python ML ecosystem, independent scaling, pay-per-use
+- **Serverless benefits:** Auto-scaling, no server management, cost-effective
 
 ---
 
-## Docker Deployment (Development Only)
+## Local Development
 
-For **local development testing**, use Docker Compose:
+For local development with Docker Compose:
 
-### Quick Deploy
+### Quick Start
 
 ```bash
 # 1. Set up environment
-cp .env.production.template .env
-# Edit .env with your production credentials
+cp .env.example .env.local
+# Edit .env.local with your database credentials
 
-# 2. Start containers
-docker compose up -d
-
-# 3. Verify
-docker logs ct216_web
+# 2. Start development server
+npm install
+npm run dev
 ```
 
-**Note:** Docker deployment is for **local testing only**. For production, use AWS Amplify (see above).
+**Visit:** `http://localhost:3000`
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete Docker guide.
+For detailed setup instructions, see [SETUP.md](SETUP.md)
 
 ---
 
@@ -226,7 +222,7 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 
 - **Setup issues:** Check [SETUP.md](SETUP.md)
 - **Deployment:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- **Architecture questions:** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Architecture questions:** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) or [docs/DECISIONS.md](docs/DECISIONS.md)
 - **Documentation:** Browse [docs/README.md](docs/README.md)
 
 ---
@@ -240,5 +236,5 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 
 ---
 
-**Last Updated:** 2025-01-31
-**Version:** 3.1 (Merged with template repository)
+**Last Updated:** February 11, 2026
+**Version:** 4.0 (Documentation refactoring)
