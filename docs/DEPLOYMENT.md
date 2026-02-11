@@ -626,6 +626,27 @@ aws lambda update-function-code \
 - Verify `package.json` scripts are correct
 - Ensure environment variables are set
 
+**1a. Environment variables not accessible during build**
+
+**Error:** `!Failed to set up process.env.secrets` during Amplify build
+
+**Cause:** Environment variables not configured in AWS Amplify Console
+
+**Solution:**
+1. Go to AWS Amplify Console → Your App
+2. Navigate to App Settings → Environment Variables
+3. Add all required variables:
+   ```
+   DATABASE_URL=postgresql://username:password@host:5432/database
+   JWT_SECRET=<generate with: openssl rand -base64 32>
+   JWT_EXPIRES_IN=1h
+   NODE_ENV=production
+   ```
+4. Click "Save"
+5. Trigger new deployment: Amplify Console → Deployments → Redeploy
+
+**Note:** Environment variables must be set before build, not after. Variables marked as "Secret" are encrypted at rest.
+
 **2. Database connection errors**
 - Verify security group allows connections
 - Check DATABASE_URL format
