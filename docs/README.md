@@ -22,15 +22,15 @@ A full-stack social platform connecting university students with society events 
 
 ### For Tech Leads
 1. **[TECH_LEAD_GUIDE.md](TECH_LEAD_GUIDE.md)** - Your responsibilities & checklist
-2. **[../PROJECT_PLAN.md](../PROJECT_PLAN.md)** - Sprint timeline & assignments
+2. **[../PLANNING.md](../PLANNING.md)** - Sprint timeline & assignments
 3. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Design decisions
-4. **[decisions/](decisions/)** - Architecture decision records
+4. **[DECISIONS.md](DECISIONS.md)** - Architecture decision records
 
 ### For DevOps / Deployment
-1. **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** - AWS production deployment (recommended)
-2. **[RECOMMENDER_DEPLOYMENT.md](RECOMMENDER_DEPLOYMENT.md)** - Python API deployment (separate)
-3. **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** - Local Docker reference
-4. **[DEPLOYMENT.md](DEPLOYMENT.md)** - Docker deployment (deprecated, local dev only)
+1. **[DEPLOYMENT.md](DEPLOYMENT.md)** - AWS Amplify + Lambda production deployment
+2. **[AMPLIFY_POSTGRES_SETUP.md](AMPLIFY_POSTGRES_SETUP.md)** - Team collaboration with Amplify + PostgreSQL
+3. **[../SETUP.md](../SETUP.md)** - Local development setup
+4. **[archive/](archive/)** - Historical deployment guides and research
 
 ---
 
@@ -59,34 +59,41 @@ A full-stack social platform connecting university students with society events 
 | Document | Description |
 |----------|-------------|
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | System architecture and technical design |
-| **[decisions/01_project_choice.md](decisions/01_project_choice.md)** | Why we chose this project |
-| **[decisions/02_tech_stack.md](decisions/02_tech_stack.md)** | Technology stack rationale |
-| **[decisions/03_database_design.md](decisions/03_database_design.md)** | Database design decisions |
-| **[decisions/04_recommendation_system.md](decisions/04_recommendation_system.md)** | Recommendation algorithm design |
+| **[DECISIONS.md](DECISIONS.md)** | Architecture decisions summary with rationale |
 
 ### Deployment & Operations
 
 | Document | Description |
 |----------|-------------|
-| **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** | AWS Amplify + Lambda/ECS (RECOMMENDED PRODUCTION) |
-| **[RECOMMENDER_DEPLOYMENT.md](RECOMMENDER_DEPLOYMENT.md)** | Python recommender API deployment (separate service) |
-| **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** | Local Docker reference (dev only) |
-| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Docker deployment (deprecated—dev only) |
-| **[CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)** | Cloudflare Tunnel configuration |
+| **[DEPLOYMENT.md](DEPLOYMENT.md)** | AWS Amplify + Lambda production deployment |
+| **[AMPLIFY_POSTGRES_SETUP.md](AMPLIFY_POSTGRES_SETUP.md)** | Team collaboration with Amplify + PostgreSQL |
 
 ### Implementation Guides
 
 | Document | Description |
 |----------|-------------|
 | **[guides/redis_caching.md](guides/redis_caching.md)** | Caching strategies and implementation |
-| **[../PROJECT_PLAN.md](../PROJECT_PLAN.md)** | Sprint timeline and team assignments |
+| **[../PLANNING.md](../PLANNING.md)** | Sprint timeline and team assignments |
 | **[../TODO.md](../TODO.md)** | Active blockers and tasks |
+
+### Archived Documentation
+
+Historical research, decision records, and alternative approaches:
+
+| Document | Description |
+|----------|-------------|
+| **[archive/decisions/](archive/decisions/)** | Detailed decision records (93KB research) |
+| **[archive/2025-02-AWS_MIGRATION_RESEARCH.md](archive/2025-02-AWS_MIGRATION_RESEARCH.md)** | AWS migration analysis (70KB) |
+| **[archive/2025-02-AMPLIFY_DEPLOYMENT.md](archive/2025-02-AMPLIFY_DEPLOYMENT.md)** | Original Amplify deployment guide |
+| **[archive/2025-02-DEPLOYMENT_DOCKER.md](archive/2025-02-DEPLOYMENT_DOCKER.md)** | Docker deployment guide |
+| **[archive/2025-02-CLOUDFLARE_TUNNEL.md](archive/2025-02-CLOUDFLARE_TUNNEL.md)** | Previous Cloudflare setup |
+| **[archive/Stack_Diagram.excalidraw.md](archive/Stack_Diagram.excalidraw.md)** | Architecture diagrams |
+| **[archive/Wireframes.excalidraw.md](archive/Wireframes.excalidraw.md)** | UI/UX wireframes |
 
 ### Reference Materials
 
-- **[Stack Diagram.excalidraw.md](Stack%20Diagram.excalidraw.md)** - Visual architecture diagrams
-- **[Wireframes.excalidraw.md](Wireframes.excalidraw.md)** - UI/UX wireframes
 - **[../GLOSSARY.md](../GLOSSARY.md)** - Technical term definitions
+- **[../REFACTORING_RECORD.md](../REFACTORING_RECORD.md)** - Documentation refactoring log
 
 ---
 
@@ -153,12 +160,13 @@ ct216_project/
 │   ├── database/              # Database utilities
 │   └── context/               # React context providers
 ├── docs/                       # Documentation (you are here)
-│   ├── decisions/             # Architecture decision records
+│   ├── archive/               # Historical research and decision records
 │   ├── guides/                # Implementation guides
 │   ├── REQUIREMENTS.md        # Formal SRS
 │   ├── ARCHITECTURE.md        # System design
+│   ├── DECISIONS.md           # Architecture decisions summary
 │   ├── DEVELOPMENT_GUIDE.md   # Dev workflow
-│   └── DEPLOYMENT.md          # Deployment guide
+│   └── DEPLOYMENT.md          # AWS deployment guide
 ├── database/                   # Database schema
 ├── docker-compose.yml         # Docker configuration
 ├── Dockerfile                 # Container definition
@@ -173,19 +181,21 @@ When adding or updating documentation:
 
 1. **Choose the right location:**
    - Core docs → `docs/` root
-   - Decision rationale → `docs/decisions/`
    - Implementation guides → `docs/guides/`
+   - Historical research → `docs/archive/`
 
 2. **Follow naming conventions:**
    - Core docs: `UPPERCASE.md`
-   - Decisions: `##_descriptive_name.md`
    - Guides: `lowercase_with_underscores.md`
+   - Archives: `YYYY-MM-DESCRIPTION.md`
 
 3. **Update this README** if adding a new core document
 
 4. **Add cross-references** to related documents
 
 5. **Include "Last Updated" date** at the bottom of your document
+
+6. **Archive outdated docs** - Move to archive/ with timestamp when no longer current
 
 ---
 
@@ -211,13 +221,14 @@ When adding or updating documentation:
 
 **For Architecture Questions:**
 - See [ARCHITECTURE.md](ARCHITECTURE.md)
-- See decision docs in `decisions/`
+- See [DECISIONS.md](DECISIONS.md)
+- See archived decision docs in `archive/decisions/`
 
 **For Team Coordination:**
 - Contact Semyon (Project Manager)
 
 ---
 
-**Last Updated:** 2025-01-25
+**Last Updated:** February 11, 2026
 **Maintained By:** Semyon (Project Manager)
-**Version:** 3.0 (Consolidated refactoring)
+**Version:** 4.0 (Documentation refactoring - see ../REFACTORING_RECORD.md)

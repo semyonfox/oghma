@@ -1,291 +1,683 @@
-# Docker Deployment Guide (DEPRECATED)
+# Deployment Guide
 
-> **⚠️ DEPRECATED:** This guide is for **local development only**. 
-> 
-> For **production AWS deployment**, see **[AMPLIFY_DEPLOYMENT.md](AMPLIFY_DEPLOYMENT.md)** instead.
->
-> This Docker setup is maintained for:
-> - Local testing with Docker Compose
-> - Development environments
-> - Cloudflare Tunnel access during development
->
-> For AWS production, use AWS Amplify Hosting for the frontend and separate AWS services (Lambda/ECS) for the Python recommender.
+**Production deployment to AWS Amplify + Lambda**
 
-## 1. Topology & Assumptions
+This guide covers deploying SocsBoard to production on AWS. For local development with Docker, see SETUP.md.
 
-- App runs as container `ct216_web` on the `ct2106` Docker network
-- Database is **PostgreSQL container** (`pg-db-ct2106`) on the same network at `172.30.10.5:5432`
-- Database user is **`socsboard_user`** on database **`ct2106`**
-- Public URL is **https://your-domain.com** via Cloudflare Tunnel
+Last Updated: February 11, 2026
 
-## 2. Important files
+---
 
-- `Dockerfile` – multi-stage production build
-- `docker-compose.yml` – runs `ct216_web` on the `ct2106` network
-- `.env` – runtime configuration (DB, JWT, URL)
-- `database/setup.sql` – creates `login` table
-- `deploy.sh` – helper script to build & restart the app
-- `src/app/api/health/route.js` – health endpoint used for checks
+## Overview
 
-## 3. Environment variables (.env)
+### Production Architecture
 
-The `.env` used for local network deployment should look like:
+```
+┌─────────────────────────────────────────┐
+│  AWS Amplify Hosting                     │
+│  ├── Next.js Frontend (SSR)             │
+│  ├── API Routes                          │
+│  ├── CDN (CloudFront)                   │
+│  └── CI/CD (GitHub integration)         │
+└─────────────────────────────────────────┘
+            ↓
+┌─────────────────────────────────────────┐
+│  AWS Lambda                              │
+│  └── Python Recommendation Service      │
+└─────────────────────────────────────────┘
+            ↓
+┌─────────────────────────────────────────┐
+│  AWS RDS PostgreSQL                      │
+│  ├── Production database                │
+│  ├── Automated backups                  │
+│  └── Multi-AZ (optional)                │
+└─────────────────────────────────────────┘
+            +
+┌─────────────────────────────────────────┐
+│  ElastiCache Redis                       │
+│  └── Session and query caching          │
+└─────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+**AWS Amplify for Next.js:**
+- Native Next.js SSR support
+- Automatic deployments from GitHub
+- Global CDN for fast page loads
+- Environment variable management
+- Free SSL certificates
+
+**Lambda for Python Service:**
+- Separate runtime (Python vs Node.js)
+- Independent scaling
+- Pay-per-invocation (cost-effective)
+- No server management
+
+**RDS for PostgreSQL:**
+- Managed service (automated backups, patches)
+- High availability options
+- Scalable storage and compute
+- Connection pooling
+
+**ElastiCache for Redis:**
+- Managed Redis cluster
+- Automatic failover
+- Compatible with existing code
+- Sub-millisecond latency
+
+---
+
+## Prerequisites
+
+### Required Accounts
+
+1. **AWS Account**
+   - Sign up at https://aws.amazon.com
+   - Student credits available: https://aws.amazon.com/education/awseducate/
+   - Free tier covers most services for 12 months
+
+2. **GitHub Repository**
+   - Code must be in GitHub for Amplify auto-deploy
+   - Private or public repository works
+
+### Required Tools
 
 ```bash
-# Database (PostgreSQL container on ct2106 network)
-DATABASE_URL=postgresql://socsboard_user:YOUR_PASSWORD@pg-db-ct2106:5432/ct2106
-DATABASE_HOST=pg-db-ct2106
-DATABASE_PORT=5432
-DATABASE_USER=socsboard_user
-DATABASE_PASSWORD=YOUR_PASSWORD
-DATABASE_NAME=ct2106
+# AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
 
-# Public API URL (through Cloudflare)
-NEXT_PUBLIC_API_URL=https://your-domain.com
+# Configure AWS CLI
+aws configure
+# Enter: Access Key, Secret Key, Region (e.g., eu-west-1), Output (json)
+
+# Amplify CLI (optional, for advanced config)
+npm install -g @aws-amplify/cli
+```
+
+### Environment Variables
+
+Prepare these values before deployment:
+
+```
+# Database
+DATABASE_URL=postgresql://username:password@host:5432/database
 
 # Authentication
-JWT_SECRET=your-long-random-secret
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRES_IN=1h
 
-# Runtime
+# Redis
+REDIS_URL=redis://host:6379
+
+# Python Service
+RECOMMENDER_API_URL=https://lambda-function-url.amazonaws.com
+
+# Node Environment
 NODE_ENV=production
-PORT=3000
 ```
 
-For examples/templates see:
+---
 
-- `.env.example` – annotated example
-- `.env.production.template` – copy/paste starting point
+## Part 1: Deploy Frontend to AWS Amplify
 
-## 4. Database preparation
+### Step 1: Create Amplify App
 
-Run the migration to create the `login` table:
+1. **Open AWS Amplify Console**
+   - Navigate to https://console.aws.amazon.com/amplify
+   - Click "New app" → "Host web app"
 
+2. **Connect GitHub**
+   - Select GitHub as source
+   - Authorize AWS Amplify
+   - Select repository: `socsboard`
+   - Select branch: `main`
+
+3. **Configure Build Settings**
+
+Amplify auto-detects Next.js. Verify build settings:
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+```
+
+If using pnpm instead of npm, change to:
+```yaml
+preBuild:
+  commands:
+    - npm install -g pnpm
+    - pnpm install
+build:
+  commands:
+    - pnpm run build
+```
+
+4. **Add Environment Variables**
+
+In Amplify Console → App Settings → Environment Variables:
+
+```
+DATABASE_URL=<RDS_CONNECTION_STRING>
+JWT_SECRET=<GENERATE_RANDOM_STRING>
+JWT_EXPIRES_IN=1h
+REDIS_URL=<ELASTICACHE_URL>
+RECOMMENDER_API_URL=<LAMBDA_URL>
+NODE_ENV=production
+```
+
+Generate JWT secret:
 ```bash
-# Using docker exec (recommended)
-docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 < database/setup.sql
-
-# Verify table created
-docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 -c "\\dt login"
+openssl rand -base64 32
 ```
 
-## 5. Build & run with Docker Compose
+5. **Deploy**
+   - Click "Save and deploy"
+   - Amplify builds and deploys automatically
+   - Takes 5-10 minutes for first deploy
+   - URL provided: `https://main.xxxxxx.amplifyapp.com`
 
-From the project root:
+### Step 2: Configure Custom Domain (Optional)
 
+1. **In Amplify Console** → Domain management
+2. **Add domain:** `yourdomain.com`
+3. **Add DNS records** (Amplify provides values)
+4. **Wait for SSL certificate** (auto-provisioned via ACM)
+5. **Domain active** in 15-30 minutes
+
+### Step 3: Set Up CI/CD
+
+Automatic deployments already configured:
+
+- **Push to main** → Auto-deploy to production
+- **Pull request** → Preview deployment created
+- **Build fails** → Deployment blocked, previous version remains live
+
+Monitor builds: Amplify Console → Deployments
+
+---
+
+## Part 2: Deploy Python Recommender to AWS Lambda
+
+### Step 1: Prepare Lambda Function
+
+**Project structure:**
+```
+lambda_recommender/
+├── handler.py           # Lambda entry point
+├── recommender.py       # Recommendation logic
+├── requirements.txt     # Dependencies
+└── deploy.sh           # Deployment script
+```
+
+**handler.py:**
+```python
+import json
+import os
+import psycopg2
+from recommender import generate_recommendations
+
+def lambda_handler(event, context):
+    """
+    Lambda entry point
+    Expects: { "user_id": "uuid", "limit": 10 }
+    Returns: [{ "event_id": "uuid", "score": 0.85, "reason": "..." }]
+    """
+    try:
+        body = json.loads(event.get('body', '{}'))
+        user_id = body.get('user_id')
+        limit = body.get('limit', 10)
+        
+        if not user_id:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'user_id required'})
+            }
+        
+        # Connect to RDS
+        conn = psycopg2.connect(os.environ['DATABASE_URL'])
+        
+        # Generate recommendations
+        recommendations = generate_recommendations(conn, user_id, limit)
+        
+        conn.close()
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps(recommendations)
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)})
+        }
+```
+
+**requirements.txt:**
+```
+psycopg2-binary
+```
+
+### Step 2: Create Lambda Function
+
+**Via AWS Console:**
+
+1. **Open Lambda Console** → https://console.aws.amazon.com/lambda
+2. **Create function**
+   - Name: `socsboard-recommender`
+   - Runtime: Python 3.11
+   - Architecture: x86_64
+   - Permissions: Create new role with basic Lambda permissions
+
+3. **Upload code**
+   ```bash
+   # Package dependencies
+   pip install -r requirements.txt -t .
+   zip -r function.zip .
+   
+   # Upload via console or CLI
+   aws lambda update-function-code \
+     --function-name socsboard-recommender \
+     --zip-file fileb://function.zip
+   ```
+
+4. **Configure environment variables**
+   - Configuration → Environment variables
+   - Add: `DATABASE_URL=postgresql://...`
+
+5. **Adjust timeout and memory**
+   - Configuration → General configuration
+   - Timeout: 30 seconds (recommendations can be compute-heavy)
+   - Memory: 512 MB
+
+### Step 3: Create Function URL
+
+1. **Configuration → Function URL**
+2. **Create function URL**
+   - Auth type: `NONE` (we'll add auth in Next.js)
+   - CORS: Enable, allow origin `https://main.xxxxxx.amplifyapp.com`
+3. **Copy function URL:** `https://abc123.lambda-url.eu-west-1.on.aws/`
+4. **Add to Amplify environment variables** as `RECOMMENDER_API_URL`
+
+### Step 4: Call from Next.js
+
+**In Next.js API route:**
+```javascript
+// app/api/recommendations/route.js
+export async function GET(request) {
+  const userId = request.headers.get('x-user-id');
+  
+  const response = await fetch(process.env.RECOMMENDER_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, limit: 10 })
+  });
+  
+  const recommendations = await response.json();
+  return Response.json(recommendations);
+}
+```
+
+---
+
+## Part 3: Set Up Database (RDS PostgreSQL)
+
+### Step 1: Create RDS Instance
+
+1. **Open RDS Console** → https://console.aws.amazon.com/rds
+2. **Create database**
+   - Engine: PostgreSQL 15.x
+   - Template: Free tier (dev) or Production (high availability)
+   - DB instance identifier: `socsboard-db`
+   - Master username: `socsboard_admin`
+   - Master password: (generate strong password)
+
+3. **Instance configuration**
+   - Free tier: db.t3.micro (1 vCPU, 1 GB RAM)
+   - Production: db.t3.small or larger
+
+4. **Storage**
+   - Allocated: 20 GB (min)
+   - Enable autoscaling: Yes, max 100 GB
+
+5. **Connectivity**
+   - VPC: Default VPC
+   - Public access: Yes (for initial setup, restrict later)
+   - Security group: Create new → `socsboard-db-sg`
+
+6. **Database authentication**
+   - Password authentication (for simplicity)
+   - IAM database authentication: Optional for enhanced security
+
+7. **Create database**
+   - Takes 5-10 minutes to provision
+
+### Step 2: Configure Security Group
+
+1. **EC2 Console → Security Groups**
+2. **Find** `socsboard-db-sg`
+3. **Edit inbound rules**
+   - Type: PostgreSQL
+   - Port: 5432
+   - Source: Custom → Your IP (for setup) + Lambda security group
+
+**Production:** Restrict to VPC only, remove public access after setup.
+
+### Step 3: Run Database Migrations
+
+**Get connection string:**
+```
+postgresql://socsboard_admin:PASSWORD@socsboard-db.abc123.eu-west-1.rds.amazonaws.com:5432/postgres
+```
+
+**Run schema:**
 ```bash
-# Build image and start ct216_web
-docker compose up -d
+# Connect to RDS
+psql postgresql://socsboard_admin:PASSWORD@HOST:5432/postgres
 
-# Or with a clean rebuild
-docker compose down
-docker compose up -d --build
+# Create database
+CREATE DATABASE socsboard;
+\c socsboard
 
-# Check status
-docker ps | grep ct216_web
-
-# Tail logs
-docker logs -f ct216_web
+# Run migrations
+\i database/setup.sql
 ```
 
-The `docker-compose.yml` wires the container into the `ct2106` network and assigns IP `172.30.10.8`.
-
-## 6. Health checks
-
-Internal health endpoint:
-
+**Or use migration script:**
 ```bash
-curl http://172.30.10.8:3000/api/health
+DATABASE_URL="postgresql://..." npm run migrate
 ```
 
-Expected JSON:
+### Step 4: Update Amplify Environment Variables
 
-```json
-{"status":"ok","timestamp":"...","service":"ct216-project"}
+Add RDS connection string to Amplify:
+```
+DATABASE_URL=postgresql://socsboard_admin:PASSWORD@socsboard-db.abc123.eu-west-1.rds.amazonaws.com:5432/socsboard
 ```
 
-## 7. Cloudflare Tunnel configuration
+---
 
-Use the existing token-based tunnel (see `docs/CLOUDFLARE_TUNNEL.md` for the exact token). In the Zero Trust dashboard:
+## Part 4: Set Up Redis (ElastiCache)
 
-1. Go to **Networks → Tunnels**
-2. Select your tunnel
-3. Add a **Public hostname**:
-    - Subdomain: `ct216`
-    - Domain: `semyon.ie`
-    - Type: `HTTP`
-    - URL: `http://172.30.10.8:3000`
+### Step 1: Create ElastiCache Cluster
 
-After saving, test:
+1. **Open ElastiCache Console** → https://console.aws.amazon.com/elasticache
+2. **Create Redis cluster**
+   - Cluster mode: Disabled (simple setup)
+   - Name: `socsboard-redis`
+   - Engine version: 7.x
+   - Node type: cache.t3.micro (free tier eligible)
+   - Number of replicas: 0 (dev) or 1+ (production)
 
+3. **Network settings**
+   - VPC: Same as RDS
+   - Security group: Create new → `socsboard-redis-sg`
+
+4. **Create cluster**
+   - Takes 5-10 minutes
+
+### Step 2: Configure Security Group
+
+1. **Edit** `socsboard-redis-sg` **inbound rules**
+   - Type: Custom TCP
+   - Port: 6379
+   - Source: Lambda security group + Amplify (if applicable)
+
+### Step 3: Get Connection String
+
+**Primary endpoint:**
+```
+socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
+```
+
+**Connection string:**
+```
+redis://socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
+```
+
+### Step 4: Update Environment Variables
+
+Add to Amplify and Lambda:
+```
+REDIS_URL=redis://socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
+```
+
+---
+
+## Part 5: Monitoring and Logs
+
+### CloudWatch Logs
+
+**Amplify logs:**
+- Amplify Console → Monitoring → Logs
+- Shows build logs and runtime errors
+
+**Lambda logs:**
+- CloudWatch Console → Log groups → `/aws/lambda/socsboard-recommender`
+- Shows function invocations and errors
+
+**RDS logs:**
+- RDS Console → Databases → socsboard-db → Logs & events
+- Shows slow queries and errors
+
+### CloudWatch Metrics
+
+**Set up alarms:**
+1. **Lambda errors** > 5 per hour → Send SNS alert
+2. **RDS CPU** > 80% for 5 minutes → Send SNS alert
+3. **ElastiCache memory** > 90% → Send SNS alert
+
+**Create alarm:**
 ```bash
-curl https://your-domain.com/api/health
+aws cloudwatch put-metric-alarm \
+  --alarm-name lambda-errors \
+  --metric-name Errors \
+  --namespace AWS/Lambda \
+  --statistic Sum \
+  --period 3600 \
+  --threshold 5 \
+  --comparison-operator GreaterThanThreshold \
+  --alarm-actions arn:aws:sns:REGION:ACCOUNT:alerts
 ```
 
-## 8. Common operations
+### Cost Monitoring
 
+**Enable Cost Explorer:**
+1. AWS Console → Billing → Cost Explorer
+2. Set budget alert (e.g., $20/month)
+3. Receive email when 80% of budget reached
+
+**Estimated costs (free tier):**
+- Amplify: Free for first year (build minutes limited)
+- Lambda: Free for 1M requests/month
+- RDS: Free tier db.t3.micro for 12 months
+- ElastiCache: Free tier cache.t3.micro for 12 months
+
+**After free tier:**
+- Amplify: ~$0.01 per build minute
+- Lambda: ~$0.20 per 1M requests
+- RDS t3.small: ~$25/month
+- ElastiCache t3.micro: ~$12/month
+
+---
+
+## Part 6: Deployment Workflow
+
+### Continuous Deployment
+
+**Automatic on every push to main:**
 ```bash
-# Restart container
-docker compose restart
-
-# View logs
-docker logs -f ct216_web
-
-# Exec into container shell
-docker exec -it ct216_web sh
-
-# See all containers on ct2106 network
-docker ps --filter "network=ct2106"
+git add .
+git commit -m "feature: add event filtering"
+git push origin main
 ```
 
-## 9. Troubleshooting
+Amplify automatically:
+1. Pulls latest code
+2. Installs dependencies
+3. Runs build
+4. Deploys to production
+5. Invalidates CDN cache
 
-**Container won’t start**
+**Monitor deployment:**
+- Amplify Console → Deployments
+- Build takes 5-10 minutes
+- Preview URL available immediately
 
+### Manual Lambda Update
+
+**When updating recommender logic:**
 ```bash
-docker logs ct216_web
-docker network inspect ct2106 | grep 172.30.10.8
+cd lambda_recommender
+pip install -r requirements.txt -t .
+zip -r function.zip .
+
+aws lambda update-function-code \
+  --function-name socsboard-recommender \
+  --zip-file fileb://function.zip
 ```
 
-**Database connection errors**
-
+**Or use deployment script:**
 ```bash
-# From host
-nc -zv 100.118.61.122 2345
-
-# From container
-docker exec ct216_web nc -zv 100.118.61.122 2345
+./deploy.sh
 ```
 
-**Tunnel issues / 502s**
+### Database Migrations
 
+**For schema changes:**
 ```bash
-# Verify app is healthy first
-curl http://172.30.10.8:3000/api/health
+# Write migration file
+# database/migrations/002_add_categories.sql
 
-# Check cloudflared container
-docker ps | grep cloudflare
+# Apply migration
+psql $DATABASE_URL < database/migrations/002_add_categories.sql
 ```
 
-## 10. Deployment Checklist
+**Production safety:**
+1. Test migration on staging database first
+2. Backup production database before applying
+3. Run during low-traffic window
+4. Monitor for errors after deployment
 
-Use this checklist when deploying to ensure all steps are completed:
+---
 
-### Pre-Deployment
+## Part 7: Rollback and Recovery
 
-- [ ] Docker and Docker Compose installed on server
-- [ ] ct2106 network is up: `docker network inspect ct2106`
-- [ ] All prerequisites services running (PostgreSQL, Redis, Cloudflare Tunnel)
-- [ ] IP `172.30.10.8` is free on `ct2106`
+### Rollback Deployment
 
-### Step 1: Prepare Environment
+**If deployment breaks production:**
 
-- [ ] `.env` exists and contains:
-    - [ ] `DATABASE_URL` using `socsboard_user@pg-db-ct2106:5432/ct2106`
-    - [ ] `NEXT_PUBLIC_API_URL=https://your-domain.com`
-    - [ ] `JWT_SECRET` set to a strong random value (`openssl rand -base64 32`)
-- [ ] `.env` is not committed to git
+1. **Amplify Console → Deployments**
+2. **Find last working deployment**
+3. **Click "Redeploy this version"**
+4. **Confirm rollback**
 
-### Step 2: Database Setup
+Previous version restored in 5 minutes.
 
-- [ ] Run migration: `docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 < database/setup.sql`
-- [ ] Verify table: `docker exec -i pg-db-ct2106 psql -U socsboard_user -d ct2106 -c "\\dt login"`
+### Database Backup and Restore
 
-### Step 3: Build and Deploy
-
-- [ ] In project root, run: `docker compose up -d --build`
-- [ ] Confirm container: `docker ps | grep ct216_web`
-- [ ] Tail logs and wait for Ready: `docker logs -f ct216_web`
-
-### Step 4: Verify Internal Access
-
-- [ ] Health check OK: `curl http://172.30.10.8:3000/api/health`
-- [ ] Homepage loads: `curl http://172.30.10.8:3000`
-
-### Step 5: Configure Cloudflare Tunnel
-
-- [ ] In Zero Trust dashboard:
-    - [ ] Networks → Tunnels → select existing tunnel
-    - [ ] Add hostname:
-        - [ ] Subdomain: `ct216`
-        - [ ] Domain: `semyon.ie`
-        - [ ] Type: `HTTP`
-        - [ ] URL: `http://172.30.10.8:3000`
-- [ ] Wait 30–60 seconds for DNS/tunnel to settle
-
-### Step 6: Verify Public Access
-
-- [ ] Health check via domain: `curl https://your-domain.com/api/health`
-- [ ] Homepage via browser: `https://your-domain.com`
-- [ ] `/register` and `/login` load correctly
-
-### Step 7: Functional Testing
-
-- [ ] Create a test account via `/register`
-- [ ] Verify row appears in `login` table
-- [ ] Log in with that account
-- [ ] JWT cookie present and app behaves as logged-in
-
-### Step 8: Monitoring & Backup
-
-- [ ] Uptime check for `https://your-domain.com/api/health`
-- [ ] Log monitoring wired to `docker logs ct216_web`
-- [ ] DB backup strategy in place for `ct2106`
-- [ ] `.env` permissions tightened: `chmod 600 .env`
-
-### Step 9: Post-Deployment Verification
-
-- [ ] App is accessible via HTTPS at `https://your-domain.com`
-- [ ] Health endpoint returns `200 OK`
-- [ ] Login and registration both work
-- [ ] No obvious errors in browser console
-- [ ] Container marked `Up` with restart policy `unless-stopped`
-
-## 11. Rollback & Troubleshooting
-
-**Container won't start**
+**Manual backup:**
 ```bash
-docker logs ct216_web
-docker network inspect ct2106 | grep 172.30.10.8
+pg_dump $DATABASE_URL > backup_$(date +%Y%m%d).sql
 ```
 
-**Database connection errors**
+**Restore from backup:**
 ```bash
-# Verify database container running
-docker ps | grep pg-db-ct2106
-
-# Check network connectivity from ct216_web
-docker exec ct216_web ping -c 3 pg-db-ct2106
-docker exec ct216_web nc -zv pg-db-ct2106 5432
+psql $DATABASE_URL < backup_20260211.sql
 ```
 
-**Tunnel issues / 502 errors**
+**RDS automated backups:**
+- Retention: 7 days (default)
+- Restore: RDS Console → Snapshots → Restore
+
+### Lambda Rollback
+
+**Revert to previous version:**
 ```bash
-# Verify app is healthy first
-curl http://172.30.10.8:3000/api/health
-
-# Check cloudflared container
-docker ps | grep cloudflare
-docker logs $(docker ps -q --filter ancestor=cloudflare/cloudflared:latest)
+aws lambda update-function-code \
+  --function-name socsboard-recommender \
+  --zip-file fileb://previous_function.zip
 ```
 
-**Quick recovery**
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**1. Build fails on Amplify**
+- Check build logs in Amplify Console
+- Verify `package.json` scripts are correct
+- Ensure environment variables are set
+
+**2. Database connection errors**
+- Verify security group allows connections
+- Check DATABASE_URL format
+- Test connection: `psql $DATABASE_URL`
+
+**3. Lambda timeout**
+- Increase timeout: Configuration → General → Timeout (max 15 minutes)
+- Optimize queries (add indexes)
+- Consider caching results in Redis
+
+**4. High costs**
+- Check Cost Explorer for unexpected charges
+- Review CloudWatch metrics for usage spikes
+- Scale down instances if over-provisioned
+
+### Getting Help
+
+**AWS Support:**
+- Free tier: Community forums
+- Paid plans: Technical support available
+
+**Documentation:**
+- Amplify: https://docs.amplify.aws/
+- Lambda: https://docs.aws.amazon.com/lambda/
+- RDS: https://docs.aws.amazon.com/rds/
+
+---
+
+## Local Development
+
+For local development with Docker Compose, see SETUP.md.
+
+**Quick start:**
 ```bash
-docker compose restart        # Restart container
-docker compose down && docker compose up -d --build  # Full rebuild
+cp .env.example .env.local
+npm install
+npm run dev
 ```
 
-## 12. Security Checklist
+---
 
-- [ ] `JWT_SECRET` is long and random (≥ 32 bytes)
-- [ ] `.env` is not committed to git
-- [ ] Database password is stored only in `.env` and password manager
-- [ ] Database access restricted to containers on `ct2106` network only
-- [ ] Cloudflare HTTPS enforced for `your-domain.com`
-- [ ] Secrets cleared from git history: `git log --all --full-history -- .env`
+## Historical Documentation
 
-## 13. Where to look next
+Previous deployment research and alternative approaches archived in:
 
-- High-level overview: `README.md`
-- Local development setup: `SETUP.md`
-- One-page quick reference: `docs/QUICKSTART.md`
-- Tunnel configuration: `docs/CLOUDFLARE_TUNNEL.md`
+- `docs/archive/2025-02-AWS_MIGRATION_RESEARCH.md` - Detailed AWS migration analysis
+- `docs/archive/2025-02-AMPLIFY_DEPLOYMENT.md` - Original Amplify deployment guide
+- `docs/archive/2025-02-RECOMMENDER_DEPLOYMENT.md` - Python service deployment options
+- `docs/archive/2025-02-CLOUDFLARE_TUNNEL.md` - Previous Cloudflare Tunnel setup
+- `docs/archive/2025-02-DEPLOYMENT_DOCKER.md` - Docker deployment guide (local dev)
+
+---
+
+**Last Updated:** February 11, 2026
+**Maintained by:** Semyon (Tech Lead)
