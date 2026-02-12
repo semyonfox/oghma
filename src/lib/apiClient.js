@@ -175,7 +175,7 @@ export async function apiDelete(url, options = {}) {
 // ============================================================
 
 /**
- * Login user
+ * login user
  * @param {string} email - User email
  * @param {string} password - User password
  * @returns {Promise<Object>} - User data and success status
@@ -185,7 +185,7 @@ export async function login(email, password) {
 }
 
 /**
- * Register new user
+ * register new user
  * @param {string} email - User email
  * @param {string} password - User password
  * @returns {Promise<Object>} - User data and success status
