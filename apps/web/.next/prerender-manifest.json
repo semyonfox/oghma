@@ -55,6 +55,30 @@
         "x-next-revalidate-tag-token"
       ]
     },
+    "/login": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/login",
+      "dataRoute": "/login.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/": {
       "experimentalBypassFor": [
         {
@@ -78,13 +102,37 @@
         "x-next-revalidated-tags",
         "x-next-revalidate-tag-token"
       ]
+    },
+    "/register": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/register",
+      "dataRoute": "/register.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
     }
   },
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "637450253469d2f3378126933558145d",
-    "previewModeSigningKey": "9713fbd8aba3984ee8c162e180ea2b531e5d0f779f9bf8d83278caa6ba7e460e",
-    "previewModeEncryptionKey": "70313bd663dd2b8e031f23be5eb5f0ba0356dee19d8f9377115772098bae2e2f"
+    "previewModeId": "18832b7ad5e3cbe7b8435fa305bca94c",
+    "previewModeSigningKey": "20a3b05526a9d7794b6932102f9f5d7aeea7d9ab403885dab40d2f7500f95cda",
+    "previewModeEncryptionKey": "879184d4a8b52e676a3362c09a9959c65668fb98bb7c1bf72d05f3978f542a17"
   }
 }
