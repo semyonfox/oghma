@@ -7,12 +7,13 @@ frontend:
         - pnpm install --frozen-lockfile
     build:
       commands:
-        - pnpm run build
+        - pnpm --filter web build
   artifacts:
-    baseDirectory: .next
+    baseDirectory: apps/web/.next
     files:
       - '**/*'
   cache:
     paths:
       - node_modules/**/*
-      - .next/cache/**/*
+      - apps/web/node_modules/**/*
+      - apps/web/.next/cache/**/*
