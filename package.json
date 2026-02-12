@@ -16,6 +16,7 @@
     "dotenv": "^17.2.4",
     "jsonwebtoken": "^9.0.2",
     "next": "^16.0.1",
+    "nodemailer": "^8.0.1",
     "pg": "^8.18.0",
     "postgres": "^3.4.7",
     "react": "^19.1.0",

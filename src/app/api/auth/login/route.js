@@ -9,7 +9,7 @@
  */
 
 import bcrypt from "bcrypt";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 // taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
 import { validateAuthCredentials } from "@/lib/validation.js";
 import {
