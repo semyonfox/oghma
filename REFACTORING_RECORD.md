@@ -1,8 +1,39 @@
-# Documentation Refactoring Record
+# Project Refactoring Record
 
-**Date:** February 11, 2026
+**Last updated:** February 12, 2026
 **Performed by:** Semyon (Tech Lead)
-**Purpose:** Consolidate and organize project documentation for clarity and maintainability
+**Purpose:** Consolidate documentation and fix deployment issues
+
+---
+
+## Recent Updates
+
+### AWS Amplify Deployment Fix (February 12, 2026)
+
+**Commit:** `c55d268` - "fix: remove obsolete root postcss.config.js causing ES module error"
+
+**Problem:**
+AWS Amplify build was failing with ES module compatibility error:
+```
+Error [ERR_REQUIRE_ESM]: require() of ES Module postcss.config.js not supported.
+This file is being treated as an ES module because '/codebuild/output/.../package.json' 
+contains "type": "module".
+```
+
+**Root cause:**
+- Root `package.json` had `"type": "module"` (ES modules by default)
+- Legacy `postcss.config.js` in project root used CommonJS syntax (`module.exports`)
+- Node.js couldn't import CommonJS file when ES module was expected
+
+**Solution:**
+- Deleted obsolete root `postcss.config.js` (from old root-level Next.js app)
+- `apps/web/` already has its own properly configured `postcss.config.mjs` with ES module syntax
+- Tested build locally - succeeded in 7.8s
+- Pushed fix to production branch, triggered new Amplify deployment
+
+**Files changed:**
+- ❌ Deleted: `postcss.config.js` (root - obsolete, CommonJS syntax)
+- ✅ Kept: `apps/web/postcss.config.mjs` (ES module syntax, actively used)
 
 ---
 
