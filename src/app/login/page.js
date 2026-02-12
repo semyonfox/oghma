@@ -29,7 +29,7 @@ const Page = () => {
         e.preventDefault();
         try {
             const data = await login(user, pwd);
-            console.log('Login successful:', JSON.stringify(data));
+            console.log('login successful:', JSON.stringify(data));
             // Clear form and set success state
             setUser(''); //refreshing the login
             setPwd('');
@@ -38,7 +38,7 @@ const Page = () => {
             // setAuth({ user, pwd, roles: data?.roles, accessToken: data?.accessToken });
 
         } catch (err) { //error cases for the login
-            console.error('Login error:', err);
+            console.error('login error:', err);
             setErrMsg(getErrorMessage(err));
             setPwd(''); // Clear password on error for security
             errRef.current.focus();

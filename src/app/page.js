@@ -22,7 +22,7 @@ export default function Home() {
             <h2 className="text-light text-center mb-5">Get Started</h2>
 
             <div className="row g-4">
-              {/* Login Card */}
+              {/* login Card */}
               <div className="col-md-6">
                 <div className="card bg-dark border-primary shadow-lg h-100">
                   <div className="card-body text-center p-4">
@@ -37,7 +37,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Register Card */}
+              {/* register Card */}
               <div className="col-md-6">
                 <div className="card bg-dark border-success shadow-lg h-100">
                   <div className="card-body text-center p-4">
