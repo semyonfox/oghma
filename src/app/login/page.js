@@ -106,6 +106,12 @@ const Page = () => {
                                         <button type="submit" className="btn btn-primary btn-lg w-100 mb-3">
                                             Login
                                         </button>
+
+                                        <p style={{ marginTop: '15px', textAlign: 'center' }}>
+                                            <Link href="/forgot-password" style={{ color: '#0070f3', textDecoration: 'none' }}>
+                                                Forgot your password?
+                                            </Link>
+                                        </p>
                                     </form>
 
                                     <hr className="border-secondary" />
