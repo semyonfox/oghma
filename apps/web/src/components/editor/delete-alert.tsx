@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Alert } from '@material-ui/lab';
+import { Alert } from '@mui/material';
 import { NOTE_DELETED } from '@/lib/notes/meta';
 import NoteState from '@/lib/state/note';
 import useI18n from '@/lib/hooks/use-i18n';

@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Tooltip as MuiTooltip } from '@material-ui/core';
+import { Tooltip as MuiTooltip } from '@mui/material';
 import { FC } from 'react';
 import { ReactNodeLike } from 'prop-types';
 

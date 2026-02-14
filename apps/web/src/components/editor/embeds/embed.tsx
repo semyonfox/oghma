@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Skeleton } from '@material-ui/lab';
+import { Skeleton } from '@mui/material';
 import useFetcher from '@/lib/api/fetcher';
 import { FC, useEffect, useState } from 'react';
 import { Metadata } from 'unfurl.js/dist/types';
@@ -21,7 +21,7 @@ export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
     }, [href, request]);
 
     if (!data) {
-        return <Skeleton variant="rect" height={128}></Skeleton>;
+        return <Skeleton variant="rectangular" height={128}></Skeleton>;
     }
 
     const html = (data?.oEmbed as any)?.html;
