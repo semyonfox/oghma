@@ -10,7 +10,7 @@ import router from 'next/router';
 import HotkeyTooltip from '@/components/hotkey-tooltip';
 import IconButton from '@/components/icon-button';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import { CircularProgress, Tooltip } from '@material-ui/core';
+import { CircularProgress, Tooltip } from '@mui/material';
 import { Favorites } from './favorites';
 
 const SideBarList = () => {
