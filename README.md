@@ -1,8 +1,10 @@
-# SocsBoard
+# SocsBoard → AI Learning Platform
 
-**University Society Platform - CT216 Software Engineering Project**
+**AI-Enhanced Study & Learning Hub**
 
-A full-stack social platform connecting university students with society events and content through personalized recommendations, featuring multilingual support (Irish + English).
+A full-stack platform designed for university students to organize notes, collaborate on study materials, and leverage AI assistance for learning—built on secure multi-user authentication and cloud storage.
+
+**Status:** Pivoting from society platform to AI learning platform (February 2025)
 
 ---
 
@@ -232,9 +234,28 @@ See [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) for complete developm
 **Module:** CT216 - Software Engineering I
 **Team Size:** 4 members
 **Duration:** 8 weeks development
-**Status:** Active development
+**Status:** Active development (Pivot to AI Learning Platform)
 
 ---
 
-**Last Updated:** February 11, 2026
-**Version:** 4.0 (Documentation refactoring)
+## Acknowledgments & Attribution
+
+### Notea
+This project builds on architectural patterns and components from [**Notea**](https://github.com/notea-org/notea), an open-source markdown note-taking app.
+
+**What we extracted from Notea:**
+- S3-compatible storage provider (abstraction layer)
+- Rich markdown editor (ProseMirror-based)
+- File tree / sidebar UI (hierarchical note browser)
+- State management patterns (unstated-next containers)
+- Internationalization system (rosetta-based, 9 languages)
+- Sharing infrastructure (public note templates)
+
+**License:** Notea is licensed under the MIT License. See [ATTRIBUTION.md](docs/ATTRIBUTION.md) for full details and attribution.
+
+We are grateful to [@qingwei-li](https://github.com/qingwei-li) and the Notea community for this clean, well-architected codebase.
+
+---
+
+**Last Updated:** February 14, 2025
+**Version:** 5.0 (AI Platform Pivot)
