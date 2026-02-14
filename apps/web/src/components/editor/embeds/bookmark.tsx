@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Skeleton } from '@material-ui/lab';
+import { Skeleton } from '@mui/material';
 import useFetcher from '@/lib/api/fetcher';
 import { decode } from 'qss';
 import { FC, useEffect, useState } from 'react';
@@ -27,7 +27,7 @@ export const Bookmark: FC<EmbedProps> = ({ attrs: { href } }) => {
         decode<{ url: string }>(href.replace(/.*\?/, '')).url;
 
     if (!data) {
-        return <Skeleton variant="rect" height={128}></Skeleton>;
+        return <Skeleton variant="rectangular" height={128}></Skeleton>;
     }
 
     return (
