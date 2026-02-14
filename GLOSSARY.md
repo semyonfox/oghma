@@ -33,11 +33,6 @@ A single repository that holds the code for multiple projects. This makes it eas
 ### Next.js
 A popular framework for building modern web applications. It provides features that make development faster and easier, such as server-side rendering and file-based routing.
 
-## P
-
-### pnpm workspaces
-A feature of the `pnpm` package manager that allows you to manage multiple projects within a single **Monorepo**.
-
 ## R
 
 ### REST API
