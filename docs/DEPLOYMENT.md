@@ -4,7 +4,13 @@
 
 This guide covers deploying SocsBoard to production on AWS. For local development with Docker, see SETUP.md.
 
-Last Updated: February 11, 2026
+Last Updated: February 12, 2026
+
+---
+
+## Technical Notes
+
+**Package Manager:** This project uses npm (not pnpm) for AWS Amplify compatibility and deployment simplicity. While pnpm is faster, npm provides better native support in Amplify and requires simpler build configuration.
 
 ---
 
@@ -153,17 +159,6 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
-```
-
-If using pnpm instead of npm, change to:
-```yaml
-preBuild:
-  commands:
-    - npm install -g pnpm
-    - pnpm install
-build:
-  commands:
-    - pnpm run build
 ```
 
 4. **Add Environment Variables**

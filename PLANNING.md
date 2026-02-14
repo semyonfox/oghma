@@ -4,7 +4,26 @@
 
 Single source of truth for timeline, assignments, and sprint breakdown.
 
-Last Updated: February 11, 2026
+Last Updated: February 12, 2026
+
+---
+
+## Technical Decisions
+
+### Package Manager: npm (not pnpm)
+
+**Decision:** Use npm exclusively for this project
+
+**Rationale:**
+- AWS Amplify has better native support for npm
+- Simpler deployment configuration (no pnpm installation step)
+- Easier for team members unfamiliar with pnpm
+- Slightly slower install times acceptable for deployment ease
+
+**Trade-offs:**
+- npm is slower than pnpm for local development
+- npm uses more disk space (no content-addressable storage)
+- Accepted for improved AWS compatibility and deployment simplicity
 
 ---
 
