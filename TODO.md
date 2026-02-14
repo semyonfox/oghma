@@ -15,27 +15,26 @@ For completed items, see .archive/2025-02-06-REMEDIATION_ACTION_ITEMS.md
   - Task: `rm -rf src/components/{auth,ui}` if empty
   - Impact: 84KB of bundle savings already done, just cleanup
 
-- [ ] **Remove duplicate monorepo structure**
-  - Delete: `/apps/web/`, `/apps/recommender/`, `/packages/`
-  - Keep: root `src/` and `src/app/`
-  - Delete: `pnpm-workspace.yaml`
-  - Impact: Cleaner project structure, fewer confusing directories
+- [x] **Remove duplicate monorepo structure** ✅ COMPLETED
+  - Deleted: `pnpm-workspace.yaml`, `pnpm-lock.yaml`
+  - Note: Keeping `/apps/` structure for now (web + recommender services)
+  - Impact: Cleaner project structure
+
+- [x] **Switch to npm for deployment compatibility** ✅ COMPLETED
+  - Reason: AWS Amplify has better native npm support
+  - Trade-off: Slower installs but easier deployment
+  - Updated: Dockerfile already uses npm, amplify.yml now uses npm
 
 - [ ] **Remove console.log statements**
   - Locations: `/src/app/api/auth/login/route.js`, register/login pages
   - Reason: Information leakage, not production-ready
   - Details: See REMEDIATION_ACTION_ITEMS.md section 10
 
-- [ ] **Fix Docker configuration mismatch**
-  - Dockerfile uses `npm ci`, project uses `pnpm`
-  - Fix: Update Dockerfile to use `pnpm install`
-  - Update: docker-compose references
-
 ### Dependencies
 
-- [ ] **Remove duplicate lock files**
-  - Keep: `pnpm-lock.yaml` (project uses pnpm)
-  - Delete: `package-lock.json` (188KB unused)
+- [x] **Remove duplicate lock files** ✅ COMPLETED
+  - Keep: `package-lock.json` (project uses npm)
+  - Deleted: `pnpm-lock.yaml`
 
 ### Unused Code
 
@@ -98,4 +97,4 @@ For completed items, see .archive/2025-02-06-REMEDIATION_ACTION_ITEMS.md
 
 ---
 
-Last updated: Feb 11, 2026
+Last updated: Feb 12, 2026
