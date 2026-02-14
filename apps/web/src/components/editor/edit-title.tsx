@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { TextareaAutosize } from '@material-ui/core';
+import { TextareaAutosize } from '@mui/material';
 import useI18n from '@/lib/hooks/use-i18n';
 import { has } from 'lodash';
 import { useRouter } from 'next/router';

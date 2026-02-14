@@ -7,7 +7,7 @@ import router, { useRouter } from 'next/router';
 import HotkeyTooltip from '@/components/hotkey-tooltip';
 import IconButton from '@/components/icon-button';
 import NoteTreeState from '@/lib/notes/state/tree';
-import { Skeleton } from '@material-ui/lab';
+import { Skeleton } from '@mui/material';
 import PortalState from '@/lib/notes/state/portal';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import emojiRegex from 'emoji-regex';
