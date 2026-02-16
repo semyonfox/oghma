@@ -107,6 +107,29 @@
   --opacity-border: 0.2;
   --opacity-overlay: 0.5;
   --opacity-disabled: 0.4;
+
+  /* === CATALYST COMPONENT COLOR MAPPINGS === */
+  /* Map OghmaNotes colors to Catalyst's CSS variables */
+  
+  /* Primary Button (Blue) */
+  --catalyst-primary-bg: var(--color-primary-600);
+  --catalyst-primary-border: var(--color-primary-700);
+  --catalyst-primary-hover: var(--color-primary-500);
+  
+  /* Danger/Destructive (Red) */
+  --catalyst-danger-bg: var(--color-error-600);
+  --catalyst-danger-border: var(--color-error-700);
+  --catalyst-danger-hover: var(--color-error-500);
+  
+  /* Success (Green) */
+  --catalyst-success-bg: var(--color-success-600);
+  --catalyst-success-border: var(--color-success-700);
+  --catalyst-success-hover: var(--color-success-500);
+  
+  /* AI (Amber) */
+  --catalyst-ai-bg: var(--color-ai-600);
+  --catalyst-ai-border: var(--color-ai-700);
+  --catalyst-ai-hover: var(--color-ai-500);
 }
 
 /* Dark Mode Overrides */
