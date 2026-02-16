@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { useDebouncedCallback } from 'use-debounce';
+import { debounce } from 'lodash';
 import { searchNote, searchRangeText } from '@/lib/notes/utils/search';
 import { LexicalEditorRef } from '@/components/editor/lexical-editor';
 import { ROOT_ID } from '@/lib/notes/types/tree';
@@ -79,7 +79,7 @@ const useEditorStore = create<EditorState>()(
             onEditorChange: (value) => {
                 console.log('Handle editor logic', value);
             },
-            onNoteChange: useDebouncedCallback(async (data: Partial<NoteModel>) => {
+            onNoteChange: debounce(async (data: Partial<NoteModel>) => {
                 console.log('Handle database store or cache updates');
             }, 500) as unknown as (data: Partial<NoteModel>) => Promise<void>,
             saveNow: async () => {
