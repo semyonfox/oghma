@@ -1,7 +1,5 @@
 // extracted from Notea (MIT License)
-import { TextareaAutosize } from '@mui/material';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import { has } from 'lodash';
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -44,18 +42,32 @@ const EditTitle: FC<{ readOnly?: boolean }> = ({ readOnly }) => {
     const autoFocus = useMemo(() => searchParams?.has('new'), [searchParams]);
     const { t } = useI18n();
 
+    const handleTextareaChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+        e.target.style.height = 'auto';
+        e.target.style.height = Math.min(e.target.scrollHeight, 300) + 'px';
+        onTitleChange(e);
+    }, [onTitleChange]);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 300) + 'px';
+        }
+    }, [note?.id]);
+
     return (
         <h1 className="text-3xl mb-8">
-            <TextareaAutosize
+            <textarea
                 ref={inputRef}
                 dir="auto"
                 readOnly={readOnly}
-                className="outline-none w-full resize-none block bg-transparent"
+                className="outline-none w-full resize-none block bg-transparent font-inherit overflow-hidden"
+                style={{ lineHeight: 'inherit', padding: 0 }}
                 placeholder={t('New Page')}
                 defaultValue={note?.title}
                 key={note?.id}
                 onKeyDown={onInputTitle}
-                onChange={onTitleChange}
+                onChange={handleTextareaChange}
                 maxLength={128}
                 autoFocus={autoFocus}
             />
