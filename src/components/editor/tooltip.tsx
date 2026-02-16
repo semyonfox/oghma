@@ -1,12 +1,11 @@
 // extracted from Notea (MIT License)
 import { Tooltip as MuiTooltip } from '@mui/material';
-import { FC } from 'react';
-import { ReactNodeLike } from 'prop-types';
+import { FC, ReactNode } from 'react';
 
 const Tooltip: FC<{
     tooltip: string;
     placement: 'top' | 'bottom' | 'left' | 'right';
-    children: ReactNodeLike;
+    children: ReactNode;
 }> = ({ children, tooltip, placement }) => {
     return (
         <MuiTooltip title={tooltip} placement={placement}>

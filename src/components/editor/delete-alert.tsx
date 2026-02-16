@@ -1,8 +1,8 @@
 // extracted from Notea (MIT License)
 import { Alert } from '@mui/material';
-import { NOTE_DELETED } from '@/lib/notes/meta';
-import NoteState from '@/lib/state/note';
-import useI18n from '@/lib/hooks/use-i18n';
+import { NOTE_DELETED } from '@/lib/notes/types/meta';
+import NoteState from '@/lib/notes/state/note';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 const Inner = () => {
     const { t } = useI18n();

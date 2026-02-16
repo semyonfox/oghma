@@ -7,13 +7,15 @@ import { searchNote } from '../utils/search';
 
 function useSearch() {
     const [list, setList] = useState<NoteCacheItem[]>();
-    const [keyword, setKeyword] = useState<string>();
-    const filterNotes = useCallback(async (keyword?: string) => {
-        setKeyword(keyword);
-        setList(keyword ? await searchNote(keyword, NOTE_DELETED.NORMAL) : []);
-    }, []);
+    const [keyword, setKeyword] = useState<string>('');
+    
+    const filterNotes = useCallback(async (searchKeyword?: string) => {
+        const kw = searchKeyword !== undefined ? searchKeyword : keyword;
+        setList(kw ? await searchNote(kw, NOTE_DELETED.NORMAL) : []);
+        return kw ? await searchNote(kw, NOTE_DELETED.NORMAL) : [];
+    }, [keyword]);
 
-    return { list, keyword, filterNotes };
+    return { list, keyword, setKeyword, filterNotes };
 }
 
 const SearchState = createContainer(useSearch);
