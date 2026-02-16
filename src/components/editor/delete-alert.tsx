@@ -1,5 +1,4 @@
 // extracted from Notea (MIT License)
-import { Alert } from '@mui/material';
 import { NOTE_DELETED } from '@/lib/notes/types/meta';
 import NoteState from '@/lib/notes/state/note';
 import useI18n from '@/lib/notes/hooks/use-i18n';
@@ -13,16 +12,9 @@ const Inner = () => {
     }
 
     return (
-        <Alert
-            icon={false}
-            severity="error"
-            classes={{
-                root: 'mt-10 rounded-none p-2',
-                message: 'p-0 m-auto space-x-4',
-            }}
-        >
+        <div className="mt-10 rounded-none p-2 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 text-error-800 dark:text-error-200">
             <span>{t('This page is in trash')}</span>
-        </Alert>
+        </div>
     );
 };
 
