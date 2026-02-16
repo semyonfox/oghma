@@ -192,10 +192,7 @@ export default function RegisterPage() {
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-white">
-                  <path d="M0 0h11v11H0z" />
-                  <path d="M13 0h11v11H13z" />
-                  <path d="M0 13h11v11H0z" />
-                  <path d="M13 13h11v11H13z" />
+                  <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4z" />
                 </svg>
                 <span className="text-sm/6 font-semibold">Microsoft</span>
               </button>
