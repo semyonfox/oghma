@@ -1,5 +1,4 @@
 // extracted from Notea (MIT License)
-import { Skeleton } from '@mui/material';
 import useFetcher from '@/lib/notes/api/fetcher';
 import { FC, useEffect, useState } from 'react';
 import { Metadata } from 'unfurl.js/dist/types';
@@ -21,7 +20,7 @@ export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
     }, [href, request]);
 
     if (!data) {
-        return <Skeleton variant="rectangular" height={128}></Skeleton>;
+        return <div className="w-full h-32 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />;
     }
 
     const html = (data?.oEmbed as any)?.html;

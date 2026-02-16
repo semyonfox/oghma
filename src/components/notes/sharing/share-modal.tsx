@@ -13,7 +13,6 @@
 // 4. Test with both public and private shares
 
 import React, { FC, useCallback, useEffect, useState } from 'react';
-import { Popover, FormControlLabel, Switch, Tooltip } from '@mui/material';
 import PortalState from '@/lib/notes/state/portal';
 import IconButton from '@/components/icon-button';
 import NoteState from '@/lib/notes/state/note';
@@ -50,10 +49,11 @@ const ShareModal: FC = () => {
   const handleCopy = useCallback(() => {
     url && navigator.clipboard.writeText(url);
     setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }, [url]);
 
   const handleShare = useCallback(
-    (_event: unknown, checked: boolean) => {
+    (checked: boolean) => {
       updateNote({
         shared: checked ? NOTE_SHARED.PUBLIC : NOTE_SHARED.PRIVATE,
       })?.catch((v) => console.error('Error whilst updating note: %O', v));
@@ -69,58 +69,72 @@ const ShareModal: FC = () => {
     }
   }, [disablePassword, router.query]);
 
+  if (!share.visible || !share.anchor) {
+    return null;
+  }
+
+  const rect = share.anchor.getBoundingClientRect();
+  const top = rect.bottom + 4;
+  const left = rect.left;
+
   return (
-    <Popover
-      anchorEl={share.anchor}
-      open={share.visible}
-      onClose={share.close}
-      classes={{
-        paper: 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white',
-      }}
-    >
-      <section className="p-4">
-        <FormControlLabel
-          control={
-            <Switch
-              color="primary"
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40"
+        onClick={share.close}
+      />
+      
+      {/* Popover */}
+      <div
+        className="fixed z-50 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700"
+        style={{ top, left }}
+      >
+        <section className="p-4 min-w-80">
+          {/* Share Toggle */}
+          <div className="flex items-start space-x-2 mb-4">
+            <input
+              type="checkbox"
+              className="mt-1 rounded"
               checked={note?.shared === NOTE_SHARED.PUBLIC}
-              onChange={handleShare}
+              onChange={(e) => handleShare(e.target.checked)}
             />
-          }
-          classes={{
-            root: 'ml-0',
-          }}
-          label={
-            <div className="mr-2">
-              <h2 className="text-sm">{t('Share to web')}</h2>
+            <div className="flex-1">
+              <h2 className="text-sm font-medium">{t('Share to web')}</h2>
               <p className="text-xs text-neutral-500">
                 {t('Anyone can visit the page via the link')}
               </p>
             </div>
-          }
-          labelPlacement="start"
-        />
-        <div className="flex mt-4 items-center border-solid border border-neutral-300 dark:border-neutral-600 rounded overflow-hidden">
-          <input
-            className="w-full px-2 outline-none bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white"
-            value={url}
-            readOnly
-          ></input>
-          <Tooltip
-            onClose={() => setCopied(false)}
-            title={copied ? t('Copied!') : t('Copy to clipboard')}
-            arrow
-          >
-            <IconButton
-              className="flex"
-              iconClassName="w-4 h-4 m-auto"
-              icon="DocumentText"
-              onClick={handleCopy}
+          </div>
+
+          {/* Share URL Input */}
+          <div className="flex items-center border border-neutral-300 dark:border-neutral-600 rounded overflow-hidden">
+            <input
+              className="flex-1 px-2 py-1 outline-none bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white text-sm"
+              value={url}
+              readOnly
             />
-          </Tooltip>
-        </div>
-      </section>
-    </Popover>
+            <div
+              className="relative group"
+              onMouseEnter={() => {}}
+              onMouseLeave={() => setCopied(false)}
+            >
+              <IconButton
+                className="flex"
+                iconClassName="w-4 h-4 m-auto"
+                icon="DocumentText"
+                onClick={handleCopy}
+              />
+              {copied && (
+                <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs font-medium text-white bg-neutral-700 rounded whitespace-nowrap pointer-events-none">
+                  {t('Copied!')}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
   );
 };
 
