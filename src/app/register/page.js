@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { register, getErrorMessage } from '@/lib/apiClient'
+import { Alert } from '@/components/alert'
 import Link from 'next/link'
 
 export default function RegisterPage() {
@@ -59,10 +60,11 @@ export default function RegisterPage() {
     return (
       <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white">Account created!</h2>
-            <p className="mt-2 text-sm text-gray-400">Redirecting to sign in...</p>
-          </div>
+          <Alert 
+            variant="success" 
+            title="Account created!" 
+            description="Redirecting to sign in..." 
+          />
         </div>
       </div>
     )
@@ -78,8 +80,8 @@ export default function RegisterPage() {
         <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
-              <div ref={errRef} role="alert" className="rounded-lg bg-red-500/10 p-4 border border-red-500/20">
-                <p className="text-sm font-medium text-red-200">{errMsg}</p>
+              <div ref={errRef}>
+                <Alert variant="error" title="Registration failed" description={errMsg} />
               </div>
             )}
 
