@@ -142,4 +142,77 @@ html, body {
   .btn-hover {
     @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
   }
+
+  /* Editor Styles */
+  .editor-input {
+    @apply w-full bg-surface text-text outline-none border-none rounded-lg;
+    @apply transition-colors duration-200;
+  }
+
+  .editor-input:focus {
+    @apply bg-surface-elevated ring-2 ring-primary-500;
+  }
+
+  .editor-placeholder {
+    @apply absolute text-text-tertiary pointer-events-none select-none;
+  }
+
+  .lexical-editor-wrapper {
+    @apply w-full;
+  }
+
+  /* Lexical Editor Theme */
+  .editor-theme-light {
+    @apply bg-surface text-text;
+  }
+
+  .editor-theme-dark {
+    @apply bg-neutral-800 text-neutral-50;
+  }
+
+  /* Lexical Rich Text Plugin Styles */
+  .lexical-editor {
+    @apply font-sans text-base leading-relaxed;
+  }
+
+  .lexical-editor p {
+    @apply my-2;
+  }
+
+  .lexical-editor h1 {
+    @apply text-4xl font-bold my-4 mt-6;
+  }
+
+  .lexical-editor h2 {
+    @apply text-3xl font-bold my-3 mt-5;
+  }
+
+  .lexical-editor h3 {
+    @apply text-2xl font-bold my-2 mt-4;
+  }
+
+  .lexical-editor ul,
+  .lexical-editor ol {
+    @apply my-2 ml-6;
+  }
+
+  .lexical-editor li {
+    @apply my-1;
+  }
+
+  .lexical-editor a {
+    @apply text-primary-500 underline hover:text-primary-600 cursor-pointer;
+  }
+
+  .lexical-editor blockquote {
+    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-secondary;
+  }
+
+  .lexical-editor code {
+    @apply bg-neutral-100 dark:bg-neutral-700 px-2 py-1 rounded font-mono text-sm;
+  }
+
+  .lexical-editor pre {
+    @apply bg-neutral-900 text-neutral-50 p-4 rounded-lg overflow-x-auto;
+  }
 }
