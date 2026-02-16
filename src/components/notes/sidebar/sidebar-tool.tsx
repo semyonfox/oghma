@@ -1,22 +1,16 @@
 // extracted from Notea (MIT License)
+// rewritten for Tailwind (no MUI)
 import {
-    SearchIcon,
+    MagnifyingGlassIcon as SearchIcon,
     TrashIcon,
     ChevronDoubleLeftIcon,
-    InboxIcon,
     CogIcon,
-} from '@heroicons/react/outline';
+} from '@heroicons/react/24/outline';
 import { forwardRef, HTMLProps, useCallback } from 'react';
 import UIState from '@/lib/notes/state/ui';
-import classNames from 'classnames';
-import HotkeyTooltip from '@/components/hotkey-tooltip';
 import Link from 'next/link';
-import dayjs from 'dayjs';
 import PortalState from '@/lib/notes/state/portal';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import HeadwayWidget from '@notea/headway-widget';
-import useMounted from '@/lib/notes/hooks/use-mounted';
-import { useRouter } from 'next/router';
 
 const ButtonItem = forwardRef<HTMLDivElement, HTMLProps<HTMLDivElement>>(
     (props, ref) => {
@@ -25,16 +19,15 @@ const ButtonItem = forwardRef<HTMLDivElement, HTMLProps<HTMLDivElement>>(
             <div
                 {...attrs}
                 ref={ref}
-                className={classNames(
-                    'block m-3 text-gray-500 hover:text-gray-800 cursor-pointer',
-                    className
-                )}
+                className={`block m-3 text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 cursor-pointer transition-colors ${className || ''}`}
             >
                 {children}
             </div>
         );
     }
 );
+
+ButtonItem.displayName = 'ButtonItem';
 
 const ButtonMenu = () => {
     const { t } = useI18n();
@@ -43,24 +36,15 @@ const ButtonMenu = () => {
     } = UIState.useContainer();
     const onFold = useCallback(() => {
         toggle()
-            ?.catch((v) => console.error('Error whilst toggling tool: %O', v));
+            ?.catch((v: unknown) => console.error('Error whilst toggling tool: %O', v));
     }, [toggle]);
 
     return (
-        <HotkeyTooltip
-            text={t('Fold sidebar')}
-            commandKey
-            onHotkey={onFold}
-            keys={['\\']}
-        >
-            <ButtonItem onClick={onFold}>
-                <ChevronDoubleLeftIcon
-                    className={classNames('transform transition-transform', {
-                        'rotate-180': isFold,
-                    })}
-                />
-            </ButtonItem>
-        </HotkeyTooltip>
+        <ButtonItem onClick={onFold} title={t('Fold sidebar')}>
+            <ChevronDoubleLeftIcon
+                className={`transform transition-transform ${isFold ? 'rotate-180' : ''}`}
+            />
+        </ButtonItem>
     );
 };
 
@@ -69,16 +53,9 @@ const ButtonSearch = () => {
     const { search } = PortalState.useContainer();
 
     return (
-        <HotkeyTooltip
-            text={t('Search note')}
-            commandKey
-            onHotkey={search.open}
-            keys={['P']}
-        >
-            <ButtonItem onClick={search.open} aria-label="search">
-                <SearchIcon />
-            </ButtonItem>
-        </HotkeyTooltip>
+        <ButtonItem onClick={search.open} aria-label="search" title={t('Search note')}>
+            <SearchIcon />
+        </ButtonItem>
     );
 };
 
@@ -87,81 +64,36 @@ const ButtonTrash = () => {
     const { trash } = PortalState.useContainer();
 
     return (
-        <HotkeyTooltip
-            text={t('Trash')}
-            commandKey
-            optionKey
-            onHotkey={trash.open}
-            keys={['T']}
-        >
-            <ButtonItem onClick={trash.open} aria-label="trash">
-                <TrashIcon />
-            </ButtonItem>
-        </HotkeyTooltip>
+        <ButtonItem onClick={trash.open} aria-label="trash" title={t('Trash')}>
+            <TrashIcon />
+        </ButtonItem>
     );
 };
 
-const ButtonDailyNotes = () => {
-    const { t } = useI18n();
-    const href = `/${dayjs().format('YYYY-MM-DD')}`;
-    const router = useRouter();
-
-    return (
-        <Link href={href} shallow>
-            <a>
-                <HotkeyTooltip
-                    text={t('Daily Notes')}
-                    commandKey
-                    onHotkey={() => router.push(href, href, { shallow: true })}
-                    keys={['shift', 'O']}
-                >
-                    <ButtonItem aria-label="daily notes">
-                        <InboxIcon />
-                    </ButtonItem>
-                </HotkeyTooltip>
-            </a>
-        </Link>
-    );
-};
+// daily notes feature - removed for MVP
+// can be re-added later if needed
 
 const ButtonSettings = () => {
     const { t } = useI18n();
 
     return (
-        <Link href="/settings" shallow>
-            <a>
-                <HotkeyTooltip text={t('Settings')}>
-                    <ButtonItem aria-label="settings">
-                        <CogIcon />
-                    </ButtonItem>
-                </HotkeyTooltip>
-            </a>
+        <Link href="/settings">
+            <ButtonItem aria-label="settings" title={t('Settings')}>
+                <CogIcon />
+            </ButtonItem>
         </Link>
     );
 };
 
 const SidebarTool = () => {
-    const mounted = useMounted();
-
     return (
-        <aside className="h-full flex flex-col w-12  md:w-11 flex-none bg-gray-200">
+        <aside className="h-full flex flex-col w-12  md:w-11 flex-none bg-neutral-100 dark:bg-neutral-800">
             <ButtonSearch />
             <ButtonTrash />
-            <ButtonDailyNotes />
 
             <div className="tool mt-auto">
-                {mounted ? (
-                    <HeadwayWidget account="J031Z7" badgePosition="center">
-                        <div className="mx-3 w-5 h-5"></div>
-                    </HeadwayWidget>
-                ) : null}
                 <ButtonMenu></ButtonMenu>
                 <ButtonSettings></ButtonSettings>
-                <style jsx>{`
-                    .tool :global(.HW_softHidden) {
-                        display: none;
-                    }
-                `}</style>
             </div>
         </aside>
     );

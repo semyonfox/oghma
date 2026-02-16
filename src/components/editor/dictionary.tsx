@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import useI18n from '@/lib/hooks/use-i18n';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import { useMemo } from 'react';
 
 export const useDictionary = () => {
@@ -28,7 +28,7 @@ export const useDictionary = () => {
             deleteImage: t('Delete image'),
             em: t('Italic'),
             embedInvalidLink: t(
-                'Sorry, that link won't work for this embed type'
+                "Sorry, that link won't work for this embed type"
             ),
             findOrCreateDoc: t('Find or create a note…'),
             h1: t('Big heading'),

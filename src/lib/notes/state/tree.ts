@@ -118,13 +118,16 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
 
     const moveItem = useCallback(
         async (data: { source: MovePosition; destination: MovePosition }) => {
-            setTree(
-                TreeActions.moveItem(
-                    treeRef.current,
-                    data.source,
-                    data.destination
-                )
+            const newTree = TreeActions.moveItem(
+                treeRef.current,
+                data.source,
+                data.destination
             );
+            setTree(newTree);
+            
+            // update cache with new tree state
+            await uiCache.setItem(TREE_CACHE_KEY, newTree);
+            
             await mutate({
                 action: 'move',
                 data,
@@ -135,7 +138,12 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
 
     const mutateItem = useCallback(
         async (id: string, data: Partial<TreeItemModel>) => {
-            setTree(TreeActions.mutateItem(treeRef.current, id, data));
+            const newTree = TreeActions.mutateItem(treeRef.current, id, data);
+            setTree(newTree);
+            
+            // update cache with new tree state
+            await uiCache.setItem(TREE_CACHE_KEY, newTree);
+            
             delete data.data;
             // @todo diff 没有变化就不发送请求
             if (!isEmpty(data)) {

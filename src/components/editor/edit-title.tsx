@@ -1,21 +1,25 @@
 // extracted from Notea (MIT License)
 import { TextareaAutosize } from '@mui/material';
-import useI18n from '@/lib/hooks/use-i18n';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import { has } from 'lodash';
-import { useRouter } from 'next/router';
+
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     FC,
     useCallback,
+    useMemo,
     KeyboardEvent,
     useRef,
-    useMemo,
+    useEffect,
     ChangeEvent,
 } from 'react';
-import EditorState from '@/lib/state/editor';
+import useEditorStore from '@/lib/notes/state/editor.zustand';
 
 const EditTitle: FC<{ readOnly?: boolean }> = ({ readOnly }) => {
-    const { editorEl, onNoteChange, note } = EditorState.useContainer();
+    const { editorEl, onNoteChange, note } = useEditorStore();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const onInputTitle = useCallback(
         (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -31,13 +35,13 @@ const EditTitle: FC<{ readOnly?: boolean }> = ({ readOnly }) => {
     const onTitleChange = useCallback(
         (event: ChangeEvent<HTMLTextAreaElement>) => {
             const title = event.target.value;
-            onNoteChange.callback({ title })
+            onNoteChange({ title })
                 ?.catch((v) => console.error('Error whilst changing title: %O', v));
         },
         [onNoteChange]
     );
 
-    const autoFocus = useMemo(() => has(router.query, 'new'), [router.query]);
+    const autoFocus = useMemo(() => searchParams?.has('new'), [searchParams]);
     const { t } = useI18n();
 
     return (
@@ -50,7 +54,7 @@ const EditTitle: FC<{ readOnly?: boolean }> = ({ readOnly }) => {
                 placeholder={t('New Page')}
                 defaultValue={note?.title}
                 key={note?.id}
-                onKeyPress={onInputTitle}
+                onKeyDown={onInputTitle}
                 onChange={onTitleChange}
                 maxLength={128}
                 autoFocus={autoFocus}
