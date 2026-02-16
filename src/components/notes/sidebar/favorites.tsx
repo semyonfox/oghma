@@ -1,44 +1,57 @@
 // extracted from Notea (MIT License)
-import Tree from '@atlaskit/tree';
-import HotkeyTooltip from '@/components/hotkey-tooltip';
+// rewritten for react-arborist v3.4.3 + Tailwind (no MUI)
+import { Tree } from 'react-arborist';
 import IconButton from '@/components/icon-button';
-import TreeActions, { ROOT_ID } from '@/lib/notes/tree';
+import TreeActions, { ROOT_ID, HierarchicalTreeItemModel, DEFAULT_TREE } from '@/lib/notes/types/tree';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import NoteTreeState from '@/lib/notes/state/tree';
-import { cloneDeep, forEach } from 'lodash';
 import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import SidebarListItem from './sidebar-list-item';
+import { makeHierarchy } from '@/lib/notes/types/tree';
+import type { NodeRendererProps } from 'react-arborist';
+import { NoteModel } from '@/lib/notes/types/note';
 
 export const Favorites: FC = () => {
     const { t } = useI18n();
-    const { pinnedTree } = NoteTreeState.useContainer();
-    const [tree, setTree] = useState(pinnedTree);
+    const { pinnedTree } = NoteTreeState.useContainer(); // Removed premature logging
+
+console.log('Pinned Tree:', pinnedTree);
+    const [tree, setTree] = useState(pinnedTree || DEFAULT_TREE);
     const [isFold, setFold] = useState(false);
     const hasPinned = useMemo(
         () => tree.items[ROOT_ID].children.length,
         [tree]
     );
 
-    const onCollapse = useCallback((id: string | number) => {
-        setTree((prev) =>
-            TreeActions.mutateItem(prev, String(id), { isExpanded: false })
-        );
-    }, []);
-    const onExpand = useCallback((id: string | number) => {
-        setTree((prev) =>
-            TreeActions.mutateItem(prev, String(id), { isExpanded: true })
-        );
+    // convert flat tree structure to hierarchical format for react-arborist
+    const treeData = useMemo(() => {
+        const hierarchy = makeHierarchy(tree);
+        return hierarchy ? hierarchy.children : [];
+    }, [tree]);
+
+    // notification callback: sync react-arborist toggle to local state for persistence
+    const onToggle = useCallback((id: string) => {
+        setTree((prev) => {
+            const item = prev.items[id];
+            if (!item) return prev;
+            return TreeActions.mutateItem(prev, id, { isExpanded: !item.isExpanded });
+        });
     }, []);
 
     useEffect(() => {
-        const items = cloneDeep(pinnedTree.items);
+        // deep clone items without lodash
+        const items = JSON.parse(JSON.stringify(pinnedTree.items));
 
         setTree((prev) => {
             if (!prev) return { ...pinnedTree, items };
 
-            forEach(items, (item) => {
-                item.isExpanded = prev.items[item.id]?.isExpanded ?? false;
-            });
+            // preserve expand state from previous render
+            for (const itemId in items) {
+                const item = items[itemId];
+                if (item) {
+                    item.isExpanded = prev.items[item.id]?.isExpanded ?? false;
+                }
+            }
 
             return { ...pinnedTree, items };
         });
@@ -50,48 +63,51 @@ export const Favorites: FC = () => {
 
     return (
         <>
-            <div className="group p-2 text-gray-500 flex items-center sticky top-0 bg-gray-100 z-10">
+            <div className="group p-2 text-neutral-500 flex items-center sticky top-0 bg-neutral-50 dark:bg-neutral-900 z-10">
                 <div className="flex-auto flex items-center">
                     <span>{t('Favorites')}</span>
                 </div>
-                <HotkeyTooltip text={t('Fold Favorites')}>
-                    <IconButton
-                        icon="Selector"
-                        onClick={() => setFold((prev) => !prev)}
-                        className="text-gray-700 invisible group-hover:visible"
-                    ></IconButton>
-                </HotkeyTooltip>
+                <IconButton
+                    icon="Selector"
+                    onClick={() => setFold((prev) => !prev)}
+                    className="text-neutral-600 dark:text-neutral-400 invisible group-hover:visible"
+                    title={t('Fold Favorites')}
+                ></IconButton>
             </div>
             {!isFold ? (
                 <div>
-                    <Tree
-                        onCollapse={onCollapse}
-                        onExpand={onExpand}
-                        tree={tree}
-                        offsetPerLevel={10}
-                        renderItem={({
-                            provided,
-                            item,
-                            onExpand,
-                            onCollapse,
-                            snapshot,
-                        }) => (
-                            <SidebarListItem
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                onExpand={onExpand}
-                                onCollapse={onCollapse}
-                                isExpanded={item.isExpanded}
-                                innerRef={provided.innerRef}
-                                hasChildren={!!item.children.length}
-                                item={{
-                                    ...item.data,
-                                    id: item.id,
-                                }}
-                                snapshot={snapshot}
-                            ></SidebarListItem>
-                        )}
-                    ></Tree>
+                    <Tree<HierarchicalTreeItemModel>
+                        data={treeData}
+                        openByDefault={false}
+                        width="100%"
+                        indent={10}
+                        rowHeight={36}
+                        overscanCount={8}
+                        onToggle={onToggle}
+                        disableDrag={true}
+                        disableDrop={true}
+                    >
+                        {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
+                            const nodeData = node.data;
+                            return (
+                                <div style={style} ref={dragHandle}>
+                                    <SidebarListItem
+                                        onToggle={() => node.toggle()}
+                                        isExpanded={node.isOpen}
+                                        innerRef={() => {}}
+                                        hasChildren={node.children ? node.children.length > 0 : false}
+                                        item={nodeData.data as NoteModel}
+                                        snapshot={{
+                                            isDragging: false,
+                                        }}
+                                        style={{
+                                            paddingLeft: node.level * 10,
+                                        }}
+                                    />
+                                </div>
+                            );
+                        }}
+                    </Tree>
                 </div>
             ) : null}
         </>

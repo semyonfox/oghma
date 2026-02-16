@@ -1,7 +1,6 @@
 // extracted from Notea (MIT License)
 import { NoteModel } from '@/lib/notes/types/note';
 import { useState, useCallback } from 'react';
-import RichMarkdownEditor from '@notea/rich-markdown-editor';
 import { createContainer } from 'unstated-next';
 
 const useModalInstance = () => {
@@ -43,7 +42,7 @@ const useModal = () => {
         preview: useAnchorInstance<{ id?: string }>(),
         linkToolbar: useAnchorInstance<{
             href: string;
-            view?: RichMarkdownEditor['view'];
+            view?: any; // Lexical editor view (if needed)
         }>(),
         editorWidthSelect: useAnchorInstance<NoteModel>()
     };

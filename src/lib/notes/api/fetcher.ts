@@ -1,18 +1,18 @@
 // extracted from Notea (MIT License)
-import { CSRF_HEADER_KEY } from '@/lib/notes/types/constants';
+import { CSRF_HEADER_KEY } from '@/lib/notes/types/const';
 import { useCallback, useRef, useState } from 'react';
 import CsrfTokenState from '../state/csrf-token';
 
 interface Params {
     url: string;
-    method: 'GET' | 'POST';
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     headers?: Record<string, string>;
 }
 
 export default function useFetcher() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>();
-    const abortRef = useRef<AbortController>();
+    const abortRef = useRef<AbortController | undefined>(undefined);
     const csrfToken = CsrfTokenState.useContainer();
 
     const request = useCallback(

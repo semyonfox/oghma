@@ -1,7 +1,9 @@
 // extracted from Notea (MIT License)
-import { Extension } from '@notea/rich-markdown-editor';
+// Note: Extensions are currently disabled during Lexical migration
+// ProseMirror extensions need to be rewritten as Lexical plugins
 import Bracket from './bracket';
 
-const extensions: Extension[] = [new Bracket()];
+// Placeholder: Reimplement ProseMirror extensions as Lexical plugins in the future
+const extensions: any[] = []; // [new Bracket()]
 
 export default extensions;

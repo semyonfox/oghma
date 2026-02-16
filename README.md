@@ -69,9 +69,9 @@ docs/
 - [x] Login with JWT authentication
 - [x] Password hashing (bcrypt)
 - [x] Session management with HTTP-only cookies
-- [x] PostgreSQL database integration
+- [x] MariaDB database integration (migrated from PostgreSQL)
 - [x] Docker containerization
-- [x] Bootstrap UI framework
+- [x] Tailwind CSS framework (migrated from Bootstrap)
 - [x] Template UI components (auth, calendar, landing page)
 - [x] Merged with template repository
 
@@ -91,14 +91,21 @@ docs/
 
 ## Tech Stack
 
-- **Frontend:** Next.js 16 (App Router), React 19, Bootstrap 5
+- **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4
 - **Backend:** Next.js API Routes, JWT authentication
-- **Database:** PostgreSQL
+- **Database:** MariaDB 11+ (native vector support for AI features)
+  - _Migrating from PostgreSQL for superior vector performance_
 - **Auth:** JWT + bcrypt
 - **DevOps:** Docker, GitHub Actions
 - **Deployment:** Cloudflare Tunnel (current), AWS (planned)
 
 **Why these choices?** See [docs/DECISIONS.md](docs/DECISIONS.md)
+
+**Why MariaDB over PostgreSQL?**
+- Native vector operations for AI/ML embeddings (faster than pgvector)
+- Better performance for recommendation system
+- Stores relational data identically to PostgreSQL
+- See [docs/MARIADB_MIGRATION.md](docs/MARIADB_MIGRATION.md) for migration details
 
 ---
 
@@ -155,7 +162,7 @@ This project is deployed to AWS using Amplify for the Next.js frontend and Lambd
 **Production Setup:**
 1. **Frontend (Next.js)** → AWS Amplify Hosting (SSR, CDN, CI/CD)
 2. **Recommender API (Python)** → AWS Lambda (serverless, auto-scaling)
-3. **Database (PostgreSQL)** → AWS RDS (managed database)
+3. **Database (MariaDB)** → AWS RDS for MariaDB (managed, native vector support)
 4. **Cache (Redis)** → ElastiCache (managed Redis)
 
 **Full deployment guide:** See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
