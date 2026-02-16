@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { Alert } from '@/components/alert'
 import Link from 'next/link'
 
 export default function ForgotPasswordPage() {
@@ -75,8 +76,8 @@ export default function ForgotPasswordPage() {
         <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
-              <div ref={errRef} role="alert" className="rounded-lg bg-red-500/10 p-4 border border-red-500/20">
-                <p className="text-sm font-medium text-red-200">{errMsg}</p>
+              <div ref={errRef}>
+                <Alert variant="error" description={errMsg} />
               </div>
             )}
 
