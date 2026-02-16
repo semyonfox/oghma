@@ -1,9 +1,16 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { register, getErrorMessage } from '@/lib/apiClient';
+import { AuthLayout } from '@/components/catalyst/auth-layout';
+import { Button } from '@/components/catalyst/button';
+import { Input } from '@/components/catalyst/input';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Field, Label } from '@/components/catalyst/fieldset';
+import { Heading } from '@/components/catalyst/heading';
+import { Text, TextLink, Strong } from '@/components/catalyst/text';
+import { Alert, AlertTitle, AlertDescription } from '@/components/catalyst/alert';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -33,7 +40,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const data = await register(email, pwd);
+      await register(email, pwd);
       setEmail('');
       setPwd('');
       setConfirmPwd('');
@@ -51,101 +58,90 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md">
-          <div className="rounded-lg bg-success-500/10 p-8 text-center outline outline-1 -outline-offset-1 outline-success-500/20">
-            <h2 className="text-2xl font-bold tracking-tight text-white">Account Created!</h2>
-            <p className="mt-2 text-neutral-300">Redirecting to login...</p>
-          </div>
+      <AuthLayout>
+        <div className="w-full max-w-sm">
+          <Alert className="bg-success-500/10 border border-success-500/20">
+            <AlertTitle className="text-white">Account Created!</AlertTitle>
+            <AlertDescription className="text-neutral-300">Redirecting to login...</AlertDescription>
+          </Alert>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center bg-neutral-900 py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-3xl font-bold tracking-tight text-white">SocsBoard</h1>
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">Create your account</h2>
-      </div>
-
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="rounded-lg bg-neutral-800/50 px-6 py-12 outline outline-1 -outline-offset-1 outline-white/10 sm:px-12">
-          {errMsg && (
-            <div ref={errRef} role="alert" className="mb-6 rounded-md bg-error-500/10 p-4 text-error-400 outline outline-1 outline-error-500/20">
-              <p className="text-sm font-medium">{errMsg}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white">
-                Email address
-              </label>
-              <div className="mt-2">
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-neutral-500 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-white">
-                Password (minimum 8 characters)
-              </label>
-              <div className="mt-2">
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-neutral-500 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-white">
-                Confirm Password
-              </label>
-              <div className="mt-2">
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={confirmPwd}
-                  onChange={(e) => setConfirmPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-neutral-500 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full justify-center rounded-md bg-secondary-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-secondary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary-500 disabled:opacity-50"
-            >
-              {loading ? 'Creating account...' : 'Create account'}
-            </button>
-          </form>
-
-          <p className="mt-10 text-center text-sm text-neutral-400">
-            Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-primary-400 hover:text-primary-300">
-              Sign in
-            </Link>
-          </p>
+    <AuthLayout>
+      <form onSubmit={handleSubmit} className="grid w-full max-w-sm grid-cols-1 gap-8">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded bg-primary-500 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">O</span>
+          </div>
+          <Heading level={5} className="m-0">OghmaNotes</Heading>
         </div>
-      </div>
-    </div>
+
+        <Heading level={2}>Create your account</Heading>
+
+        {errMsg && (
+          <div ref={errRef} role="alert">
+            <Alert className="bg-error-500/10 border border-error-500/20">
+              <AlertTitle className="text-error-400">Registration failed</AlertTitle>
+              <AlertDescription className="text-error-300">{errMsg}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        <Field>
+          <Label>Email address</Label>
+          <Input
+            type="email"
+            name="email"
+            placeholder="your@university.edu"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+
+        <Field>
+          <Label>Password <span className="text-neutral-400 font-normal">(minimum 8 characters)</span></Label>
+          <Input
+            type="password"
+            name="password"
+            placeholder="••••••••"
+            required
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+          />
+        </Field>
+
+        <Field>
+          <Label>Confirm Password</Label>
+          <Input
+            type="password"
+            name="confirmPassword"
+            placeholder="••••••••"
+            required
+            value={confirmPwd}
+            onChange={(e) => setConfirmPwd(e.target.value)}
+          />
+        </Field>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          color="dark/zinc"
+          className="w-full"
+        >
+          {loading ? 'Creating account...' : 'Create account'}
+        </Button>
+
+        <Text>
+          Already have an account?{' '}
+          <TextLink href="/login">
+            <Strong>Sign in</Strong>
+          </TextLink>
+        </Text>
+      </form>
+    </AuthLayout>
   );
 }
