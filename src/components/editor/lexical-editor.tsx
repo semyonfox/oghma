@@ -291,8 +291,7 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
           <RichTextPlugin
             contentEditable={
               <ContentEditable 
-                className="editor-input" 
-                style={{ outline: 'none', minHeight: '200px' }}
+                className="editor-input outline-none min-h-[200px]"
               />
             }
             placeholder={
