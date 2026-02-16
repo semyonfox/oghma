@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getErrorMessage, login } from "@/lib/apiClient";
+import { AuthLayout } from "@/components/catalyst/auth-layout";
+import { Button } from "@/components/catalyst/button";
+import { Input } from "@/components/catalyst/input";
+import { Checkbox, CheckboxField } from "@/components/catalyst/checkbox";
+import { Field, Label } from "@/components/catalyst/fieldset";
+import { Heading } from "@/components/catalyst/heading";
+import { Text, TextLink, Strong } from "@/components/catalyst/text";
+import { Alert, AlertTitle, AlertDescription } from "@/components/catalyst/alert";
 
 export default function LoginPage() {
   const userRef = useRef(null);
@@ -28,7 +35,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const data = await login(email, pwd);
+      await login(email, pwd);
       setEmail("");
       setPwd("");
       setSuccess(true);
@@ -44,104 +51,92 @@ export default function LoginPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-900 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md">
-          <div className="rounded-lg bg-success-500/10 p-8 text-center outline outline-1 -outline-offset-1 outline-success-500/20">
-            <h2 className="text-2xl font-bold tracking-tight text-white">
-              Login Successful!
-            </h2>
-            <p className="mt-2 text-neutral-300">Redirecting to home...</p>
-          </div>
+      <AuthLayout>
+        <div className="w-full max-w-sm">
+          <Alert className="bg-success-500/10 border border-success-500/20">
+            <AlertTitle className="text-white">Login Successful!</AlertTitle>
+            <AlertDescription className="text-neutral-300">Redirecting...</AlertDescription>
+          </Alert>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center bg-neutral-900 py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-3xl font-bold tracking-tight text-white">
-          SocsBoard
-        </h1>
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">
-          Sign in to your account
-        </h2>
-      </div>
-
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="rounded-lg bg-neutral-800/50 px-6 py-12 outline outline-1 -outline-offset-1 outline-white/10 sm:px-12">
-          {errMsg && (
-            <div
-              ref={errRef}
-              role="alert"
-              className="mb-6 rounded-md bg-error-500/10 p-4 text-error-400 outline outline-1 outline-error-500/20"
-            >
-              <p className="text-sm font-medium">{errMsg}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-white"
-              >
-                Email address
-              </label>
-              <div className="mt-2">
-                <input
-                  ref={userRef}
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-neutral-500 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-white"
-              >
-                Password
-              </label>
-              <div className="mt-2">
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline outline-1 -outline-offset-1 outline-white/10 placeholder:text-neutral-500 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
-
-          <p className="mt-10 text-center text-sm text-neutral-400">
-            Don't have an account?{" "}
-            <Link
-              href="/register"
-              className="font-semibold text-primary-400 hover:text-primary-300"
-            >
-              Create one
-            </Link>
-          </p>
+    <AuthLayout>
+      <form onSubmit={handleSubmit} className="grid w-full max-w-sm grid-cols-1 gap-8">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded bg-primary-500 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">O</span>
+          </div>
+          <Heading level={5} className="m-0">OghmaNotes</Heading>
         </div>
-      </div>
-    </div>
+
+        <Heading level={2}>Sign in to your account</Heading>
+
+        {errMsg && (
+          <div ref={errRef} role="alert">
+            <Alert className="bg-error-500/10 border border-error-500/20">
+              <AlertTitle className="text-error-400">Sign in failed</AlertTitle>
+              <AlertDescription className="text-error-300">{errMsg}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        <Field>
+          <Label>Email address</Label>
+          <Input
+            ref={userRef}
+            type="email"
+            name="email"
+            placeholder="your@university.edu"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+
+        <Field>
+          <Label>Password</Label>
+          <Input
+            id="password"
+            type="password"
+            name="password"
+            placeholder="••••••••"
+            required
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+          />
+        </Field>
+
+        <div className="flex items-center justify-between">
+          <CheckboxField>
+            <Checkbox name="remember" />
+            <Label>Remember me</Label>
+          </CheckboxField>
+          <Text>
+            <TextLink href="/forgot-password">
+              <Strong>Forgot password?</Strong>
+            </TextLink>
+          </Text>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          color="dark/zinc"
+          className="w-full"
+        >
+          {loading ? "Signing in..." : "Sign in"}
+        </Button>
+
+        <Text>
+          Don't have an account?{" "}
+          <TextLink href="/register">
+            <Strong>Create one</Strong>
+          </TextLink>
+        </Text>
+      </form>
+    </AuthLayout>
   );
 }
