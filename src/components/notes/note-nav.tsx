@@ -11,6 +11,7 @@ import IconButton from '@/components/icon-button';
 import PortalState from '@/lib/notes/state/portal';
 import { NOTE_SHARED } from '@/lib/notes/types/meta';
 import useI18n from '@/lib/notes/hooks/use-i18n';
+import { Breadcrumb } from '@/components/breadcrumb';
 import {
     Bars3Icon,
     ShareIcon,
@@ -97,42 +98,32 @@ const NoteNav: FC = () => {
             {/* breadcrumbs */}
             <div className="flex-auto ml-4 min-w-0">
                 {note && (
-                    <nav className="flex items-center text-sm leading-none" aria-label="breadcrumb">
-                        {paths.map((path, index) => (
-                            <span key={path.id} className="flex items-center min-w-0">
-                                {index > 0 && (
-                                    <ChevronRightIcon className="w-3 h-3 mx-1 text-text-tertiary flex-shrink-0" />
-                                )}
-                                <Link
-                                    href={`/${path.id}`}
-                                    className="block hover:bg-neutral-100 dark:hover:bg-neutral-700 px-1 py-0.5 rounded truncate max-w-[120px] text-text-secondary"
-                                    title={path.title}
-                                >
-                                    {path.title}
-                                </Link>
-                            </span>
-                        ))}
-                        {paths.length > 0 && (
-                            <ChevronRightIcon className="w-3 h-3 mx-1 text-text-tertiary flex-shrink-0" />
-                        )}
-                        <span className="flex items-center min-w-0">
-                            <span
-                                className="inline-block text-text-secondary truncate max-w-[120px] select-none align-middle"
-                                title={note.title}
+                    <>
+                        <Breadcrumb 
+                            homeHref="/"
+                            pages={[
+                                ...paths.map((path) => ({
+                                    name: path.title,
+                                    href: `/${path.id}`,
+                                    current: false,
+                                })),
+                                {
+                                    name: note.title,
+                                    href: `/${note.id}`,
+                                    current: true,
+                                }
+                            ]}
+                        />
+                        {!isShown && (
+                            <button
+                                onClick={handleClickOpenInTree}
+                                className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                                title={t('Show note in tree')}
                             >
-                                {note.title}
-                            </span>
-                            {!isShown && (
-                                <button
-                                    onClick={handleClickOpenInTree}
-                                    className="inline-flex ml-1 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                                    title={t('Show note in tree')}
-                                >
-                                    <EyeIcon className="w-4 h-4 text-text-tertiary" />
-                                </button>
-                            )}
-                        </span>
-                    </nav>
+                                <EyeIcon className="w-4 h-4 text-text-tertiary" />
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
 
