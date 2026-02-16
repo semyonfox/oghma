@@ -15,7 +15,7 @@ import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
 
-const SideBarList = () => {
+const SidebarList = () => {
     const { t } = useI18n();
     const router = useRouter();
     const { tree, moveItem, mutateItem, initLoaded, collapseAllItems, genNewId, addItem } =
@@ -311,4 +311,4 @@ const SideBarList = () => {
     );
 };
 
-export default SideBarList;
+export default SidebarList;
