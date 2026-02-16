@@ -1,6 +1,6 @@
 // extracted from Notea (MIT License)
 import SidebarTool from '@/components/notes/sidebar/sidebar-tool';
-import SideBarList from '@/components/notes/sidebar/sidebar-list';
+import SidebarList from '@/components/notes/sidebar/sidebar-list';
 import UIState from '@/lib/notes/state/ui';
 import { FC, useEffect } from 'react';
 import NoteTreeState from '@/lib/notes/state/tree';
@@ -25,7 +25,7 @@ const BrowserSidebar: FC = () => {
     return (
         <section className="flex h-full w-full">
             <SidebarTool />
-            {sidebar?.isFold ? null : <SideBarList />}
+            {sidebar?.isFold ? null : <SidebarList />}
         </section>
     );
 };
@@ -34,7 +34,7 @@ const MobileSidebar: FC = () => {
     return (
         <section className="flex h-full w-4/5">
             <SidebarTool />
-<SideBarList />
+            <SidebarList />
         </section>
     );
 };
