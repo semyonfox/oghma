@@ -144,7 +144,7 @@ export default function LandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     return (
-        <div className="bg-gray-900">
+        <div className="bg-neutral-900">
             {/* Header */}
             <header className="absolute inset-x-0 top-0 z-50">
                 <nav aria-label="Global" className="flex items-center justify-between p-6 lg:px-8">
@@ -153,7 +153,7 @@ export default function LandingPage() {
                             <span className="sr-only">Your Company</span>
                             <img
                                 alt=""
-                                src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
+                                src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=blue&shade=500"
                                 className="h-8 w-auto"
                             />
                         </a>
@@ -162,7 +162,7 @@ export default function LandingPage() {
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen(true)}
-                            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-400"
+                            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-neutral-400"
                         >
                             <span className="sr-only">Open main menu</span>
                             <Bars3Icon aria-hidden="true" className="size-6"/>
@@ -184,27 +184,27 @@ export default function LandingPage() {
                 <Dialog open={mobileMenuOpen} onClose={setMobileMenuOpen} className="lg:hidden">
                     <div className="fixed inset-0 z-50"/>
                     <DialogPanel
-                        className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-gray-900 p-6 sm:max-w-sm sm:ring-1 sm:ring-gray-100/10">
+                        className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-neutral-900 p-6 sm:max-w-sm sm:ring-1 sm:ring-neutral-100/10">
                         <div className="flex items-center justify-between">
                             <a href="#" className="-m-1.5 p-1.5">
                                 <span className="sr-only">Your Company</span>
                                 <img
                                     alt=""
-                                    src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
+                                    src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=blue&shade=500"
                                     className="h-8 w-auto"
                                 />
                             </a>
                             <button
                                 type="button"
                                 onClick={() => setMobileMenuOpen(false)}
-                                className="-m-2.5 rounded-md p-2.5 text-gray-400"
+                                className="-m-2.5 rounded-md p-2.5 text-neutral-400"
                             >
                                 <span className="sr-only">Close menu</span>
                                 <XMarkIcon aria-hidden="true" className="size-6"/>
                             </button>
                         </div>
                         <div className="mt-6 flow-root">
-                            <div className="-my-6 divide-y divide-gray-500/25">
+                            <div className="-my-6 divide-y divide-neutral-500/25">
                                 <div className="space-y-2 py-6">
                                     {navigation.map((item) => (
                                         <a
@@ -254,9 +254,9 @@ export default function LandingPage() {
                         <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
                             <div className="hidden sm:mb-8 sm:flex sm:justify-center">
                                 <div
-                                    className="relative rounded-full px-3 py-1 text-sm/6 text-gray-400 ring-1 ring-white/10 hover:ring-white/20">
+                                    className="relative rounded-full px-3 py-1 text-sm/6 text-neutral-400 ring-1 ring-white/10 hover:ring-white/20">
                                     Announcing our next round of funding.{' '}
-                                    <a href="#" className="font-semibold text-indigo-400">
+                                    <a href="#" className="font-semibold text-primary-400">
                                         <span aria-hidden="true" className="absolute inset-0"/>
                                         Read more <span aria-hidden="true">&rarr;</span>
                                     </a>
@@ -266,7 +266,7 @@ export default function LandingPage() {
                                 <h1 className="text-5xl font-semibold tracking-tight text-balance text-white sm:text-7xl">
                                     Data to enrich your online business
                                 </h1>
-                                <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:text-xl/8">
+                                <p className="mt-8 text-lg font-medium text-pretty text-neutral-400 sm:text-xl/8">
                                     Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui lorem cupidatat
                                     commodo. Elit sunt
                                     amet fugiat veniam occaecat.
@@ -274,7 +274,7 @@ export default function LandingPage() {
                                 <div className="mt-10 flex items-center justify-center gap-x-6">
                                     <a
                                         href="#"
-                                        className="rounded-md bg-indigo-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                                        className="rounded-md bg-primary-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
                                     >
                                         Get started
                                     </a>
@@ -347,11 +347,11 @@ export default function LandingPage() {
                 <div className="mt-32 sm:mt-56">
                     <div className="mx-auto max-w-7xl px-6 lg:px-8">
                         <div className="mx-auto max-w-2xl sm:text-center">
-                            <h2 className="text-base/7 font-semibold text-indigo-400">Everything you need</h2>
+                            <h2 className="text-base/7 font-semibold text-primary-400">Everything you need</h2>
                             <p className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl sm:text-balance">
                                 No server? No problem.
                             </p>
-                            <p className="mt-6 text-lg/8 text-gray-300">
+                            <p className="mt-6 text-lg/8 text-neutral-300">
                                 Lorem ipsum, dolor sit amet consectetur adipisicing elit. Maiores impedit perferendis
                                 suscipit eaque,
                                 iste dolor cupiditate blanditiis.
@@ -373,12 +373,12 @@ export default function LandingPage() {
                         </div>
                     </div>
                     <div className="mx-auto mt-16 max-w-7xl px-6 sm:mt-20 md:mt-24 lg:px-8">
-                        <dl className="mx-auto grid max-w-2xl grid-cols-1 gap-x-6 gap-y-10 text-base/7 text-gray-400 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-x-8 lg:gap-y-16">
+                        <dl className="mx-auto grid max-w-2xl grid-cols-1 gap-x-6 gap-y-10 text-base/7 text-neutral-400 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-x-8 lg:gap-y-16">
                             {features.map((feature) => (
                                 <div key={feature.name} className="relative pl-9">
                                     <dt className="inline font-semibold text-white">
                                         <feature.icon aria-hidden="true"
-                                                      className="absolute top-1 left-1 size-5 text-indigo-400"/>
+                                                      className="absolute top-1 left-1 size-5 text-primary-400"/>
                                         {feature.name}
                                     </dt>
                                     {' '}
@@ -402,7 +402,7 @@ export default function LandingPage() {
                             />
                         </div>
                     </div>
-                    <div className="bg-gray-800/50 pb-20 outline outline-white/5 sm:pb-24 xl:pb-0">
+                    <div className="bg-neutral-800/50 pb-20 outline outline-white/5 sm:pb-24 xl:pb-0">
                         <div
                             className="mx-auto flex max-w-7xl flex-col items-center gap-x-8 gap-y-10 px-6 sm:gap-y-8 lg:px-8 xl:flex-row xl:items-stretch">
                             <div className="-mt-8 w-full max-w-2xl xl:-mb-8 xl:w-96 xl:flex-none">
@@ -411,7 +411,7 @@ export default function LandingPage() {
                                     <img
                                         alt=""
                                         src="https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2102&q=80"
-                                        className="absolute inset-0 size-full rounded-2xl bg-gray-700 object-cover"
+                                        className="absolute inset-0 size-full rounded-2xl bg-neutral-700 object-cover"
                                     />
                                 </div>
                             </div>
@@ -429,7 +429,7 @@ export default function LandingPage() {
                                         />
                                         <use x={86} href="#b56e9dab-6ccb-4d32-ad02-6b4bb5d9bbeb"/>
                                     </svg>
-                                    <blockquote className="text-xl/8 font-semibold text-gray-100 sm:text-2xl/9">
+                                    <blockquote className="text-xl/8 font-semibold text-neutral-100 sm:text-2xl/9">
                                         <p>
                                             Gravida quam mi erat tortor neque molestie. Auctor aliquet at porttitor a
                                             enim nunc suscipit
@@ -439,8 +439,8 @@ export default function LandingPage() {
                                         </p>
                                     </blockquote>
                                     <figcaption className="mt-8 text-base">
-                                        <div className="font-semibold text-gray-100">Judith Black</div>
-                                        <div className="mt-1 text-gray-400">CEO of Tuple</div>
+                                        <div className="font-semibold text-neutral-100">Judith Black</div>
+                                        <div className="mt-1 text-neutral-400">CEO of Tuple</div>
                                     </figcaption>
                                 </figure>
                             </div>
@@ -463,12 +463,12 @@ export default function LandingPage() {
                         />
                     </div>
                     <div className="mx-auto max-w-4xl text-center">
-                        <h2 className="text-base/7 font-semibold text-indigo-400">Pricing</h2>
+                        <h2 className="text-base/7 font-semibold text-primary-400">Pricing</h2>
                         <p className="mt-2 text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">
                             Choose the right plan for you
                         </p>
                     </div>
-                    <p className="mx-auto mt-6 max-w-2xl text-center text-lg/8 text-pretty text-gray-400">
+                    <p className="mx-auto mt-6 max-w-2xl text-center text-lg/8 text-pretty text-neutral-400">
                         Choose an affordable plan that’s packed with the best features for engaging your audience,
                         creating customer
                         loyalty, and driving sales.
@@ -479,7 +479,7 @@ export default function LandingPage() {
                             <div
                                 key={tier.id}
                                 className={classNames(
-                                    tier.featured ? 'relative bg-gray-800' : 'bg-white/2.5 sm:mx-8 lg:mx-0',
+                                    tier.featured ? 'relative bg-neutral-800' : 'bg-white/2.5 sm:mx-8 lg:mx-0',
                                     tier.featured
                                         ? ''
                                         : tierIdx === 0
@@ -491,7 +491,7 @@ export default function LandingPage() {
                                 <h3
                                     id={tier.id}
                                     className={classNames(
-                                        tier.featured ? 'text-indigo-400' : 'text-indigo-400',
+                                        tier.featured ? 'text-primary-400' : 'text-primary-400',
                                         'text-base/7 font-semibold',
                                     )}
                                 >
@@ -507,17 +507,17 @@ export default function LandingPage() {
                     {tier.priceMonthly}
                   </span>
                                     <span
-                                        className={classNames(tier.featured ? 'text-gray-400' : 'text-gray-400', 'text-base')}>
+                                        className={classNames(tier.featured ? 'text-neutral-400' : 'text-neutral-400', 'text-base')}>
                     /month
                   </span>
                                 </p>
-                                <p className={classNames(tier.featured ? 'text-gray-300' : 'text-gray-300', 'mt-6 text-base/7')}>
+                                <p className={classNames(tier.featured ? 'text-neutral-300' : 'text-neutral-300', 'mt-6 text-base/7')}>
                                     {tier.description}
                                 </p>
                                 <ul
                                     role="list"
                                     className={classNames(
-                                        tier.featured ? 'text-gray-300' : 'text-gray-300',
+                                        tier.featured ? 'text-neutral-300' : 'text-neutral-300',
                                         'mt-8 space-y-3 text-sm/6 sm:mt-10',
                                     )}
                                 >
@@ -526,7 +526,7 @@ export default function LandingPage() {
                                             <CheckIcon
                                                 aria-hidden="true"
                                                 className={classNames(
-                                                    tier.featured ? 'text-indigo-400' : 'text-indigo-400',
+                                                    tier.featured ? 'text-primary-400' : 'text-primary-400',
                                                     'h-6 w-5 flex-none',
                                                 )}
                                             />
@@ -539,7 +539,7 @@ export default function LandingPage() {
                                     aria-describedby={tier.id}
                                     className={classNames(
                                         tier.featured
-                                            ? 'bg-indigo-500 text-white hover:bg-indigo-400 focus-visible:outline-indigo-500'
+                                            ? 'bg-primary-500 text-white hover:bg-primary-600 focus-visible:outline-primary-500'
                                             : 'bg-white/10 text-white inset-ring inset-ring-white/5 hover:bg-white/20 focus-visible:outline-white/75',
                                         'mt-8 block rounded-md px-3.5 py-2.5 text-center text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 sm:mt-10',
                                     )}
@@ -570,7 +570,7 @@ export default function LandingPage() {
                                         </DisclosureButton>
                                     </dt>
                                     <DisclosurePanel as="dd" className="mt-2 pr-12">
-                                        <p className="text-base/7 text-gray-400">{faq.answer}</p>
+                                        <p className="text-base/7 text-neutral-400">{faq.answer}</p>
                                     </DisclosurePanel>
                                 </Disclosure>
                             ))}
@@ -596,7 +596,7 @@ export default function LandingPage() {
                                         {footerNavigation.solutions.map((item) => (
                                             <li key={item.name}>
                                                 <a href={item.href}
-                                                   className="text-sm/6 text-gray-400 hover:text-white">
+                                                   className="text-sm/6 text-neutral-400 hover:text-white">
                                                     {item.name}
                                                 </a>
                                             </li>
@@ -609,7 +609,7 @@ export default function LandingPage() {
                                         {footerNavigation.support.map((item) => (
                                             <li key={item.name}>
                                                 <a href={item.href}
-                                                   className="text-sm/6 text-gray-400 hover:text-white">
+                                                   className="text-sm/6 text-neutral-400 hover:text-white">
                                                     {item.name}
                                                 </a>
                                             </li>
@@ -624,7 +624,7 @@ export default function LandingPage() {
                                         {footerNavigation.company.map((item) => (
                                             <li key={item.name}>
                                                 <a href={item.href}
-                                                   className="text-sm/6 text-gray-400 hover:text-white">
+                                                   className="text-sm/6 text-neutral-400 hover:text-white">
                                                     {item.name}
                                                 </a>
                                             </li>
@@ -637,7 +637,7 @@ export default function LandingPage() {
                                         {footerNavigation.legal.map((item) => (
                                             <li key={item.name}>
                                                 <a href={item.href}
-                                                   className="text-sm/6 text-gray-400 hover:text-white">
+                                                   className="text-sm/6 text-neutral-400 hover:text-white">
                                                     {item.name}
                                                 </a>
                                             </li>

@@ -1,17 +1,17 @@
 // extracted from Notea (MIT License)
 import { FC, useEffect, useState } from 'react';
 import { use100vh } from 'react-div-100vh';
-import MarkdownEditor, { Props } from '@notea/rich-markdown-editor';
+import LexicalEditor, { LexicalEditorProps } from './lexical-editor';
 import { useEditorTheme } from './theme';
-import useMounted from '@/lib/hooks/use-mounted';
+import useMounted from '@/lib/notes/hooks/use-mounted';
 import Tooltip from './tooltip';
 import extensions from './extensions';
-import EditorState from '@/lib/state/editor';
-import { useToast } from '@/lib/hooks/use-toast';
+import useEditorStore from '@/lib/notes/state/editor.zustand';
+import { useToast } from '@/lib/notes/hooks/use-toast';
 import { useDictionary } from './dictionary';
 import { useEmbeds } from './embeds';
 
-export interface EditorProps extends Pick<Props, 'readOnly'> {
+export interface EditorProps extends Pick<LexicalEditorProps, 'readOnly'> {
     isPreview?: boolean;
 }
 
@@ -26,7 +26,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
         backlinks,
         editorEl,
         note,
-    } = EditorState.useContainer();
+    } = useEditorStore();
     const height = use100vh();
     const mounted = useMounted();
     const editorTheme = useEditorTheme();
@@ -42,7 +42,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
 
     return (
         <>
-            <MarkdownEditor
+            <LexicalEditor
                 readOnly={readOnly}
                 id={note?.id}
                 ref={editorEl}
@@ -50,7 +50,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
                 onChange={onEditorChange}
                 placeholder={dictionary.editorPlaceholder}
                 theme={editorTheme}
-                uploadImage={(file) => onUploadImage(file, note?.id)}
+                onUploadImage={(file) => onUploadImage(file, note?.id)}
                 onSearchLink={onSearchLink}
                 onCreateLink={onCreateLink}
                 onClickLink={onClickLink}
@@ -59,44 +59,37 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
                 dictionary={dictionary}
                 tooltip={Tooltip}
                 extensions={extensions}
-                className="px-4 md:px-0"
+                className="editor-input px-4 md:px-0"
                 embeds={embeds}
             />
-            <style jsx global>{`
-                .ProseMirror ul {
-                    list-style-type: disc;
-                }
+            
+/* Tailwind refactor - list replacement */
+<ul className="list-disc pl-6"></ul>
+<ol className="list-decimal pl-6"></ol>
 
-                .ProseMirror ol {
-                    list-style-type: decimal;
-                }
+/* Tailwind refactor for .editor-input */
+<div
+  className="pb-40"
+  style={{ minHeight: hasMinHeight ? `calc(${height ? height + 'px' : '100vh'} - 14rem)` : undefined }}
+></div>
 
-                .ProseMirror {
-                    ${hasMinHeight
-                        ? `min-height: calc(${
-                              height ? height + 'px' : '100vh'
-                          } - 14rem);`
-                        : ''}
-                    padding-bottom: 10rem;
-                }
+/* Tailwind refactor for headings */
+<h1 className="text-4xl font-bold"></h1>
+<h2 className="text-3xl font-bold"></h2>
+<h3 className="text-2xl font-bold"></h3>
+/* Tailwind refactor for links */
+<a className="underline inherit"></a>
 
-                .ProseMirror h1 {
-                    font-size: 2.8em;
-                }
-                .ProseMirror h2 {
-                    font-size: 1.8em;
-                }
-                .ProseMirror h3 {
-                    font-size: 1.5em;
-                }
-                .ProseMirror a:not(.bookmark) {
-                    text-decoration: underline;
-                }
 
-                .ProseMirror .image .ProseMirror-selectednode img {
-                    pointer-events: unset;
-                }
-            `}</style>
+
+
+
+                
+
+
+
+                
+`
         </>
     );
 };

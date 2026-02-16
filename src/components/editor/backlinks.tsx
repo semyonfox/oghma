@@ -1,12 +1,12 @@
 // extracted from Notea (MIT License)
 import IconButton from '@/components/icon-button';
-import useI18n from '@/lib/hooks/use-i18n';
-import EditorState from '@/lib/state/editor';
+import useI18n from '@/lib/notes/hooks/use-i18n';
+import useEditorStore from '@/lib/notes/state/editor.zustand';
 import Link from 'next/link';
 import React, { FC, useEffect } from 'react';
 
 const Backlinks: FC = () => {
-    const { getBackLinks, onHoverLink, backlinks } = EditorState.useContainer();
+    const { getBackLinks, onHoverLink, backlinks } = useEditorStore();
     const { t } = useI18n();
 
     useEffect(() => {
@@ -20,15 +20,15 @@ const Backlinks: FC = () => {
 
     return (
         <div className="mb-40">
-            <h4 className="text-xs px-2 text-gray-400">
+            <h4 className="text-xs px-2 text-neutral-400">
                 {t('Linked to this page')}
             </h4>
-            <ul className="bg-gray-100 mt-2 rounded overflow-hidden">
+            <ul className="bg-gray-100 dark:bg-gray-800 mt-2 rounded-lg overflow-hidden">
                 {backlinks?.map((link) => (
                     <li key={link.id}>
                         <Link href={link.id} shallow>
                             <a
-                                className="p-2 flex items-center hover:bg-gray-300 truncate"
+                                className="p-2 flex items-center hover:bg-gray-200 dark:hover:bg-gray-700 truncate transition-transform ease-linear"
                                 onMouseEnter={onHoverLink}
                             >
                                 <IconButton

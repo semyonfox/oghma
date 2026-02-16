@@ -45,20 +45,25 @@ export interface MovePosition {
 }
 
 function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
-    tree.items[id] = tree.items[id] || {
+    const newItems = { ...tree.items };
+
+    newItems[id] = newItems[id] || {
         id,
         children: [],
     };
 
-    const parentItem = tree.items[pid];
+    const parentItem = newItems[pid];
 
     if (parentItem) {
-        parentItem.children = [...parentItem.children, id];
+        newItems[pid] = {
+            ...parentItem,
+            children: [...parentItem.children, id],
+        };
     } else {
         throw new Error(`Parent ID '${pid}' does not refer to a valid item`);
     }
 
-    return tree;
+    return { ...tree, items: newItems };
 }
 
 function mutateItem(tree: TreeModel, id: string, data: Partial<TreeItemModel>) {
@@ -71,14 +76,15 @@ function mutateItem(tree: TreeModel, id: string, data: Partial<TreeItemModel>) {
         };
     }
 
-    tree.items[id] = {
+    const newItems = { ...tree.items };
+    newItems[id] = {
         ...existingItem,
         ...data,
         id,
         children: data.children ?? existingItem?.children ?? [],
     } as TreeItemModel;
 
-    return tree;
+    return { ...tree, items: newItems };
 }
 
 function removeItem(tree: TreeModel, id: string) {
@@ -226,7 +232,7 @@ export function cleanTreeModel(model: Partial<TreeModel>): TreeModel {
             }
 
             const cleanedItem = cleanItemModel(item);
-            const children = [];
+            const children: string[] = [];
             for (const child of cleanedItem.children) {
                 if (child && model.items[child]) {
                     children.push(child);

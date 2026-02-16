@@ -1,10 +1,8 @@
 // extracted from Notea (MIT License)
-import CsrfTokenState from '@/lib/state/csrf-token';
-import { useCallback } from 'react';
-import { Props } from '@notea/rich-markdown-editor';
+import CsrfTokenState from '@/lib/notes/state/csrf-token';
+import { useCallback, ComponentType } from 'react';
 import { Bookmark } from './bookmark';
 import { Embed } from './embed';
-import { ReactComponentLike } from 'prop-types';
 
 export type EmbedProps = {
     attrs: {
@@ -13,11 +11,17 @@ export type EmbedProps = {
     };
 };
 
-export const useEmbeds = () => {
+export type EmbedConfig = {
+    title: string;
+    matcher: (url: string) => RegExpMatchArray | null;
+    component: ComponentType<EmbedProps>;
+};
+
+export const useEmbeds = (): EmbedConfig[] => {
     const csrfToken = CsrfTokenState.useContainer();
 
     const createEmbedComponent = useCallback(
-        (Component: ReactComponentLike) => {
+        (Component: ComponentType<EmbedProps>) => {
             return (props: EmbedProps) => {
                 return (
                     <CsrfTokenState.Provider initialState={csrfToken}>
@@ -40,5 +44,5 @@ export const useEmbeds = () => {
             matcher: (url) => url.match(/^\/api\/extract\?type=embed/),
             component: createEmbedComponent(Embed),
         },
-    ] as Props['embeds'];
+    ];
 };

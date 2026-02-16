@@ -1,4 +1,16 @@
 // extracted from Notea (MIT License)
+// MIGRATION NOTE: This ProseMirror extension needs to be rewritten for Lexical
+// Functionality: Detects typing [[ or 【【 and opens link creation menu
+// 
+// For Lexical migration, use:
+// - @lexical/react LexicalComposer for text input handling
+// - TextNode with registerNodeTransform for pattern matching
+// - Custom command (createCommand) to trigger link menu
+// - See: https://lexical.dev/docs/concepts/transforms
+
+// TODO: Reimplement as Lexical plugin when editor migration is complete
+
+/*
 import { InputRule } from 'prosemirror-inputrules';
 import Mark from '@notea/rich-markdown-editor/dist/marks/Mark';
 
@@ -32,3 +44,7 @@ export default class Bracket extends Mark {
         };
     }
 }
+*/
+
+// temporary stub to prevent import errors
+export default class Bracket {}

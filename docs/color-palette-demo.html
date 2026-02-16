@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocsBoard Color Palette</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            secondary: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              300: '#5eead4',
+              400: '#2dd4bf',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a',
+            },
+            success: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            },
+            ai: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#fcd34d',
+              400: '#fbbf24',
+              500: '#f59e0b',
+              600: '#d97706',
+              700: '#b45309',
+              800: '#92400e',
+              900: '#78350f',
+            },
+            error: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              200: '#fecaca',
+              300: '#fca5a5',
+              400: '#f87171',
+              500: '#ef4444',
+              600: '#dc2626',
+              700: '#b91c1c',
+              800: '#991b1b',
+              900: '#7f1d1d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 p-8">
+  <div class="max-w-7xl mx-auto">
+    <header class="mb-12">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">SocsBoard Color System</h1>
+      <p class="text-gray-600">Research-backed palette for AI-powered learning</p>
+    </header>
+
+    <!-- Color Philosophy -->
+    <section class="mb-12 bg-white rounded-xl p-8 shadow-sm">
+      <h2 class="text-2xl font-semibold mb-4">Color Philosophy</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="text-center p-6 bg-primary-50 rounded-lg">
+          <div class="text-4xl mb-2">📘</div>
+          <h3 class="font-semibold text-primary-700">Blue</h3>
+          <p class="text-sm text-gray-600">Focus & Tasks</p>
+        </div>
+        <div class="text-center p-6 bg-secondary-50 rounded-lg">
+          <div class="text-4xl mb-2">📗</div>
+          <h3 class="font-semibold text-secondary-700">Teal</h3>
+          <p class="text-sm text-gray-600">Progress & Learning</p>
+        </div>
+        <div class="text-center p-6 bg-success-50 rounded-lg">
+          <div class="text-4xl mb-2">✅</div>
+          <h3 class="font-semibold text-success-700">Green</h3>
+          <p class="text-sm text-gray-600">Completion</p>
+        </div>
+        <div class="text-center p-6 bg-ai-50 rounded-lg">
+          <div class="text-4xl mb-2">🤖</div>
+          <h3 class="font-semibold text-ai-700">Amber</h3>
+          <p class="text-sm text-gray-600">AI Features</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Primary Colors -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Primary (Blue) - Focus & Productivity</h2>
+      <div class="grid grid-cols-5 md:grid-cols-10 gap-2">
+        <div class="text-center">
+          <div class="bg-primary-50 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">50</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-100 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">100</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-200 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">200</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-300 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">300</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-400 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">400</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-500 h-16 rounded shadow-sm ring-2 ring-gray-900"></div>
+          <p class="text-xs mt-1 font-bold">500</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-600 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">600</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-700 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">700</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-800 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">800</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-primary-900 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">900</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Secondary Colors -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Secondary (Teal) - Progress & Learning</h2>
+      <div class="grid grid-cols-5 md:grid-cols-10 gap-2">
+        <div class="text-center">
+          <div class="bg-secondary-50 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">50</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-100 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">100</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-200 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">200</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-300 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">300</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-400 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">400</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-500 h-16 rounded shadow-sm ring-2 ring-gray-900"></div>
+          <p class="text-xs mt-1 font-bold">500</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-600 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">600</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-700 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">700</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-800 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">800</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-secondary-900 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">900</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Success Colors -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">Success (Green) - Completion</h2>
+      <div class="grid grid-cols-5 md:grid-cols-10 gap-2">
+        <div class="text-center">
+          <div class="bg-success-50 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">50</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-100 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">100</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-200 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">200</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-300 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">300</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-400 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">400</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-500 h-16 rounded shadow-sm ring-2 ring-gray-900"></div>
+          <p class="text-xs mt-1 font-bold">500</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-600 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">600</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-700 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">700</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-800 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">800</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-success-900 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">900</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Colors -->
+    <section class="mb-8">
+      <h2 class="text-2xl font-semibold mb-4">AI (Amber) - AI-Powered Features</h2>
+      <div class="grid grid-cols-5 md:grid-cols-10 gap-2">
+        <div class="text-center">
+          <div class="bg-ai-50 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">50</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-100 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">100</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-200 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">200</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-300 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">300</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-400 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">400</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-500 h-16 rounded shadow-sm ring-2 ring-gray-900"></div>
+          <p class="text-xs mt-1 font-bold">500</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-600 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">600</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-700 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">700</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-800 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">800</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-ai-900 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">900</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error Colors -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold mb-4">Error (Red) - Warnings & Destructive Actions</h2>
+      <div class="grid grid-cols-5 md:grid-cols-10 gap-2">
+        <div class="text-center">
+          <div class="bg-error-50 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">50</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-100 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">100</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-200 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">200</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-300 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">300</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-400 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">400</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-500 h-16 rounded shadow-sm ring-2 ring-gray-900"></div>
+          <p class="text-xs mt-1 font-bold">500</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-600 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">600</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-700 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">700</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-800 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">800</p>
+        </div>
+        <div class="text-center">
+          <div class="bg-error-900 h-16 rounded shadow-sm"></div>
+          <p class="text-xs mt-1">900</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Component Examples -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold mb-6">Component Examples</h2>
+      
+      <!-- Buttons -->
+      <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
+        <h3 class="text-xl font-semibold mb-4">Buttons</h3>
+        <div class="flex flex-wrap gap-4">
+          <button class="bg-primary-500 hover:bg-primary-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Start Learning
+          </button>
+          <button class="bg-secondary-500 hover:bg-secondary-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Continue Session
+          </button>
+          <button class="bg-success-500 hover:bg-success-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Mark Complete
+          </button>
+          <button class="bg-ai-500 hover:bg-ai-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Ask AI Assistant
+          </button>
+          <button class="bg-error-500 hover:bg-error-600 text-white px-6 py-2 rounded-lg font-medium transition">
+            Delete Note
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Badges -->
+      <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
+        <h3 class="text-xl font-semibold mb-4">Status Badges</h3>
+        <div class="flex flex-wrap gap-3">
+          <span class="bg-primary-100 text-primary-700 px-3 py-1 rounded-full text-sm font-medium">
+            Not Started
+          </span>
+          <span class="bg-secondary-100 text-secondary-700 px-3 py-1 rounded-full text-sm font-medium">
+            In Progress
+          </span>
+          <span class="bg-success-100 text-success-700 px-3 py-1 rounded-full text-sm font-medium">
+            Completed
+          </span>
+          <span class="bg-ai-100 text-ai-700 px-3 py-1 rounded-full text-sm font-medium">
+            AI Suggested
+          </span>
+          <span class="bg-error-100 text-error-700 px-3 py-1 rounded-full text-sm font-medium">
+            Failed
+          </span>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
+        <h3 class="text-xl font-semibold mb-4">Progress Visualization</h3>
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-600">Learning Progress</span>
+              <span class="text-gray-900 font-medium">65%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+              <div class="bg-gradient-to-r from-primary-500 via-secondary-500 to-success-500 h-3 rounded-full transition-all" style="width: 65%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-600">Study Streak</span>
+              <span class="text-gray-900 font-medium">12 days</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+              <div class="bg-success-500 h-3 rounded-full" style="width: 80%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cards -->
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div class="flex items-start justify-between mb-3">
+            <h4 class="text-lg font-semibold text-gray-900">Introduction to Algorithms</h4>
+            <span class="bg-secondary-100 text-secondary-700 px-2 py-1 rounded text-xs font-medium">
+              In Progress
+            </span>
+          </div>
+          <p class="text-gray-600 text-sm mb-4">
+            Learn fundamental algorithms and data structures with interactive examples.
+          </p>
+          <div class="flex items-center justify-between">
+            <div class="flex -space-x-2">
+              <div class="w-8 h-8 rounded-full bg-primary-500 border-2 border-white"></div>
+              <div class="w-8 h-8 rounded-full bg-secondary-500 border-2 border-white"></div>
+              <div class="w-8 h-8 rounded-full bg-success-500 border-2 border-white"></div>
+            </div>
+            <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+              Continue →
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-br from-ai-400 to-ai-600 rounded-xl p-6 shadow-lg text-white">
+          <div class="flex items-start justify-between mb-3">
+            <h4 class="text-lg font-semibold">AI Study Assistant</h4>
+            <span class="bg-white/20 backdrop-blur px-2 py-1 rounded text-xs font-medium">
+              Beta
+            </span>
+          </div>
+          <p class="text-white/90 text-sm mb-4">
+            Get personalized study recommendations and instant answers to your questions.
+          </p>
+          <button class="bg-white text-ai-600 hover:bg-white/90 px-4 py-2 rounded-lg text-sm font-medium transition">
+            Try AI Features
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gradients -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-semibold mb-6">Gradients</h2>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="h-32 rounded-xl bg-gradient-to-r from-primary-500 via-secondary-500 to-success-500 flex items-center justify-center text-white font-semibold">
+          Progress Gradient (Blue → Teal → Green)
+        </div>
+        <div class="h-32 rounded-xl bg-gradient-to-br from-ai-400 to-ai-600 flex items-center justify-center text-white font-semibold">
+          AI Feature Gradient
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

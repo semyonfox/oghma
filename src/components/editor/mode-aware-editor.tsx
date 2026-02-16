@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import EditorModeState from '@/lib/notes/state/editor-mode';
-import EditorState from '@/lib/notes/state/editor';
+import useEditorStore from '@/lib/notes/state/editor.zustand';
 import NoteState from '@/lib/notes/state/note';
 import MainEditor from './main-editor';
 import SourceEditor from './source-editor';
@@ -13,7 +13,7 @@ import EditorModeToggle from './mode-toggle';
 export default function ModeAwareEditor() {
   const { mode, initMode, isInitialized } = EditorModeState.useContainer();
   const { note } = NoteState.useContainer();
-  const { onNoteChange } = EditorState.useContainer();
+  const { onNoteChange } = useEditorStore();
 
   // initialize mode from cache on mount
   useEffect(() => {
@@ -37,31 +37,18 @@ export default function ModeAwareEditor() {
 
   return (
     <div className="h-full relative">
-      <div className="fixed top-4 right-6 z-50 bg-surface dark:bg-neutral-800 rounded-lg shadow-lg border border-border dark:border-neutral-700">
+      <div className="fixed top-4 sm:top-6 right-6 md:right-8 z-50 bg-gray-50 dark:bg-gray-800 rounded-md shadow-md border border-gray-200 dark:border-gray-700">
         <EditorModeToggle />
       </div>
       
-      {mode === 'edit' && (
-        <MainEditor note={note} />
-      )}
-      
-      {mode === 'source' && (
-        <SourceEditor 
-          content={content}
-          onContentChange={handleContentChange}
-        />
-      )}
-      
-      {mode === 'preview' && (
-        <PreviewRenderer content={content} />
-      )}
-      
-      {mode === 'split' && (
-        <SplitView 
-          content={content}
-          onContentChange={handleContentChange}
-        />
-      )}
+      {
+        {
+          edit: <MainEditor note={note} />,
+          source: <SourceEditor content={content} onContentChange={handleContentChange} />,
+          preview: <PreviewRenderer content={content} />,
+          split: <SplitView content={content} onContentChange={handleContentChange} />,
+        }[mode]
+      }
     </div>
   );
 }
