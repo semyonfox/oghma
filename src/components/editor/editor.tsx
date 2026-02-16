@@ -41,7 +41,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
     }, [backlinks, isPreview]);
 
     return (
-        <>
+        <div style={{ minHeight: hasMinHeight ? `calc(${height ? height + 'px' : '100vh'} - 14rem)` : undefined }} className="pb-40">
             <LexicalEditor
                 readOnly={readOnly}
                 id={note?.id}
@@ -62,35 +62,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
                 className="editor-input px-4 md:px-0"
                 embeds={embeds}
             />
-            
-/* Tailwind refactor - list replacement */
-<ul className="list-disc pl-6"></ul>
-<ol className="list-decimal pl-6"></ol>
-
-/* Tailwind refactor for .editor-input */
-<div
-  className="pb-40"
-  style={{ minHeight: hasMinHeight ? `calc(${height ? height + 'px' : '100vh'} - 14rem)` : undefined }}
-></div>
-
-/* Tailwind refactor for headings */
-<h1 className="text-4xl font-bold"></h1>
-<h2 className="text-3xl font-bold"></h2>
-<h3 className="text-2xl font-bold"></h3>
-/* Tailwind refactor for links */
-<a className="underline inherit"></a>
-
-
-
-
-
-                
-
-
-
-                
-`
-        </>
+        </div>
     );
 };
 
