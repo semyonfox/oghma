@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Settings } from '@/lib/notes/types/settings';
+import { Settings, DEFAULT_SETTINGS } from '@/lib/notes/types/settings';
 import { UserAgentType } from '@/lib/notes/types/ua';
 import { createContainer } from 'unstated-next';
 import useSettings from './settings';
@@ -28,14 +28,22 @@ function useUI({
     settings,
     disablePassword,
     IS_DEMO,
-}: Props = {}) {
+}: Props = {}): {
+    ua: UserAgentType;
+    sidebar: ReturnType<typeof useSidebar>;
+    split: ReturnType<typeof useSplit>;
+    title: ReturnType<typeof useTitle>;
+    settings: ReturnType<typeof useSettings>;
+    disablePassword: boolean | undefined;
+    IS_DEMO: boolean | undefined;
+} {
     return {
         ua,
         sidebar: useSidebar(
             ua?.isMobileOnly ? false : settings?.sidebar_is_fold,
             ua.isMobileOnly
         ),
-        split: useSplit(settings?.split_sizes),
+        split: useSplit(settings?.split_sizes ?? DEFAULT_SETTINGS.split_sizes),
         title: useTitle(),
         settings: useSettings(settings),
         disablePassword,

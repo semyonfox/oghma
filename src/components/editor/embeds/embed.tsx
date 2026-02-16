@@ -1,10 +1,10 @@
 // extracted from Notea (MIT License)
 import { Skeleton } from '@mui/material';
-import useFetcher from '@/lib/api/fetcher';
+import useFetcher from '@/lib/notes/api/fetcher';
 import { FC, useEffect, useState } from 'react';
 import { Metadata } from 'unfurl.js/dist/types';
 import { EmbedProps } from '.';
-import InnerHTML from 'dangerously-set-html-content';
+import DOMPurify from 'dompurify';
 import { decode } from 'qss';
 
 export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
@@ -27,7 +27,7 @@ export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
     const html = (data?.oEmbed as any)?.html;
 
     if (html) {
-        return <InnerHTML html={html} />;
+        return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
     }
 
     const url =
