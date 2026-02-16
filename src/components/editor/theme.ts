@@ -1,20 +1,20 @@
 // extracted from Notea (MIT License)
 import { useTheme } from 'next-themes';
-import { theme } from '@notea/rich-markdown-editor';
-import { light, dark } from '@notea/rich-markdown-editor/dist/styles/theme';
 
-export const darkTheme: typeof theme = {
-    ...dark,
-    background: 'inherit',
-    text: 'inherit',
-    fontFamily: 'inherit',
+// Lexical theme configuration
+// Note: Lexical themes use CSS class names, not CSS property values
+export interface LexicalTheme {
+    root?: string;
+    paragraph?: string;
+    [key: string]: any;
+}
+
+export const darkTheme: LexicalTheme = {
+    root: 'editor-theme-dark',
 };
 
-export const lightTheme: typeof theme = {
-    ...light,
-    background: 'inherit',
-    text: 'inherit',
-    fontFamily: 'inherit',
+export const lightTheme: LexicalTheme = {
+    root: 'editor-theme-light',
 };
 
 export const useEditorTheme = () => {

@@ -20,27 +20,21 @@ const Sidebar: FC = () => {
 const BrowserSidebar: FC = () => {
     const {
         sidebar,
-        split: { sizes },
     } = UIState.useContainer();
 
     return (
-        <section
-            className="flex h-full fixed left-0"
-            style={{
-                width: `calc(${sizes[0]}% - 5px)`,
-            }}
-        >
+        <section className="flex h-full w-full">
             <SidebarTool />
-            {sidebar.isFold ? null : <SideBarList />}
+            {sidebar?.isFold ? null : <SideBarList />}
         </section>
     );
 };
 
 const MobileSidebar: FC = () => {
     return (
-        <section className="flex h-full" style={{ width: '80vw' }}>
+        <section className="flex h-full w-4/5">
             <SidebarTool />
-            <SideBarList />
+<SideBarList />
         </section>
     );
 };
