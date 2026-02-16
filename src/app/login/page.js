@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getErrorMessage, login } from '@/lib/apiClient'
+import { Alert } from '@/components/alert'
 import Link from 'next/link'
 
 export default function LoginPage() {
@@ -54,10 +55,11 @@ export default function LoginPage() {
     return (
       <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white">Login successful!</h2>
-            <p className="mt-2 text-sm text-gray-400">Redirecting to your notes...</p>
-          </div>
+          <Alert 
+            variant="success" 
+            title="Login successful!" 
+            description="Redirecting to your notes..." 
+          />
         </div>
       </div>
     )
@@ -73,8 +75,8 @@ export default function LoginPage() {
         <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
-              <div ref={errRef} role="alert" className="rounded-lg bg-red-500/10 p-4 border border-red-500/20">
-                <p className="text-sm font-medium text-red-200">{errMsg}</p>
+              <div ref={errRef}>
+                <Alert variant="error" title="Sign in failed" description={errMsg} />
               </div>
             )}
 
