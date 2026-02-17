@@ -58,13 +58,13 @@ const NoteSidebarActions: FC = () => {
   }, [trash]);
 
   return (
-    <div className="px-3 py-4 border-t border-white/10 space-y-4 sm:px-6 sm:space-y-4">
+    <div className="tree-actions">
       {/* Action Buttons - Stack on mobile, flex on desktop */}
-      <div className="hidden sm:flex items-center gap-2">
+      <div className="hidden sm:flex items-center gap-2 w-full">
         {/* Theme Toggle */}
         <button
           onClick={handleThemeToggle}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+          className="tree-action-button"
           title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
           aria-label={`Theme: ${currentTheme}`}
         >
@@ -79,7 +79,7 @@ const NoteSidebarActions: FC = () => {
         {/* Settings Link */}
         <Link
           href="/settings"
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+          className="tree-action-button"
           title="Settings"
         >
           <Cog6ToothIcon className="w-4 h-4" />
@@ -89,7 +89,7 @@ const NoteSidebarActions: FC = () => {
         {/* Trash Button */}
         <button
           onClick={handleTrashClick}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+          className="tree-action-button"
           title="Trash"
           aria-label="Open trash"
         >
@@ -100,21 +100,21 @@ const NoteSidebarActions: FC = () => {
 
       {/* User Profile Section */}
       {user && (
-        <button className="w-full flex items-center gap-3 px-3 py-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors text-left">
+        <button className="w-full flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-text hover:bg-white/5 rounded-md transition-colors text-left">
           {user.avatar ? (
             <img
               alt={user.name || user.email}
               src={user.avatar}
-              className="w-8 h-8 rounded-full flex-none bg-gray-800 object-cover"
+              className="w-8 h-8 rounded-full flex-none bg-surface object-cover"
             />
           ) : (
-            <UserCircleIcon className="w-8 h-8 flex-none text-gray-400" />
+            <UserCircleIcon className="w-8 h-8 flex-none text-text-tertiary" />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">
+            <p className="text-sm font-semibold text-text truncate">
               {user.name || user.email.split('@')[0]}
             </p>
-            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            <p className="text-xs text-text-tertiary truncate">{user.email}</p>
           </div>
         </button>
       )}

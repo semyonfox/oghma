@@ -133,7 +133,7 @@ const NoteNav: FC = () => {
                                 className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
                                 title={t('Show note in tree')}
                             >
-                                <EyeIcon className="w-4 h-4 text-text-tertiary" />
+                                 <EyeIcon className="w-4 h-4 text-gray-500" />
                             </button>
                         )}
                     </>
@@ -146,7 +146,7 @@ const NoteNav: FC = () => {
                     loading ? 'opacity-100' : 'opacity-0'
                 }`}
             >
-                <div className="w-3 h-3 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
             </div>
 
             {/* action buttons */}
@@ -159,8 +159,8 @@ const NoteNav: FC = () => {
                 <ShareIcon
                     className={`w-4 h-4 ${
                         note?.shared === NOTE_SHARED.PUBLIC
-                            ? 'text-primary-500'
-                            : 'text-text-secondary'
+                            ? 'text-indigo-500'
+                            : 'text-gray-400'
                     }`}
                 />
             </button>
@@ -170,7 +170,7 @@ const NoteNav: FC = () => {
                 className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0"
                 title={t('Editor width')}
             >
-                <ArrowsPointingOutIcon className="w-4 h-4 text-text-secondary" />
+                <ArrowsPointingOutIcon className="w-4 h-4 text-gray-400" />
             </button>
 
             <button
@@ -179,7 +179,7 @@ const NoteNav: FC = () => {
                 className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40"
                 title={t('Settings')}
             >
-                <EllipsisHorizontalIcon className="w-4 h-4 text-text-secondary" />
+                <EllipsisHorizontalIcon className="w-4 h-4 text-gray-400" />
             </button>
         </nav>
     );

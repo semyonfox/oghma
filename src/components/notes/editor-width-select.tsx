@@ -46,18 +46,18 @@ const EditorWidthSelect: FC = () => {
                 onClick={() => editorWidthSelect.close()}
             />
             <div
-                className="fixed z-50 w-40 bg-surface-elevated dark:bg-neutral-700 rounded-lg shadow-xl border border-border dark:border-neutral-600 overflow-hidden py-1"
+                className="fixed z-50 w-40 bg-gray-700 rounded-lg shadow-xl border border-white/10 overflow-hidden py-1"
                 style={{ top, right }}
             >
                 {options.map((option) => (
                     <button
                         key={option.label}
                         onClick={() => handleSelect(option.value)}
-                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-text-secondary hover:bg-neutral-100 dark:hover:bg-neutral-600 transition-colors"
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-400 hover:bg-white/5 transition-colors"
                     >
                         <span>{option.label}</span>
                         {currentSize === option.value && (
-                            <CheckIcon className="w-4 h-4 text-primary-500" />
+                            <CheckIcon className="w-4 h-4 text-indigo-500" />
                         )}
                     </button>
                 ))}
