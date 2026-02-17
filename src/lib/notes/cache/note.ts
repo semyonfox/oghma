@@ -2,7 +2,6 @@
 import { TreeModel } from '@/lib/notes/types/tree';
 import { noteCacheInstance, NoteCacheItem } from '@/lib/notes/cache';
 import { isNoteLink, NoteModel } from '@/lib/notes/types/note';
-import { keys, pull } from 'lodash';
 import { removeMarkdown } from '@/lib/notes/utils/markdown';
 import markdownLinkExtractor from 'markdown-link-extractor';
 
@@ -10,9 +9,9 @@ import markdownLinkExtractor from 'markdown-link-extractor';
  * 清除本地存储中未使用的 note
  */
 async function checkItems(items: TreeModel['items']) {
-    const noteIds = keys(items);
-    const localNoteIds = await noteCache.keys();
-    const unusedNoteIds = pull(localNoteIds, ...noteIds);
+     const noteIds = Object.keys(items);
+     const localNoteIds = await noteCache.keys();
+     const unusedNoteIds = localNoteIds.filter(id => !noteIds.includes(id));
 
     await Promise.all(
         unusedNoteIds.map((id) => (id ? noteCache.removeItem(id) : undefined))
