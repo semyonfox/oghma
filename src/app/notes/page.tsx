@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import NotesProviders from '@/components/notes/providers';
 import Sidebar from '@/components/notes/sidebar/sidebar';
@@ -14,6 +14,16 @@ import NavigationSidebar from '@/components/notes/navigation-sidebar';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
 import { DocumentIcon } from '@heroicons/react/24/outline';
+
+// NEW: Import redesigned editor components
+import { EditorHeader } from '@/components/editor/editor-header';
+import { EditorStatusBar } from '@/components/editor/editor-status-bar';
+import { CommandPalette } from '@/components/editor/command-palette';
+import { PropertiesPanel } from '@/components/editor/panels/properties-panel';
+
+// NEW: Import essential hooks
+import { useAutoSave } from '@/lib/notes/hooks/use-auto-save';
+import { useEditorStats } from '@/lib/notes/hooks/use-editor-stats';
 
 // Lazy-load Editor component (includes Lexical - 992 KB)
 // This defers loading until user navigates to a note
@@ -37,6 +47,20 @@ function NotesUI() {
     const { split, ua } = UIState.useContainer();
     const { note, fetchNote } = NoteState.useContainer();
     const pathname = usePathname();
+    
+    // NEW: State for command palette and right panel tabs
+    const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const [rightPanelTab, setRightPanelTab] = useState<'properties' | 'ai'>('properties');
+    const [cursorLine, setCursorLine] = useState(1);
+    const [cursorColumn, setCursorColumn] = useState(1);
+    const [zoom, setZoom] = useState(100);
+    const [tags, setTags] = useState<string[]>([]);
+    
+    // NEW: Auto-save hook
+    const autoSaveStatus = useAutoSave(note?.id, note?.content || '');
+    
+    // NEW: Editor stats hook
+    const stats = useEditorStats(note?.content || '');
 
     // Step 2: Extract note ID from pathname and fetch note
     // Handles both /notes and /notes/<id> routes
@@ -66,33 +90,67 @@ function NotesUI() {
 
     if (ua?.isMobileOnly) {
         return (
-            <div className="flex flex-col h-screen bg-gray-900">
-                {/* Mobile Navbar */}
-                <nav className="border-b border-white/10 bg-gray-800">
-                    <div className="px-4 py-3 flex items-center justify-between">
-                        <h1 className="text-lg font-semibold text-white">AI Study Vault</h1>
-                        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold">U</div>
-                    </div>
-                </nav>
-                
-                {/* Main content */}
-                <div className="flex flex-1 overflow-hidden">
-                    <Sidebar />
-                    <div className="flex-1 overflow-auto bg-gray-800 flex flex-col">
-                        {note ? (
-                            <Editor readOnly={false} />
-                        ) : (
-                            <div className="flex items-center justify-center h-full">
-                                <div className="text-center text-gray-400">
-                                    <DocumentIcon className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                                    <p className="text-sm font-semibold text-white mb-1">Select a note</p>
-                                    <p className="text-xs">Click on a note in the sidebar to start editing</p>
+            <>
+                <CommandPalette
+                    isOpen={commandPaletteOpen}
+                    onClose={() => setCommandPaletteOpen(false)}
+                />
+                <div className="flex flex-col h-screen bg-gray-900">
+                    {/* Mobile Navbar */}
+                    <nav className="border-b border-white/10 bg-gray-800">
+                        <div className="px-4 py-3 flex items-center justify-between">
+                            <h1 className="text-lg font-semibold text-white">AI Study Vault</h1>
+                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold">U</div>
+                        </div>
+                    </nav>
+                    
+                    {/* Main content */}
+                    <div className="flex flex-1 overflow-hidden">
+                        <Sidebar />
+                        <div className="flex-1 overflow-auto bg-gray-800 flex flex-col">
+                            {note ? (
+                                <>
+                                    {/* NEW: Editor header */}
+                                    <EditorHeader
+                                        note={note}
+                                        tags={tags}
+                                        onTitleChange={(title) => {
+                                            useEditorStore.setState({
+                                                note: { ...note, title },
+                                            });
+                                        }}
+                                        onTagsChange={(newTags) => {
+                                            setTags(newTags);
+                                        }}
+                                        onAction={(action) => {
+                                            console.log('Editor action:', action);
+                                        }}
+                                    />
+                                    <Editor readOnly={false} />
+                                    {/* NEW: Editor status bar */}
+                                    <EditorStatusBar
+                                        content={note.content || ''}
+                                        syncStatus={autoSaveStatus.status}
+                                        lastSaved={autoSaveStatus.lastSaved}
+                                        cursorLine={cursorLine}
+                                        cursorColumn={cursorColumn}
+                                        zoom={zoom}
+                                        onZoomChange={setZoom}
+                                    />
+                                </>
+                            ) : (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center text-gray-400">
+                                        <DocumentIcon className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+                                        <p className="text-sm font-semibold text-white mb-1">Select a note</p>
+                                        <p className="text-xs">Click on a note in the sidebar to start editing</p>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            </>
         );
     }
 
