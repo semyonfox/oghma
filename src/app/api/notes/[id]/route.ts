@@ -2,6 +2,23 @@ import { NextResponse } from 'next/server';
 import { NoteModel } from '@/lib/notes/types/note';
 import { MOCK_NOTES_STORAGE, syncTreeWithNotes, removeNoteFromTree } from '@/lib/notes/storage/mock-storage';
 
+/**
+ * Helper: Filter note to only include requested fields
+ */
+function filterNoteFields(note: NoteModel, fields?: string[]): Partial<NoteModel> {
+  if (!fields || fields.length === 0) {
+    return note;
+  }
+  
+  const filtered: any = {};
+  for (const field of fields) {
+    if (field in note) {
+      filtered[field] = (note as any)[field];
+    }
+  }
+  return filtered;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +33,15 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(note);
+  // Parse fields from query parameters
+  const url = new URL(request.url);
+  const fieldsParam = url.searchParams.get('fields');
+  const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
+  
+  // Filter fields if requested
+  const filtered = filterNoteFields(note, fields);
+
+  return NextResponse.json(filtered);
 }
 
 export async function PUT(
