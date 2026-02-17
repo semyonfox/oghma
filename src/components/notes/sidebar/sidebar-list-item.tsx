@@ -109,6 +109,19 @@ const SidebarListItem: FC<{
         [hasChildren, onToggle]
     );
 
+    // Determine link href based on current page
+    const linkHref = useMemo(() => {
+        if (hasChildren) {
+            return '#';
+        }
+        // If on /notes page, stay within notes (e.g. /notes/note-id)
+        // Otherwise navigate to root note page (e.g. /note-id)
+        if (pathname?.startsWith('/notes')) {
+            return `/notes/${item.id}`;
+        }
+        return `/${item.id}`;
+    }, [pathname, item.id, hasChildren]);
+
     const emoji = useMemo(() => {
         const emoji = item.title?.match(emojiRegex());
         if (emoji?.length === 1) return emoji[0];
@@ -127,7 +140,7 @@ const SidebarListItem: FC<{
                 }`}
             >
                 <Link 
-                    href={hasChildren ? '#' : `/${item.id}`} 
+                    href={linkHref}
                     className="flex flex-1 items-center truncate px-2 py-1.5"
                     onClick={handleClickItem}
                 >

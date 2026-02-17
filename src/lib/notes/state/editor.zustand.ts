@@ -76,14 +76,27 @@ const useEditorStore = create<EditorState>()(
                 console.log('Retrieve backlinks');
                 return [];
             },
-            onEditorChange: (value) => {
-                console.log('Handle editor logic', value);
+            onEditorChange: (getValue) => {
+                // TODO: Implement content change handler to sync with NoteState
+                // This will be called when editor content changes
+                // Should update the note content in the store
+                const content = getValue();
+                set((state) => ({
+                    note: state.note ? { ...state.note, content } : undefined,
+                }));
             },
             onNoteChange: debounce(async (data: Partial<NoteModel>) => {
-                console.log('Handle database store or cache updates');
+                // TODO: Implement auto-save to backend/cache
+                // For now, just update the store
+                set((state) => ({
+                    note: state.note ? { ...state.note, ...data } : undefined,
+                }));
+                console.log('Note changes queued for save:', data);
             }, 500) as unknown as (data: Partial<NoteModel>) => Promise<void>,
             saveNow: async () => {
-                console.log('Save bypassing throttle/debounce logic');
+                // TODO: Implement immediate save (bypass debounce)
+                // Should flush pending changes to backend/cache
+                console.log('Saving note immediately');
             },
         }),
         {
