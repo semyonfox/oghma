@@ -5,9 +5,57 @@ import {
 } from '@/lib/notes/storage/mock-storage';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 
-export async function GET() {
+/**
+ * Helper: Filter tree item to only include requested fields
+ */
+function filterTreeItemFields(item: any, fields?: string[]): any {
+  if (!fields || fields.length === 0) {
+    return item;
+  }
+  
+  const filtered: any = {};
+  for (const field of fields) {
+    if (field in item) {
+      filtered[field] = item[field];
+    }
+  }
+  return filtered;
+}
+
+export async function GET(request: Request) {
     syncTreeWithNotes();
-    return NextResponse.json(MOCK_TREE_STORAGE);
+    
+    // Parse query parameters
+    const url = new URL(request.url);
+    const fieldsParam = url.searchParams.get('fields');
+    const skipParam = url.searchParams.get('skip');
+    const limitParam = url.searchParams.get('limit');
+    
+    // Parse fields from comma-separated string
+    const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
+    
+    // Parse pagination
+    const skip = skipParam ? parseInt(skipParam, 10) : 0;
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    
+    // Get all tree items
+    let items = Object.entries(MOCK_TREE_STORAGE.items);
+    
+    // Apply pagination
+    if (skip > 0 || limit) {
+      const end = limit ? skip + limit : undefined;
+      items = items.slice(skip, end);
+    }
+    
+    // Build filtered result
+    const filteredTree = {
+      rootId: MOCK_TREE_STORAGE.rootId,
+      items: Object.fromEntries(
+        items.map(([id, item]) => [id, filterTreeItemFields(item, fields)])
+      ),
+    };
+    
+    return NextResponse.json(filteredTree);
 }
 
 interface TreeMutateAction {
