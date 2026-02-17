@@ -204,17 +204,17 @@ const SidebarList = () => {
     );
 
     return (
-        <section className="h-full flex text-sm flex-col flex-grow bg-neutral-50 dark:bg-neutral-900 overflow-y-auto">
-            {/* Favorites */}
-            <Favorites />
+        <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto">
+            {/* Favorites - hidden since we have a separate section now */}
+            {/* <Favorites /> */}
 
-            {/* My Pages */}
-            <div className="p-2 text-neutral-500 flex items-center sticky top-0 bg-neutral-50 dark:bg-neutral-900 z-10">
+            {/* Tree Section Header */}
+            <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10">
                 <div className="flex-auto flex items-center">
                     <span>{t('My Pages')}</span>
                     {initLoaded ? null : (
                         <svg
-                            className="ml-4 animate-spin h-3.5 w-3.5 text-neutral-500"
+                            className="ml-4 animate-spin h-3.5 w-3.5 text-gray-400"
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -238,13 +238,13 @@ const SidebarList = () => {
                 <IconButton
                     icon="ChevronDoubleUp"
                     onClick={handleCollapseAll}
-                    className="text-neutral-600 dark:text-neutral-400 w-5 h-5 md:w-5 md:h-5"
+                    className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
                     title={t('Collapse all pages')}
                 ></IconButton>
                 <IconButton
                     icon="Plus"
                     onClick={onCreateNote}
-                    className="text-neutral-600 dark:text-neutral-400"
+                    className="text-gray-400 hover:text-white transition-colors"
                     title={t('Create page')}
                 ></IconButton>
             </div>
