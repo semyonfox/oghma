@@ -50,7 +50,7 @@ const FilterModal: FC<FilterModalProps> = ({ open, onClose, onOpen, children }) 
                             leaveTo="opacity-0 scale-95"
                         >
                             <Dialog.Panel
-                                className={`w-full ${isMobile ? '' : 'max-w-xl'} transform overflow-hidden bg-surface dark:bg-neutral-800 text-text shadow-xl transition-all ${isMobile ? '' : 'rounded-lg'}`}
+                                className={`w-full ${isMobile ? '' : 'max-w-xl'} transform overflow-hidden bg-gray-800 dark:bg-neutral-800 text-white shadow-xl transition-all ${isMobile ? '' : 'rounded-lg'}`}
                             >
                                 <div className="outline-none overflow-auto">
                                     {children}
