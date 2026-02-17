@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import NotesProviders from '@/components/notes/providers';
@@ -8,15 +9,28 @@ import UIState from '@/lib/notes/state/ui';
 import NoteState from '@/lib/notes/state/note';
 import useEditorStore from '@/lib/notes/state/editor.zustand';
 import NoteNav from '@/components/notes/note-nav';
-import Editor from '@/components/editor/editor';
+import EditorSkeleton from '@/components/editor/editor-skeleton';
 import NavigationSidebar from '@/components/notes/navigation-sidebar';
-import AIPanel from '@/components/notes/ai-panel';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
-import { Heading } from '@/components/catalyst/heading';
-import { Text } from '@/components/catalyst/text';
-import { Input } from '@/components/catalyst/input';
-import { Avatar } from '@/components/catalyst/avatar';
+import { DocumentIcon } from '@heroicons/react/24/outline';
+
+// Lazy-load Editor component (includes Lexical - 992 KB)
+// This defers loading until user navigates to a note
+const Editor = dynamic(() => import('@/components/editor/editor'), {
+  loading: () => <EditorSkeleton />,
+  ssr: false, // Don't load on server, only on client
+});
+
+// Lazy-load AI Panel component
+const AIPanel = dynamic(() => import('@/components/notes/ai-panel'), {
+  loading: () => (
+    <div className="ai-panel">
+      <div className="h-12 bg-white/10 rounded animate-pulse" />
+    </div>
+  ),
+  ssr: false,
+});
 
 // inner component that uses the state containers
 function NotesUI() {
@@ -52,25 +66,27 @@ function NotesUI() {
 
     if (ua?.isMobileOnly) {
         return (
-            <div className="flex flex-col h-screen bg-background">
+            <div className="flex flex-col h-screen bg-gray-900">
                 {/* Mobile Navbar */}
-                <nav className="mobile-navbar">
-                    <div className="mobile-navbar-content">
-                        <Heading level={5} className="m-0 mobile-navbar-title">AI Study Vault</Heading>
-                        <Avatar initials="U" />
+                <nav className="border-b border-white/10 bg-gray-800">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                        <h1 className="text-lg font-semibold text-white">AI Study Vault</h1>
+                        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold">U</div>
                     </div>
                 </nav>
                 
                 {/* Main content */}
                 <div className="flex flex-1 overflow-hidden">
                     <Sidebar />
-                    <div className="editor-pane">
+                    <div className="flex-1 overflow-auto bg-gray-800 flex flex-col">
                         {note ? (
                             <Editor readOnly={false} />
                         ) : (
-                            <div className="editor-placeholder">
-                                <div className="text-center">
-                                    <p className="text-lg">Select a note to start editing</p>
+                            <div className="flex items-center justify-center h-full">
+                                <div className="text-center text-gray-400">
+                                    <DocumentIcon className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+                                    <p className="text-sm font-semibold text-white mb-1">Select a note</p>
+                                    <p className="text-xs">Click on a note in the sidebar to start editing</p>
                                 </div>
                             </div>
                         )}
@@ -81,26 +97,28 @@ function NotesUI() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-background">
+        <div className="flex flex-col h-screen bg-gray-900">
             {/* Top Navbar with breadcrumbs */}
-            <nav className="top-navbar" aria-label="Note navigation">
-                <div className="top-navbar-content">
-                    <div className="top-navbar-left">
+            <nav className="border-b border-white/10 bg-gray-800 sticky top-0 z-40 flex-shrink-0">
+                <div className="flex items-center justify-between px-4 py-2.5 h-auto gap-4">
+                    {/* Left: Note navigation */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                         <NoteNav />
                     </div>
                     
-                    <div className="top-navbar-right">
-                        <div className="search-input-wrapper">
-                            <Input
+                    {/* Right: Search and avatar */}
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="w-40 hidden sm:block">
+                            <input
                                 type="search"
                                 placeholder="Search notes..."
                                 disabled
-                                className="text-sm bg-white/5 text-text placeholder:text-text-tertiary"
+                                className="w-full px-3 py-1.5 rounded-md bg-white/5 text-white text-sm placeholder:text-gray-500 border border-white/10 focus:outline-none focus:border-indigo-500"
                                 aria-label="Search notes"
                             />
                         </div>
-                        <div className="user-avatar" role="img" aria-label="User profile">
-                            <Avatar initials="U" />
+                        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                            U
                         </div>
                     </div>
                 </div>
@@ -124,34 +142,22 @@ function NotesUI() {
 
                     {/* Pane 2: Left Tree Sidebar */}
                     <Allotment.Pane minSize={200} maxSize={600}>
-                        <div className="tree-sidebar">
+                        <div className="h-full bg-gray-800 border-r border-white/10 overflow-y-auto flex flex-col">
                             <Sidebar />
                         </div>
                     </Allotment.Pane>
 
                     {/* Pane 3: Center Editor Area */}
                     <Allotment.Pane>
-                        <div className="editor-pane">
+                        <div className="h-full bg-gray-800 flex flex-col overflow-auto">
                             {note ? (
                                 <Editor readOnly={false} />
                             ) : (
-                                <div className="editor-placeholder">
+                                <div className="flex-1 flex items-center justify-center text-gray-400">
                                     <div className="text-center">
-                                        <svg
-                                            className="editor-placeholder-icon"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={1}
-                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                            />
-                                        </svg>
-                                        <Heading level={3} className="editor-placeholder-title">Select a note</Heading>
-                                        <Text className="editor-placeholder-text">Click on a note in the sidebar to start editing</Text>
+                                        <DocumentIcon className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+                                        <h3 className="text-sm font-semibold text-white mb-1">Select a note</h3>
+                                        <p className="text-xs">Click on a note in the sidebar to start editing</p>
                                     </div>
                                 </div>
                             )}

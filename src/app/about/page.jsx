@@ -121,61 +121,6 @@ const team = [
       'https://images.unsplash.com/photo-1509783236416-c9ad59bae472?ixlib=rb-=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=8&w=1024&h=1024&q=80',
   },
 ]
-const featuredTestimonial = {
-  body: 'OghmaNotes transformed how I take notes and study. The AI insights are incredibly helpful, and the Canvas integration saves me hours every week. Highly recommend it to any student!',
-  author: {
-    name: 'Sarah Anderson',
-    handle: 'sarahander',
-    imageUrl:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=1024&h=1024&q=80',
-  },
-}
-const testimonials = [
-  [
-    {
-      body: 'The organization features alone make OghmaNotes worth it. I can finally find my notes without endless scrolling.',
-      author: {
-        name: 'Michael Chen',
-        handle: 'michaelchen',
-        imageUrl:
-          'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-      },
-    },
-    {
-      body: 'As a professor, I appreciate how my students are now more organized. OghmaNotes definitely improves learning outcomes.',
-      author: {
-        name: 'Dr. Emily Harris',
-        handle: 'dremharris',
-        imageUrl:
-          'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-      },
-    },
-  ],
-  [
-    {
-      body: 'The Canvas sync is seamless. No more manual copying of assignments and deadlines!',
-      author: {
-        name: 'Jessica Rodriguez',
-        handle: 'jessicarodr',
-        imageUrl:
-          'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-      },
-    },
-    {
-      body: 'Best study tool I have used. The search functionality alone has saved me countless hours.',
-      author: {
-        name: 'James Wilson',
-        handle: 'jameswilson',
-        imageUrl:
-          'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-      },
-    },
-  ],
-]
-
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ')
-}
 const blogPosts = [
   {
     id: 1,
@@ -700,66 +645,8 @@ export default function About() {
           </div>
         </div>
 
-        {/* Testimonials section */}
-        <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Loved by students & professors</h2>
-            <p className="mt-6 text-lg/8 text-gray-300">
-              See what people are saying about how OghmaNotes transformed their learning.
-            </p>
-          </div>
-
-          {/* Featured Testimonial */}
-          <div className="mx-auto mt-16 max-w-2xl lg:mx-0 lg:max-w-4xl">
-            <div className="relative isolate rounded-2xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/20 p-8 sm:p-12">
-              <div className="flex flex-col sm:flex-row gap-8 items-start sm:items-center">
-                <img
-                  alt={featuredTestimonial.author.name}
-                  src={featuredTestimonial.author.imageUrl}
-                  className="size-20 sm:size-24 flex-shrink-0 rounded-full object-cover"
-                />
-                <div className="flex-1">
-                  <blockquote className="text-lg sm:text-xl/8 font-semibold text-white">
-                    "{featuredTestimonial.body}"
-                  </blockquote>
-                  <div className="mt-4">
-                    <p className="text-base font-semibold text-white">{featuredTestimonial.author.name}</p>
-                    <p className="text-sm text-indigo-300">@{featuredTestimonial.author.handle}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="absolute top-0 right-0 -z-10 w-96 h-96 rounded-full bg-indigo-500 opacity-10 blur-3xl" />
-            </div>
-          </div>
-
-          {/* Supporting Testimonials Grid */}
-          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-2">
-            {testimonials.flat().map((testimonial, index) => (
-              <div
-                key={index}
-                className="group relative rounded-2xl bg-white/5 border border-white/10 p-8 hover:bg-white/10 transition-colors"
-              >
-                <div className="flex gap-4 mb-4">
-                  <img
-                    alt={testimonial.author.name}
-                    src={testimonial.author.imageUrl}
-                    className="size-12 rounded-full object-cover flex-shrink-0"
-                  />
-                  <div>
-                    <p className="font-semibold text-white text-sm">{testimonial.author.name}</p>
-                    <p className="text-xs text-gray-400">@{testimonial.author.handle}</p>
-                  </div>
-                </div>
-                <blockquote className="text-sm/6 text-gray-300">
-                  "{testimonial.body}"
-                </blockquote>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Blog section */}
-        <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
+        <div id="blog" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
             <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">From our blog</h2>
             <p className="mt-2 text-lg/8 text-gray-400">Learn from our experts and community on note-taking, learning, and productivity.</p>
