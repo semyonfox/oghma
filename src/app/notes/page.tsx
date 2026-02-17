@@ -9,6 +9,8 @@ import NoteState from '@/lib/notes/state/note';
 import useEditorStore from '@/lib/notes/state/editor.zustand';
 import NoteNav from '@/components/notes/note-nav';
 import Editor from '@/components/editor/editor';
+import NavigationSidebar from '@/components/notes/navigation-sidebar';
+import AIPanel from '@/components/notes/ai-panel';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
 import { Heading } from '@/components/catalyst/heading';
@@ -103,24 +105,30 @@ function NotesUI() {
                 </div>
             </nav>
 
-            {/* Main Content Area */}
+            {/* Main Content Area - 4-pane layout */}
             <div className="flex flex-1 overflow-hidden">
                 {/* Split pane layout */}
                 <Allotment
                     vertical={false}
-                    defaultSizes={split.sizes}
+                    defaultSizes={[...split.sizes, 50]}
                     onChange={(sizes) => {
-                        split.saveSizes(sizes as [number, number]);
+                        // Save only the first two sizes (tree and editor) to preserve existing behavior
+                        split.saveSizes([sizes[0], sizes[1]] as [number, number]);
                     }}
                 >
-                    {/* Left Sidebar */}
+                    {/* Pane 1: Far-left Navigation Sidebar (icon-only) */}
+                    <Allotment.Pane minSize={56} maxSize={56} snap>
+                        <NavigationSidebar activeSection="notes" />
+                    </Allotment.Pane>
+
+                    {/* Pane 2: Left Tree Sidebar */}
                     <Allotment.Pane minSize={200} maxSize={600}>
                         <div className="h-full bg-surface border-r border-border overflow-y-auto">
                             <Sidebar />
                         </div>
                     </Allotment.Pane>
 
-                    {/* Main Editor Area - Step 3: Now renders Editor when note is selected */}
+                    {/* Pane 3: Center Editor Area */}
                     <Allotment.Pane>
                         <div className="h-full bg-surface flex flex-col overflow-auto">
                             {note ? (
@@ -149,46 +157,9 @@ function NotesUI() {
                         </div>
                     </Allotment.Pane>
 
-                    {/* Right Sidebar - Step 5: Show note metadata */}
-                    <Allotment.Pane minSize={0} maxSize={350}>
-                        <div className="h-full bg-surface border-l border-border overflow-y-auto p-4">
-                            {note ? (
-                                <>
-                                    <Heading level={3} className="text-sm font-semibold mb-4 text-text">Note Info</Heading>
-                                    <div className="space-y-3 text-sm text-text-tertiary">
-                                        <div>
-                                            <Text className="text-xs text-text-secondary font-semibold mb-1">ID</Text>
-                                            <Text className="font-mono text-xs bg-background p-2 rounded break-all">{note.id}</Text>
-                                        </div>
-                                        <div>
-                                            <Text className="text-xs text-text-secondary font-semibold mb-1">Title</Text>
-                                            <Text className="truncate">{note.title || 'Untitled'}</Text>
-                                        </div>
-                                        <div>
-                                            <Text className="text-xs text-text-secondary font-semibold mb-1">Content Length</Text>
-                                            <Text>{(note.content || '').length} characters</Text>
-                                        </div>
-                                        <div>
-                                            <Text className="text-xs text-text-secondary font-semibold mb-1">Word Count</Text>
-                                            <Text>{(note.content || '').split(/\s+/).filter(w => w.length > 0).length} words</Text>
-                                        </div>
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t border-border">
-                                        <Heading level={4} className="text-xs font-semibold mb-2 text-text">AI Features (Coming Soon)</Heading>
-                                        <Text className="text-xs text-text-tertiary">
-                                            TODO: Add AI-powered insights, summaries, and question generation
-                                        </Text>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <Heading level={3} className="text-sm font-semibold mb-4 text-text">Note Info</Heading>
-                                    <Text className="text-sm text-text-tertiary">
-                                        Select a note to view details and AI insights.
-                                    </Text>
-                                </>
-                            )}
-                        </div>
+                    {/* Pane 4: Right AI Panel */}
+                    <Allotment.Pane minSize={0} maxSize={400} snap>
+                        <AIPanel note={note} />
                     </Allotment.Pane>
                 </Allotment>
             </div>
