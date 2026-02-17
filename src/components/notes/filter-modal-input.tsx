@@ -27,8 +27,8 @@ const FilterModalInput: FC<FilterModalInputProps> = ({ doFilter, keyword, placeh
     }, []);
 
     return (
-        <div className="flex items-center py-2 px-4 border-b border-border dark:border-neutral-700">
-            <MagnifyingGlassIcon className="w-5 h-5 text-text-tertiary" />
+        <div className="flex items-center py-2 px-4 border-b border-white/10 dark:border-neutral-700">
+            <MagnifyingGlassIcon className="w-5 h-5 text-gray-500" />
             <input
                 ref={inputRef}
                 defaultValue={keyword}
@@ -40,7 +40,7 @@ const FilterModalInput: FC<FilterModalInputProps> = ({ doFilter, keyword, placeh
             />
             <button
                 onClick={onClose}
-                className="text-sm text-text-secondary hover:text-text transition-colors"
+                className="text-sm text-gray-400 hover:text-text transition-colors"
             >
                 {t('Cancel')}
             </button>

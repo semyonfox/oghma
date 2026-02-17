@@ -17,10 +17,10 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   }, [router]);
 
   return (
-    <div className="tree-header">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <span className="tree-header-title">📝 Notes</span>
+        <span className="text-sm font-semibold text-white">📝 Notes</span>
       </div>
 
       {/* Actions */}
@@ -28,7 +28,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
         {/* New Note Button */}
         <button
           onClick={handleNewNote}
-          className="icon-button"
+          className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
           title="New note"
           aria-label="Create new note"
         >
@@ -38,7 +38,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
         {/* Collapse Toggle */}
         <button
           onClick={onToggleSidebar}
-          className="icon-button"
+          className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
           title="Collapse sidebar"
           aria-label="Toggle sidebar"
         >
