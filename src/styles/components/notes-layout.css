@@ -93,6 +93,10 @@
   @apply rounded px-2 py-1.5 cursor-pointer;
 }
 
+.tree-item-base:focus-within {
+  @apply outline-none ring-1 ring-primary-500;
+}
+
 .tree-item-active {
   @apply bg-white/10 text-text;
 }
@@ -160,9 +164,17 @@
   @apply text-sm font-medium;
 }
 
+.tree-action-button:focus {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
+}
+
 .tree-action-button-primary {
   @apply bg-primary text-text-on-primary hover:bg-primary;
   @apply hover:text-text-on-primary;
+}
+
+.tree-action-button-primary:focus {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
 }
 
 /* ====== Editor Area ====== */
@@ -235,8 +247,16 @@
   @apply text-sm font-medium text-left;
 }
 
+.ai-tool-button:focus {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
+}
+
 .ai-tool-button-active {
   @apply bg-primary/20 text-primary hover:bg-primary/30;
+}
+
+.ai-tool-button-active:focus {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
 }
 
 /* ====== Pane Dividers & Splitters ====== */

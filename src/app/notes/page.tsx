@@ -83,7 +83,7 @@ function NotesUI() {
     return (
         <div className="flex flex-col h-screen bg-background">
             {/* Top Navbar with breadcrumbs */}
-            <nav className="top-navbar">
+            <nav className="top-navbar" aria-label="Note navigation">
                 <div className="top-navbar-content">
                     <div className="top-navbar-left">
                         <NoteNav />
@@ -93,12 +93,13 @@ function NotesUI() {
                         <div className="search-input-wrapper">
                             <Input
                                 type="search"
-                                placeholder="Search..."
+                                placeholder="Search notes..."
                                 disabled
                                 className="text-sm bg-white/5 text-text placeholder:text-text-tertiary"
+                                aria-label="Search notes"
                             />
                         </div>
-                        <div className="user-avatar">
+                        <div className="user-avatar" role="img" aria-label="User profile">
                             <Avatar initials="U" />
                         </div>
                     </div>
