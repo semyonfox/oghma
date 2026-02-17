@@ -30,14 +30,14 @@ const BrowserSidebar: FC = () => {
     }, [sidebar]);
 
     if (sidebar?.isFold) {
-        // When collapsed, show minimal vertical toolbar - keep old sidebar-tool for compact view
+        // When collapsed, show minimal vertical toolbar
         return (
             <section className="flex h-full">
                 {/* Vertical icon toolbar */}
-                <aside className="h-full flex flex-col w-12 md:w-11 flex-none bg-background border-r border-border" role="complementary" aria-label="Collapsed notes sidebar">
-                    <nav className="icon-toolbar" role="toolbar" aria-label="Notes toolbar">
+                <aside className="h-full flex flex-col w-12 md:w-11 flex-none bg-gray-800 border-r border-white/10" role="complementary" aria-label="Collapsed notes sidebar">
+                    <nav className="flex flex-col items-center gap-2 p-2" role="toolbar" aria-label="Notes toolbar">
                         <button
-                            className="icon-button"
+                            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
                             title="Search notes"
                             aria-label="Search notes"
                             onClick={handleToggleSidebar}
@@ -48,9 +48,9 @@ const BrowserSidebar: FC = () => {
                         </button>
                     </nav>
                     <div className="flex-1" />
-                    <nav className="icon-toolbar border-t border-border" role="toolbar" aria-label="Sidebar actions">
+                    <nav className="flex flex-col items-center gap-2 p-2 border-t border-white/10" role="toolbar" aria-label="Sidebar actions">
                         <button
-                            className="icon-button"
+                            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
                             title="Settings"
                             aria-label="Settings"
                         >
@@ -60,7 +60,7 @@ const BrowserSidebar: FC = () => {
                             </svg>
                         </button>
                         <button
-                            className="icon-button"
+                            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
                             title="Toggle sidebar"
                             aria-label="Expand sidebar"
                             onClick={handleToggleSidebar}
@@ -77,7 +77,7 @@ const BrowserSidebar: FC = () => {
 
     // Full sidebar when expanded
     return (
-        <aside className="flex flex-col h-full w-72" role="complementary" aria-label="Notes sidebar">
+        <aside className="flex flex-col h-full w-72 bg-gray-800" role="complementary" aria-label="Notes sidebar">
             {/* Header */}
             <NoteSidebarHeader onToggleSidebar={handleToggleSidebar} />
 
@@ -88,8 +88,8 @@ const BrowserSidebar: FC = () => {
             <NoteSidebarFavorites />
 
             {/* Tree - scrollable */}
-            <nav className="tree-items" role="tree" aria-label="Notes hierarchy">
-                <h3 className="tree-section-label" aria-hidden="true">📂 All Notes</h3>
+            <nav className="flex-1 overflow-y-auto px-3 py-2" role="tree" aria-label="Notes hierarchy">
+                <h3 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">📂 All Notes</h3>
                 <SidebarList />
             </nav>
 

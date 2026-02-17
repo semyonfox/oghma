@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import '../styles/design-system.css';
-@import '../styles/components/notes-layout.css';
 
 @theme {
   /* === PRIMARY: Blue for Focus & Productivity === */
@@ -9,12 +7,11 @@
   --color-primary-200: #bfdbfe;
   --color-primary-300: #93c5fd;
   --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;    /* main brand blue */
+  --color-primary-500: #3b82f6;
   --color-primary-600: #2563eb;
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
-  --color-primary: var(--color-primary-500);
 
   /* === SECONDARY: Teal for Progress & Learning === */
   --color-secondary-50: #f0fdfa;
@@ -22,12 +19,11 @@
   --color-secondary-200: #99f6e4;
   --color-secondary-300: #5eead4;
   --color-secondary-400: #2dd4bf;
-  --color-secondary-500: #14b8a6;    /* teal progression */
+  --color-secondary-500: #14b8a6;
   --color-secondary-600: #0d9488;
   --color-secondary-700: #0f766e;
   --color-secondary-800: #115e59;
   --color-secondary-900: #134e4a;
-  --color-secondary: var(--color-secondary-500);
 
   /* === SUCCESS: Green for Completion === */
   --color-success-50: #f0fdf4;
@@ -35,25 +31,11 @@
   --color-success-200: #bbf7d0;
   --color-success-300: #86efac;
   --color-success-400: #4ade80;
-  --color-success-500: #22c55e;     /* completion green */
+  --color-success-500: #22c55e;
   --color-success-600: #16a34a;
   --color-success-700: #15803d;
   --color-success-800: #166534;
   --color-success-900: #14532d;
-  --color-success: var(--color-success-500);
-
-  /* === AI ACCENT: Amber/Orange for AI Features === */
-  --color-ai-50: #fffbeb;
-  --color-ai-100: #fef3c7;
-  --color-ai-200: #fde68a;
-  --color-ai-300: #fcd34d;
-  --color-ai-400: #fbbf24;
-  --color-ai-500: #f59e0b;          /* AI suggestion highlight */
-  --color-ai-600: #d97706;
-  --color-ai-700: #b45309;
-  --color-ai-800: #92400e;
-  --color-ai-900: #78350f;
-  --color-ai: var(--color-ai-500);
 
   /* === ERROR: Red for Warnings & Destructive Actions === */
   --color-error-50: #fef2f2;
@@ -66,120 +48,25 @@
   --color-error-700: #b91c1c;
   --color-error-800: #991b1b;
   --color-error-900: #7f1d1d;
-  --color-error: var(--color-error-500);
-
-  /* === NEUTRAL: Warm Gray for Backgrounds (Reduced Eye Strain) === */
-  --color-neutral-50: #fafaf9;      /* warm off-white */
-  --color-neutral-100: #f5f5f4;
-  --color-neutral-200: #e7e5e4;
-  --color-neutral-300: #d6d3d1;
-  --color-neutral-400: #a8a29e;
-  --color-neutral-500: #78716c;
-  --color-neutral-600: #57534e;
-  --color-neutral-700: #44403c;
-  --color-neutral-800: #292524;
-  --color-neutral-900: #1c1917;
-
-  /* === SEMANTIC TOKENS === */
-  /* Light Mode */
-  --color-background: var(--color-neutral-50);
-  --color-surface: #ffffff;
-  --color-surface-elevated: #ffffff;
-  --color-border: var(--color-neutral-200);
-  --color-border-subtle: var(--color-neutral-100);
-  
-  --color-text: var(--color-neutral-900);
-  --color-text-secondary: var(--color-neutral-600);
-  --color-text-tertiary: var(--color-neutral-400);
-  --color-text-on-primary: #ffffff;
-  
-  --color-interactive: var(--color-primary-500);
-  --color-interactive-hover: var(--color-primary-600);
-  --color-interactive-active: var(--color-primary-700);
-
-  /* Gradient for Progress Visualization */
-  --gradient-progress: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-secondary-500) 50%, var(--color-success-500) 100%);
-  
-  /* AI Feature Gradient */
-  --gradient-ai: linear-gradient(135deg, var(--color-ai-400) 0%, var(--color-ai-600) 100%);
-
-  /* Opacity Scale */
-  --opacity-subtle: 0.05;
-  --opacity-muted: 0.1;
-  --opacity-border: 0.2;
-  --opacity-overlay: 0.5;
-  --opacity-disabled: 0.4;
-
-  /* === CATALYST COMPONENT COLOR MAPPINGS === */
-  /* Map OghmaNotes colors to Catalyst's CSS variables */
-  
-  /* Primary Button (Blue) */
-  --catalyst-primary-bg: var(--color-primary-600);
-  --catalyst-primary-border: var(--color-primary-700);
-  --catalyst-primary-hover: var(--color-primary-500);
-  
-  /* Danger/Destructive (Red) */
-  --catalyst-danger-bg: var(--color-error-600);
-  --catalyst-danger-border: var(--color-error-700);
-  --catalyst-danger-hover: var(--color-error-500);
-  
-  /* Success (Green) */
-  --catalyst-success-bg: var(--color-success-600);
-  --catalyst-success-border: var(--color-success-700);
-  --catalyst-success-hover: var(--color-success-500);
-  
-  /* AI (Amber) */
-  --catalyst-ai-bg: var(--color-ai-600);
-  --catalyst-ai-border: var(--color-ai-700);
-  --catalyst-ai-hover: var(--color-ai-500);
-}
-
-/* Dark Mode Overrides */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--color-neutral-900);
-    --color-surface: var(--color-neutral-800);
-    --color-surface-elevated: var(--color-neutral-700);
-    --color-border: var(--color-neutral-700);
-    --color-border-subtle: rgba(255, 255, 255, 0.05);
-    
-    --color-text: var(--color-neutral-50);
-    --color-text-secondary: var(--color-neutral-300);
-    --color-text-tertiary: var(--color-neutral-500);
-    --color-text-on-primary: #ffffff;
-    
-    --color-interactive: var(--color-primary-400);
-    --color-interactive-hover: var(--color-primary-500);
-    --color-interactive-active: var(--color-primary-600);
-  }
 }
 
 html, body {
   @apply overflow-x-hidden antialiased;
 }
 
-/* Smooth transitions for interactive elements */
 @layer components {
-  .card-hover {
-    @apply transition-shadow duration-150 ease-in-out hover:shadow-lg;
-  }
-
-  .btn-hover {
-    @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
-  }
-
   /* Editor Styles */
   .editor-input {
-    @apply w-full bg-surface text-text outline-none border-none rounded-lg;
+    @apply w-full bg-gray-800 text-white outline-none border-none rounded-lg;
     @apply transition-colors duration-200;
   }
 
   .editor-input:focus {
-    @apply bg-surface-elevated ring-2 ring-primary-500;
+    @apply bg-gray-700 ring-2 ring-indigo-500;
   }
 
   .editor-placeholder {
-    @apply absolute text-text-tertiary pointer-events-none select-none;
+    @apply absolute text-gray-500 pointer-events-none select-none;
   }
 
   .lexical-editor-wrapper {
@@ -188,11 +75,11 @@ html, body {
 
   /* Lexical Editor Theme */
   .editor-theme-light {
-    @apply bg-surface text-text;
+    @apply bg-white text-gray-900;
   }
 
   .editor-theme-dark {
-    @apply bg-neutral-800 text-neutral-50;
+    @apply bg-gray-800 text-gray-50;
   }
 
   /* Lexical Rich Text Plugin Styles */
@@ -226,18 +113,40 @@ html, body {
   }
 
   .lexical-editor a {
-    @apply text-primary-500 underline hover:text-primary-600 cursor-pointer;
+    @apply text-indigo-500 underline hover:text-indigo-600 cursor-pointer;
   }
 
   .lexical-editor blockquote {
-    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-secondary;
+    @apply border-l-4 border-indigo-500 pl-4 italic my-2 text-gray-400;
   }
 
   .lexical-editor code {
-    @apply bg-neutral-100 dark:bg-neutral-700 px-2 py-1 rounded font-mono text-sm;
+    @apply bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-mono text-sm;
   }
 
   .lexical-editor pre {
-    @apply bg-neutral-900 text-neutral-50 p-4 rounded-lg overflow-x-auto;
+    @apply bg-gray-900 text-gray-50 p-4 rounded-lg overflow-x-auto;
+  }
+
+  /* Card hover effect */
+  .card-hover {
+    @apply transition-shadow duration-150 ease-in-out hover:shadow-lg;
+  }
+
+  /* Button hover effect */
+  .btn-hover {
+    @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
+  }
+}
+
+/* Accessibility: Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
