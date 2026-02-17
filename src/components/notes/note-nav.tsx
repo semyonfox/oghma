@@ -6,11 +6,10 @@ import NoteState from '@/lib/notes/state/note';
 import UIState from '@/lib/notes/state/ui';
 import { useCallback, MouseEvent, FC } from 'react';
 import NoteTreeState from '@/lib/notes/state/tree';
-import Link from 'next/link';
-import IconButton from '@/components/icon-button';
 import PortalState from '@/lib/notes/state/portal';
 import { NOTE_SHARED } from '@/lib/notes/types/meta';
 import useI18n from '@/lib/notes/hooks/use-i18n';
+import { useIsLoading } from '@/lib/notes/hooks/use-note-selectors';
 import { Breadcrumb } from '@/components/breadcrumb';
 import {
     Bars3Icon,
@@ -18,7 +17,6 @@ import {
     EllipsisHorizontalIcon,
     EyeIcon,
     ArrowsPointingOutIcon,
-    ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
 const MenuButton: FC = () => {
@@ -44,7 +42,9 @@ const MenuButton: FC = () => {
 
 const NoteNav: FC = () => {
     const { t } = useI18n();
-    const { note, loading } = NoteState.useContainer();
+    const { note } = NoteState.useContainer();
+    // Using selector hooks (Phase 1 pattern) - prevents unnecessary re-renders when other state changes
+    const loading = useIsLoading();
     const { ua } = UIState.useContainer();
     const { getPaths, showItem, checkItemIsShown } = NoteTreeState.useContainer();
     const { share, menu, editorWidthSelect } = PortalState.useContainer();
