@@ -209,20 +209,21 @@ const SidebarList = () => {
     );
 
     return (
-        <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto">
+        <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto" aria-label="Notes list">
             {/* Favorites - hidden since we have a separate section now */}
             {/* <Favorites /> */}
 
             {/* Tree Section Header */}
-            <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10">
+            <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10" role="toolbar" aria-label="Notes actions">
                 <div className="flex-auto flex items-center">
-                    <span>{t('My Pages')}</span>
+                    <span id="my-pages-label">{t('My Pages')}</span>
                     {initLoaded ? null : (
                         <svg
                             className="ml-4 animate-spin h-3.5 w-3.5 text-gray-400"
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
+                            aria-hidden="true"
                         >
                             <circle
                                 className="opacity-25"
@@ -245,12 +246,14 @@ const SidebarList = () => {
                     onClick={handleCollapseAll}
                     className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
                     title={t('Collapse all pages')}
+                    aria-label={t('Collapse all pages')}
                 ></IconButton>
                 <IconButton
                     icon="Plus"
                     onClick={onCreateNote}
                     className="text-gray-400 hover:text-white transition-colors"
                     title={t('Create page')}
+                    aria-label={t('Create page')}
                 ></IconButton>
             </div>
             <div className="flex-grow pb-10">
@@ -267,6 +270,7 @@ const SidebarList = () => {
                     onMove={onMove}
                     disableDrag={false}
                     disableDrop={false}
+                    aria-labelledby="my-pages-label"
                 >
                     {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
                         const nodeData = node.data;

@@ -33,9 +33,11 @@ const MenuButton: FC = () => {
     return (
         <button
             onClick={onToggle}
-            className="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 transition-colors mr-2"
+            className="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            aria-label="Toggle sidebar"
+            title="Toggle sidebar"
         >
-            <Bars3Icon className="w-5 h-5" />
+            <Bars3Icon className="w-5 h-5" aria-hidden="true" />
         </button>
     );
 };
@@ -116,6 +118,7 @@ const NoteNav: FC = () => {
             style={{
                 width: ua?.isMobileOnly ? '100%' : 'inherit',
             }}
+            aria-label="Note actions and navigation"
         >
             {ua?.isMobileOnly && <MenuButton />}
 
@@ -130,10 +133,11 @@ const NoteNav: FC = () => {
                         {!isShown && (
                             <button
                                 onClick={handleClickOpenInTree}
-                                className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                                className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
                                 title={t('Show note in tree')}
+                                aria-label={t('Show note in tree')}
                             >
-                                 <EyeIcon className="w-4 h-4 text-gray-500" />
+                                 <EyeIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
                             </button>
                         )}
                     </>
@@ -153,8 +157,9 @@ const NoteNav: FC = () => {
             <button
                 onClick={handleClickShare}
                 disabled={!note}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Share page')}
+                aria-label={t('Share page')}
             >
                 <ShareIcon
                     className={`w-4 h-4 ${
@@ -162,24 +167,27 @@ const NoteNav: FC = () => {
                             ? 'text-indigo-500'
                             : 'text-gray-400'
                     }`}
+                    aria-hidden="true"
                 />
             </button>
 
             <button
                 onClick={handleClickEditorWidth}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Editor width')}
+                aria-label={t('Editor width')}
             >
-                <ArrowsPointingOutIcon className="w-4 h-4 text-gray-400" />
+                <ArrowsPointingOutIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
             </button>
 
             <button
                 disabled={!note}
                 onClick={handleClickMenu}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Settings')}
+                aria-label={t('Settings')}
             >
-                <EllipsisHorizontalIcon className="w-4 h-4 text-gray-400" />
+                <EllipsisHorizontalIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
             </button>
         </nav>
     );
