@@ -69,7 +69,7 @@ export function useSWR<T>(
   const [isValidating, setIsValidating] = useState(false);
 
   const lastFetchRef = useRef<number>(0);
-  const revalidateTimerRef = useRef<NodeJS.Timeout>();
+  const revalidateTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   /**
    * Check if cache is still fresh
