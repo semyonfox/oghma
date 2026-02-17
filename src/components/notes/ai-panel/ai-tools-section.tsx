@@ -63,11 +63,11 @@ export const AIToolsSection: FC<AIToolsSectionProps> = ({ noteId }) => {
   };
 
   return (
-    <div className="mt-6 pt-4 border-t border-border">
-      <Heading level={4} className="text-xs font-semibold mb-3 text-text">
+    <div className="ai-section ai-section:last-of-type">
+      <Heading level={4} className="ai-section-title">
         AI Tools
       </Heading>
-      <div className="space-y-2">
+      <div className="ai-section-content">
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -76,19 +76,19 @@ export const AIToolsSection: FC<AIToolsSectionProps> = ({ noteId }) => {
               onClick={() => handleToolClick(tool.id)}
               disabled={tool.coming}
               title={tool.coming ? 'Coming soon' : tool.label}
-              className={`w-full flex items-start gap-3 p-2.5 rounded-lg transition-colors duration-200 ${
+              className={`ai-tool-button ${
                 tool.coming
-                  ? 'opacity-60 cursor-not-allowed bg-transparent hover:bg-surface-hover/50'
-                  : 'hover:bg-surface-hover active:bg-primary/10'
+                  ? 'opacity-60 cursor-not-allowed'
+                  : 'ai-tool-button-active'
               }`}
             >
-              <Icon className="w-4 h-4 text-text-secondary flex-shrink-0 mt-0.5" />
-              <div className="text-left">
+              <Icon className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+              <div className="text-left flex-1">
                 <Text className="text-xs font-medium text-text">{tool.label}</Text>
-                <Text className="text-xs text-text-tertiary">{tool.description}</Text>
+                <Text className="text-xs text-text-secondary">{tool.description}</Text>
               </div>
               {tool.coming && (
-                <div className="ml-auto text-xs px-1.5 py-0.5 bg-background rounded text-text-tertiary flex-shrink-0">
+                <div className="ml-auto text-xs px-1.5 py-0.5 bg-white/5 rounded text-text-tertiary flex-shrink-0">
                   Soon
                 </div>
               )}

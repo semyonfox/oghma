@@ -32,10 +32,10 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
   };
 
   return (
-    <div className="w-14 h-screen bg-surface border-r border-border flex flex-col items-center py-3 sticky top-0 hidden md:flex">
+    <div className="nav-sidebar hidden md:flex">
       {/* Logo/Branding */}
-      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 mb-8 flex-shrink-0">
-        <span className="text-white font-bold text-sm">S</span>
+      <div className="nav-logo">
+        <span>S</span>
       </div>
 
       {/* Main Navigation */}
@@ -47,11 +47,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
             <button
               key={section.id}
               onClick={() => handleSectionClick(section.id)}
-              className={`relative p-2.5 rounded-lg transition-all duration-200 group ${
-                isActive
-                  ? 'bg-primary text-white'
-                  : 'text-text-secondary hover:bg-surface-hover hover:text-text'
-              }`}
+              className={`nav-item group ${isActive ? 'nav-item-active' : ''}`}
               title={section.label}
               aria-label={section.label}
             >
@@ -63,7 +59,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
               )}
 
               {/* Tooltip on hover */}
-              <div className="absolute left-full ml-2 px-2 py-1 bg-background border border-border rounded text-xs whitespace-nowrap text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+              <div className="nav-tooltip">
                 {section.label}
               </div>
             </button>
@@ -74,11 +70,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
       {/* Settings at Bottom */}
       <button
         onClick={() => handleSectionClick('settings')}
-        className={`p-2.5 rounded-lg transition-all duration-200 group relative ${
-          activeSection === 'settings'
-            ? 'bg-primary text-white'
-            : 'text-text-secondary hover:bg-surface-hover hover:text-text'
-        }`}
+        className={`nav-item group ${activeSection === 'settings' ? 'nav-item-active' : ''}`}
         title="Settings"
         aria-label="Settings"
       >
@@ -90,7 +82,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
         )}
 
         {/* Tooltip on hover */}
-        <div className="absolute left-full ml-2 px-2 py-1 bg-background border border-border rounded text-xs whitespace-nowrap text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+        <div className="nav-tooltip">
           Settings
         </div>
       </button>
