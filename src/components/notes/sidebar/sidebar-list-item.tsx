@@ -120,10 +120,10 @@ const SidebarListItem: FC<{
             <div
                 {...attrs}
                 ref={innerRef}
-                className={`flex items-center group pr-2 overflow-hidden hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition-colors ${
-                    snapshot.isDragging ? 'shadow bg-neutral-200 dark:bg-neutral-800' : ''
+                className={`flex items-center group pr-2 overflow-hidden hover:bg-white/5 text-gray-400 hover:text-white transition-colors ${
+                    snapshot.isDragging ? 'shadow bg-white/10' : ''
                 } ${
-                    activeId === item.id ? 'bg-neutral-100 dark:bg-neutral-800/50' : ''
+                    activeId === item.id ? 'bg-white/5 text-white' : ''
                 }`}
             >
                 <Link 
@@ -134,7 +134,7 @@ const SidebarListItem: FC<{
                     {emoji ? (
                         <span
                             onClick={handleClickIcon}
-                            className="block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded hover:bg-neutral-300 dark:hover:bg-neutral-700 mr-1 text-center transition-colors"
+                            className="block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded hover:bg-white/10 mr-1 text-center transition-colors"
                         >
                             {emoji}
                         </span>
@@ -178,7 +178,7 @@ const SidebarListItem: FC<{
                                     onRenameComplete?.(item.title || '');
                                 }
                             }}
-                            className="flex-1 truncate bg-white dark:bg-neutral-800 border border-primary-500 rounded px-1 outline-none text-neutral-900 dark:text-neutral-100"
+                            className="flex-1 truncate bg-white/10 border border-white/20 rounded px-1 outline-none text-white focus:bg-white/20 focus:border-white/40 transition-colors"
                             dir="auto"
                             onClick={(e) => e.stopPropagation()}
                         />
@@ -209,7 +209,7 @@ const SidebarListItem: FC<{
 
             {!hasChildren && isExpanded && (
 <div
-    className={`py-1.5 text-neutral-400 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
+    className={`py-1.5 text-gray-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
 >
                     {initLoaded ? t('No notes inside') : <TextSkeleton />}
                 </div>
