@@ -46,7 +46,7 @@ const PreviewModal: FC = () => {
                 onClick={() => preview.close()}
             />
             <div
-                className="fixed z-50 w-72 max-h-48 bg-surface-elevated dark:bg-neutral-700 rounded-lg shadow-xl border border-border dark:border-neutral-600 overflow-hidden"
+                className="fixed z-50 w-72 max-h-48 bg-gray-700 dark:bg-neutral-700 rounded-lg shadow-xl border border-white/10 dark:border-neutral-600 overflow-hidden"
                 style={{ top, left }}
                 onMouseLeave={() => preview.close()}
             >
@@ -55,11 +55,11 @@ const PreviewModal: FC = () => {
                     className="block p-3 hover:bg-neutral-50 dark:hover:bg-neutral-600 transition-colors"
                     onClick={() => preview.close()}
                 >
-                    <h4 className="text-sm font-semibold text-text truncate mb-1">
+                    <h4 className="text-sm font-semibold text-white truncate mb-1">
                         {title}
                     </h4>
                     {content && (
-                        <p className="text-xs text-text-tertiary line-clamp-3">
+                        <p className="text-xs text-gray-500 line-clamp-3">
                             {content}
                         </p>
                     )}

@@ -65,7 +65,7 @@ export default function FilterModalList<T>({
 
     return (
         <ul
-            className="border-t border-border-subtle dark:border-neutral-700 overflow-auto divide-y divide-border-subtle dark:divide-neutral-700"
+            className="border-t border-white/5 dark:border-neutral-700 overflow-auto divide-y divide-border-subtle dark:divide-neutral-700"
             style={{ maxHeight: maxH }}
         >
             {items.map((item, index) =>
