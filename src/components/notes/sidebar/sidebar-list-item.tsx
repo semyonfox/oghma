@@ -150,16 +150,30 @@ const SidebarListItem: FC<{
                 } ${
                     activeId === item.id ? 'tree-item-active' : ''
                 }`}
+                role="treeitem"
+                aria-expanded={hasChildren ? isExpanded : undefined}
+                aria-selected={activeId === item.id}
+                aria-current={activeId === item.id ? 'page' : undefined}
             >
                 <Link 
                     href={linkHref}
                     className="flex flex-1 items-center truncate px-2 py-1.5"
                     onClick={handleClickItem}
+                    aria-label={item.title || t('Untitled')}
                 >
                     {emoji ? (
                         <span
                             onClick={handleClickIcon}
                             className="tree-item-icon block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded mr-1 text-center"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : ''}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleClickIcon(e as any);
+                                }
+                            }}
                         >
                             {emoji}
                         </span>
@@ -175,6 +189,7 @@ const SidebarListItem: FC<{
                             }
                             iconClassName={`transition-transform transform ${isExpanded ? 'rotate-90' : ''}`}
                             onClick={handleClickIcon}
+                            aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : t('Document')}
                         ></IconButton>
                     )}
 
@@ -200,6 +215,7 @@ const SidebarListItem: FC<{
                             className="tree-item-label flex-1 truncate bg-white/10 border border-border rounded px-1 outline-none text-text focus:bg-white/20 focus:border-primary transition-colors"
                             dir="auto"
                             onClick={(e) => e.stopPropagation()}
+                            aria-label={t('Rename note')}
                         />
                     ) : (
                         <span className="flex-1 truncate" dir="auto">
@@ -216,6 +232,8 @@ const SidebarListItem: FC<{
                     onClick={handleClickMenu}
                     className="tree-item-action-button hidden group-hover:block"
                     title={t('Remove, Copy Link, etc')}
+                    aria-label={t('Note actions')}
+                    tabIndex={-1}
                 ></IconButton>
 
                 <IconButton
@@ -223,6 +241,8 @@ const SidebarListItem: FC<{
                     onClick={onAddNote}
                     className="tree-item-action-button ml-1 hidden group-hover:block"
                     title={t('Add a page inside')}
+                    aria-label={t('Add note')}
+                    tabIndex={-1}
                 ></IconButton>
             </div>
 
