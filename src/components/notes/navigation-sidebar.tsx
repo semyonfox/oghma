@@ -32,14 +32,14 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
   };
 
   return (
-    <div className="nav-sidebar hidden md:flex">
+    <div className="nav-sidebar hidden md:flex" role="navigation" aria-label="Main navigation">
       {/* Logo/Branding */}
-      <div className="nav-logo">
+      <div className="nav-logo" aria-label="SocsBoard" role="img">
         <span>S</span>
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 flex flex-col items-center gap-3">
+      <nav className="flex-1 flex flex-col items-center gap-3" aria-label="Section navigation">
         {sections.map((section) => {
           const Icon = section.icon;
           const isActive = activeSection === section.id;
@@ -50,16 +50,22 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
               className={`nav-item group ${isActive ? 'nav-item-active' : ''}`}
               title={section.label}
               aria-label={section.label}
+              aria-current={isActive ? 'page' : undefined}
+              role="menuitem"
+              aria-pressed={isActive}
             >
               <Icon className="w-5 h-5" />
               
               {/* Active indicator dot */}
               {isActive && (
-                <div className="absolute -right-1.5 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full" />
+                <div 
+                  className="absolute -right-1.5 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full" 
+                  aria-hidden="true"
+                />
               )}
 
               {/* Tooltip on hover */}
-              <div className="nav-tooltip">
+              <div className="nav-tooltip" role="tooltip" id={`tooltip-${section.id}`}>
                 {section.label}
               </div>
             </button>
@@ -73,16 +79,22 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
         className={`nav-item group ${activeSection === 'settings' ? 'nav-item-active' : ''}`}
         title="Settings"
         aria-label="Settings"
+        aria-current={activeSection === 'settings' ? 'page' : undefined}
+        role="menuitem"
+        aria-pressed={activeSection === 'settings'}
       >
         <Cog6ToothIcon className="w-5 h-5" />
         
         {/* Active indicator dot */}
         {activeSection === 'settings' && (
-          <div className="absolute -right-1.5 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full" />
+          <div 
+            className="absolute -right-1.5 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-primary rounded-full" 
+            aria-hidden="true"
+          />
         )}
 
         {/* Tooltip on hover */}
-        <div className="nav-tooltip">
+        <div className="nav-tooltip" role="tooltip" id="tooltip-settings">
           Settings
         </div>
       </button>
