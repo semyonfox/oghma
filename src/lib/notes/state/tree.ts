@@ -1,5 +1,4 @@
 // extracted from Notea (MIT License)
-import { cloneDeep, forEach, isEmpty, map, reduce } from 'lodash';
 import { genId } from '@/lib/notes/utils/id';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createContainer } from 'unstated-next';
@@ -49,18 +48,18 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
         treeRef.current = tree;
     }, [tree]);
 
-    const fetchNotes = useCallback(
-        async (tree: TreeModel) => {
-            await Promise.all(
-                map(tree.items, async (item) => {
-                    item.data = await fetchNote(item.id);
-                })
-            );
+     const fetchNotes = useCallback(
+         async (tree: TreeModel) => {
+             await Promise.all(
+                 Object.values(tree.items).map(async (item) => {
+                     item.data = await fetchNote(item.id);
+                 })
+             );
 
-            return tree;
-        },
-        [fetchNote]
-    );
+             return tree;
+         },
+         [fetchNote]
+     );
 
     const initTree = useCallback(async () => {
         const cache = await uiCache.getItem<TreeModel>(TREE_CACHE_KEY);
@@ -93,20 +92,19 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
         setTree(tree);
     }, []);
 
-    const removeItem = useCallback(async (id: string) => {
-        const tree = TreeActions.removeItem(treeRef.current, id);
+     const removeItem = useCallback(async (id: string) => {
+         const tree = TreeActions.removeItem(treeRef.current, id);
 
-        setTree(tree);
-        await Promise.all(
-            map(
-                TreeActions.flattenTree(tree, id),
-                async (item) =>
-                    await noteCache.mutateItem(item.id, {
-                        deleted: NOTE_DELETED.DELETED,
-                    })
-            )
-        );
-    }, []);
+         setTree(tree);
+         await Promise.all(
+             TreeActions.flattenTree(tree, id).map(
+                 async (item) =>
+                     await noteCache.mutateItem(item.id, {
+                         deleted: NOTE_DELETED.DELETED,
+                     })
+             )
+         );
+     }, []);
 
     const genNewId = useCallback(() => {
         let newId = genId();
@@ -144,35 +142,34 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
             // update cache with new tree state
             await uiCache.setItem(TREE_CACHE_KEY, newTree);
             
-            delete data.data;
-            // @todo diff 没有变化就不发送请求
-            if (!isEmpty(data)) {
-                await mutate({
-                    action: 'mutate',
-                    data: {
-                        ...data,
-                        id,
-                    },
-                });
-            }
+             delete data.data;
+             // @todo diff 没有变化就不发送请求
+             if (Object.keys(data).length > 0) {
+                 await mutate({
+                     action: 'mutate',
+                     data: {
+                         ...data,
+                         id,
+                     },
+                 });
+             }
         },
         [mutate]
     );
 
-    const restoreItem = useCallback(async (id: string, pid: string) => {
-        const tree = TreeActions.restoreItem(treeRef.current, id, pid);
+     const restoreItem = useCallback(async (id: string, pid: string) => {
+         const tree = TreeActions.restoreItem(treeRef.current, id, pid);
 
-        setTree(tree);
-        await Promise.all(
-            map(
-                TreeActions.flattenTree(tree, id),
-                async (item) =>
-                    await noteCache.mutateItem(item.id, {
-                        deleted: NOTE_DELETED.NORMAL,
-                    })
-            )
-        );
-    }, []);
+         setTree(tree);
+         await Promise.all(
+             TreeActions.flattenTree(tree, id).map(
+                 async (item) =>
+                     await noteCache.mutateItem(item.id, {
+                         deleted: NOTE_DELETED.NORMAL,
+                     })
+             )
+         );
+     }, []);
 
     const deleteItem = useCallback(async (id: string) => {
         setTree(TreeActions.deleteItem(treeRef.current, id));
@@ -185,17 +182,16 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
         );
     }, []);
 
-    const setItemsExpandState = useCallback(
-        async (items: TreeItemModel[], newValue: boolean) => {
-            const newTree = reduce(
-                items,
-                (tempTree, item) =>
-                    TreeActions.mutateItem(tempTree, item.id, {
-                        isExpanded: newValue,
-                    }),
-                treeRef.current
-            );
-            setTree(newTree);
+     const setItemsExpandState = useCallback(
+         async (items: TreeItemModel[], newValue: boolean) => {
+             const newTree = items.reduce(
+                 (tempTree, item) =>
+                     TreeActions.mutateItem(tempTree, item.id, {
+                         isExpanded: newValue,
+                     }),
+                 treeRef.current
+             );
+             setTree(newTree);
 
             for (const item of items) {
                 await mutate({
@@ -219,14 +215,13 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
         [setItemsExpandState]
     );
 
-    const checkItemIsShown = useCallback((note: NoteModel) => {
-        const parents = findParentTreeItems(treeRef.current, note);
-        return reduce(
-            parents,
-            (value, item) => value && !!item.isExpanded,
-            true
-        );
-    }, []);
+     const checkItemIsShown = useCallback((note: NoteModel) => {
+         const parents = findParentTreeItems(treeRef.current, note);
+         return parents.reduce(
+             (value, item) => value && !!item.isExpanded,
+             true
+         );
+     }, []);
 
     const collapseAllItems = useCallback(() => {
         const expandedItems = TreeActions.flattenTree(treeRef.current).filter(
@@ -236,29 +231,29 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
             .catch((v) => console.error('Error whilst collapsing item: %O', v));
     }, [setItemsExpandState]);
 
-    const pinnedTree = useMemo(() => {
-        const items = cloneDeep(tree.items);
-        const pinnedIds: string[] = [];
-        forEach(items, (item) => {
-            if (
-                item.data?.pinned === NOTE_PINNED.PINNED &&
-                item.data.deleted !== NOTE_DELETED.DELETED
-            ) {
-                pinnedIds.push(item.id);
-            }
-        });
+     const pinnedTree = useMemo(() => {
+         const items = JSON.parse(JSON.stringify(tree.items));
+         const pinnedIds: string[] = [];
+         Object.values(items).forEach((item: TreeItemModel) => {
+             if (
+                 item.data?.pinned === NOTE_PINNED.PINNED &&
+                 item.data.deleted !== NOTE_DELETED.DELETED
+             ) {
+                 pinnedIds.push(item.id);
+             }
+         });
 
-        items[ROOT_ID] = {
-            id: ROOT_ID,
-            children: pinnedIds,
-            isExpanded: true,
-        };
+         items[ROOT_ID] = {
+             id: ROOT_ID,
+             children: pinnedIds,
+             isExpanded: true,
+         };
 
-        return {
-            ...tree,
-            items,
-        };
-    }, [tree]);
+         return {
+             ...tree,
+             items,
+         };
+     }, [tree]);
 
     return {
         tree,

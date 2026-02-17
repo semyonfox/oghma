@@ -7,7 +7,6 @@ import useNoteAPI from '../api/note';
 import noteCache from '../cache/note';
 import { NoteModel } from '@/lib/notes/types/note';
 import { useToast } from '../hooks/use-toast';
-import { isEmpty, map } from 'lodash';
 
 const useNote = (initData?: NoteModel) => {
     const [note, setNote] = useState<NoteModel | undefined>(initData);
@@ -68,16 +67,17 @@ const useNote = (initData?: NoteModel) => {
                 return;
             }
 
-            const diff: Partial<NoteModel> = {};
-            map(payload, (value: any, key: keyof NoteModel) => {
-                if (note[key] !== value) {
-                    diff[key] = value;
-                }
-            });
+             const diff: Partial<NoteModel> = {};
+             Object.entries(payload).forEach(([key, value]) => {
+                 const typedKey = key as keyof NoteModel;
+                 if (note[typedKey] !== value) {
+                     (diff[typedKey] as any) = value;
+                 }
+             });
 
-            if (isEmpty(diff)) {
-                return;
-            }
+             if (Object.keys(diff).length === 0) {
+                 return;
+             }
 
             setNote((prev) => {
                 if (prev?.id === id) {
