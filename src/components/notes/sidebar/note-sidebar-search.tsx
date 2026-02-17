@@ -1,6 +1,6 @@
 // Notes Sidebar Search - Search box for finding notes
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { FC, useState, useCallback } from 'react';
+import React, { FC, useState, useCallback } from 'react';
 import PortalState from '@/lib/notes/state/portal';
 
 const NoteSidebarSearch: FC = () => {
@@ -42,4 +42,4 @@ const NoteSidebarSearch: FC = () => {
   );
 };
 
-export default NoteSidebarSearch;
+export default React.memo(NoteSidebarSearch);

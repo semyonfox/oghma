@@ -4,12 +4,12 @@
 // ported from Notea (MIT License) - MUI Breadcrumbs/Tooltip/CircularProgress replaced with Tailwind
 import NoteState from '@/lib/notes/state/note';
 import UIState from '@/lib/notes/state/ui';
-import { useCallback, MouseEvent, FC } from 'react';
+import { useCallback, MouseEvent, FC, useMemo } from 'react';
 import NoteTreeState from '@/lib/notes/state/tree';
 import PortalState from '@/lib/notes/state/portal';
 import { NOTE_SHARED } from '@/lib/notes/types/meta';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import { useIsLoading } from '@/lib/notes/hooks/use-note-selectors';
+import { useIsLoading, useNoteId } from '@/lib/notes/hooks/use-note-selectors';
 import { Breadcrumb } from '@/components/breadcrumb';
 import {
     Bars3Icon,
@@ -45,6 +45,7 @@ const NoteNav: FC = () => {
     const { note } = NoteState.useContainer();
     // Using selector hooks (Phase 1 pattern) - prevents unnecessary re-renders when other state changes
     const loading = useIsLoading();
+    const noteId = useNoteId();
     const { ua } = UIState.useContainer();
     const { getPaths, showItem, checkItemIsShown } = NoteTreeState.useContainer();
     const { share, menu, editorWidthSelect } = PortalState.useContainer();
@@ -81,8 +82,31 @@ const NoteNav: FC = () => {
         showItem(note);
     }, [note, showItem]);
 
-    const paths = note ? getPaths(note).reverse() : [];
-    const isShown = note ? checkItemIsShown(note) : true;
+    // Memoize paths calculation to prevent cascading updates
+    const paths = useMemo(() => {
+        return note ? getPaths(note).reverse() : [];
+    }, [note?.id, getPaths]);
+
+    // Memoize breadcrumb pages array
+    const breadcrumbPages = useMemo(() => {
+        if (!note) return [];
+        return [
+            ...paths.map((path) => ({
+                name: path.title,
+                href: `/${path.id}`,
+                current: false,
+            })),
+            {
+                name: note.title,
+                href: `/${note.id}`,
+                current: true,
+            }
+        ];
+    }, [paths, note?.title, note?.id]);
+
+    const isShown = useMemo(() => {
+        return note ? checkItemIsShown(note) : true;
+    }, [note?.id, checkItemIsShown]);
 
     return (
         <nav
@@ -95,25 +119,14 @@ const NoteNav: FC = () => {
         >
             {ua?.isMobileOnly && <MenuButton />}
 
-            {/* breadcrumbs */}
-            <div className="flex-auto ml-4 min-w-0">
-                {note && (
-                    <>
-                        <Breadcrumb 
-                            homeHref="/"
-                            pages={[
-                                ...paths.map((path) => ({
-                                    name: path.title,
-                                    href: `/${path.id}`,
-                                    current: false,
-                                })),
-                                {
-                                    name: note.title,
-                                    href: `/${note.id}`,
-                                    current: true,
-                                }
-                            ]}
-                        />
+             {/* breadcrumbs */}
+             <div className="flex-auto ml-4 min-w-0">
+                 {note && (
+                     <>
+                         <Breadcrumb 
+                             homeHref="/"
+                             pages={breadcrumbPages}
+                         />
                         {!isShown && (
                             <button
                                 onClick={handleClickOpenInTree}
