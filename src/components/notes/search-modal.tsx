@@ -1,13 +1,13 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState, useMemo } from 'react';
+import { Fragment, useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import SearchState from '@/lib/notes/state/search';
 import PortalState from '@/lib/notes/state/portal';
 import { useRouter } from 'next/navigation';
 import { DocumentTextIcon } from '@heroicons/react/24/solid';
-import { debounce } from 'lodash';
+import { debounce } from '@/lib/notes/utils/debounce';
 
 export default function SearchModal() {
     const { search } = PortalState.useContainer();
