@@ -82,21 +82,23 @@ function NotesUI() {
         <div className="flex flex-col h-screen bg-background">
             {/* Top Navbar with breadcrumbs */}
             <nav className="border-b border-border bg-surface sticky top-0 z-40">
-                <div className="flex items-center justify-between px-4 py-2 h-auto">
-                    <div className="flex items-center gap-3 flex-1 min-h-10">
+                <div className="flex items-center justify-between px-4 py-1.5 h-auto">
+                    <div className="flex items-center gap-3 flex-1">
                         <NoteNav />
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                        <div className="w-48">
+                    <div className="flex items-center gap-3">
+                        <div className="w-40">
                             <Input
                                 type="search"
-                                placeholder="Search notes..."
+                                placeholder="Search..."
                                 disabled
                                 className="text-sm"
                             />
                         </div>
-                        <Avatar initials="U" />
+                        <div className="w-8 h-8 shrink-0">
+                            <Avatar initials="U" />
+                        </div>
                     </div>
                 </div>
             </nav>

@@ -86,8 +86,8 @@ const NoteNav: FC = () => {
 
     return (
         <nav
-            className={`fixed bg-surface dark:bg-neutral-800 z-10 p-2 flex items-center right-0 ${
-                ua?.isMobileOnly ? 'w-full shadow-sm' : ''
+            className={`flex items-center gap-2 flex-1 min-w-0 ${
+                ua?.isMobileOnly ? 'w-full' : ''
             }`}
             style={{
                 width: ua?.isMobileOnly ? '100%' : 'inherit',
@@ -129,18 +129,18 @@ const NoteNav: FC = () => {
 
             {/* loading indicator */}
             <div
-                className={`flex mr-2 transition-opacity duration-100 ${
+                className={`flex shrink-0 transition-opacity duration-100 ${
                     loading ? 'opacity-100' : 'opacity-0'
                 }`}
             >
-                <div className="w-3.5 h-3.5 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
             </div>
 
             {/* action buttons */}
             <button
                 onClick={handleClickShare}
                 disabled={!note}
-                className="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors mr-1 disabled:opacity-40"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40"
                 title={t('Share page')}
             >
                 <ShareIcon
@@ -154,7 +154,7 @@ const NoteNav: FC = () => {
 
             <button
                 onClick={handleClickEditorWidth}
-                className="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors mr-1"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0"
                 title={t('Editor width')}
             >
                 <ArrowsPointingOutIcon className="w-4 h-4 text-text-secondary" />
@@ -163,7 +163,7 @@ const NoteNav: FC = () => {
             <button
                 disabled={!note}
                 onClick={handleClickMenu}
-                className="p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-40"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40"
                 title={t('Settings')}
             >
                 <EllipsisHorizontalIcon className="w-4 h-4 text-text-secondary" />
