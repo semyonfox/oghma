@@ -1,29 +1,48 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState, useMemo } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import SearchState from '@/lib/notes/state/search';
 import PortalState from '@/lib/notes/state/portal';
 import { useRouter } from 'next/navigation';
 import { DocumentTextIcon } from '@heroicons/react/24/solid';
+import { debounce } from 'lodash';
 
 export default function SearchModal() {
     const { search } = PortalState.useContainer();
     const { keyword, setKeyword, filterNotes } = SearchState.useContainer();
     const router = useRouter();
     const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Memoize search results and only update when the search query actually changes
+    const debouncedSearch = useMemo(
+        () => debounce(async (searchKeyword: string) => {
+            if (!searchKeyword.trim()) {
+                setSearchResults([]);
+                setIsSearching(false);
+                return;
+            }
+
+            setIsSearching(true);
+            try {
+                const results = await filterNotes();
+                setSearchResults(results || []);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 500),
+        [filterNotes]
+    );
 
     useEffect(() => {
-        if (search.visible && keyword) {
-            // search notes
-            filterNotes().then((results) => {
-                setSearchResults(results || []);
-            });
+        if (search.visible) {
+            debouncedSearch(keyword);
         } else {
             setSearchResults([]);
         }
-    }, [keyword, search.visible, filterNotes]);
+    }, [keyword, search.visible, debouncedSearch]);
 
     const handleClose = useCallback(() => {
         search.close();
@@ -79,7 +98,7 @@ export default function SearchModal() {
                         >
                             <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-neutral-800 shadow-xl transition-all">
                                 <div className="flex items-center border-b border-neutral-200 dark:border-neutral-700 px-4 py-3">
-                                    <MagnifyingGlassIcon className="h-5 w-5 text-neutral-400" />
+                                    <MagnifyingGlassIcon className={`h-5 w-5 transition-opacity ${isSearching ? 'text-blue-400 animate-pulse' : 'text-neutral-400'}`} />
                                     <input
                                         type="text"
                                         className="ml-3 flex-1 border-none outline-none bg-transparent text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
@@ -115,7 +134,14 @@ export default function SearchModal() {
                                         </div>
                                     )}
 
-                                    {keyword && searchResults.length === 0 && (
+                                    {keyword && isSearching && (
+                                        <div className="px-4 py-8 text-center text-neutral-500">
+                                            <div className="mx-auto h-6 w-6 border-2 border-neutral-300 border-t-blue-400 rounded-full animate-spin" />
+                                            <p className="mt-3">Searching notes...</p>
+                                        </div>
+                                    )}
+
+                                    {keyword && !isSearching && searchResults.length === 0 && (
                                         <div className="px-4 py-8 text-center text-neutral-500">
                                             <p>No results found for &quot;{keyword}&quot;</p>
                                         </div>
