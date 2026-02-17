@@ -1,75 +1,113 @@
-// extracted from Notea (MIT License)
-// original: libs/server/store/providers/base.ts
+// Storage provider base class (MIT License - Notea)
+// Defines interface for all storage backends (S3, MinIO, etc.)
 
+/**
+ * Configuration options for storage providers
+ */
 export interface StoreProviderConfig {
-  prefix?: string;
+  /** Optional prefix for all object paths */
+  readonly prefix?: string;
 }
 
+/**
+ * Options for storing objects with metadata and headers
+ */
 export interface ObjectOptions {
-  meta?: { [key: string]: string };
-  contentType?: string;
-  headers?: {
+  /** Custom metadata tags */
+  readonly meta?: Readonly<Record<string, string>>;
+  /** MIME type for the object */
+  readonly contentType?: string;
+  /** HTTP cache and content headers */
+  readonly headers?: Readonly<{
     cacheControl?: string;
     contentDisposition?: string;
     contentEncoding?: string;
-  };
+  }>;
 }
 
+/**
+ * Metadata returned when retrieving objects
+ */
+export interface ObjectMetadata {
+  readonly content?: string;
+  readonly meta?: Readonly<Record<string, string>>;
+  readonly contentType?: string;
+  readonly buffer?: Buffer;
+}
+
+/**
+ * Abstract base class for storage providers
+ * Handles path prefixing and defines the storage interface
+ */
 export abstract class StoreProvider {
-  prefix?: string;
+  protected readonly prefix?: string;
 
-  constructor({ prefix }: StoreProviderConfig) {
-    this.prefix = prefix?.replace(/\/$/, '');
-
+  constructor(config: StoreProviderConfig) {
+    // Remove trailing slash and add it back if prefix exists
+    this.prefix = config.prefix?.replace(/\/$/, '');
     if (this.prefix) {
       this.prefix += '/';
     }
   }
 
-  getPath(...paths: string[]) {
-    return this.prefix + paths.join('/');
+  /**
+   * Construct full object path with prefix
+   */
+  protected getPath(...paths: string[]): string {
+    return this.prefix ? this.prefix + paths.join('/') : paths.join('/');
   }
 
-  // get signed URL for presigned access
-  abstract getSignUrl(path: string, expires: number): Promise<string | null>;
+  /**
+   * Generate a signed URL for temporary access to an object
+   */
+  abstract getSignUrl(path: string, expiresIn?: number): Promise<string>;
 
-  // check if object exists
+  /**
+   * Check if an object exists in storage
+   */
   abstract hasObject(path: string): Promise<boolean>;
 
-  // get object content
+  /**
+   * Retrieve object content as string
+   */
   abstract getObject(
     path: string,
     isCompressed?: boolean
   ): Promise<string | undefined>;
 
-  // get object metadata
+  /**
+   * Retrieve only metadata for an object
+   */
   abstract getObjectMeta(
     path: string
-  ): Promise<{ [key: string]: string } | undefined>;
+  ): Promise<Record<string, string> | undefined>;
 
-  // get object and metadata together
+  /**
+   * Retrieve object content and metadata together
+   */
   abstract getObjectAndMeta(
     path: string,
     isCompressed?: boolean
-  ): Promise<{
-    content?: string;
-    meta?: { [key: string]: string };
-    contentType?: string;
-    buffer?: Buffer;
-  }>;
+  ): Promise<ObjectMetadata>;
 
-  // store object
+  /**
+   * Store an object with optional metadata and headers
+   */
   abstract putObject(
     path: string,
     raw: string | Buffer,
-    headers?: ObjectOptions,
+    options?: ObjectOptions,
     isCompressed?: boolean
   ): Promise<void>;
 
-  // delete object
+  /**
+   * Delete an object from storage
+   */
   abstract deleteObject(path: string): Promise<void>;
 
-  // copy object (can be used to update meta)
+  /**
+   * Copy an object and optionally update its metadata
+   */
   abstract copyObject(
     fromPath: string,
     toPath: string,
