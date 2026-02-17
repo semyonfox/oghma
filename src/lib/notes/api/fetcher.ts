@@ -2,6 +2,7 @@
 import { CSRF_HEADER_KEY } from '@/lib/notes/types/const';
 import { useCallback, useRef, useState } from 'react';
 import CsrfTokenState from '../state/csrf-token';
+import { deduplicatedFetch, recordRequest } from './request-deduplicator';
 
 interface Params {
     url: string;
@@ -48,16 +49,29 @@ export default function useFetcher() {
             };
 
             try {
-                const response = await fetch(params.url, init);
-
-                if (!response.ok) {
-                    throw await response.text();
+                // Use deduplication for GET requests to avoid duplicate API calls
+                const useDeduplication = params.method === 'GET';
+                
+                let data: any;
+                if (useDeduplication) {
+                    // For GET: use deduplication to avoid sending duplicate requests
+                    data = await deduplicatedFetch(params.url, init);
+                    recordRequest(false); // Count this request
+                } else {
+                    // For POST/PUT/DELETE: always make fresh requests
+                    const response = await fetch(params.url, init);
+                    
+                    if (!response.ok) {
+                        throw await response.text();
+                    }
+                    if (response.status === 204) {
+                        return;
+                    }
+                    
+                    data = await response.json();
                 }
-                if (response.status === 204) {
-                    return;
-                }
 
-                return response.json();
+                return data;
             } catch (e) {
                 if (!controller?.signal.aborted) {
                     setError(String(e));
