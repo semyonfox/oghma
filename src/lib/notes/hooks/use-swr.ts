@@ -34,6 +34,8 @@ interface CacheEntry<T> {
   data: T;
   timestamp: number;
   error?: Error;
+  accessCount?: number;
+  lastAccessedAt?: number;
 }
 
 // Global cache store
@@ -41,6 +43,63 @@ const globalCache = new Map<string, CacheEntry<any>>();
 
 // Track ongoing requests to dedupe
 const ongoingRequests = new Map<string, Promise<any>>();
+
+// Configuration for cache memory management
+const CACHE_CONFIG = {
+  maxSize: 100, // Maximum number of cache entries
+  cleanupInterval: 5 * 60 * 1000, // Cleanup every 5 minutes
+  maxCacheDuration: 30 * 60 * 1000, // Delete entries older than 30 minutes
+};
+
+// Initialize cleanup interval
+let cleanupIntervalId: NodeJS.Timeout | null = null;
+
+/**
+ * Start automatic cache cleanup
+ */
+function startCacheCleanup() {
+  if (cleanupIntervalId) return; // Already running
+
+  cleanupIntervalId = setInterval(() => {
+    const now = Date.now();
+    let deletedCount = 0;
+
+    // Remove stale entries (older than maxCacheDuration)
+    for (const [key, entry] of globalCache.entries()) {
+      const age = now - entry.timestamp;
+      if (age > CACHE_CONFIG.maxCacheDuration) {
+        globalCache.delete(key);
+        deletedCount++;
+      }
+    }
+
+    // If still over max size, remove least recently used entries
+    if (globalCache.size > CACHE_CONFIG.maxSize) {
+      const entries = Array.from(globalCache.entries())
+        .sort((a, b) => (a[1].lastAccessedAt ?? 0) - (b[1].lastAccessedAt ?? 0));
+      
+      const toDelete = entries.length - CACHE_CONFIG.maxSize;
+      for (let i = 0; i < toDelete; i++) {
+        globalCache.delete(entries[i][0]);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.debug(`[SWR] Cache cleanup: removed ${deletedCount} entries, current size: ${globalCache.size}`);
+    }
+  }, CACHE_CONFIG.cleanupInterval);
+}
+
+/**
+ * Stop automatic cache cleanup (for testing/shutdown)
+ */
+export function stopCacheCleanup() {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+}
 
 /**
  * React hook for SWR data fetching
@@ -83,10 +142,15 @@ export function useSWR<T>(
   }, [key, cacheDuration]);
 
   /**
-   * Get cached data if available
+   * Get cached data if available (tracks access for LRU eviction)
    */
   const getCachedData = useCallback((): T | undefined => {
     const cached = globalCache.get(key);
+    if (cached) {
+      // Update access tracking for LRU (Least Recently Used) eviction
+      cached.lastAccessedAt = Date.now();
+      cached.accessCount = (cached.accessCount ?? 0) + 1;
+    }
     return cached?.data;
   }, [key]);
 
@@ -179,6 +243,9 @@ export function useSWR<T>(
    * Initial load and setup
    */
   useEffect(() => {
+    // Start automatic cache cleanup on first hook usage
+    startCacheCleanup();
+
     const cached = getCachedData();
 
     // If we have fresh cache, use it immediately
@@ -246,12 +313,51 @@ export function clearSWRCache(): void {
 }
 
 /**
- * Get cache statistics
+ * Get detailed cache statistics for monitoring
  */
 export function getSWRCacheStats() {
+  const entries = Array.from(globalCache.entries());
+  const now = Date.now();
+  
   return {
+    // Basic stats
     cacheSize: globalCache.size,
-    cacheEntries: Array.from(globalCache.keys()),
+    maxCacheSize: CACHE_CONFIG.maxSize,
     ongoingRequests: ongoingRequests.size,
+    
+    // Cache health
+    entries: entries.map(([key, entry]) => ({
+      key,
+      age: now - entry.timestamp,
+      accessCount: entry.accessCount ?? 0,
+      lastAccessedAt: entry.lastAccessedAt ? now - entry.lastAccessedAt : 'never',
+    })),
+    
+    // Memory warnings
+    warnings: {
+      nearCapacity: globalCache.size > CACHE_CONFIG.maxSize * 0.8,
+      hasStaleEntries: entries.some(([_, e]) => (now - e.timestamp) > CACHE_CONFIG.maxCacheDuration),
+    },
+  };
+}
+
+/**
+ * Get estimated memory usage of the cache (rough estimate)
+ */
+export function estimateCacheMemory(): { entries: number; estimatedBytes: number } {
+  let estimatedBytes = 0;
+  
+  for (const entry of globalCache.values()) {
+    // Rough estimate: JSON.stringify the data to estimate size
+    try {
+      estimatedBytes += JSON.stringify(entry.data).length;
+    } catch {
+      estimatedBytes += 1024; // Default 1 KB if serialization fails
+    }
+  }
+  
+  return {
+    entries: globalCache.size,
+    estimatedBytes,
   };
 }
