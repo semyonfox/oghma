@@ -14,7 +14,7 @@ import { makeHierarchy, HierarchicalTreeItemModel } from '@/lib/notes/types/tree
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
-import { debounce } from 'lodash';
+import { debounce } from '@/lib/notes/utils/debounce';
 
 const SidebarList = () => {
     const { t } = useI18n();
