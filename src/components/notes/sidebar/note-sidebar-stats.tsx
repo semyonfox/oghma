@@ -1,14 +1,16 @@
 // Notes Sidebar Stats - Display note count and sync status
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { FC, useMemo } from 'react';
-import NoteTreeState from '@/lib/notes/state/tree';
+import React, { FC, useMemo } from 'react';
+import { useTreeItems, useItemCount } from '@/lib/notes/hooks/use-tree-selectors';
 
 const NoteSidebarStats: FC = () => {
-  const { tree } = NoteTreeState.useContainer();
+  // Use tree selectors to prevent re-renders when other state changes
+  const treeItems = useTreeItems();
+  const itemCount = useItemCount();
 
-  // Calculate stats from tree
+  // Calculate stats from tree - memoized to prevent unnecessary recalculations
   const stats = useMemo(() => {
-    const items = Object.values(tree.items);
+    const items = Object.values(treeItems);
     const noteCount = items.length;
     const syncedCount = items.filter((item) => item.data).length;
     const allSynced = noteCount === syncedCount;
@@ -18,7 +20,7 @@ const NoteSidebarStats: FC = () => {
       syncedCount,
       allSynced,
     };
-  }, [tree.items]);
+  }, [treeItems]);
 
   return (
     <div className="px-6 py-3 border-b border-white/10">
@@ -53,4 +55,4 @@ const NoteSidebarStats: FC = () => {
   );
 };
 
-export default NoteSidebarStats;
+export default React.memo(NoteSidebarStats);

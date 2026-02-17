@@ -6,7 +6,7 @@ import {
   TrashIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import { FC, useCallback, useState, useEffect } from 'react';
+import React, { FC, useCallback, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import UIState from '@/lib/notes/state/ui';
 import PortalState from '@/lib/notes/state/portal';
@@ -28,16 +28,18 @@ const NoteSidebarActions: FC = () => {
   const settingsState = uiState.settings;
   const updateSettings = settingsState?.updateSettings;
 
-  // Fetch user data on mount
+  // Memoize user fetch to prevent unnecessary API calls on re-render
+  const fetchUser = useCallback(async () => {
+    try {
+      const userData = await getCurrentUser();
+      setUser(userData);
+    } catch (error) {
+      console.error('Failed to load user:', error);
+    }
+  }, []);
+
+  // Fetch user data on mount (only once)
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getCurrentUser();
-        setUser(userData);
-      } catch (error) {
-        console.error('Failed to load user:', error);
-      }
-    };
     fetchUser();
   }, []);
 
@@ -120,4 +122,4 @@ const NoteSidebarActions: FC = () => {
   );
 };
 
-export default NoteSidebarActions;
+export default React.memo(NoteSidebarActions);

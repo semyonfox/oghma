@@ -1,33 +1,35 @@
 // Notes Sidebar Favorites - Show pinned/favorite notes
 import { StarIcon } from '@heroicons/react/24/solid';
-import { FC, useMemo } from 'react';
+import React, { FC, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import NoteTreeState from '@/lib/notes/state/tree';
+import { useTreeItems } from '@/lib/notes/hooks/use-tree-selectors';
 import { NOTE_PINNED } from '@/lib/notes/types/meta';
 
 const NoteSidebarFavorites: FC = () => {
   const router = useRouter();
-  const { tree } = NoteTreeState.useContainer();
+  // Use tree selector to prevent re-renders when other state changes
+  const treeItems = useTreeItems();
 
-  // Filter pinned notes
+  // Filter pinned notes - memoized to prevent unnecessary recalculations
   const favorites = useMemo(() => {
-    return Object.values(tree.items)
+    return Object.values(treeItems)
       .filter((item) => item.data?.pinned === NOTE_PINNED.PINNED)
       .map((item) => ({
         id: item.id,
         title: item.data?.title || 'Untitled',
         emoji: item.data?.pic || '📄',
       }));
-  }, [tree.items]);
+  }, [treeItems]);
 
   // Don't show section if no favorites
   if (favorites.length === 0) {
     return null;
   }
 
-  const handleFavoriteClick = (noteId: string) => {
+  const handleFavoriteClick = useCallback((noteId: string) => {
     router.push(`/${noteId}`);
-  };
+  }, [router]);
 
   return (
     <div className="px-6 py-3 border-b border-white/10">
@@ -55,4 +57,4 @@ const NoteSidebarFavorites: FC = () => {
   );
 };
 
-export default NoteSidebarFavorites;
+export default React.memo(NoteSidebarFavorites);

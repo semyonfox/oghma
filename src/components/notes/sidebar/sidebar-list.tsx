@@ -14,6 +14,7 @@ import { makeHierarchy, HierarchicalTreeItemModel } from '@/lib/notes/types/tree
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
+import { debounce } from 'lodash';
 
 const SidebarList = () => {
     const { t } = useI18n();
@@ -60,47 +61,51 @@ const SidebarList = () => {
         [mutateItem, tree.items]
     );
 
+    // Memoize move handler with debouncing to prevent cascading updates
     const onMove = useCallback(
-        ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
-            if (!parentId || dragIds.length === 0) {
-                return;
-            }
-
-            const dragId = dragIds[0];
-
-            // find source parent and index
-            let sourceParentId = '';
-            let sourceIndex = -1;
-
-            for (const itemId in tree.items) {
-                const item = tree.items[itemId];
-                const idx = item.children.indexOf(dragId);
-                if (idx !== -1) {
-                    sourceParentId = itemId;
-                    sourceIndex = idx;
-                    break;
+        debounce(
+            ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
+                if (!parentId || dragIds.length === 0) {
+                    return;
                 }
-            }
 
-            if (sourceIndex === -1) {
-                console.error("Can't find source item");
-                return;
-            }
+                const dragId = dragIds[0];
 
-            moveItem({
-                source: {
-                    parentId: sourceParentId,
-                    index: sourceIndex,
-                },
-                destination: {
-                    parentId: parentId,
-                    index: index,
-                },
-            }).catch((e) => {
-                // todo: toast
-                console.error('Move error', e);
-            });
-        },
+                // find source parent and index
+                let sourceParentId = '';
+                let sourceIndex = -1;
+
+                for (const itemId in tree.items) {
+                    const item = tree.items[itemId];
+                    const idx = item.children.indexOf(dragId);
+                    if (idx !== -1) {
+                        sourceParentId = itemId;
+                        sourceIndex = idx;
+                        break;
+                    }
+                }
+
+                if (sourceIndex === -1) {
+                    console.error("Can't find source item");
+                    return;
+                }
+
+                moveItem({
+                    source: {
+                        parentId: sourceParentId,
+                        index: sourceIndex,
+                    },
+                    destination: {
+                        parentId: parentId,
+                        index: index,
+                    },
+                }).catch((e) => {
+                    // todo: toast
+                    console.error('Move error', e);
+                });
+            },
+            300
+        ),
         [moveItem, tree.items]
     );
 
