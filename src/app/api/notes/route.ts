@@ -3,9 +3,50 @@ import { NoteModel } from '@/lib/notes/types/note';
 import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { MOCK_NOTES_STORAGE, addNoteToTree } from '@/lib/notes/storage/mock-storage';
 
+/**
+ * Helper: Filter note to only include requested fields
+ */
+function filterNoteFields(note: NoteModel, fields?: string[]): Partial<NoteModel> {
+  if (!fields || fields.length === 0) {
+    return note;
+  }
+  
+  const filtered: any = {};
+  for (const field of fields) {
+    if (field in note) {
+      filtered[field] = (note as any)[field];
+    }
+  }
+  return filtered;
+}
+
 export async function GET(request: Request) {
-  const notes = Array.from(MOCK_NOTES_STORAGE.values());
-  return NextResponse.json(notes);
+  // Parse query parameters
+  const url = new URL(request.url);
+  const fieldsParam = url.searchParams.get('fields');
+  const skipParam = url.searchParams.get('skip');
+  const limitParam = url.searchParams.get('limit');
+  
+  // Parse fields from comma-separated string
+  const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
+  
+  // Parse pagination
+  const skip = skipParam ? parseInt(skipParam, 10) : 0;
+  const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+  
+  // Get all notes and apply pagination
+  let notes = Array.from(MOCK_NOTES_STORAGE.values());
+  
+  // Apply skip/limit for pagination
+  if (skip > 0 || limit) {
+    const end = limit ? skip + limit : undefined;
+    notes = notes.slice(skip, end);
+  }
+  
+  // Filter fields if requested
+  const filtered = notes.map(note => filterNoteFields(note, fields));
+  
+  return NextResponse.json(filtered);
 }
 
 export async function POST(request: Request) {
