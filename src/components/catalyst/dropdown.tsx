@@ -168,7 +168,7 @@ export function DropdownShortcut({
     >
       {(Array.isArray(keys) ? keys : keys.split('')).map((char, index) => (
         <kbd
-          key={index}
+          key={`${char}-${index}`}
           className={clsx([
             'min-w-[2ch] text-center font-sans text-zinc-400 capitalize group-data-focus:text-white forced-colors:group-data-focus:text-[HighlightText]',
             // Make sure key names that are longer than one character (like "Tab") have extra space
