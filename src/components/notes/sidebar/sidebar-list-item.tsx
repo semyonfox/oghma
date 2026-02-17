@@ -2,7 +2,7 @@
 // rewritten for App Router + react-arborist v3.4.3 + Tailwind (no MUI)
 import { NoteModel } from '@/lib/notes/types/note';
 import Link from 'next/link';
-import { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import React, { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import IconButton from '@/components/icon-button';
 import NoteTreeState from '@/lib/notes/state/tree';
@@ -109,6 +109,18 @@ const SidebarListItem: FC<{
         [hasChildren, onToggle]
     );
 
+    // Memoize rename completion handler
+    const handleRenameCompleteMemoized = useCallback(
+        (newTitle: string) => {
+            if (newTitle.trim() && newTitle !== item.title) {
+                onRenameComplete?.(newTitle);
+            } else {
+                onRenameComplete?.(item.title || '');
+            }
+        },
+        [onRenameComplete, item.title]
+    );
+
     // Determine link href based on current page
     const linkHref = useMemo(() => {
         if (hasChildren) {
@@ -172,23 +184,17 @@ const SidebarListItem: FC<{
                             type="text"
                             value={renameValue}
                             onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => {
-                                if (renameValue.trim() && renameValue !== item.title) {
-                                    onRenameComplete?.(renameValue);
-                                } else {
-                                    onRenameComplete?.(item.title || '');
-                                }
-                            }}
+                            onBlur={() => handleRenameCompleteMemoized(renameValue)}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     e.preventDefault();
                                     if (renameValue.trim()) {
-                                        onRenameComplete?.(renameValue);
+                                        handleRenameCompleteMemoized(renameValue);
                                     }
                                 } else if (e.key === 'Escape') {
                                     e.preventDefault();
                                     setRenameValue(item.title || '');
-                                    onRenameComplete?.(item.title || '');
+                                    handleRenameCompleteMemoized(item.title || '');
                                 }
                             }}
                             className="flex-1 truncate bg-white/10 border border-white/20 rounded px-1 outline-none text-white focus:bg-white/20 focus:border-white/40 transition-colors"
@@ -231,4 +237,15 @@ const SidebarListItem: FC<{
     );
 };
 
-export default SidebarListItem;
+export default React.memo(SidebarListItem, (prevProps, nextProps) => {
+    // Return true if props are equal (no re-render needed), false if different (re-render)
+    // Only re-render if key props actually changed
+    return (
+        prevProps.item.id === nextProps.item.id &&
+        prevProps.item.title === nextProps.item.title &&
+        prevProps.item.pinned === nextProps.item.pinned &&
+        prevProps.isExpanded === nextProps.isExpanded &&
+        prevProps.hasChildren === nextProps.hasChildren &&
+        prevProps.isRenaming === nextProps.isRenaming
+    );
+});
