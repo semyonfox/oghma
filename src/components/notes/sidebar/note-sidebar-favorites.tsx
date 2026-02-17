@@ -32,24 +32,24 @@ const NoteSidebarFavorites: FC = () => {
   }, [router]);
 
   return (
-    <div className="px-6 py-3 border-b border-white/10">
+    <div className="tree-search-wrapper border-b">
       {/* Section Title */}
-      <div className="flex items-center gap-2 mb-2">
-        <StarIcon className="w-4 h-4 text-yellow-400" />
-        <h3 className="text-xs font-semibold text-gray-400 uppercase">Your Favorites</h3>
+      <div className="flex items-center gap-2 mb-2 px-4 pt-3">
+        <StarIcon className="w-4 h-4 text-ai" />
+        <h3 className="tree-section-label m-0">Your Favorites</h3>
       </div>
 
       {/* Favorites List */}
-      <div className="space-y-1">
+      <div className="space-y-1 px-3">
         {favorites.map((favorite) => (
           <button
             key={favorite.id}
             onClick={() => handleFavoriteClick(favorite.id)}
-            className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-md transition-colors truncate flex items-center gap-2"
+            className="tree-item-base w-full text-left"
             title={favorite.title}
           >
             <span>{favorite.emoji}</span>
-            <span className="truncate">{favorite.title}</span>
+            <span className="truncate ml-2 text-sm">{favorite.title}</span>
           </button>
         ))}
       </div>
