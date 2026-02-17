@@ -29,61 +29,61 @@ export const MetadataSection: FC<MetadataSectionProps> = ({ note }) => {
 
   if (!note) {
     return (
-      <>
-        <Heading level={3} className="text-sm font-semibold mb-4 text-text">
+      <div className="ai-section">
+        <Heading level={3} className="ai-section-title">
           Note Info
         </Heading>
-        <Text className="text-sm text-text-tertiary">
+        <Text className="text-sm text-text-secondary">
           Select a note to view details and AI insights.
         </Text>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <Heading level={3} className="text-sm font-semibold mb-4 text-text">
+    <div className="ai-section">
+      <Heading level={3} className="ai-section-title">
         Note Info
       </Heading>
-      <div className="space-y-3 text-sm text-text-tertiary">
+      <div className="ai-section-content">
         <div>
-          <Text className="text-xs text-text-secondary font-semibold mb-1">
+          <Text className="ai-metadata-label">
             ID
           </Text>
-          <Text className="font-mono text-xs bg-background p-2 rounded break-all">
+          <Text className="font-mono text-xs bg-white/5 p-2 rounded break-all text-text-secondary mt-1">
             {note.id}
           </Text>
         </div>
         <div>
-          <Text className="text-xs text-text-secondary font-semibold mb-1">
+          <Text className="ai-metadata-label">
             Title
           </Text>
-          <Text className="truncate">{note.title || 'Untitled'}</Text>
+          <Text className="truncate text-text-secondary mt-1">{note.title || 'Untitled'}</Text>
         </div>
         <div>
-          <Text className="text-xs text-text-secondary font-semibold mb-1">
+          <Text className="ai-metadata-label">
             Word Count
           </Text>
-          <Text>{stats.wordCount} words</Text>
+          <Text className="text-text-secondary mt-1">{stats.wordCount} words</Text>
         </div>
         <div>
-          <Text className="text-xs text-text-secondary font-semibold mb-1">
+          <Text className="ai-metadata-label">
             Character Count
           </Text>
-          <Text>{stats.charCount} characters</Text>
+          <Text className="text-text-secondary mt-1">{stats.charCount} characters</Text>
         </div>
         {note.updatedAt && (
           <div>
-            <Text className="text-xs text-text-secondary font-semibold mb-1">
+            <Text className="ai-metadata-label">
               Last Modified
             </Text>
-            <Text className="text-xs">
+            <Text className="text-xs text-text-secondary mt-1">
               {new Date(note.updatedAt).toLocaleDateString()}
             </Text>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

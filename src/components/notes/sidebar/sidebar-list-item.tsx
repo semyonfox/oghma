@@ -145,10 +145,10 @@ const SidebarListItem: FC<{
             <div
                 {...attrs}
                 ref={innerRef}
-                className={`flex items-center group pr-2 overflow-hidden hover:bg-white/5 text-gray-400 hover:text-white transition-colors ${
-                    snapshot.isDragging ? 'shadow bg-white/10' : ''
+                className={`tree-item-base group ${
+                    snapshot.isDragging ? 'shadow' : ''
                 } ${
-                    activeId === item.id ? 'bg-white/5 text-white' : ''
+                    activeId === item.id ? 'tree-item-active' : ''
                 }`}
             >
                 <Link 
@@ -159,13 +159,13 @@ const SidebarListItem: FC<{
                     {emoji ? (
                         <span
                             onClick={handleClickIcon}
-                            className="block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded hover:bg-white/10 mr-1 text-center transition-colors"
+                            className="tree-item-icon block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded mr-1 text-center"
                         >
                             {emoji}
                         </span>
                     ) : (
                         <IconButton
-                            className="mr-1"
+                            className="tree-item-expand-icon mr-1"
                             icon={
                                 hasChildren
                                     ? 'ChevronRight'
@@ -197,7 +197,7 @@ const SidebarListItem: FC<{
                                     handleRenameCompleteMemoized(item.title || '');
                                 }
                             }}
-                            className="flex-1 truncate bg-white/10 border border-white/20 rounded px-1 outline-none text-white focus:bg-white/20 focus:border-white/40 transition-colors"
+                            className="tree-item-label flex-1 truncate bg-white/10 border border-border rounded px-1 outline-none text-text focus:bg-white/20 focus:border-primary transition-colors"
                             dir="auto"
                             onClick={(e) => e.stopPropagation()}
                         />
@@ -214,22 +214,22 @@ const SidebarListItem: FC<{
                 <IconButton
                     icon="DotsHorizontal"
                     onClick={handleClickMenu}
-                    className="hidden group-hover:block"
+                    className="tree-item-action-button hidden group-hover:block"
                     title={t('Remove, Copy Link, etc')}
                 ></IconButton>
 
                 <IconButton
                     icon="Plus"
                     onClick={onAddNote}
-                    className="ml-1 hidden group-hover:block"
+                    className="tree-item-action-button ml-1 hidden group-hover:block"
                     title={t('Add a page inside')}
                 ></IconButton>
             </div>
 
             {!hasChildren && isExpanded && (
-<div
-    className={`py-1.5 text-gray-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
->
+                <div
+                    className={`py-1.5 text-text-secondary select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
+                >
                     {initLoaded ? t('No notes inside') : <TextSkeleton />}
                 </div>
             )}

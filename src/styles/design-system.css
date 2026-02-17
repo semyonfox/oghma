@@ -1,0 +1,212 @@
+/* Design System for Notes Page */
+/* Establishes color, spacing, sizing, and animation systems */
+
+@layer theme {
+  /* ====== COLOR SYSTEM ====== */
+  :root {
+    /* Primary Colors - Blue for Focus & Productivity */
+    --color-primary-focus: var(--color-primary-500);
+    --color-primary-focus-hover: var(--color-primary-600);
+    --color-primary-focus-active: var(--color-primary-700);
+
+    /* Secondary Colors - Teal for Progress & Learning */
+    --color-secondary-progress: var(--color-secondary-500);
+    --color-secondary-progress-hover: var(--color-secondary-600);
+
+    /* Success Colors - Green for Completion */
+    --color-success-complete: var(--color-success-500);
+    --color-success-complete-hover: var(--color-success-600);
+
+    /* Error Colors - Red for Warnings */
+    --color-error-warning: var(--color-error-500);
+    --color-error-warning-hover: var(--color-error-600);
+
+    /* AI Colors - Amber for AI Features */
+    --color-ai-feature: var(--color-ai-500);
+    --color-ai-feature-hover: var(--color-ai-600);
+
+    /* Surface Colors - semantic backgrounds */
+    --color-surface-hover-opacity: rgba(255, 255, 255, 0.05);
+    --color-surface-active-opacity: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Dark Mode Adjustments */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-surface-hover-opacity: rgba(255, 255, 255, 0.05);
+      --color-surface-active-opacity: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  /* ====== SPACING SYSTEM ====== */
+  /* Use Tailwind's native spacing scale (0.25rem increments) */
+  --spacing-xs: 0.25rem;    /* 4px  - micro spacing */
+  --spacing-sm: 0.5rem;     /* 8px  - small spacing */
+  --spacing-md: 1rem;       /* 16px - standard spacing */
+  --spacing-lg: 1.5rem;     /* 24px - large spacing */
+  --spacing-xl: 2rem;       /* 32px - x-large spacing */
+  --spacing-2xl: 3rem;      /* 48px - 2x-large spacing */
+
+  /* Component-specific spacing patterns */
+  --spacing-button-y: 0.5rem;      /* py-2 */
+  --spacing-button-x: 0.75rem;     /* px-3 */
+  --spacing-button-sm-x: 0.5rem;   /* px-2 */
+  --spacing-input-y: 0.5rem;       /* py-2 */
+  --spacing-input-x: 0.75rem;      /* px-3 */
+  --spacing-pad-default: 1rem;     /* p-4 */
+  --spacing-pad-compact: 0.75rem;  /* p-3 */
+  --spacing-gap-tight: 0.75rem;    /* gap-3 */
+  --spacing-gap-default: 1rem;     /* gap-4 */
+
+  /* ====== SIZING SYSTEM ====== */
+  /* Icon sizes */
+  --size-icon-sm: 1rem;           /* 16px - small icons, compact areas */
+  --size-icon-md: 1.25rem;        /* 20px - standard icons */
+  --size-icon-lg: 1.5rem;         /* 24px - large icons, emphasis */
+  --size-icon-xl: 2rem;           /* 32px - extra large, hero icons */
+
+  /* Component sizes */
+  --size-button-height: 2.5rem;   /* 40px - standard button height */
+  --size-button-height-sm: 2rem;  /* 32px - compact button height */
+  --size-input-height: 2.5rem;    /* 40px - standard input height */
+  --size-input-height-sm: 2rem;   /* 32px - compact input height */
+  --size-sidebar-width: 18rem;    /* 288px - sidebar width */
+  --size-sidebar-collapsed: 3.5rem; /* 56px - collapsed sidebar */
+  --size-nav-height: 3.5rem;      /* 56px - top navbar height */
+  --size-nav-compact: 2.5rem;     /* 40px - compact navbar height */
+
+  /* ====== BORDER RADIUS ====== */
+  --radius-xs: 0.25rem;    /* 4px  - minimal rounding */
+  --radius-sm: 0.375rem;   /* 6px  - compact buttons */
+  --radius-md: 0.5rem;     /* 8px  - standard radius */
+  --radius-lg: 0.75rem;    /* 12px - larger components */
+  --radius-xl: 1rem;       /* 16px - emphasis elements */
+  --radius-full: 9999px;   /* full - pills and circles */
+
+  /* ====== SHADOWS ====== */
+  /* Follow Tailwind shadow scale */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* ====== Z-INDEX SYSTEM ====== */
+  /* Establish clear layering hierarchy */
+  --z-base: 0;            /* default layer */
+  --z-relative: 1;        /* relative positioning */
+  --z-dropdown: 10;       /* dropdowns, popovers */
+  --z-sticky: 20;         /* sticky headers, sidebars */
+  --z-fixed: 30;          /* fixed overlays */
+  --z-modal: 40;          /* modal dialogs */
+  --z-popover: 50;        /* floating popovers, tooltips */
+  --z-tooltip: 60;        /* tooltip text layer */
+  --z-notification: 70;   /* toast notifications */
+
+  /* ====== TRANSITIONS & ANIMATIONS ====== */
+  /* Duration scale for smooth interactions */
+  --transition-instant: 50ms;     /* instant feedback */
+  --transition-fast: 100ms;       /* quick transitions */
+  --transition-base: 200ms;       /* default smooth transition */
+  --transition-slow: 300ms;       /* slower, more noticeable */
+  --transition-slower: 500ms;     /* very slow animations */
+
+  /* Easing functions */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* Common transition patterns */
+  --transition-colors: color var(--transition-base) var(--ease-out), 
+                       background-color var(--transition-base) var(--ease-out),
+                       border-color var(--transition-base) var(--ease-out);
+  --transition-all: all var(--transition-base) var(--ease-out);
+  --transition-opacity: opacity var(--transition-fast) var(--ease-out);
+  --transition-transform: transform var(--transition-base) var(--ease-out);
+  --transition-shadow: box-shadow var(--transition-base) var(--ease-out);
+
+  /* ====== FONT SYSTEM ====== */
+  /* Already handled by Tailwind, but establish hierarchy */
+  --font-family-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Font size scale */
+  --font-size-xs: 0.75rem;      /* 12px - captions, labels */
+  --font-size-sm: 0.875rem;     /* 14px - small text */
+  --font-size-md: 1rem;         /* 16px - body text */
+  --font-size-lg: 1.125rem;     /* 18px - large text */
+  --font-size-xl: 1.25rem;      /* 20px - headings */
+  --font-size-2xl: 1.5rem;      /* 24px - large headings */
+  --font-size-3xl: 1.875rem;    /* 30px - extra large headings */
+
+  /* Font weight scale */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ====== LINE HEIGHT ====== */
+  --line-height-tight: 1.25;    /* 125% - compact text */
+  --line-height-snug: 1.375;    /* 137.5% - snug text */
+  --line-height-normal: 1.5;    /* 150% - normal reading */
+  --line-height-relaxed: 1.625; /* 162.5% - comfortable reading */
+  --line-height-loose: 2;       /* 200% - very loose */
+
+  /* ====== BREAKPOINTS ====== */
+  /* Mobile first approach (matches Tailwind) */
+  --breakpoint-sm: 640px;       /* tablets */
+  --breakpoint-md: 768px;       /* small laptops */
+  --breakpoint-lg: 1024px;      /* desktops */
+  --breakpoint-xl: 1280px;      /* large desktops */
+  --breakpoint-2xl: 1536px;     /* extra large displays */
+
+  /* ====== OPACITY SCALE ====== */
+  --opacity-disabled: 0.4;      /* disabled state */
+  --opacity-subtle: 0.05;       /* very subtle backgrounds */
+  --opacity-muted: 0.1;         /* muted foregrounds */
+  --opacity-border: 0.15;       /* subtle borders */
+  --opacity-divider: 0.2;       /* divider lines */
+  --opacity-hover: 0.08;        /* hover backgrounds */
+  --opacity-active: 0.12;       /* active backgrounds */
+  --opacity-overlay: 0.5;       /* modal overlays */
+
+  /* ====== GRADIENTS ====== */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);
+  --gradient-secondary: linear-gradient(135deg, var(--color-secondary-500) 0%, var(--color-secondary-700) 100%);
+  --gradient-success: linear-gradient(135deg, var(--color-success-500) 0%, var(--color-success-700) 100%);
+  --gradient-ai: linear-gradient(135deg, var(--color-ai-500) 0%, var(--color-ai-700) 100%);
+  --gradient-error: linear-gradient(135deg, var(--color-error-500) 0%, var(--color-error-700) 100%);
+}
+
+/* ====== COMPONENT TRANSITION PRESETS ====== */
+@layer utilities {
+  .transition-colors-smooth {
+    @apply transition-colors duration-200 ease-out;
+  }
+
+  .transition-all-smooth {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .transition-opacity-smooth {
+    @apply transition-opacity duration-100 ease-out;
+  }
+
+  .focus-ring-primary {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
+  }
+
+  .focus-ring-primary-sm {
+    @apply outline-none ring-1 ring-primary-500;
+  }
+
+  .active-surface {
+    @apply bg-white/10;
+  }
+
+  .hover-surface {
+    @apply hover:bg-white/5;
+  }
+}
