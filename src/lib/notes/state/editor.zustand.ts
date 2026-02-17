@@ -1,14 +1,13 @@
 import { useCallback, useState } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { debounce } from 'lodash';
+import { debounce } from '@/lib/notes/utils/debounce';
 import { searchNote, searchRangeText } from '@/lib/notes/utils/search';
 import { LexicalEditorRef } from '@/components/editor/lexical-editor';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { NoteModel, isNoteLink } from '@/lib/notes/types/note';
 import useFetcher from '@/lib/notes/api/fetcher';
 import { NOTE_DELETED } from '@/lib/notes/types/meta';
-import { has } from 'lodash';
 
 interface EditorState {
     note?: NoteModel;

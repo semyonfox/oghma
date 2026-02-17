@@ -1,16 +1,15 @@
 // extracted from Notea (MIT License)
 import useSettingsAPI from '@/lib/notes/api/settings';
-import { isBoolean } from 'lodash';
 import { useState, useCallback } from 'react';
 
 export default function useSidebar(initState = false, isMobileOnly = false) {
-    const [isFold, setIsFold] = useState(initState);
-    const { mutate } = useSettingsAPI();
+     const [isFold, setIsFold] = useState(initState);
+     const { mutate } = useSettingsAPI();
 
-    const toggle = useCallback(
-        async (state?: boolean) => {
-            setIsFold((prev) => {
-                const isFold = isBoolean(state) ? state : !prev;
+     const toggle = useCallback(
+         async (state?: boolean) => {
+             setIsFold((prev) => {
+                 const isFold = typeof state === 'boolean' ? state : !prev;
 
                 if (!isMobileOnly) {
                     mutate({
