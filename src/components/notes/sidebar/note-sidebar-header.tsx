@@ -1,7 +1,7 @@
 // Notes Sidebar Header - Logo + New Note + Collapse Toggle
 import { PlusIcon, ChevronDoubleLeftIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
-import { FC } from 'react';
+import React, { FC, useCallback } from 'react';
 import UIState from '@/lib/notes/state/ui';
 
 interface NoteSidebarHeaderProps {
@@ -12,9 +12,9 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
   const { sidebar } = UIState.useContainer();
 
-  const handleNewNote = () => {
+  const handleNewNote = useCallback(() => {
     router.push('/new');
-  };
+  }, [router]);
 
   return (
     <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
@@ -51,4 +51,4 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   );
 };
 
-export default NoteSidebarHeader;
+export default React.memo(NoteSidebarHeader);
