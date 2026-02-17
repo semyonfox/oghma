@@ -527,39 +527,51 @@ export default function About() {
               Everything you need to take better notes and learn more effectively.
             </p>
           </div>
-          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-4">
+          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
             {/* Feature 1 - AI-Powered Insights */}
-            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="text-4xl mb-4">✨</div>
+            <div className="group relative overflow-hidden rounded-2xl border border-indigo-500/20 p-8 transition-all hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/20">
+              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="mb-6 inline-flex rounded-lg bg-indigo-500/10 p-3">
+                <span className="text-3xl">✨</span>
+              </div>
               <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
                 Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
               </p>
             </div>
 
             {/* Feature 2 - Canvas Sync */}
-            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="text-4xl mb-4">🔗</div>
+            <div className="group relative overflow-hidden rounded-2xl border border-blue-500/20 p-8 transition-all hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/20">
+              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-blue-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="mb-6 inline-flex rounded-lg bg-blue-500/10 p-3">
+                <span className="text-3xl">🔗</span>
+              </div>
               <h3 className="text-lg font-semibold text-white">Seamless Canvas Integration</h3>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
                 Auto-sync assignments, deadlines, and course materials directly from Canvas.
               </p>
             </div>
 
             {/* Feature 3 - Smart Organization */}
-            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="text-4xl mb-4">📚</div>
+            <div className="group relative overflow-hidden rounded-2xl border border-purple-500/20 p-8 transition-all hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/20">
+              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="mb-6 inline-flex rounded-lg bg-purple-500/10 p-3">
+                <span className="text-3xl">📚</span>
+              </div>
               <h3 className="text-lg font-semibold text-white">Smart Organization</h3>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
                 Auto-categorize notes, tag content intelligently, and find anything in seconds.
               </p>
             </div>
 
-            {/* Feature 4 - Offline Access */}
-            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="text-4xl mb-4">📱</div>
+            {/* Feature 4 - Work Anywhere */}
+            <div className="group relative overflow-hidden rounded-2xl border border-pink-500/20 p-8 transition-all hover:border-pink-500/60 hover:shadow-lg hover:shadow-pink-500/20">
+              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-pink-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="mb-6 inline-flex rounded-lg bg-pink-500/10 p-3">
+                <span className="text-3xl">📱</span>
+              </div>
               <h3 className="text-lg font-semibold text-white">Work Anywhere</h3>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
                 Access your notes on desktop, tablet, or phone with full offline support.
               </p>
             </div>
@@ -685,6 +697,64 @@ export default function About() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+
+        {/* Testimonials section */}
+        <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
+          <div className="mx-auto max-w-2xl lg:mx-0">
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Loved by students & professors</h2>
+            <p className="mt-6 text-lg/8 text-gray-300">
+              See what people are saying about how OghmaNotes transformed their learning.
+            </p>
+          </div>
+
+          {/* Featured Testimonial */}
+          <div className="mx-auto mt-16 max-w-2xl lg:mx-0 lg:max-w-4xl">
+            <div className="relative isolate rounded-2xl bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/20 p-8 sm:p-12">
+              <div className="flex flex-col sm:flex-row gap-8 items-start sm:items-center">
+                <img
+                  alt={featuredTestimonial.author.name}
+                  src={featuredTestimonial.author.imageUrl}
+                  className="size-20 sm:size-24 flex-shrink-0 rounded-full object-cover"
+                />
+                <div className="flex-1">
+                  <blockquote className="text-lg sm:text-xl/8 font-semibold text-white">
+                    "{featuredTestimonial.body}"
+                  </blockquote>
+                  <div className="mt-4">
+                    <p className="text-base font-semibold text-white">{featuredTestimonial.author.name}</p>
+                    <p className="text-sm text-indigo-300">@{featuredTestimonial.author.handle}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute top-0 right-0 -z-10 w-96 h-96 rounded-full bg-indigo-500 opacity-10 blur-3xl" />
+            </div>
+          </div>
+
+          {/* Supporting Testimonials Grid */}
+          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-2">
+            {testimonials.flat().map((testimonial, index) => (
+              <div
+                key={index}
+                className="group relative rounded-2xl bg-white/5 border border-white/10 p-8 hover:bg-white/10 transition-colors"
+              >
+                <div className="flex gap-4 mb-4">
+                  <img
+                    alt={testimonial.author.name}
+                    src={testimonial.author.imageUrl}
+                    className="size-12 rounded-full object-cover flex-shrink-0"
+                  />
+                  <div>
+                    <p className="font-semibold text-white text-sm">{testimonial.author.name}</p>
+                    <p className="text-xs text-gray-400">@{testimonial.author.handle}</p>
+                  </div>
+                </div>
+                <blockquote className="text-sm/6 text-gray-300">
+                  "{testimonial.body}"
+                </blockquote>
+              </div>
+            ))}
           </div>
         </div>
 
