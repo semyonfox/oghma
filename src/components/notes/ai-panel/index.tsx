@@ -10,7 +10,7 @@ export interface AIPanelProps {
 
 export const AIPanel: FC<AIPanelProps> = ({ note }) => {
   return (
-    <div className="h-full bg-surface border-l border-border overflow-y-auto p-4 hidden lg:flex flex-col">
+    <div className="ai-panel">
       {/* Metadata Section */}
       <MetadataSection note={note || null} />
 
