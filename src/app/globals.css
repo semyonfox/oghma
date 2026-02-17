@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import '../styles/design-system.css';
+@import '../styles/components/notes-layout.css';
 
 @theme {
   /* === PRIMARY: Blue for Focus & Productivity === */

@@ -23,27 +23,27 @@ const NoteSidebarStats: FC = () => {
   }, [treeItems]);
 
   return (
-    <div className="px-6 py-3 border-b border-white/10">
+    <div className="tree-stats">
       <div className="space-y-2">
         {/* Note Count */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Notes</span>
-          <span className="text-white font-semibold">{stats.noteCount}</span>
+        <div className="tree-stats-item">
+          <span className="tree-stats-label">Notes</span>
+          <span className="tree-stats-value">{stats.noteCount}</span>
         </div>
 
         {/* Sync Status */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Status</span>
+        <div className="tree-stats-item">
+          <span className="tree-stats-label">Status</span>
           <div className="flex items-center gap-1.5">
             {stats.allSynced ? (
               <>
-                <CheckCircleIcon className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 font-semibold">Synced</span>
+                <CheckCircleIcon className="w-4 h-4 text-success" />
+                <span className="text-success font-semibold">Synced</span>
               </>
             ) : (
               <>
-                <ClockIcon className="w-4 h-4 text-yellow-400" />
-                <span className="text-yellow-400 text-xs">
+                <ClockIcon className="w-4 h-4 text-ai" />
+                <span className="text-ai text-xs">
                   {stats.syncedCount}/{stats.noteCount}
                 </span>
               </>
