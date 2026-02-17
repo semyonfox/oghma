@@ -11,9 +11,9 @@ const navigation = [
   { name: 'Company', href: '#' },
 ]
 const stats = [
-  { label: 'Transactions every 24 hours', value: '44 million' },
-  { label: 'Assets under holding', value: '$119 trillion' },
-  { label: 'New users annually', value: '46,000' },
+  { label: 'Notes organized daily', value: '100K+' },
+  { label: 'Learning time saved', value: '500K hrs' },
+  { label: 'Active learners', value: '50K+' },
 ]
 const values = [
   {
@@ -121,50 +121,105 @@ const team = [
       'https://images.unsplash.com/photo-1509783236416-c9ad59bae472?ixlib=rb-=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=8&w=1024&h=1024&q=80',
   },
 ]
+const featuredTestimonial = {
+  body: 'OghmaNotes transformed how I take notes and study. The AI insights are incredibly helpful, and the Canvas integration saves me hours every week. Highly recommend it to any student!',
+  author: {
+    name: 'Sarah Anderson',
+    handle: 'sarahander',
+    imageUrl:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=1024&h=1024&q=80',
+  },
+}
+const testimonials = [
+  [
+    {
+      body: 'The organization features alone make OghmaNotes worth it. I can finally find my notes without endless scrolling.',
+      author: {
+        name: 'Michael Chen',
+        handle: 'michaelchen',
+        imageUrl:
+          'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      },
+    },
+    {
+      body: 'As a professor, I appreciate how my students are now more organized. OghmaNotes definitely improves learning outcomes.',
+      author: {
+        name: 'Dr. Emily Harris',
+        handle: 'dremharris',
+        imageUrl:
+          'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      },
+    },
+  ],
+  [
+    {
+      body: 'The Canvas sync is seamless. No more manual copying of assignments and deadlines!',
+      author: {
+        name: 'Jessica Rodriguez',
+        handle: 'jessicarodr',
+        imageUrl:
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      },
+    },
+    {
+      body: 'Best study tool I have used. The search functionality alone has saved me countless hours.',
+      author: {
+        name: 'James Wilson',
+        handle: 'jameswilson',
+        imageUrl:
+          'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      },
+    },
+  ],
+]
+
+function classNames(...classes) {
+  return classes.filter(Boolean).join(' ')
+}
 const blogPosts = [
   {
     id: 1,
-    title: 'Vel expedita assumenda placeat aut nisi optio voluptates quas',
+    title: 'Master Note-Taking: The Cornell Method with AI Assistance',
     href: '#',
     description:
-      'Illo sint voluptas. Error voluptates culpa eligendi. Hic vel totam vitae illo. Non aliquid explicabo necessitatibus unde. Sed exercitationem placeat consectetur nulla deserunt vel. Iusto corrupti dicta.',
+      'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
     imageUrl:
       'https://images.unsplash.com/photo-1496128858413-b36217c2ce36?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3603&q=80',
-    date: 'Mar 16, 2020',
-    datetime: '2020-03-16',
+    date: 'Jan 15, 2025',
+    datetime: '2025-01-15',
     author: {
-      name: 'Michael Foster',
+      name: 'Leonard Krasner',
       imageUrl:
         'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
     },
   },
   {
     id: 2,
-    title: 'Libero quisquam voluptatibus nam iusto qui dolor',
+    title: 'Canvas Integration: Sync Your Assignments in One Click',
     href: '#',
-    description: 'Optio cum necessitatibus dolor voluptatum provident commodi et. Qui aperiam fugiat nemo cumque.',
+    description: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
     imageUrl:
       'https://images.unsplash.com/photo-1547586696-ea22b4d4235d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Mar 10, 2020',
-    datetime: '2020-03-10',
+    date: 'Jan 10, 2025',
+    datetime: '2025-01-10',
     author: {
-      name: 'Lindsay Walton',
+      name: 'Floyd Miles',
       imageUrl:
         'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
     },
   },
   {
     id: 3,
-    title: 'Asperiores mollitia et dolor autem modi sit eius quisquam',
+    title: 'Transform Your Study Sessions: Tips from Top Performers',
     href: '#',
     description:
-      'Cupiditate maiores ullam eveniet adipisci in doloribus nulla minus. Voluptas iusto libero adipisci rem et corporis.',
+      'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
     imageUrl:
       'https://images.unsplash.com/photo-1492724441997-5dc865305da7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Feb 12, 2020',
-    datetime: '2020-02-12',
+    date: 'Jan 5, 2025',
+    datetime: '2025-01-05',
     author: {
-      name: 'Tom Cook',
+      name: 'Emily Selman',
       imageUrl:
         'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
     },
@@ -464,22 +519,51 @@ export default function About() {
           />
         </div>
 
-        {/* Feature section */}
+        {/* Features section */}
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Our values</h2>
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Powerful features</h2>
             <p className="mt-6 text-lg/8 text-gray-300">
-              These core values guide everything we do at OghmaNotes, from product development to how we support our community.
+              Everything you need to take better notes and learn more effectively.
             </p>
           </div>
-          <dl className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-16 text-base/7 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            {values.map((value) => (
-              <div key={value.name}>
-                <dt className="font-semibold text-white">{value.name}</dt>
-                <dd className="mt-1 text-gray-400">{value.description}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-4">
+            {/* Feature 1 - AI-Powered Insights */}
+            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">✨</div>
+              <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
+              <p className="mt-2 text-sm text-gray-400">
+                Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
+              </p>
+            </div>
+
+            {/* Feature 2 - Canvas Sync */}
+            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">🔗</div>
+              <h3 className="text-lg font-semibold text-white">Seamless Canvas Integration</h3>
+              <p className="mt-2 text-sm text-gray-400">
+                Auto-sync assignments, deadlines, and course materials directly from Canvas.
+              </p>
+            </div>
+
+            {/* Feature 3 - Smart Organization */}
+            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">📚</div>
+              <h3 className="text-lg font-semibold text-white">Smart Organization</h3>
+              <p className="mt-2 text-sm text-gray-400">
+                Auto-categorize notes, tag content intelligently, and find anything in seconds.
+              </p>
+            </div>
+
+            {/* Feature 4 - Offline Access */}
+            <div className="group rounded-2xl bg-white/5 p-8 border border-white/10 hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">📱</div>
+              <h3 className="text-lg font-semibold text-white">Work Anywhere</h3>
+              <p className="mt-2 text-sm text-gray-400">
+                Access your notes on desktop, tablet, or phone with full offline support.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Logo cloud */}

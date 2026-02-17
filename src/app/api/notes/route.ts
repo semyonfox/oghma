@@ -3,6 +3,11 @@ import { NoteModel } from '@/lib/notes/types/note';
 import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { MOCK_NOTES_STORAGE, addNoteToTree } from '@/lib/notes/storage/mock-storage';
 
+export async function GET(request: Request) {
+  const notes = Array.from(MOCK_NOTES_STORAGE.values());
+  return NextResponse.json(notes);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   
