@@ -27,10 +27,11 @@ A full-stack social platform connecting university students with society events 
 4. **[DECISIONS.md](DECISIONS.md)** - Architecture decision records
 
 ### For DevOps / Deployment
-1. **[DEPLOYMENT.md](DEPLOYMENT.md)** - AWS Amplify + Lambda production deployment
-2. **[AMPLIFY_POSTGRES_SETUP.md](AMPLIFY_POSTGRES_SETUP.md)** - Team collaboration with Amplify + PostgreSQL
-3. **[../SETUP.md](../SETUP.md)** - Local development setup
-4. **[archive/](archive/)** - Historical deployment guides and research
+1. **[AWS_SETUP_COMPLETE.md](AWS_SETUP_COMPLETE.md)** ⭐ **START HERE** - Complete AWS setup (RDS, Redis, S3) for team
+2. **[DEPLOYMENT.md](DEPLOYMENT.md)** - AWS Amplify + Lambda production deployment
+3. **[AMPLIFY_POSTGRES_SETUP.md](AMPLIFY_POSTGRES_SETUP.md)** - Team collaboration with Amplify + PostgreSQL
+4. **[../SETUP.md](../SETUP.md)** - Local development setup
+5. **[archive/](archive/)** - Historical deployment guides and research
 
 ---
 
