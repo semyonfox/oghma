@@ -63,11 +63,11 @@ export const AIToolsSection: FC<AIToolsSectionProps> = ({ noteId }) => {
   };
 
   return (
-    <div className="ai-section ai-section:last-of-type">
-      <Heading level={4} className="ai-section-title">
+    <div className="pb-4 border-b border-slate-700 last:border-b-0">
+      <Heading level={4} className="text-sm font-semibold text-slate-300 mb-3">
         AI Tools
       </Heading>
-      <div className="ai-section-content">
+      <div className="space-y-3">
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -76,19 +76,19 @@ export const AIToolsSection: FC<AIToolsSectionProps> = ({ noteId }) => {
               onClick={() => handleToolClick(tool.id)}
               disabled={tool.coming}
               title={tool.coming ? 'Coming soon' : tool.label}
-              className={`ai-tool-button ${
+              className={`w-full px-3 py-2 rounded flex items-center gap-2 transition-colors duration-200 text-left ${
                 tool.coming
-                  ? 'opacity-60 cursor-not-allowed'
-                  : 'ai-tool-button-active'
+                  ? 'opacity-50 cursor-not-allowed bg-white/5 text-slate-500 hover:bg-white/5'
+                  : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300'
               }`}
             >
-              <Icon className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+              <Icon className="w-4 h-4 text-slate-600 flex-shrink-0" />
               <div className="text-left flex-1">
-                <Text className="text-xs font-medium text-text">{tool.label}</Text>
-                <Text className="text-xs text-text-secondary">{tool.description}</Text>
+                <Text className="text-xs font-medium text-slate-300">{tool.label}</Text>
+                <Text className="text-xs text-slate-500">{tool.description}</Text>
               </div>
               {tool.coming && (
-                <div className="ml-auto text-xs px-1.5 py-0.5 bg-white/5 rounded text-text-tertiary flex-shrink-0">
+                <div className="ml-auto text-xs px-1.5 py-0.5 bg-white/5 rounded text-slate-600 flex-shrink-0">
                   Soon
                 </div>
               )}
