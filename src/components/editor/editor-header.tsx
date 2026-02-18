@@ -162,13 +162,13 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
 
           {/* Action Menu */}
           <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-2 hover:bg-gray-700 rounded transition-colors"
-              title="More actions"
-            >
-              <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
-            </button>
+             <button
+               onClick={() => setShowMenu(!showMenu)}
+               className="p-2 hover:bg-gray-700 rounded transition-colors"
+               title="More actions"
+             >
+               <EllipsisVerticalIcon className="w-6 h-6 text-slate-300" />
+             </button>
 
             {showMenu && (
               <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded shadow-lg z-50">

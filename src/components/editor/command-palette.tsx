@@ -30,7 +30,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   notes = [],
   onNoteSelect,
 }) => {
-  const [isOpen, setIsOpen] = useState(controlledIsOpen);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +45,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '📝',
         action: () => {
           console.log('Create new note');
-          closeCommandPalette();
+          onClose?.();
         },
       },
       {
@@ -57,7 +56,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '📁',
         action: () => {
           console.log('Create new folder');
-          closeCommandPalette();
+          onClose?.();
         },
       },
       {
@@ -68,7 +67,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '🔍',
         action: () => {
           console.log('Search notes');
-          closeCommandPalette();
+          onClose?.();
         },
       },
       {
@@ -79,7 +78,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '📋',
         action: () => {
           console.log('Generate quiz');
-          closeCommandPalette();
+          onClose?.();
         },
       },
       {
@@ -90,7 +89,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '📤',
         action: () => {
           console.log('Export note');
-          closeCommandPalette();
+          onClose?.();
         },
       },
       {
@@ -101,11 +100,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: '⚙️',
         action: () => {
           console.log('Open settings');
-          closeCommandPalette();
+          onClose?.();
         },
       },
     ],
-    []
+    [onClose]
   );
 
   // Convert notes to command items
@@ -117,10 +116,10 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         category: 'note' as const,
         action: () => {
           onNoteSelect?.(note.id);
-          closeCommandPalette();
+          onClose?.();
         },
       })),
-    [notes, onNoteSelect]
+    [notes, onNoteSelect, onClose]
   );
 
   // Fuzzy search filter
@@ -161,27 +160,21 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
       .slice(0, 20); // Limit to 20 results
   }, [query, commands, noteItems]);
 
-  const closeCommandPalette = () => {
-    setIsOpen(false);
-    onClose?.();
-    setQuery('');
-    setSelectedIndex(0);
-  };
-
-  // Register keyboard shortcut (Cmd+K)
+  // Register keyboard shortcut (Cmd+K) - just open/close, don't toggle local state
   useShortcut({
     key: 'k',
     meta: true,
     handler: () => {
-      setIsOpen((prev) => !prev);
-      setQuery('');
-      setSelectedIndex(0);
+      if (controlledIsOpen) {
+        onClose?.();
+      }
+      // If closed, parent will handle opening via onClick on search input
     },
   });
 
   // Handle keyboard navigation
   useEffect(() => {
-    if (!isOpen) return;
+    if (!controlledIsOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -201,23 +194,31 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           break;
         case 'Escape':
           e.preventDefault();
-          closeCommandPalette();
+          onClose?.();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, filteredItems]);
+  }, [controlledIsOpen, selectedIndex, filteredItems, onClose]);
 
   // Auto-focus input when opened
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (controlledIsOpen && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [isOpen]);
+  }, [controlledIsOpen]);
 
-  if (!isOpen) return null;
+  // Reset query when palette closes
+  useEffect(() => {
+    if (!controlledIsOpen) {
+      setQuery('');
+      setSelectedIndex(0);
+    }
+  }, [controlledIsOpen]);
+
+  if (!controlledIsOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/50 backdrop-blur-sm">
@@ -238,7 +239,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
               className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
             />
             <button
-              onClick={closeCommandPalette}
+              onClick={onClose}
               className="text-gray-500 hover:text-gray-400 transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
@@ -253,7 +254,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                   key={item.id}
                   onClick={() => {
                     item.action?.();
-                    closeCommandPalette();
                   }}
                   className={`w-full px-4 py-3 text-left transition-colors border-b border-gray-800 last:border-b-0 ${
                     idx === selectedIndex
