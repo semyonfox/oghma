@@ -142,117 +142,117 @@ const SidebarListItem: FC<{
 
     return (
         <>
-            <div
-                {...attrs}
-                ref={innerRef}
-                className={`tree-item-base group ${
-                    snapshot.isDragging ? 'shadow' : ''
-                } ${
-                    activeId === item.id ? 'tree-item-active' : ''
-                }`}
-                role="treeitem"
-                aria-expanded={hasChildren ? isExpanded : undefined}
-                aria-selected={activeId === item.id}
-                aria-current={activeId === item.id ? 'page' : undefined}
-            >
-                <Link 
-                    href={linkHref}
-                    className="flex flex-1 items-center truncate px-2 py-1.5"
-                    onClick={handleClickItem}
-                    aria-label={item.title || t('Untitled')}
-                >
-                    {emoji ? (
-                        <span
-                            onClick={handleClickIcon}
-                            className="tree-item-icon block p-0.5 cursor-pointer w-7 h-7 md:w-6 md:h-6 rounded mr-1 text-center"
-                            role="button"
-                            tabIndex={0}
-                            aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : ''}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    handleClickIcon(e as any);
-                                }
-                            }}
-                        >
-                            {emoji}
-                        </span>
-                    ) : (
-                        <IconButton
-                            className="tree-item-expand-icon mr-1"
-                            icon={
-                                hasChildren
-                                    ? 'ChevronRight'
-                                    : item.title
-                                    ? 'DocumentText'
-                                    : 'Document'
-                            }
-                            iconClassName={`transition-transform transform ${isExpanded ? 'rotate-90' : ''}`}
-                            onClick={handleClickIcon}
-                            aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : t('Document')}
-                        ></IconButton>
-                    )}
+             <div
+                 {...attrs}
+                 ref={innerRef}
+                 className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                     snapshot.isDragging ? 'shadow' : ''
+                 } ${
+                     activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                 }`}
+                 role="treeitem"
+                 aria-expanded={hasChildren ? isExpanded : undefined}
+                 aria-selected={activeId === item.id}
+                 aria-current={activeId === item.id ? 'page' : undefined}
+             >
+                 <Link 
+                     href={linkHref}
+                     className="flex flex-1 items-center truncate"
+                     onClick={handleClickItem}
+                     aria-label={item.title || t('Untitled')}
+                 >
+                     {emoji ? (
+                         <span
+                             onClick={handleClickIcon}
+                             className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-white/10 transition-colors"
+                             role="button"
+                             tabIndex={0}
+                             aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : ''}
+                             onKeyDown={(e) => {
+                                 if (e.key === 'Enter' || e.key === ' ') {
+                                     e.preventDefault();
+                                     handleClickIcon(e as any);
+                                 }
+                             }}
+                         >
+                             {emoji}
+                         </span>
+                     ) : (
+                         <IconButton
+                             className="flex-shrink-0 w-4 h-4 mr-1 transition-transform transform"
+                             icon={
+                                 hasChildren
+                                     ? 'ChevronRight'
+                                     : item.title
+                                     ? 'DocumentText'
+                                     : 'Document'
+                             }
+                             iconClassName={`${isExpanded ? 'rotate-90' : ''}`}
+                             onClick={handleClickIcon}
+                             aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : t('Document')}
+                         ></IconButton>
+                     )}
 
-                    {isRenaming ? (
-                        <input
-                            ref={renameInputRef}
-                            type="text"
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => handleRenameCompleteMemoized(renameValue)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    if (renameValue.trim()) {
-                                        handleRenameCompleteMemoized(renameValue);
-                                    }
-                                } else if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    setRenameValue(item.title || '');
-                                    handleRenameCompleteMemoized(item.title || '');
-                                }
-                            }}
-                            className="tree-item-label flex-1 truncate bg-white/10 border border-border rounded px-1 outline-none text-text focus:bg-white/20 focus:border-primary transition-colors"
-                            dir="auto"
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label={t('Rename note')}
-                        />
-                    ) : (
-                        <span className="flex-1 truncate" dir="auto">
-                            {(emoji
-                                ? item.title.replace(emoji, '').trimLeft()
-                                : item.title) ||
-                                (initLoaded ? t('Untitled') : <TextSkeleton />)}
-                        </span>
-                    )}
-                </Link>
+                     {isRenaming ? (
+                         <input
+                             ref={renameInputRef}
+                             type="text"
+                             value={renameValue}
+                             onChange={(e) => setRenameValue(e.target.value)}
+                             onBlur={() => handleRenameCompleteMemoized(renameValue)}
+                             onKeyDown={(e) => {
+                                 if (e.key === 'Enter') {
+                                     e.preventDefault();
+                                     if (renameValue.trim()) {
+                                         handleRenameCompleteMemoized(renameValue);
+                                     }
+                                 } else if (e.key === 'Escape') {
+                                     e.preventDefault();
+                                     setRenameValue(item.title || '');
+                                     handleRenameCompleteMemoized(item.title || '');
+                                 }
+                             }}
+                             className="flex-1 truncate bg-white/10 border border-slate-600 rounded px-1 py-0.5 outline-none text-slate-300 focus:bg-white/20 focus:border-blue-500 transition-colors text-sm"
+                             dir="auto"
+                             onClick={(e) => e.stopPropagation()}
+                             aria-label={t('Rename note')}
+                         />
+                     ) : (
+                         <span className="flex-1 truncate text-sm" dir="auto">
+                             {(emoji
+                                 ? item.title.replace(emoji, '').trimLeft()
+                                 : item.title) ||
+                                 (initLoaded ? t('Untitled') : <TextSkeleton />)}
+                         </span>
+                     )}
+                 </Link>
 
-                <IconButton
-                    icon="DotsHorizontal"
-                    onClick={handleClickMenu}
-                    className="tree-item-action-button hidden group-hover:block"
-                    title={t('Remove, Copy Link, etc')}
-                    aria-label={t('Note actions')}
-                    tabIndex={-1}
-                ></IconButton>
+                 <IconButton
+                     icon="DotsHorizontal"
+                     onClick={handleClickMenu}
+                     className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                     title={t('Remove, Copy Link, etc')}
+                     aria-label={t('Note actions')}
+                     tabIndex={-1}
+                 ></IconButton>
 
-                <IconButton
-                    icon="Plus"
-                    onClick={onAddNote}
-                    className="tree-item-action-button ml-1 hidden group-hover:block"
-                    title={t('Add a page inside')}
-                    aria-label={t('Add note')}
-                    tabIndex={-1}
-                ></IconButton>
-            </div>
+                 <IconButton
+                     icon="Plus"
+                     onClick={onAddNote}
+                     className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                     title={t('Add a page inside')}
+                     aria-label={t('Add note')}
+                     tabIndex={-1}
+                 ></IconButton>
+             </div>
 
-            {!hasChildren && isExpanded && (
-                <div
-                    className={`py-1.5 text-text-secondary select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
-                >
-                    {initLoaded ? t('No notes inside') : <TextSkeleton />}
-                </div>
-            )}
+             {!hasChildren && isExpanded && (
+                 <div
+                     className={`py-1.5 text-slate-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
+                 >
+                     {initLoaded ? t('No notes inside') : <TextSkeleton />}
+                 </div>
+             )}
         </>
     );
 };
