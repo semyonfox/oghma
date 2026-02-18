@@ -29,11 +29,11 @@ export const MetadataSection: FC<MetadataSectionProps> = ({ note }) => {
 
   if (!note) {
     return (
-      <div className="ai-section">
-        <Heading level={3} className="ai-section-title">
+      <div className="mb-4 pb-4 border-b border-slate-700">
+        <Heading level={3} className="text-sm font-semibold text-slate-300 mb-3">
           Note Info
         </Heading>
-        <Text className="text-sm text-text-secondary">
+        <Text className="text-sm text-slate-400">
           Select a note to view details and AI insights.
         </Text>
       </div>
@@ -41,43 +41,43 @@ export const MetadataSection: FC<MetadataSectionProps> = ({ note }) => {
   }
 
   return (
-    <div className="ai-section">
-      <Heading level={3} className="ai-section-title">
+    <div className="mb-4 pb-4 border-b border-slate-700 last:border-b-0">
+      <Heading level={3} className="text-sm font-semibold text-slate-300 mb-3">
         Note Info
       </Heading>
-      <div className="ai-section-content">
+      <div className="space-y-3">
         <div>
-          <Text className="ai-metadata-label">
+          <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             ID
           </Text>
-          <Text className="font-mono text-xs bg-white/5 p-2 rounded break-all text-text-secondary mt-1">
+          <Text className="font-mono text-xs bg-white/5 p-2 rounded break-all text-slate-400 mt-1">
             {note.id}
           </Text>
         </div>
         <div>
-          <Text className="ai-metadata-label">
+          <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             Title
           </Text>
-          <Text className="truncate text-text-secondary mt-1">{note.title || 'Untitled'}</Text>
+          <Text className="truncate text-slate-400 mt-1">{note.title || 'Untitled'}</Text>
         </div>
         <div>
-          <Text className="ai-metadata-label">
+          <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             Word Count
           </Text>
-          <Text className="text-text-secondary mt-1">{stats.wordCount} words</Text>
+          <Text className="text-slate-400 mt-1">{stats.wordCount} words</Text>
         </div>
         <div>
-          <Text className="ai-metadata-label">
+          <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
             Character Count
           </Text>
-          <Text className="text-text-secondary mt-1">{stats.charCount} characters</Text>
+          <Text className="text-slate-400 mt-1">{stats.charCount} characters</Text>
         </div>
         {note.updatedAt && (
           <div>
-            <Text className="ai-metadata-label">
+            <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
               Last Modified
             </Text>
-            <Text className="text-xs text-text-secondary mt-1">
+            <Text className="text-xs text-slate-400 mt-1">
               {new Date(note.updatedAt).toLocaleDateString()}
             </Text>
           </div>

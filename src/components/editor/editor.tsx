@@ -59,7 +59,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
                 dictionary={dictionary}
                 tooltip={Tooltip}
                 extensions={extensions}
-                className="editor-input px-4 md:px-0"
+                className=""
                 embeds={embeds}
             />
         </div>
