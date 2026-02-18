@@ -285,18 +285,18 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
       },
     }));
 
-    return (
-      <LexicalComposer initialConfig={initialConfig}>
-        <div className={`lexical-editor-wrapper ${className}`}>
-          <RichTextPlugin
-            contentEditable={
-              <ContentEditable 
-                className="editor-input outline-none min-h-[200px]"
-              />
-            }
-            placeholder={
-              <div className="editor-placeholder">{placeholder}</div>
-            }
+     return (
+       <LexicalComposer initialConfig={initialConfig}>
+         <div className={`w-full ${className}`}>
+           <RichTextPlugin
+             contentEditable={
+               <ContentEditable 
+                 className="w-full bg-slate-900 text-slate-300 outline-none min-h-[200px] p-4 rounded text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+               />
+             }
+             placeholder={
+               <div className="absolute text-slate-600 pointer-events-none select-none p-4 text-base leading-relaxed">{placeholder}</div>
+             }
             ErrorBoundary={LexicalErrorBoundary}
           />
           <HistoryPlugin />
