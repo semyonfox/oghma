@@ -172,21 +172,19 @@ function NotesUI() {
                         </div>
                         
                         {/* Right: Search and avatar */}
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                            <div className="w-40 hidden sm:block">
-                                <input
-                                    type="search"
-                                    placeholder="Search notes... (Cmd+K)"
-                                    disabled
-                                    className="w-full px-3 py-1.5 rounded-md bg-white/5 text-white text-sm placeholder:text-gray-500 border border-white/10 focus:outline-none focus:border-indigo-500"
-                                    aria-label="Search notes"
-                                    onClick={() => setCommandPaletteOpen(true)}
-                                />
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                                U
-                            </div>
-                        </div>
+                         <div className="flex items-center gap-2 flex-shrink-0">
+                             <input
+                                 type="search"
+                                 placeholder="Search... (Cmd+K)"
+                                 disabled
+                                 className="hidden sm:block w-32 px-2.5 py-1 rounded text-xs bg-white/5 text-slate-300 placeholder:text-slate-500 border border-slate-600 focus:outline-none focus:border-blue-500"
+                                 aria-label="Search notes"
+                                 onClick={() => setCommandPaletteOpen(true)}
+                             />
+                             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                                 U
+                             </div>
+                         </div>
                     </div>
                 </nav>
 
@@ -195,9 +193,9 @@ function NotesUI() {
                     {/* Split pane layout */}
                     <Allotment
                         vertical={false}
-                        defaultSizes={[...split.sizes, 50]}
+                        defaultSizes={[56, split.sizes[0] || 250, split.sizes[1] || 1, 300]}
                         onChange={(sizes) => {
-                            split.saveSizes([sizes[0], sizes[1]] as [number, number]);
+                            split.saveSizes([sizes[1], sizes[2]] as [number, number]);
                         }}
                     >
                         {/* Pane 1: Far-left Navigation Sidebar (icon-only) */}
@@ -213,62 +211,64 @@ function NotesUI() {
                         </Allotment.Pane>
 
                         {/* Pane 3: Center Editor Area - NEW: Enhanced with header and status bar */}
-                        <Allotment.Pane>
-                            <div className="h-full bg-gray-800 flex flex-col overflow-hidden">
-                                {note ? (
-                                    <>
-                                        {/* NEW: Editor header with title, tags, actions */}
-                                        <EditorHeader
-                                            note={note}
-                                            breadcrumbs={['Notes']} // Can be enhanced with actual path
-                                            tags={tags}
-                                            onTitleChange={(title) => {
-                                                useEditorStore.setState({
-                                                    note: { ...note, title },
-                                                });
-                                            }}
-                                            onTagsChange={(newTags) => {
-                                                setTags(newTags);
-                                            }}
-                                            onAction={(action) => {
-                                                console.log('Editor action:', action);
-                                                if (action === 'share') {
-                                                    console.log('Share note:', note.id);
-                                                } else if (action === 'export') {
-                                                    console.log('Export note:', note.id);
-                                                } else if (action === 'delete') {
-                                                    console.log('Delete note:', note.id);
-                                                }
-                                            }}
-                                        />
-                                        
-                                        {/* Editor pane - scrollable */}
-                                        <div className="flex-1 overflow-auto">
-                                            <Editor readOnly={false} />
-                                        </div>
-                                        
-                                        {/* NEW: Status bar with sync, stats, zoom */}
-                                        <EditorStatusBar
-                                            content={note.content || ''}
-                                            syncStatus={autoSaveStatus.status}
-                                            lastSaved={autoSaveStatus.lastSaved}
-                                            cursorLine={cursorLine}
-                                            cursorColumn={cursorColumn}
-                                            zoom={zoom}
-                                            onZoomChange={setZoom}
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="flex-1 flex items-center justify-center text-gray-400">
-                                        <div className="text-center">
-                                            <DocumentIcon className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                                            <h3 className="text-sm font-semibold text-white mb-1">Select a note</h3>
-                                            <p className="text-xs">Click on a note in the sidebar to start editing</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </Allotment.Pane>
+                         <Allotment.Pane>
+                             <div className="h-full bg-slate-900 flex flex-col overflow-hidden">
+                                 {note ? (
+                                     <>
+                                         {/* NEW: Editor header with title, tags, actions */}
+                                         <EditorHeader
+                                             note={note}
+                                             breadcrumbs={['Notes']} // Can be enhanced with actual path
+                                             tags={tags}
+                                             onTitleChange={(title) => {
+                                                 useEditorStore.setState({
+                                                     note: { ...note, title },
+                                                 });
+                                             }}
+                                             onTagsChange={(newTags) => {
+                                                 setTags(newTags);
+                                             }}
+                                             onAction={(action) => {
+                                                 console.log('Editor action:', action);
+                                                 if (action === 'share') {
+                                                     console.log('Share note:', note.id);
+                                                 } else if (action === 'export') {
+                                                     console.log('Export note:', note.id);
+                                                 } else if (action === 'delete') {
+                                                     console.log('Delete note:', note.id);
+                                                 }
+                                             }}
+                                         />
+                                         
+                                         {/* Editor pane - scrollable with proper contrast */}
+                                         <div className="flex-1 overflow-auto bg-slate-900">
+                                             <div className="max-w-4xl mx-auto px-6 py-8">
+                                                 <Editor readOnly={false} />
+                                             </div>
+                                         </div>
+                                         
+                                         {/* NEW: Status bar with sync, stats, zoom */}
+                                         <EditorStatusBar
+                                             content={note.content || ''}
+                                             syncStatus={autoSaveStatus.status}
+                                             lastSaved={autoSaveStatus.lastSaved}
+                                             cursorLine={cursorLine}
+                                             cursorColumn={cursorColumn}
+                                             zoom={zoom}
+                                             onZoomChange={setZoom}
+                                         />
+                                     </>
+                                 ) : (
+                                     <div className="flex-1 flex items-center justify-center text-slate-400">
+                                         <div className="text-center">
+                                             <DocumentIcon className="w-8 h-8 mx-auto mb-3 text-slate-600" />
+                                             <h3 className="text-sm font-semibold text-slate-300 mb-1">Select a note</h3>
+                                             <p className="text-xs text-slate-500">Click on a note in the sidebar to start editing</p>
+                                         </div>
+                                     </div>
+                                 )}
+                             </div>
+                         </Allotment.Pane>
 
                         {/* Pane 4: Right Panel - NEW: Tabbed properties and AI chat */}
                         <Allotment.Pane minSize={0} maxSize={400} snap>
