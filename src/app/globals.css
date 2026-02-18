@@ -165,6 +165,47 @@ html, body {
     @apply bg-gray-900 text-gray-50 p-4 rounded-lg overflow-x-auto;
   }
 
+  /* Lexical theme classes - used by Lexical for semantic markup */
+  .editor-paragraph {
+    @apply my-2;
+  }
+
+  .editor-heading-h1 {
+    @apply text-4xl font-bold my-4 mt-6;
+  }
+
+  .editor-heading-h2 {
+    @apply text-3xl font-bold my-3 mt-5;
+  }
+
+  .editor-heading-h3 {
+    @apply text-2xl font-bold my-2 mt-4;
+  }
+
+  .editor-list-ul {
+    @apply list-disc my-2 ml-6;
+  }
+
+  .editor-list-ol {
+    @apply list-decimal my-2 ml-6;
+  }
+
+  .editor-listitem {
+    @apply my-1;
+  }
+
+  .editor-link {
+    @apply text-blue-400 underline hover:text-blue-300 cursor-pointer;
+  }
+
+  .editor-code {
+    @apply bg-slate-700 text-slate-300 px-2 py-1 rounded font-mono text-sm;
+  }
+
+  .editor-quote {
+    @apply border-l-4 border-blue-500 pl-4 italic my-2 text-slate-400;
+  }
+
   /* Card hover effect */
   .card-hover {
     @apply transition-shadow duration-150 ease-in-out hover:shadow-lg;
