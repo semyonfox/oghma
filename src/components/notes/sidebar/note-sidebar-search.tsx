@@ -16,7 +16,7 @@ const NoteSidebarSearch: FC = () => {
   }, []);
 
   return (
-    <div className="tree-search-wrapper">
+    <div className="px-4 py-3 border-b border-slate-700 flex-shrink-0">
       <div className="relative">
         <input
           type="text"
@@ -24,10 +24,10 @@ const NoteSidebarSearch: FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onFocus={handleOpenSearch}
-          className="tree-search"
+          className="w-full px-3 py-2 pl-9 bg-white/5 text-slate-300 placeholder:text-slate-600 rounded-md border border-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors duration-200"
           aria-label="Search notes"
         />
-        <MagnifyingGlassIcon className="tree-search-icon" />
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-600 pointer-events-none" />
         {searchQuery && (
           <button
             onClick={handleClearSearch}
