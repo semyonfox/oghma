@@ -99,9 +99,9 @@ export const EditorSplitView: FC<EditorSplitViewProps> = ({
         className="flex-1 overflow-auto"
         onScroll={handleEditorScroll}
       >
-        <div className="editor-split-pane">
-          <LexicalEditor {...editorProps} />
-        </div>
+       <div className="w-full">
+           <LexicalEditor {...editorProps} />
+         </div>
       </div>
 
       {/* Divider (optional: could be draggable in future) */}
