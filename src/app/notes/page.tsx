@@ -35,7 +35,7 @@ const Editor = dynamic(() => import('@/components/editor/editor'), {
 // Lazy-load AI Panel component
 const AIPanel = dynamic(() => import('@/components/notes/ai-panel'), {
   loading: () => (
-    <div className="ai-panel">
+    <div className="h-full bg-slate-800 border-l border-slate-700 overflow-y-auto p-4">
       <div className="h-12 bg-white/10 rounded animate-pulse" />
     </div>
   ),
