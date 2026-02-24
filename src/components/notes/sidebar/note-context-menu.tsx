@@ -86,7 +86,7 @@ export default function NoteContextMenu({
             {isVisible && (
                 <div
                     ref={menuRef}
-                    className="fixed z-50 w-48 rounded-md bg-white dark:bg-neutral-800 py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none"
+                    className="fixed z-50 w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none"
                     style={{
                         top: `${position.y}px`,
                         left: `${position.x}px`,
@@ -100,7 +100,7 @@ export default function NoteContextMenu({
                                 onTogglePin(noteId);
                                 handleClose();
                             }}
-                            className="group flex w-full items-center px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
                             <StarIcon
                                 className={`mr-3 h-4 w-4 ${isPinned ? 'fill-yellow-400 text-yellow-400' : ''}`}
@@ -116,7 +116,7 @@ export default function NoteContextMenu({
                             onRename(noteId);
                             handleClose();
                         }}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                        className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                         <PencilIcon
                             className="mr-3 h-4 w-4"
@@ -132,7 +132,7 @@ export default function NoteContextMenu({
                                 onDuplicate(noteId);
                                 handleClose();
                             }}
-                            className="group flex w-full items-center px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
                             <DocumentDuplicateIcon
                                 className="mr-3 h-4 w-4"
@@ -144,14 +144,14 @@ export default function NoteContextMenu({
 
                     {isFolder && (
                         <>
-                            <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+                            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onCreateNote(noteId);
                                     handleClose();
                                 }}
-                                className="group flex w-full items-center px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
                                 <DocumentPlusIcon
                                     className="mr-3 h-4 w-4"
@@ -165,7 +165,7 @@ export default function NoteContextMenu({
                                     onCreateFolder(noteId);
                                     handleClose();
                                 }}
-                                className="group flex w-full items-center px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
                                 <FolderPlusIcon
                                     className="mr-3 h-4 w-4"
@@ -176,7 +176,7 @@ export default function NoteContextMenu({
                         </>
                     )}
 
-                    <div className="my-1 border-t border-neutral-200 dark:border-neutral-700" />
+                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
 
                     <button
                         onClick={(e) => {
