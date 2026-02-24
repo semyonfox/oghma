@@ -49,7 +49,7 @@ STORAGE_SECRET_KEY=your-secret-access-key
 STORAGE_REGION=eu-north-1
 STORAGE_ENDPOINT=https://s3.eu-north-1.amazonaws.com
 STORAGE_PATH_STYLE=false
-STORAGE_PREFIX=socsboard
+STORAGE_PREFIX=oghma
 MAX_FILE_SIZE=104857600
 ALLOWED_FILE_TYPES=md,pdf,jpg,jpeg,png,gif,zip,docx,doc,txt
 PRESIGNED_URL_EXPIRY=86400
@@ -64,7 +64,7 @@ PRESIGNED_URL_EXPIRY=86400
 - `STORAGE_REGION` - AWS region (default: `us-east-1`)
 - `STORAGE_ENDPOINT` - Custom S3 endpoint URL (use AWS default if not specified)
 - `STORAGE_PATH_STYLE` - Use path-style URLs instead of virtual-hosted (default: `false`)
-- `STORAGE_PREFIX` - Path prefix for all objects (default: `socsboard`)
+- `STORAGE_PREFIX` - Path prefix for all objects (default: `oghma`)
 
 ### 2. AWS S3 Bucket Setup
 
@@ -115,7 +115,7 @@ curl -X POST http://localhost:3000/api/upload \
   "success": true,
   "fileName": "file.txt",
   "path": "notes/my-note-123/file.txt",
-  "url": "https://our-chum-bucket.s3.eu-north-1.amazonaws.com/socsboard/notes/my-note-123/file.txt?X-Amz-Algorithm=...",
+  "url": "https://our-chum-bucket.s3.eu-north-1.amazonaws.com/oghma/notes/my-note-123/file.txt?X-Amz-Algorithm=...",
   "size": 1024,
   "type": "text/plain"
 }
@@ -178,7 +178,7 @@ curl "http://localhost:3000/api/upload?path=notes/test-123/test-file.txt"
 
 1. Go to [AWS S3 Console](https://s3.console.aws.amazon.com)
 2. Open bucket: `our-chum-bucket`
-3. Navigate to: `socsboard/notes/`
+3. Navigate to: `oghma/notes/`
 4. Find your uploaded files
 
 ## Storage Path Structure
@@ -187,7 +187,7 @@ All files are stored under the following hierarchy:
 
 ```
 s3://our-chum-bucket/
-└── socsboard/                    (STORAGE_PREFIX)
+└── oghma/                    (STORAGE_PREFIX)
     └── notes/
         └── {noteId}/
             ├── file1.txt
@@ -280,7 +280,7 @@ export async function GET(request: NextRequest) {
 ### File not appearing in AWS
 - Verify upload response shows `success: true`
 - Check S3 console in correct region (`eu-north-1`)
-- Look in correct path: `socsboard/notes/{noteId}/`
+- Look in correct path: `oghma/notes/{noteId}/`
 
 ## Advanced Configuration
 
@@ -362,7 +362,7 @@ REDIS_PASSWORD=your-password
 Update `.env` with RDS endpoint:
 
 ```env
-DATABASE_URL=mysql://user:password@rds-endpoint:3306/socsboard
+DATABASE_URL=mysql://user:password@rds-endpoint:3306/oghma
 ```
 
 ## Troubleshooting
@@ -373,19 +373,18 @@ DATABASE_URL=mysql://user:password@rds-endpoint:3306/socsboard
 npm run dev
 ```
 
-Check logs in `/tmp/socsboard.log`:
-```bash
-tail -f /tmp/socsboard.log
+Check logs in `/tmp/oghma.log`:
+
+tail -f /tmp/oghma.log
 ```
 
 ### Clear and restart
 
 ```bash
 # Kill existing server
-kill $(cat /tmp/socsboard.pid)
+kill $(cat /tmp/oghma.pid)
 
-# Clear logs
-rm /tmp/socsboard.log
+rm /tmp/oghma.log
 
 # Restart
 npm run dev
