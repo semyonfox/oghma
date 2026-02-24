@@ -3,11 +3,11 @@ import { NoteModel } from '@/lib/notes/types/note';
 import localforage from 'localforage';
 
 export const uiCache = localforage.createInstance({
-    name: 'socsboard-ui',
+    name: 'oghma-ui',
 });
 
 export const noteCacheInstance = localforage.createInstance({
-    name: 'socsboard-notes',
+    name: 'oghma-notes',
 });
 
 export interface NoteCacheItem extends NoteModel {

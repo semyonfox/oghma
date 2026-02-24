@@ -9,8 +9,8 @@
 
 ```bash
 # Clone the repo
-git clone git@github.com:semyonfox/socsboard.git
-cd socsboard
+git clone git@github.com:semyonfox/oghma.git
+cd oghma
 
 # Install dependencies (use pnpm, NOT npm)
 pnpm install
@@ -191,7 +191,7 @@ STORAGE_SECRET_KEY=xxx
 STORAGE_REGION=eu-north-1
 
 # PostgreSQL (you'll add)
-DATABASE_URL=postgresql://user:pass@host:5432/socsboard
+DATABASE_URL=postgresql://user:pass@host:5432/oghma
 
 # LLM API Keys (user-provided)
 OPENAI_API_KEY=sk-xxx...
