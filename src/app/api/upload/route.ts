@@ -1,15 +1,78 @@
 // upload API route - handles file uploads for note attachments
-// coded but DISABLED until S3 storage is wired up
 import { NextRequest, NextResponse } from 'next/server';
+import { getStorageProvider } from '@/lib/storage/init';
 
 export async function POST(request: NextRequest) {
-    // TODO: enable when S3 storage is connected
-    // implementation should:
-    // 1. accept multipart form data with file
-    // 2. upload to S3 bucket under note-specific prefix
-    // 3. return { url: "signed-url-to-file" }
-    return NextResponse.json(
-        { error: 'Upload endpoint is not yet enabled. S3 storage must be configured first.' },
-        { status: 501 }
-    );
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file') as File;
+        const noteId = formData.get('noteId') as string || 'test';
+
+        if (!file) {
+            return NextResponse.json(
+                { error: 'No file provided' },
+                { status: 400 }
+            );
+        }
+
+        const buffer = await file.arrayBuffer();
+        const fileName = file.name || 'unnamed';
+        const storagePath = `notes/${noteId}/${fileName}`;
+
+        const storage = getStorageProvider();
+        await storage.putObject(storagePath, Buffer.from(buffer));
+
+        const signedUrl = await storage.getSignUrl(storagePath, 3600);
+
+        return NextResponse.json({
+            success: true,
+            fileName,
+            path: storagePath,
+            url: signedUrl,
+            size: file.size,
+            type: file.type,
+        });
+    } catch (error) {
+        console.error('Upload error:', error);
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Upload failed' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function GET(request: NextRequest) {
+    try {
+        const path = request.nextUrl.searchParams.get('path');
+
+        if (!path) {
+            return NextResponse.json(
+                { error: 'path query parameter required' },
+                { status: 400 }
+            );
+        }
+
+        const storage = getStorageProvider();
+        const content = await storage.getObject(path);
+
+        if (!content) {
+            return NextResponse.json(
+                { error: 'File not found' },
+                { status: 404 }
+            );
+        }
+
+        return NextResponse.json({
+            success: true,
+            path,
+            content,
+            size: content.length,
+        });
+    } catch (error) {
+        console.error('Retrieve error:', error);
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : 'Retrieve failed' },
+            { status: 500 }
+        );
+    }
 }
