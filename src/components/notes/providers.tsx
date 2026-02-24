@@ -11,7 +11,6 @@ import PortalState from '@/lib/notes/state/portal';
 import SearchState from '@/lib/notes/state/search';
 import TrashState from '@/lib/notes/state/trash';
 import CsrfTokenState from '@/lib/notes/state/csrf-token';
-import EditorModeState from '@/lib/notes/state/editor-mode';
 import SearchModal from '@/components/notes/search-modal';
 import TrashModal from '@/components/notes/trash-modal';
 import PreviewModal from '@/components/notes/preview-modal';
@@ -35,18 +34,16 @@ export default function NotesProviders({ children }: NotesProvidersProps) {
                             <NoteState.Provider>
                                 <SearchState.Provider>
                                     <TrashState.Provider>
-                                        <EditorModeState.Provider>
-                                            <PortalState.Provider>
+                                        <PortalState.Provider>
 
-                                                    {children}
-                                                    <SearchModal />
-                                                    <TrashModal />
-                                                    <PreviewModal />
-                                                    <LinkToolbar />
-                                                    <EditorWidthSelect />
+                                                {children}
+                                                <SearchModal />
+                                                <TrashModal />
+                                                <PreviewModal />
+                                                <LinkToolbar />
+                                                <EditorWidthSelect />
 
-                                            </PortalState.Provider>
-                                        </EditorModeState.Provider>
+                                        </PortalState.Provider>
                                     </TrashState.Provider>
                                 </SearchState.Provider>
                             </NoteState.Provider>
