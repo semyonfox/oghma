@@ -158,7 +158,7 @@ src/
 ```bash
 npm run dev
 # Runs on http://localhost:3000
-# Logs: tail -f /tmp/socsboard-dev.log
+# Logs: tail -f /tmp/oghma-dev.log
 ```
 
 ### Build

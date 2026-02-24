@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-// adapted for socsboard - removed Notea-specific environment variables
+// adapted for oghma - removed Notea-specific environment variables
 
 export function parseBool(str: string, invalid?: boolean): boolean;
 export function parseBool(str: null | undefined): undefined;

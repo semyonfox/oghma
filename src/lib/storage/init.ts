@@ -26,7 +26,7 @@ function validateS3Config(): S3Config {
     region: process.env.STORAGE_REGION || 'us-east-1',
     endPoint: process.env.STORAGE_ENDPOINT,
     pathStyle: process.env.STORAGE_PATH_STYLE === 'true',
-    prefix: process.env.STORAGE_PREFIX || 'socsboard',
+    prefix: process.env.STORAGE_PREFIX || 'oghma',
   };
 }
 
