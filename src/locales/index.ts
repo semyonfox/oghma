@@ -1,7 +1,7 @@
 // adapted from notea: https://github.com/QingWei-Li/notea
 // original file: locales/index.ts
 
-// locale enum for socsboard
+// locale enum for oghma
 // can be extended as more translations are added
 export enum Locale {
   ZH_CN = 'zh-CN',
