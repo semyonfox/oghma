@@ -9,8 +9,8 @@
 
 ```bash
 # Clone the repo
-git clone git@github.com:semyonfox/socsboard.git
-cd socsboard
+git clone git@github.com:semyonfox/oghma.git
+cd oghma
 
 # Install dependencies (use pnpm, NOT npm)
 pnpm install

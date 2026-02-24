@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-// adapted for socsboard - removed @atlaskit/tree and lodash dependencies
+// adapted for oghma - removed @atlaskit/tree and lodash dependencies
 
 import { NoteModel } from './note';
 
