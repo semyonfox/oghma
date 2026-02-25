@@ -31,7 +31,7 @@ Check **[PROJECT_PLAN.md](../PROJECT_PLAN.md)** to see:
 
 ## 2. Setup (30 minutes)
 
-Follow [SETUP.md](../SETUP.md):
+Follow setup steps:
 
 ```bash
 # 1. Clone and install
@@ -48,7 +48,7 @@ npm run dev
 # Visit http://localhost:3000
 ```
 
-**Stuck?** See SETUP.md troubleshooting or ask Semyon.
+**Stuck?** Ask Semyon.
 
 ---
 
@@ -237,7 +237,7 @@ Don't panic! Everyone does this:
 
 ### "How do I get a local database?"
 
-See [SETUP.md](../SETUP.md). You have options:
+You have options:
 - Local PostgreSQL installation
 - Docker container
 - Remote database via Tailscale (ask Semyon for credentials)
@@ -246,7 +246,7 @@ See [SETUP.md](../SETUP.md). You have options:
 
 ## 9. Next Steps
 
-1. **Complete setup** (SETUP.md)
+1. **Complete setup**
 2. **Read your feature spec** (API_SPECS.md)
 3. **Study the pattern** (reference endpoint + DEVELOPMENT_PATTERNS.md)
 4. **Create your branch** and start coding
@@ -258,7 +258,7 @@ See [SETUP.md](../SETUP.md). You have options:
 
 | What You Need | Where to Find It |
 |--------------|------------------|
-| Setup instructions | [SETUP.md](../SETUP.md) |
+| Setup instructions | Check the README |
 | What to build | [API_SPECS.md](API_SPECS.md) |
 | How to code it | [DEVELOPMENT_PATTERNS.md](DEVELOPMENT_PATTERNS.md) |
 | Database schema | [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) |

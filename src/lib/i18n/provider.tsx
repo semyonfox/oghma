@@ -1,3 +1,5 @@
+'use client'
+
 // adapted from notea: https://github.com/QingWei-Li/notea
 // original file: libs/web/utils/i18n-provider.tsx
 
