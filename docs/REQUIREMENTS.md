@@ -169,7 +169,7 @@ This SRS references the following internal project documents:
    - 8-week timeline
    - Team structure and approach
    - Technical architecture decisions
-   - Source: `/docs/README.md` and `/docs/ARCHITECTURE.md`
+   - Source: `/README.md` and `/docs/ARCHITECTURE.md`
 
 2. **ARCHITECTURE.md**
    - Technical architecture decisions
@@ -177,23 +177,16 @@ This SRS references the following internal project documents:
    - Technology stack rationale
    - Source: `/docs/ARCHITECTURE.md`
 
-3. **DEPLOYMENT.md & AWS_MIGRATION.md**
+3. **DEPLOYMENT.md**
    - Docker setup and deployment
    - CI/CD pipeline configuration
-   - AWS migration strategy
-   - Source: `/docs/DEPLOYMENT.md` and `/docs/AWS_MIGRATION.md`
+   - Source: `/docs/DEPLOYMENT.md`
 
 4. **guides/redis_caching.md**
    - Redis implementation details
    - Caching strategies and patterns
    - Performance optimization
    - Source: `/docs/guides/redis_caching.md`
-
-5. **Stack Diagram.excalidraw.md**
-   - Visual system architecture
-   - Component relationships
-   - Source: `/docs/Stack Diagram.excalidraw.md`
-
 #### 1.4.2 External References
 
 The following external documentation and technical resources are referenced:

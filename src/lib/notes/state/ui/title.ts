@@ -2,10 +2,10 @@
 import { useState, useCallback } from 'react';
 
 export default function useTitle() {
-    const [value, setTitle] = useState('SocsBoard');
+    const [value, setTitle] = useState('OghmaNotes');
 
     const updateTitle = useCallback((text?: string) => {
-        setTitle(text ? `${text} - SocsBoard` : 'SocsBoard');
+        setTitle(text ? `${text} - OghmaNotes` : 'OghmaNotes');
     }, []);
 
     return { value, updateTitle };
