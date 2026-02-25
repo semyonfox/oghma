@@ -1,25 +1,32 @@
+'use client'
+
+import useI18n from '@/lib/notes/hooks/use-i18n';
+import { Locale, configLocale } from '@/locales';
+
 export default function Footer() {
+  const { t, locale, activeLocale } = useI18n();
+
   const navigation = {
     features: [
-      { name: 'RAG Chat', href: '#' },
-      { name: 'Adaptive Quizzes', href: '#' },
-      { name: 'Spaced Repetition', href: '#' },
-      { name: 'Canvas Integration', href: '#' },
+      { name: t('RAG Chat'), href: '#' },
+      { name: t('Adaptive Quizzes'), href: '#' },
+      { name: t('Spaced Repetition'), href: '#' },
+      { name: t('Canvas Integration'), href: '#' },
     ],
     support: [
-      { name: 'Documentation', href: '#' },
-      { name: 'Guides', href: '#' },
-      { name: 'Contact', href: '/about#contact' },
+      { name: t('Documentation'), href: '#' },
+      { name: t('Guides'), href: '#' },
+      { name: t('Contact'), href: '/#contact' },
     ],
     company: [
-      { name: 'About', href: '/about' },
-      { name: 'Blog', href: '/about#blog' },
-      { name: 'GitHub', href: 'https://github.com' },
+      { name: t('About'), href: '/about' },
+      { name: t('Blog'), href: '/about#blog' },
+      { name: t('GitHub'), href: 'https://github.com' },
     ],
     legal: [
-      { name: 'Privacy Policy', href: '#' },
-      { name: 'Terms of Service', href: '#' },
-      { name: 'License', href: '#' },
+      { name: t('Privacy Policy'), href: '#' },
+      { name: t('Terms of Service'), href: '#' },
+      { name: t('License'), href: '#' },
     ],
     social: [
       {
@@ -45,14 +52,23 @@ export default function Footer() {
         ),
       },
     ],
-  }
+  };
+
+  const handleLanguageChange = async (e) => {
+    const nextLocale = e.target.value;
+    const module = await import(`@/locales/${nextLocale}.json`);
+    locale(nextLocale, module.default);
+  };
 
   return (
-    <footer className="bg-gray-900">
+    <footer className="bg-gray-900 border-t border-white/10">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-8 sm:pt-24 lg:px-8 lg:pt-32">
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
-            <div className="text-2xl font-bold text-white">📝 AI Study Vault</div>
+            <div className="text-2xl font-bold text-white flex items-center gap-2">
+              <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
+              OghmaNotes
+            </div>
             <p className="text-sm/6 text-balance text-gray-400">
               RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.
             </p>
@@ -70,11 +86,29 @@ export default function Footer() {
                 </a>
               ))}
             </div>
+            {/* Language Switcher */}
+            <div className="pt-4">
+              <label htmlFor="language-select" className="text-xs font-semibold text-gray-400 uppercase tracking-tighter block mb-2">
+                {t('Language')}
+              </label>
+              <select
+                id="language-select"
+                value={activeLocale}
+                onChange={handleLanguageChange}
+                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
+              >
+                {Object.entries(configLocale).map(([code, name]) => (
+                  <option key={code} value={code} className="bg-gray-900">
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">Features</h3>
+                <h3 className="text-sm/6 font-semibold text-white">{t('Features')}</h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.features.map((item) => (
                     <li key={item.name}>
@@ -86,7 +120,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">Support</h3>
+                <h3 className="text-sm/6 font-semibold text-white">{t('Support')}</h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
@@ -100,7 +134,7 @@ export default function Footer() {
             </div>
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">Company</h3>
+                <h3 className="text-sm/6 font-semibold text-white">{t('Company')}</h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
@@ -112,7 +146,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">Legal</h3>
+                <h3 className="text-sm/6 font-semibold text-white">{t('Legal')}</h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.legal.map((item) => (
                     <li key={item.name}>
@@ -127,11 +161,9 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-sm/6 text-gray-400">
-            &copy; 2024 AI Study Vault. Built by Samuel Regan, Semyon Fox, and Shreyansh Singh. All rights reserved.
-          </p>
+          <p className="text-xs/5 text-gray-400">&copy; {new Date().getFullYear()} OghmaNotes. All rights reserved.</p>
         </div>
       </div>
     </footer>
-  )
+  );
 }

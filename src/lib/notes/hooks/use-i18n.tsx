@@ -1,3 +1,5 @@
+'use client'
+
 // extracted from Notea (MIT License)
 import { useContext } from 'react';
 import { I18nContext } from '@/lib/i18n/provider';
