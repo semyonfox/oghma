@@ -40,8 +40,8 @@ const INITIAL_NOTES: Record<string, NoteModel> = {
   ),
   'welcome': createNote(
     'welcome',
-    'Welcome to SocsBoard',
-    '# Welcome to SocsBoard\n\nThis is your personal note-taking application.\n\n## Features\n\n- **Markdown editing** with live preview\n- **Hierarchical notes** organized in folders\n- **Search** across all your notes\n\n## Getting Started\n\nClick on a note in the sidebar to start editing, or create a new note using the + button.'
+    'Welcome to OghmaNotes',
+    '# Welcome to OghmaNotes\n\nThis is your personal note-taking application.\n\n## Features\n\n- **Markdown editing** with live preview\n- **Hierarchical notes** organized in folders\n- **Search** across all your notes\n\n## Getting Started\n\nClick on a note in the sidebar to start editing, or create a new note using the + button.'
   ),
   'projects': createNote(
     'projects',
@@ -154,7 +154,7 @@ export const removeNoteFromTree = (noteId: string) => {
   // Remove from parent's children
   const parentId = item.data?.pid || ROOT_ID;
   if (MOCK_TREE_STORAGE.items[parentId]) {
-    MOCK_TREE_STORAGE.items[parentId].children = 
+    MOCK_TREE_STORAGE.items[parentId].children =
       MOCK_TREE_STORAGE.items[parentId].children.filter(id => id !== noteId);
   }
 

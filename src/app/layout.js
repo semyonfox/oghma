@@ -1,7 +1,8 @@
+import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import "./globals.css";
 
 export const metadata = {
-    title: "SocsBoard",
+    title: "OghmaNotes",
     description: "AI-enhanced study & learning hub",
 };
 
@@ -14,7 +15,9 @@ export default function RootLayout({ children }) {
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
             </head>
             <body className="font-sans antialiased bg-background text-text">
-                {children}
+                <I18nRootProvider>
+                    {children}
+                </I18nRootProvider>
             </body>
         </html>
     );

@@ -2,7 +2,7 @@
 
 **Production deployment to AWS Amplify + Lambda**
 
-This guide covers deploying SocsBoard to production on AWS. For local development with Docker, see SETUP.md.
+This guide covers deploying SocsBoard to production on AWS.
 
 Last Updated: February 12, 2026
 
@@ -663,8 +663,6 @@ aws lambda update-function-code \
 
 ## Local Development
 
-For local development with Docker Compose, see SETUP.md.
-
 **Quick start:**
 ```bash
 cp .env.example .env.local
@@ -674,17 +672,7 @@ npm run dev
 
 ---
 
-## Historical Documentation
 
-Previous deployment research and alternative approaches archived in:
-
-- `docs/archive/2025-02-AWS_MIGRATION_RESEARCH.md` - Detailed AWS migration analysis
-- `docs/archive/2025-02-AMPLIFY_DEPLOYMENT.md` - Original Amplify deployment guide
-- `docs/archive/2025-02-RECOMMENDER_DEPLOYMENT.md` - Python service deployment options
-- `docs/archive/2025-02-CLOUDFLARE_TUNNEL.md` - Previous Cloudflare Tunnel setup
-- `docs/archive/2025-02-DEPLOYMENT_DOCKER.md` - Docker deployment guide (local dev)
-
----
 
 **Last Updated:** February 11, 2026
 **Maintained by:** Semyon (Tech Lead)
