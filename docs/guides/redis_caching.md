@@ -83,7 +83,7 @@ import { createClient } from 'redis';
 
 // Create Redis client
 const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://<redacted>',
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
   // For Upstash or Redis Cloud, use their connection string
 });
 
@@ -542,8 +542,9 @@ await redis.hGetAll('user:123');
 
 ```bash
 # .env.local
-REDIS_URL=<redacted># OR for production:
-# REDIS_URL=redis://<redacted>
+REDIS_URL=redis://localhost:6379
+# OR for production:
+# REDIS_URL=redis://username:password@redis-host:6379
 ```
 
 ### Full Implementation: Popular Event with Caching

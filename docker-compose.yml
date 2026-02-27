@@ -21,7 +21,7 @@ services:
         ipv4_address: 172.30.10.8
     # NOTE: Database migrated from PostgreSQL to MariaDB
     # Update stack.env with MariaDB connection string:
-    # DATABASE_URL=mysql://<redacted>
+    # DATABASE_URL=mysql://socsboard_user:password@your-db-host:3306/ct2106
 
 networks:
   ct2106:

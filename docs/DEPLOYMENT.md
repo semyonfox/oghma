@@ -109,12 +109,15 @@ Prepare these values before deployment:
 
 ```
 # Database
-DATABASE_URL=<redacted>
+DATABASE_URL=postgresql://username:password@host:5432/database
+
 # Authentication
-JWT_SECRET=<redacted>JWT_EXPIRES_IN=1h
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRES_IN=1h
 
 # Redis
-REDIS_URL=<redacted>
+REDIS_URL=redis://host:6379
+
 # Python Service
 RECOMMENDER_API_URL=https://lambda-function-url.amazonaws.com
 
@@ -166,8 +169,11 @@ frontend:
 In Amplify Console → App Settings → Environment Variables:
 
 ```
-DATABASE_URL=<redacted>JWT_SECRET=<redacted>JWT_EXPIRES_IN=1h
-REDIS_URL=<redacted>RECOMMENDER_API_URL=<LAMBDA_URL>
+DATABASE_URL=<RDS_CONNECTION_STRING>
+JWT_SECRET=<GENERATE_RANDOM_STRING>
+JWT_EXPIRES_IN=1h
+REDIS_URL=<ELASTICACHE_URL>
+RECOMMENDER_API_URL=<LAMBDA_URL>
 NODE_ENV=production
 ```
 
@@ -288,7 +294,7 @@ psycopg2-binary
 
 4. **Configure environment variables**
    - Configuration → Environment variables
-   - Add: `DATABASE_URL=postgresql://<redacted>
+   - Add: `DATABASE_URL=postgresql://...`
 
 5. **Adjust timeout and memory**
    - Configuration → General configuration
@@ -372,13 +378,13 @@ export async function GET(request) {
 
 **Get connection string:**
 ```
-postgresql://<redacted>
+postgresql://socsboard_admin:PASSWORD@socsboard-db.abc123.eu-west-1.rds.amazonaws.com:5432/postgres
 ```
 
 **Run schema:**
 ```bash
 # Connect to RDS
-psql postgresql://<redacted>
+psql postgresql://socsboard_admin:PASSWORD@HOST:5432/postgres
 
 # Create database
 CREATE DATABASE socsboard;
@@ -390,13 +396,15 @@ CREATE DATABASE socsboard;
 
 **Or use migration script:**
 ```bash
-DATABASE_URL=<redacted>```
+DATABASE_URL="postgresql://..." npm run migrate
+```
 
 ### Step 4: Update Amplify Environment Variables
 
 Add RDS connection string to Amplify:
 ```
-DATABASE_URL=<redacted>```
+DATABASE_URL=postgresql://socsboard_admin:PASSWORD@socsboard-db.abc123.eu-west-1.rds.amazonaws.com:5432/socsboard
+```
 
 ---
 
@@ -435,14 +443,15 @@ socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
 
 **Connection string:**
 ```
-redis://<redacted>
+redis://socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
 ```
 
 ### Step 4: Update Environment Variables
 
 Add to Amplify and Lambda:
 ```
-REDIS_URL=<redacted>```
+REDIS_URL=redis://socsboard-redis.abc123.0001.euw1.cache.amazonaws.com:6379
+```
 
 ---
 
@@ -623,8 +632,8 @@ aws lambda update-function-code \
 2. Navigate to App Settings → Environment Variables
 3. Add all required variables:
    ```
-   DATABASE_URL=postgresql://<redacted>
-   JWT_SECRET=<redacted> with: openssl rand -base64 32>
+   DATABASE_URL=postgresql://username:password@host:5432/database
+   JWT_SECRET=<generate with: openssl rand -base64 32>
    JWT_EXPIRES_IN=1h
    NODE_ENV=production
    ```

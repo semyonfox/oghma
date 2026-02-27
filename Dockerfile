@@ -15,7 +15,7 @@ COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Stub DATABASE_URL for build time (actual URL provided at runtime via env vars)
-ENV DATABASE_URL=postgresql://<redacted>
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 # Use standard Next.js build (not Turbopack) to ensure .next/standalone is created
 RUN npx next build
 
