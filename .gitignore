@@ -36,7 +36,7 @@ pnpm-lock.yaml
 # env files: ignore all env files by default but keep .env.example and templates committed
 .env*
 !.env.example
-!.env.production.template
+!.env.local
 !.env.staging.template
 
 # local-specific envs
