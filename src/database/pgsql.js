@@ -5,7 +5,7 @@
 import postgres from 'postgres';
 
 // Use a stub URL during build, real URL at runtime
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://stub:stub@localhost:5432/stub';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://<redacted>';
 
 // Only validate in production/runtime (not during build)
 let sql;
