@@ -1,58 +1,85 @@
 // trash API route - restore and permanently delete notes
 import { NextRequest, NextResponse } from 'next/server';
-import { NOTE_DELETED } from '@/lib/notes/types/meta';
 import {
-    MOCK_NOTES_STORAGE,
-    addNoteToTree,
-    removeNoteFromTree,
-} from '@/lib/notes/storage/mock-storage';
+    getNoteFromS3,
+    restoreNoteFromTrash,
+    permanentlyDeleteNote,
+    getTrashFromS3,
+} from '@/lib/notes/storage/s3-storage';
 
 interface TrashAction {
-    action: 'restore' | 'delete';
-    data: {
-        id: string;
+    action: 'restore' | 'delete' | 'list';
+    data?: {
+        id?: string;
         parentId?: string;
     };
+}
+
+export async function GET() {
+    try {
+        const trash = await getTrashFromS3();
+        return NextResponse.json({ items: trash });
+    } catch (error) {
+        console.error('[trash] GET error:', error);
+        return NextResponse.json(
+            { error: 'Failed to fetch trash' },
+            { status: 500 }
+        );
+    }
 }
 
 export async function POST(request: NextRequest) {
     try {
         const body: TrashAction = await request.json();
 
-        if (!body.action || !body.data?.id) {
+        if (!body.action || (body.action !== 'list' && !body.data?.id)) {
             return NextResponse.json(
                 { error: 'Missing action or data.id' },
                 { status: 400 }
             );
         }
 
-        const { id, parentId } = body.data;
+        const { id, parentId } = body.data || {};
 
         switch (body.action) {
+            case 'list': {
+                const trash = await getTrashFromS3();
+                return NextResponse.json({ items: trash });
+            }
+
             case 'restore': {
-                const note = MOCK_NOTES_STORAGE.get(id);
+                if (!id) {
+                    return NextResponse.json(
+                        { error: 'Missing note id' },
+                        { status: 400 }
+                    );
+                }
+                const note = await getNoteFromS3(id);
                 if (!note) {
                     return NextResponse.json(
                         { error: 'Note not found' },
                         { status: 404 }
                     );
                 }
-                note.deleted = NOTE_DELETED.NORMAL;
-                if (parentId) note.pid = parentId;
-                MOCK_NOTES_STORAGE.set(id, note);
-                addNoteToTree(id, parentId || note.pid);
+                await restoreNoteFromTrash(id);
                 return NextResponse.json({ success: true });
             }
 
             case 'delete': {
-                if (!MOCK_NOTES_STORAGE.has(id)) {
+                if (!id) {
+                    return NextResponse.json(
+                        { error: 'Missing note id' },
+                        { status: 400 }
+                    );
+                }
+                const note = await getNoteFromS3(id);
+                if (!note) {
                     return NextResponse.json(
                         { error: 'Note not found' },
                         { status: 404 }
                     );
                 }
-                MOCK_NOTES_STORAGE.delete(id);
-                removeNoteFromTree(id);
+                await permanentlyDeleteNote(id);
                 return NextResponse.json({ success: true });
             }
 
@@ -63,7 +90,7 @@ export async function POST(request: NextRequest) {
                 );
         }
     } catch (error) {
-        console.error('[trash] error:', error);
+        console.error('[trash] POST error:', error);
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }
