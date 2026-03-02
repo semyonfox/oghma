@@ -28,7 +28,7 @@ const EditorSkeleton: FC = () => {
               key={i}
               className="h-4 rounded bg-white/10 animate-pulse"
               style={{
-                width: `${Math.random() * 30 + 70}%`,
+                width: `${70 + (i * 7) % 30}%`,
               }}
             />
           ))}

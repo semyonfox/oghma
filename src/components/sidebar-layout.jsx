@@ -8,27 +8,18 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
-export function SidebarLayout({
-  navigationItems = [],
-  teams = [],
-  logoText = 'OghmaNotes',
-  logoSrc = null,
-  userProfile = null,
-  pageTitle = 'Dashboard',
-  children = null,
-  onNavigate = null,
-  onProfileClick = null,
+function SidebarContent({
+  navigationItems,
+  teams,
+  logoText,
+  logoSrc,
+  userProfile,
+  onNavigate,
+  onProfileClick,
+  onNavigateItem,
+  mobile = false,
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  const handleNavClick = (item) => {
-    if (onNavigate) {
-      onNavigate(item)
-    }
-    setSidebarOpen(false)
-  }
-
-  const SidebarContent = ({ mobile = false }) => (
+  return (
     <div
       className={classNames(
         'relative flex grow flex-col gap-y-5 overflow-y-auto',
@@ -56,7 +47,7 @@ export function SidebarLayout({
                     href={item.href}
                     onClick={(e) => {
                       e.preventDefault()
-                      handleNavClick(item)
+                      onNavigateItem(item)
                     }}
                     className={classNames(
                       item.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
@@ -90,7 +81,7 @@ export function SidebarLayout({
                       href={team.href}
                       onClick={(e) => {
                         e.preventDefault()
-                        handleNavClick(team)
+                        onNavigateItem(team)
                       }}
                       className={classNames(
                         team.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
@@ -138,6 +129,34 @@ export function SidebarLayout({
       </nav>
     </div>
   )
+}
+
+export function SidebarLayout({
+  navigationItems = [],
+  teams = [],
+  logoText = 'OghmaNotes',
+  logoSrc = null,
+  userProfile = null,
+  pageTitle = 'Dashboard',
+  children = null,
+  onNavigate = null,
+  onProfileClick = null,
+}) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const handleNavClick = (item) => {
+    if (onNavigate) {
+      onNavigate(item)
+    }
+    setSidebarOpen(false)
+  }
+
+  const onNavigateItem = (item) => {
+    if (onNavigate) {
+      onNavigate(item)
+    }
+    setSidebarOpen(false)
+  }
 
   return (
     <div>
@@ -162,14 +181,32 @@ export function SidebarLayout({
               </div>
             </TransitionChild>
 
-            <SidebarContent mobile={true} />
+            <SidebarContent
+              navigationItems={navigationItems}
+              teams={teams}
+              logoText={logoText}
+              logoSrc={logoSrc}
+              userProfile={userProfile}
+              onProfileClick={onProfileClick}
+              onNavigateItem={onNavigateItem}
+              mobile={true}
+            />
           </DialogPanel>
         </div>
       </Dialog>
 
       {/* Desktop Sidebar */}
       <div className="hidden bg-gray-900 lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <SidebarContent mobile={false} />
+        <SidebarContent
+          navigationItems={navigationItems}
+          teams={teams}
+          logoText={logoText}
+          logoSrc={logoSrc}
+          userProfile={userProfile}
+          onProfileClick={onProfileClick}
+          onNavigateItem={onNavigateItem}
+          mobile={false}
+        />
       </div>
 
       {/* Mobile Top Bar */}

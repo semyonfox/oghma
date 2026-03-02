@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings';
+import { useState, useCallback } from 'react';
 import useSettingsAPI from '@/lib/notes/api/settings';
 
 /**
@@ -7,20 +6,17 @@ import useSettingsAPI from '@/lib/notes/api/settings';
  */
 export default function useSplit(initData: [number, number] = [50, 50]) {
     // State to store the current sizes
-    const [sizes, setSizes] = useState<[number, number]>(() => initData ?? [50, 50]);
+    const normalizeSizes = (data: [number, number]) => {
+        if (!data || !Array.isArray(data) || data.length !== 2) {
+            return [50, 50] as [number, number];
+        }
+        return data;
+    };
+
+    const [sizes, setSizes] = useState<[number, number]>(() => normalizeSizes(initData ?? [50, 50]));
 
     // Hook into settings API to persist changes
     const { mutate } = useSettingsAPI();
-
-    // Effect to initialize the sizes from initData or fallback to defaults
-    useEffect(() => {
-        if (!initData || !Array.isArray(initData) || initData.length !== 2) {
-            console.warn("Invalid initData provided. Falling back to default sizes.");
-            setSizes([50, 50]);
-        } else {
-            setSizes(initData ?? [50, 50]);
-        }
-    }, [initData]);
 
     // Function to save sizes to persistent storage
     const saveSizes = useCallback(

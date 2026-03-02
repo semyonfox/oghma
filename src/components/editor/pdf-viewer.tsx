@@ -39,7 +39,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file }) => {
 
   const goToNextPage = useCallback(() => {
     setPageNumber((p) => Math.min(p + 1, numPages || p));
-  }, []);
+  }, [numPages]);
 
   return (
     <div className="h-full flex flex-col bg-gray-950">

@@ -87,7 +87,7 @@ const NoteNav: FC = () => {
     // Memoize paths calculation to prevent cascading updates
     const paths = useMemo(() => {
         return note ? getPaths(note).reverse() : [];
-    }, [note?.id, getPaths]);
+    }, [note, getPaths]);
 
     // Memoize breadcrumb pages array
     const breadcrumbPages = useMemo(() => {
@@ -104,11 +104,11 @@ const NoteNav: FC = () => {
                 current: true,
             }
         ];
-    }, [paths, note?.title, note?.id]);
+    }, [paths, note]);
 
     const isShown = useMemo(() => {
         return note ? checkItemIsShown(note) : true;
-    }, [note?.id, checkItemIsShown]);
+    }, [note, checkItemIsShown]);
 
     return (
         <nav

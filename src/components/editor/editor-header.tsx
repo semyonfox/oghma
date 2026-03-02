@@ -35,16 +35,14 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setTitle(note?.title || 'Untitled Note');
-  }, [note?.title]);
-
   const handleTitleBlur = () => {
     setIsEditingTitle(false);
     if (title !== note?.title) {
       onTitleChange?.(title);
     }
   };
+
+  const displayTitle = isEditingTitle ? title : (note?.title || 'Untitled Note');
 
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -105,14 +103,17 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
                 }}
                 className="w-full bg-gray-700 text-white text-xl font-semibold rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-            ) : (
-              <h1
-                onClick={() => setIsEditingTitle(true)}
-                className="text-xl font-semibold text-white cursor-text hover:text-gray-100 transition-colors"
-              >
-                {title}
-              </h1>
-            )}
+              ) : (
+                <h1
+                  onClick={() => {
+                    setTitle(note?.title || 'Untitled Note');
+                    setIsEditingTitle(true);
+                  }}
+                  className="text-xl font-semibold text-white cursor-text hover:text-gray-100 transition-colors"
+                >
+                  {displayTitle}
+                </h1>
+              )}
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mt-2 items-center">

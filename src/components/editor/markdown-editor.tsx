@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState, useCallback, useEffect } from 'react';
+import { FC, useState, useCallback, useEffect, useMemo } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import NoteState from '@/lib/notes/state/note';
 import LexicalEditor from './lexical-editor';
@@ -18,7 +18,8 @@ interface MarkdownEditorProps {
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const [editMode, setEditMode] = useState(true); // Default to edit mode
   const [content, setContent] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { note, fetchNote } = NoteState.useContainer();
 
   // Load note content
@@ -28,39 +29,38 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     }
   }, [file.fileId, fetchNote]);
 
-  // Sync note content
-  useEffect(() => {
-    if (note?.content) {
-      setContent(note.content);
-      setSaveStatus('saved');
-    }
-  }, [note?.content]);
+  const currentContent = useMemo(
+    () => (isDirty ? content : (note?.content ?? '')),
+    [content, isDirty, note?.content]
+  );
 
   // Handle content changes during typing
   const handleContentChange = useCallback(
     (getContent: () => string) => {
       const newContent = getContent();
       setContent(newContent);
-      setSaveStatus('unsaved');
+      setIsDirty(true);
     },
     []
   );
 
   // Handle save with Ctrl+S
   const handleSave = useCallback(async () => {
-    if (saveStatus === 'unsaved' && file.fileId && content !== note?.content) {
-      setSaveStatus('saving');
+    if (isDirty && file.fileId && content !== note?.content) {
+      setIsSaving(true);
 
       try {
         // TODO: Call API to save note to S3
         await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate save
-        setSaveStatus('saved');
+        setIsDirty(false);
       } catch (error) {
         console.error('Save failed:', error);
-        setSaveStatus('unsaved');
+        setIsDirty(true);
+      } finally {
+        setIsSaving(false);
       }
     }
-  }, [content, note?.content, file.fileId, saveStatus]);
+  }, [content, note?.content, file.fileId, isDirty]);
 
   // Global Ctrl+S handler
   useEffect(() => {
@@ -106,12 +106,12 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         {/* Save Status */}
         <span
           className={`text-xs font-mono ${
-            saveStatus === 'saved' ? 'text-green-500' : 'text-yellow-500'
+            isSaving || isDirty ? 'text-yellow-500' : 'text-green-500'
           }`}
         >
-          {saveStatus === 'saved' && '✓ Saved'}
-          {saveStatus === 'unsaved' && '● Unsaved (Ctrl+S)'}
-          {saveStatus === 'saving' && '⟳ Saving...'}
+          {isSaving && '⟳ Saving...'}
+          {!isSaving && isDirty && '● Unsaved (Ctrl+S)'}
+          {!isSaving && !isDirty && '✓ Saved'}
         </span>
       </div>
 
@@ -119,18 +119,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       {editMode ? (
         // Edit Mode - Full pane editor
         <div className="flex-1 overflow-auto">
-          <LexicalEditor
-            id={file.fileId}
-            value={content}
-            onChange={handleContentChange}
-            readOnly={false}
-          />
+            <LexicalEditor
+              id={file.fileId}
+              value={currentContent}
+              onChange={handleContentChange}
+              readOnly={false}
+            />
         </div>
       ) : (
         // Preview Mode - Full pane preview
         <div className="flex-1 overflow-auto bg-gray-950">
           <div className="max-w-4xl mx-auto px-6 py-8">
-            <PreviewRenderer content={content} />
+            <PreviewRenderer content={currentContent} />
           </div>
         </div>
       )}

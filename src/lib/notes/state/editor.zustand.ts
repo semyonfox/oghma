@@ -55,18 +55,17 @@ const useEditorStore = create<EditorState>()(
                 }
             },
             onUploadImage: async (file, id) => {
-                const { request } = useFetcher();
                 const data = new FormData();
                 data.append('file', file);
-                const result = await request<FormData, { url: string }>(
-                    {
-                        method: 'POST',
-                        url: `/api/upload?id=${id}`,
-                    },
-                    data
-                );
-                if (!result) throw new Error('Upload failed');
-                return result.url;
+                const response = await fetch(`/api/upload?id=${id}`, {
+                    method: 'POST',
+                    body: data,
+                });
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+                const result = await response.json();
+                return result.url as string;
             },
             onHoverLink: () => {
                 console.log('Handle hover logic');
