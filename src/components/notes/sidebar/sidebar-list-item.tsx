@@ -6,6 +6,7 @@ import React, { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffec
 import { useRouter, usePathname } from 'next/navigation';
 import IconButton from '@/components/icon-button';
 import NoteTreeState from '@/lib/notes/state/tree';
+import NoteState from '@/lib/notes/state/note';
 import PortalState from '@/lib/notes/state/portal';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import emojiRegex from 'emoji-regex';
@@ -42,7 +43,8 @@ const SidebarListItem: FC<{
     const { t } = useI18n();
     const router = useRouter();
     const pathname = usePathname();
-    const { mutateItem, initLoaded } = NoteTreeState.useContainer();
+    const { mutateItem, initLoaded, genNewId } = NoteTreeState.useContainer();
+    const { createNote } = NoteState.useContainer();
     const {
         menu: { open, setData, setAnchor },
     } = PortalState.useContainer();
@@ -66,16 +68,26 @@ const SidebarListItem: FC<{
     }, [isRenaming]);
 
     const onAddNote = useCallback(
-        (e: MouseEvent) => {
+        async (e: MouseEvent) => {
             e.preventDefault();
-            // navigate to create a new note under this item
-            router.push(`/new?pid=${item.id}`);
-            mutateItem(item.id, {
-                isExpanded: true,
-            })
-                ?.catch((v) => console.error('Error whilst mutating item: %O', v));
+            // Create a new note under this item without navigation
+            const newId = genNewId();
+            const newNote = await createNote({
+                id: newId,
+                title: 'Untitled',
+                content: '\n',
+                pid: item.id,
+            });
+
+            if (newNote) {
+                // Expand the parent and navigate to the new note
+                await mutateItem(item.id, {
+                    isExpanded: true,
+                });
+                router.push(`/notes/${newId}`);
+            }
         },
-        [item.id, mutateItem, router]
+        [item.id, mutateItem, genNewId, createNote, router]
     );
 
     const handleClickMenu = useCallback(
