@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-    MOCK_TREE_STORAGE,
-    syncTreeWithNotes,
-} from '@/lib/notes/storage/mock-storage';
+import { getTreeFromS3, saveTreeToS3 } from '@/lib/notes/storage/s3-storage';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 
 /**
@@ -23,7 +20,8 @@ function filterTreeItemFields(item: any, fields?: string[]): any {
 }
 
 export async function GET(request: Request) {
-    syncTreeWithNotes();
+    // Fetch tree from S3
+    const tree = await getTreeFromS3();
     
     // Parse query parameters
     const url = new URL(request.url);
@@ -39,7 +37,7 @@ export async function GET(request: Request) {
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     
     // Get all tree items
-    let items = Object.entries(MOCK_TREE_STORAGE.items);
+    let items = Object.entries(tree.items);
     
     // Apply pagination
     if (skip > 0 || limit) {
@@ -49,7 +47,7 @@ export async function GET(request: Request) {
     
     // Build filtered result
     const filteredTree = {
-      rootId: MOCK_TREE_STORAGE.rootId,
+      rootId: tree.rootId,
       items: Object.fromEntries(
         items.map(([id, item]) => [id, filterTreeItemFields(item, fields)])
       ),
@@ -70,15 +68,17 @@ interface TreeMutateAction {
 
 export async function POST(request: Request) {
     const body: TreeMutateAction = await request.json();
+    const tree = await getTreeFromS3();
 
     switch (body.action) {
         case 'mutate': {
             const { id, ...rest } = body.data;
-            if (!id || !MOCK_TREE_STORAGE.items[id]) {
+            if (!id || !tree.items[id]) {
                 return NextResponse.json({ success: true });
             }
             // apply expand/collapse and other tree item properties
-            Object.assign(MOCK_TREE_STORAGE.items[id], rest);
+            Object.assign(tree.items[id], rest);
+            await saveTreeToS3(tree);
             return NextResponse.json({ success: true });
         }
 
@@ -91,8 +91,8 @@ export async function POST(request: Request) {
                 );
             }
 
-            const srcParent = MOCK_TREE_STORAGE.items[source.parentId];
-            const dstParent = MOCK_TREE_STORAGE.items[destination.parentId];
+            const srcParent = tree.items[source.parentId];
+            const dstParent = tree.items[destination.parentId];
             if (!srcParent || !dstParent) {
                 return NextResponse.json(
                     { error: 'Parent not found' },
@@ -111,13 +111,14 @@ export async function POST(request: Request) {
             dstParent.children.splice(dstIndex, 0, movedId);
 
             // update note pid
-            const item = MOCK_TREE_STORAGE.items[movedId];
+            const item = tree.items[movedId];
             if (item?.data) {
                 item.data.pid = destination.parentId === ROOT_ID
                     ? undefined
                     : destination.parentId;
             }
 
+            await saveTreeToS3(tree);
             return NextResponse.json({ success: true });
         }
 
