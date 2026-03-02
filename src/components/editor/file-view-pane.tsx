@@ -1,10 +1,11 @@
 'use client';
 
-import { FC, Suspense } from 'react';
+import { FC, Suspense, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import FileUpload from './file-upload';
 
 const FileRenderer = dynamic(() => import('./file-renderer'), { ssr: false });
 
@@ -19,6 +20,13 @@ interface FileViewPaneProps {
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   const { setPaneA, setPaneB } = useLayoutStore();
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{
+    fileName: string;
+    path: string;
+    url: string;
+    size: number;
+    type: string;
+  }>>([]);
 
   if (!file || !file.fileId) {
     return (
@@ -47,14 +55,25 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
           <span className="text-xs text-gray-600">({file.fileType})</span>
         </div>
 
-        {pane === 'B' && (
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors"
-          >
-            <XMarkIcon className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <FileUpload
+            noteId={file.fileId}
+            onUploadComplete={(uploadedFile) => {
+              setUploadedFiles((prev) => [...prev, uploadedFile]);
+            }}
+            onError={(error) => {
+              console.error('Upload error:', error);
+            }}
+          />
+          {pane === 'B' && (
+            <button
+              onClick={handleClose}
+              className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* File Renderer */}
