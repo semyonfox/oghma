@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NoteModel } from '@/lib/notes/types/note';
-import { MOCK_NOTES_STORAGE, syncTreeWithNotes, removeNoteFromTree } from '@/lib/notes/storage/mock-storage';
+import { getNoteFromS3, saveNoteToS3, deleteNoteFromS3 } from '@/lib/notes/storage/s3-storage';
 
 /**
  * Helper: Filter note to only include requested fields
@@ -24,7 +24,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const note = MOCK_NOTES_STORAGE.get(id);
+  const note = await getNoteFromS3(id);
 
   if (!note) {
     return NextResponse.json(
@@ -51,12 +51,11 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
-  // Mock update - merge with existing note
-  const existingNote = MOCK_NOTES_STORAGE.get(id);
+  // Update note - merge with existing
+  const existingNote = await getNoteFromS3(id);
   if (existingNote) {
     const updatedNote = { ...existingNote, ...body };
-    MOCK_NOTES_STORAGE.set(id, updatedNote);
-    syncTreeWithNotes(); // Sync tree with updated note
+    await saveNoteToS3(updatedNote);
     return NextResponse.json(updatedNote);
   }
 
@@ -73,11 +72,10 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
 
-  const existingNote = MOCK_NOTES_STORAGE.get(id);
+  const existingNote = await getNoteFromS3(id);
   if (existingNote) {
     const updatedMeta = { ...existingNote, ...body };
-    MOCK_NOTES_STORAGE.set(id, updatedMeta);
-    syncTreeWithNotes(); // Sync tree with updated metadata
+    await saveNoteToS3(updatedMeta);
     return NextResponse.json(updatedMeta);
   }
 
@@ -93,9 +91,9 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  if (MOCK_NOTES_STORAGE.has(id)) {
-    MOCK_NOTES_STORAGE.delete(id);
-    removeNoteFromTree(id); // Remove from tree structure
+  const existingNote = await getNoteFromS3(id);
+  if (existingNote) {
+    await deleteNoteFromS3(id);
     return NextResponse.json({ success: true });
   }
 
