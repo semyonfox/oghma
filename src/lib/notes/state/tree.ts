@@ -50,11 +50,16 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
 
      const fetchNotes = useCallback(
          async (tree: TreeModel) => {
-             await Promise.all(
-                 Object.values(tree.items).map(async (item) => {
-                     item.data = await fetchNote(item.id);
-                 })
-             );
+             // Tree from API already includes note data in items
+             // Only fetch missing notes
+             const missingNotes = Object.values(tree.items).filter(item => !item.data);
+             if (missingNotes.length > 0) {
+                 await Promise.all(
+                     missingNotes.map(async (item) => {
+                         item.data = await fetchNote(item.id);
+                     })
+                 );
+             }
 
              return tree;
          },
@@ -62,27 +67,38 @@ const useNoteTree = (initData: TreeModel = DEFAULT_TREE) => {
      );
 
     const initTree = useCallback(async () => {
-        const cache = await uiCache.getItem<TreeModel>(TREE_CACHE_KEY);
-        if (cache) {
-            const treeWithNotes = await fetchNotes(cache);
+        try {
+            // Try to use cached tree first
+            const cache = await uiCache.getItem<TreeModel>(TREE_CACHE_KEY);
+            if (cache && Object.keys(cache.items).length > 0) {
+                setTree(cache);
+                setInitLoaded(true);
+            }
+
+            // Fetch fresh tree from API
+            const tree = await fetchTree();
+
+            if (!tree || !tree.items || Object.keys(tree.items).length === 0) {
+                console.warn('Failed to load tree or tree is empty');
+                if (!cache) {
+                    toast('Failed to load notes', 'error');
+                }
+                return;
+            }
+
+            // Fetch any missing notes
+            const treeWithNotes = await fetchNotes(tree);
+
             setTree(treeWithNotes);
+            await Promise.all([
+                uiCache.setItem(TREE_CACHE_KEY, tree),
+                noteCache.checkItems(tree.items),
+            ]);
+            setInitLoaded(true);
+        } catch (error) {
+            console.error('Error initializing tree:', error);
+            toast('Error loading notes', 'error');
         }
-
-        const tree = await fetchTree();
-
-        if (!tree) {
-            toast('Failed to load tree', 'error');
-            return;
-        }
-
-        const treeWithNotes = await fetchNotes(tree);
-
-        setTree(treeWithNotes);
-        await Promise.all([
-            uiCache.setItem(TREE_CACHE_KEY, tree),
-            noteCache.checkItems(tree.items),
-        ]);
-        setInitLoaded(true);
     }, [fetchNotes, fetchTree, toast]);
 
     const addItem = useCallback((item: NoteModel) => {
