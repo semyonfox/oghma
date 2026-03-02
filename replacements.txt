@@ -1,0 +1,6 @@
+ct216.semyon.ie==>your-domain.com
+mariadb-ct2106==>your-db-host
+socsboard-prod==>your-bucket-name
+oghma_user==>your-db-user
+DATABASE_NAME=oghma==>DATABASE_NAME=your-db-name
+DATABASE_URL=mysql://oghma_user:YOUR_PASSWORD_HERE@mariadb-ct2106:3306/oghma==>DATABASE_URL=mysql://your-db-user:YOUR_PASSWORD_HERE@your-db-host:3306/your-db-name

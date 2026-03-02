@@ -79,7 +79,7 @@ This Software Requirements Specification (SRS) document provides a comprehensive
 
 The **SocsBoard (University Society Platform)** is a full-stack web-based social and event platform with a recommendation engine that connects students with society events and social content through personalized relevance scoring.
 
-**Current Deployment:** The platform is currently hosted at https://ct216.semyon.ie using a Cloudflare Tunnel. The application runs securely within Docker containers with all databases isolated in a dedicated subnet on a private server infrastructure.
+**Current Deployment:** The platform is currently hosted at https://redacted-domain-name.ie using a Cloudflare Tunnel. The application runs securely within Docker containers with all databases isolated in a dedicated subnet on a private server infrastructure.
 
 #### 1.3.2 Scope
 
@@ -562,7 +562,7 @@ RESTful JSON API with JWT authentication.
 #### 2.2.4 Infrastructure
 
 **Current Deployment Architecture:**
-- **Hosting:** Self-hosted server accessible via https://ct216.semyon.ie
+- **Hosting:** Self-hosted server accessible via https://redacted-domain-name.ie
 - **Cloudflare Tunnel:** Secure tunnel for external access without exposing server ports
 - **Cloudflare CDN:** Global content delivery with automatic caching
 - **Docker Containerization:** All services (Next.js, PostgreSQL, Redis) run in isolated containers
@@ -601,7 +601,7 @@ RESTful JSON API with JWT authentication.
 - Basic authentication system (bcrypt-based, custom implementation)
 - PostgreSQL database (single table)
 - Basic UI (home, login, register pages with generic styling)
-- Deployment to production server (https://ct216.semyon.ie)
+- Deployment to production server (https://redacted-domain-name.ie)
 
 **Semester 2 (12 Weeks):** Main development phase - all remaining features
 
