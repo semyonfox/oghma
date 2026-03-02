@@ -1,10 +1,9 @@
 #!/bin/bash
-# Production deployment script for ct216-project
-# Integrates with existing ct2106 stack
+# Production deployment script
 
 set -e
 
-echo "🚀 Starting ct216 deployment..."
+echo "🚀 Starting deployment..."
 
 # Check if .env exists
 if [ ! -f .env ]; then
@@ -14,10 +13,10 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Check if ct2106 network exists
-if ! docker network inspect ct2106 >/dev/null 2>&1; then
-    echo "❌ Error: ct2106 network not found!"
-    echo "Please ensure your ct2106 stack is running first."
+# Check if docker network exists
+if ! docker network inspect your-network >/dev/null 2>&1; then
+    echo "❌ Error: Docker network not found!"
+    echo "Please ensure your stack is running first."
     exit 1
 fi
 
@@ -26,7 +25,7 @@ echo "📦 Building Docker image..."
 docker compose build
 
 # Stop existing container if running
-if [ "$(docker ps -q -f name=ct216_web)" ]; then
+if [ "$(docker ps -q -f name=your-app-web)" ]; then
     echo "🛑 Stopping existing container..."
     docker compose down
 fi
@@ -40,21 +39,21 @@ echo "⏳ Waiting for container to start..."
 sleep 5
 
 # Check if container is running
-if [ "$(docker ps -q -f name=ct216_web)" ]; then
+if [ "$(docker ps -q -f name=your-app-web)" ]; then
     echo "✅ Container is running!"
     echo ""
     echo "📊 Container status:"
-    docker ps -f name=ct216_web
+    docker ps -f name=your-app-web
     echo ""
     echo "🔍 Health check:"
     sleep 3
-    curl -s http://172.30.10.8:3000/api/health | jq '.' || echo "Health check endpoint not responding yet (this is normal, wait a moment)"
+    curl -s http://your-internal-ip:3000/api/health | jq '.' || echo "Health check endpoint not responding yet (this is normal, wait a moment)"
     echo ""
-    echo "📝 View logs with: docker logs -f ct216_web"
-    echo "🌐 App should be accessible via Cloudflare Tunnel at: https://ct216.semyon.ie"
+    echo "📝 View logs with: docker logs -f your-app-web"
+    echo "🌐 App should be accessible via Cloudflare Tunnel at: https://your-domain.com"
 else
     echo "❌ Container failed to start!"
-    echo "📝 Check logs with: docker logs ct216_web"
+    echo "📝 Check logs with: docker logs your-app-web"
     exit 1
 fi
 
@@ -62,9 +61,9 @@ echo ""
 echo "🎉 Deployment complete!"
 echo ""
 echo "Network topology:"
-echo "  100.118.61.122:2345 - PostgreSQL (external, via Tailscale)"
-echo "  172.30.10.6         - pgAdmin (pgadmin-ct2106)"
-echo "  172.30.10.7         - Redis (redis-ct2106)"
-echo "  172.30.10.8         - ct216 Web App (ct216_web)"
+echo "  your-tailscale-ip:2345 - PostgreSQL (external, via Tailscale)"
+echo "  your-internal-ip       - pgAdmin"
+echo "  your-internal-ip       - Redis"
+echo "  your-internal-ip       - Web App"
 echo ""
-echo "Access your app at: https://ct216.semyon.ie"
+echo "Access your app at: https://your-domain.com"

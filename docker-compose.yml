@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ct216_web
+    container_name: your-app-web
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -17,13 +17,12 @@ services:
       - stack.env
       # - .env.production Uncomment this line to use production environment variables
     networks:
-      ct2106:
-        ipv4_address: 172.30.10.8
+      your-network:
+        ipv4_address: your-internal-ip
     # NOTE: Database migrated from PostgreSQL to MariaDB
     # Update stack.env with MariaDB connection string:
-    # DATABASE_URL=mysql://socsboard_user:password@mariadb-ct2106:3306/ct2106
+    # DATABASE_URL=mysql://your-db-user:password@your-db-host:3306/your-db-name
 
 networks:
-  ct2106:
+  your-network:
     external: true
-
