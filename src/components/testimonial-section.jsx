@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 
 const STUDENT_TESTIMONIALS = [
   {
@@ -26,12 +26,13 @@ const STUDENT_TESTIMONIALS = [
 ]
 
 export default function TestimonialSection() {
-  const [testimonial, setTestimonial] = useState(STUDENT_TESTIMONIALS[0])
-
-  // Set random testimonial after hydration to avoid hydration mismatch
-  useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * STUDENT_TESTIMONIALS.length)
-    setTestimonial(STUDENT_TESTIMONIALS[randomIndex])
+  const testimonial = useMemo(() => {
+    const seed = new Date().toDateString()
+    let hash = 0
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash + seed.charCodeAt(i)) % STUDENT_TESTIMONIALS.length
+    }
+    return STUDENT_TESTIMONIALS[hash]
   }, [])
 
   return (

@@ -2,32 +2,22 @@
 
 // preview modal - shows note preview on hover/click
 // ported from Notea (MIT License) - MUI Popover replaced with Tailwind floating panel
-import { FC, useEffect, useState, useCallback } from 'react';
+import { FC } from 'react';
 import PortalState from '@/lib/notes/state/portal';
 import noteCache from '@/lib/notes/cache/note';
 import Link from 'next/link';
+import { useSWR } from '@/lib/notes/hooks/use-swr';
 
 const PreviewModal: FC = () => {
     const { preview } = PortalState.useContainer();
-    const [title, setTitle] = useState<string>('');
-    const [content, setContent] = useState<string>('');
+    const previewId = preview.data?.id;
+    const { data: previewNote } = useSWR(
+        previewId ? `preview:${previewId}` : 'preview:none',
+        () => (previewId ? noteCache.getItem(previewId) : Promise.resolve(undefined))
+    );
 
-    const loadPreview = useCallback(async () => {
-        const id = preview.data?.id;
-        if (!id) return;
-
-        const note = await noteCache.getItem(id);
-        if (note) {
-            setTitle(note.title || 'Untitled');
-            setContent(note.rawContent?.slice(0, 200) || '');
-        }
-    }, [preview.data?.id]);
-
-    useEffect(() => {
-        if (preview.visible && preview.data?.id) {
-            loadPreview();
-        }
-    }, [preview.visible, preview.data?.id, loadPreview]);
+    const title = previewNote?.title || 'Untitled';
+    const content = previewNote?.rawContent?.slice(0, 200) || '';
 
     if (!preview.visible || !preview.data?.id || !preview.anchor) {
         return null;

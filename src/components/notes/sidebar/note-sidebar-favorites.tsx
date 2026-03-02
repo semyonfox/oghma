@@ -22,14 +22,13 @@ const NoteSidebarFavorites: FC = () => {
       }));
   }, [treeItems]);
 
-  // Don't show section if no favorites
-  if (favorites.length === 0) {
-    return null;
-  }
-
   const handleFavoriteClick = useCallback((noteId: string) => {
     router.push(`/${noteId}`);
   }, [router]);
+
+  if (favorites.length === 0) {
+    return null;
+  }
 
   return (
     <div className="px-4 py-3 border-b border-slate-700 flex-shrink-0">

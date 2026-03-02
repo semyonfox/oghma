@@ -6,11 +6,12 @@ import {
   TrashIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import React, { FC, useCallback, useState, useEffect, useMemo } from 'react';
+import React, { FC, useCallback } from 'react';
 import Link from 'next/link';
 import UIState from '@/lib/notes/state/ui';
 import PortalState from '@/lib/notes/state/portal';
 import { getCurrentUser } from '@/lib/apiClient';
+import { useSWR } from '@/lib/notes/hooks/use-swr';
 
 interface User {
   id: string;
@@ -22,26 +23,21 @@ interface User {
 const NoteSidebarActions: FC = () => {
   const uiState = UIState.useContainer();
   const { trash } = PortalState.useContainer();
-  const [user, setUser] = useState<User | null>(null);
+  const { data: user } = useSWR<User | null>(
+    'current-user',
+    async () => {
+      try {
+        return await getCurrentUser();
+      } catch (error) {
+        console.error('Failed to load user:', error);
+        return null;
+      }
+    }
+  );
 
   // Extract settings from UIState
   const settingsState = uiState.settings;
   const updateSettings = settingsState?.updateSettings;
-
-  // Memoize user fetch to prevent unnecessary API calls on re-render
-  const fetchUser = useCallback(async () => {
-    try {
-      const userData = await getCurrentUser();
-      setUser(userData);
-    } catch (error) {
-      console.error('Failed to load user:', error);
-    }
-  }, []);
-
-  // Fetch user data on mount (only once)
-  useEffect(() => {
-    fetchUser();
-  }, []);
 
   // Get current theme from settings
   const currentTheme = settingsState?.settings?.theme || 'dark';

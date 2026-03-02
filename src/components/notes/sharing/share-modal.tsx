@@ -40,17 +40,20 @@ const useRouter = () => {
 const ShareModal: FC = () => {
   const { t } = useI18n();
   const { share } = PortalState.useContainer();
-  const [url, setUrl] = useState<string>();
   const [copied, setCopied] = useState(false);
   const { note, updateNote } = NoteState.useContainer();
   const router = useRouter();
   const { disablePassword } = UIState.useContainer();
 
+  const shareUrl = disablePassword
+    ? `${location.origin}/share/${router.query.id}`
+    : location.href;
+
   const handleCopy = useCallback(() => {
-    url && navigator.clipboard.writeText(url);
+    shareUrl && navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [url]);
+  }, [shareUrl]);
 
   const handleShare = useCallback(
     (checked: boolean) => {
@@ -61,13 +64,6 @@ const ShareModal: FC = () => {
     [updateNote]
   );
 
-  useEffect(() => {
-    if (disablePassword) {
-      setUrl(`${location.origin}/share/${router.query.id}`);
-    } else {
-      setUrl(location.href);
-    }
-  }, [disablePassword, router.query]);
 
   if (!share.visible || !share.anchor) {
     return null;
@@ -111,7 +107,7 @@ const ShareModal: FC = () => {
           <div className="flex items-center border border-neutral-300 dark:border-neutral-600 rounded overflow-hidden">
             <input
               className="flex-1 px-2 py-1 outline-none bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white text-sm"
-              value={url}
+              value={shareUrl}
               readOnly
             />
             <div
