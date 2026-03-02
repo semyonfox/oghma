@@ -59,6 +59,7 @@ export default function SourceEditor({ content, onContentChange }: SourceEditorP
       className="w-full h-full p-4 font-mono text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-none outline-none resize-none shadow-md rounded-md transition-all"
       placeholder="Write your markdown here..."
       spellCheck={false}
+      dir="ltr"
     />
   );
 }

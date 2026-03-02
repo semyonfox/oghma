@@ -12,7 +12,7 @@ interface PreviewRendererProps {
 
 export default function PreviewRenderer({ content }: PreviewRendererProps) {
   return (
-    <div className="w-full h-full overflow-auto p-6 bg-surface dark:bg-neutral-900">
+    <div className="w-full h-full overflow-auto p-6 bg-surface dark:bg-neutral-900" dir="ltr">
       <div className="prose prose-lg dark:prose-invert max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
