@@ -89,6 +89,7 @@
 
 html, body {
   @apply overflow-x-hidden antialiased;
+  direction: ltr;
 }
 
 @layer components {

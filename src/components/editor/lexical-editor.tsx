@@ -286,14 +286,15 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
     }));
 
      return (
-       <LexicalComposer initialConfig={initialConfig}>
-         <div className={`w-full ${className}`}>
-           <RichTextPlugin
-             contentEditable={
-               <ContentEditable 
-                 className="w-full bg-slate-900 text-slate-300 outline-none min-h-[200px] p-4 rounded text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
-               />
-             }
+        <LexicalComposer initialConfig={initialConfig}>
+          <div className={`w-full ${className}`} dir="ltr">
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable 
+                  className="w-full bg-slate-900 text-slate-300 outline-none min-h-[200px] p-4 rounded text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  dir="ltr"
+                />
+              }
              placeholder={
                <div className="absolute text-slate-600 pointer-events-none select-none p-4 text-base leading-relaxed">{placeholder}</div>
              }
