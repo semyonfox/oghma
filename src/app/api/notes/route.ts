@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { NoteModel } from '@/lib/notes/types/note';
 import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from '@/lib/notes/types/meta';
-import { MOCK_NOTES_STORAGE, addNoteToTree } from '@/lib/notes/storage/mock-storage';
+import { getAllNotesFromS3, saveNoteToS3 } from '@/lib/notes/storage/s3-storage';
 
 /**
  * Helper: Filter note to only include requested fields
@@ -34,8 +34,8 @@ export async function GET(request: Request) {
   const skip = skipParam ? parseInt(skipParam, 10) : 0;
   const limit = limitParam ? parseInt(limitParam, 10) : undefined;
   
-  // Get all notes and apply pagination
-  let notes = Array.from(MOCK_NOTES_STORAGE.values());
+  // Get all notes from S3 and apply pagination
+  let notes = await getAllNotesFromS3();
   
   // Apply skip/limit for pagination
   if (skip > 0 || limit) {
@@ -64,11 +64,8 @@ export async function POST(request: Request) {
     pid: body.pid || undefined,
   };
 
-  // Store in mock storage
-  MOCK_NOTES_STORAGE.set(newNote.id, newNote);
-  
-  // Add to tree structure
-  addNoteToTree(newNote.id, newNote.pid);
+  // Store in S3
+  await saveNoteToS3(newNote);
 
   return NextResponse.json(newNote, { status: 201 });
 }
