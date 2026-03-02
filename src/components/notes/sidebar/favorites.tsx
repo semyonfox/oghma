@@ -5,7 +5,7 @@ import IconButton from '@/components/icon-button';
 import TreeActions, { ROOT_ID, HierarchicalTreeItemModel, DEFAULT_TREE } from '@/lib/notes/types/tree';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import NoteTreeState from '@/lib/notes/state/tree';
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { FC, useCallback, useMemo, useState } from 'react';
 import SidebarListItem from './sidebar-list-item';
 import { makeHierarchy } from '@/lib/notes/types/tree';
 import type { NodeRendererProps } from 'react-arborist';
@@ -18,16 +18,30 @@ export const Favorites: FC = () => {
 console.log('Pinned Tree:', pinnedTree);
     const [tree, setTree] = useState(pinnedTree || DEFAULT_TREE);
     const [isFold, setFold] = useState(false);
+    const mergedTree = useMemo(() => {
+        const items = JSON.parse(JSON.stringify(pinnedTree.items));
+        const baseTree = tree || pinnedTree;
+
+        for (const itemId in items) {
+            const item = items[itemId];
+            if (item) {
+                item.isExpanded = baseTree.items[item.id]?.isExpanded ?? false;
+            }
+        }
+
+        return { ...pinnedTree, items };
+    }, [pinnedTree, tree]);
+
     const hasPinned = useMemo(
-        () => tree.items[ROOT_ID].children.length,
-        [tree]
+        () => mergedTree.items[ROOT_ID].children.length,
+        [mergedTree]
     );
 
     // convert flat tree structure to hierarchical format for react-arborist
     const treeData = useMemo(() => {
-        const hierarchy = makeHierarchy(tree);
+        const hierarchy = makeHierarchy(mergedTree);
         return hierarchy ? hierarchy.children : [];
-    }, [tree]);
+    }, [mergedTree]);
 
     // notification callback: sync react-arborist toggle to local state for persistence
     const onToggle = useCallback((id: string) => {
@@ -37,25 +51,6 @@ console.log('Pinned Tree:', pinnedTree);
             return TreeActions.mutateItem(prev, id, { isExpanded: !item.isExpanded });
         });
     }, []);
-
-    useEffect(() => {
-        // deep clone items without lodash
-        const items = JSON.parse(JSON.stringify(pinnedTree.items));
-
-        setTree((prev) => {
-            if (!prev) return { ...pinnedTree, items };
-
-            // preserve expand state from previous render
-            for (const itemId in items) {
-                const item = items[itemId];
-                if (item) {
-                    item.isExpanded = prev.items[item.id]?.isExpanded ?? false;
-                }
-            }
-
-            return { ...pinnedTree, items };
-        });
-    }, [pinnedTree]);
 
     if (!hasPinned) {
         return null;

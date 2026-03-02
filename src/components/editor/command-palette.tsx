@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState, useEffect, useMemo, useRef } from 'react';
+import { FC, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useShortcut } from '@/lib/notes/hooks/use-keyboard-shortcut';
 
@@ -33,6 +33,12 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClose = useCallback(() => {
+    setQuery('');
+    setSelectedIndex(0);
+    onClose?.();
+  }, [onClose]);
 
   // Built-in commands
   const commands: CommandItem[] = useMemo(
@@ -166,7 +172,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
     meta: true,
     handler: () => {
       if (controlledIsOpen) {
-        onClose?.();
+        handleClose();
       }
       // If closed, parent will handle opening via onClick on search input
     },
@@ -194,7 +200,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           break;
         case 'Escape':
           e.preventDefault();
-          onClose?.();
+          handleClose();
           break;
       }
     };
@@ -207,14 +213,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   useEffect(() => {
     if (controlledIsOpen && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [controlledIsOpen]);
-
-  // Reset query when palette closes
-  useEffect(() => {
-    if (!controlledIsOpen) {
-      setQuery('');
-      setSelectedIndex(0);
     }
   }, [controlledIsOpen]);
 
@@ -239,7 +237,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
               className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
             />
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-500 hover:text-gray-400 transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
@@ -254,6 +252,8 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                   key={item.id}
                   onClick={() => {
                     item.action?.();
+                    setQuery('');
+                    setSelectedIndex(0);
                   }}
                   className={`w-full px-4 py-3 text-left transition-colors border-b border-gray-800 last:border-b-0 ${
                     idx === selectedIndex
