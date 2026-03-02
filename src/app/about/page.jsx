@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import Header from '@/components/header'
+import { aboutBlogCards, authors } from '@/lib/blog-data'
 
 const universities = [
   {
@@ -60,82 +62,37 @@ const values = [
       'Ipsa in earum deserunt aut. Quos minus aut animi et soluta. Ipsum dicta ut quia eius. Possimus reprehenderit iste aspernatur ut est velit consequatur distinctio.',
   },
 ]
+const blogPosts = aboutBlogCards
 const team = [
   {
-    name: 'Samuel Regan',
+    name: authors.samuel.name,
     role: 'Full-Stack Developer',
     description: 'Full-stack engineer building scalable web applications with modern architectures and robust database design.',
-    imageUrl: '/sam.jpeg',
+    imageUrl: authors.samuel.imageUrl,
     github: 'https://github.com/SamuelRegan-dev',
-    linkedin: 'https://www.linkedin.com/in/samuel-regan-464856331/',
+    linkedin: authors.samuel.linkedin,
   },
   {
-    name: 'Semyon Fox',
+    name: authors.semyon.name,
     role: 'Full-Stack Developer & Infrastructure',
     description: 'Full-stack engineer leading technical strategy, infrastructure management, and performance optimization across the platform.',
-    imageUrl: '/sem.jpeg',
+    imageUrl: authors.semyon.imageUrl,
     github: 'https://github.com/semyonfox',
-    linkedin: 'https://www.linkedin.com/in/semyon-fox-968685249/',
+    linkedin: authors.semyon.linkedin,
   },
   {
-    name: 'Shreyansh Singh',
+    name: authors.shreyansh.name,
     role: 'Full-Stack Developer',
     description: 'Full-stack engineer contributing across frontend and backend features with focus on code quality and user experience.',
-    imageUrl: '/shrey.jpeg',
+    imageUrl: authors.shreyansh.imageUrl,
     github: 'https://github.com/shreyanshSingh06',
-    linkedin: 'https://www.linkedin.com/in/shreyanshsinghss/',
-  },
-]
-const blogPosts = [
-  {
-    id: 1,
-    title: 'Master Note-Taking: The Cornell Method with AI Assistance',
-    href: '#',
-    description:
-      'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1496128858413-b36217c2ce36?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3603&q=80',
-    date: 'Jan 15, 2025',
-    datetime: '2025-01-15',
-    author: {
-      name: 'Semyon Fox',
-      imageUrl: '/sem.jpeg',
-    },
-  },
-  {
-    id: 2,
-    title: 'Canvas Integration: Sync Your Assignments in One Click',
-    href: '#',
-    description: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1547586696-ea22b4d4235d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Jan 10, 2025',
-    datetime: '2025-01-10',
-    author: {
-      name: 'Samuel Regan',
-      imageUrl: '/sam.jpeg',
-    },
-  },
-  {
-    id: 3,
-    title: 'Transform Your Study Sessions: Tips from Top Performers',
-    href: '#',
-    description:
-      'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1492724441997-5dc865305da7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-    date: 'Jan 5, 2025',
-    datetime: '2025-01-05',
-    author: {
-      name: 'Shreyansh Singh',
-      imageUrl: '/shrey.jpeg',
-    },
+    linkedin: authors.shreyansh.linkedin,
   },
 ]
 const footerNavigation = {
   main: [
-    { name: 'About', href: '#' },
-    { name: 'Blog', href: '#' },
+    { name: 'About', href: '/about' },
+    { name: 'Blog', href: '/blog' },
     { name: 'Jobs', href: '#' },
     { name: 'Press', href: '#' },
     { name: 'Accessibility', href: '#' },
@@ -469,17 +426,23 @@ export default function About() {
             >
               {team.map((person) => (
                 <li key={person.name} className="rounded-2xl bg-gray-800 px-8 py-10">
-                  <img
-                    alt={person.name}
-                    src={person.imageUrl}
-                    className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
-                  />
-                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-white">{person.name}</h3>
+                  <a href={person.linkedin} className="inline-block" target="_blank" rel="noopener noreferrer">
+                    <img
+                      alt={person.name}
+                      src={person.imageUrl}
+                      className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
+                    />
+                  </a>
+                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-white">
+                    <a href={person.linkedin} className="hover:text-gray-200" target="_blank" rel="noopener noreferrer">
+                      {person.name}
+                    </a>
+                  </h3>
                   <p className="text-sm/6 text-gray-400">{person.role}</p>
                   <p className="mt-2 text-sm/6 text-gray-300">{person.description}</p>
                   <ul role="list" className="mt-6 flex justify-center gap-x-6">
                     <li>
-                      <a href={person.github} className="text-gray-400 hover:text-gray-300">
+                      <a href={person.github} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">GitHub</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -491,7 +454,7 @@ export default function About() {
                       </a>
                     </li>
                     <li>
-                      <a href={person.linkedin} className="text-gray-400 hover:text-gray-300">
+                      <a href={person.linkedin} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">LinkedIn</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -518,7 +481,7 @@ export default function About() {
           <div className="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {blogPosts.map((post) => (
               <article
-                key={post.id}
+                key={post.slug}
                 className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-gray-800 px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
               >
                 <img alt="" src={post.imageUrl} className="absolute inset-0 -z-10 size-full object-cover" />
@@ -533,17 +496,22 @@ export default function About() {
                     <svg viewBox="0 0 2 2" className="-ml-0.5 size-0.5 flex-none fill-gray-300/50">
                       <circle r={1} cx={1} cy={1} />
                     </svg>
-                    <div className="flex gap-x-2.5">
-                      <img alt="" src={post.author.imageUrl} className="size-6 flex-none rounded-full bg-gray-800/10" />
-                      {post.author.name}
-                    </div>
+                    <a
+                      href={post.author.linkedin}
+                      className="flex items-center gap-x-2.5 text-gray-300 hover:text-white"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img alt={post.author.name} src={post.author.imageUrl} className="size-6 flex-none rounded-full bg-gray-800/10" />
+                      <span>{post.author.name}</span>
+                    </a>
                   </div>
                 </div>
                 <h3 className="mt-3 text-lg/6 font-semibold text-white">
-                  <a href={post.href}>
+                  <Link href={`/blog/${post.slug}`}>
                     <span className="absolute inset-0" />
                     {post.title}
-                  </a>
+                  </Link>
                 </h3>
               </article>
             ))}
