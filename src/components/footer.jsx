@@ -20,7 +20,7 @@ export default function Footer() {
     ],
     company: [
       { name: t('About'), href: '/about' },
-      { name: t('Blog'), href: '/about#blog' },
+      { name: t('Blog'), href: '/blog' },
       { name: t('GitHub'), href: 'https://github.com' },
     ],
     legal: [

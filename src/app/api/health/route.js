@@ -26,7 +26,7 @@ export async function GET() {
             dbStatus.connected = true;
             dbStatus.latencyMs = Date.now() - start;
             // Check if login table exists
-            const tableCheck = await sql`SELECT to_regclass('public.login') AS exists;`;
+            const tableCheck = await sql`SELECT to_regclass('app.login') AS exists;`;
             dbStatus.loginTableExists = !!tableCheck?.[0]?.exists;
         } catch (dbErr) {
             dbStatus.error = dbErr.message;

@@ -1,36 +1,7 @@
 import Link from 'next/link'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
-
-const blogPosts = [
-  {
-    slug: 'master-note-taking',
-    title: 'Master Note-Taking: The Cornell Method with AI Assistance',
-    author: 'Samuel',
-    role: 'RAG & Search',
-    excerpt: 'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
-    date: 'Jan 15, 2025',
-    imageUrl: 'https://images.unsplash.com/photo-1496128858413-b36217c2ce36?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3603&q=80',
-  },
-  {
-    slug: 'canvas-integration',
-    title: 'Canvas Integration: Sync Your Assignments in One Click',
-    author: 'Semyon',
-    role: 'Authentication & Backend',
-    excerpt: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
-    date: 'Jan 10, 2025',
-    imageUrl: 'https://images.unsplash.com/photo-1547586696-ea22b4d4235d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-  },
-  {
-    slug: 'study-tips',
-    title: 'Transform Your Study Sessions: Tips from Top Performers',
-    author: 'Shrey',
-    role: 'Infrastructure & AWS',
-    excerpt: 'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
-    date: 'Jan 5, 2025',
-    imageUrl: 'https://images.unsplash.com/photo-1492724441997-5dc865305da7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80',
-  },
-]
+import { blogCards } from '@/lib/blog-data'
 
 export default function BlogPage() {
   return (
@@ -45,7 +16,7 @@ export default function BlogPage() {
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            {blogPosts.map((post) => (
+            {blogCards.map((post) => (
               <article key={post.slug} className="flex flex-col items-start justify-between">
                 <div className="relative w-full">
                   <img
@@ -60,9 +31,9 @@ export default function BlogPage() {
                     <time dateTime={post.date} className="text-gray-500">
                       {post.date}
                     </time>
-                    <a href={`/blog/${post.slug}`} className="relative z-10 rounded-full bg-gray-100 px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-200">
+                    <Link href={`/blog/${post.slug}`} className="relative z-10 rounded-full bg-gray-100 px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-200">
                       Read
-                    </a>
+                    </Link>
                   </div>
                   <div className="group relative">
                     <h3 className="mt-3 text-lg font-semibold leading-6 text-white group-hover:text-gray-300">
@@ -74,15 +45,18 @@ export default function BlogPage() {
                     <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-400">{post.excerpt}</p>
                   </div>
                   <div className="mt-6 flex items-center gap-x-4">
-                    <div className="flex items-center gap-x-2">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500">
-                        <span className="text-sm font-semibold text-white">{post.author[0]}</span>
+                    <a
+                      href={post.author.linkedin}
+                      className="flex items-center gap-x-3 text-sm leading-6 text-gray-300 hover:text-white"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img alt={post.author.name} src={post.author.imageUrl} className="h-10 w-10 rounded-full bg-gray-800" />
+                      <div>
+                        <p className="font-semibold text-white">{post.author.name}</p>
+                        <p className="text-gray-400">{post.authorRole}</p>
                       </div>
-                      <div className="text-sm leading-6">
-                        <p className="font-semibold text-white">{post.author}</p>
-                        <p className="text-gray-400">{post.role}</p>
-                      </div>
-                    </div>
+                    </a>
                   </div>
                 </div>
               </article>
