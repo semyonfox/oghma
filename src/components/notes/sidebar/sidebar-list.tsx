@@ -109,9 +109,21 @@ const SidebarList = () => {
         [moveItem, tree.items]
     );
 
-    const onCreateNote = useCallback(() => {
-        router.push('/new');
-    }, [router]);
+    const onCreateNote = useCallback(async () => {
+        // Create a new note directly without navigation
+        const newId = genNewId();
+        const newNote = await createNote({
+            id: newId,
+            title: 'Untitled',
+            content: '\n',
+            pid: undefined, // Create at root level
+        });
+
+        if (newNote) {
+            // Navigate to the new note
+            router.push(`/notes/${newId}`);
+        }
+    }, [genNewId, createNote, router]);
 
     // collapse all: use tree API ref to close all nodes, then sync to application state
     const handleCollapseAll = useCallback(() => {
