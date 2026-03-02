@@ -1,4 +1,5 @@
 // S3-backed notes storage
+// Uses the storage provider which handles path prefixing
 import { getStorageProvider } from '@/lib/storage/init';
 import { NoteModel } from '@/lib/notes/types/note';
 import { TreeModel, TreeItemModel, ROOT_ID, DEFAULT_TREE } from '@/lib/notes/types/tree';
@@ -13,7 +14,10 @@ export async function getAllNotesFromS3(): Promise<NoteModel[]> {
   try {
     const storage = getStorageProvider();
     const indexJson = await storage.getObject(NOTES_INDEX_PATH);
-    if (!indexJson) return [];
+    if (!indexJson) {
+      console.log('Notes index not found in S3');
+      return [];
+    }
     const index = JSON.parse(indexJson) as { notes: Record<string, NoteModel> };
     return Object.values(index.notes);
   } catch (error) {
