@@ -4,65 +4,85 @@ import bcrypt from 'bcryptjs';
 import sql from '@/database/pgsql.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
-import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
+import {optionsHandler} from "@/lib/corsHeaders.js";
+
+const ALLOWED_ORIGINS = [
+  'https://oghmanotes.semyon.ie',
+  'https://www.oghmanotes.semyon.ie',
+  'http://localhost:3000',
+];
+
+function addCORSHeaders(response, request) {
+  const origin = request?.headers?.get('origin') || 'https://oghmanotes.semyon.ie';
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+  const corsOrigin = isAllowed ? origin : 'https://oghmanotes.semyon.ie';
+  
+  response.headers.set('Access-Control-Allow-Origin', corsOrigin);
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  return response;
+}
 
 export async function OPTIONS(request) {
   return optionsHandler(request);
 }
 
 export async function POST(request) {
-    try {
-        const { data: body, error: parseError } = await parseJsonBody(request);
-        if (parseError) return parseError;
+     try {
+         const { data: body, error: parseError } = await parseJsonBody(request);
+         if (parseError) return addCORSHeaders(parseError, request);
 
-        const { token, password } = body;
+         const { token, password } = body;
 
-        if (!token || !password) {
-            return createErrorResponse('Token and password are required', 400);
-        }
+         if (!token || !password) {
+             return addCORSHeaders(createErrorResponse('Token and password are required', 400), request);
+         }
 
-        // Validate new password strength
-        const validation = validateAuthCredentials('dummy@email.com', password, true);
-        if (!validation.isValid) {
-            return new Response(
-                JSON.stringify({ errors: validation.errors }),
-                { status: 400, headers: { 'Content-Type': 'application/json' } }
-            );
-        }
+         // Validate new password strength
+         const validation = validateAuthCredentials('dummy@email.com', password, true);
+         if (!validation.isValid) {
+             const response = new Response(
+                 JSON.stringify({ errors: validation.errors }),
+                 { status: 400, headers: { 'Content-Type': 'application/json' } }
+             );
+             return addCORSHeaders(response, request);
+         }
 
-        // Find user with valid token
-        const users = await sql`
-      SELECT user_id, email 
-      FROM public.login 
-      WHERE reset_token = ${token}
-        AND reset_token_expires > NOW()
-    `;
+         // Find user with valid token
+         const users = await sql`
+       SELECT user_id, email 
+       FROM app.login 
+       WHERE reset_token = ${token}
+         AND reset_token_expires > NOW()
+     `;
 
-        if (users.length === 0) {
-            return createErrorResponse('Invalid or expired reset token', 400);
-        }
+         if (users.length === 0) {
+             return addCORSHeaders(createErrorResponse('Invalid or expired reset token', 400), request);
+         }
 
-        const user = users[0];
+         const user = users[0];
 
-        // Hash new password
-        const hashedPassword = await bcrypt.hash(password, 10);
+         // Hash new password
+         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Update password and clear reset token
-        await sql`
-      UPDATE public.login 
-      SET hashed_password = ${hashedPassword},
-          reset_token = NULL,
-          reset_token_expires = NULL
-      WHERE user_id = ${user.user_id}
-    `;
+         // Update password and clear reset token
+         await sql`
+       UPDATE app.login 
+       SET hashed_password = ${hashedPassword},
+           reset_token = NULL,
+           reset_token_expires = NULL
+       WHERE user_id = ${user.user_id}
+     `;
 
-        return new Response(
-            JSON.stringify({ message: 'Password reset successful' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
+         const response = new Response(
+             JSON.stringify({ message: 'Password reset successful' }),
+             { status: 200, headers: { 'Content-Type': 'application/json' } }
+         );
+         return addCORSHeaders(response, request);
 
-    } catch (error) {
-        console.error('Password reset error:', error);
-        return createErrorResponse('Failed to reset password', 500);
-    }
-}
+     } catch (error) {
+         console.error('Password reset error:', error);
+         return addCORSHeaders(createErrorResponse('Failed to reset password', 500), request);
+     }
+ }
