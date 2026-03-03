@@ -11,7 +11,6 @@ export default function RegisterPage() {
   const [pwd, setPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [errMsg, setErrMsg] = useState('')
-  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const errRef = useRef()
   const router = useRouter()
@@ -34,18 +33,23 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
+      console.log('Register: Calling register API...')
       await register(email, pwd)
-      setEmail('')
-      setPwd('')
-      setConfirmPwd('')
-      setSuccess(true)
-      setTimeout(() => router.push('/login'), 1500)
+      console.log('Register: Redirecting to /notes...')
+      // Redirect to /notes (auto-logged in after registration)
+      router.replace('/notes')
+      
+      // Fallback redirect in case router.replace doesn't work
+      setTimeout(() => {
+        console.log('Register: Fallback redirect triggered')
+        window.location.href = '/notes'
+      }, 1000)
     } catch (err) {
+      console.error('Register: Error occurred:', err)
       setErrMsg(getErrorMessage(err))
       setPwd('')
       setConfirmPwd('')
       errRef.current?.focus()
-    } finally {
       setLoading(false)
     }
   }
@@ -54,20 +58,6 @@ export default function RegisterPage() {
   const handleSocialSignUp = (provider) => {
     console.log(`Social signup with ${provider}`)
     // TODO: Redirect to OAuth endpoint or backend authentication
-  }
-
-  if (success) {
-    return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Alert 
-            variant="success" 
-            title="Account created!" 
-            description="Redirecting to sign in..." 
-          />
-        </div>
-      </div>
-    )
   }
 
   return (
