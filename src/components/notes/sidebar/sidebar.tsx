@@ -6,24 +6,17 @@ import NoteSidebarSearch from '@/components/notes/sidebar/note-sidebar-search';
 import NoteSidebarFavorites from '@/components/notes/sidebar/note-sidebar-favorites';
 import NoteSidebarStats from '@/components/notes/sidebar/note-sidebar-stats';
 import NoteSidebarActions from '@/components/notes/sidebar/note-sidebar-actions';
-import UIState from '@/lib/notes/state/ui';
-import { FC, useEffect, useCallback } from 'react';
-import NoteTreeState from '@/lib/notes/state/tree';
+import useUIComposite from '@/lib/notes/state/ui';
+import { FC, useCallback } from 'react';
 
 const Sidebar: FC = () => {
-    const { ua } = UIState.useContainer();
-    const { initTree } = NoteTreeState.useContainer();
-
-    useEffect(() => {
-        initTree()
-            ?.catch((v) => console.error('Error whilst initialising tree: %O', v));
-    }, [initTree]);
+    const { ua } = useUIComposite();
 
     return ua?.isMobileOnly ? <MobileSidebar /> : <BrowserSidebar />;
 };
 
 const BrowserSidebar: FC = () => {
-    const { sidebar } = UIState.useContainer();
+    const { sidebar } = useUIComposite();
 
     const handleToggleSidebar = useCallback(() => {
         sidebar?.toggle?.();
@@ -103,7 +96,7 @@ const BrowserSidebar: FC = () => {
 };
 
 const MobileSidebar: FC = () => {
-    const { sidebar } = UIState.useContainer();
+    const { sidebar } = useUIComposite();
 
     const handleToggleSidebar = useCallback(() => {
         sidebar?.toggle?.();
