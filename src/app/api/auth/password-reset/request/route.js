@@ -4,6 +4,11 @@ import crypto from 'crypto';
 import sql from '@/database/pgsql.js';
 import { sendPasswordResetEmail } from '@/lib/email.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
+import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
+
+export async function OPTIONS() {
+  return optionsHandler();
+}
 
 /* Child function for debugging:
 export async function GET(request) {
