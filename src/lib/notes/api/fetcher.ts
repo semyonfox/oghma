@@ -1,7 +1,7 @@
 // extracted from Notea (MIT License)
 import { CSRF_HEADER_KEY } from '@/lib/notes/types/const';
 import { useCallback, useRef, useState } from 'react';
-import CsrfTokenState from '../state/csrf-token';
+import useCsrfTokenStore from '@/lib/notes/state/csrf-token';
 import { deduplicatedFetch, recordRequest } from './request-deduplicator';
 
 interface Params {
@@ -14,7 +14,7 @@ export default function useFetcher() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>();
     const abortRef = useRef<AbortController | undefined>(undefined);
-    const csrfToken = CsrfTokenState.useContainer();
+    const csrfToken = useCsrfTokenStore((state) => state.token);
 
     const request = useCallback(
         async function request<Payload, ReponseData>(

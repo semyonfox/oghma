@@ -7,9 +7,9 @@ import {
     CogIcon,
 } from '@heroicons/react/24/outline';
 import { forwardRef, HTMLProps, useCallback } from 'react';
-import UIState from '@/lib/notes/state/ui';
+import useUIComposite from '@/lib/notes/state/ui';
 import Link from 'next/link';
-import PortalState from '@/lib/notes/state/portal';
+import usePortalStore from '@/lib/notes/state/portal';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 
 const ButtonItem = forwardRef<HTMLDivElement, HTMLProps<HTMLDivElement>>(
@@ -33,7 +33,7 @@ const ButtonMenu = () => {
     const { t } = useI18n();
     const {
         sidebar: { toggle, isFold },
-    } = UIState.useContainer();
+    } = useUIComposite();
     const onFold = useCallback(() => {
         toggle()
             ?.catch((v: unknown) => console.error('Error whilst toggling tool: %O', v));
@@ -50,7 +50,7 @@ const ButtonMenu = () => {
 
 const ButtonSearch = () => {
     const { t } = useI18n();
-    const { search } = PortalState.useContainer();
+    const { search } = usePortalStore();
 
     return (
         <ButtonItem onClick={search.open} aria-label="search" title={t('Search note')}>
@@ -61,7 +61,7 @@ const ButtonSearch = () => {
 
 const ButtonTrash = () => {
     const { t } = useI18n();
-    const { trash } = PortalState.useContainer();
+    const { trash } = usePortalStore();
 
     return (
         <ButtonItem onClick={trash.open} aria-label="trash" title={t('Trash')}>

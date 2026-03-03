@@ -3,7 +3,7 @@ import EditTitle from './edit-title';
 import Editor, { EditorProps } from './editor';
 import Backlinks from './backlinks';
 import useEditorStore from '@/lib/notes/state/editor.zustand';
-import UIState from '@/lib/notes/state/ui';
+import useUIComposite from '@/lib/notes/state/ui';
 import { FC } from 'react';
 import { NoteModel } from '@/lib/notes/types/note';
 import { EDITOR_SIZE } from '@/lib/notes/types/meta';
@@ -41,7 +41,7 @@ const MainEditor: FC<
 > = ({ className, note, isPreview, ...props }) => {
     const {
         settings: { settings },
-    } = UIState.useContainer();
+    } = useUIComposite();
     const editorSize = note?.editorsize ?? settings?.editorsize ?? EDITOR_SIZE.LARGE;
     const editorWidthClass = {
     [EDITOR_SIZE.SMALL]: 'max-w-prose',

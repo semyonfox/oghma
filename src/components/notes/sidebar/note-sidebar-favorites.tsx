@@ -2,7 +2,7 @@
 import { StarIcon } from '@heroicons/react/24/solid';
 import React, { FC, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import NoteTreeState from '@/lib/notes/state/tree';
+import useNoteTreeStore from '@/lib/notes/state/tree';
 import { useTreeItems } from '@/lib/notes/hooks/use-tree-selectors';
 import { NOTE_PINNED } from '@/lib/notes/types/meta';
 

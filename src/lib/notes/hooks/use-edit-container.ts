@@ -2,9 +2,9 @@
 
 // edit container hook - manages note lifecycle (load, create, daily notes)
 // ported from Notea's edit-container.tsx (MIT License) - adapted for App Router
-import NoteState from '@/lib/notes/state/note';
-import NoteTreeState from '@/lib/notes/state/tree';
-import UIState from '@/lib/notes/state/ui';
+import useNoteStore from '@/lib/notes/state/note';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import useUIComposite from '@/lib/notes/state/ui';
 import noteCache from '@/lib/notes/cache/note';
 import useSettingsAPI from '@/lib/notes/api/settings';
 import { useToast } from '@/lib/notes/hooks/use-toast';
@@ -15,10 +15,10 @@ export function useEditContainer() {
     const {
         title: { updateTitle },
         settings: { settings },
-    } = UIState.useContainer();
-    const { genNewId } = NoteTreeState.useContainer();
+    } = useUIComposite();
+    const { genNewId } = useNoteTreeStore();
     const { fetchNote, abortFindNote, findOrCreateNote, initNote, note } =
-        NoteState.useContainer();
+        useNoteStore();
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();

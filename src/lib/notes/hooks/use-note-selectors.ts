@@ -1,14 +1,14 @@
 // State selector hooks for note data
 // Uses memoization to prevent unnecessary re-renders when other parts of state change
 import { useMemo } from 'react';
-import NoteState from '@/lib/notes/state/note';
+import useNoteStore from '@/lib/notes/state/note';
 
 /**
  * Selects and memoizes the current note title
  * Re-renders only when title actually changes
  */
 export const useNoteTitle = () => {
-    const { note } = NoteState.useContainer();
+    const { note } = useNoteStore();
     return useMemo(() => note?.title || 'Untitled', [note?.title]);
 };
 
@@ -17,7 +17,7 @@ export const useNoteTitle = () => {
  * Re-renders only when ID changes
  */
 export const useNoteId = () => {
-    const { note } = NoteState.useContainer();
+    const { note } = useNoteStore();
     return useMemo(() => note?.id || null, [note?.id]);
 };
 
@@ -26,7 +26,7 @@ export const useNoteId = () => {
  * Re-renders only when content changes
  */
 export const useNoteContent = () => {
-    const { note } = NoteState.useContainer();
+    const { note } = useNoteStore();
     return useMemo(() => note?.content || '', [note?.content]);
 };
 
@@ -35,6 +35,6 @@ export const useNoteContent = () => {
  * Re-renders only when loading status changes
  */
 export const useIsLoading = () => {
-    const { loading } = NoteState.useContainer();
+    const { loading } = useNoteStore();
     return useMemo(() => loading, [loading]);
 };

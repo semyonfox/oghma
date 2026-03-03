@@ -3,16 +3,16 @@
 // editor width select - per-note width selection
 // ported from Notea (MIT License) - MUI Menu replaced with Tailwind dropdown
 import { FC, useCallback } from 'react';
-import PortalState from '@/lib/notes/state/portal';
-import NoteState from '@/lib/notes/state/note';
+import usePortalStore from '@/lib/notes/state/portal';
+import useNoteStore from '@/lib/notes/state/note';
 import { EDITOR_SIZE } from '@/lib/notes/types/meta';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { CheckIcon } from '@heroicons/react/24/outline';
 
 const EditorWidthSelect: FC = () => {
     const { t } = useI18n();
-    const { editorWidthSelect } = PortalState.useContainer();
-    const { mutateNote } = NoteState.useContainer();
+    const { editorWidthSelect } = usePortalStore();
+    const { mutateNote } = useNoteStore();
 
     const handleSelect = useCallback(
         async (size: EDITOR_SIZE | null) => {

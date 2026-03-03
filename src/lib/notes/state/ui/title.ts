@@ -1,12 +1,16 @@
 // extracted from Notea (MIT License)
-import { useState, useCallback } from 'react';
+import { create } from 'zustand';
 
-export default function useTitle() {
-    const [value, setTitle] = useState('OghmaNotes');
-
-    const updateTitle = useCallback((text?: string) => {
-        setTitle(text ? `${text} - OghmaNotes` : 'OghmaNotes');
-    }, []);
-
-    return { value, updateTitle };
+interface TitleStore {
+    value: string;
+    updateTitle: (text?: string) => void;
 }
+
+export const useTitleStore = create<TitleStore>((set) => ({
+    value: 'OghmaNotes',
+    updateTitle: (text?: string) => {
+        set({ value: text ? `${text} - OghmaNotes` : 'OghmaNotes' });
+    },
+}));
+
+export default useTitleStore;

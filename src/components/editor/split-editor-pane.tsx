@@ -1,40 +1,28 @@
 'use client';
 
 import { FC } from 'react';
-import { Allotment } from 'allotment';
-import 'allotment/dist/style.css';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import FileViewPane from './file-view-pane';
 
 /**
- * Main split editor pane component
- * Uses Allotment (VS Code's original splitter) for smooth resizing
- * Renders Pane A (required) and optionally Pane B (if paneB is set)
+ * Main editor pane component
+ * Renders Pane A (required) and optionally Pane B side-by-side
  */
 const SplitEditorPane: FC = () => {
-  const { paneA, paneB, splitPosition, setSizes } = useLayoutStore();
+  const { paneA, paneB } = useLayoutStore();
 
   return (
-    <div className="h-full flex flex-col">
-      {paneB ? (
-        // Split view: Pane A and Pane B side-by-side
-        <Allotment
-          onChange={(sizes) => {
-            if (sizes.length >= 2) {
-              setSizes(0, 0, sizes[0]); // Update split position
-            }
-          }}
-        >
-          <Allotment.Pane minSize={300}>
-            <FileViewPane pane="A" file={paneA} />
-          </Allotment.Pane>
-          <Allotment.Pane minSize={300}>
-            <FileViewPane pane="B" file={paneB} />
-          </Allotment.Pane>
-        </Allotment>
-      ) : (
-        // Single pane: Only Pane A
+    <div className="h-full flex flex-row gap-0">
+      {/* Pane A: Main editor */}
+      <div className="flex-1 min-w-0">
         <FileViewPane pane="A" file={paneA} />
+      </div>
+      
+      {/* Pane B: Optional preview/split view */}
+      {paneB && (
+        <div className="flex-1 min-w-0 border-l border-neutral-700">
+          <FileViewPane pane="B" file={paneB} />
+        </div>
       )}
     </div>
   );

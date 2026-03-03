@@ -1,36 +1,40 @@
 // extracted from Notea (MIT License)
-import {
-    useSnackbar,
-    OptionsObject,
-    VariantType,
-    SnackbarMessage,
-} from 'notistack';
 import { useCallback } from 'react';
-import UIState from '../state/ui';
+import { toast } from 'sonner';
+import useUIComposite from '@/lib/notes/state/ui';
 
-const defaultOptions: OptionsObject = {
-    anchorOrigin: { horizontal: 'center', vertical: 'bottom' },
-};
-
-const defaultOptionsForMobile: OptionsObject = {
-    anchorOrigin: { horizontal: 'left', vertical: 'bottom' },
-};
+type ToastVariant = 'default' | 'success' | 'error' | 'info' | 'loading';
 
 export const useToast = () => {
     const {
         ua: { isMobileOnly },
-    } = UIState.useContainer();
+    } = useUIComposite();
 
-    const { enqueueSnackbar } = useSnackbar();
-    const toast = useCallback(
-        (text: SnackbarMessage, variant?: VariantType) => {
-            enqueueSnackbar(text, {
-                ...(isMobileOnly ? defaultOptionsForMobile : defaultOptions),
-                variant,
-            });
+    const showToast = useCallback(
+        (message: string, variant: ToastVariant = 'default') => {
+            const options = isMobileOnly 
+                ? { position: 'bottom-left' as const }
+                : { position: 'bottom-center' as const };
+
+            switch (variant) {
+                case 'success':
+                    toast.success(message, options);
+                    break;
+                case 'error':
+                    toast.error(message, options);
+                    break;
+                case 'info':
+                    toast(message, { ...options, description: '' });
+                    break;
+                case 'loading':
+                    toast.loading(message, options);
+                    break;
+                default:
+                    toast(message, options);
+            }
         },
-        [enqueueSnackbar, isMobileOnly]
+        [isMobileOnly]
     );
 
-    return toast;
+    return showToast;
 };

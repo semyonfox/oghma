@@ -2,8 +2,8 @@
 // rewritten for react-arborist v3.4.3 + App Router + Tailwind (no MUI)
 import SidebarListItem from './sidebar-list-item';
 import NoteContextMenu from './note-context-menu';
-import NoteTreeState from '@/lib/notes/state/tree';
-import NoteState from '@/lib/notes/state/note';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import useNoteStore from '@/lib/notes/state/note';
 import { Tree, TreeApi } from 'react-arborist';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -20,8 +20,8 @@ const SidebarList = () => {
     const { t } = useI18n();
     const router = useRouter();
     const { tree, moveItem, mutateItem, initLoaded, collapseAllItems, genNewId, addItem } =
-        NoteTreeState.useContainer();
-    const { createNote, mutateNote, removeNote } = NoteState.useContainer();
+        useNoteTreeStore();
+    const { createNote, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
 
     // ref to react-arborist's TreeApi for imperative open/close/toggle
@@ -159,7 +159,7 @@ const SidebarList = () => {
             });
 
             if (newNote) {
-                router.push(`/${newId}`);
+                router.push(`/notes/${newId}`);
             }
         },
         [tree.items, genNewId, createNote, router]

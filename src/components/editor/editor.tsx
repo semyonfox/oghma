@@ -1,6 +1,5 @@
 // extracted from Notea (MIT License)
 import { FC } from 'react';
-import { use100vh } from 'react-div-100vh';
 import LexicalEditor, { LexicalEditorProps } from './lexical-editor';
 import { useEditorTheme } from './theme';
 import useMounted from '@/lib/notes/hooks/use-mounted';
@@ -27,7 +26,6 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
         editorEl,
         note,
     } = useEditorStore();
-    const height = use100vh();
     const mounted = useMounted();
     const editorTheme = useEditorTheme();
     const toast = useToast();
@@ -37,7 +35,7 @@ const Editor: FC<EditorProps> = ({ readOnly, isPreview }) => {
     const hasMinHeight = !isPreview && (backlinks?.length ?? 0) <= 0;
 
     return (
-        <div style={{ minHeight: hasMinHeight ? `calc(${height ? height + 'px' : '100vh'} - 14rem)` : undefined }} className="pb-40">
+        <div style={{ minHeight: hasMinHeight ? 'calc(100dvh - 14rem)' : undefined }} className="pb-40">
             <LexicalEditor
                 readOnly={readOnly}
                 id={note?.id}

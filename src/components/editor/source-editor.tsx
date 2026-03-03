@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import NoteState from '@/lib/notes/state/note';
+import useNoteStore from '@/lib/notes/state/note';
 import useEditorStore from '@/lib/notes/state/editor.zustand';
 
 interface SourceEditorProps {

@@ -1,23 +1,27 @@
 // extracted from Notea (MIT License)
-import { useState, useCallback } from 'react';
-import { createContainer } from 'unstated-next';
+import { create } from 'zustand';
 import { NoteCacheItem } from '@/lib/notes/cache';
 import { NOTE_DELETED } from '@/lib/notes/types/meta';
 import { searchNote } from '../utils/search';
 
-function useSearch() {
-    const [list, setList] = useState<NoteCacheItem[]>();
-    const [keyword, setKeyword] = useState<string>('');
-    
-    const filterNotes = useCallback(async (searchKeyword?: string) => {
-        const kw = searchKeyword !== undefined ? searchKeyword : keyword;
-        setList(kw ? await searchNote(kw, NOTE_DELETED.NORMAL) : []);
-        return kw ? await searchNote(kw, NOTE_DELETED.NORMAL) : [];
-    }, [keyword]);
-
-    return { list, keyword, setKeyword, filterNotes };
+interface SearchState {
+    list?: NoteCacheItem[];
+    keyword: string;
+    setKeyword: (keyword: string) => void;
+    filterNotes: (searchKeyword?: string) => Promise<NoteCacheItem[]>;
 }
 
-const SearchState = createContainer(useSearch);
+export const useSearchStore = create<SearchState>((set, get) => ({
+    list: undefined,
+    keyword: '',
+    setKeyword: (keyword) => set({ keyword }),
+    filterNotes: async (searchKeyword?: string) => {
+        const { keyword } = get();
+        const kw = searchKeyword !== undefined ? searchKeyword : keyword;
+        const results = kw ? await searchNote(kw, NOTE_DELETED.NORMAL) : [];
+        set({ list: results });
+        return results;
+    },
+}));
 
-export default SearchState;
+export default useSearchStore;

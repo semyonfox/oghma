@@ -13,15 +13,15 @@
 // 4. Test with both public and private shares
 
 import React, { FC, useCallback, useEffect, useState } from 'react';
-import PortalState from '@/lib/notes/state/portal';
+import usePortalStore from '@/lib/notes/state/portal';
 import IconButton from '@/components/icon-button';
-import NoteState from '@/lib/notes/state/note';
+import useNoteStore from '@/lib/notes/state/note';
 import { NOTE_SHARED } from '@/lib/notes/types/meta';
 // TODO: Convert to App Router (next/navigation) when sharing is active
 // import { useRouter } from 'next/router';
 import { useRouter as useNextRouter, usePathname, useSearchParams } from 'next/navigation';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import UIState from '@/lib/notes/state/ui';
+import useUIComposite from '@/lib/notes/state/ui';
 
 // temporary mock for Pages Router behavior
 const useRouter = () => {
@@ -39,11 +39,11 @@ const useRouter = () => {
 
 const ShareModal: FC = () => {
   const { t } = useI18n();
-  const { share } = PortalState.useContainer();
+  const { share } = usePortalStore();
   const [copied, setCopied] = useState(false);
-  const { note, updateNote } = NoteState.useContainer();
+  const { note, updateNote } = useNoteStore();
   const router = useRouter();
-  const { disablePassword } = UIState.useContainer();
+  const { disablePassword } = useUIComposite();
 
   const shareUrl = disablePassword
     ? `${location.origin}/share/${router.query.id}`
