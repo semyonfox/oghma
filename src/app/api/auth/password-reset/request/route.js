@@ -4,21 +4,16 @@ import crypto from 'crypto';
 import sql from '@/database/pgsql.js';
 import { sendPasswordResetEmail } from '@/lib/email.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
-import { handleCORSPreflight, addCORSHeaders } from '@/lib/cors.js';
-
-export async function OPTIONS(request) {
-    return handleCORSPreflight(request);
-}
 
 export async function POST(request) {
     try {
         const { data: body, error: parseError } = await parseJsonBody(request);
-        if (parseError) return addCORSHeaders(parseError, request);
+        if (parseError) return parseError;
 
         const { email } = body;
 
         if (!email) {
-            return addCORSHeaders(createErrorResponse('Email is required', 400), request);
+            return createErrorResponse('Email is required', 400);
         }
 
         // Find user
@@ -30,11 +25,10 @@ export async function POST(request) {
 
         // Always return success (security: don't reveal if email exists)
         if (users.length === 0) {
-            const response = new Response(
+            return new Response(
                 JSON.stringify({ message: 'If that email exists, we sent a reset link' }),
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
             );
-            return addCORSHeaders(response, request);
         }
 
         const user = users[0];
@@ -56,14 +50,13 @@ export async function POST(request) {
         // Send email
         await sendPasswordResetEmail(email, resetToken);
 
-        const successResponse = new Response(
+        return new Response(
             JSON.stringify({ message: 'If that email exists, we sent a reset link' }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
-        return addCORSHeaders(successResponse, request);
 
     } catch (error) {
         console.error('Password reset request error:', error);
-        return addCORSHeaders(createErrorResponse('Failed to send reset email', 500), request);
+        return createErrorResponse('Failed to send reset email', 500);
     }
 }
