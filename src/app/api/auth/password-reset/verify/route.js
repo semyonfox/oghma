@@ -6,8 +6,8 @@ import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
 import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
 
-export async function OPTIONS() {
-  return optionsHandler();
+export async function OPTIONS(request) {
+  return optionsHandler(request);
 }
 
 export async function POST(request) {
