@@ -97,7 +97,13 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
     initTree: async () => {
         const state = get();
-        const { treeAPI, noteAPI, toast } = state;
+        const { treeAPI, noteAPI, toast, initLoaded } = state;
+
+        // Skip if already initialized to prevent overwriting locally added notes
+        // with cached API responses
+        if (initLoaded) {
+            return;
+        }
 
         try {
             let tree: TreeModel | null = null;
