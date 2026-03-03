@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ALLOWED_ORIGINS = [
-  'https://oghmanotes.semyon.ie',
-  'https://www.oghmanotes.semyon.ie',
-  'http://localhost:3000',
-];
+// Allow CORS for configured origins
+// In production, set CORS_ORIGINS env var to comma-separated list
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map((o: string) => o.trim());
+
+// Always include app URL in production
+if (process.env.NEXT_PUBLIC_APP_URL) {
+  ALLOWED_ORIGINS.push(process.env.NEXT_PUBLIC_APP_URL);
+}
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
+};
 
 function getCORSHeaders(request: NextRequest) {
-  const origin = request.headers.get('origin') || 'https://oghmanotes.semyon.ie';
+  const origin = request.headers.get('origin') || '';
   const isAllowed = ALLOWED_ORIGINS.includes(origin);
-  const corsOrigin = isAllowed ? origin : 'https://oghmanotes.semyon.ie';
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
 
   return {
-    'Access-Control-Allow-Origin': corsOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Origin': allowedOrigin,
+    ...CORS_HEADERS,
   };
 }
 
@@ -23,11 +30,12 @@ export async function proxy(request: NextRequest) {
     const session = request.cookies.get('session')?.value;
     const corsHeaders = getCORSHeaders(request);
 
-    // Handle OPTIONS requests (preflight)
+    // Handle CORS preflight requests
     if (request.method === 'OPTIONS') {
-        return new NextResponse(null, { status: 200, headers: corsHeaders });
+        return new NextResponse(null, { status: 204, headers: corsHeaders });
     }
 
+    // Check session for protected routes
     if (!session) {
         const response = NextResponse.redirect(new URL('/login', request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -36,6 +44,7 @@ export async function proxy(request: NextRequest) {
         return response;
     }
 
+    // Allow request with CORS headers
     const response = NextResponse.next();
     Object.entries(corsHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
