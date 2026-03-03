@@ -1,54 +1,43 @@
-import { useState, useCallback } from 'react';
+import { create } from 'zustand';
 import useSettingsAPI from '@/lib/notes/api/settings';
 
-/**
- * A React hook to manage split pane sizes with persistent settings.
- */
-export default function useSplit(initData: [number, number] = [50, 50]) {
-    // State to store the current sizes
-    const normalizeSizes = (data: [number, number]) => {
-        if (!data || !Array.isArray(data) || data.length !== 2) {
-            return [50, 50] as [number, number];
-        }
-        return data;
-    };
+interface SplitStore {
+    sizes: [number, number];
+    saveSizes: (newSizes: [number, number]) => Promise<void>;
+    resize: (scale: number) => [number, number];
+}
 
-    const [sizes, setSizes] = useState<[number, number]>(() => normalizeSizes(initData ?? [50, 50]));
+const normalizeSizes = (data: [number, number]): [number, number] => {
+    if (!data || !Array.isArray(data) || data.length !== 2) {
+        return [50, 50];
+    }
+    return data;
+};
 
-    // Hook into settings API to persist changes
-    const { mutate } = useSettingsAPI();
-
-    // Function to save sizes to persistent storage
-    const saveSizes = useCallback(
-        async (newSizes: [number, number]) => {
+const createSplitStore = (initData: [number, number] = [50, 50]) => {
+    return create<SplitStore>((set, get) => ({
+        sizes: normalizeSizes(initData),
+        saveSizes: async (newSizes: [number, number]) => {
+            const { mutate } = useSettingsAPI();
             if (!newSizes || !Array.isArray(newSizes) || newSizes.length !== 2) {
                 console.warn('Invalid sizes provided. Using fallback sizes.');
                 newSizes = [50, 50];
             }
-            setSizes(newSizes ?? [50, 50]);
+            set({ sizes: newSizes });
             await mutate({
-                split_sizes: (newSizes as [number, number]) ?? [50, 50],
+                split_sizes: newSizes,
             });
         },
-        [mutate]
-    );
-
-    // Function to resize the split pane dynamically
-    const resize = useCallback(
-        (scale: number) => {
-            const [size1, size2] = sizes ?? [50, 50];
+        resize: (scale: number) => {
+            const { sizes } = get();
+            const [size1, size2] = sizes;
             const newSize1 = Math.max(0, Math.min(size1 * scale, 100));
             const newSize2 = Math.max(0, 100 - newSize1);
             const newSizes: [number, number] = [newSize1, newSize2];
-            setSizes(newSizes);
+            set({ sizes: newSizes });
             return newSizes;
         },
-        [sizes]
-    );
+    }));
+};
 
-    return {
-        sizes,
-        saveSizes,
-        resize,
-    };
-}
+export default createSplitStore;

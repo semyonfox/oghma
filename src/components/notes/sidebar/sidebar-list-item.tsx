@@ -5,11 +5,11 @@ import Link from 'next/link';
 import React, { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import IconButton from '@/components/icon-button';
-import NoteTreeState from '@/lib/notes/state/tree';
-import NoteState from '@/lib/notes/state/note';
-import PortalState from '@/lib/notes/state/portal';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import useNoteStore from '@/lib/notes/state/note';
+import usePortalStore from '@/lib/notes/state/portal';
+import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import emojiRegex from 'emoji-regex';
 
 const TextSkeleton = () => (
     <span className="inline-block w-20 h-4 bg-neutral-300 dark:bg-neutral-700 rounded animate-pulse" />
@@ -43,11 +43,12 @@ const SidebarListItem: FC<{
     const { t } = useI18n();
     const router = useRouter();
     const pathname = usePathname();
-    const { mutateItem, initLoaded, genNewId } = NoteTreeState.useContainer();
-    const { createNote } = NoteState.useContainer();
+    const { mutateItem, initLoaded, genNewId } = useNoteTreeStore();
+    const { createNote } = useNoteStore();
     const {
         menu: { open, setData, setAnchor },
-    } = PortalState.useContainer();
+    } = usePortalStore();
+    const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
     const [renameValue, setRenameValue] = useState(item.title || '');
     const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +148,7 @@ const SidebarListItem: FC<{
     }, [pathname, item.id, hasChildren]);
 
     const emoji = useMemo(() => {
-        const emoji = item.title?.match(emojiRegex());
+        const emoji = item.title?.match(/\p{Emoji}/u);
         if (emoji?.length === 1) return emoji[0];
         return undefined;
     }, [item.title]);
@@ -230,12 +231,24 @@ const SidebarListItem: FC<{
                              aria-label={t('Rename note')}
                          />
                      ) : (
-                         <span className="flex-1 truncate text-sm" dir="auto">
-                             {(emoji
-                                 ? item.title.replace(emoji, '').trimLeft()
-                                 : item.title) ||
-                                 (initLoaded ? t('Untitled') : <TextSkeleton />)}
-                         </span>
+                     <span
+                              className={`flex-1 truncate text-sm ${
+                                  syncStatus === 'modified' ? 'text-amber-400' :
+                                  syncStatus === 'new' ? 'text-green-400' : ''
+                              }`}
+                              dir="auto"
+                          >
+                              {(emoji
+                                  ? item.title.replace(emoji, '').trimLeft()
+                                  : item.title) ||
+                                  (initLoaded ? t('Untitled') : <TextSkeleton />)}
+                              {syncStatus === 'modified' && (
+                                  <span className="ml-1 text-amber-400 text-xs" title="Modified">M</span>
+                              )}
+                              {syncStatus === 'new' && (
+                                  <span className="ml-1 text-green-400 text-xs" title="New">U</span>
+                              )}
+                          </span>
                      )}
                  </Link>
 
@@ -269,15 +282,6 @@ const SidebarListItem: FC<{
     );
 };
 
-export default React.memo(SidebarListItem, (prevProps, nextProps) => {
-    // Return true if props are equal (no re-render needed), false if different (re-render)
-    // Only re-render if key props actually changed
-    return (
-        prevProps.item.id === nextProps.item.id &&
-        prevProps.item.title === nextProps.item.title &&
-        prevProps.item.pinned === nextProps.item.pinned &&
-        prevProps.isExpanded === nextProps.isExpanded &&
-        prevProps.hasChildren === nextProps.hasChildren &&
-        prevProps.isRenaming === nextProps.isRenaming
-    );
-});
+// memo can't compare hook state (syncStatus), so we don't use a custom comparator
+// the component will re-render when sync status changes via the zustand subscription
+export default SidebarListItem;

@@ -4,7 +4,7 @@ import { Tree } from 'react-arborist';
 import IconButton from '@/components/icon-button';
 import TreeActions, { ROOT_ID, HierarchicalTreeItemModel, DEFAULT_TREE } from '@/lib/notes/types/tree';
 import useI18n from '@/lib/notes/hooks/use-i18n';
-import NoteTreeState from '@/lib/notes/state/tree';
+import useNoteTreeStore from '@/lib/notes/state/tree';
 import React, { FC, useCallback, useMemo, useState } from 'react';
 import SidebarListItem from './sidebar-list-item';
 import { makeHierarchy } from '@/lib/notes/types/tree';
@@ -13,7 +13,7 @@ import { NoteModel } from '@/lib/notes/types/note';
 
 export const Favorites: FC = () => {
     const { t } = useI18n();
-    const { pinnedTree } = NoteTreeState.useContainer(); // Removed premature logging
+    const { pinnedTree } = useNoteTreeStore(); // Removed premature logging
 
 console.log('Pinned Tree:', pinnedTree);
     const [tree, setTree] = useState(pinnedTree || DEFAULT_TREE);

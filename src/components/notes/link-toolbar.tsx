@@ -3,7 +3,7 @@
 // link toolbar - shows actions for external links on hover
 // ported from Notea (MIT License) - MUI Paper replaced with Tailwind floating panel
 import { FC } from 'react';
-import PortalState from '@/lib/notes/state/portal';
+import usePortalStore from '@/lib/notes/state/portal';
 import {
     ArrowTopRightOnSquareIcon,
     ClipboardDocumentIcon,
@@ -14,7 +14,7 @@ import { useToast } from '@/lib/notes/hooks/use-toast';
 const LinkToolbar: FC = () => {
     const { t } = useI18n();
     const toast = useToast();
-    const { linkToolbar } = PortalState.useContainer();
+    const { linkToolbar } = usePortalStore();
 
     if (!linkToolbar.visible || !linkToolbar.data?.href || !linkToolbar.anchor) {
         return null;

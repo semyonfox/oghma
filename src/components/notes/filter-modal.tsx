@@ -4,7 +4,7 @@
 // ported from Notea (MIT License) - MUI Dialog replaced with Headless UI
 import { Fragment, FC, ReactNode, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import UIState from '@/lib/notes/state/ui';
+import useUIComposite from '@/lib/notes/state/ui';
 
 interface FilterModalProps {
     open: boolean;
@@ -14,7 +14,7 @@ interface FilterModalProps {
 }
 
 const FilterModal: FC<FilterModalProps> = ({ open, onClose, onOpen, children }) => {
-    const { ua } = UIState.useContainer();
+    const { ua } = useUIComposite();
     const isMobile = ua?.isMobileOnly;
 
     useEffect(() => {

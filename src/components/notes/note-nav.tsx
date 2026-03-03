@@ -2,11 +2,11 @@
 
 // note navigation bar - breadcrumbs, share, menu, editor width
 // ported from Notea (MIT License) - MUI Breadcrumbs/Tooltip/CircularProgress replaced with Tailwind
-import NoteState from '@/lib/notes/state/note';
-import UIState from '@/lib/notes/state/ui';
+import useNoteStore from '@/lib/notes/state/note';
+import useUIComposite from '@/lib/notes/state/ui';
 import { useCallback, MouseEvent, FC, useMemo } from 'react';
-import NoteTreeState from '@/lib/notes/state/tree';
-import PortalState from '@/lib/notes/state/portal';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import usePortalStore from '@/lib/notes/state/portal';
 import { NOTE_SHARED } from '@/lib/notes/types/meta';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { useIsLoading, useNoteId } from '@/lib/notes/hooks/use-note-selectors';
@@ -20,7 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const MenuButton: FC = () => {
-    const { sidebar } = UIState.useContainer();
+    const { sidebar } = useUIComposite();
 
     const onToggle = useCallback(
         (e: MouseEvent) => {
@@ -44,13 +44,13 @@ const MenuButton: FC = () => {
 
 const NoteNav: FC = () => {
     const { t } = useI18n();
-    const { note } = NoteState.useContainer();
+    const { note } = useNoteStore();
     // Using selector hooks (Phase 1 pattern) - prevents unnecessary re-renders when other state changes
     const loading = useIsLoading();
     const noteId = useNoteId();
-    const { ua } = UIState.useContainer();
-    const { getPaths, showItem, checkItemIsShown } = NoteTreeState.useContainer();
-    const { share, menu, editorWidthSelect } = PortalState.useContainer();
+    const { ua } = useUIComposite();
+    const { getPaths, showItem, checkItemIsShown } = useNoteTreeStore();
+    const { share, menu, editorWidthSelect } = usePortalStore();
 
     const handleClickShare = useCallback(
         (event: MouseEvent) => {

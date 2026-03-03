@@ -1,5 +1,5 @@
 // Lexical-based markdown editor replacement for @notea/rich-markdown-editor
-import { FC, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
+import { FC, useEffect, useCallback, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -65,17 +65,28 @@ function OnChangeContentPlugin({
   return null;
 }
 
-// plugin to set initial content
-function InitialContentPlugin({ value }: { value?: string }) {
+// plugin to set initial content only on mount or note switch
+// does NOT re-run on every value change (that would reset the cursor)
+function InitialContentPlugin({ value, id }: { value?: string; id?: string }) {
   const [editor] = useLexicalComposerContext();
+  const hasSetInitial = useRef(false);
+  const prevId = useRef(id);
 
   useEffect(() => {
-    if (value !== undefined) {
+    // set content on first mount or when switching to a different note
+    const isNewNote = prevId.current !== id;
+    if (isNewNote) {
+      prevId.current = id;
+      hasSetInitial.current = false;
+    }
+
+    if (!hasSetInitial.current && value !== undefined) {
+      hasSetInitial.current = true;
       editor.update(() => {
         $convertFromMarkdownString(value, TRANSFORMERS);
       });
     }
-  }, [editor, value]);
+  }, [editor, value, id]);
 
   return null;
 }
@@ -195,7 +206,8 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
   ) => {
     const editorInstanceRef = useRef<any>(null);
     
-    const initialConfig = {
+    // memoize config to avoid recreating on every render
+    const initialConfig = useMemo(() => ({
       namespace: 'LexicalEditor',
       editable: !readOnly,
       theme: {
@@ -231,7 +243,8 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
           onShowToast('Editor error: ' + error.message, 'error');
         }
       },
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [id, readOnly]);
 
     // expose editor instance via ref
     useImperativeHandle(ref, () => ({
@@ -286,17 +299,17 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
     }));
 
      return (
-        <LexicalComposer initialConfig={initialConfig}>
-          <div className={`w-full ${className}`} dir="ltr">
+        <LexicalComposer key={id} initialConfig={initialConfig}>
+          <div className={`relative w-full ${className}`} dir="ltr">
             <RichTextPlugin
               contentEditable={
                 <ContentEditable 
-                  className="w-full bg-slate-900 text-slate-300 outline-none min-h-[200px] p-4 rounded text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-gray-200 outline-none min-h-[300px] px-6 py-4 text-base leading-relaxed focus:outline-none"
                   dir="ltr"
                 />
               }
              placeholder={
-               <div className="absolute text-slate-600 pointer-events-none select-none p-4 text-base leading-relaxed">{placeholder}</div>
+               <div className="absolute top-0 left-0 text-gray-600 pointer-events-none select-none px-6 py-4 text-base leading-relaxed">{placeholder}</div>
              }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -306,7 +319,7 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
           <HashtagPlugin />
           <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
           <OnChangeContentPlugin onChange={onChange} />
-          <InitialContentPlugin value={value} />
+          <InitialContentPlugin value={value} id={id} />
           <ReadOnlyPlugin readOnly={readOnly} />
           <EditorRefPlugin editorRef={editorInstanceRef} />
           {onClickLink && <LinkClickPlugin onClickLink={onClickLink} />}

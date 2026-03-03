@@ -43,7 +43,11 @@ async function mutateItem(id: string, body: Partial<NoteModel>) {
     const note = await getItem(id);
 
     if (!note) {
-        throw new Error('not found note cache:' + id);
+        // note not in cache yet, store whatever we have
+        // this happens when saving before the cache is populated
+        console.debug('note not in cache, creating entry:', id);
+        await noteCacheInstance.setItem(id, body as NoteCacheItem);
+        return;
     }
 
     await setItem(id, {

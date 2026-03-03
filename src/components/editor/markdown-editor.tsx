@@ -215,48 +215,45 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         </div>
       </div>
 
-      {/* Content Area - Same background for both modes */}
-      <div className="flex-1 overflow-auto">
-        {mode === 'source' ? (
-          loaded ? (
-            <div className="h-full flex flex-col items-center justify-start">
-              {/* Centered editor container like Obsidian */}
-              <div className="w-full max-w-3xl">
-                <textarea
-                  ref={textareaRef}
-                  value={displayContent}
-                  onChange={(e) => {
-                    setLocalContent(e.target.value);
-                    setIsDirty(true);
-                  }}
-                  onKeyDown={handleTextareaKeyDown}
-                  spellCheck={false}
-                  className="w-full bg-transparent text-gray-200 font-mono text-sm leading-relaxed px-6 py-8 outline-none resize-none"
-                  placeholder="Start writing..."
-                  style={{ minHeight: '100%' }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-              Loading...
-            </div>
-          )
-        ) : (
-          loaded ? (
-            <div className="h-full flex flex-col items-center justify-start">
-              {/* Centered rendered view with same styling */}
-              <div className="w-full max-w-3xl px-6 py-8 prose prose-invert">
-                <PreviewRenderer content={displayContent} />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-              Loading...
-            </div>
-          )
-        )}
-      </div>
+       {/* Content Area - Same background for both modes */}
+       <div className="flex-1 overflow-auto">
+         {mode === 'source' ? (
+           loaded ? (
+             <div className="h-full w-full">
+               {/* Full-width editor with padding */}
+               <textarea
+                 ref={textareaRef}
+                 value={displayContent}
+                 onChange={(e) => {
+                   setLocalContent(e.target.value);
+                   setIsDirty(true);
+                 }}
+                 onKeyDown={handleTextareaKeyDown}
+                 spellCheck={false}
+                 className="w-full h-full bg-transparent text-gray-200 font-mono text-sm leading-relaxed px-12 py-8 outline-none resize-none"
+                 placeholder="Start writing..."
+               />
+             </div>
+           ) : (
+             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+               Loading...
+             </div>
+           )
+         ) : (
+           loaded ? (
+             <div className="h-full flex flex-col items-center justify-start">
+               {/* Centered rendered view with same styling */}
+               <div className="w-full max-w-5xl px-12 py-8 prose prose-invert">
+                 <PreviewRenderer content={displayContent} />
+               </div>
+             </div>
+           ) : (
+             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+               Loading...
+             </div>
+           )
+         )}
+       </div>
     </div>
   );
 };
