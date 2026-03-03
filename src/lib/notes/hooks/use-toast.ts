@@ -1,39 +1,39 @@
 // extracted from Notea (MIT License)
+// Updated to use notistack instead of sonner for lighter bundle
 import { useCallback } from 'react';
-import { toast } from 'sonner';
+import { useSnackbar } from 'notistack';
 import useUIComposite from '@/lib/notes/state/ui';
 
 type ToastVariant = 'default' | 'success' | 'error' | 'info' | 'loading';
 
 export const useToast = () => {
+    const { enqueueSnackbar } = useSnackbar();
     const {
         ua: { isMobileOnly },
     } = useUIComposite();
 
     const showToast = useCallback(
         (message: string, variant: ToastVariant = 'default') => {
-            const options = isMobileOnly 
-                ? { position: 'bottom-left' as const }
-                : { position: 'bottom-center' as const };
+            const horizontalPosition = isMobileOnly ? 'left' as const : 'center' as const;
 
             switch (variant) {
                 case 'success':
-                    toast.success(message, options);
+                    enqueueSnackbar(message, { variant: 'success', anchorOrigin: { vertical: 'bottom', horizontal: horizontalPosition } });
                     break;
                 case 'error':
-                    toast.error(message, options);
+                    enqueueSnackbar(message, { variant: 'error', anchorOrigin: { vertical: 'bottom', horizontal: horizontalPosition } });
                     break;
                 case 'info':
-                    toast(message, { ...options, description: '' });
+                    enqueueSnackbar(message, { variant: 'info', anchorOrigin: { vertical: 'bottom', horizontal: horizontalPosition } });
                     break;
                 case 'loading':
-                    toast.loading(message, options);
+                    enqueueSnackbar(message, { variant: 'default', anchorOrigin: { vertical: 'bottom', horizontal: horizontalPosition } });
                     break;
                 default:
-                    toast(message, options);
+                    enqueueSnackbar(message, { variant: 'default', anchorOrigin: { vertical: 'bottom', horizontal: horizontalPosition } });
             }
         },
-        [isMobileOnly]
+        [enqueueSnackbar, isMobileOnly]
     );
 
     return showToast;
