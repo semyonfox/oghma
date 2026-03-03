@@ -216,11 +216,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       </div>
 
        {/* Content Area - Same background for both modes */}
-       <div className="flex-1 overflow-auto">
+       <div className="flex-1 overflow-auto flex flex-col items-center">
          {mode === 'source' ? (
            loaded ? (
-             <div className="h-full w-full">
-               {/* Full-width editor with padding */}
+             <div className="w-full max-w-5xl h-full">
+               {/* Centered editor with same inset as read mode */}
                <textarea
                  ref={textareaRef}
                  value={displayContent}
@@ -241,9 +241,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
            )
          ) : (
            loaded ? (
-             <div className="h-full flex flex-col items-center justify-start">
+             <div className="w-full max-w-5xl h-full">
                {/* Centered rendered view with same styling */}
-               <div className="w-full max-w-5xl px-12 py-8 prose prose-invert">
+               <div className="px-12 py-8 prose prose-invert h-full">
                  <PreviewRenderer content={displayContent} />
                </div>
              </div>
