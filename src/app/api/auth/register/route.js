@@ -12,75 +12,52 @@ import sql from "@/database/pgsql.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import bcrypt from "bcryptjs";
-import {optionsHandler} from "@/lib/corsHeaders.js";
-
-const ALLOWED_ORIGINS = [
-  'https://oghmanotes.semyon.ie',
-  'https://www.oghmanotes.semyon.ie',
-  'http://localhost:3000',
-];
-
-function addCORSHeaders(response, request) {
-  const origin = request?.headers?.get('origin') || 'https://oghmanotes.semyon.ie';
-  const isAllowed = ALLOWED_ORIGINS.includes(origin);
-  const corsOrigin = isAllowed ? origin : 'https://oghmanotes.semyon.ie';
-  
-  response.headers.set('Access-Control-Allow-Origin', corsOrigin);
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  return response;
-}
-
-export async function OPTIONS(request) {
-  return optionsHandler(request);
-}
 
 export async function POST(request) {
     try {
         // 1. Parse and validate request body
-         const {data: body, error: parseError} = await parseJsonBody(request);
-         if (parseError) return addCORSHeaders(parseError, request);
+        const {data: body, error: parseError} = await parseJsonBody(request);
+        if (parseError) return parseError;
 
-         const {email, password} = body;
+        const {email, password} = body;
 
-         // 2. Validate credentials format and password strength
-         const validation = validateAuthCredentials(email, password, true);
-         if (!validation.isValid) {
-             return addCORSHeaders(createValidationErrorResponse(validation.errors), request);
-         }
+        // 2. Validate credentials format and password strength
+        const validation = validateAuthCredentials(email, password, true);
+        if (!validation.isValid) {
+            return createValidationErrorResponse(validation.errors);
+        }
 
-         // 3. Check if user already exists
-         const existingUser = await sql`
-             SELECT user_id
-             FROM app.login
-             WHERE email = ${email.trim()}
-         `;
+        // 3. Check if user already exists
+        const existingUser = await sql`
+            SELECT user_id
+            FROM app.login
+            WHERE email = ${email.trim()}
+        `;
 
-         if (existingUser.length > 0) {
-             return addCORSHeaders(createErrorResponse('User already exists', 409), request);
-         }
+        if (existingUser.length > 0) {
+            return createErrorResponse('User already exists', 409);
+        }
 
-         // 4. Hash password
-         const hashedPassword = await bcrypt.hash(password, 10);
+        // 4. Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-         // 5. Insert new user into database
-         const data = await sql`
-             INSERT INTO app.login (email, hashed_password)
-             VALUES (${email.trim()}, ${hashedPassword}) RETURNING user_id, email
-         `;
+        // 5. Insert new user into database
+        const data = await sql`
+            INSERT INTO app.login (email, hashed_password)
+            VALUES (${email.trim()}, ${hashedPassword}) RETURNING user_id, email
+        `;
 
-         const user = data[0];
+        const user = data[0];
 
-         if (!user) {
-             return addCORSHeaders(createErrorResponse('An error occurred while creating your account', 500), request);
-         }
+        if (!user) {
+            return createErrorResponse('An error occurred while creating your account', 500);
+        }
 
-         // 6. Create auth session (generates JWT, sets cookie, returns response)
-         return addCORSHeaders(await createAuthSession(user, 1), request);
+        // 6. Create auth session (generates JWT, sets cookie, returns response)
+        return await createAuthSession(user, 1);
 
-     } catch (error) {
-         console.error('Registration error:', error);
-         return addCORSHeaders(createErrorResponse('Internal server error', 500), request);
+    } catch (error) {
+        console.error('Registration error:', error);
+        return createErrorResponse('Internal server error', 500);
     }
 }
