@@ -14,6 +14,11 @@ import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {isRateLimited, recordFailedAttempt, clearFailedAttempts} from "@/lib/rateLimit.js";
 import {isAccountLocked, recordFailedLogin, clearFailedLogins, getLockoutMinutesRemaining} from "@/lib/accountLockout.js";
+import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
+
+export async function OPTIONS() {
+  return optionsHandler();
+}
 
 export async function POST(request) {
     try {
@@ -26,24 +31,24 @@ export async function POST(request) {
         // 2. Validate credentials format
         const validation = validateAuthCredentials(email, password, false);
         if (!validation.isValid) {
-            return createValidationErrorResponse(validation.errors);
+            return withCORS(createValidationErrorResponse(validation.errors));
         }
 
         // 3. Check if account is locked due to too many failed attempts
         if (isAccountLocked(email)) {
             const minutesRemaining = getLockoutMinutesRemaining(email);
-            return createErrorResponse(
+            return withCORS(createErrorResponse(
                 `Account temporarily locked. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}.`,
                 429
-            );
+            ));
         }
 
         // 4. Check rate limit (prevents brute force even with multiple accounts)
         if (isRateLimited(email)) {
-            return createErrorResponse(
+            return withCORS(createErrorResponse(
                 'Too many login attempts. Please try again later.',
                 429
-            );
+            ));
         }
 
         // 5. Query database for user
@@ -59,7 +64,7 @@ export async function POST(request) {
             // Record failed attempt for security tracking
             recordFailedAttempt(email);
             recordFailedLogin(email);
-            return createErrorResponse('Invalid email or password', 401);
+            return withCORS(createErrorResponse('Invalid email or password', 401));
         }
 
         // 6. Verify password
@@ -69,7 +74,7 @@ export async function POST(request) {
             // Record failed attempt for security tracking
             recordFailedAttempt(email);
             recordFailedLogin(email);
-            return createErrorResponse('Invalid email or password', 401);
+            return withCORS(createErrorResponse('Invalid email or password', 401));
         }
 
         // 7. Successful login - clear failed attempt counters
@@ -77,9 +82,9 @@ export async function POST(request) {
         clearFailedLogins(email);
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
-        return await createAuthSession(user, 1);
+        return withCORS(await createAuthSession(user, 1));
 
     } catch (error) {
-        return createErrorResponse('Internal server error', 500);
+        return withCORS(createErrorResponse('Internal server error', 500));
     }
 }
