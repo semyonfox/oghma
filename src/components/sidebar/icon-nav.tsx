@@ -12,7 +12,9 @@ import {
   SparklesIcon,
   ChartBarIcon,
   Cog6ToothIcon,
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
+import { useAuth } from '@/hooks/useAuth';
 
 interface NavItem {
   id: string;
@@ -75,12 +77,17 @@ const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useLayoutStore();
+  const { logout } = useAuth();
 
   const handleNavClick = (item: NavItem) => {
     setActiveNav(item.section);
     if (pathname !== item.href) {
       router.push(item.href);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -148,6 +155,20 @@ const IconNav: FC = () => {
         {/* Hover tooltip */}
         <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
           Settings
+        </div>
+      </button>
+
+      {/* Logout Button */}
+      <button
+        onClick={handleLogout}
+        className="w-12 h-12 flex items-center justify-center rounded transition-all text-gray-400 hover:text-red-400 hover:bg-red-500/10 group relative"
+        title="Logout"
+      >
+        <ArrowRightOnRectangleIcon className="w-6 h-6" />
+
+        {/* Hover tooltip */}
+        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
+          Logout
         </div>
       </button>
     </div>
