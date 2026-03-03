@@ -6,8 +6,8 @@ import { sendPasswordResetEmail } from '@/lib/email.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
 
-export async function OPTIONS() {
-  return optionsHandler();
+export async function OPTIONS(request) {
+  return optionsHandler(request);
 }
 
 /* Child function for debugging:
@@ -22,32 +22,29 @@ export async function GET(request) {
 
 
 export async function POST(request) {
-    console.log('Password reset request received');
     try {
         const { data: body, error: parseError } = await parseJsonBody(request);
-        if (parseError) return parseError;
+        if (parseError) return withCORS(parseError, request);
 
         const { email } = body;
 
         if (!email) {
-            return createErrorResponse('Email is required', 400);
+            return withCORS(createErrorResponse('Email is required', 400, request));
         }
 
         // Find user
         const users = await sql`
       SELECT user_id, email 
-      FROM public.login 
+      FROM app.login 
       WHERE email = ${email.trim()}
     `;
 
-        console.log('Found users:', users.length, users)
-
         // Always return success (security: don't reveal if email exists)
         if (users.length === 0) {
-            return new Response(
+            return withCORS(new Response(
                 JSON.stringify({ message: 'If that email exists, we sent a reset link' }),
                 { status: 200, headers: { 'Content-Type': 'application/json' } }
-            );
+            ));
         }
 
         const user = users[0];
@@ -60,24 +57,22 @@ export async function POST(request) {
 
         // Save token to database
         await sql`
-      UPDATE public.login 
+      UPDATE app.login 
       SET reset_token = ${resetToken},
           reset_token_expires = ${expiresAt}
       WHERE user_id = ${user.user_id}
     `;
 
         // Send email
-        console.log('Attempting to send email to:', email);
         await sendPasswordResetEmail(email, resetToken);
-        console.log('Email sent successfully');
 
-        return new Response(
+        return withCORS(new Response(
             JSON.stringify({ message: 'If that email exists, we sent a reset link' }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
+        ));
 
     } catch (error) {
         console.error('Password reset request error:', error);
-        return createErrorResponse('Failed to send reset email', 500);
+        return withCORS(createErrorResponse('Failed to send reset email', 500, request));
     }
 }
