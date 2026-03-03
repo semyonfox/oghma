@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 // CORS headers for auth endpoints with credentials support
 // Uses explicit origin (not *) to allow credentials
 
@@ -33,5 +35,8 @@ export function withCORS(response, request) {
 }
 
 export function optionsHandler(request) {
-  return new Response(null, { headers: getCORSHeaders(request) });
+  return new NextResponse(null, {
+    status: 200,
+    headers: getCORSHeaders(request),
+  });
 }
