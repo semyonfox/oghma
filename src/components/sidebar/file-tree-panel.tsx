@@ -1,17 +1,54 @@
 'use client';
 
-import { FC, useState, useMemo } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import SidebarList from '@/components/notes/sidebar/sidebar-list';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import useTreeAPI from '@/lib/notes/api/tree';
+import useNoteAPI from '@/lib/notes/api/note';
+import useTrashAPI from '@/lib/notes/api/trash';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import useNoteStore from '@/lib/notes/state/note';
+import useTrashStore from '@/lib/notes/state/trash';
+import { toast } from 'sonner';
 
 /**
  * File tree panel with search and collapsible sections
  * Wraps react-arborist SidebarList component
+ * Also handles dependency injection and tree initialization
  */
 const FileTreePanel: FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { collapsedSections, toggleCollapsedSection } = useLayoutStore();
+
+  // API hooks (must be called in a component)
+  const treeAPI = useTreeAPI();
+  const noteAPI = useNoteAPI();
+  const trashAPI = useTrashAPI();
+
+  const initDone = useRef(false);
+
+  // inject API dependencies into zustand stores and initialize tree
+  // only run once on mount using initDone.current ref to prevent re-initialization
+  useEffect(() => {
+    if (initDone.current) return;
+    initDone.current = true;
+
+    // wire up stores with API instances
+    // IMPORTANT: pass store references (not snapshots) so mutations update live state
+    const toastFn = (msg: string, type?: string) => {
+      if (type === 'error') toast.error(msg);
+      else toast(msg);
+    };
+
+    useNoteTreeStore.getState().setDependencies(treeAPI, noteAPI, toastFn);
+    useNoteStore.getState().setDependencies(noteAPI, useNoteTreeStore, toastFn);
+    useTrashStore.getState().setDependencies(trashAPI, useNoteTreeStore);
+
+    // load the tree
+    useNoteTreeStore.getState().initTree()
+      .catch((e) => console.error('Error initializing tree:', e));
+  }, []);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
