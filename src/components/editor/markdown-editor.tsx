@@ -1,10 +1,13 @@
 'use client';
 
-import { FC, useState, useCallback, useEffect, useMemo } from 'react';
+import { FC, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import NoteState from '@/lib/notes/state/note';
-import LexicalEditor from './lexical-editor';
+import useNoteStore from '@/lib/notes/state/note';
+import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import PreviewRenderer from './preview-renderer';
+import Link from 'next/link';
+
+type EditorMode = 'source' | 'read';
 
 interface MarkdownEditorProps {
   pane: 'A' | 'B';
@@ -12,128 +15,248 @@ interface MarkdownEditorProps {
 }
 
 /**
- * Full-pane Markdown editor with simple edit/preview toggle
- * Works in both panes, handles typing normally
+ * Markdown editor with Source (raw md) and Read (rendered preview) modes
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
-  const [editMode, setEditMode] = useState(true); // Default to edit mode
-  const [content, setContent] = useState('');
+  const [mode, setMode] = useState<EditorMode>('source');
+  const [localContent, setLocalContent] = useState('');
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { note, fetchNote } = NoteState.useContainer();
+  const [loaded, setLoaded] = useState(false);
+  const { note, fetchNote, mutateNote } = useNoteStore();
+  const { markModified, markSynced } = useSyncStatusStore();
+  const currentFileId = useRef(file.fileId);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load note content
+  // load note content when file changes
   useEffect(() => {
-    if (file.fileId) {
-      fetchNote(file.fileId).catch(console.error);
-    }
+    if (!file.fileId) return;
+    currentFileId.current = file.fileId;
+    setLoaded(false);
+    setIsDirty(false);
+
+    fetchNote(file.fileId)
+      .then((result) => {
+        if (result && currentFileId.current === file.fileId) {
+          setLocalContent(result.content ?? '');
+          setLoaded(true);
+        }
+      })
+      .catch(console.error);
   }, [file.fileId, fetchNote]);
 
-  const currentContent = useMemo(
-    () => (isDirty ? content : (note?.content ?? '')),
-    [content, isDirty, note?.content]
-  );
-
-  // Handle content changes during typing
-  const handleContentChange = useCallback(
-    (getContent: () => string) => {
-      const newContent = getContent();
-      setContent(newContent);
-      setIsDirty(true);
-    },
-    []
-  );
-
-  // Handle save with Ctrl+S
-  const handleSave = useCallback(async () => {
-    if (isDirty && file.fileId && content !== note?.content) {
-      setIsSaving(true);
-
-      try {
-        // TODO: Call API to save note to S3
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate save
-        setIsDirty(false);
-      } catch (error) {
-        console.error('Save failed:', error);
-        setIsDirty(true);
-      } finally {
-        setIsSaving(false);
-      }
+  // pick up content from store when note loads from cache
+  useEffect(() => {
+    if (note && note.id === file.fileId && !isDirty && !loaded) {
+      setLocalContent(note.content ?? '');
+      setLoaded(true);
     }
-  }, [content, note?.content, file.fileId, isDirty]);
+  }, [note, file.fileId, isDirty, loaded]);
 
-  // Global Ctrl+S handler
+  const displayContent = useMemo(
+    () => (loaded ? localContent : ''),
+    [localContent, loaded]
+  );
+
+  // track dirty state in sync status store
+  useEffect(() => {
+    if (isDirty && file.fileId) {
+      markModified(file.fileId);
+    }
+  }, [isDirty, file.fileId, markModified]);
+
+  // save via API
+  const handleSave = useCallback(async () => {
+    if (!isDirty || !file.fileId) return;
+
+    setIsSaving(true);
+    try {
+      await mutateNote(file.fileId, { content: localContent });
+      setIsDirty(false);
+      markSynced(file.fileId);
+    } catch (error) {
+      console.error('Save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [localContent, file.fileId, isDirty, mutateNote, markSynced]);
+
+  // Ctrl+S handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
       }
-    }
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
+  // handle special keys in textarea
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const newValue = value.substring(0, start) + '  ' + value.substring(end);
+      setLocalContent(newValue);
+      setIsDirty(true);
+      requestAnimationFrame(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 2;
+      });
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const currentLine = value.substring(lineStart, start);
+
+      // detect list continuation patterns
+      // unordered: - , * , + 
+      const unorderedMatch = currentLine.match(/^(\s*)([-*+])\s/);
+      // ordered: 1. 2. etc
+      const orderedMatch = currentLine.match(/^(\s*)(\d+)\.\s/);
+      // checkbox: - [ ] or - [x]
+      const checkboxMatch = currentLine.match(/^(\s*)([-*+])\s\[[ x]\]\s/);
+      // blockquote: > 
+      const quoteMatch = currentLine.match(/^(\s*)(>+)\s?/);
+
+      let insert = '\n';
+
+      // if line is empty list item, end the list instead of continuing
+      const trimmedLine = currentLine.trimStart();
+      const isEmptyListItem = /^([-*+]|\d+\.)\s*$/.test(trimmedLine) ||
+                               /^([-*+])\s\[[ x]\]\s*$/.test(trimmedLine);
+
+      if (isEmptyListItem) {
+        // clear the current empty list item and just add a newline
+        const newValue = value.substring(0, lineStart) + '\n' + value.substring(end);
+        setLocalContent(newValue);
+        setIsDirty(true);
+        requestAnimationFrame(() => {
+          textarea.selectionStart = textarea.selectionEnd = lineStart + 1;
+        });
+        return;
+      }
+
+      if (checkboxMatch) {
+        insert = '\n' + checkboxMatch[1] + checkboxMatch[2] + ' [ ] ';
+      } else if (unorderedMatch) {
+        insert = '\n' + unorderedMatch[1] + unorderedMatch[2] + ' ';
+      } else if (orderedMatch) {
+        const nextNum = parseInt(orderedMatch[2], 10) + 1;
+        insert = '\n' + orderedMatch[1] + nextNum + '. ';
+      } else if (quoteMatch) {
+        insert = '\n' + quoteMatch[1] + quoteMatch[2] + ' ';
+      }
+
+      const newValue = value.substring(0, start) + insert + value.substring(end);
+      setLocalContent(newValue);
+      setIsDirty(true);
+
+      requestAnimationFrame(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + insert.length;
+      });
+    }
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-gray-900">
-      {/* Simple Toolbar */}
+      {/* Toolbar */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between">
-        {/* Simple Edit/Preview Toggle */}
+        {/* Source / Read toggle */}
         <div className="flex items-center gap-1 bg-white/5 p-1 rounded">
           <button
-            onClick={() => setEditMode(true)}
+            onClick={() => setMode('source')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              editMode
+              mode === 'source'
                 ? 'bg-indigo-500 text-white'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            Edit
+            Source
           </button>
           <button
-            onClick={() => setEditMode(false)}
+            onClick={() => setMode('read')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              !editMode
+              mode === 'read'
                 ? 'bg-indigo-500 text-white'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            Preview
+            Read
           </button>
         </div>
 
-        {/* Save Status */}
-        <span
-          className={`text-xs font-mono ${
-            isSaving || isDirty ? 'text-yellow-500' : 'text-green-500'
-          }`}
-        >
-          {isSaving && '⟳ Saving...'}
-          {!isSaving && isDirty && '● Unsaved (Ctrl+S)'}
-          {!isSaving && !isDirty && '✓ Saved'}
-        </span>
+        {/* Save Status + Guide link */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/syntax-guide"
+            target="_blank"
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Syntax Guide
+          </Link>
+          <span
+            className={`text-xs font-mono ${
+              isSaving || isDirty ? 'text-yellow-500' : 'text-green-500'
+            }`}
+          >
+            {isSaving && 'Saving...'}
+            {!isSaving && isDirty && 'Unsaved (Ctrl+S)'}
+            {!isSaving && !isDirty && 'Saved'}
+          </span>
+        </div>
       </div>
 
-      {/* Full-Pane Content Area */}
-      {editMode ? (
-        // Edit Mode - Full pane editor
-        <div className="flex-1 overflow-auto">
-            <LexicalEditor
-              id={file.fileId}
-              value={currentContent}
-              onChange={handleContentChange}
-              readOnly={false}
-            />
-        </div>
-      ) : (
-        // Preview Mode - Full pane preview
-        <div className="flex-1 overflow-auto bg-gray-950">
-          <div className="max-w-4xl mx-auto px-6 py-8">
-            <PreviewRenderer content={currentContent} />
-          </div>
-        </div>
-      )}
+      {/* Content Area - Same background for both modes */}
+      <div className="flex-1 overflow-auto">
+        {mode === 'source' ? (
+          loaded ? (
+            <div className="h-full flex flex-col items-center justify-start">
+              {/* Centered editor container like Obsidian */}
+              <div className="w-full max-w-3xl">
+                <textarea
+                  ref={textareaRef}
+                  value={displayContent}
+                  onChange={(e) => {
+                    setLocalContent(e.target.value);
+                    setIsDirty(true);
+                  }}
+                  onKeyDown={handleTextareaKeyDown}
+                  spellCheck={false}
+                  className="w-full bg-transparent text-gray-200 font-mono text-sm leading-relaxed px-6 py-8 outline-none resize-none"
+                  placeholder="Start writing..."
+                  style={{ minHeight: '100%' }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+              Loading...
+            </div>
+          )
+        ) : (
+          loaded ? (
+            <div className="h-full flex flex-col items-center justify-start">
+              {/* Centered rendered view with same styling */}
+              <div className="w-full max-w-3xl px-6 py-8 prose prose-invert">
+                <PreviewRenderer content={displayContent} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+              Loading...
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 };
