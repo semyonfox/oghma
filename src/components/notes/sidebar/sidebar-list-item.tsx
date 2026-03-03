@@ -68,6 +68,19 @@ const SidebarListItem: FC<{
         }
     }, [isRenaming]);
 
+    // Determine link href based on current page
+    const linkHref = useMemo(() => {
+        if (hasChildren) {
+            return '#';
+        }
+        // If on /notes page, stay within notes (e.g. /notes/note-id)
+        // Otherwise navigate to root note page (e.g. /note-id)
+        if (pathname?.startsWith('/notes')) {
+            return `/notes/${item.id}`;
+        }
+        return `/${item.id}`;
+    }, [pathname, item.id, hasChildren]);
+
     const onAddNote = useCallback(
         async (e: MouseEvent) => {
             e.preventDefault();
@@ -112,14 +125,25 @@ const SidebarListItem: FC<{
 
     const handleClickItem = useCallback(
         (e: MouseEvent) => {
-            // if it has children (is a folder), toggle expand/collapse
+            // only folders can be toggled on single click
             if (hasChildren) {
                 e.preventDefault();
                 onToggle();
             }
-            // if it's a note (no children), Link handles navigation
+            // files require double click - Link handles single click navigation
         },
         [hasChildren, onToggle]
+    );
+
+    const handleDoubleClick = useCallback(
+        (e: React.MouseEvent) => {
+            // double click opens files, prevents default expand behavior
+            if (!hasChildren) {
+                e.preventDefault();
+                router.push(linkHref);
+            }
+        },
+        [hasChildren, router, linkHref]
     );
 
     // Memoize rename completion handler
@@ -133,19 +157,6 @@ const SidebarListItem: FC<{
         },
         [onRenameComplete, item.title]
     );
-
-    // Determine link href based on current page
-    const linkHref = useMemo(() => {
-        if (hasChildren) {
-            return '#';
-        }
-        // If on /notes page, stay within notes (e.g. /notes/note-id)
-        // Otherwise navigate to root note page (e.g. /note-id)
-        if (pathname?.startsWith('/notes')) {
-            return `/notes/${item.id}`;
-        }
-        return `/${item.id}`;
-    }, [pathname, item.id, hasChildren]);
 
     const emoji = useMemo(() => {
         const emoji = item.title?.match(/\p{Emoji}/u);
@@ -167,44 +178,50 @@ const SidebarListItem: FC<{
                  aria-expanded={hasChildren ? isExpanded : undefined}
                  aria-selected={activeId === item.id}
                  aria-current={activeId === item.id ? 'page' : undefined}
-             >
-                 <Link 
-                     href={linkHref}
-                     className="flex flex-1 items-center truncate"
-                     onClick={handleClickItem}
-                     aria-label={item.title || t('Untitled')}
-                 >
-                     {emoji ? (
-                         <span
-                             onClick={handleClickIcon}
-                             className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-white/10 transition-colors"
-                             role="button"
-                             tabIndex={0}
-                             aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : ''}
-                             onKeyDown={(e) => {
-                                 if (e.key === 'Enter' || e.key === ' ') {
-                                     e.preventDefault();
-                                     handleClickIcon(e as any);
-                                 }
-                             }}
-                         >
-                             {emoji}
-                         </span>
-                     ) : (
-                         <IconButton
-                             className="flex-shrink-0 w-4 h-4 mr-1 transition-transform transform"
-                             icon={
-                                 hasChildren
-                                     ? 'ChevronRight'
-                                     : item.title
-                                     ? 'DocumentText'
-                                     : 'Document'
-                             }
-                             iconClassName={`${isExpanded ? 'rotate-90' : ''}`}
-                             onClick={handleClickIcon}
-                             aria-label={hasChildren ? (isExpanded ? t('Collapse') : t('Expand')) : t('Document')}
-                         ></IconButton>
-                     )}
+              >
+                  <Link 
+                      href={linkHref}
+                      className="flex flex-1 items-center truncate"
+                      onClick={handleClickItem}
+                      onDoubleClick={handleDoubleClick}
+                      aria-label={item.title || t('Untitled')}
+                  >
+                      {hasChildren ? (
+                          // Folders: show expand/collapse icon
+                          emoji ? (
+                              <span
+                                  onClick={handleClickIcon}
+                                  className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-white/10 transition-colors"
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={isExpanded ? t('Collapse') : t('Expand')}
+                                  onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleClickIcon(e as any);
+                                      }
+                                  }}
+                              >
+                                  {emoji}
+                              </span>
+                          ) : (
+                              <IconButton
+                                  className="flex-shrink-0 w-4 h-4 mr-1 transition-transform transform"
+                                  icon="ChevronRight"
+                                  iconClassName={`${isExpanded ? 'rotate-90' : ''}`}
+                                  onClick={handleClickIcon}
+                                  aria-label={isExpanded ? t('Collapse') : t('Expand')}
+                              ></IconButton>
+                          )
+                      ) : (
+                          // Files: just show the file icon, no click handler
+                          <IconButton
+                              className="flex-shrink-0 w-4 h-4 mr-1"
+                              icon={item.title ? 'DocumentText' : 'Document'}
+                              aria-label={t('Document')}
+                              onClick={(e) => e.preventDefault()}
+                          ></IconButton>
+                      )}
 
                      {isRenaming ? (
                          <input

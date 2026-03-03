@@ -42,7 +42,29 @@ export default function NoteContextMenu({
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setPosition({ x: e.clientX, y: e.clientY });
+        
+        // Get viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Estimate menu dimensions
+        const menuWidth = 192; // w-48 = 12rem = 192px
+        const menuHeight = 300; // approximate
+        
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // Adjust if menu would overflow right
+        if (x + menuWidth > viewportWidth) {
+            x = Math.max(0, viewportWidth - menuWidth - 8);
+        }
+        
+        // Adjust if menu would overflow bottom
+        if (y + menuHeight > viewportHeight) {
+            y = Math.max(0, viewportHeight - menuHeight - 8);
+        }
+        
+        setPosition({ x, y });
         setIsVisible(true);
     }, []);
 
