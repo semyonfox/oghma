@@ -101,13 +101,13 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       role="dialog"
       aria-labelledby="create-note-title"
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4"
+        className="bg-gray-800 rounded-lg shadow-xl max-w-sm w-full"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
