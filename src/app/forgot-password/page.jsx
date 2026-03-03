@@ -1,123 +1,82 @@
-'use client'
-
-import { useState, useRef } from 'react'
-import { Alert } from '@/components/alert'
-import Link from 'next/link'
+'use client';
+import { useState } from 'react';
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [errMsg, setErrMsg] = useState('')
-  const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const errRef = useRef()
+    const [email, setEmail] = useState('');
+    const [message, setMessage] = useState('');
+    const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setErrMsg('')
-    setLoading(true)
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setMessage('');
 
-    try {
-      // TODO: Call backend endpoint to request password reset
-      // const response = await fetch('/api/auth/forgot-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email }),
-      // })
-      // if (!response.ok) throw new Error('Failed to send reset email')
-      
-      setSuccess(true)
-      setEmail('')
-    } catch (err) {
-      // TODO: Use getErrorMessage utility from apiClient
-      setErrMsg(err.message || 'Failed to send password reset email')
-      errRef.current?.focus()
-    } finally {
-      setLoading(false)
-    }
-  }
+        try {
+            const res = await fetch('/api/auth/password-reset/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
 
-  if (success) {
+            const data = await res.json();
+            setMessage(data.message);
+        } catch (err) {
+            setMessage('An error occurred. Please try again.');
+        }
+
+        setLoading(false);
+    };
+
     return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white">Check your email</h2>
-            <p className="mt-4 text-sm text-gray-400">
-              We've sent password reset instructions to your email address. Check your inbox and follow the link to reset your password.
+        <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
+            <h1>Forgot Password</h1>
+            <p style={{ marginBottom: '20px', color: '#666' }}>
+                Enter your email address and we'll send you a link to reset your password.
             </p>
-            <p className="mt-2 text-xs text-gray-500">
-              Didn't receive an email? Check your spam folder or{' '}
-              <button
-                onClick={() => setSuccess(false)}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold"
-              >
-                try again
-              </button>
-            </p>
-            <Link href="/login" className="mt-8 inline-block font-semibold text-indigo-400 hover:text-indigo-300">
-              Back to sign in
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
-  return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">Reset your password</h2>
-        <p className="mt-2 text-center text-sm text-gray-400">
-          Enter your email address and we'll send you a link to reset your password.
-        </p>
-      </div>
+            <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: '15px' }}>
+                    <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>
+                        Email Address
+                    </label>
+                    <input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        required
+                        style={{ width: '100%', padding: '10px', fontSize: '16px' }}
+                    />
+                </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
-          <form onSubmit={handleSubmit} method="POST" className="space-y-6">
-            {errMsg && (
-              <div ref={errRef}>
-                <Alert variant="error" description={errMsg} />
-              </div>
+                <button
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                        width: '100%',
+                        padding: '12px',
+                        backgroundColor: loading ? '#ccc' : '#0070f3',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        fontSize: '16px',
+                        cursor: loading ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+            </form>
+
+            {message && (
+                <p style={{ marginTop: '20px', padding: '10px', backgroundColor: '#d4edda', color: '#155724', borderRadius: '5px' }}>
+                    {message}
+                </p>
             )}
 
-            <div>
-              <label htmlFor="email" className="block text-sm/6 font-medium text-white">
-                Email address
-              </label>
-              <div className="mt-2">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                  placeholder="your@university.edu"
-                />
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full justify-center rounded-md bg-indigo-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Sending...' : 'Send reset link'}
-              </button>
-            </div>
-          </form>
+            <p style={{ marginTop: '20px', textAlign: 'center' }}>
+                <a href="/login" style={{ color: '#0070f3' }}>Back to Login</a>
+            </p>
         </div>
-
-        <p className="mt-10 text-center text-sm/6 text-gray-400">
-          <Link href="/login" className="font-semibold text-indigo-400 hover:text-indigo-300">
-            Back to sign in
-          </Link>
-        </p>
-      </div>
-    </div>
-  )
+    );
 }
