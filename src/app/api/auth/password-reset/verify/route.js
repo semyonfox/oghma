@@ -1,6 +1,6 @@
 // src/app/api/auth/password-reset/verify/route.js
 
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import sql from '@/database/pgsql.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
