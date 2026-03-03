@@ -10,23 +10,8 @@ interface CreateNoteModalProps {
   onUploadFile: (file: File) => Promise<void>;
 }
 
-const LANGUAGE_OPTIONS = [
-  { id: 'markdown', label: 'Markdown', ext: '.md' },
-  { id: 'text', label: 'Plain Text', ext: '.txt' },
-  { id: 'javascript', label: 'JavaScript', ext: '.js' },
-  { id: 'typescript', label: 'TypeScript', ext: '.ts' },
-  { id: 'python', label: 'Python', ext: '.py' },
-  { id: 'java', label: 'Java', ext: '.java' },
-  { id: 'cpp', label: 'C++', ext: '.cpp' },
-  { id: 'csharp', label: 'C#', ext: '.cs' },
-  { id: 'html', label: 'HTML', ext: '.html' },
-  { id: 'css', label: 'CSS', ext: '.css' },
-  { id: 'json', label: 'JSON', ext: '.json' },
-  { id: 'sql', label: 'SQL', ext: '.sql' },
-];
-
 /**
- * Modal for creating new notes with drag-drop file upload or new file creation
+ * Modal for creating new notes with drag-drop file upload or new markdown file creation
  */
 const CreateNoteModal: FC<CreateNoteModalProps> = ({
   isOpen,
@@ -36,7 +21,6 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
 }) => {
   const [mode, setMode] = useState<'upload' | 'new'>('new');
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('markdown');
   const [isCreating, setIsCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,16 +88,14 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   const handleCreateNew = useCallback(async () => {
     setIsCreating(true);
     try {
-      const language = LANGUAGE_OPTIONS.find((l) => l.id === selectedLanguage);
-      const title = `Untitled${language?.ext || ''}`;
-      await onCreateNote(title, selectedLanguage);
+      await onCreateNote('Untitled.md', 'markdown');
       onClose();
     } catch (error) {
       console.error('Create failed:', error);
     } finally {
       setIsCreating(false);
     }
-  }, [selectedLanguage, onCreateNote, onClose]);
+  }, [onCreateNote, onClose]);
 
   if (!isOpen) return null;
 
@@ -176,27 +158,9 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           {/* New File Mode */}
           {mode === 'new' && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Select Language
-                </label>
-                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {LANGUAGE_OPTIONS.map((lang) => (
-                    <button
-                      key={lang.id}
-                      onClick={() => setSelectedLanguage(lang.id)}
-                      disabled={isCreating}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors text-left ${
-                        selectedLanguage === lang.id
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      } disabled:opacity-50`}
-                    >
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="text-sm text-gray-400">
+                Create a new markdown file (.md)
+              </p>
             </div>
           )}
 
@@ -260,3 +224,4 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
 };
 
 export default CreateNoteModal;
+
