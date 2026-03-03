@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [pwd, setPwd] = useState('')
   const [errMsg, setErrMsg] = useState('')
-  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
@@ -30,17 +29,24 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      await login(email, pwd)
-      setEmail('')
-      setPwd('')
-      setSuccess(true)
-      // TODO: Store "remember me" preference in localStorage if needed
-      setTimeout(() => router.push('/notes'), 1500)
+      console.log('Login: Calling login API...')
+      const response = await login(email, pwd)
+      console.log('Login: API returned:', response)
+      
+      // Login successful - redirect to /notes
+      console.log('Login: Redirecting to /notes...')
+      router.replace('/notes')
+      
+      // Fallback redirect in case router.replace doesn't work
+      setTimeout(() => {
+        console.log('Login: Fallback redirect triggered')
+        window.location.href = '/notes'
+      }, 1000)
     } catch (err) {
+      console.error('Login: Error occurred:', err)
       setErrMsg(getErrorMessage(err))
       setPwd('')
       errRef.current?.focus()
-    } finally {
       setLoading(false)
     }
   }
@@ -49,20 +55,6 @@ export default function LoginPage() {
   const handleSocialLogin = (provider) => {
     console.log(`Social login with ${provider}`)
     // TODO: Redirect to OAuth endpoint or backend authentication
-  }
-
-  if (success) {
-    return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Alert 
-            variant="success" 
-            title="Login successful!" 
-            description="Redirecting to your notes..." 
-          />
-        </div>
-      </div>
-    )
   }
 
   return (
