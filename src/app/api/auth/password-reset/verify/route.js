@@ -4,31 +4,25 @@ import bcrypt from 'bcryptjs';
 import sql from '@/database/pgsql.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
-import { handleCORSPreflight, addCORSHeaders } from '@/lib/cors.js';
-
-export async function OPTIONS(request) {
-    return handleCORSPreflight(request);
-}
 
 export async function POST(request) {
     try {
         const { data: body, error: parseError } = await parseJsonBody(request);
-        if (parseError) return addCORSHeaders(parseError, request);
+        if (parseError) return parseError;
 
         const { token, password } = body;
 
         if (!token || !password) {
-            return addCORSHeaders(createErrorResponse('Token and password are required', 400), request);
+            return createErrorResponse('Token and password are required', 400);
         }
 
         // Validate new password strength
         const validation = validateAuthCredentials('dummy@email.com', password, true);
         if (!validation.isValid) {
-            const response = new Response(
+            return new Response(
                 JSON.stringify({ errors: validation.errors }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
-            return addCORSHeaders(response, request);
         }
 
         // Find user with valid token
@@ -40,7 +34,7 @@ export async function POST(request) {
     `;
 
         if (users.length === 0) {
-            return addCORSHeaders(createErrorResponse('Invalid or expired reset token', 400), request);
+            return createErrorResponse('Invalid or expired reset token', 400);
         }
 
         const user = users[0];
@@ -57,14 +51,13 @@ export async function POST(request) {
       WHERE user_id = ${user.user_id}
     `;
 
-        const successResponse = new Response(
+        return new Response(
             JSON.stringify({ message: 'Password reset successful' }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
-        return addCORSHeaders(successResponse, request);
 
     } catch (error) {
         console.error('Password reset error:', error);
-        return addCORSHeaders(createErrorResponse('Failed to reset password', 500), request);
+        return createErrorResponse('Failed to reset password', 500);
     }
 }
