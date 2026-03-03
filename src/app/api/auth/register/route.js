@@ -12,19 +12,24 @@ import sql from "@/database/pgsql.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import bcrypt from "bcryptjs";
+import {handleCORSPreflight, addCORSHeaders} from "@/lib/cors.js";
+
+export async function OPTIONS(request) {
+    return handleCORSPreflight(request);
+}
 
 export async function POST(request) {
     try {
         // 1. Parse and validate request body
         const {data: body, error: parseError} = await parseJsonBody(request);
-        if (parseError) return parseError;
+        if (parseError) return addCORSHeaders(parseError, request);
 
         const {email, password} = body;
 
         // 2. Validate credentials format and password strength
         const validation = validateAuthCredentials(email, password, true);
         if (!validation.isValid) {
-            return createValidationErrorResponse(validation.errors);
+            return addCORSHeaders(createValidationErrorResponse(validation.errors), request);
         }
 
         // 3. Check if user already exists
@@ -35,7 +40,7 @@ export async function POST(request) {
         `;
 
         if (existingUser.length > 0) {
-            return createErrorResponse('User already exists', 409);
+            return addCORSHeaders(createErrorResponse('User already exists', 409), request);
         }
 
         // 4. Hash password
@@ -50,14 +55,15 @@ export async function POST(request) {
         const user = data[0];
 
         if (!user) {
-            return createErrorResponse('An error occurred while creating your account', 500);
+            return addCORSHeaders(createErrorResponse('An error occurred while creating your account', 500), request);
         }
 
         // 6. Create auth session (generates JWT, sets cookie, returns response)
-        return await createAuthSession(user, 1);
+        const authResponse = await createAuthSession(user, 1);
+        return addCORSHeaders(authResponse, request);
 
     } catch (error) {
         console.error('Registration error:', error);
-        return createErrorResponse('Internal server error', 500);
+        return addCORSHeaders(createErrorResponse('Internal server error', 500), request);
     }
 }
