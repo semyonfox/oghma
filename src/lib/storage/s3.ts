@@ -15,7 +15,6 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { streamToBuffer } from './utils';
 import { Readable } from 'stream';
-import { Client as MinioClient } from 'minio';
 import { createLogger, Logger } from './logger';
 
 /**
@@ -105,20 +104,7 @@ export class StoreS3 extends StoreProvider {
    * @see https://github.com/aws/aws-sdk-js-v3/issues/2121
    */
   async getSignUrl(path: string, expiresIn = 600): Promise<string> {
-    // MinIO workaround: use MinioClient for endpoints with custom ports
-    if (this.config.endPoint) {
-      try {
-        const endpointUrl = new URL(this.config.endPoint);
-
-        if (endpointUrl.port) {
-          return await this.getSignUrlFromMinio(path, endpointUrl);
-        }
-      } catch (error) {
-        this.logger.warn('MinIO presigning failed, falling back to SDK', error);
-      }
-    }
-
-    // Use AWS SDK for standard AWS S3 or MinIO without port
+    // Use AWS SDK for S3-compatible endpoints
     return getSignedUrl(
       this.client,
       new GetObjectCommand({
@@ -127,27 +113,6 @@ export class StoreS3 extends StoreProvider {
       }),
       { expiresIn }
     );
-  }
-
-  /**
-   * Generate signed URL using MinIO client (for custom ports)
-   */
-  private async getSignUrlFromMinio(path: string, url: URL): Promise<string> {
-    const credentials = await this.client.config.credentials?.();
-
-    if (!credentials) {
-      throw new Error('No credentials available for MinIO presigning');
-    }
-
-    const minioClient = new MinioClient({
-      endPoint: url.hostname!,
-      port: parseInt(url.port, 10),
-      useSSL: url.protocol === 'https:',
-      accessKey: credentials.accessKeyId,
-      secretKey: credentials.secretAccessKey,
-    });
-
-    return minioClient.presignedGetObject(this.config.bucket, this.getPath(path));
   }
 
   /**
@@ -174,17 +139,17 @@ export class StoreS3 extends StoreProvider {
   /**
    * Retrieve object content as string
    */
-  async getObject(path: string, isCompressed = false): Promise<string | undefined> {
-    try {
-      const result = await this.client.send(
-        new GetObjectCommand({
-          Bucket: this.config.bucket,
-          Key: this.getPath(path),
-        })
-      );
+   async getObject(path: string, isCompressed = false): Promise<string | undefined> {
+     try {
+       const result = await this.client.send(
+         new GetObjectCommand({
+           Bucket: this.config.bucket,
+           Key: this.getPath(path),
+         })
+       );
 
-      const buffer = await streamToBuffer(result.Body as Readable);
-      return toStr(buffer, isCompressed);
+       const buffer = await streamToBuffer(result.Body as Readable);
+       return await toStr(buffer, isCompressed);
     } catch (error) {
       if (isNoSuchKeyError(error)) {
         return undefined;
@@ -230,14 +195,14 @@ export class StoreS3 extends StoreProvider {
         })
       );
 
-      const buffer = await streamToBuffer(result.Body as Readable);
+       const buffer = await streamToBuffer(result.Body as Readable);
 
-      return {
-        content: toStr(buffer, isCompressed),
-        meta: result.Metadata,
-        contentType: result.ContentType,
-        buffer,
-      };
+       return {
+         content: await toStr(buffer, isCompressed),
+         meta: result.Metadata,
+         contentType: result.ContentType,
+         buffer,
+       };
     } catch (error) {
       if (isNoSuchKeyError(error)) {
         return {};
@@ -259,13 +224,14 @@ export class StoreS3 extends StoreProvider {
     const fullPath = this.getPath(path);
     this.logger.debug(`Uploading object: ${fullPath}`);
 
-    try {
-      await this.client.send(
-        new PutObjectCommand({
-          Bucket: this.config.bucket,
-          Key: fullPath,
-          Body: Buffer.isBuffer(raw) ? raw : toBuffer(raw, isCompressed),
-          Metadata: options?.meta as Record<string, string> | undefined,
+     try {
+       const body = Buffer.isBuffer(raw) ? raw : await toBuffer(raw, isCompressed);
+       await this.client.send(
+         new PutObjectCommand({
+           Bucket: this.config.bucket,
+           Key: fullPath,
+           Body: body,
+           Metadata: options?.meta as Record<string, string> | undefined,
           CacheControl: options?.headers?.cacheControl,
           ContentDisposition: options?.headers?.contentDisposition,
           ContentEncoding: options?.headers?.contentEncoding,

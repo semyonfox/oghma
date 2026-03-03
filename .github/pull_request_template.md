@@ -27,4 +27,4 @@
 
 <!-- Link to GitHub issue or spec -->
 Closes #
-Spec: docs/API_SPECS.md
+Spec: docs/README.md

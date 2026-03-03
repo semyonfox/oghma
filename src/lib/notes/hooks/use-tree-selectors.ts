@@ -1,14 +1,14 @@
 // State selector hooks for tree/note hierarchy data
 // Uses memoization to prevent unnecessary re-renders when other parts of state change
 import { useMemo } from 'react';
-import NoteTreeState from '@/lib/notes/state/tree';
+import useNoteTreeStore from '@/lib/notes/state/tree';
 
 /**
  * Selects and memoizes all tree items (the complete items map)
  * Re-renders only when the items object itself changes
  */
 export const useTreeItems = () => {
-    const { tree } = NoteTreeState.useContainer();
+    const { tree } = useNoteTreeStore();
     return useMemo(() => tree.items, [tree.items]);
 };
 
@@ -17,7 +17,7 @@ export const useTreeItems = () => {
  * Re-renders only when root items change
  */
 export const useTreeRoots = () => {
-    const { tree } = NoteTreeState.useContainer();
+    const { tree } = useNoteTreeStore();
     return useMemo(() => {
         const rootItem = tree.items[tree.rootId];
         if (!rootItem) return [];
@@ -30,7 +30,7 @@ export const useTreeRoots = () => {
  * Re-renders only when item count changes
  */
 export const useItemCount = () => {
-    const { tree } = NoteTreeState.useContainer();
+    const { tree } = useNoteTreeStore();
     return useMemo(() => {
         return Object.keys(tree.items).length;
     }, [tree.items]);

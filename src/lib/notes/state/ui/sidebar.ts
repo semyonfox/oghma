@@ -1,37 +1,46 @@
 // extracted from Notea (MIT License)
+import { create } from 'zustand';
 import useSettingsAPI from '@/lib/notes/api/settings';
-import { useState, useCallback } from 'react';
 
-export default function useSidebar(initState = false, isMobileOnly = false) {
-     const [isFold, setIsFold] = useState(initState);
-     const { mutate } = useSettingsAPI();
+interface SidebarStore {
+    isFold: boolean;
+    toggle: (state?: boolean) => Promise<void>;
+    open: () => void;
+    close: () => void;
+}
 
-     const toggle = useCallback(
-         async (state?: boolean) => {
-             setIsFold((prev) => {
-                 const isFold = typeof state === 'boolean' ? state : !prev;
-
+const createSidebarStore = (initState = false, isMobileOnly = false) => {
+    return create<SidebarStore>((set) => ({
+        isFold: initState,
+        toggle: async (state?: boolean) => {
+            const { mutate } = useSettingsAPI();
+            set((prev) => {
+                const isFold = typeof state === 'boolean' ? state : !prev.isFold;
                 if (!isMobileOnly) {
-                    mutate({
-                        sidebar_is_fold: isFold,
-                    });
+                    mutate({ sidebar_is_fold: isFold });
                 }
-
-                return isFold;
+                return { isFold };
             });
         },
-        [isMobileOnly, mutate]
-    );
+        open: async () => {
+            const { mutate } = useSettingsAPI();
+            set(() => {
+                if (!isMobileOnly) {
+                    mutate({ sidebar_is_fold: true });
+                }
+                return { isFold: true };
+            });
+        },
+        close: async () => {
+            const { mutate } = useSettingsAPI();
+            set(() => {
+                if (!isMobileOnly) {
+                    mutate({ sidebar_is_fold: false });
+                }
+                return { isFold: false };
+            });
+        },
+    }));
+};
 
-    const open = useCallback(() => {
-        toggle(true)
-            ?.catch((v) => console.error('Error whilst opening sidebar: %O', v));
-    }, [toggle]);
-
-    const close = useCallback(() => {
-        toggle(false)
-            ?.catch((v) => console.error('Error whilst closing sidebar: %O', v));
-    }, [toggle]);
-
-    return { isFold, toggle, open, close };
-}
+export default createSidebarStore;

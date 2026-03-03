@@ -3,13 +3,13 @@
 // preview modal - shows note preview on hover/click
 // ported from Notea (MIT License) - MUI Popover replaced with Tailwind floating panel
 import { FC } from 'react';
-import PortalState from '@/lib/notes/state/portal';
+import usePortalStore from '@/lib/notes/state/portal';
 import noteCache from '@/lib/notes/cache/note';
 import Link from 'next/link';
 import { useSWR } from '@/lib/notes/hooks/use-swr';
 
 const PreviewModal: FC = () => {
-    const { preview } = PortalState.useContainer();
+    const { preview } = usePortalStore();
     const previewId = preview.data?.id;
     const { data: previewNote } = useSWR(
         previewId ? `preview:${previewId}` : 'preview:none',

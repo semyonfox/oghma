@@ -2,9 +2,9 @@
 import { PlusIcon, ChevronDoubleLeftIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import React, { FC, useCallback } from 'react';
-import UIState from '@/lib/notes/state/ui';
-import NoteTreeState from '@/lib/notes/state/tree';
-import NoteState from '@/lib/notes/state/note';
+import useUIComposite from '@/lib/notes/state/ui';
+import useNoteTreeStore from '@/lib/notes/state/tree';
+import useNoteStore from '@/lib/notes/state/note';
 
 interface NoteSidebarHeaderProps {
   onToggleSidebar?: () => void;
@@ -12,9 +12,9 @@ interface NoteSidebarHeaderProps {
 
 const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
-  const { sidebar } = UIState.useContainer();
-  const { genNewId } = NoteTreeState.useContainer();
-  const { createNote } = NoteState.useContainer();
+  const { sidebar } = useUIComposite();
+  const { genNewId } = useNoteTreeStore();
+  const { createNote } = useNoteStore();
 
   const handleNewNote = useCallback(async () => {
     // Create a new note directly without navigation

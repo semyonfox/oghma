@@ -8,8 +8,8 @@ import {
 } from '@heroicons/react/24/outline';
 import React, { FC, useCallback } from 'react';
 import Link from 'next/link';
-import UIState from '@/lib/notes/state/ui';
-import PortalState from '@/lib/notes/state/portal';
+import useUIComposite from '@/lib/notes/state/ui';
+import usePortalStore from '@/lib/notes/state/portal';
 import { getCurrentUser } from '@/lib/apiClient';
 import { useSWR } from '@/lib/notes/hooks/use-swr';
 
@@ -21,8 +21,8 @@ interface User {
 }
 
 const NoteSidebarActions: FC = () => {
-  const uiState = UIState.useContainer();
-  const { trash } = PortalState.useContainer();
+  const uiState = useUIComposite();
+  const { trash } = usePortalStore();
   const { data: user } = useSWR<User | null>(
     'current-user',
     async () => {

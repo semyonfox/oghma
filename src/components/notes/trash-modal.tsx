@@ -8,8 +8,8 @@ import FilterModalInput from '@/components/notes/filter-modal-input';
 import FilterModalList from '@/components/notes/filter-modal-list';
 import MarkText from '@/components/notes/mark-text';
 import { NoteModel } from '@/lib/notes/types/note';
-import TrashState from '@/lib/notes/state/trash';
-import PortalState from '@/lib/notes/state/portal';
+import useTrashStore from '@/lib/notes/state/trash';
+import usePortalStore from '@/lib/notes/state/portal';
 import { useRouter } from 'next/navigation';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { NoteCacheItem } from '@/lib/notes/cache';
@@ -22,10 +22,10 @@ const TrashItem: FC<{
     selected?: boolean;
 }> = ({ note, keyword, selected }) => {
     const { t } = useI18n();
-    const { restoreNote, deleteNote, filterNotes } = TrashState.useContainer();
+    const { restoreNote, deleteNote, filterNotes } = useTrashStore();
     const {
         trash: { close },
-    } = PortalState.useContainer();
+    } = usePortalStore();
     const ref = useRef<HTMLLIElement>(null);
 
     const onClickRestore = useCallback(async () => {
@@ -85,10 +85,10 @@ const TrashItem: FC<{
 // main trash modal component
 const TrashModal: FC = () => {
     const { t } = useI18n();
-    const { filterNotes, keyword, list } = TrashState.useContainer();
+    const { filterNotes, keyword, list } = useTrashStore();
     const {
         trash: { visible, close },
-    } = PortalState.useContainer();
+    } = usePortalStore();
     const router = useRouter();
 
     const onEnter = useCallback(

@@ -2,9 +2,8 @@
 
 // reusable list for filter modals with keyboard navigation
 // ported from Notea (MIT License) - jsx style replaced with Tailwind max-height
-import UIState from '@/lib/notes/state/ui';
+import useUIComposite from '@/lib/notes/state/ui';
 import { ReactNode, useState } from 'react';
-import { use100vh } from 'react-div-100vh';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 interface ItemProps {
@@ -22,10 +21,8 @@ export default function FilterModalList<T>({
     items,
     onEnter,
 }: Props<T>) {
-    const { ua } = UIState.useContainer();
+    const { ua } = useUIComposite();
     const isMobile = ua?.isMobileOnly;
-    const height = use100vh() || 0;
-    const calcHeight = isMobile ? height : (height * 2) / 3;
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     useHotkeys(
@@ -61,7 +58,7 @@ export default function FilterModalList<T>({
         return null;
     }
 
-    const maxH = calcHeight ? `${calcHeight - 40}px` : 'calc(100vh - 40px)';
+    const maxH = isMobile ? 'calc(100dvh - 40px)' : 'calc(66.67dvh - 40px)';
 
     return (
         <ul

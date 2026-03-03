@@ -1,11 +1,11 @@
 // extracted from Notea (MIT License)
+import { create } from 'zustand';
 import { Settings, DEFAULT_SETTINGS } from '@/lib/notes/types/settings';
 import { UserAgentType } from '@/lib/notes/types/ua';
-import { createContainer } from 'unstated-next';
-import useSettings from './settings';
-import useSidebar from './sidebar';
-import useSplit from './split';
-import useTitle from './title';
+import useSettingsStore from './settings';
+import createSidebarStore from './sidebar';
+import createSplitStore from './split';
+import useTitleStore from './title';
 
 const DEFAULT_UA: UserAgentType = {
     isMobile: false,
@@ -16,41 +16,95 @@ const DEFAULT_UA: UserAgentType = {
     isMac: false,
 };
 
-interface Props {
-    ua?: UserAgentType;
-    settings?: Settings;
+interface SidebarState {
+    isFold: boolean;
+    toggle: (state?: boolean) => Promise<void>;
+    open: () => void;
+    close: () => void;
+}
+
+interface SplitState {
+    sizes: [number, number];
+    saveSizes: (newSizes: [number, number]) => Promise<void>;
+    resize: (scale: number) => [number, number];
+}
+
+interface TitleState {
+    value: string;
+    updateTitle: (text?: string) => void;
+}
+
+interface SettingsState {
+    settings: Settings;
+    setSettings: (settings: Settings) => void;
+    updateSettings: (body: Partial<Settings>) => Promise<void>;
+}
+
+interface UIStoreData {
+    ua: UserAgentType;
     disablePassword?: boolean;
     IS_DEMO?: boolean;
 }
 
-function useUI({
+interface UIState extends UIStoreData {
+    sidebar: SidebarState;
+    split: SplitState;
+    title: TitleState;
+    settings: SettingsState;
+}
+
+// Store to hold base UI state
+const useUIBaseStore = create<UIStoreData>((set) => ({
+    ua: DEFAULT_UA,
+    disablePassword: undefined,
+    IS_DEMO: undefined,
+}));
+
+// Initialize with props
+export const initUIStore = ({
     ua = DEFAULT_UA,
     settings,
     disablePassword,
     IS_DEMO,
-}: Props = {}): {
-    ua: UserAgentType;
-    sidebar: ReturnType<typeof useSidebar>;
-    split: ReturnType<typeof useSplit>;
-    title: ReturnType<typeof useTitle>;
-    settings: ReturnType<typeof useSettings>;
-    disablePassword: boolean | undefined;
-    IS_DEMO: boolean | undefined;
-} {
-    return {
+}: {
+    ua?: UserAgentType;
+    settings?: Settings;
+    disablePassword?: boolean;
+    IS_DEMO?: boolean;
+} = {}) => {
+    useUIBaseStore.setState({
         ua,
-        sidebar: useSidebar(
-            ua?.isMobileOnly ? false : settings?.sidebar_is_fold,
-            ua.isMobileOnly
-        ),
-        split: useSplit(settings?.split_sizes ?? DEFAULT_SETTINGS.split_sizes),
-        title: useTitle(),
-        settings: useSettings(settings),
         disablePassword,
         IS_DEMO,
+    });
+};
+
+// Composite hook that returns full UI state
+export const useUIComposite = (): UIState => {
+    const baseState = useUIBaseStore();
+    
+    // Create sidebar store for this instance
+    const sidebarStore = createSidebarStore(
+        baseState.ua?.isMobileOnly ? false : false,
+        baseState.ua?.isMobileOnly ?? false
+    );
+    
+    // Create split store for this instance
+    const splitStore = createSplitStore(DEFAULT_SETTINGS.split_sizes);
+    
+    // Get state from the stores
+    const sidebar = sidebarStore();
+    const split = splitStore();
+    const title = useTitleStore();  // Direct hook call
+    const settings = useSettingsStore();  // Direct hook call
+
+    return {
+        ...baseState,
+        sidebar,
+        split,
+        title,
+        settings,
     };
-}
+};
 
-const UIState = createContainer(useUI);
-
-export default UIState;
+export default useUIComposite;

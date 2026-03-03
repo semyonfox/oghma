@@ -1,10 +1,10 @@
 // Notes Sidebar Search - Search box for finding notes
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import React, { FC, useState, useCallback } from 'react';
-import PortalState from '@/lib/notes/state/portal';
+import usePortalStore from '@/lib/notes/state/portal';
 
 const NoteSidebarSearch: FC = () => {
-  const { search } = PortalState.useContainer();
+  const { search } = usePortalStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleOpenSearch = useCallback(() => {

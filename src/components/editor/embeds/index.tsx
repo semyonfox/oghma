@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import CsrfTokenState from '@/lib/notes/state/csrf-token';
+import useCsrfTokenStore from '@/lib/notes/state/csrf-token';
 import { useCallback, ComponentType } from 'react';
 import { Bookmark } from './bookmark';
 import { Embed } from './embed';
@@ -18,19 +18,13 @@ export type EmbedConfig = {
 };
 
 export const useEmbeds = (): EmbedConfig[] => {
-    const csrfToken = CsrfTokenState.useContainer();
-
     const createEmbedComponent = useCallback(
         (Component: ComponentType<EmbedProps>) => {
             return (props: EmbedProps) => {
-                return (
-                    <CsrfTokenState.Provider initialState={csrfToken}>
-                        <Component {...props} />
-                    </CsrfTokenState.Provider>
-                );
+                return <Component {...props} />;
             };
         },
-        [csrfToken]
+        []
     );
 
     return [

@@ -1,10 +1,14 @@
 // extracted from Notea (MIT License)
-import { createContainer } from 'unstated-next';
+import { create } from 'zustand';
 
-function useCsrfToken(token?: string) {
-    return token;
+interface CsrfTokenState {
+    token?: string;
+    setToken: (token?: string) => void;
 }
 
-const CsrfTokenState = createContainer(useCsrfToken);
+export const useCsrfTokenStore = create<CsrfTokenState>((set) => ({
+    token: undefined,
+    setToken: (token) => set({ token }),
+}));
 
-export default CsrfTokenState;
+export default useCsrfTokenStore;

@@ -1,11 +1,11 @@
 // extracted from Notea (MIT License)
 import { NOTE_DELETED } from '@/lib/notes/types/meta';
-import NoteState from '@/lib/notes/state/note';
+import useNoteStore from '@/lib/notes/state/note';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 
 const Inner = () => {
     const { t } = useI18n();
-    const { note } = NoteState.useContainer();
+    const { note } = useNoteStore();
 
     if (note?.deleted !== NOTE_DELETED.DELETED) {
         return null;

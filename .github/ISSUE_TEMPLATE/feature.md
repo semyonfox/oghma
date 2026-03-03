@@ -14,7 +14,7 @@ assignees: ''
 ## Specification
 
 <!-- Link to detailed spec or describe the requirements -->
-- Spec: docs/API_SPECS.md (section)
+- Spec: docs/README.md (section)
 - Related: #(issue number)
 
 ## Acceptance Criteria
