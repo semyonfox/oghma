@@ -15,6 +15,7 @@ import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
 import { debounce } from '@/lib/notes/utils/debounce';
+import CreateNoteModal from '@/components/notes/create-note-modal';
 
 const SidebarList = () => {
     const { t } = useI18n();
@@ -23,6 +24,7 @@ const SidebarList = () => {
         useNoteTreeStore();
     const { createNote, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // ref to react-arborist's TreeApi for imperative open/close/toggle
     const treeApiRef = useRef<TreeApi<HierarchicalTreeItemModel> | undefined>(undefined);
@@ -109,21 +111,27 @@ const SidebarList = () => {
         [moveItem, tree.items]
     );
 
-    const onCreateNote = useCallback(async () => {
-        // Create a new note directly without navigation
-        const newId = genNewId();
-        const newNote = await createNote({
-            id: newId,
-            title: 'Untitled',
-            content: '\n',
-            pid: undefined, // Create at root level
-        });
+    const handleCreateNote = useCallback(
+        async (title: string, language: string) => {
+            const newId = genNewId();
+            const newNote = await createNote({
+                id: newId,
+                title: title,
+                content: '\n',
+                pid: undefined,
+            });
 
-        if (newNote) {
-            // Navigate to the new note
-            router.push(`/notes/${newId}`);
-        }
-    }, [genNewId, createNote, router]);
+            if (newNote) {
+                router.push(`/notes/${newId}`);
+            }
+        },
+        [genNewId, createNote, router]
+    );
+
+    const handleUploadFile = useCallback(async (file: File) => {
+        // TODO: Implement file upload logic
+        console.log('Upload file:', file);
+    }, []);
 
     // collapse all: use tree API ref to close all nodes, then sync to application state
     const handleCollapseAll = useCallback(() => {
@@ -179,7 +187,7 @@ const SidebarList = () => {
         [tree.items, mutateNote]
     );
 
-    const handleCreateNote = useCallback(
+    const handleContextCreateNote = useCallback(
         async (parentId: string) => {
             const newId = genNewId();
             const newNote = await createNote({
@@ -195,7 +203,7 @@ const SidebarList = () => {
                 await mutateItem(parentId, {
                     isExpanded: true,
                 });
-                router.push(`/${newId}`);
+                router.push(`/notes/${newId}`);
             }
         },
         [genNewId, createNote, mutateItem, router]
@@ -221,114 +229,123 @@ const SidebarList = () => {
     );
 
     return (
-        <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto" aria-label="Notes list">
-            {/* Favorites - hidden since we have a separate section now */}
-            {/* <Favorites /> */}
+        <>
+            <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto" aria-label="Notes list">
+                {/* Favorites - hidden since we have a separate section now */}
+                {/* <Favorites /> */}
 
-            {/* Tree Section Header */}
-            <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10" role="toolbar" aria-label="Notes actions">
-                <div className="flex-auto flex items-center">
-                    <span id="my-pages-label">{t('My Pages')}</span>
-                    {initLoaded ? null : (
-                        <svg
-                            className="ml-4 animate-spin h-3.5 w-3.5 text-gray-400"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            aria-hidden="true"
-                        >
-                            <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                            />
-                            <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                        </svg>
-                    )}
+                {/* Tree Section Header */}
+                <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10" role="toolbar" aria-label="Notes actions">
+                    <div className="flex-auto flex items-center">
+                        <span id="my-pages-label">{t('My Pages')}</span>
+                        {initLoaded ? null : (
+                            <svg
+                                className="ml-4 animate-spin h-3.5 w-3.5 text-gray-400"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                />
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                            </svg>
+                        )}
+                    </div>
+                    <IconButton
+                        icon="ChevronDoubleUp"
+                        onClick={handleCollapseAll}
+                        className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
+                        title={t('Collapse all pages')}
+                        aria-label={t('Collapse all pages')}
+                    ></IconButton>
+                    <IconButton
+                        icon="Plus"
+                        onClick={() => setIsModalOpen(true)}
+                        className="text-gray-400 hover:text-white transition-colors"
+                        title={t('Create page')}
+                        aria-label={t('Create page')}
+                    ></IconButton>
                 </div>
-                <IconButton
-                    icon="ChevronDoubleUp"
-                    onClick={handleCollapseAll}
-                    className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
-                    title={t('Collapse all pages')}
-                    aria-label={t('Collapse all pages')}
-                ></IconButton>
-                <IconButton
-                    icon="Plus"
-                    onClick={onCreateNote}
-                    className="text-gray-400 hover:text-white transition-colors"
-                    title={t('Create page')}
-                    aria-label={t('Create page')}
-                ></IconButton>
-            </div>
-            <div className="flex-grow pb-10">
-                <Tree<HierarchicalTreeItemModel>
-                    ref={treeApiRef}
-                    data={treeData}
-                    openByDefault={false}
-                    initialOpenState={initialOpenState}
-                    width="100%"
-                    indent={10}
-                    rowHeight={36}
-                    overscanCount={8}
-                    onToggle={onToggle}
-                    onMove={onMove}
-                    disableDrag={false}
-                    disableDrop={false}
-                    aria-labelledby="my-pages-label"
-                >
-                    {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
-                        const nodeData = node.data;
-                        const hasChildren = node.children ? node.children.length > 0 : false;
-                        const isPinned = nodeData.data?.pinned === NOTE_PINNED.PINNED;
+                <div className="flex-grow pb-10">
+                    <Tree<HierarchicalTreeItemModel>
+                        ref={treeApiRef}
+                        data={treeData}
+                        openByDefault={false}
+                        initialOpenState={initialOpenState}
+                        width="100%"
+                        indent={10}
+                        rowHeight={36}
+                        overscanCount={8}
+                        onToggle={onToggle}
+                        onMove={onMove}
+                        disableDrag={false}
+                        disableDrop={false}
+                        aria-labelledby="my-pages-label"
+                    >
+                        {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
+                            const nodeData = node.data;
+                            const hasChildren = node.children ? node.children.length > 0 : false;
+                            const isPinned = nodeData.data?.pinned === NOTE_PINNED.PINNED;
 
-                        return (
-                            <div style={style} ref={dragHandle}>
-                                <NoteContextMenu
-                                    noteId={node.id}
-                                    isFolder={hasChildren}
-                                    isPinned={isPinned}
-                                    onRename={handleRename}
-                                    onDelete={handleDelete}
-                                    onDuplicate={handleDuplicate}
-                                    onTogglePin={handleTogglePin}
-                                    onCreateNote={handleCreateNote}
-                                    onCreateFolder={handleCreateFolder}
-                                >
-                                    <SidebarListItem
-                                        onToggle={() => node.toggle()}
-                                        isExpanded={node.isOpen}
-                                        innerRef={() => {}}
-                                        hasChildren={hasChildren}
-                                        item={nodeData.data ?? { id: node.id, title: 'Untitled', deleted: NOTE_DELETED.NORMAL, shared: NOTE_SHARED.PRIVATE, pinned: NOTE_PINNED.UNPINNED, editorsize: null } as NoteModel}
-                                        snapshot={{
-                                            isDragging: node.state.isDragging,
-                                        }}
-                                        style={{
-                                            paddingLeft: node.level * 10,
-                                        }}
-                                        isRenaming={renamingId === node.id}
-                                        onRenameComplete={async (newTitle) => {
-                                            if (nodeData.data) {
-                                                await mutateNote(node.id, { title: newTitle });
-                                            }
-                                            setRenamingId(null);
-                                        }}
-                                    />
-                                </NoteContextMenu>
-                            </div>
-                        );
-                    }}
-                </Tree>
-            </div>
-        </section>
+                            return (
+                                <div style={style} ref={dragHandle}>
+                                    <NoteContextMenu
+                                        noteId={node.id}
+                                        isFolder={hasChildren}
+                                        isPinned={isPinned}
+                                        onRename={handleRename}
+                                        onDelete={handleDelete}
+                                        onDuplicate={handleDuplicate}
+                                        onTogglePin={handleTogglePin}
+                                        onCreateNote={handleContextCreateNote}
+                                        onCreateFolder={handleCreateFolder}
+                                    >
+                                        <SidebarListItem
+                                            onToggle={() => node.toggle()}
+                                            isExpanded={node.isOpen}
+                                            innerRef={() => {}}
+                                            hasChildren={hasChildren}
+                                            item={nodeData.data ?? { id: node.id, title: 'Untitled', deleted: NOTE_DELETED.NORMAL, shared: NOTE_SHARED.PRIVATE, pinned: NOTE_PINNED.UNPINNED, editorsize: null } as NoteModel}
+                                            snapshot={{
+                                                isDragging: node.state.isDragging,
+                                            }}
+                                            style={{
+                                                paddingLeft: node.level * 10,
+                                            }}
+                                            isRenaming={renamingId === node.id}
+                                            onRenameComplete={async (newTitle) => {
+                                                if (nodeData.data) {
+                                                    await mutateNote(node.id, { title: newTitle });
+                                                }
+                                                setRenamingId(null);
+                                            }}
+                                        />
+                                    </NoteContextMenu>
+                                </div>
+                            );
+                        }}
+                    </Tree>
+                </div>
+            </section>
+
+            <CreateNoteModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onCreateNote={handleCreateNote}
+                onUploadFile={handleUploadFile}
+            />
+        </>
     );
 };
 
