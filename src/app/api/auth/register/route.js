@@ -14,22 +14,22 @@ import {createAuthSession, createErrorResponse, createValidationErrorResponse, p
 import bcrypt from "bcryptjs";
 import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
 
-export async function OPTIONS() {
-  return optionsHandler();
+export async function OPTIONS(request) {
+  return optionsHandler(request);
 }
 
 export async function POST(request) {
     try {
         // 1. Parse and validate request body
         const {data: body, error: parseError} = await parseJsonBody(request);
-        if (parseError) return withCORS(parseError);
+        if (parseError) return withCORS(parseError, request);
 
         const {email, password} = body;
 
         // 2. Validate credentials format and password strength
         const validation = validateAuthCredentials(email, password, true);
         if (!validation.isValid) {
-            return withCORS(createValidationErrorResponse(validation.errors));
+            return withCORS(createValidationErrorResponse(validation.errors, request));
         }
 
         // 3. Check if user already exists
@@ -40,7 +40,7 @@ export async function POST(request) {
         `;
 
         if (existingUser.length > 0) {
-            return withCORS(createErrorResponse('User already exists', 409));
+            return withCORS(createErrorResponse('User already exists', 409, request));
         }
 
         // 4. Hash password
@@ -55,14 +55,14 @@ export async function POST(request) {
         const user = data[0];
 
         if (!user) {
-            return withCORS(createErrorResponse('An error occurred while creating your account', 500));
+            return withCORS(createErrorResponse('An error occurred while creating your account', 500, request));
         }
 
         // 6. Create auth session (generates JWT, sets cookie, returns response)
-        return withCORS(await createAuthSession(user, 1));
+        return withCORS(await createAuthSession(user, 1, request));
 
     } catch (error) {
         console.error('Registration error:', error);
-        return withCORS(createErrorResponse('Internal server error', 500));
+        return withCORS(createErrorResponse('Internal server error', 500, request));
     }
 }

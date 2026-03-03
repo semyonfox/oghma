@@ -16,8 +16,8 @@ import {isRateLimited, recordFailedAttempt, clearFailedAttempts} from "@/lib/rat
 import {isAccountLocked, recordFailedLogin, clearFailedLogins, getLockoutMinutesRemaining} from "@/lib/accountLockout.js";
 import {withCORS, optionsHandler} from "@/lib/corsHeaders.js";
 
-export async function OPTIONS() {
-  return optionsHandler();
+export async function OPTIONS(request) {
+  return optionsHandler(request);
 }
 
 export async function POST(request) {
