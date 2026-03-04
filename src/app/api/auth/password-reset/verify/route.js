@@ -28,7 +28,7 @@ export async function POST(request) {
         // Find user with valid token
         const users = await sql`
       SELECT user_id, email 
-      FROM public.login 
+      FROM app.login 
       WHERE reset_token = ${token}
         AND reset_token_expires > NOW()
     `;
@@ -42,14 +42,14 @@ export async function POST(request) {
         // Hash new password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Update password and clear reset token
-        await sql`
-      UPDATE public.login 
+         // Update password and clear reset token
+         await sql`
+      UPDATE app.login 
       SET hashed_password = ${hashedPassword},
-          reset_token = NULL,
-          reset_token_expires = NULL
-      WHERE user_id = ${user.user_id}
-    `;
+           reset_token = NULL,
+           reset_token_expires = NULL
+       WHERE user_id = ${user.user_id}
+     `;
 
         return new Response(
             JSON.stringify({ message: 'Password reset successful' }),
