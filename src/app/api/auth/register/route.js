@@ -57,7 +57,12 @@ export async function POST(request) {
         return await createAuthSession(user, 1);
 
     } catch (error) {
-        console.error('Registration error:', error);
-        return createErrorResponse('Internal server error', 500);
+        console.error('Registration error:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            stack: error.stack
+        });
+        return createErrorResponse(`Internal server error: ${error.message}`, 500);
     }
 }
