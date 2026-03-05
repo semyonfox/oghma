@@ -2,7 +2,14 @@
 * This tells postgres how to connect to the database
 * Lazily validates DATABASE_URL to allow builds without a database connection
 * */
-import postgres from 'postgres';
+import PostgresModule from 'postgres';
+
+// Get the actual postgres function - handle both default export and named export
+const postgres = typeof PostgresModule === 'function' ? PostgresModule : PostgresModule.default;
+
+if (typeof postgres !== 'function') {
+    console.error('postgres module did not export a function:', PostgresModule);
+}
 
 // Use a stub URL during build, real URL at runtime
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://stub:stub@localhost:5432/stub';
@@ -17,6 +24,12 @@ if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
                 'DATABASE_URL environment variable is not set. ' +
                 'Please configure your database connection string in your .env file.'
             );
+        }
+    });
+} else if (typeof postgres !== 'function') {
+    sql = new Proxy({}, {
+        get() {
+            throw new Error('postgres module export is invalid');
         }
     });
 } else {
