@@ -20,7 +20,12 @@ if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
         }
     });
 } else {
-    sql = postgres(DATABASE_URL);
+    // Check if DATABASE_URL requires SSL
+    const requiresSSL = DATABASE_URL.includes('sslmode=require');
+    
+    sql = postgres(DATABASE_URL, {
+        ssl: requiresSSL ? {rejectUnauthorized: false} : false,
+    });
 }
 
 export default sql;
