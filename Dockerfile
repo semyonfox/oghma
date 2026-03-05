@@ -31,9 +31,6 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy production dependencies (needed for serverExternalPackages like postgres)
-COPY --from=deps /app/node_modules ./node_modules
-# Copy Next.js standalone build
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 RUN chown -R nextjs:nodejs /app
