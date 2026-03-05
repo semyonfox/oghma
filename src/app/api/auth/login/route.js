@@ -80,7 +80,12 @@ export async function POST(request) {
         return await createAuthSession(user, 1);
 
     } catch (error) {
-        console.error('Login error:', error.message, error.stack);
-        return createErrorResponse('Internal server error', 500);
+        console.error('Login error:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            stack: error.stack
+        });
+        return createErrorResponse(`Internal server error: ${error.message}`, 500);
     }
 }
