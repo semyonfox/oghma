@@ -10,6 +10,10 @@ frontend:
     build:
       commands:
         - npm run build
+    postBuild:
+      commands:
+        # Copy production dependencies into standalone for serverExternalPackages (postgres, etc)
+        - cp -r node_modules .next/standalone/ || true
   artifacts:
     baseDirectory: .next
     files:
