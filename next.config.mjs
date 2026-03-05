@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+    serverExternalPackages: ['postgres', 'bcryptjs', 'jsonwebtoken'],
+};
 
 export default nextConfig;
