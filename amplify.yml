@@ -18,11 +18,21 @@ frontend:
         - npm ci --include=dev
     build:
       commands:
+        - echo "DATABASE_URL=$DATABASE_URL" >> .env.production
+        - echo "JWT_SECRET=$JWT_SECRET" >> .env.production
+        - echo "STORAGE_BUCKET=$STORAGE_BUCKET" >> .env.production
+        - echo "STORAGE_ACCESS_KEY=$STORAGE_ACCESS_KEY" >> .env.production
+        - echo "STORAGE_SECRET_KEY=$STORAGE_SECRET_KEY" >> .env.production
+        - echo "STORAGE_REGION=$STORAGE_REGION" >> .env.production
+        - echo "STORAGE_ENDPOINT=$STORAGE_ENDPOINT" >> .env.production
+        - echo "STORAGE_PREFIX=$STORAGE_PREFIX" >> .env.production
+        - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
     files:
       - '**/*'
+      - '../.env.production'
   cache:
     paths:
       - node_modules/**/*
