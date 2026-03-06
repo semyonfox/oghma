@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MOCK_NOTES_STORAGE, syncTreeWithNotes } from '@/lib/notes/storage/mock-storage';
+import { getNoteFromS3, saveNoteToS3 } from '@/lib/notes/storage/s3-storage';
 
 export async function POST(
   request: Request,
@@ -8,16 +8,23 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
 
-  const existingNote = MOCK_NOTES_STORAGE.get(id);
-  if (existingNote) {
-    const updatedMeta = { ...existingNote, ...body };
-    MOCK_NOTES_STORAGE.set(id, updatedMeta);
-    syncTreeWithNotes(); // Sync tree with updated metadata
-    return NextResponse.json(updatedMeta);
-  }
+  try {
+    const existingNote = await getNoteFromS3(id);
+    if (!existingNote) {
+      return NextResponse.json(
+        { error: 'Note not found' },
+        { status: 404 }
+      );
+    }
 
-  return NextResponse.json(
-    { error: 'Note not found' },
-    { status: 404 }
-  );
+    const updatedNote = { ...existingNote, ...body };
+    await saveNoteToS3(updatedNote);
+    return NextResponse.json(updatedNote);
+  } catch (error) {
+    console.error(`Error updating meta for note ${id}:`, error);
+    return NextResponse.json(
+      { error: 'Failed to update note metadata' },
+      { status: 500 }
+    );
+  }
 }
