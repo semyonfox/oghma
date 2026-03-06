@@ -1,6 +1,15 @@
 # OghmaNotes
 
-AI-powered learning platform combining Markdown notes with RAG-powered search and retrieval.
+AI-powered learning platform for students to write notes, search intelligently, and get answers backed by their own materials.
+
+## Status
+
+**Foundation:** ✅ Complete (Auth, notes, PDFs, UUID v7)  
+**Phase 1 (Search):** 🔄 In progress (Issues #21-25)  
+**Phase 2 (RAG):** ⏳ Planned  
+**Phase 3 (Features):** ⏳ Planned
+
+See [PROGRESS.md](PROGRESS.md) for detailed tracking.
 
 ## Getting Started
 
@@ -15,12 +24,24 @@ See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## What's Built
 
-- Auth (register, login, password reset)
-- Markdown notes with offline support (PWA)
-- PDF upload and annotation
-- File organization (folders, tree structure)
-- Fuzzy + semantic search (Phase 1)
-- RAG chat with citations (Phase 2)
+**Working Now:**
+- ✅ Auth (register, login, password reset)
+- ✅ Markdown notes with offline support (PWA)
+- ✅ PDF upload and annotation
+- ✅ File organization (folders, tree structure)
+
+**Phase 1 (Search):**
+- 🔄 Fuzzy + semantic search (Cmd+K overlay)
+- 🔄 Tree sorting and filtering
+
+**Phase 2 (RAG):**
+- ⏳ RAG chat with citations
+- ⏳ PDF text extraction and chunking
+
+**Phase 3 (Features):**
+- ⏳ Quiz generation and flashcards
+- ⏳ Canvas LMS integration
+- ⏳ Calendar/analytics dashboard
 
 ## Tech Stack
 
@@ -46,9 +67,18 @@ Users provide their own API keys (OpenAI, Anthropic, etc.) — no backend key ma
 
 See [docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md) for details.
 
-## Requirements (SRS)
+## Documentation
 
-See [docs/SRS.tex](docs/SRS.tex) for formal specification.
+- **[PROGRESS.md](PROGRESS.md)** — Project progress and tracking
+- **[SETUP.md](SETUP.md)** — Development and deployment setup
+- **[docs/SRS.tex](docs/SRS.tex)** — Formal specification (v2.1)
+- **[SEARCH_ARCHITECTURE_PLAN.md](SEARCH_ARCHITECTURE_PLAN.md)** — Phase 1 detailed spec
+- **[docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md)** — LLM integration approach
+
+## GitHub Project
+
+- **[Project Board](https://github.com/users/semyonfox/projects/5)** — Live issue tracking
+- 20 items (3 foundation, 5 Phase 1, 5 Phase 2, 5 Phase 3)
 
 ## Team
 

@@ -1,29 +1,32 @@
 # OghmaNotes Progress Tracker
 
 **Last Updated:** 2025-03-06  
-**Project Status:** Foundation Complete → Phase 1 Active
+**Status:** Foundation ✅ → Phase 1 🔄 → Phase 2 ⏳ → Phase 3 ⏳
 
 ---
 
-## Summary
+## Quick Summary
 
-✅ **Foundation Complete**
-- UUID v7 implementation and production migration
-- SRS refactoring and documentation cleanup
-- Database schema analysis and migration guides
-- GitHub project and issue tracking setup
+| Phase | Status | Work | Issues |
+|-------|--------|------|--------|
+| **Foundation** | ✅ Complete | UUID v7, SRS, docs | #36-38 |
+| **Phase 1: Search** | 🔄 Active | Fuzzy + semantic search, Cmd+K | #21-25 |
+| **Phase 2: RAG** | ⏳ Planned | PDF chunking, chat, embeddings | #31-35 |
+| **Phase 3: Features** | ⏳ Planned | Quizzes, flashcards, Canvas, analytics | #26-30 |
 
-🔄 **Phase 1: Search (In Progress)**
-- 5 issues created and tracked
-- Architecture documented in SEARCH_ARCHITECTURE_PLAN.md
+**GitHub Project:** https://github.com/users/semyonfox/projects/5 (20 items)
 
-⏳ **Phase 2: RAG (Planned)**
-- 5 issues created and tracked
-- Awaiting Phase 1 completion
+---
 
-⏳ **Phase 3: Features (Planned)**
-- 5 issues created and tracked
-- Awaiting Phase 1 & 2 completion
+## Contents
+
+- [Quick Summary](#quick-summary) ← Start here
+- [Foundation Work](#foundation-work-complete) (✅ Done)
+- [Phase 1: Search](#phase-1-search-in-progress) (🔄 Active)
+- [Phase 2: RAG](#phase-2-rag-pipeline-planned) (⏳ Coming)
+- [Phase 3: Features](#phase-3-features-planned) (⏳ Coming)
+- [Completed Artifacts](#completed-artifacts)
+- [Metrics](#metrics)
 
 ---
 
@@ -80,10 +83,9 @@
 
 ## Phase 1: Search (In Progress)
 
-### Tracking
-- **GitHub Project:** https://github.com/users/semyonfox/projects/5
-- **Issues:** #21-25
-- **Assigned To:** Search implementation team
+**GitHub Issues:** #21-25  
+**Team:** Search implementation  
+**Details:** See [SEARCH_ARCHITECTURE_PLAN.md](SEARCH_ARCHITECTURE_PLAN.md)
 
 ### Issues
 
@@ -104,10 +106,10 @@
 
 ## Phase 2: RAG Pipeline (Planned)
 
-### Tracking
-- **GitHub Project:** https://github.com/users/semyonfox/projects/5
-- **Issues:** #31-35
-- **Assigned To:** RAG implementation team
+**GitHub Issues:** #31-35  
+**Team:** RAG implementation  
+**Starts After:** Phase 1 complete  
+**Details:** See [docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md)
 
 ### Issues
 
@@ -127,9 +129,9 @@
 
 ## Phase 3: Features (Planned)
 
-### Tracking
-- **GitHub Project:** https://github.com/users/semyonfox/projects/5
-- **Issues:** #26-30
+**GitHub Issues:** #26-30  
+**Starts After:** Phase 1 + 2 complete  
+**Details:** See [docs/SRS.tex](docs/SRS.tex)
 
 ### Issues
 
@@ -146,47 +148,64 @@
 ## Completed Artifacts
 
 ### Documentation
-- ✅ `docs/SRS.tex` (628 lines, v2.1)
-- ✅ `docs/SRS.pdf` (62KB, ready for stakeholders)
-- ✅ `SEARCH_ARCHITECTURE_PLAN.md` (548 lines)
-- ✅ `database/MIGRATION_GUIDE.md` (comprehensive DB guide)
-- ✅ `database/MIGRATION_STATUS.md` (post-migration verification)
-- ✅ `docs/LLM_STRATEGY.md` (user-managed keys approach)
+| File | Size | Purpose |
+|------|------|---------|
+| `docs/SRS.tex` | 628 lines | Formal spec (v2.1) |
+| `docs/SRS.pdf` | 62KB | PDF for stakeholders |
+| `SEARCH_ARCHITECTURE_PLAN.md` | 548 lines | Phase 1 detailed spec |
+| `database/MIGRATION_GUIDE.md` | Comprehensive | Database team reference |
+| `database/MIGRATION_STATUS.md` | Detailed | Post-migration verification |
+| `docs/LLM_STRATEGY.md` | Key section | User-managed API keys |
+| `PROGRESS.md` | This file | Session tracking |
 
 ### Code
-- ✅ `src/lib/utils/uuid.ts` (UUID v7 utilities)
-- ✅ `database/schema.sql` (updated for UUID)
-- ✅ `database/migrations/002_migrate_to_uuid_v7.sql` (production migration)
-- ✅ `scripts/map-database-schema.py` (DB introspection)
-- ✅ `scripts/compare-schema.py` (schema comparison)
-- ✅ `src/app/api/notes/route.ts` (updated to use UUID)
-
-### Updated Files
-- ✅ `docs/SRS.tex` (add UUID v7 and status tracking)
-- ✅ `package.json` (added uuid library)
-- ✅ `src/lib/notes/types/note.ts` (UUID v7 pattern validation)
+| File | Purpose |
+|------|---------|
+| `src/lib/utils/uuid.ts` | UUID v7 generation |
+| `database/schema.sql` | Updated for UUID columns |
+| `database/migrations/002_migrate_to_uuid_v7.sql` | Production migration (tested) |
+| `scripts/map-database-schema.py` | DB introspection tool |
+| `scripts/compare-schema.py` | Schema comparison tool |
+| `src/app/api/notes/route.ts` | Updated to use UUID |
+| `package.json` | Added uuid library |
+| `src/lib/notes/types/note.ts` | UUID v7 pattern validation |
 
 ---
 
 ## Next Steps for Continuing Team
 
-### Phase 1 (This Week/Next)
-1. Pick up Issue #21-25 (Search implementation)
-2. Reference `SEARCH_ARCHITECTURE_PLAN.md` for detailed specs
-3. Database schema already prepared (UUID v7 complete)
-4. Use `generateUUID()` utility for new IDs
+### Phase 1: Search (Start Now)
+- **Assignee:** Search implementation team
+- **Issues:** #21-25
+- **Reference:** `SEARCH_ARCHITECTURE_PLAN.md` (detailed specs)
+- **What to build:**
+  - Fuzzy search endpoint (`/api/search?type=fuzzy`)
+  - Semantic search endpoint (`/api/search?type=semantic`)
+  - Embedding job endpoint (`/api/notes/:id/embed`)
+  - Cmd+K search UI overlay
+  - Load testing with 1000+ vectors
+- **DB ready:** UUID v7 complete, pgvector installed
 
-### Phase 2 (After Phase 1)
-1. Pick up Issue #31-35 (RAG implementation)
-2. Reference `docs/LLM_STRATEGY.md` for key management
-3. Use user-provided OpenAI/Anthropic keys
-4. Chunk PDFs (500 tokens, 50-100 overlap)
-5. Generate embeddings with pgvector
+### Phase 2: RAG (Start After Phase 1)
+- **Assignee:** RAG implementation team
+- **Issues:** #31-35
+- **Reference:** `docs/LLM_STRATEGY.md` (key management)
+- **What to build:**
+  - PDF text extraction and chunking (500 tokens, 50-100 overlap)
+  - OpenAI embedding integration (user-provided keys)
+  - Vector similarity search
+  - Chat UI with streaming responses
+  - Integration tests and benchmarking
 
-### Phase 3 (After Phase 2)
-1. Quiz generation, flashcards, Canvas integration, analytics
-2. Reference SRS v2.1 for detailed requirements
-3. Consider soft-delete pattern and audit columns
+### Phase 3: Features (Start After Phase 2)
+- **Issues:** #26-30
+- **Reference:** `docs/SRS.tex` (Section: Phase 3 Features)
+- **What to build:**
+  - Quiz generation from notes/PDFs
+  - Flashcard system with SM-2 spaced repetition
+  - Canvas LMS OAuth integration
+  - Calendar and timetable views
+  - Analytics dashboard
 
 ---
 
