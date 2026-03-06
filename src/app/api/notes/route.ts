@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { NoteModel } from '@/lib/notes/types/note';
 import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { getAllNotesFromS3, saveNoteToS3 } from '@/lib/notes/storage/s3-storage';
+import { generateUUID } from '@/lib/utils/uuid';
 
 /**
  * Helper: Filter note to only include requested fields
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   
   // Create new note with defaults
   const newNote: NoteModel = {
-    id: body.id || `note-${Date.now()}`,
+    id: body.id || generateUUID(),
     title: body.title || 'Untitled',
     content: body.content || '\n',
     deleted: NOTE_DELETED.NORMAL,
