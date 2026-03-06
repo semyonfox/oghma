@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Use webpack bundler instead of Turbopack for better postgres.js compatibility
+    // keep postgres.js out of the webpack bundle so it runs natively at runtime
+    serverExternalPackages: ['postgres'],
     experimental: {
         turbopack: false,
     },
