@@ -5,500 +5,762 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{fancyhdr}
+\usepackage{longtable}
 
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes SRS}
+\lhead{OghmaNotes -- SRS}
 
 \title{Software Requirements Specification \\
-\Large OghmaNotes: AI-Powered Learning Platform \\
-\small Version 2.1}
+\Large OghmaNotes: RAG-Powered Learning Platform}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
-\date{Updated: March 6, 2025}
+\date{\today}
 
 \hypersetup{
-    pdftitle={OghmaNotes SRS v2.1},
+    pdftitle={OghmaNotes SRS},
     pdfauthor={Samuel Regan, Semyon Fox, Shreyansh Singh}
 }
 
 \begin{document}
 
 \maketitle
+
 \tableofcontents
 \newpage
 
 %==============================================================================
-\section{What This Is}
+\section{Introduction}
 %==============================================================================
 
-OghmaNotes is a web-based learning platform for students to create Markdown notes, upload PDFs, search intelligently, and ask AI questions with answers backed by their own materials.
+\subsection{Purpose}
 
-\textit{For:} Development team, supervisors, maintainers.
+This Software Requirements Specification (SRS) defines the functional and non-functional requirements for \textbf{OghmaNotes}, an AI-powered study platform that combines portable Markdown notes with Retrieval-Augmented Generation (RAG) to provide intelligent learning from course materials.
 
-%==============================================================================
-\section{Scope}
-%==============================================================================
+The document establishes a shared contract between the development team and academic stakeholders. The SRS focuses on \emph{what} the system shall do and the quality attributes it shall meet.
 
-\subsection{MVP (Must Have)}
+\textit{Intended Audience:} Development team, academic stakeholders, maintainers, and QA engineers.
 
-\begin{itemize}
-    \item Web-based Markdown editor with offline support (PWA)
-    \item PDF upload, annotation, text extraction
-    \item Multi-mode search (fuzzy keyword + semantic/vector)
-    \item RAG chat: ask questions, get answers with citations
-    \item User authentication (email/password)
-    \item Note organization (folder hierarchy)
-    \item Responsive design (desktop, tablet)
-\end{itemize}
-
-\subsection{Out of Scope}
-
-\begin{itemize}
-    \item Light mode (dark only)
-    \item Real-time collaborative editing
-    \item Native mobile apps (PWA sufficient)
-    \item Instructor dashboards
-    \item Video/audio transcription
-\end{itemize}
-
-\subsection{Goals}
+\subsection{Key Stakeholders}
 
 \begin{enumerate}
-    \item Deliver MVP in 6 weeks
-    \item Enable 3 people to work in parallel
-    \item Auto-deploy from production branch
-    \item Stay within AWS free tier + modest budget
+    \item \textbf{Development Team}: Three developers working in parallel across frontend, backend, and database infrastructure.
+    \item \textbf{Academic Stakeholder}: Approves scope and evaluates deliverables.
+    \item \textbf{End Users}: University students (primary).
 \end{enumerate}
 
+\subsection{Scope and Objectives}
+
+\subsubsection{System Scope}
+
+OghmaNotes is a web-based learning platform allowing students to:
+
+\begin{itemize}
+    \item Create and manage Markdown notes with offline-first support (PWA).
+    \item Ingest and index PDFs into a vector database for semantic retrieval.
+    \item Ask questions about materials through RAG-powered chat with citations.
+    \item Generate adaptive quizzes and spaced-repetition flashcards.
+    \item Track progress with an analytics dashboard.
+    \item Integrate with LMS platforms (Canvas) to sync deadlines.
+\end{itemize}
+
+\subsubsection{In Scope}
+
+\begin{itemize}
+    \item Web-based Markdown note editor with offline support (PWA).
+    \item PDF ingestion, text extraction, semantic chunking, and vector storage.
+    \item LMS integration (Canvas) for assignment and deadline sync.
+    \item RAG chat with cited answers.
+    \item Adaptive quiz generation.
+    \item Spaced repetition (SM-2) flashcards.
+    \item Calendar and timetable for tasks and study sessions.
+    \item Analytics dashboard with progress tracking.
+    \item Full vault export (notes, metadata, settings).
+    \item Bidirectional note linking and knowledge graph visualization.
+    \item Flexible tagging system.
+    \item Multi-mode search (keyword, semantic, hybrid).
+    \item User authentication with email verification and password reset.
+    \item User profile management.
+    \item Responsive design for desktop and tablet.
+\end{itemize}
+
+\subsubsection{Out of Scope}
+
+\begin{itemize}
+    \item Real-time collaborative multi-user editing.
+    \item Video/audio transcription.
+    \item Native mobile apps (PWA only).
+    \item Instructor dashboards.
+    \item Light mode (dark only).
+    \item WCAG full compliance.
+\end{itemize}
+
+\subsubsection{Key Objectives}
+
+\begin{enumerate}
+    \item Deliver feature-complete product by end of semester.
+    \item Enable 3-person parallel development via clear API contracts.
+    \item Auto-deploy from production branch.
+    \item Stay within budget constraints.
+\end{enumerate}
+
+\subsection{References}
+
+\begin{itemize}
+    \item \textbf{Notea} (\url{https://github.com/QingWei-Li/notea}) -- MIT License. Used as scaffold for note-taking interface.
+    \item PostgreSQL Vector Documentation: \url{https://github.com/pgvector/pgvector}
+    \item OpenAPI 3.1 Specification for REST API contracts.
+\end{itemize}
+
+\subsection{About the Name}
+
+\textbf{Oghma} (pronounced ``OH-muh'') is the Celtic deity of eloquence, learning, and writing. He created Ogham, the ancient Irish writing system, to preserve and share knowledge. This platform embodies the same mission: structured learning systems that help students organize and retrieve knowledge effectively.
+
 %==============================================================================
-\section{Why We Changed Our Tech Stack}
+\section{Overall Description}
 %==============================================================================
 
-The original plan specified MariaDB and microservices. We adapted based on team expertise and MVP pragmatism.
+\subsection{Product Perspective}
 
-\subsection*{Database: MariaDB $\rightarrow$ PostgreSQL + pgvector}
+OghmaNotes is a new web-based Progressive Web App deployed on AWS. It integrates with external services (Canvas, OpenAI API, S3 storage) and uses PostgreSQL with pgvector for relational and vector search.
 
-PostgreSQL with pgvector extension. Team expertise and well-maintained support.
-
-\subsection*{Architecture: Microservices $\rightarrow$ Next.js Monolith}
-
-Single Next.js app (frontend + API routes). Faster iteration for MVP.
-
-\subsection*{Background Jobs: Redis + BullMQ $\rightarrow$ Deferred}
-
-Synchronous processing initially, async added later if needed.
-
-\subsection*{LLM Key Management: Backend-Managed $\rightarrow$ User-Managed}
-
-Users provide own keys. Simpler, transparent costs, supports any LLM.
-
-%==============================================================================
-\section{Tech Stack}
-%==============================================================================
-
-\subsection{Frontend}
-
+Architecture:
 \begin{itemize}
-    \item Next.js 16 (App Router, SSR/SSG)
-    \item React 19 + TypeScript
-    \item Tailwind CSS 4
-    \item Lexical editor (rich text)
-    \item PDF.js for viewing
-    \item Zustand for state
-    \item Dark mode only
+    \item \textbf{Frontend}: Next.js PWA with React and Tailwind CSS.
+    \item \textbf{Backend}: Next.js API routes in a single monolith.
+    \item \textbf{Database}: PostgreSQL 12+ with pgvector extension.
+    \item \textbf{Storage}: AWS S3 for PDFs and exports.
+    \item \textbf{Background Jobs}: Synchronous initially; async via deferred jobs if needed.
 \end{itemize}
 
-\subsection{Backend}
+\subsection{Product Functions}
 
 \begin{itemize}
-    \item Next.js API routes (monolith)
-    \item bcryptjs (password hashing)
-    \item JWT (authentication)
-    \item Nodemailer + AWS SES (email)
-    \item postgres.js (database client)
+    \item Manage user accounts with email verification and password reset.
+    \item Create, edit, organize, and sync Markdown notes.
+    \item Ingest and index PDFs for semantic retrieval.
+    \item Provide RAG-based chat with cited answers.
+    \item Generate and manage quizzes.
+    \item Manage flashcards with spaced-repetition scheduling.
+    \item Integrate LMS deadlines into a unified calendar.
+    \item Provide analytics on study progress.
+    \item Export entire vault as downloadable archive.
+    \item Link notes and visualize knowledge graphs.
+    \item Tag and organize notes.
+    \item Search using keyword, semantic, or hybrid modes.
 \end{itemize}
 
-\subsection{Database \& Search}
+\subsection{User Characteristics}
 
 \begin{itemize}
-    \item PostgreSQL 12+ (RDS or local)
-    \item pgvector (1536-dim embeddings)
-    \item Full-text search via PostgreSQL
+    \item \textbf{Primary Users}: Undergraduate and postgraduate students.
+    \item \textbf{Technical Proficiency}: Basic digital literacy; no programming required.
+    \item \textbf{Accessibility}: Keyboard navigation and dark mode support.
 \end{itemize}
 
-\subsection{Storage \& Services}
+\subsection{Constraints}
 
 \begin{itemize}
-    \item AWS S3 (PDFs, files, exports)
-    \item AWS SES (email)
-    \item AWS Amplify (auto-deploy)
-    \item AWS RDS (managed PostgreSQL)
+    \item \textbf{Tech Stack}: Next.js, PostgreSQL with pgvector, AWS S3, OpenAI API, Docker.
+    \item \textbf{Deployment}: AWS Amplify auto-deploy from production branch.
+    \item \textbf{Storage}: 5GB per user quota.
+    \item \textbf{Timeline}: End of semester delivery.
+    \item \textbf{Team}: 3 developers, ~few hours per day.
 \end{itemize}
 
-\subsection{LLM \& AI}
+\subsection{Assumptions}
 
 \begin{itemize}
-    \item User provides own API keys (OpenAI, Anthropic, etc.)
-    \item Keys stored in browser, never on backend
-    \item Frontend calls LLM directly
-\end{itemize}
-
-\subsection{Local Development}
-
-\begin{itemize}
-    \item Docker + docker-compose (PostgreSQL + app)
-    \item pgvector pre-installed
-    \item AWS S3 for file storage
+    \item OpenAI API available; user provides own API keys.
+    \item S3 and PostgreSQL instances are provisioned.
+    \item Canvas LMS API accessible for read-only sync.
+    \item Users have modern browsers (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+).
+    \item Stable internet for sync; offline usage limited to PWA notes.
 \end{itemize}
 
 %==============================================================================
 \section{Functional Requirements}
 %==============================================================================
 
-\subsection{Authentication \& Users (MVP)}
+\subsection{Feature Priority}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Priority} & \textbf{Description} \\
+\midrule
+\textbf{Must Have} & Core features required for MVP \\
+\textbf{Should Have} & Important enhancements \\
+\textbf{Nice to Have} & Polish and advanced features \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{User Stories and Requirements}
+
+\subsubsection{Story 1: Authentication and Account Management}
+
+\textbf{As a} student, \textbf{I want to} register, verify my email, log in, and manage my account, \textbf{so that} my data is secure and I can recover access.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Register with email/password
-    \item Email verification
-    \item Login with JWT tokens (24h expiry)
-    \item Password reset with email link (1h token)
-    \item Logout and session management
-    \item Bcrypt hashing (10+ rounds)
+    \item \textbf{FR-1.1} Register with email and password; email verification required.
+    \item \textbf{FR-1.2} Login with JWT tokens (24h expiry).
+    \item \textbf{FR-1.3} Password reset via email link (1h token, single-use).
+    \item \textbf{FR-1.4} Logout to invalidate session.
+    \item \textbf{FR-1.5} Passwords stored as bcrypt hashes (10+ rounds).
+    \item \textbf{FR-1.6} Update email and password from settings.
+    \item \textbf{FR-1.7} Delete account with 7-day soft-delete period.
 \end{itemize}
 
-\subsection{Notes (MVP)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 2: Create and Manage Markdown Notes}
+
+\textbf{As a} student, \textbf{I want to} create, edit, and organize notes in Markdown, \textbf{so that} I can structure course materials portably.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Create, edit, delete notes in Markdown
-    \item Auto-save to IndexedDB (every 5s)
-    \item Folder hierarchy organization
-    \item Sync to S3 when online
-    \item Bidirectional links (Nice to Have)
-    \item Tags (Nice to Have)
-    \item Note versions (Nice to Have)
+    \item \textbf{FR-2.1} Split-pane editor with live Markdown preview.
+    \item \textbf{FR-2.2} Support Markdown syntax (headers, lists, code, tables, LaTeX math).
+    \item \textbf{FR-2.3} Auto-save to IndexedDB every 5 seconds.
+    \item \textbf{FR-2.4} Organize notes into folder hierarchy.
+    \item \textbf{FR-2.5} Sync to S3 when online; resolve conflicts with last-write-wins.
+    \item \textbf{FR-2.6} Offline editing with auto-sync on reconnect.
 \end{itemize}
 
-\subsection{PDFs \& Documents (MVP)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 3: PDF Upload and Indexing}
+
+\textbf{As a} student, \textbf{I want to} upload PDFs and have them indexed for search and RAG, \textbf{so that} I can query course materials.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Upload PDFs up to 50MB
-    \item View and annotate (highlighting, notes)
-    \item Text extraction for search
-    \item Semantic chunking (500 tokens, 50-100 overlap)
-    \item Generate embeddings
-    \item OCR for scanned PDFs (Nice to Have)
+    \item \textbf{FR-3.1} Upload PDFs up to 50 MB (within 5GB quota).
+    \item \textbf{FR-3.2} Extract text from PDFs.
+    \item \textbf{FR-3.3} Split text into semantic chunks (500 tokens, 50--100 token overlap).
+    \item \textbf{FR-3.4} Generate embeddings (OpenAI text-embedding-3-small, 1536 dims) and store in PostgreSQL pgvector.
+    \item \textbf{FR-3.5} Preserve page numbers and section metadata in chunks.
+    \item \textbf{FR-3.6} Display ingestion progress.
+    \item \textbf{FR-3.7} Handle errors gracefully (rate limits, API unavailable).
 \end{itemize}
 
-\subsection{Search (MVP)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 4: Multi-Mode Search}
+
+\textbf{As a} student, \textbf{I want to} search my notes and PDFs by keyword or meaning, \textbf{so that} I can find information even without exact terms.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Fuzzy search: keyword matching with typo tolerance
-    \item Semantic search: meaning-based results via vectors
-    \item Search by filename and content
-    \item Relevance scoring
-    \item Cmd+K overlay UI (keyboard-first)
-    \item Sort results by relevance or date
-    \item Pagination (20 results per page)
-    \item Date range filtering (Nice to Have)
+    \item \textbf{FR-4.1} Keyword search using PostgreSQL FULLTEXT (~5ms).
+    \item \textbf{FR-4.2} Semantic search using pgvector embeddings (~50ms).
+    \item \textbf{FR-4.3} Hybrid search combining both modes (~100ms).
+    \item \textbf{FR-4.4} Filter results by tags, module, document type, semester.
+    \item \textbf{FR-4.5} Display results with relevance scores and snippets.
+    \item \textbf{FR-4.6} Cmd+K overlay for keyboard-first search.
 \end{itemize}
 
-\subsection{RAG Chat with Citations (MVP)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 5: RAG Chat with Citations}
+
+\textbf{As a} student, \textbf{I want to} ask questions about my materials and receive answers with source citations, \textbf{so that} I can verify answers and reference specific pages.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Chat interface for questions
-    \item Retrieve relevant document chunks via semantic search
-    \item Generate answers with citations (source + page/section)
-    \item Stream responses token-by-token
-    \item Conversation history storage
-    \item Feedback/rating on answers (Nice to Have)
+    \item \textbf{FR-5.1} Chat interface for free-text questions.
+    \item \textbf{FR-5.2} Perform hybrid search to retrieve top 5 relevant chunks.
+    \item \textbf{FR-5.3} Send chunk text and query to LLM for answer generation.
+    \item \textbf{FR-5.4} Include citations (page number, section, chunk ID) in responses.
+    \item \textbf{FR-5.5} Render citations as clickable links to PDF location.
+    \item \textbf{FR-5.6} Stream LLM response token-by-token.
+    \item \textbf{FR-5.7} Allow users to rate responses.
+    \item \textbf{FR-5.8} Handle LLM unavailability gracefully.
 \end{itemize}
 
-\subsection{Offline Support (MVP)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 6: Quiz Generation}
+
+\textbf{As a} student, \textbf{I want to} generate practice quizzes from my notes and PDFs, \textbf{so that} I can test understanding and identify weak areas.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Installable as PWA
-    \item Edit notes offline
-    \item Queue changes locally
-    \item Auto-sync on reconnect (<30s)
-    \item Conflict resolution (last-write-wins)
+    \item \textbf{FR-6.1} Select note or document section and choose difficulty.
+    \item \textbf{FR-6.2} Generate 5--10 questions from selected content.
+    \item \textbf{FR-6.3} Support multiple-choice, short-answer, and true/false types.
+    \item \textbf{FR-6.4} Optional timed mode with per-question countdown.
+    \item \textbf{FR-6.5} Display total score and correct answers after completion.
+    \item \textbf{FR-6.6} Tag and track weak topics based on performance.
 \end{itemize}
 
-\subsection{Quiz Generation (Should Have)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 7: Spaced Repetition Flashcards}
+
+\textbf{As a} student, \textbf{I want to} use SM-2 flashcards for efficient review, \textbf{so that} I can master material through optimal spacing.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Generate questions from notes/PDFs
-    \item Multiple-choice, short-answer types
-    \item Configurable difficulty levels
-    \item Timed mode option
-    \item Score tracking
+    \item \textbf{FR-7.1} Create flashcard decks from notes or quiz content.
+    \item \textbf{FR-7.2} Display daily review queue (``Due Today: N cards'').
+    \item \textbf{FR-7.3} Flip cards and rate recall on 1--5 scale.
+    \item \textbf{FR-7.4} Update SM-2 interval and ease factor based on ratings.
+    \item \textbf{FR-7.5} Persist flashcard state across devices.
+    \item \textbf{FR-7.6} Display progress metrics (due, reviewed, mastery \%).
 \end{itemize}
 
-\subsection{Spaced Repetition Flashcards (Should Have)}
+Priority: \textbf{Must Have}
+
+\subsubsection{Story 8: Canvas LMS Integration}
+
+\textbf{As a} student with Canvas courses, \textbf{I want to} sync assignments and deadlines, \textbf{so that} I can plan study around course requirements.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Create decks from notes or quiz questions
-    \item SM-2 algorithm for scheduling reviews
-    \item Daily review queue
-    \item Mastery tracking (1-5 scale)
-    \item Persist state across devices
-    \item Statistics (cards mastered, retention rates)
+    \item \textbf{FR-8.1} Connect Canvas account via OAuth.
+    \item \textbf{FR-8.2} Import assignments and exams with due dates.
+    \item \textbf{FR-8.3} Display assignments in calendar view.
+    \item \textbf{FR-8.4} Auto-schedule study sessions before exams.
+    \item \textbf{FR-8.5} Auto-sync once per day; on-demand sync button available.
+    \item \textbf{FR-8.6} Handle sync errors gracefully.
 \end{itemize}
 
-\subsection{LMS Integration (Should Have)}
+Priority: \textbf{Should Have}
+
+\subsubsection{Story 9: Study Calendar and Timetable}
+
+\textbf{As a} student, \textbf{I want to} view study schedule and deadlines in a unified calendar, \textbf{so that} I can manage time effectively.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item OAuth 2.0 Canvas connection
-    \item Import assignments and due dates
-    \item Display in calendar view
-    \item Export quiz results to Canvas gradebook
-    \item Manual sync + refresh option
+    \item \textbf{FR-9.1} Week and month calendar views.
+    \item \textbf{FR-9.2} Display flashcard reviews, quizzes, and LMS assignments.
+    \item \textbf{FR-9.3} Auto-schedule reviews before exams.
+    \item \textbf{FR-9.4} Click events to navigate to associated task.
+    \item \textbf{FR-9.5} Export calendar to iCal format.
 \end{itemize}
 
-\subsection{Calendar \& Timetable (Should Have)}
+Priority: \textbf{Should Have}
+
+\subsubsection{Story 10: Analytics Dashboard}
+
+\textbf{As a} student, \textbf{I want to} see my study progress and weak topics, \textbf{so that} I can focus review on areas needing work.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Calendar view of note creation/modification dates
-    \item Timetable showing class schedules
-    \item Highlight assignment due dates
-    \item Color-code by course
-    \item Week/month/year views
+    \item \textbf{FR-10.1} Display study time by period (weekly/monthly).
+    \item \textbf{FR-10.2} Display quiz scores over time.
+    \item \textbf{FR-10.3} Identify and rank weak topics.
+    \item \textbf{FR-10.4} Provide charts for performance and mastery progression.
 \end{itemize}
 
-\subsection{Analytics Dashboard (Should Have)}
+Priority: \textbf{Should Have}
+
+\subsubsection{Story 11: Vault Export}
+
+\textbf{As a} student, \textbf{I want to} export my entire vault, \textbf{so that} I have a portable backup and can migrate to other tools.
+
+\paragraph{Requirements}
 
 \begin{itemize}
-    \item Study time tracking (per subject)
-    \item Completion rates by course
-    \item Quiz performance trends
-    \item Flashcard mastery metrics
-    \item Most-studied topics
-    \item Data export (CSV, PDF)
+    \item \textbf{FR-11.1} Export all notes, metadata, and settings as ZIP archive.
+    \item \textbf{FR-11.2} Include notes in Markdown with folder structure preserved.
+    \item \textbf{FR-11.3} Include flashcard state and quiz history as JSON.
+    \item \textbf{FR-11.4} Embed timestamp and user ID in archive.
 \end{itemize}
+
+Priority: \textbf{Should Have}
+
+\subsubsection{Story 12: Note Tagging and Linking}
+
+\textbf{As a} student, \textbf{I want to} tag notes and create bidirectional links, \textbf{so that} I can build a connected knowledge base.
+
+\paragraph{Requirements}
+
+\begin{itemize}
+    \item \textbf{FR-12.1} Add arbitrary tags to notes.
+    \item \textbf{FR-12.2} Create bidirectional links using wiki-style syntax (\texttt{[[Note Title]]}).
+    \item \textbf{FR-12.3} Display backlinks in note view.
+    \item \textbf{FR-12.4} Visualize knowledge graph of connections.
+    \item \textbf{FR-12.5} Filter notes by tags.
+\end{itemize}
+
+Priority: \textbf{Should Have}
+
+\subsubsection{Story 13: Share Materials with Study Groups}
+
+\textbf{As a} student, \textbf{I want to} share note collections with classmates, \textbf{so that} study groups can collaborate.
+
+\paragraph{Requirements}
+
+\begin{itemize}
+    \item \textbf{FR-13.1} Generate shareable read-only links for note folders.
+    \item \textbf{FR-13.2} Include original author attribution.
+    \item \textbf{FR-13.3} Allow recipients to copy shared materials.
+    \item \textbf{FR-13.4} Allow authors to revoke access.
+\end{itemize}
+
+Priority: \textbf{Nice to Have}
+
+\subsubsection{Story 14: Individual Note Export}
+
+\textbf{As a} student, \textbf{I want to} export individual notes to PDF and analytics to CSV, \textbf{so that} I can share or archive specific materials.
+
+\paragraph{Requirements}
+
+\begin{itemize}
+    \item \textbf{FR-14.1} Export single note or folder to PDF.
+    \item \textbf{FR-14.2} Preserve Markdown formatting in PDF.
+    \item \textbf{FR-14.3} Include table of contents for multi-note exports.
+    \item \textbf{FR-14.4} Export analytics data as CSV.
+\end{itemize}
+
+Priority: \textbf{Nice to Have}
 
 %==============================================================================
 \section{Non-Functional Requirements}
 %==============================================================================
 
-\subsection{Performance Targets}
+\subsection{Performance}
 
 \begin{itemize}
-    \item Page cold load: $\leq 4$s
-    \item Page cached load: $\leq 2$s
-    \item Note sync (500KB): $\leq 2$s
-    \item Keyword search: $\leq 5$ms
-    \item Semantic search: $\leq 50$ms
-    \item Hybrid search: $\leq 100$ms
-    \item PDF indexing (50MB): $\leq 2$ min
-    \item RAG end-to-end response: $\leq 3$s
+    \item \textbf{NFR-P-1} RAG query end-to-end: $\leq 3$ seconds.
+    \item \textbf{NFR-P-2} PDF indexing (50MB): $\leq 2$ minutes.
+    \item \textbf{NFR-P-3} Keyword search: $\leq 5$ ms; semantic search: $\leq 50$ ms; hybrid: $\leq 100$ ms.
+    \item \textbf{NFR-P-4} Quiz generation: $\leq 5$ seconds.
+    \item \textbf{NFR-P-5} Note sync (500KB): $\leq 2$ seconds.
+    \item \textbf{NFR-P-6} Cold page load: $\leq 4$ seconds; cached: $\leq 2$ seconds.
+    \item \textbf{NFR-P-7} Backend handles 10+ concurrent requests without degradation.
 \end{itemize}
 
 \subsection{Security}
 
 \begin{itemize}
-    \item Passwords hashed with bcrypt (10+ rounds)
-    \item HTTPS only (TLS 1.2+)
-    \item JWT tokens in httpOnly cookies
-    \item CORS policy enforced
-    \item User data isolated
-    \item API keys in environment variables only
-    \item S3 presigned URLs with 1h expiry
-    \item Password reset tokens: 1h, single-use
-    \item Email verification tokens: 24h
-    \item Rate limiting (Nice to Have)
+    \item \textbf{NFR-S-1} APIs require valid JWT (except login, register, verify).
+    \item \textbf{NFR-S-2} Passwords hashed with bcrypt (salt $\geq 10$).
+    \item \textbf{NFR-S-3} All communications use TLS 1.2+.
+    \item \textbf{NFR-S-4} CORS restricts approved origins.
+    \item \textbf{NFR-S-5} Rate limiting on public endpoints.
+    \item \textbf{NFR-S-6} Credentials and keys in environment variables, encrypted at rest.
+    \item \textbf{NFR-S-7} S3 presigned URLs expire in 1 hour.
+    \item \textbf{NFR-S-8} Vector searches filtered by user ID.
+    \item \textbf{NFR-S-9} Password reset tokens expire 1 hour, single-use.
+    \item \textbf{NFR-S-10} Email verification tokens expire 24 hours.
 \end{itemize}
 
 \subsection{Reliability}
 
 \begin{itemize}
-    \item 99\% availability (AWS Amplify SLA)
-    \item Automated database backups (RDS)
-    \item Session persistence across restarts
-    \item PWA offline-first design
-    \item Graceful error handling
+    \item \textbf{NFR-R-1} 99\% availability during grading window.
+    \item \textbf{NFR-R-2} Automated database backups (AWS RDS).
+    \item \textbf{NFR-R-3} Failed jobs retry up to 3 times with exponential backoff.
+    \item \textbf{NFR-R-4} Graceful error handling for external API failures.
+    \item \textbf{NFR-R-5} User sessions survive service restarts.
+    \item \textbf{NFR-R-6} PWA reconnects within 30 seconds of network loss.
 \end{itemize}
 
 \subsection{Usability}
 
 \begin{itemize}
-    \item Modern design (Tailwind CSS 4)
-    \item Dark mode
-    \item Keyboard shortcuts (Cmd+K, etc.)
-    \item Responsive layout (desktop, tablet, mobile)
-    \item Clear error messages
-    \item <5 min learning curve for core features
-    \item WCAG AA accessibility (Nice to Have)
+    \item \textbf{NFR-U-1} Modern, clean design (Material Design 3 or similar).
+    \item \textbf{NFR-U-2} New user completes register $\to$ upload PDF $\to$ ask question in $\leq 5$ minutes.
+    \item \textbf{NFR-U-3} Real-time form validation with password strength indicators.
+    \item \textbf{NFR-U-4} Keyboard navigation support.
+    \item \textbf{NFR-U-5} Responsive layout (desktop, tablet).
+    \item \textbf{NFR-U-6} Actionable, non-technical error messages.
+    \item \textbf{NFR-U-7} Dark mode only (default).
 \end{itemize}
 
 \subsection{Maintainability}
 
 \begin{itemize}
-    \item ESLint + Prettier enforced
-    \item SQL migrations tracked
-    \item API documentation in code
-    \item README with setup/deployment
-    \item Structured logging (AWS CloudWatch)
-    \item 70\%+ test coverage for core logic
+    \item \textbf{NFR-M-1} JavaScript/TypeScript complies with ESLint and Prettier.
+    \item \textbf{NFR-M-2} APIs documented using OpenAPI 3.1.
+    \item \textbf{NFR-M-3} Database changes via version-controlled migrations.
+    \item \textbf{NFR-M-4} Structured JSON logging.
+    \item \textbf{NFR-M-5} README describes setup and deployment.
+    \item \textbf{NFR-M-6} Automated dependency scanning (Dependabot).
 \end{itemize}
 
 %==============================================================================
-\section{Database Schema}
+\section{External Interface Requirements}
 %==============================================================================
 
-\subsection{ID Strategy}
+\subsection{User Interfaces}
 
-All ID columns use UUID v7 (Universally Unique Identifier version 7):
+\subsubsection{Authentication}
 \begin{itemize}
-    \item Format: \texttt{xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx}
-    \item Cryptographically secure (no collision risk)
-    \item Sortable by timestamp
-    \item Generated server-side
+    \item Registration: Email, password, university, degree, graduation year.
+    \item Login: Email, password, "Forgot password?" link.
+    \item Email verification and password reset flows.
 \end{itemize}
 
-Affected columns:
+\subsubsection{Settings}
 \begin{itemize}
-    \item \texttt{app.login.user\_id} --- User identifier
-    \item \texttt{app.notes.note\_id} --- Note identifier
-    \item \texttt{app.documents.id} --- Document identifier
-    \item \texttt{app.chunks.id} --- Chunk identifier
+    \item Profile: Update email (with re-verification), change password, course info.
+    \item Preferences: Language, theme (dark only).
+    \item Account: Storage display, delete with confirmation.
 \end{itemize}
 
-\subsection{Core Tables}
-
+\subsubsection{Editor}
 \begin{itemize}
-    \item \texttt{app.login} --- User accounts, hashed passwords
-    \item \texttt{app.notes} --- Note content, metadata, search/embedding columns
-    \item \texttt{app.tree\_items} --- Folder hierarchy
-    \item \texttt{app.attachments} --- Uploaded PDFs and files
-    \item \texttt{app.pdf\_annotations} --- Highlights, notes on PDFs
-    \item \texttt{app.quiz\_questions} --- Quiz questions
-    \item \texttt{app.flashcards} --- Flashcard decks
+    \item Split-pane Markdown editor with live preview.
+    \item Left sidebar: Folder/note tree.
+    \item Top navigation: Upload PDF, RAG Chat, Quiz, Flashcards, Analytics, Settings.
+    \item Status bar: Offline indicator, sync progress, storage usage.
+    \item Command palette: Cmd+K/Ctrl+K.
 \end{itemize}
 
-\subsection{Search Columns}
-
-\texttt{app.notes} includes:
+\subsubsection{RAG Chat}
 \begin{itemize}
-    \item \texttt{extracted\_text} --- Full text from PDFs
-    \item \texttt{embedding} --- Vector (1536-dim) for semantic search
-    \item \texttt{search\_vector} --- PostgreSQL tsvector for full-text search
-    \item \texttt{relative\_path} --- For organizing search results
+    \item Message history with timestamps.
+    \item Input: ``Ask a question about your materials...''
+    \item Response: Formatted text with clickable citations.
+    \item Feedback: Thumbs up/down buttons.
 \end{itemize}
 
-\subsection{Indexes}
+\subsubsection{Quiz}
+\begin{itemize}
+    \item One question per screen.
+    \item Progress bar and question counter.
+    \item Multiple-choice or short-answer input.
+    \item Optional timer for timed mode.
+    \item Results: Score, breakdown, weak topics.
+\end{itemize}
+
+\subsubsection{Flashcards}
+\begin{itemize}
+    \item Card display with front/back and flip animation.
+    \item Response buttons: 1--5 scale (Forget to Perfect).
+    \item Progress indicators: Due today, reviewed today.
+\end{itemize}
+
+\subsubsection{Calendar}
+\begin{itemize}
+    \item Week/month views.
+    \item Color-coded events: Reviews (blue), LMS (red), study (green).
+    \item Click to open details or start task.
+    \item Manual sync button for LMS updates.
+\end{itemize}
+
+\subsection{Database Interface}
+
+\subsubsection{Storage Architecture}
 
 \begin{itemize}
-    \item GIN index on \texttt{search\_vector} (full-text)
-    \item ivfflat index on \texttt{embedding} (semantic)
-    \item Compound indexes on \texttt{user\_id + created\_at} and \texttt{user\_id + updated\_at}
+    \item \textbf{PostgreSQL}: Metadata, searchable content, embeddings, relational data.
+    \item \textbf{S3-Compatible Storage}: Full Markdown files and uploaded PDFs.
+\end{itemize}
+
+\subsubsection{Data Entities}
+
+\begin{itemize}
+    \item User accounts with auth credentials, profile, course info, quotas.
+    \item Notes with folder organization, metadata, searchable text.
+    \item Vector embeddings for semantic retrieval with metadata (page, section).
+    \item PDFs with file metadata, S3 paths, indexing status.
+    \item Quizzes and flashcards with SM-2 parameters.
+    \item Calendar events and LMS assignments.
+    \item Sharing permissions and access control.
+    \item Authentication tokens (password reset, email verification).
+    \item Analytics data (study time, quiz scores, weak topics).
+\end{itemize}
+
+\subsubsection{Database Capabilities}
+
+\begin{itemize}
+    \item \textbf{FULLTEXT Search}: Fast keyword search (~5ms).
+    \item \textbf{Vector Similarity}: pgvector-based nearest neighbor search (~50ms).
+    \item \textbf{Hybrid Search}: Combined keyword and semantic (<100ms).
+    \item \textbf{User-Scoped Queries}: All queries filtered by user ID.
+    \item \textbf{Filtering and Faceting}: By tags, module, document type, year, semester.
+    \item \textbf{ACID Compliance}: For critical workflows.
+    \item \textbf{Schema Migrations}: Version-controlled changes.
+\end{itemize}
+
+\subsection{External Services}
+
+\begin{itemize}
+    \item \textbf{OpenAI API}: Embeddings (text-embedding-3-small, 1536 dims) and chat completion.
+    \item \textbf{S3-Compatible Storage}: For notes, PDFs, exports.
+    \item \textbf{PostgreSQL}: Relational and vector database.
+    \item \textbf{Canvas LMS API}: OAuth and assignment sync (read-only).
+    \item \textbf{AWS SES}: Transactional emails.
+    \item \textbf{JWT}: Session authentication (no external SSO required).
 \end{itemize}
 
 %==============================================================================
-\section{API Endpoints}
-%==============================================================================
-
-\subsection{Authentication}
-
-\begin{itemize}
-    \item \texttt{POST /api/auth/register}
-    \item \texttt{POST /api/auth/login}
-    \item \texttt{POST /api/auth/logout}
-    \item \texttt{POST /api/auth/forgot-password}
-    \item \texttt{POST /api/auth/reset-password}
-\end{itemize}
-
-\subsection{Notes \& Files}
-
-\begin{itemize}
-    \item \texttt{GET /api/notes} --- List user's notes
-    \item \texttt{POST /api/notes} --- Create note
-    \item \texttt{GET /api/notes/:id} --- Get note
-    \item \texttt{PATCH /api/notes/:id} --- Update note
-    \item \texttt{DELETE /api/notes/:id} --- Delete note
-    \item \texttt{POST /api/upload} --- Upload PDF/file
-    \item \texttt{GET /api/tree} --- Get folder hierarchy
-\end{itemize}
-
-\subsection{Search}
-
-\begin{itemize}
-    \item \texttt{GET /api/search?q=QUERY\&type=fuzzy|semantic}
-    \item \texttt{POST /api/notes/:id/embed} --- Generate embedding
-\end{itemize}
-
-\subsection{RAG}
-
-\begin{itemize}
-    \item \texttt{POST /api/rag/chat} --- Submit question, get answer
-    \item \texttt{GET /api/rag/search} --- Semantic search for context
-\end{itemize}
-
-%==============================================================================
-\section{Data \& Compliance}
+\section{Data and Legal Requirements}
 %==============================================================================
 
 \subsection{Data Handling}
 
 \begin{itemize}
-    \item Encryption in transit (TLS 1.2+)
-    \item Encryption at rest (S3 managed, RDS encryption)
-    \item JWT tokens in httpOnly cookies
-    \item Token expiry enforced
-    \item Vault export available (full portability)
-    \item Soft-delete before hard-delete (Nice to Have)
+    \item Data at rest encrypted (S3 server-side, PostgreSQL encryption).
+    \item Data in transit encrypted (TLS 1.2+).
+    \item User data retained until account deletion; 7-day soft-delete before hard delete.
+    \item Users can export all notes and metadata.
+    \item Account deletion removes notes, embeddings, quiz history within 7 days.
+    \item Password reset and email tokens hashed before storage.
 \end{itemize}
 
-\subsection{Licensing}
-
-Built on Notea (MIT license). Credited in docs and UI.
-
-\subsection{Logging}
+\subsection{Compliance}
 
 \begin{itemize}
-    \item API access logs (AWS CloudWatch)
-    \item Authentication events (login, password reset, email verify)
-    \item 90+ day retention
+    \item \textbf{GDPR}: Data subject rights (access, deletion, portability) within project scope.
+    \item \textbf{Notea Attribution}: MIT License compliance in documentation and UI.
+    \item \textbf{Copyright}: Users responsible for uploaded content; system tracks attribution for shares.
+\end{itemize}
+
+\subsection{Audit and Logging}
+
+\begin{itemize}
+    \item API access logs: Timestamp, user ID, endpoint, status code.
+    \item Document upload logs: File size, hash, user, timestamp.
+    \item Authentication events: Login, logout, password reset, email verify.
+    \item Deletion logs: Timestamp, user, content hash for recovery.
+    \item Retention: 90+ days.
 \end{itemize}
 
 %==============================================================================
-\section{Testing \& Acceptance}
+\section{Verification and Acceptance}
 %==============================================================================
 
 \subsection{Testing Strategy}
 
 \begin{itemize}
-    \item Unit tests: core logic; 70\%+ coverage
-    \item Integration tests: API endpoints with test database
-    \item E2E tests: critical flows
-    \item Manual QA: realistic usage scenarios
-    \item Performance testing: vector search at scale
+    \item \textbf{Unit Tests}: Core logic with 70\%+ coverage.
+    \item \textbf{Integration Tests}: API endpoints with test database.
+    \item \textbf{E2E Tests}: Critical user flows.
+    \item \textbf{Manual QA}: Realistic usage scenarios.
+    \item \textbf{Performance}: Lighthouse audits for frontend.
 \end{itemize}
 
-\subsection{MVP Acceptance Criteria}
+\subsection{Acceptance Criteria}
 
-The system ships when:
+System is acceptable when:
 
 \begin{enumerate}
-    \item Auth system working (register, login, password reset)
-    \item Notes: create, edit, organize, sync
-    \item PDFs: upload, annotate, extract text
-    \item Search: fuzzy + semantic, Cmd+K UI working
-    \item RAG: chat interface with citations
-    \item 70\%+ code coverage on core logic
-    \item Docker setup works from scratch
-    \item AWS Amplify auto-deploy functional
-    \item Stakeholder approval
+    \item All Must Have requirements are implemented and verified.
+    \item Non-functional requirements met for representative workloads.
+    \item \texttt{docker compose up} works from scratch.
+    \item E2E workflow: register $\to$ verify $\to$ upload PDF $\to$ ask RAG question $\to$ generate quiz $\to$ review flashcard.
+    \item AWS Amplify auto-deploy from production branch works.
+    \item Code coverage $\geq 70\%$ for core logic.
+    \item Academic stakeholder approval.
 \end{enumerate}
 
+\subsection{Deployment}
+
+\begin{itemize}
+    \item \textbf{Local}: \texttt{docker compose up} starts all services.
+    \item \textbf{CI}: Automated tests, linting, OpenAPI validation on push.
+    \item \textbf{Production}: AWS Amplify auto-deploys from production branch.
+    \item \textbf{Branch Strategy}: Feature branches $\to$ dev (review) $\to$ production (auto-deploy).
+\end{itemize}
+
 %==============================================================================
-\section{About the Name}
+\section*{Appendix A: Glossary}
 %==============================================================================
 
-Oghma is the Celtic deity of eloquence, learning, and writing. He invented Ogham, the ancient Irish alphabet, to preserve and share knowledge. We're doing the same: making it easy to organize and learn from your notes.
+\begin{itemize}
+    \item \textbf{RAG}: Retrieval-Augmented Generation. Vector embeddings retrieve relevant text chunks; LLM generates grounded, cited answers.
+    \item \textbf{PWA}: Progressive Web App. Installable web app with offline support.
+    \item \textbf{SM-2}: SuperMemo 2 spaced repetition algorithm.
+    \item \textbf{JWT}: JSON Web Token for secure authentication.
+    \item \textbf{Vector Embedding}: Numerical representation (1536-dim) for semantic similarity search.
+    \item \textbf{Chunking}: Splitting documents into segments (500 tokens, 50--100 overlap) for embedding.
+    \item \textbf{pgvector}: PostgreSQL extension for vector similarity search.
+    \item \textbf{FULLTEXT}: PostgreSQL full-text search for keyword matching.
+    \item \textbf{Bidirectional Links}: Wiki-style connections between notes.
+    \item \textbf{AWS SES}: Simple Email Service for transactional emails.
+\end{itemize}
 
-\vspace{1cm}
+%==============================================================================
+\section*{Appendix B: Use Cases}
+%==============================================================================
 
-\noindent
-\textit{Version 2.1. Updated as requirements evolve.}
+\subsection*{Use Case 1: First-Time User Onboarding}
+
+\textbf{Actor}: New student user
+
+\textbf{Flow}:
+\begin{enumerate}
+    \item User navigates and clicks ``Sign Up''.
+    \item Enters email, password, university, degree, graduation year.
+    \item System sends verification email.
+    \item User verifies email and gains full access.
+    \item User uploads a lecture PDF.
+    \item System extracts text, creates 500-token chunks, generates embeddings, stores in PostgreSQL.
+    \item User asks: ``What are the key topics in this lecture?''
+    \item System performs hybrid search, retrieves chunks, sends to LLM with context.
+    \item LLM streams response with citations to page numbers.
+\end{enumerate}
+
+\subsection*{Use Case 2: Password Reset}
+
+\textbf{Actor}: User who forgot password
+
+\textbf{Flow}:
+\begin{enumerate}
+    \item User clicks ``Forgot Password?''
+    \item Enters email; system sends reset link (1h token).
+    \item User clicks link and enters new password.
+    \item System updates hash and invalidates token.
+    \item User logs in with new password.
+\end{enumerate}
+
+\subsection*{Use Case 3: Daily Review Routine}
+
+\textbf{Actor}: Returning student
+
+\textbf{Flow}:
+\begin{enumerate}
+    \item User opens app; dashboard shows ``Due Today: 12 flashcards, 1 quiz.''
+    \item User reviews flashcards, rating each 1--5.
+    \item System updates SM-2 intervals.
+    \item User takes generated quiz and views score.
+    \item System updates analytics dashboard.
+\end{enumerate}
+
+\subsection*{Use Case 4: LMS Sync and Manual Refresh}
+
+\textbf{Actor}: Student with Canvas account
+
+\textbf{Flow}:
+\begin{enumerate}
+    \item System auto-syncs Canvas assignments daily.
+    \item User opens calendar and sees LMS assignments.
+    \item New assignment posted; user clicks ``Sync Now''.
+    \item System triggers on-demand sync.
+    \item Calendar updates with new assignment or shows error message.
+\end{enumerate}
+
+\subsection*{Use Case 5: Building Knowledge Graph}
+
+\textbf{Actor}: Student organizing materials
+
+\textbf{Flow}:
+\begin{enumerate}
+    \item User creates note on "Binary Search Trees"; adds tags: "algorithms", "exam-prep".
+    \item User links to another note: \texttt{[[Sorting Algorithms]]}.
+    \item System creates bidirectional link.
+    \item User clicks ``View Graph'' to see visualization.
+    \item User navigates through connected notes.
+\end{enumerate}
 
 \end{document}
