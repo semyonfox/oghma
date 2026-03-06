@@ -1,28 +1,55 @@
 version: '3.9'
 
 services:
-  # Next.js application
+  # PostgreSQL database with pgvector extension for vector embeddings
+  db:
+    image: ankane/pgvector:latest
+    container_name: oghmanotes-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oghmanotes
+      POSTGRES_PASSWORD: dev-password-change-in-prod
+      POSTGRES_DB: oghmanotes
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - oghmanotes-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oghmanotes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js application (frontend + API)
   web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: your-app-web
+    container_name: oghmanotes-web
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
+      - DATABASE_URL=postgresql://oghmanotes:dev-password-change-in-prod@db:5432/oghmanotes
     env_file:
-      - stack.env
-      # - .env.production Uncomment this line to use production environment variables
+      - .env.local
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
-      your-network:
-        ipv4_address: your-internal-ip
-    # NOTE: Database migrated from PostgreSQL to MariaDB
-    # Update stack.env with MariaDB connection string:
-    # DATABASE_URL=mysql://your-db-user:password@your-db-host:3306/your-db-name
+      - oghmanotes-network
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
 
 networks:
-  your-network:
-    external: true
+  oghmanotes-network:
+    driver: bridge
