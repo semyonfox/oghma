@@ -11,11 +11,11 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes -- SRS v2.0}
+\lhead{OghmaNotes -- What We're Building}
 
-\title{Software Requirements Specification \\
-\Large OghmaNotes: RAG-Powered Learning Platform \\
-\small Version 2.0 (Updated 2025-03-06)}
+\title{OghmaNotes \\
+\Large What We're Building, How It Works \\
+\small v2.1 -- Living Document}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
 \date{\today}
 
@@ -35,70 +35,68 @@
 \section{Introduction}
 %==============================================================================
 
-\subsection{Purpose}
+\subsection{What is This?}
 
-This Software Requirements Specification (SRS) defines the functional and non-functional requirements for \textbf{OghmaNotes}, an AI-powered study platform combining portable Markdown notes with Retrieval-Augmented Generation (RAG) to provide intelligent learning from course materials.
+OghmaNotes is a web app for students. You write notes, upload PDFs, search them with AI, and ask questions to get answers backed by your own materials.
 
-This is the \emph{third iteration} of the SRS, reflecting lessons learned as the tech stack evolved to better suit the team's expertise and project goals. Rather than adhering rigidly to the original spec, we've embraced an Agile approach: document what we know, adapt when reality dictates, and deliver value within the semester deadline.
+This document describes what we're building and how. It changes as we learn things. If something here doesn't make sense or changes, we update it.
 
-\textit{Intended Audience:} Development team (3 engineers), academic stakeholders, future maintainers, and QA.
+\textit{For:} The dev team, supervisors, anyone maintaining this later.
 
-\subsection{Document Status}
+\subsection{Status}
 
+\textbf{Version 2.1} (March 6, 2025) --- Living document. Core + search in Phase 1, RAG coming Phase 2.
+
+\subsection{What This Is}
+
+OghmaNotes is a web-based learning platform for students to organize notes, upload PDFs, search intelligently, and get AI-powered answers backed by their own materials.
+
+\textbf{Working now:}
 \begin{itemize}
-    \item \textbf{Version:} 2.0 (Living Document -- Updated as tech stack evolves)
-    \item \textbf{Last Updated:} 2025-03-06
-    \item \textbf{Current Phase:} Core infrastructure complete; RAG pipeline implementation in progress
-    \item \textbf{Revision History:} See Appendix C
+    \item Create and manage Markdown notes with offline support
+    \item Upload and annotate PDFs
 \end{itemize}
 
-\subsection{Scope \& Objectives}
-
-OghmaNotes is a \textbf{web-based learning platform} allowing students to:
+\textbf{Building soon:}
 \begin{itemize}
-    \item ✅ Create and manage Markdown notes with offline support (PWA)
-    \item ✅ Upload and annotate PDFs
-    \item 🔄 Ask questions via RAG chat with citations (in progress)
-    \item 🔄 Index PDFs for semantic retrieval (in progress)
-    \item ⏳ Generate adaptive quizzes
-    \item ⏳ Use spaced-repetition flashcards
-    \item ⏳ Track progress with analytics
-    \item ⏳ Integrate with Canvas LMS for deadlines
+    \item Ask questions and get answers with citations from your notes
+    \item Smart search (fuzzy + semantic)
+    \item Generate quizzes and flashcards
+    \item Track learning progress
+    \item Connect to Canvas LMS
 \end{itemize}
 
-\subsubsection{MVP (Must Have)}
+\subsubsection{By Semester End (MVP)}
 \begin{itemize}
-    \item Web-based Markdown editor with offline support (PWA)
-    \item PDF ingestion, annotation, and semantic search
-    \item User authentication (email/password with JWT)
-    \item Note organization (folder hierarchy)
-    \item RAG chat with cited answers
-    \item Multi-mode search (keyword + semantic)
-    \item Responsive design (desktop \& tablet)
+    \item Notes: create, edit, organize in folders, sync offline
+    \item PDFs: upload, annotate, extract text
+    \item Search: fast fuzzy + semantic with keyboard shortcut
+    \item RAG: ask questions, get answers with citations
+    \item Auth: email/password login
+    \item Deploy: works on desktop, tablet, browsers
 \end{itemize}
 
-\subsubsection{Out of Scope (MVP)}
+\subsubsection{Not Included}
 \begin{itemize}
-    \item Light mode / full WCAG AA compliance (dark mode only)
-    \item Real-time multi-user editing
-    \item Native mobile apps (PWA only)
+    \item Light mode (dark only for now)
+    \item Real-time collab editing
+    \item Native mobile apps (web is enough)
     \item Instructor dashboards
     \item Video/audio transcription
 \end{itemize}
 
-\subsubsection{Key Objectives}
+\subsubsection{Goals}
 \begin{enumerate}
-    \item Deliver functional MVP by semester end (6 weeks total)
-    \item Enable 3-person parallel development via clear API boundaries
-    \item Deploy automatically from \texttt{prod} branch via AWS Amplify
-    \item Keep development within free tier + modest budget
+    \item Finish MVP in 6 weeks (semester deadline)
+    \item 3 people working in parallel without stepping on each other
+    \item Auto-deploy from \texttt{prod} branch
+    \item Stay within budget (AWS free tier + modest spend)
 \end{enumerate}
 
 %==============================================================================
-\section{Tech Stack (Actual Implementation)}
-%==============================================================================
+\section{What We're Using}
 
-This section documents \emph{what we're actually using}, not what the original spec imagined. Stack choices were driven by team expertise, real-world viability, and pragmatism.
+Pragmatic choices based on team expertise and what actually works.
 
 \subsection{Frontend}
 \begin{itemize}
@@ -163,379 +161,198 @@ This section documents \emph{what we're actually using}, not what the original s
 \end{itemize}
 
 %==============================================================================
-\section{Deviations from Original SRS}
-%==============================================================================
+\section{Changes from Original Plan}
 
-The original SRS (Version 1.0) specified MariaDB and microservices. We've adapted based on team strengths and project reality. This is \textbf{not a failure to spec}---it's Agile: respond to change while staying aligned with goals.
+We changed a few things from the original spec. This isn't a failure---just responding to reality and team strengths.
 
-\subsection{Database: MariaDB \textrightarrow\ PostgreSQL + pgvector}
+\subsection*{Database: MariaDB → PostgreSQL + pgvector}
+\textbf{Reason:} Team knows PostgreSQL. Both work for vector search, so no real loss.
 
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Original} & MariaDB (native vector columns) \\
-\textbf{Actual} & PostgreSQL 12+ + pgvector extension \\
-\textbf{Why Change} & Team expertise in PostgreSQL; pgvector is viable and well-maintained \\
-\textbf{Impact} & Zero---both support vector search; queries slightly different syntax \\
-\bottomrule
-\end{tabular}
+\subsection*{Architecture: Microservices → Single Next.js App}
+\textbf{Reason:} Faster to build, easier to deploy. We don't need the complexity for a semester project.
 
-\subsection{Architecture: Microservices \textrightarrow\ Next.js Monolith}
+\subsection*{Background Jobs: Redis → Add Later}
+\textbf{Reason:} Long-running PDF processing can be synchronous for now. Add async in Phase 2 if needed.
 
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Original} & 3 services (frontend, API, RAG pipeline) + workers \\
-\textbf{Actual} & Single Next.js app (frontend + API routes) \\
-\textbf{Why Change} & Faster iteration for MVP; cleaner deployment \\
-\textbf{Trade-off} & Less independent scaling; acceptable for semester project \\
-\bottomrule
-\end{tabular}
-
-\subsection{Background Jobs: BullMQ + Redis \textrightarrow\ TBD}
-
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Original} & BullMQ + Redis (required for async) \\
-\textbf{Actual} & Not yet implemented; deferred to Phase 2 \\
-\textbf{Why Defer} & Long-running tasks (PDF indexing) can start as synchronous; add async later \\
-\textbf{Impact} & May slow down large PDF indexing; acceptable trade-off \\
-\bottomrule
-\end{tabular}
-
-\subsection{LLM Key Management: Backend-Managed \textrightarrow\ User-Managed}
-
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Original} & Backend stores and manages API keys \\
-\textbf{Actual} & Users provide own keys (frontend only); backend never sees them \\
-\textbf{Why Better} & Eliminates secret management; supports any provider; better privacy \\
-\textbf{Impact} & Users pay their own providers (transparent cost model) \\
-\bottomrule
-\end{tabular}
+\subsection*{LLM Keys: Backend-Managed → User-Managed}
+\textbf{Reason:} Users provide their own API keys. We never see them, they pay directly. Simpler for us, more control for them.
 
 %==============================================================================
-\section{Functional Requirements}
-%==============================================================================
-
-Requirements organized by priority tier and status.
-
-\subsection{Tier Definitions}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Tier} & \textbf{Definition} & \textbf{MVP?} \\
-\midrule
-\textbf{Must Have} & Core functionality for MVP & Yes \\
-\textbf{Should Have} & Important features if time permits & Maybe \\
-\textbf{Nice to Have} & Polish and future work & No \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Authentication \& User Management (Must Have)}
-
-\textbf{Status:} ✅ Complete
+\section{What We're Building}
 
 \begin{itemize}
-    \item ✅ Register with email/password
-    \item ✅ Send verification email (AWS SES)
-    \item ✅ Require email verification (soft enforcement)
-    \item ✅ Issue JWT tokens (24h expiry)
-    \item ✅ Login with clear error messages
-    \item ✅ Password reset with email link (1h token)
-    \item ✅ Logout / session invalidation
-    \item ✅ Bcrypt hashing (10+ salt rounds)
+    \item \textbf{Must Have:} Core stuff for MVP
+    \item \textbf{Should Have:} Nice to have if time permits
+    \item \textbf{Nice to Have:} Can wait until next semester
 \end{itemize}
 
-\subsection{Note Management (Must Have)}
-
-\textbf{Status:} ✅ Core complete; enhancements pending
+\subsection{Authentication}
+\textbf{Status:} Done
 
 \begin{itemize}
-    \item ✅ Create, edit notes in Markdown
-    \item ✅ Auto-save to IndexedDB (every 5s)
-    \item ✅ Folder hierarchy organization
-    \item ✅ Sync to S3 when online
-    \item ⏳ Bidirectional links (wiki-style)
-    \item ⏳ Tag-based organization
-    \item ⏳ Full-text search (keyword)
+    \item Register with email/password
+    \item Email verification
+    \item JWT tokens (24h expiry)
+    \item Password reset with email link
+    \item Bcrypt hashing (10+ rounds)
 \end{itemize}
 
-\subsection{PDF \& Document Management (Must Have)}
-
-\textbf{Status:} ⚠️ Partial (upload + annotations ✅; indexing in progress)
+\subsection{Notes}
+\textbf{Status:} Core done; extras coming
 
 \begin{itemize}
-    \item ✅ Upload PDFs up to 50MB
-    \item ✅ PDF annotations (highlighting, notes)
-    \item ⏳ Text extraction (pdf-parse)
-    \item ❌ Semantic chunking (500 tokens, 50-100 overlap)
-    \item ❌ Generate embeddings (OpenAI)
-    \item ❌ Async job processing
-    \item ⏳ OCR for scanned PDFs (future)
+    \item Create, edit, organize in folders (done)
+    \item Auto-save locally, sync when online (done)
+    \item Bidirectional links, tags (coming)
+    \item Full-text search (Phase 1)
 \end{itemize}
 
-\subsection{RAG Chat with Citations (Must Have --- CRITICAL)}
-
-\textbf{Status:} 🔄 In progress (RAG pipeline commit expected 2025-03-06)
+\subsection{PDFs}
+\textbf{Status:} Upload and annotate done; search coming
 
 \begin{itemize}
-    \item ❌ Chat interface for questions
-    \item ❌ Hybrid search (keyword + semantic)
-    \item ❌ Retrieve relevant chunks
-    \item ❌ Send context to LLM with user's key
-    \item ❌ Generate answers with citations
-    \item ❌ Stream responses token-by-token
-    \item ❌ Rating feedback (thumbs up/down)
+    \item Upload, highlight, annotate (done)
+    \item Extract text for search (Phase 1)
+    \item Generate embeddings (Phase 2)
+    \item OCR for scanned PDFs (later)
 \end{itemize}
 
-\textbf{Blocker for MVP:} This is the core value proposition. Highest priority for Phase 2.
-
-\subsection{Quiz Generation (Should Have)}
-
-\textbf{Status:} ❌ Not started; Phase 3
+\subsection{RAG Chat}
+\textbf{Status:} In progress (Phase 2)
 
 \begin{itemize}
-    \item Generate 5-10 questions from notes/PDFs
-    \item Multiple-choice, short-answer, T/F types
-    \item Optional timed mode
-    \item Display score + explanations
-    \item Track weak topics
+    \item Chat interface with your notes as context
+    \item Answers with citations (links back to sources)
+    \item Stream responses as they come in
+    \item Feedback to help improve answers
 \end{itemize}
 
-\subsection{Spaced Repetition Flashcards (Should Have)}
+\textit{This is the main thing. Everything else supports this.}
 
-\textbf{Status:} ❌ Not started; Phase 3
+\subsection{Quizzes (Phase 3)}
+Generate questions from your notes. Multiple choice, short answer. See if you really learned it.
+
+\subsection{Flashcards (Phase 3)}
+SM-2 spaced repetition. Review what you're forgetting, skip what you know. Works offline.
+
+\subsection{Offline (Must Have)}
+\textbf{Status:} Partial (works as PWA; sync queue coming)
 
 \begin{itemize}
-    \item Create decks from notes
-    \item Display daily review queue
-    \item Rate recall (1-5 scale)
-    \item Update SM-2 intervals
-    \item Persist state across devices
+    \item Install as web app
+    \item Edit notes offline
+    \item Auto-sync when back online
 \end{itemize}
 
-\subsection{Offline Support (Must Have)}
+\subsection{Canvas Integration (Phase 3)}
+Pull in your assignments and deadlines so they show up in OghmaNotes.
 
-\textbf{Status:} ⚠️ Partial (PWA framework ready; sync queue TBD)
+\subsection{Search (Phase 1)}
 
+\textbf{What:} Fast search using both keyword matching and meaning (semantic).
+
+\textbf{How:}
 \begin{itemize}
-    \item ✅ Installable as PWA
-    \item ⚠️ Full note editing offline
-    \item ⏳ Queue changes for sync
-    \item ⏳ Auto-sync on reconnect (<30s)
-    \item ⏳ Conflict resolution (last-write-wins)
+    \item Fuzzy search handles typos and close matches
+    \item Semantic search understands meaning using vectors
+    \item Cmd+K keyboard shortcut (power user friendly)
+    \item Sort results by relevance or date
 \end{itemize}
 
-\subsection{LMS Integration (Should Have)}
+\textit{Full details in \texttt{SEARCH\_ARCHITECTURE\_PLAN.md}}
 
-\textbf{Status:} ❌ Not started; Phase 3
-
-\begin{itemize}
-    \item OAuth connection to Canvas
-    \item Import assignments + due dates
-    \item Display in calendar
-    \item Auto-schedule study sessions
-    \item Daily sync + manual refresh
-\end{itemize}
-
-\subsection{Search (Must Have) --- Fuzzy + Semantic}
-
-\textbf{Status:} 🔄 Architecture planned (feature/search branch); implementation beginning Phase 1
-
-\textbf{Design:} Multi-layered search combining fuzzy full-text search + semantic vector search with tree sort capabilities. Keyboard-first UI (Cmd+K overlay).
-
-\begin{itemize}
-    \item ✅ Planned: Fuzzy full-text search (PostgreSQL FTS with typo tolerance)
-    \item ✅ Planned: Semantic search via vector embeddings (pgvector ivfflat index)
-    \item ✅ Planned: Search by filename + extracted text
-    \item ✅ Planned: Relevance scoring for both search types
-    \item ✅ Planned: Cmd+K overlay UI (keyboard-first, power-user friendly)
-    \item ✅ Planned: Pagination (offset-limit, 20 results per page)
-    \item ✅ Planned: Tree sorting (alphabetical, recent)
-    \item ⏳ Future: Date range filtering, saved filters (MVP 2)
-    \item ⏳ Future: Full-text highlighting in results (MVP 3)
-\end{itemize}
-
-\textbf{Database Schema:} New columns on \texttt{app.notes}: \texttt{extracted\_text}, \texttt{embedding} (vector 1536), \texttt{relative\_path}, \texttt{search\_vector}. Indexes: GIN (full-text), ivfflat (semantic), compound (user+date).
-
-\textbf{See:} \texttt{SEARCH\_ARCHITECTURE\_PLAN.md} for full implementation details, API endpoints, and scalability analysis.
-
-\subsection{Other Features}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Feature} & \textbf{Tier} & \textbf{Status} \\
-\midrule
-Calendar/Timetable & Should & ❌ Phase 3 \\
-Analytics Dashboard & Should & ❌ Phase 3 \\
-Vault Export (ZIP) & Should & ⏳ Phase 2 \\
-Command Palette (Cmd+K Search) & Must & ✅ Phase 1 (part of search) \\
-Study Group Sharing & Nice & ❌ Deferred \\
-i18n Support & Nice & ⏳ Framework ready \\
-Note Export (PDF/CSV) & Nice & ⏳ Phase 3 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{Other Stuff}
+Calendar/timetable (Phase 3), analytics dashboard (Phase 3), export notes (Phase 3), note sharing (later), translations (framework ready).
 
 %==============================================================================
-\section{Non-Functional Requirements}
-%==============================================================================
+\section{Performance Targets}
 
-\subsection{Performance}
+\textit{Things should be fast. Aiming for sub-second searches, sub-3s RAG responses, < 1s page loads.}
 
-\begin{longtable}{@{}lll@{}}
-\toprule
-\textbf{Requirement} & \textbf{Target} & \textbf{Status} \\
-\midrule
-\endhead
-RAG end-to-end response & $\leq 3$s & ⏳ TBD (Phase 2) \\
-PDF indexing (50MB) & $\leq 2$min & ⏳ TBD \\
-Keyword search & $\leq 5$ms & ⏳ TBD \\
-Semantic search & $\leq 50$ms & ⏳ TBD \\
-Hybrid search & $\leq 100$ms & ⏳ TBD \\
-Note sync (500KB) & $\leq 2$s & ✅ ~500ms observed \\
-Frontend cold load & $\leq 4$s & ✅ ~2.5s observed \\
-Frontend cached load & $\leq 2$s & ✅ ~1s observed \\
-\bottomrule
-\end{longtable}
+\textbf{Status:} Page loads hit targets. Search targets TBD in Phase 1.
 
 \subsection{Security}
 
 \begin{itemize}
-    \item ✅ JWT required on protected endpoints
-    \item ✅ Bcrypt hashing (10+ rounds)
-    \item ✅ TLS 1.2+ (HTTPS only)
-    \item ✅ CORS policy enforced
-    \item ⏳ Rate limiting (deferred, not critical for MVP)
-    \item ✅ Credentials in environment variables only
-    \item ✅ S3 presigned URLs (1h expiry)
-    \item ✅ User-scoped database queries
-    \item ✅ Password reset tokens (1h, single-use)
-    \item ✅ Email verification tokens (24h)
+    \item Passwords hashed (bcrypt, 10+ rounds)
+    \item HTTPS only
+    \item JWT tokens + session management
+    \item User data isolated (can only see own notes)
+    \item API keys in environment variables
+    \item S3 file URLs expire (1h)
 \end{itemize}
 
-\subsection{Reliability \& Availability}
+\subsection{Reliability}
 
 \begin{itemize}
-    \item ✅ 99\% availability (AWS Amplify SLA)
-    \item ✅ Automated database backups (RDS)
-    \item ⏳ Job retry logic (when jobs implemented)
-    \item ⚠️ Graceful degradation (basic; can improve)
-    \item ✅ Session persistence across restarts
-    \item ⏳ PWA reconnection (<30s)
+    \item 99\% uptime (AWS Amplify)
+    \item Automatic database backups
+    \item Session recovery if you reload
+    \item Offline notes sync when back online
 \end{itemize}
 
 \subsection{Usability}
 
 \begin{itemize}
-    \item ✅ Modern design (Tailwind CSS 4)
-    \item ✅ Dark mode only (MVP)
-    \item ⚠️ Keyboard navigation (basic; can improve)
-    \item ✅ Responsive (desktop + tablet)
-    \item ✅ Actionable error messages
-    \item ⚠️ Real-time form validation (password strength; can expand)
-    \item ✅ <5min onboarding for core features
+    \item Dark mode, clean design
+    \item Works on desktop, tablet, phone
+    \item Keyboard shortcuts (Cmd+K, etc)
+    \item Clear error messages
+    \item Fast to learn (< 5 min for basics)
 \end{itemize}
 
 \subsection{Maintainability}
 
 \begin{itemize}
-    \item ✅ ESLint + Prettier enforced
-    \item ⏳ OpenAPI 3.1 spec (can add; API simple enough without)
-    \item ⚠️ SQL migrations (manual; can automate)
-    \item ⏳ Structured logging (Amplify CloudWatch available)
-    \item ✅ README with setup + deployment
-    \item ⏳ Dependency scanning (can enable)
+    \item Code linting and formatting (ESLint, Prettier)
+    \item Clear README and setup docs
+    \item SQL migrations tracked
+    \item API docs in code comments
 \end{itemize}
 
 %==============================================================================
-\section{External Interfaces}
-%==============================================================================
+\section{How It's Built}
 
-\subsection{Database Interface}
+\subsection{Database}
 
-\begin{itemize}
-    \item \textbf{Primary Storage:} PostgreSQL (auth, notes, metadata, vectors)
-    \item \textbf{Secondary Storage:} AWS S3 (PDFs, Markdown files, exports)
-    \item \textbf{Vector Search:} pgvector HNSW indexes
-    \item \textbf{Full-Text Search:} PostgreSQL FULLTEXT (to implement)
-\end{itemize}
+PostgreSQL holds: users, notes, folders, PDFs. AWS S3 holds: uploaded files.
 
-Key tables:
-\begin{itemize}
-    \item \texttt{app.login} --- User accounts
-    \item \texttt{app.notes} --- Note documents + search/embedding columns (extracted\_text, embedding, search\_vector, relative\_path)
-    \item \texttt{app.tree\_items} --- Folder hierarchy (with sort metadata)
-    \item \texttt{app.attachments} --- PDFs and files
-    \item \texttt{app.pdf\_annotations} --- Highlights and notes on PDFs
-    \item (Phase 2) \texttt{app.quiz\_questions}, \texttt{app.flashcards} --- Learning data
-\end{itemize}
+\textbf{Key tables:} users, notes, folders, attachments, annotations, (later) quizzes, flashcards.
 
-\textbf{Indexes (Phase 1):} GIN index on search\_vector (full-text), ivfflat on embedding (semantic), compound indexes on user\_id+created\_at and user\_id+updated\_at for sorting/filtering.
+\textbf{Search optimization:} Indexes on text content and vector embeddings for fast lookups.
 
 \subsection{API Endpoints}
 
-\textbf{Authentication}
-\begin{itemize}
-    \item \texttt{POST /api/auth/register}, \texttt{/login}, \texttt{/logout}, \texttt{/forgot-password}, \texttt{/reset-password}
-    \item All endpoints handle JWT tokens and session management
-\end{itemize}
+\textbf{Auth:} \texttt{/api/auth/register}, \texttt{/login}, \texttt{/logout}, \texttt{/forgot-password}
 
-\textbf{Notes \& Files}
-\begin{itemize}
-    \item \texttt{GET /api/notes} --- List user's notes
-    \item \texttt{POST /api/notes} --- Create note
-    \item \texttt{GET /api/notes/:id}, \texttt{PATCH /api/notes/:id}, \texttt{DELETE /api/notes/:id}
-    \item \texttt{POST /api/upload} --- Upload PDF or file
-    \item \texttt{GET /api/tree?sort=alphabetical|recent} --- Get folder hierarchy with sorting
-\end{itemize}
+\textbf{Notes:} \texttt{GET /api/notes}, \texttt{POST /api/notes}, \texttt{GET/PATCH/DELETE /api/notes/:id}
 
-\textbf{Search (Phase 1)}
-\begin{itemize}
-    \item \texttt{GET /api/search?q=query\&type=fuzzy|semantic\&limit=20\&offset=0} --- Search by filename + content
-    \item \texttt{POST /api/notes/:id/embed} --- Generate embedding for semantic search (internal/async)
-    \item Returns: filename, relative path, excerpt, relevance score, creation/update dates
-\end{itemize}
+\textbf{Files:} \texttt{POST /api/upload}, \texttt{GET /api/tree?sort=...}
 
-\textbf{RAG \& AI (Phase 2)}
-\begin{itemize}
-    \item \texttt{POST /api/rag/chat} --- Submit question, get answer with citations
-    \item \texttt{GET /api/rag/search} --- Semantic search for RAG context
-    \item \texttt{POST /api/notes/:id/index} --- Index PDF for RAG (background job)
-\end{itemize}
+\textbf{Search (Phase 1):} \texttt{GET /api/search?q=...}, \texttt{POST /api/notes/:id/embed}
 
-\textit{See \texttt{SEARCH\_ARCHITECTURE\_PLAN.md} for full endpoint documentation with request/response examples.}
+\textbf{RAG (Phase 2):} \texttt{POST /api/rag/chat}, \texttt{GET /api/rag/search}
 
-Full spec to come (or auto-generate from OpenAPI annotations).
+\textit{Details in SEARCH\_ARCHITECTURE\_PLAN.md}
 
-\subsection{External Services}
+\subsection{Services Used}
 
-\begin{itemize}
-    \item \textbf{AWS S3:} File storage (PDFs, notes, exports)
-    \item \textbf{AWS SES:} Transactional email (verification, reset)
-    \item \textbf{AWS Amplify:} Deployment (auto-deploy from \texttt{prod} branch)
-    \item \textbf{AWS RDS:} PostgreSQL database (managed backups)
-    \item \textbf{OpenAI/Other LLMs:} User-supplied keys (not backend-managed)
-\end{itemize}
+AWS S3 (files), AWS SES (email), AWS Amplify (deploy), AWS RDS (database), LLMs (your own keys).
 
 %==============================================================================
-\section{Data \& Compliance}
-%==============================================================================
+\section{Data}
 
-\subsection{Data Handling}
+\subsection{Privacy}
 
-\begin{itemize}
-    \item ✅ Encryption in transit (TLS 1.2+)
-    \item ✅ Encryption at rest (S3 managed keys, RDS encryption)
-    \item ⏳ 7-day soft-delete before hard-delete
-    \item ✅ JWT tokens in \texttt{httpOnly} cookies
-    \item ✅ Token expiry enforced (pwd reset: 1h; email verify: 24h)
-    \item ✅ Vault export available (full data portability)
-\end{itemize}
+Encryption in transit (HTTPS) and at rest. Tokens expire. You can export your data anytime.
+
+\subsection{Licensing}
+
+Built on Notea (MIT licensed). We credit them in docs and UI.
+
+\subsection{Logging}
+
+API access and auth events logged for 90+ days (AWS CloudWatch). Document upload and deletion logging (with recovery) come later.
 
 \subsection{Compliance}
 
@@ -556,148 +373,79 @@ Full spec to come (or auto-generate from OpenAPI annotations).
 \end{itemize}
 
 %==============================================================================
-\section{Verification \& Acceptance}
-%==============================================================================
+\section{Testing \& Done}
 
-\subsection{Testing Strategy}
+\subsection{How We Test}
+
+Unit tests for core logic, integration tests for APIs, E2E tests for main flows (login → upload → search). Manual QA with realistic scenarios.
+
+\subsection{MVP is Done When}
 
 \begin{itemize}
-    \item \textbf{Unit Tests:} Core logic (auth, SM-2, chunking); 70\%+ coverage
-    \item \textbf{Integration Tests:} API endpoints with test DB
-    \item \textbf{E2E Tests:} Critical flows (register → verify → upload → ask question)
-    \item \textbf{Manual QA:} 3-5 test accounts, realistic usage
-    \item \textbf{Performance:} Lighthouse audits (informative, not blocking)
-    \item \textbf{Load Testing:} Vector search performance at scale (TBD)
+    \item Auth, notes, PDFs all working
+    \item RAG chat working (answers with citations)
+    \item Search working (fuzzy + semantic)
+    \item Code has 70%+ test coverage
+    \item Everything deployed and tested
+    \item Stakeholders approve
 \end{itemize}
 
-\subsection{Acceptance Criteria}
-
-The system is MVP-ready when:
-
-\begin{enumerate}
-    \item ✅ All ``Must Have'' auth features implemented
-    \item ✅ Note creation, editing, sync working
-    \item ✅ PDF upload and annotation working
-    \item 🔄 RAG pipeline: chunking, embeddings, hybrid search, citations
-    \item ⏳ Quiz generation (basic)
-    \item ⏳ Flashcard system (basic SM-2)
-    \item ✅ \texttt{docker-compose up} works fresh
-    \item ✅ AWS Amplify auto-deploy functional
-    \item ✅ Code coverage $\geq 70\%$ for core logic
-    \item ✅ Academic stakeholder approval
-\end{enumerate}
-
 %==============================================================================
-\section*{Appendix A: Project Phases}
-%==============================================================================
+\section*{Timeline}
 
 \subsection*{Phase 1: Foundation + Search (Weeks 1-3)}
 
-\textbf{Core Infrastructure (✅ Complete)}
-\begin{itemize}
-    \item ✅ Auth system (register, login, password reset)
-    \item ✅ Note CRUD + folder structure
-    \item ✅ PDF upload + annotations
-    \item ✅ File sync to S3
-    \item ✅ AWS Amplify deployment
-    \item ✅ PostgreSQL + pgvector setup
-\end{itemize}
+\textbf{Done:} Auth, notes, PDFs, deployment.
 
-\textbf{Search System (🔄 Planned/In Progress)}
-\begin{itemize}
-    \item 🔄 Database schema: new columns (extracted\_text, embedding, relative\_path, search\_vector)
-    \item 🔄 Fuzzy full-text search endpoint (\texttt{GET /api/search?type=fuzzy})
-    \item 🔄 Semantic search endpoint (\texttt{GET /api/search?type=semantic})
-    \item 🔄 Embedding generation endpoint (\texttt{POST /api/notes/:id/embed})
-    \item 🔄 Tree sorting (alphabetical, recent)
-    \item 🔄 Search UI: Cmd+K overlay, relevance scoring, pagination
-    \item ⏳ Phase 1.5: Date filtering UI (MVP 2)
-\end{itemize}
+\textbf{Doing:} Fuzzy + semantic search, Cmd+K overlay, sort/filter UI.
 
-\textit{See \texttt{SEARCH\_ARCHITECTURE\_PLAN.md} for full implementation roadmap and scalability considerations.}
+\textit{See SEARCH\_ARCHITECTURE\_PLAN.md for details.}
 
-\subsection*{Phase 2: RAG Pipeline (Weeks 3-5) --- 🔄 IN PROGRESS}
-\begin{itemize}
-    \item 🔄 PDF text chunking (500 tokens, 50-100 overlap)
-    \item 🔄 OpenAI embedding integration
-    \item 🔄 Vector similarity search for RAG context
-    \item 🔄 RAG chat UI with citations
-    \item 🔄 Streaming LLM responses with user-managed API keys
-    \item 🔄 Citation formatting (page numbers, section headers)
-\end{itemize}
+\subsection*{Phase 2: RAG (Weeks 3-5)}
 
-\subsection*{Phase 3: Features \& Polish (Weeks 5-6) --- ⏳ PLANNED}
-\begin{itemize}
-    \item Quiz generation from notes/PDFs
-    \item Flashcard system (SM-2 spaced repetition)
-    \item LMS integration (Canvas OAuth + assignment sync)
-    \item Calendar/timetable view
-    \item Analytics dashboard (study time, weak topics)
-    \item Manual QA testing with realistic scenarios
-    \item Final demo + academic stakeholder approval
-\end{itemize}
+PDF chunking, embeddings, vector search, chat UI with citations.
+
+\subsection*{Phase 3: Features (Weeks 5-6)}
+
+Quizzes, flashcards, Canvas integration, calendar, analytics, final QA.
 
 %==============================================================================
-\section*{Appendix B: LLM Strategy (User-Managed Keys)}
-%==============================================================================
+\section*{LLM Keys (Your Own)}
 
-\textbf{See separate document:} \texttt{docs/LLM\_STRATEGY.md}
+You bring your own OpenAI/Anthropic key. We never see it, don't store it, and don't charge you. You pay your provider directly. During dev, we test with a free local model.
 
-Key points:
-\begin{itemize}
-    \item Users provide own API keys (stored in browser)
-    \item Backend never stores or sees keys
-    \item Supports OpenAI, Anthropic, LiteLLM, custom servers
-    \item Team uses internal Qwen model during development (free)
-    \item Frontend calls LLM directly; backend coordinates search only
-\end{itemize}
+\textit{See LLM\_STRATEGY.md for details.}
 
 %==============================================================================
-\section*{Appendix C: Revision History}
-%==============================================================================
+\section*{Versions}
 
-\begin{longtable}{@{}llll@{}}
-\toprule
-\textbf{Version} & \textbf{Date} & \textbf{Change} & \textbf{Reason} \\
-\midrule
-\endhead
-1.0 & Original & MariaDB, microservices, monolithic RAG & Initial specification \\
-2.0 & 2025-03-06 & PostgreSQL + pgvector, monolith, Agile living doc & Team expertise; pragmatic MVP; rebrand to OghmaNotes \\
-2.1 & 2025-03-06 & Comprehensive search architecture (Phase 1) & Planned fuzzy + semantic search with Cmd+K UI \\
-\bottomrule
-\end{longtable}
+1.0 (Original): MariaDB + microservices.
 
-Future versions as tech stack evolves and phases complete.
+2.0 (2025-03-06): PostgreSQL + monolith, rebrand to OghmaNotes.
 
-%==============================================================================
-\section*{Appendix D: Glossary}
-%==============================================================================
+2.1 (2025-03-06): Add search architecture plan.
 
-\begin{itemize}
-    \item \textbf{RAG:} Retrieval-Augmented Generation --- vector search + LLM context
-    \item \textbf{pgvector:} PostgreSQL extension for vector embeddings
-    \item \textbf{Embedding:} Numerical representation of text (1536-dim)
-    \item \textbf{Chunking:} Splitting documents into segments for embedding
-    \item \textbf{Hybrid Search:} Combining keyword (FULLTEXT) + semantic (vector) results
-    \item \textbf{SM-2:} SuperMemo 2 algorithm for spaced repetition scheduling
-    \item \textbf{PWA:} Progressive Web App --- installable web app with offline support
-    \item \textbf{JWT:} JSON Web Token for stateless authentication
-    \item \textbf{MVP:} Minimum Viable Product --- feature set for semester end
-    \item \textbf{Agile:} Iterative development; adapt as reality evolves
-\end{itemize}
+\textit{Updates as we build.}
+
+\section*{Terms}
+
+\textbf{RAG:} Ask questions, get answers from your notes.
+\textbf{Embedding:} Vector (number list) representing text meaning.
+\textbf{Chunking:} Break large PDFs into smaller pieces.
+\textbf{Hybrid Search:} Keyword + meaning together.
+\textbf{SM-2:} Flashcard scheduling algorithm.
+\textbf{PWA:} Web app you can install.
+\textbf{JWT:} Token proving you're logged in.
+\textbf{MVP:} Ship by semester end.
 
 %==============================================================================
-\section*{Appendix E: About the Name}
-%==============================================================================
+\section*{The Name}
 
-\textbf{Oghma} (pronounced ``OH-muh'') is the Celtic deity of eloquence, learning, and writing from Irish mythology. A member of the Tuatha Dé Danann, Oghma created the Ogham script---the ancient Irish writing system---to preserve and transmit knowledge. He embodied both intellectual mastery and strength, serving as Champion while inventing systems for organizing language.
+\textbf{Oghma} is the Celtic god of eloquence, learning, and writing. He invented Ogham, the ancient Irish alphabet, to preserve and share knowledge. That's what we're doing: making it easy to organize, search, and learn from your notes.
 
-This dual nature of knowledge preservation and capability reflects our platform's mission: create structured learning systems that empower students through intelligent organization and retrieval of their study materials.
-
-\vspace{2cm}
+\vspace{1cm}
 
 \noindent
-\textit{Document Status: Living document --- updated as project evolves}  
-\textit{Next Review: After RAG pipeline implementation (Week 4)}
+\textit{Living document. Updated as we build.}
 
 \end{document}
