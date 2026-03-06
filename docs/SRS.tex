@@ -366,6 +366,25 @@ The original plan specified MariaDB and microservices. We adapted based on team 
 \section{Database Schema}
 %==============================================================================
 
+\subsection{ID Strategy}
+
+All ID columns use \textbf{UUID v7} (Universally Unique Identifier version 7):
+\begin{itemize}
+    \item Format: \texttt{xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx} (36 characters)
+    \item Cryptographically secure (no collision risk)
+    \item Sortable by timestamp (built into v7)
+    \item Generated server-side via \texttt{generateUUID()} utility
+    \item Migration from SERIAL completed and tested (commit 68d66a6)
+\end{itemize}
+
+Affected columns:
+\begin{itemize}
+    \item \texttt{app.login.user\_id} --- User identifier
+    \item \texttt{app.notes.note\_id} --- Note identifier
+    \item \texttt{app.documents.id} --- Document identifier
+    \item \texttt{app.chunks.id} --- Chunk identifier
+\end{itemize}
+
 \subsection{Core Tables}
 
 \begin{itemize}
@@ -564,6 +583,55 @@ Users bring their own API keys. We never see them, don't store them, don't charg
 \end{itemize}
 
 \textit{Full details: See docs/LLM\_STRATEGY.md}
+
+%==============================================================================
+\section{Implementation Status (Living)}
+%==============================================================================
+
+\subsection{Foundation (Complete)}
+
+\begin{itemize}
+    \item Authentication system (register, login, password reset)
+    \item Note CRUD + folder structure
+    \item PDF upload + annotations
+    \item File sync to S3
+    \item PostgreSQL + pgvector setup
+    \item UUID v7 migration (commit 68d66a6)
+    \item AWS Amplify deployment
+\end{itemize}
+
+\subsection{Phase 1: Search (In Progress)}
+
+\begin{itemize}
+    \item Database schema: UUID v7 complete
+    \item Fuzzy search endpoint: TBD (Issue \#21)
+    \item Semantic search endpoint: TBD (Issue \#22)
+    \item Embedding generation: TBD (Issue \#22)
+    \item Search UI (Cmd+K overlay): TBD (Issue \#24)
+    \item Load testing: TBD (Issue \#25)
+\end{itemize}
+
+\subsection{Phase 2: RAG Pipeline (Planned)}
+
+\begin{itemize}
+    \item PDF chunking (500 tokens, 50-100 overlap)
+    \item OpenAI embedding integration
+    \item Vector similarity search
+    \item Chat interface with citations
+    \item Streaming LLM responses
+\end{itemize}
+
+\subsection{Phase 3: Features (Planned)}
+
+\begin{itemize}
+    \item Quiz generation
+    \item Flashcard system (SM-2)
+    \item Canvas LMS integration
+    \item Calendar/timetable view
+    \item Analytics dashboard
+\end{itemize}
+
+For detailed tracking, see GitHub Project: \texttt{github.com/users/semyonfox/projects/5}
 
 %==============================================================================
 \section{About the Name}
