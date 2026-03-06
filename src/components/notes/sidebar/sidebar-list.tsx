@@ -14,7 +14,7 @@ import { makeHierarchy, HierarchicalTreeItemModel } from '@/lib/notes/types/tree
 import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
-import { debounce } from '@/lib/notes/utils/debounce';
+
 import CreateNoteModal from '@/components/notes/create-note-modal';
 
 const SidebarList = () => {
@@ -63,52 +63,51 @@ const SidebarList = () => {
         [mutateItem, tree.items]
     );
 
-    // Memoize move handler with debouncing to prevent cascading updates
+    // move handler -- reads tree from store directly to avoid stale closures
     const onMove = useCallback(
-        debounce(
-            ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
-                if (!parentId || dragIds.length === 0) {
-                    return;
+        ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
+            if (!parentId || dragIds.length === 0) {
+                return;
+            }
+
+            const dragId = dragIds[0];
+
+            // read current tree from store (not from closure) to avoid stale data
+            const currentItems = useNoteTreeStore.getState().tree.items;
+
+            // find source parent and index
+            let sourceParentId = '';
+            let sourceIndex = -1;
+
+            for (const itemId in currentItems) {
+                const item = currentItems[itemId];
+                const idx = item.children.indexOf(dragId);
+                if (idx !== -1) {
+                    sourceParentId = itemId;
+                    sourceIndex = idx;
+                    break;
                 }
+            }
 
-                const dragId = dragIds[0];
+            if (sourceIndex === -1) {
+                console.error("Can't find source item");
+                return;
+            }
 
-                // find source parent and index
-                let sourceParentId = '';
-                let sourceIndex = -1;
-
-                for (const itemId in tree.items) {
-                    const item = tree.items[itemId];
-                    const idx = item.children.indexOf(dragId);
-                    if (idx !== -1) {
-                        sourceParentId = itemId;
-                        sourceIndex = idx;
-                        break;
-                    }
-                }
-
-                if (sourceIndex === -1) {
-                    console.error("Can't find source item");
-                    return;
-                }
-
-                moveItem({
-                    source: {
-                        parentId: sourceParentId,
-                        index: sourceIndex,
-                    },
-                    destination: {
-                        parentId: parentId,
-                        index: index,
-                    },
-                }).catch((e) => {
-                    // todo: toast
-                    console.error('Move error', e);
-                });
-            },
-            300
-        ),
-        [moveItem, tree.items]
+            moveItem({
+                source: {
+                    parentId: sourceParentId,
+                    index: sourceIndex,
+                },
+                destination: {
+                    parentId: parentId,
+                    index: index,
+                },
+            }).catch((e) => {
+                console.error('Move error', e);
+            });
+        },
+        [moveItem]
     );
 
     const handleCreateNote = useCallback(
@@ -129,9 +128,50 @@ const SidebarList = () => {
     );
 
     const handleUploadFile = useCallback(async (file: File) => {
-        // TODO: Implement file upload logic
-        console.log('Upload file:', file);
-    }, []);
+        // create a note entry for the uploaded file
+        const newId = genNewId();
+        const fileName = file.name || 'Untitled';
+        const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+
+        // determine file type for the renderer
+        let fileType: 'note' | 'pdf' | 'image' | 'video' = 'note';
+        if (ext === 'pdf') fileType = 'pdf';
+        else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) fileType = 'image';
+        else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) fileType = 'video';
+
+        // upload file to S3 via the upload API
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('noteId', newId);
+
+        const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!uploadRes.ok) {
+            console.error('Upload failed:', await uploadRes.text());
+            return;
+        }
+
+        const uploadData = await uploadRes.json();
+
+        // create a note record so it appears in the tree
+        // for non-markdown files, store the S3 path as content so the viewer can retrieve it
+        const content = fileType === 'note'
+            ? (await file.text())
+            : uploadData.path;
+
+        const newNote = await createNote({
+            id: newId,
+            title: fileName,
+            content,
+        });
+
+        if (newNote) {
+            router.push(`/notes/${newId}`);
+        }
+    }, [genNewId, createNote, router]);
 
     // collapse all: use tree API ref to close all nodes, then sync to application state
     const handleCollapseAll = useCallback(() => {
