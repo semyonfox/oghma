@@ -2,28 +2,49 @@
 
 ## Local Development
 
-Requirements: Node.js 18+, Docker
+**Requirements:** Node.js 18+, Docker
+
+### Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Copy environment template
 cp .env.example .env.local
-
-# Add AWS S3 credentials to .env.local
-# STORAGE_ACCESS_KEY=...
-# STORAGE_SECRET_KEY=...
-# STORAGE_BUCKET=your-bucket-name
-
-# Start PostgreSQL + app
-docker-compose up
-
-# In another terminal
-npm run dev
+docker-compose up         # Terminal 1: PostgreSQL
+npm run dev              # Terminal 2: Next.js dev server
 ```
 
 App runs at `http://localhost:3000`
+
+### Setup Details
+
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env.local
+   # Add AWS S3 credentials:
+   # STORAGE_ACCESS_KEY=...
+   # STORAGE_SECRET_KEY=...
+   # STORAGE_BUCKET=your-bucket-name
+   ```
+
+3. **Start database**
+   ```bash
+   docker-compose up
+   # Postgres runs on localhost:5432
+   # Database: oghmanotes
+   ```
+
+4. **Start dev server** (new terminal)
+   ```bash
+   npm run dev
+   # Hot-reload enabled on port 3000
+   ```
+
+**Note:** Database schema with UUID v7 is already applied via docker-compose init. No migrations needed for local dev.
 
 ## Production
 
