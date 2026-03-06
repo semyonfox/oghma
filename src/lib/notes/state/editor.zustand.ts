@@ -84,17 +84,38 @@ const useEditorStore = create<EditorState>()(
                 }));
             },
             onNoteChange: debounce(async (data: Partial<NoteModel>) => {
-                // TODO: Implement auto-save to backend/cache
-                // For now, just update the store
+                const note = get().note;
+                if (!note?.id) return;
+
+                // update local state
                 set((state) => ({
                     note: state.note ? { ...state.note, ...data } : undefined,
                 }));
-                console.log('Note changes queued for save:', data);
+
+                // persist to server (S3) via API
+                try {
+                    await fetch(`/api/notes/${note.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                    });
+                } catch (error) {
+                    console.error('Failed to save note changes:', error);
+                }
             }, 500) as unknown as (data: Partial<NoteModel>) => Promise<void>,
             saveNow: async () => {
-                // TODO: Implement immediate save (bypass debounce)
-                // Should flush pending changes to backend/cache
-                console.log('Saving note immediately');
+                const note = get().note;
+                if (!note?.id) return;
+
+                try {
+                    await fetch(`/api/notes/${note.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: note.content }),
+                    });
+                } catch (error) {
+                    console.error('Failed to save note:', error);
+                }
             },
         }),
         {

@@ -163,6 +163,19 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
         newTree.items[item.id].data = item;
         set({ tree: newTree });
+
+        // persist tree to IndexedDB cache
+        uiCache.setItem(TREE_CACHE_KEY, newTree).catch(
+            (e) => console.error('Failed to cache tree after addItem:', e)
+        );
+
+        // persist full tree to S3 (addItem adds a new node that the
+        // single-item mutate endpoint can't handle)
+        fetch('/api/tree/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTree),
+        }).catch((e) => console.error('Failed to sync tree after addItem:', e));
     },
 
     removeItem: async (id: string) => {
@@ -170,6 +183,15 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const newTree = TreeActions.removeItem(currentTree, id);
 
         set({ tree: newTree });
+
+        // persist tree to IndexedDB cache and S3
+        await uiCache.setItem(TREE_CACHE_KEY, newTree);
+        fetch('/api/tree/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTree),
+        }).catch((e) => console.error('Failed to sync tree after removeItem:', e));
+
         await Promise.all(
             TreeActions.flattenTree(newTree, id).map(
                 async (item) =>
@@ -249,7 +271,18 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
     deleteItem: async (id: string) => {
         const currentTree = get().tree;
-        set({ tree: TreeActions.deleteItem(currentTree, id) });
+        const newTree = TreeActions.deleteItem(currentTree, id);
+        set({ tree: newTree });
+
+        // persist tree to IndexedDB cache
+        await uiCache.setItem(TREE_CACHE_KEY, newTree);
+
+        // persist full tree to S3
+        await fetch('/api/tree/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTree),
+        });
     },
 
     getPaths: (note: NoteModel) => {

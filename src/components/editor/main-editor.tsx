@@ -8,6 +8,7 @@ import { FC } from 'react';
 import { NoteModel } from '@/lib/notes/types/note';
 import { EDITOR_SIZE } from '@/lib/notes/types/meta';
 import { useKeyboardShortcut } from '@/lib/notes/hooks/use-keyboard-shortcut';
+import { useAutoSave } from '@/lib/notes/hooks/use-auto-save';
 
 // internal component that has access to EditorState
 const EditorContent: FC<EditorProps & { isPreview?: boolean; className: string }> = ({ 
@@ -15,7 +16,10 @@ const EditorContent: FC<EditorProps & { isPreview?: boolean; className: string }
     isPreview, 
     ...props 
 }) => {
-    const { saveNow } = useEditorStore();
+    const { note, saveNow } = useEditorStore();
+
+    // auto-save to IndexedDB + S3 on content changes (3s debounce)
+    useAutoSave(note?.id, note?.content ?? '');
 
     // setup Ctrl+S save handler
     useKeyboardShortcut({
