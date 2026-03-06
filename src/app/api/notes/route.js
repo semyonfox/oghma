@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { saveNoteToS3 } from '@/lib/notes/storage/s3-storage.ts';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import sql from '@/database/pgsql.js';
