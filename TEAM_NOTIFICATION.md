@@ -133,21 +133,53 @@ For team reference, see:
 | Category | Impact |
 |----------|--------|
 | **Data Loss** | ✅ None - zero data loss |
+| **Breaking Changes** | ⚠️ YES - requires migration deployment |
 | **Downtime** | ✅ None - can apply anytime |
-| **Breaking Changes** | ✅ None - backward compatible |
+| **Migration Strategy** | ✅ All-or-nothing (deploy code + run SQL simultaneously) |
 | **Database Size** | ✅ +12MB (negligible) |
 | **Query Performance** | ✅ 100x faster tree lookups |
-| **User Experience** | ✅ Transparent to users |
-| **Rollback Difficulty** | ✅ Simple (SQL provided) |
+| **User Experience** | ✅ Transparent to users (after migration) |
+| **Rollback Difficulty** | ⚠️ Requires manual intervention (not automatic) |
 
 ---
 
+## ⚠️ BREAKING CHANGE NOTICE
+
+**This is a required deployment.**
+
+The migration REPLACES the old S3-based tree system entirely.
+
+**What breaks if you don't migrate:**
+- `/api/tree` endpoint will return incomplete file lists
+- `/api/notes` may miss files in user's tree
+- New PDF annotation features won't work
+
+**Migration must be coordinated:**
+- Database SQL + Code deployment must happen together
+- Cannot run partially (SQL only or code only)
+- All users affected - transparent after migration
+
+## Rollout Plan
+
+### Critical: Do This All At Once
+
+1. **Schedule deployment window** (off-peak recommended)
+2. **Database admin**: Run migration SQL
+3. **DevOps**: Deploy new code
+4. **Within 1 minute**: Everything switches over
+5. **Monitor**: Watch `/api/health` for errors
+6. **QA**: Verify endpoints working
+
+If something goes wrong:
+- Rollback: Requires database restoration from backup
+- Recovery time: ~15 minutes with backup
+
 ## Next Steps
 
-### Phase 1 (This PR)
-- ✅ Fix tree sync issue
+### Phase 1 (This PR - Breaking Change)
+- ✅ Fix tree sync issue (replaces old system)
 - ✅ Add infrastructure for annotations
-- ✅ User isolation
+- ✅ User isolation with authentication
 
 ### Phase 2 (Next PR)
 - React component for PDF viewer
