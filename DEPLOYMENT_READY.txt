@@ -4,6 +4,7 @@
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
 STATUS: ✅ 100% COMPLETE & TESTED
+MIGRATION TYPE: 🔴 BREAKING CHANGE (All-or-nothing replacement)
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -94,13 +95,19 @@ TOTAL: ~15-20 minutes
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-RISK LEVEL: 🟢 LOW
+RISK LEVEL: 🟡 MEDIUM (Breaking Change)
 
-✓ Non-breaking migration
-✓ Zero data loss
-✓ Backward compatible
-✓ Can rollback easily
-✓ No downtime required
+Breaking Change Details:
+✓ Zero data loss guaranteed
+✓ No planned downtime
+✓ Clean code (not bloated with compatibility checks)
+
+⚠ Requires coordinated deployment (SQL + Code together)
+⚠ Cannot deploy partially (SQL only or Code only fails)
+⚠ Rollback requires database restore from backup
+⚠ All users affected by migration
+
+This is intentional: A clean replacement of broken S3 tree system
 
 ═══════════════════════════════════════════════════════════════════════════════
 
