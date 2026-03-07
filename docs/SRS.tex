@@ -38,6 +38,8 @@ OghmaNotes is a web-based learning platform for students to take markdown notes,
 
 This document defines the realistic scope, architecture, and features for OghmaNotes. It reflects actual codebase capabilities and planned development phases.
 
+\textbf{Important Note:} ``In Scope'' means features are planned for the project. Not all are implemented yet. See each phase section and the implementation status notes for actual progress.
+
 \subsection{Audience}
 
 For: Development team, supervisors, stakeholders.
@@ -84,10 +86,12 @@ For: Development team, supervisors, stakeholders.
     \item \textbf{Difficulty Levels:} Easy, medium, hard
     \item \textbf{Flashcard System:} Spaced repetition using SM-2 algorithm
     \item \textbf{Flashcard Deck Management:} Create, review, and track progress
-    \item \textbf{Analytics (Basics):} Overall quiz scores, flashcard mastery, study time tracking
+    \item \textbf{Analytics (Basics):} Overall quiz scores, flashcard mastery, study time tracking (Phase 3, Weeks 8--12)
 \end{itemize}
 
-\subsubsection{Canvas LMS Integration}
+\subsubsection{Canvas LMS Integration (Phase 3)}
+
+\textit{Status: Planned for Phase 3 (Weeks 8--12). Zero code currently implemented.}
 
 \begin{itemize}
     \item \textbf{OAuth Connection:} Secure connection to Canvas LMS
@@ -428,7 +432,9 @@ Concurrent requests & 10+ simultaneous \\
 \section{API Endpoints}
 %==============================================================================
 
-\subsection{Authentication}
+\textbf{Implementation Status:} See \texttt{IMPLEMENTATION\_STATUS.md} for actual endpoint implementation status. This section lists all planned endpoints. ✅ = Implemented, 🔄 = In Progress, ⏳ = Planned.
+
+\subsection{Authentication} ✅ (All 6 endpoints implemented)
 
 \begin{tabular}{lll}
 \toprule
@@ -443,7 +449,7 @@ GET & \texttt{/api/auth/me} & Get current user info \\
 \bottomrule
 \end{tabular}
 
-\subsection{Notes}
+\subsection{Notes} ✅ (All 7 endpoints implemented)
 
 \begin{tabular}{lll}
 \toprule
@@ -459,7 +465,7 @@ POST & \texttt{/api/tree} & Reorder/mutate tree structure \\
 \bottomrule
 \end{tabular}
 
-\subsection{Search}
+\subsection{Search} 🔄 (Designed, 0/3 endpoints implemented - Phase 1)
 
 \begin{tabular}{lll}
 \toprule
@@ -471,7 +477,7 @@ POST & \texttt{/api/notes/:id/embed} & Generate embeddings for note \\
 \bottomrule
 \end{tabular}
 
-\subsection{RAG Chat}
+\subsection{RAG Chat} ⏳ (0/2 endpoints implemented - Phase 2)
 
 \begin{tabular}{lll}
 \toprule
@@ -482,7 +488,7 @@ GET & \texttt{/api/rag/search} & Retrieve relevant chunks \\
 \bottomrule
 \end{tabular}
 
-\subsection{Files}
+\subsection{Files} 🔄 (2/3 implemented, extract endpoint disabled)
 
 \begin{tabular}{lll}
 \toprule
@@ -494,7 +500,7 @@ POST & \texttt{/api/extract} & Extract text from PDF \\
 \bottomrule
 \end{tabular}
 
-\subsection{Learning Tools}
+\subsection{Learning Tools} ⏳ (0/5 endpoints implemented - Phase 3)
 
 \begin{tabular}{lll}
 \toprule
@@ -508,7 +514,7 @@ PUT & \texttt{/api/flashcards/:id/rate} & Rate flashcard \\
 \bottomrule
 \end{tabular}
 
-\subsection{Canvas LMS Integration}
+\subsection{Canvas LMS Integration} ⏳ (0/5 endpoints implemented - Phase 3)
 
 \begin{tabular}{lll}
 \toprule
@@ -522,7 +528,7 @@ DELETE & \texttt{/api/canvas/disconnect} & Disconnect Canvas account \\
 \bottomrule
 \end{tabular}
 
-\subsection{Analytics}
+\subsection{Analytics} ⏳ (0/5 endpoints implemented - Phase 3)
 
 \begin{tabular}{lll}
 \toprule
@@ -541,6 +547,12 @@ GET & \texttt{/api/analytics/weak-topics} & Identified weak topics \\
 %==============================================================================
 
 \subsection{Core Tables}
+
+\textbf{Implementation Status:}
+\begin{itemize}
+    \item ✅ \texttt{app.login}, \texttt{app.notes}, \texttt{app.documents}, \texttt{app.chunks} — Already created
+    \item ⏳ \texttt{app.canvas\_assignments}, \texttt{app.quiz\_results}, \texttt{app.flashcard\_review} — Phase 3 (need migration)
+\end{itemize}
 
 \subsubsection{app.login}
 
