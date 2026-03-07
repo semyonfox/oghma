@@ -1,16 +1,17 @@
 # OghmaNotes Progress Tracker
 
-**Last Updated:** 2025-03-06  
-**Status:** Foundation Complete → Phase 1 Active → Phase 2 Planned → Phase 3 Planned
+**Last Updated:** 2025-03-07  
+**Status:** Foundation Complete → PDF Viewer Shipping → Phase 1 Active → Phase 2 Coming → Phase 3 Planned
 
 ## Summary
 
 | Phase | Status | Work | Issues |
 |-------|--------|------|--------|
-| **Foundation** | Complete | UUID v7, SRS, docs | #36-38 |
-| **Phase 1: Search** | Active | Fuzzy + semantic search, Cmd+K | #21-25 |
-| **Phase 2: RAG** | Planned | PDF chunking, chat, embeddings | #31-35 |
-| **Phase 3: Features** | Planned | Quizzes, flashcards, Canvas, analytics | #26-30 |
+| **Foundation** | ✅ Complete | UUID v7, SRS, docs | #36-38 |
+| **PDF Viewer** | 🚀 Shipping | Viewer, tree migration, auto OCR/embed | feature/pdf-rendering |
+| **Phase 1: Search** | 🔄 Active | Fuzzy + semantic search, Cmd+K | #21-25 |
+| **Phase 2: RAG** | 🎯 Next | Chat endpoint, embeddings, citations | #31-35 |
+| **Phase 3: Features** | ⏳ Planned | Quizzes, flashcards, Canvas, analytics | #26-30 |
 
 **GitHub Project:** https://github.com/users/semyonfox/projects/5 (20 items)
 
@@ -20,8 +21,9 @@
 
 - [Summary](#summary) ← Start here
 - [Foundation Work](#foundation-work-complete) (Done)
+- [PDF Viewer & Tree Migration](#pdf-viewer--tree-migration-shipping-this-week) (Shipping)
 - [Phase 1: Search](#phase-1-search-in-progress) (Active)
-- [Phase 2: RAG](#phase-2-rag-pipeline-planned) (Planned)
+- [Phase 2: RAG](#phase-2-rag-pipeline-planned) (Next)
 - [Phase 3: Features](#phase-3-features-planned) (Planned)
 - [Completed Artifacts](#completed-artifacts)
 - [Metrics](#metrics)
@@ -79,6 +81,38 @@
 
 ---
 
+## PDF Viewer & Tree Migration (Shipping This Week)
+
+### Status: Ready to Merge feature/pdf-rendering → main
+
+**What's Included:**
+- PDF viewer component (page nav, zoom, text selection)
+- PostgreSQL tree migration (S3 → PostgreSQL, 100x faster)
+- Automatic OCR on PDF upload
+- Automatic embedding generation on upload
+- Annotation API infrastructure (database + endpoints ready)
+
+**What's Deferred (Nice-to-Have):**
+- PDF annotation drawing UI (Konva.js) — will keep `feature/pdf-rendering` open for this
+
+**Commits:**
+- `f9d8d86` - feat: migrate tree to postgresql & add pdf annotation infrastructure
+- `b834689` - docs: clarify breaking change nature & remove unused import
+
+**Timeline:**
+- This week: Merge to main (PDF viewer + tree migration live)
+- Future: Add annotation drawing UI when time allows
+
+**Benefits:**
+- ✅ Users can view PDFs immediately
+- ✅ OCR/embedding automatic (no code needed)
+- ✅ RAG can use PDFs right away
+- ✅ Annotation infrastructure ready (just needs UI)
+
+**See:** `PDF_RENDERING_FINAL_PLAN.md` for merge & deployment details
+
+---
+
 ## Phase 1: Search (In Progress)
 
 **GitHub Issues:** #21-25  
@@ -102,13 +136,20 @@
 
 ---
 
-## Phase 2: RAG Pipeline (Planned)
+## Phase 2: RAG Pipeline (Coming Next)
 
 **GitHub Issues:** #31-35  
 **Team:** RAG implementation  
-**Timeline:** Weeks 4-7 (3-4 weeks)
+**Timeline:** Weeks 4-7 (3-4 weeks) — immediately after Phase 1 search  
 **Starts After:** Phase 1 complete  
+**Note:** PDFs now ready for RAG (OCR + embedding automatic on upload)
 **Details:** See [docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md)
+
+**What This Enables:**
+- Ask questions about uploaded PDFs
+- Chat endpoint with streaming responses
+- Citations linking to PDF source material
+- Works with notes + PDFs together
 
 ### Issues
 
