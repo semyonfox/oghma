@@ -4,12 +4,13 @@ Learning platform for students to write notes, search intelligently, and ask que
 
 ## Status
 
-**Foundation:** ✅ Complete (Auth, notes, PDFs, UUID v7)  
-**Phase 1 (Search):** 🔄 Architecture done, implementation in progress (Issues #21-25)  
-**Phase 2 (RAG):** ⏳ Planned (Issues #31-35)  
-**Phase 3 (Features):** ⏳ Planned (Issues #26-30)
+**Foundation:** ✅ Complete (Auth, notes, UUID v7)  
+**PDF Viewer:** 🚀 Shipping (View, zoom, OCR auto on upload)
+**Phase 1 (Search):** 🔄 In progress (Fuzzy + semantic search)  
+**Phase 2 (RAG):** 🎯 Next (Chat with PDFs, citations)  
+**Phase 3 (Features):** ⏳ Planned (Quiz, flashcards, Canvas)
 
-**Realistic Timeline:** 9-10 weeks for full v1 (auth + notes + search + RAG + quiz + flashcards)
+**Timeline:** 10-12 weeks for full v1 (includes PDF viewer + RAG + learning tools)
 
 See [PROGRESS.md](PROGRESS.md) for detailed tracking.
 
@@ -31,27 +32,34 @@ See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## What's Built
 
-**✅ Foundation (Working):**
+**✅ Foundation (Complete):**
 - Auth (register, login, password reset, email verification)
 - Markdown notes with offline support (PWA)
-- PDF upload to AWS S3
 - File organization (folders, tree structure, drag-and-drop)
 - User settings and preferences
+- PostgreSQL database with UUID v7 (100x faster queries)
 
-**🔄 Phase 1 (Search):** Architecture designed, implementation in progress
+**🚀 PDF Viewer (Shipping This Week):**
+- PDF upload to AWS S3
+- PDF viewing with zoom, page navigation, text selection
+- **Auto OCR on upload** (text extraction automatic)
+- **Auto embedding generation** (semantic search ready)
+- PostgreSQL tree migration (fixes sync, 100x faster)
+- Annotation infrastructure ready (drawing UI deferred)
+
+**🔄 Phase 1 (Search):** In progress (2-3 weeks remaining)
 - [ ] Fuzzy keyword search endpoint (`/api/search?type=fuzzy`)
 - [ ] Semantic vector search endpoint (`/api/search?type=semantic`)
 - [ ] Embedding generation endpoint (`/api/notes/:id/embed`)
 - [ ] Cmd+K search overlay UI (component exists, not wired to API)
-- **Timeline:** 2-3 weeks remaining
 
-**⏳ Phase 2 (RAG):** Planned
-- PDF text extraction and semantic chunking
-- Vector embeddings (user-managed LLM keys)
+**🎯 Phase 2 (RAG):** Coming next (3-4 weeks after Phase 1)
 - RAG chat endpoint with streaming responses
+- Ask questions about PDFs and notes
 - Source citations linking to PDFs
+- Works with auto-extracted PDF text
 
-**⏳ Phase 3 (Features):** Planned
+**⏳ Phase 3 (Features):** Planned (4+ weeks after Phase 2)
 - Quiz generation from notes/PDFs
 - Flashcard system with SM-2 spaced repetition
 - Canvas LMS integration (OAuth, assignment sync)
