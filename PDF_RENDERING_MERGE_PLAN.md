@@ -150,35 +150,54 @@ export async function GET(request) {
 
 ---
 
-## Recommendation: Go with Option A (Full Merge)
+## Recommendation: Go with Option A (Full Merge) - via dev Branch First ✅
 
 **Why:**
-1. **PDF Annotations** — Core feature you need for PDF rendering
+1. **PDF Viewer** — PDF viewing (zoom, page nav) fully functional
 2. **Tree Performance** — Fixes the sync issue that's been blocking
 3. **Better Architecture** — PostgreSQL for user data is safer than S3 for structured data
 4. **Ready to Go** — Migration guide is complete, tested, documented
 5. **pgvector Setup** — Prepares for Phase 2 RAG (semantic search)
 6. **Minimal Risk** — Only 1 conflict, straightforward resolution
 
-**Cost:** 2-3 hours of work + testing
+**Important Note:** See `PDF_RENDERING_HONEST_ASSESSMENT.md` for what's actually implemented:
+- ✅ PDF viewer (page nav, zoom) — DONE
+- ✅ Annotation API backend — DONE
+- ❌ Annotation drawing UI — NOT DONE (can be added later)
+
+**Safe Approach:** Merge to `dev` first, test thoroughly, then move to prod.
+
+**Cost:** 2-3 hours of work + testing on dev + staging before prod
 
 ---
 
-## Step-by-Step Merge Plan
+## Step-by-Step Merge Plan (Dev-First Approach)
+
+**Strategy:** Merge to dev first, test, then promote to main after verification.
+
+### Phase 0: Understanding (Read First)
+
+**Read:** `PDF_RENDERING_HONEST_ASSESSMENT.md` (in this repo)
+- What's actually working (PDF viewer, API)
+- What's not (annotation drawing UI)
+- Test checklist for dev branch
+- Three-phase deployment strategy
 
 ### Phase 1: Preparation (30 minutes)
 
 ```bash
-# 1. Create a merge branch
-git checkout -b merge/pdf-rendering-into-main
+# 1. Create or switch to dev branch
+git checkout dev  # or: git checkout -b dev origin/dev
 
 # 2. Back up current state (optional but safe)
-git tag backup/main-before-pdf-merge
+git tag backup/dev-before-pdf-merge
 
-# 3. Merge feature/pdf-rendering
+# 3. Merge feature/pdf-rendering into dev (NOT main)
 git merge feature/pdf-rendering
 # This will show conflict in src/app/api/notes/route.ts
 ```
+
+⚠️ **Note:** We're merging into `dev` first, not `main`. This allows full testing before production.
 
 ### Phase 2: Conflict Resolution (30 minutes)
 
@@ -225,49 +244,77 @@ ls -la src/app/api/pdf/annotations/route.js
 # 3. Verify migration file exists
 cat database/migrations/002_add_tree_and_vectors.sql | head -20
 
-# 4. Update documentation
-# - Update SRS: Add note about PostgreSQL tree migration
-# - Update README: Note that tree now uses PostgreSQL
-# - Update PROGRESS.md: Log this merge
+# 4. DO NOT update documentation yet
+# Wait until after dev testing passes
 
-# 5. Push merge branch
-git push origin merge/pdf-rendering-into-main
+# 5. Push dev branch
+git push origin dev
 ```
 
-### Phase 4: Local Testing (1-2 hours)
+⚠️ **Important:** Don't update docs yet. Wait for Phase 4 (testing) to pass first.
+
+
+
+### Phase 4: Test on dev Branch (See PDF_RENDERING_HONEST_ASSESSMENT.md)
+
+**Do NOT proceed without passing these tests:**
 
 ```bash
-# 1. Run database migration (in dev environment)
+# 1. Local testing on dev
+npm install
 psql oghma < database/migrations/002_add_tree_and_vectors.sql
+npm run dev
 
-# 2. Test tree endpoints
-curl http://localhost:3000/api/tree
-# Should query PostgreSQL, return fast
+# Run full test checklist from PDF_RENDERING_HONEST_ASSESSMENT.md:
+# - PDF viewing (zoom, page nav)
+# - Tree performance (< 100ms queries)
+# - Annotation API endpoints
+# - Regression tests (existing features still work)
 
-# 3. Test annotation endpoints
-curl -X POST http://localhost:3000/api/pdf/annotations \
-  -H "Content-Type: application/json" \
-  -d '{"noteId": "...", "data": {...}}'
-
-# 4. Test tree rebuild
-curl -X POST http://localhost:3000/api/tree/rebuild
-
-# 5. Test existing note endpoints
-curl http://localhost:3000/api/notes
-# Should work with new user validation
+# If ANY tests fail: debug on dev, don't move forward
+# If ALL tests pass: proceed to Phase 5
 ```
 
-### Phase 5: Deploy & Merge to main (30 minutes)
+**Expected Results:**
+- ✅ PDF viewer displays correctly
+- ✅ Page navigation works
+- ✅ Zoom works
+- ✅ Tree queries fast (<100ms)
+- ✅ /api/pdf/annotations works
+- ✅ Existing notes/auth still work
+
+### Phase 5: Promote dev → main (30 minutes)
+
+**Only after Phase 4 tests pass:**
 
 ```bash
-# 1. Create PR from merge/pdf-rendering-into-main → main
-# 2. Code review
-# 3. Deploy migrations to staging first
-# 4. Verify endpoints work in staging
-# 5. Merge to main
-# 6. Deploy to production
-# 7. Monitor /api/tree and /api/pdf/annotations endpoints
+# 1. Merge dev into main
+git checkout main
+git pull origin main
+git merge dev
+
+# 2. Update documentation NOW (after testing confirmed working)
+# - Update SRS: Add note about PostgreSQL tree migration
+# - Update README: Note that PDF viewer available
+# - Update PROGRESS.md: Log this merge
+# - Archive old docs (if any)
+
+# 3. Push main
+git push origin main
+
+# 4. Amplify auto-deploys to production
+
+# 5. Monitor production
+# - Check /api/tree performance
+# - Check PDF viewer in production
+# - Monitor error logs
+
+# 6. If issues occur, can revert
+git revert <merge-commit-hash>
+git push origin main
 ```
+
+✅ **Key Difference:** Docs updated ONLY after testing confirms it works.
 
 ---
 
