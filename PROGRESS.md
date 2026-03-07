@@ -106,6 +106,7 @@
 
 **GitHub Issues:** #31-35  
 **Team:** RAG implementation  
+**Timeline:** Weeks 4-7 (3-4 weeks)
 **Starts After:** Phase 1 complete  
 **Details:** See [docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md)
 
@@ -148,7 +149,7 @@
 ### Documentation
 | File | Size | Purpose |
 |------|------|---------|
-| `docs/SRS.tex` | 628 lines | Formal spec (v2.1) |
+| `docs/SRS.tex` | 870+ lines | Formal spec (v3, updated with implementation status) |
 | `docs/SRS.pdf` | 62KB | PDF for stakeholders |
 | `SEARCH_ARCHITECTURE_PLAN.md` | 548 lines | Phase 1 detailed spec |
 | `database/MIGRATION_GUIDE.md` | Comprehensive | Database team reference |
@@ -175,7 +176,8 @@
 ### Phase 1: Search (Start Now)
 - **Assignee:** Search implementation team
 - **Issues:** #21-25
-- **Reference:** `SEARCH_ARCHITECTURE_PLAN.md` (detailed specs)
+- **Timeline:** Weeks 1-3 (2-3 weeks)
+- **Reference:** `SEARCH_ARCHITECTURE_PLAN.md` (detailed specs, follow exactly)
 - **What to build:**
   - Fuzzy search endpoint (`/api/search?type=fuzzy`)
   - Semantic search endpoint (`/api/search?type=semantic`)
@@ -197,13 +199,14 @@
 
 ### Phase 3: Features (Start After Phase 2)
 - **Issues:** #26-30
-- **Reference:** `docs/SRS.tex` (Section: Phase 3 Features)
+- **Reference:** `docs/SRS.tex` (Section: Phase 3 Learning Tools & Canvas)
+- **Timeline:** Weeks 8-12 (4-5 weeks)
 - **What to build:**
-  - Quiz generation from notes/PDFs
-  - Flashcard system with SM-2 spaced repetition
-  - Canvas LMS OAuth integration
-  - Calendar and timetable views
-  - Analytics dashboard
+  - Quiz generation from notes/PDFs with difficulty levels
+  - Flashcard system with SM-2 spaced repetition algorithm
+  - Canvas LMS OAuth integration (assignment sync, calendar mapping)
+  - Assignment calendar view (Canvas due dates)
+  - Basic analytics (quiz scores, flashcard mastery, study time)
 
 ---
 
