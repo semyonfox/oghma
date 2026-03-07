@@ -1,0 +1,253 @@
+{
+  "chunks": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('chunks_id_seq'::regclass)",
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "document_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "text",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "embedding",
+        "data_type": "USER-DEFINED",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "page_number",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 6
+      },
+      {
+        "column_name": "section",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 7
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "ordinal_position": 8
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "chunks_document_id_idx",
+        "indexdef": "CREATE INDEX chunks_document_id_idx ON app.chunks USING btree (document_id)"
+      },
+      {
+        "indexname": "chunks_embedding_hnsw_idx",
+        "indexdef": "CREATE INDEX chunks_embedding_hnsw_idx ON app.chunks USING hnsw (embedding vector_cosine_ops)"
+      },
+      {
+        "indexname": "chunks_pkey",
+        "indexdef": "CREATE UNIQUE INDEX chunks_pkey ON app.chunks USING btree (id)"
+      },
+      {
+        "indexname": "chunks_user_id_idx",
+        "indexdef": "CREATE INDEX chunks_user_id_idx ON app.chunks USING btree (user_id)"
+      }
+    ],
+    "row_count": 0
+  },
+  "documents": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('documents_id_seq'::regclass)",
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "filename",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "s3_key",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "uploaded_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "ordinal_position": 5
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "documents_pkey",
+        "indexdef": "CREATE UNIQUE INDEX documents_pkey ON app.documents USING btree (id)"
+      }
+    ],
+    "row_count": 0
+  },
+  "login": {
+    "columns": [
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('login_user_id_seq'::regclass)",
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "email",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "hashed_password",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "reset_token",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "reset_token_expires",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 6
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "idx_login_email",
+        "indexdef": "CREATE INDEX idx_login_email ON app.login USING btree (email)"
+      },
+      {
+        "indexname": "idx_reset_token",
+        "indexdef": "CREATE UNIQUE INDEX idx_reset_token ON app.login USING btree (reset_token) WHERE (reset_token IS NOT NULL)"
+      },
+      {
+        "indexname": "login_email_key",
+        "indexdef": "CREATE UNIQUE INDEX login_email_key ON app.login USING btree (email)"
+      },
+      {
+        "indexname": "login_pkey",
+        "indexdef": "CREATE UNIQUE INDEX login_pkey ON app.login USING btree (user_id)"
+      }
+    ],
+    "row_count": 0
+  },
+  "notes": {
+    "columns": [
+      {
+        "column_name": "note_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('notes_note_id_seq'::regclass)",
+        "ordinal_position": 1
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 2
+      },
+      {
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null,
+        "ordinal_position": 3
+      },
+      {
+        "column_name": "content",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null,
+        "ordinal_position": 4
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "ordinal_position": 5
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "column_default": "now()",
+        "ordinal_position": 6
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "idx_notes_created_at",
+        "indexdef": "CREATE INDEX idx_notes_created_at ON app.notes USING btree (created_at DESC)"
+      },
+      {
+        "indexname": "idx_notes_user_id",
+        "indexdef": "CREATE INDEX idx_notes_user_id ON app.notes USING btree (user_id)"
+      },
+      {
+        "indexname": "notes_pkey",
+        "indexdef": "CREATE UNIQUE INDEX notes_pkey ON app.notes USING btree (note_id)"
+      }
+    ],
+    "row_count": 0
+  }
+}
