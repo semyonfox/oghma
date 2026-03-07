@@ -5,6 +5,17 @@
 
 ---
 
+## Important: Read This First
+
+**If you thought it was more complete,** see `PDF_RENDERING_SCOPE_HISTORY.md`:
+- Original SRS promised: Upload + viewing + extraction + annotation
+- Feb 27: Text extraction coded (now disabled)
+- Mar 6: PDF viewer + infrastructure, but extraction still disabled, annotation UI missing
+
+This doc explains what got built and why it's incomplete.
+
+---
+
 ## What's ACTUALLY Implemented
 
 ### ✅ Fully Working
