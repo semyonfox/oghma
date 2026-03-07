@@ -1,6 +1,6 @@
-# OghmaNotes Architecture & Design
+# OghmaNotes Architecture
 
-## Current Architecture (Production-Ready ✅)
+## Current Architecture (Production-Ready)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -39,20 +39,20 @@
 
 ---
 
-## Tech Stack Breakdown
+## Tech Stack
 
-| Layer | Current | Alternative | Why Current |
-|-------|---------|-------------|-------------|
-| **Framework** | Next.js 16 | Remix, Astro | Edge runtime, API routes, fastest build |
-| **Language** | TypeScript | JavaScript | Type safety, better DX |
-| **UI Library** | React 19 | Vue, Svelte | Ecosystem, component libraries |
-| **Styling** | Tailwind 4 | Styled-components | Utility-first, fast iteration |
-| **State** | Zustand | Redux, Context | Lightweight, simple API |
-| **Editor** | Lexical | TipTap, Slate | Feature-rich, Meta-backed |
-| **HTTP** | postgres.js | Prisma, Drizzle | Lightweight, explicit SQL |
-| **Auth** | bcryptjs + JWT | better-auth, Clerk | Simple, Amplify-compatible |
-| **Email** | nodemailer | Resend, SendGrid | AWS SES compatible |
-| **Storage** | AWS S3 | MinIO, Cloudinary | Scalable, cost-effective |
+| Layer | Current |
+|-------|---------|
+| **Framework** | Next.js 16 |
+| **Language** | TypeScript |
+| **UI Library** | React 19 |
+| **Styling** | Tailwind 4 |
+| **State Management** | Zustand |
+| **Editor** | Lexical |
+| **Database Access** | postgres.js |
+| **Authentication** | bcryptjs + JWT |
+| **Email** | nodemailer + AWS SES |
+| **Storage** | AWS S3 |
 
 ---
 
@@ -297,133 +297,66 @@ docs/
 
 ## Key Design Decisions
 
-### 1. **bcryptjs over Argon2**
-- ✅ Works in Amplify (no native compilation)
-- ❌ Slightly slower (100ms vs 10ms for Argon2)
-- ✅ OWASP recommended, battle-tested
-- Trade-off: Performance vs. Compatibility
-
-### 2. **JWT over Sessions**
-- ✅ Stateless (no session DB hits)
-- ✅ Scales horizontally
-- ✅ Mobile-friendly (sends token in Authorization header)
-- ❌ Requires secure storage (we use HTTP-only cookies)
-- Trade-off: Security vs. Simplicity
-
-### 3. **postgres.js over Prisma**
-- ✅ Lightweight (no ORM overhead)
-- ✅ Explicit SQL (easier debugging)
-- ✅ ~1ms query response
-- ❌ Manual SQL = more bugs
-- Trade-off: Performance vs. Developer Experience
-- Plan: Migrate to Prisma when team size grows
-
-### 4. **Lexical over TipTap**
-- ✅ More powerful, Meta-backed
-- ✅ Better for complex documents
-- ❌ Larger bundle (+600KB)
-- ✅ Good for future features (AI, RAG)
-- Trade-off: Bundle size vs. Features
-
-### 5. **Zustand over Redux**
-- ✅ Simple API, minimal boilerplate
-- ✅ Easy to learn
-- ❌ Less powerful for complex state trees
-- Trade-off: Simplicity vs. Scalability (works fine up to 10K users)
+| Decision | Trade-off |
+|----------|-----------|
+| bcryptjs + JWT | OWASP standard, works in Amplify (simpler than Argon2) |
+| postgres.js | Lightweight, explicit SQL (vs Prisma ORM overhead) |
+| Zustand | Minimal boilerplate (adequate for current scale) |
+| Lexical editor | Rich features, Meta-backed (larger bundle) |
+| AWS S3 + SES | Scalable infrastructure |
 
 ---
 
-## Known Limitations & Roadmap
+## Roadmap
 
-### Current Limitations
-- ❌ No real-time collaboration (yet)
-- ❌ No offline mode (yet)
-- ❌ No full-text search (yet)
-- ❌ No AI features (yet)
-- ❌ No OAuth providers (yet)
-
-### Roadmap
-1. **Q1 2026:** Full-text search with PostgreSQL FTS
-2. **Q2 2026:** Basic AI features (summarization, tags)
-3. **Q3 2026:** Real-time collaboration (WebSocket)
-4. **Q4 2026:** OAuth providers (Google, GitHub)
-5. **2027:** Offline mode + sync
+| Phase | Target | Focus |
+|-------|--------|-------|
+| Q1 2026 | Full-text search (PostgreSQL FTS) | Phase 1 |
+| Q2 2026 | AI features (summarization, tagging) | Phase 2 |
+| Q3 2026 | Real-time collaboration (WebSocket) | Phase 3 |
+| Q4 2026 | OAuth providers (Google, GitHub) | Auth |
 
 ---
 
-## Testing Strategy
+## Testing
 
-### Unit Tests
-```bash
-npm test
-# Test auth validation, password hashing, email formatting
-```
-
-### Integration Tests
-```bash
-# Test login flow end-to-end
-# Test password reset email delivery
-# Test file upload to S3
-```
-
-### Load Testing
-```bash
-# Test at 1K concurrent users
-# Monitor response times, error rates
-# Identify bottlenecks
-```
-
-### Security Audit
-```bash
-# npm audit - check for vulnerabilities
-# OWASP Top 10 review
-# SQL injection testing
-```
+| Type | Command | Focus |
+|------|---------|-------|
+| Unit | `npm test` | Auth, validation, hashing |
+| Integration | - | Login flow, email, S3 upload |
+| Load | - | 1K concurrent users, latency |
+| Security | `npm audit` | Vulnerabilities, OWASP Top 10 |
 
 ---
 
-## Monitoring & Logging
+## Monitoring
 
-### Metrics to Track
-- **Authentication:** Login success/failure rate, lockouts
-- **Performance:** API response times, P95/P99 latencies
-- **Errors:** Exception logs, stack traces
-- **Usage:** Daily active users, notes created, files uploaded
-- **Infrastructure:** Amplify build status, database connections, S3 usage
+| Category | Tool |
+|----------|------|
+| Builds | Amplify Console |
+| Logs | CloudWatch |
+| Database | RDS Performance Insights |
+| Storage | S3 Metrics |
 
-### Tools
-- **Amplify Console:** Build logs, environment variables
-- **CloudWatch:** Application logs, metrics
-- **RDS Performance Insights:** Database query analysis
-- **S3 Metrics:** Storage usage, access patterns
+**Key Metrics:** Login rates, API latency, error rates, daily active users
 
 ---
 
 ## Disaster Recovery
 
-### Backup Strategy
-- **Database:** RDS automated backups (35-day retention)
-- **Files:** S3 versioning enabled
-- **Code:** Git repository (GitHub)
-
-### Recovery Procedures
-1. **Database Failure:** Restore from RDS snapshot (~15 mins)
-2. **Credential Breach:** Rotate JWT secret, force re-login
-3. **Code Corruption:** Revert to previous git commit, redeploy
+| Scenario | Recovery |
+|----------|----------|
+| Database failure | RDS snapshot restore (~15 mins) |
+| Credential breach | Rotate JWT secret, force re-login |
+| Code corruption | Revert git commit, redeploy |
+| File loss | S3 versioning enabled |
 
 ---
 
-## Future Considerations
+## Scaling Checkpoints
 
-### When to Refactor
-- User count > 10K → Consider Prisma + better-auth
-- API rate limits hit → Implement caching layer
-- Build time > 15 mins → Optimize imports, split bundles
-- Database queries > 100ms → Add indexes, query caching
-
-### When to Migrate
-- Need complex permissions → Upgrade to better-auth
-- Need offline functionality → Implement PWA + service workers
-- Need AI/ML → Add Python backend service
-- Need real-time → WebSocket server + CRDT for sync
+- **10K+ users:** Consider Prisma, Redis caching, query optimization
+- **Performance issues:** Add database indexes, implement CDN caching
+- **Real-time needed:** WebSocket server + CRDT library
+- **Complex auth:** Upgrade to better-auth with OAuth
 

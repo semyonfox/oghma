@@ -1,28 +1,22 @@
 # Search Architecture Plan
 
-**Branch**: `feature/search`  
-**Created**: 2025-03-06  
-**Status**: In Development
-
----
+**Status**: Phase 1 (In Development)  
+**GitHub Issues**: #21-25
 
 ## Overview
 
-Multi-layered search system combining **fuzzy full-text search** + **semantic vector search** with flexible **sort/filter** capabilities for the tree view. Users can find files by content, metadata, and time, with a clean keyboard-first UI.
-
----
+Fuzzy + semantic vector search with sort/filter in tree view. Find files by filename, content, and time via Cmd+K overlay.
 
 ## Design Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Search scope (MVP)** | Filenames + extracted text | Covers 80% of use case, simpler to implement |
-| **Semantic search timing** | Async background job (Bull queue) | Prevents upload timeouts, scales to 100K+ notes |
-| **Tree sort default** | Alphabetical | Matches your workflow, predictable |
-| **Search ranking** | Semantic first, fuzzy as fallback | Semantic catches intent, fuzzy catches typos |
-| **Markdown rendering** | Formatted (not raw) | Cleaner study experience, readable headings |
-| **Filter MVP** | Sort only (time/alphabetical) | Full date picker filtering in MVP 2 |
-| **Search UI** | Cmd+K overlay (not sidebar) | Minimal distraction, power-user friendly |
+| Decision | Choice |
+|----------|--------|
+| Search scope | Filenames + extracted text |
+| Semantic timing | Async background job (Bull queue) |
+| Sort default | Alphabetical |
+| Ranking | Semantic → fuzzy fallback |
+| Filter MVP | Sort only (time/alphabetical) |
+| UI | Cmd+K overlay (keyboard-first) |
 
 ---
 
@@ -460,27 +454,14 @@ export async function getEmbedding(text) {
 
 ---
 
-## Scalability Considerations
+## Scalability
 
-### Current Limits
-- ✅ 100K notes: Handles comfortably with indexes
-- ✅ Embedding index (ivfflat): Fast with `lists=100` tuning
-- ✅ Full-text search: GIN index keeps queries sub-100ms
+**Current:** 100K+ notes with indexes, sub-100ms queries
 
-### Future Bottlenecks
-- **Embedding generation**: If 10K notes added daily, async queue essential
-- **Search performance**: At 1M+ notes, consider Redis caching popular queries
-- **Vector dimension**: OpenAI embeddings are 1536-dim; tune `lists=` parameter higher
-
-### Migration Path
-```sql
--- If switching embedding models (e.g., text-embedding-3-large = 3072-dim)
--- Create new column, backfill, drop old:
-ALTER TABLE app.notes ADD COLUMN embedding_large vector(3072);
--- Backfill with new embeddings...
-ALTER TABLE app.notes DROP COLUMN embedding;
-ALTER TABLE app.notes RENAME COLUMN embedding_large TO embedding;
-```
+**Future scaling:** 
+- High embedding volume → tune async queue (Bull)
+- 1M+ notes → add Redis query caching
+- Embedding model upgrade → add new vector column, migrate, swap
 
 ---
 

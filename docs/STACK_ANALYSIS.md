@@ -1,79 +1,56 @@
 # Stack Analysis
 
-## What Changed from Original SRS
+## Deviations from SRS
 
 ### Database: MariaDB → PostgreSQL + pgvector
-
-Original spec wanted MariaDB's native vectors. We use PostgreSQL + pgvector extension instead.
-
-- ✅ Both support 1536-dim embeddings
-- ✅ Both have full-text search (GIN indexes)
-- ✅ Performance comparable (~5ms keyword, ~50ms semantic)
-- ✅ pgvector is well-maintained
-
-Decision: PostgreSQL is what the team knows. pgvector works fine.
+Both support 1536-dim embeddings and full-text search. PostgreSQL + pgvector offers better team familiarity and performance.
 
 ### Architecture: Microservices → Single Next.js App
+Monolithic approach for faster iteration. Can be split later if needed.
 
-Original spec had separate frontend, API, RAG pipeline, and worker services. We built everything in Next.js.
+**Trade-off:** Flexibility in scaling vs. simplicity in deployment
 
-**Why:** Faster to ship. One codebase, one deployment. Can split services later if needed.
+### Background Jobs: Not yet implemented
+BullMQ + Redis planned later if needed (large PDFs, batch embeddings).
 
-**Trade-offs:**
-- ✅ Faster iteration
-- ✅ Simpler deployment (one Amplify build)
-- ❌ Scaling is less flexible
-- ❌ Long tasks can block API (mitigated with async jobs later)
+### LLM Keys: User-Provided (not backend-managed)
+Users paste API keys (stored encrypted in browser). No backend secrets, lower operational risk.
 
-### Background Jobs: BullMQ + Redis → TBD
+**Benefits:** No key management, users control costs, flexible provider support
 
-Original spec required job queues. Not implemented yet, not blocking MVP.
+## Feature Status
 
-Plan: Add later if needed (for large PDF indexing, batch embeddings).
-
-### LLM Keys: Backend-Managed → User-Provided
-
-Original: App would store and manage API keys.  
-Actually: Users provide their own keys (stored in browser).
-
-**Benefits:**
-- No backend secrets to manage
-- Users pay their own provider costs
-- Supports any LLM (OpenAI, Anthropic, local models)
-
-## What's Built
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Auth (register, login, password reset) | ✅ Complete | JWT, bcrypt |
-| Notes (CRUD, folders, offline) | ✅ Complete | Markdown, PWA |
-| PDF upload, annotation | ✅ Complete | Highlighting, comments |
-| File sync (S3) | ✅ Complete | Auto-sync when online |
-| Search (fuzzy + semantic) | 🔄 Phase 1 | Planned, architecture done |
-| RAG chat | 🔄 Phase 2 | In progress |
-| Quizzes | ⏳ Phase 3 | Not started |
-| Flashcards (SM-2) | ⏳ Phase 3 | Not started |
-| LMS integration | ⏳ Phase 3 | Not started |
-| Analytics | ⏳ Phase 3 | Not started |
+| Feature | Status |
+|---------|--------|
+| Auth (register, login, password reset) | Complete |
+| Notes (CRUD, folders, offline) | Complete |
+| PDF upload and annotation | Complete |
+| File sync (S3) | Complete |
+| Search (fuzzy + semantic) | Phase 1 In Progress |
+| RAG chat | Phase 2 Planned |
+| Quizzes | Phase 3 Planned |
+| Flashcards | Phase 3 Planned |
+| LMS integration | Phase 3 Planned |
+| Analytics | Phase 3 Planned |
 
 ## Performance Targets
 
-| Operation | Target | Status |
-|-----------|--------|--------|
-| Fuzzy search | <5ms | ✅ Achievable with GIN index |
-| Semantic search | <50ms | ✅ Achievable with ivfflat |
-| PDF indexing (50MB) | <2min | ✅ Async, no blocker |
-| Note sync | <2s | ✅ Tested ~500ms |
-| Page load | <4s | ✅ Tested ~2.5s |
+| Operation | Target |
+|-----------|--------|
+| Fuzzy search | <5ms (GIN index) |
+| Semantic search | <50ms (ivfflat) |
+| PDF indexing (50MB) | <2min (async) |
+| Note sync | <2s |
+| Page load | <4s |
 
-## Risk Register
+## Risks
 
-| Risk | Priority | Mitigation |
-|------|----------|-----------|
-| RAG pipeline not done by deadline | 🔴 High | Started Phase 2, using proven patterns |
-| Vector search performance at scale | 🟡 Medium | Test with 10K+ vectors before prod |
-| S3 costs | 🟢 Low | Monitor usage, cap if needed |
-| PostgreSQL connection limits | 🟢 Low | RDS default pool (20) is enough for MVP |
+| Risk | Mitigation |
+|------|-----------|
+| RAG deadline pressure | Proven patterns, parallel work |
+| Vector search at scale | Load test 10K+ vectors |
+| S3 costs | Monitor and cap usage |
+| Database connections | RDS pool sufficient for MVP |
 
 ## Decisions Made
 

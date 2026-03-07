@@ -1,6 +1,6 @@
 ## What does this PR do?
 
-<!-- Briefly describe what you built and why -->
+<!-- Describe what you built and why -->
 
 ## Implementation Notes
 
@@ -8,23 +8,21 @@
 
 ## Testing
 
-<!-- How did you test this? -->
 - [ ] Manual testing completed
 - [ ] Tested happy path
 - [ ] Tested error cases
 
 ## Checklist
 
-- [ ] Code follows the auth pattern in `/src/app/api/auth/login/route.js`
-- [ ] All functions have JSDoc with purpose + security notes
-- [ ] No `console.log` statements (except in development)
-- [ ] Error handling: catches errors, returns proper HTTP status
-- [ ] Input validation: checks user inputs, uses parameterized SQL queries
-- [ ] No security vulnerabilities (SQL injection, XSS, CSRF)
+- [ ] Follows auth pattern in `/src/app/api/auth/login/route.js`
+- [ ] Functions have JSDoc comments
+- [ ] No `console.log` (except dev)
+- [ ] Error handling: proper HTTP status
+- [ ] Input validation: parameterized SQL queries
+- [ ] No SQL injection, XSS, CSRF vulnerabilities
 - [ ] ESLint passes (`npm run lint`)
 
-## Related
+## Closes
 
-<!-- Link to GitHub issue or spec -->
-Closes #
-Spec: docs/README.md
+- #<!-- Issue number -->
+- Spec: [SEARCH_ARCHITECTURE_PLAN.md](../../SEARCH_ARCHITECTURE_PLAN.md)

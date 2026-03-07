@@ -1,63 +1,46 @@
 # LLM Strategy: User-Managed Keys
 
-Users manage their own LLM API keys. Backend never stores or sees them.
+Users manage their own LLM API keys. Backend never stores them.
 
 ## How It Works
 
-1. User opens Settings → AI Provider
-2. Selects provider (OpenAI, Anthropic, etc.)
-3. Pastes their API key
-4. Frontend stores key in browser (encrypted)
-5. Frontend calls LLM directly with user's key
-6. Backend only coordinates search, never touches the key
+1. User → Settings → AI Provider
+2. Paste API key
+3. Frontend stores encrypted in browser
+4. Frontend calls LLM directly
+5. Backend coordinates search only
 
-## Supported Providers
+## Providers
 
-- OpenAI (GPT-3.5, GPT-4, embeddings)
-- Anthropic (Claude)
-- Cohere
-- LiteLLM Gateway (custom endpoint)
-- Local models (your server)
+OpenAI, Anthropic, Cohere, LiteLLM Gateway, local models
 
 ## Benefits
 
-- No backend secrets to manage
-- Users pay directly to their provider
-- Easy to switch providers
-- Better privacy (keys never leave browser)
-
-## Development
-
-Team can use internal Qwen model for free testing:
-
-```
-INTERNAL_LLM_GATEWAY=http://your-server:8000
-INTERNAL_EMBEDDING_MODEL=qwen
-```
-
-Production uses user-provided keys.
+- No backend secrets
+- Users pay directly
+- Easy provider switching
+- Privacy (keys stay in browser)
 
 ## Security
 
-- Keys stored in encrypted browser session
+- Keys encrypted in browser session
 - Never sent to backend
-- Never logged or cached
 - Cleared on logout
 
 ## Implementation
 
-Frontend calls providers directly. Backend coordinates search only:
-
 ```javascript
-// Frontend handles LLM calls with user's key
+// Frontend: LLM calls with user's key
 const embedding = await getEmbedding(text, userKey)
 
-// Backend returns search results
-GET /api/search?q=query  // No key needed
+// Backend: search coordination only
+GET /api/search?q=query
 ```
 
-## Future
+## Development
 
-- Provider comparison UI
-- Key rotation warnings
-- Fallback providers
+Test with internal Qwen model:
+```
+INTERNAL_LLM_GATEWAY=http://your-server:8000
+INTERNAL_EMBEDDING_MODEL=qwen
+```
