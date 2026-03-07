@@ -9,44 +9,37 @@ assignees: ''
 
 ## Description
 
-<!-- What feature is this? Why does it matter? -->
+What feature is this? Why does it matter?
 
 ## Specification
 
-<!-- Link to detailed spec or describe the requirements -->
-- Spec: docs/README.md (section)
+- Spec: [SEARCH_ARCHITECTURE_PLAN.md](../../SEARCH_ARCHITECTURE_PLAN.md) (or relevant doc)
 - Related: #(issue number)
 
 ## Acceptance Criteria
 
-<!-- How do we know this is done? -->
 - [ ] Criterion 1
 - [ ] Criterion 2
 - [ ] Criterion 3
 
-## Technical Details
+## Implementation
 
-<!-- Any implementation notes, patterns to follow, files to create -->
+**Files to create/modify:**
+- `/src/app/api/...` endpoint
+- `/src/lib/...` utilities
+- `/src/database/...` queries
 
-### Files to Create/Modify
-- `/src/app/api/...` - endpoint
-- `/src/lib/...` - utilities
-- `/src/database/...` - queries
+**Reference:** Follow pattern from `/src/app/api/auth/login/route.js`
 
-### Reference
-Follow the pattern from: `/src/app/api/auth/login/route.js`
+## Testing
 
-## Testing Checklist
-
-<!-- Tests to run -->
 - [ ] Happy path works
 - [ ] Error cases handled
 - [ ] Security checks in place
-- [ ] Code passes linting
+- [ ] ESLint passes
 
-## Definition of Done
+## Done
 
-- Implementation complete
-- Code reviewed and approved
-- All tests passing
-- Merged to main
+- [ ] Code complete and reviewed
+- [ ] Tests passing
+- [ ] Merged to main
