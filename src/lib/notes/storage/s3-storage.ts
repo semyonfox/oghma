@@ -198,3 +198,54 @@ export async function restoreNoteFromTrash(noteId: string): Promise<void> {
 export async function permanentlyDeleteNote(noteId: string): Promise<void> {
   await deleteNoteFromS3(noteId);
 }
+
+/**
+ * Rebuild tree from all notes currently in S3
+ * Ensures tree is synchronized with actual note files
+ */
+export async function rebuildTreeFromS3(): Promise<TreeModel> {
+  try {
+    const notes = await getAllNotesFromS3();
+    const tree: TreeModel = {
+      rootId: ROOT_ID,
+      items: {
+        [ROOT_ID]: {
+          id: ROOT_ID,
+          children: [],
+        },
+      },
+    };
+
+    // Add each note to the tree
+    for (const note of notes) {
+      const parentId = note.pid || ROOT_ID;
+      
+      // Create tree item for note
+      tree.items[note.id] = {
+        id: note.id,
+        children: [],
+        data: note,
+        isExpanded: false,
+      };
+
+      // Add to parent's children
+      if (!tree.items[parentId]) {
+        tree.items[parentId] = {
+          id: parentId,
+          children: [],
+        };
+      }
+
+      if (!tree.items[parentId].children.includes(note.id)) {
+        tree.items[parentId].children.push(note.id);
+      }
+    }
+
+    // Save rebuilt tree
+    await saveTreeToS3(tree);
+    return tree;
+  } catch (error) {
+    console.error('Error rebuilding tree from S3:', error);
+    throw error;
+  }
+}
