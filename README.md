@@ -1,13 +1,13 @@
 # OghmaNotes
 
-AI-powered learning platform for students to write notes, search intelligently, and get answers backed by their own materials.
+Learning platform for students to write notes, search intelligently, and ask questions backed by their own materials.
 
 ## Status
 
-**Foundation:** ✅ Complete (Auth, notes, PDFs, UUID v7)  
-**Phase 1 (Search):** 🔄 In progress (Issues #21-25)  
-**Phase 2 (RAG):** ⏳ Planned  
-**Phase 3 (Features):** ⏳ Planned
+**Foundation:** Complete (Auth, notes, PDFs, UUID v7)  
+**Phase 1 (Search):** In progress (Issues #21-25)  
+**Phase 2 (RAG):** Planned  
+**Phase 3 (Features):** Planned
 
 See [PROGRESS.md](PROGRESS.md) for detailed tracking.
 
@@ -24,24 +24,24 @@ See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## What's Built
 
-**Working Now:**
-- ✅ Auth (register, login, password reset)
-- ✅ Markdown notes with offline support (PWA)
-- ✅ PDF upload and annotation
-- ✅ File organization (folders, tree structure)
+**Working:**
+- Auth (register, login, password reset)
+- Markdown notes with offline support (PWA)
+- PDF upload and annotation
+- File organization (folders, tree structure)
 
 **Phase 1 (Search):**
-- 🔄 Fuzzy + semantic search (Cmd+K overlay)
-- 🔄 Tree sorting and filtering
+- Fuzzy + semantic search (Cmd+K overlay)
+- Tree sorting and filtering
 
 **Phase 2 (RAG):**
-- ⏳ RAG chat with citations
-- ⏳ PDF text extraction and chunking
+- RAG chat with citations
+- PDF text extraction and chunking
 
 **Phase 3 (Features):**
-- ⏳ Quiz generation and flashcards
-- ⏳ Canvas LMS integration
-- ⏳ Calendar/analytics dashboard
+- Quiz generation and flashcards
+- Canvas LMS integration
+- Calendar/analytics dashboard
 
 ## Tech Stack
 

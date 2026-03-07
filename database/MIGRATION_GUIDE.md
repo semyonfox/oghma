@@ -1,34 +1,21 @@
-# Database Migration Guide: UUID v7 Implementation
+# Database Migration Guide: UUID v7
 
-## Overview
-
-This guide is for the database team. It covers:
-- Current database state vs planned migration
-- Potential issues with the migration file
-- Improvements to consider
-- Step-by-step execution instructions
+**For:** Database team  
+**What:** Migrate from SERIAL IDs to UUID v7  
+**Risk:** Medium (requires careful execution with rollback plan)
 
 ---
 
-## Current State Analysis
+## Analysis Tools
 
-### Tools Provided
-
-**1. `scripts/map-database-schema.py`**
-- Maps actual database schema to JSON
-- Shows all tables, columns, types, constraints, indexes
-- Output: `database/schema-current.json`
-
+**Map current schema:**
 ```bash
 pip install psycopg2-binary
 python scripts/map-database-schema.py
 ```
+Output: `database/schema-current.json`
 
-**2. `scripts/compare-schema.py`**
-- Compares actual DB vs migration file
-- Identifies missing/extra tables, columns, type mismatches
-- Shows what migration will add/change
-
+**Compare schema changes:**
 ```bash
 python scripts/compare-schema.py
 ```

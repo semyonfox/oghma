@@ -1,18 +1,16 @@
 # OghmaNotes Progress Tracker
 
 **Last Updated:** 2025-03-06  
-**Status:** Foundation ✅ → Phase 1 🔄 → Phase 2 ⏳ → Phase 3 ⏳
+**Status:** Foundation Complete → Phase 1 Active → Phase 2 Planned → Phase 3 Planned
 
----
-
-## Quick Summary
+## Summary
 
 | Phase | Status | Work | Issues |
 |-------|--------|------|--------|
-| **Foundation** | ✅ Complete | UUID v7, SRS, docs | #36-38 |
-| **Phase 1: Search** | 🔄 Active | Fuzzy + semantic search, Cmd+K | #21-25 |
-| **Phase 2: RAG** | ⏳ Planned | PDF chunking, chat, embeddings | #31-35 |
-| **Phase 3: Features** | ⏳ Planned | Quizzes, flashcards, Canvas, analytics | #26-30 |
+| **Foundation** | Complete | UUID v7, SRS, docs | #36-38 |
+| **Phase 1: Search** | Active | Fuzzy + semantic search, Cmd+K | #21-25 |
+| **Phase 2: RAG** | Planned | PDF chunking, chat, embeddings | #31-35 |
+| **Phase 3: Features** | Planned | Quizzes, flashcards, Canvas, analytics | #26-30 |
 
 **GitHub Project:** https://github.com/users/semyonfox/projects/5 (20 items)
 
@@ -20,11 +18,11 @@
 
 ## Contents
 
-- [Quick Summary](#quick-summary) ← Start here
-- [Foundation Work](#foundation-work-complete) (✅ Done)
-- [Phase 1: Search](#phase-1-search-in-progress) (🔄 Active)
-- [Phase 2: RAG](#phase-2-rag-pipeline-planned) (⏳ Coming)
-- [Phase 3: Features](#phase-3-features-planned) (⏳ Coming)
+- [Summary](#summary) ← Start here
+- [Foundation Work](#foundation-work-complete) (Done)
+- [Phase 1: Search](#phase-1-search-in-progress) (Active)
+- [Phase 2: RAG](#phase-2-rag-pipeline-planned) (Planned)
+- [Phase 3: Features](#phase-3-features-planned) (Planned)
 - [Completed Artifacts](#completed-artifacts)
 - [Metrics](#metrics)
 
@@ -33,7 +31,7 @@
 ## Foundation Work (Complete)
 
 ### Issue #36: UUID v7 Implementation
-**Status:** ✅ COMPLETE
+**Status:** Complete
 
 **Commits:**
 - `4c4a62b` - feat: implement UUID v7 for notes and users
@@ -56,7 +54,7 @@
 ---
 
 ### Issue #37: SRS & Documentation Cleanup
-**Status:** ✅ COMPLETE
+**Status:** Complete
 
 **Commits:**
 - `b025308` - refactor: tidy up SRS - more human, less corporate
@@ -209,12 +207,12 @@
 
 ---
 
-## Key Contacts
+## Next Steps
 
-- **Database:** Database guy (UUID migration complete, ready for Phase 1 work)
-- **RAG:** RAG guy (waiting on Phase 1 search completion)
-- **Search:** Search implementation team (active on Phase 1)
-- **Overall:** Check GitHub Project for live tracking
+- **Phase 1 Search:** See [SEARCH_ARCHITECTURE_PLAN.md](SEARCH_ARCHITECTURE_PLAN.md)
+- **Phase 2 RAG:** Waiting on Phase 1 completion
+- **Phase 3 Features:** See [docs/SRS.tex](docs/SRS.tex)
+- **Live Tracking:** [GitHub Project](https://github.com/users/semyonfox/projects/5)
 
 ---
 
