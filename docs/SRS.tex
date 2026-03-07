@@ -9,15 +9,15 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes -- SRS}
+\lhead{OghmaNotes -- SRS (Updated v3)}
 
 \title{Software Requirements Specification \\
-\Large OghmaNotes: RAG-Powered Learning Platform}
+\Large OghmaNotes: Learning Platform with AI Chat}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
-\date{\today}
+\date{March 2025}
 
 \hypersetup{
-    pdftitle={OghmaNotes SRS},
+    pdftitle={OghmaNotes SRS v3},
     pdfauthor={Samuel Regan, Semyon Fox, Shreyansh Singh}
 }
 
@@ -32,9 +32,15 @@
 \section{Introduction}
 %==============================================================================
 
-OghmaNotes is a web-based learning platform for students to create portable Markdown notes, upload PDFs, search intelligently, and ask AI questions with answers backed by their own materials.
+OghmaNotes is a web-based learning platform for students to take markdown notes, upload and extract text from PDFs, search their materials intelligently, and ask AI questions with answers backed by their own course materials (Retrieval-Augmented Generation).
 
-\textit{For:} Development team, supervisors, maintainers.
+\subsection{Purpose}
+
+This document defines the realistic scope, architecture, and features for OghmaNotes. It reflects actual codebase capabilities and planned development phases.
+
+\subsection{Audience}
+
+For: Development team, supervisors, stakeholders.
 
 %==============================================================================
 \section{Scope}
@@ -42,55 +48,130 @@ OghmaNotes is a web-based learning platform for students to create portable Mark
 
 \subsection{In Scope}
 
+\subsubsection{Core Learning System}
+
 \begin{itemize}
-    \item Web-based Markdown editor with offline support (PWA)
-    \item PDF upload, text extraction, semantic chunking (500 tokens, 50--100 overlap)
-    \item Multi-mode search (fuzzy keyword + semantic vector)
-    \item RAG chat with citations to source materials
-    \item User authentication (email/password, JWT tokens, password reset)
-    \item Note organization (folder hierarchy)
-    \item Quiz generation from notes/PDFs
-    \item Spaced repetition flashcards (SM-2 algorithm)
-    \item Canvas LMS integration for assignment sync
-    \item Calendar/timetable view
-    \item Analytics dashboard (study time, weak topics, progress)
-    \item Full vault export
-    \item Note tagging and bidirectional linking
+    \item \textbf{Note Taking:} Markdown editor with offline support (PWA), auto-save, conflict resolution
+    \item \textbf{Note Organization:} Hierarchical folder structure with drag-and-drop support
+    \item \textbf{File Storage:} AWS S3 for notes and files
+    \item \textbf{PDF Upload:} Store PDFs up to 100MB per file
+\end{itemize}
+
+\subsubsection{Search System}
+
+\begin{itemize}
+    \item \textbf{Fuzzy Keyword Search:} Fast full-text search across notes and PDFs (\textless5ms)
+    \item \textbf{Semantic Search:} Vector-based similarity search using embeddings (\textless50ms)
+    \item \textbf{Search UI:} Command palette (Cmd+K) with filters and snippets
+    \item \textbf{Note Extraction:} Text extraction from PDFs with metadata preservation
+\end{itemize}
+
+\subsubsection{AI-Powered Features}
+
+\begin{itemize}
+    \item \textbf{RAG Chat:} Ask questions about your notes and PDFs, receive AI answers with citations
+    \item \textbf{PDF Chunking:} Automatic text segmentation (500 tokens per chunk, 50--100 token overlap)
+    \item \textbf{Vector Embeddings:} 1536-dimensional embeddings for semantic search
+    \item \textbf{Streaming Responses:} Token-by-token response generation
+    \item \textbf{Source Citations:} Clickable links to source PDF locations and notes
+\end{itemize}
+
+\subsubsection{Learning Tools}
+
+\begin{itemize}
+    \item \textbf{Quiz Generation:} Auto-generate quizzes from notes and PDFs
+    \item \textbf{Quiz Types:} Multiple choice, short answer, true/false
+    \item \textbf{Difficulty Levels:} Easy, medium, hard
+    \item \textbf{Flashcard System:} Spaced repetition using SM-2 algorithm
+    \item \textbf{Flashcard Deck Management:} Create, review, and track progress
+    \item \textbf{Analytics (Basics):} Overall quiz scores, flashcard mastery, study time tracking
+\end{itemize}
+
+\subsubsection{Canvas LMS Integration}
+
+\begin{itemize}
+    \item \textbf{OAuth Connection:} Secure connection to Canvas LMS
+    \item \textbf{Assignment Sync:} Auto-import assignments and due dates
+    \item \textbf{Calendar Mapping:} Display Canvas due dates on assignment calendar
+    \item \textbf{Daily Sync:} Automatic sync of new assignments (with manual refresh option)
+\end{itemize}
+
+\subsubsection{Calendar \& Assignment Tracking}
+
+\begin{itemize}
+    \item \textbf{Assignment Calendar:} View Canvas assignments and due dates
+    \item \textbf{Due Date Display:} Clear visualization of upcoming deadlines
+    \item \textbf{Integration with Study Tools:} Link quizzes and flashcards to assignments
+\end{itemize}
+
+\subsubsection{Authentication \& Security}
+
+\begin{itemize}
+    \item Email and password registration
+    \item Email verification required
+    \item JWT authentication (24-hour expiry)
+    \item Secure password reset (1-hour token, single-use)
+    \item Passwords hashed with bcrypt (10+ rounds)
+    \item Account deletion with soft-delete grace period (7 days)
+    \item Settings management (email, password, preferences)
+\end{itemize}
+
+\subsubsection{User Interface}
+
+\begin{itemize}
+    \item VSCode-style layout (icon nav, sidebar, split editor panes)
+    \item Dark mode only
     \item Responsive design (desktop, tablet)
+    \item Real-time form validation
+    \item Keyboard-first navigation
+    \item Actionable error messages
+    \item Markdown editor with live preview
 \end{itemize}
 
 \subsection{Out of Scope}
 
 \begin{itemize}
     \item Real-time collaborative editing
-    \item Native mobile apps (PWA only)
-    \item Light mode (dark only)
+    \item Native mobile applications (PWA only)
+    \item Light mode
     \item Instructor dashboards
     \item Video/audio transcription
+    \item Note templates or snippets
+    \item Version history or branching
+\end{itemize}
+
+\subsection{Nice-to-Have (Post-MVP)}
+
+\begin{itemize}
+    \item Note tagging system
+    \item Bidirectional note linking with knowledge graph visualization
+    \item Advanced analytics (learning patterns, AI-driven insights)
+    \item Integration with other LMS platforms
+    \item Note templates
 \end{itemize}
 
 \subsection{Goals}
 
 \begin{enumerate}
-    \item Deliver feature-complete product by end of semester
-    \item Enable 3 people to work in parallel
-    \item Auto-deploy from production branch
-    \item Stay within budget constraints
+    \item Deliver feature-complete MVP with core functionality and AI chat
+    \item Enable 3 people to develop in parallel without conflicts
+    \item Maintain code quality with automated testing and linting
+    \item Deploy automatically from main branch
 \end{enumerate}
 
 %==============================================================================
-\section{Tech Stack}
+\section{Tech Stack \& Architecture}
 %==============================================================================
 
 \subsection{Frontend}
 
 \begin{itemize}
-    \item Next.js with React and TypeScript
-    \item Tailwind CSS
-    \item Lexical editor for note editing
+    \item Next.js 16+ with React 19 and TypeScript
+    \item Tailwind CSS 4 for styling
+    \item Lexical rich-text editor for note editing
     \item PDF.js for document viewing
     \item Zustand for state management
-    \item Dark mode only
+    \item Dark mode only (Material Design 3)
 \end{itemize}
 
 \subsection{Backend}
@@ -99,172 +180,176 @@ OghmaNotes is a web-based learning platform for students to create portable Mark
     \item Next.js API routes (monolith)
     \item bcryptjs for password hashing
     \item JWT for authentication
-    \item AWS SES for email
+    \item AWS SES for email (password reset, verification)
 \end{itemize}
 
 \subsection{Database}
 
 \begin{itemize}
-    \item PostgreSQL 12+ with pgvector extension
-    \item Full-text search via PostgreSQL
-    \item Vector embeddings (1536 dimensions)
+    \item PostgreSQL 12+
+    \item pgvector extension for semantic search
+    \item UUID v7 for all primary keys (cryptographically secure, sortable by timestamp)
+    \item Version-controlled migrations
 \end{itemize}
 
-\subsection{Storage \& Services}
+\subsection{Storage}
 
 \begin{itemize}
-    \item AWS S3 for PDFs, notes, exports
-    \item AWS Amplify for auto-deployment
-    \item AWS RDS for managed PostgreSQL
-    \item OpenAI API for embeddings and chat
-    \item Canvas LMS OAuth integration
+    \item AWS S3 for object storage
+    \item Presigned URLs for secure file access (1-hour expiry)
+    \item Notes stored as JSON
+    \item Tree structure managed in S3
 \end{itemize}
 
-\subsection{Local Development}
+\subsection{LLM Integration}
 
 \begin{itemize}
-    \item Docker and docker-compose
-    \item PostgreSQL with pgvector
+    \item User-managed API keys (OpenAI, Anthropic, or compatible)
+    \item No backend LLM secrets stored
+    \item Client-side API key usage with CORS
+    \item Streaming responses via Server-Sent Events
+\end{itemize}
+
+\subsection{Deployment}
+
+\begin{itemize}
+    \item AWS Amplify for auto-deployment from main branch
+    \item GitHub Actions for CI/CD
 \end{itemize}
 
 %==============================================================================
 \section{Functional Requirements}
 %==============================================================================
 
-\subsection{Authentication \& Users}
+\subsection{User Authentication}
 
-\begin{itemize}
-    \item Register with email/password
-    \item Email verification required
-    \item Login with JWT (24h expiry)
-    \item Password reset via email (1h token, single-use)
-    \item Logout and session management
-    \item Passwords hashed with bcrypt (10+ rounds)
-    \item Profile management (email, password, course info)
-    \item Account deletion with 7-day soft-delete
-\end{itemize}
+\begin{enumerate}
+    \item System shall allow users to register with email and password
+    \item System shall validate email addresses and send verification emails
+    \item System shall require email verification before login
+    \item System shall allow users to login with verified email and password
+    \item System shall issue JWT tokens valid for 24 hours
+    \item System shall support secure password reset via email tokens (1-hour validity)
+    \item System shall hash passwords using bcrypt with minimum 10 rounds
+    \item System shall lock accounts after 5 failed login attempts
+    \item System shall support user logout
+    \item System shall allow users to delete accounts (soft-delete with 7-day recovery window)
+\end{enumerate}
 
-\subsection{Notes}
+\subsection{Note Taking}
 
-\begin{itemize}
-    \item Create, edit, delete notes in Markdown
-    \item Live preview with formatting support
-    \item Auto-save to IndexedDB every 5 seconds
-    \item Organize into folder hierarchy
-    \item Sync to S3 when online
-    \item Conflict resolution (last-write-wins)
-    \item Offline editing with auto-sync on reconnect
-\end{itemize}
+\begin{enumerate}
+    \item System shall allow authenticated users to create, read, update, and delete notes
+    \item System shall store notes as Markdown with metadata (title, created\_at, updated\_at)
+    \item System shall support note hierarchy (parent-child relationships)
+    \item System shall enable folder-like organization with drag-and-drop reordering
+    \item System shall auto-save notes to local storage (IndexedDB) every 5 seconds
+    \item System shall sync notes to S3 on reconnection
+    \item System shall implement conflict resolution (last-write-wins)
+    \item System shall support pinning and soft-deleting notes
+    \item System shall preserve note creation and modification timestamps
+\end{enumerate}
 
-\subsection{PDFs \& Documents}
+\subsection{PDF Upload \& Storage}
 
-\begin{itemize}
-    \item Upload PDFs up to 50MB (within 5GB quota)
-    \item Extract text from PDFs
-    \item Semantic chunking (500 tokens, 50--100 overlap)
-    \item Generate and store embeddings (OpenAI, 1536 dims)
-    \item Preserve page numbers and section metadata
-    \item Display ingestion progress
-    \item Handle errors gracefully (rate limits, API unavailable)
-\end{itemize}
+\begin{enumerate}
+    \item System shall allow authenticated users to upload PDF files up to 100MB
+    \item System shall validate file format and size before processing
+    \item System shall store PDFs in S3 with secure access
+    \item System shall generate presigned URLs for authenticated downloads (1-hour expiry)
+    \item System shall extract text from uploaded PDFs
+    \item System shall preserve PDF metadata (file name, upload date, page count)
+    \item System shall provide upload progress indication
+    \item System shall handle upload failures gracefully with error messages
+\end{enumerate}
 
 \subsection{Search}
 
-\begin{itemize}
-    \item Keyword search via PostgreSQL FULLTEXT (~5ms)
-    \item Semantic search via pgvector embeddings (~50ms)
-    \item Hybrid search combining both (~100ms)
-    \item Filter by tags, module, document type, semester
-    \item Display relevance scores and snippets
-    \item Cmd+K overlay for keyboard-first search
-\end{itemize}
+\begin{enumerate}
+    \item System shall provide fuzzy keyword search across all notes and PDFs
+    \item Keyword search shall complete in under 5 milliseconds
+    \item System shall provide semantic vector search using embeddings
+    \item Semantic search shall complete in under 50 milliseconds
+    \item System shall support search filters (by tags, document type, date range)
+    \item System shall display search results with relevance scores and text snippets
+    \item System shall implement command palette (Cmd+K) for keyboard-first search
+    \item System shall rank results by relevance with pagination support
+\end{enumerate}
 
-\subsection{RAG Chat}
+\subsection{RAG Chat \& AI Features}
 
-\begin{itemize}
-    \item Chat interface for free-text questions
-    \item Hybrid search to retrieve relevant chunks
-    \item Send chunk text to LLM for answer generation
-    \item Include citations (page number, section, chunk ID)
-    \item Clickable citations linking to PDF location
-    \item Stream LLM response token-by-token
-    \item Rate responses (thumbs up/down)
-    \item Handle LLM unavailability gracefully
-\end{itemize}
+\begin{enumerate}
+    \item System shall extract text from PDFs and split into semantic chunks (500 tokens, 50--100 overlap)
+    \item System shall generate 1536-dimensional embeddings for text chunks
+    \item System shall store embeddings in PostgreSQL with pgvector extension
+    \item System shall accept user questions in free text
+    \item System shall retrieve relevant document chunks using hybrid search
+    \item System shall generate LLM responses with citations to source materials
+    \item System shall stream responses token-by-token to the user
+    \item System shall include clickable citations linking to original PDF locations
+    \item System shall handle LLM API failures gracefully
+    \item System shall support user API key management for LLM providers
+\end{enumerate}
 
-\subsection{Quizzes}
+\subsection{Learning Tools}
 
-\begin{itemize}
-    \item Generate questions from notes/PDFs
-    \item Select difficulty level (Easy/Medium/Hard)
-    \item Generate 5--10 questions per session
-    \item Support multiple-choice, short-answer, true/false
-    \item Optional timed mode
-    \item Display score and correct answers
-    \item Track weak topics by performance
-\end{itemize}
+\subsubsection{Quiz Generation}
 
-\subsection{Flashcards}
+\begin{enumerate}
+    \item System shall generate quizzes from selected notes or PDF sections
+    \item System shall generate 5--10 questions per quiz
+    \item System shall support multiple choice, short answer, and true/false question types
+    \item System shall support difficulty levels (easy, medium, hard)
+    \item System shall allow optional timed quiz mode
+    \item System shall track quiz scores and performance metrics
+    \item System shall identify weak topics based on quiz performance
+\end{enumerate}
 
-\begin{itemize}
-    \item Create decks from notes or quiz questions
-    \item SM-2 spaced repetition scheduling
-    \item Daily review queue (``Due Today: N cards'')
-    \item Flip cards and rate recall (1--5 scale)
-    \item Update intervals based on ratings
-    \item Persist state across devices
-    \item Progress metrics (due, reviewed, mastery \%)
-\end{itemize}
+\subsubsection{Flashcard System}
+
+\begin{enumerate}
+    \item System shall allow users to create flashcard decks from quizzes or notes
+    \item System shall implement SM-2 spaced repetition algorithm for scheduling reviews
+    \item System shall display daily review queue based on spaced repetition schedule
+    \item System shall allow users to rate cards (1--5 scale) during review
+    \item System shall track flashcard mastery percentage and progress metrics
+    \item System shall persist flashcard state across sessions
+    \item System shall support importing questions as flashcards
+\end{enumerate}
 
 \subsection{Canvas LMS Integration}
 
-\begin{itemize}
-    \item OAuth connection to Canvas
-    \item Import assignments with due dates
-    \item Display in calendar view
-    \item Auto-schedule study sessions before exams
-    \item Auto-sync once per day
-    \item On-demand sync button
-    \item Handle sync errors gracefully
-\end{itemize}
+\begin{enumerate}
+    \item System shall connect to Canvas LMS via OAuth 2.0
+    \item System shall retrieve assignments and due dates from Canvas courses
+    \item System shall auto-sync Canvas assignments daily and on-demand
+    \item System shall store Canvas assignment metadata (title, due date, course)
+    \item System shall display assignments in assignment calendar view
+    \item System shall handle OAuth errors gracefully
+    \item System shall allow users to disconnect and reconnect Canvas accounts
+    \item System shall preserve Canvas sync history
+\end{enumerate}
 
-\subsection{Calendar \& Timetable}
+\subsection{Assignment Calendar \& Due Date Tracking}
 
-\begin{itemize}
-    \item Week and month views
-    \item Display flashcard reviews, quizzes, LMS assignments
-    \item Auto-schedule reviews before exams
-    \item Click events to navigate to task
-    \item Export to iCal format
-\end{itemize}
+\begin{enumerate}
+    \item System shall display a calendar view of Canvas assignment due dates
+    \item System shall show upcoming assignments in week/month views
+    \item System shall link assignments to quizzes and flashcards for planning
+    \item System shall display due date warnings (e.g., ``Due in 3 days'')
+    \item System shall integrate assignment deadlines with quiz/flashcard scheduling
+\end{enumerate}
 
-\subsection{Analytics}
+\subsection{Analytics (Basics)}
 
-\begin{itemize}
-    \item Study time tracking (weekly/monthly)
-    \item Quiz scores over time
-    \item Identify and rank weak topics
-    \item Charts for performance and mastery progression
-\end{itemize}
-
-\subsection{Vault Management}
-
-\begin{itemize}
-    \item Export entire vault as ZIP archive
-    \item Include all notes in Markdown with folder structure
-    \item Include metadata (flashcards, quiz history, analytics) as JSON
-    \item Embed timestamp and user ID in archive
-\end{itemize}
-
-\subsection{Tags \& Linking}
-
-\begin{itemize}
-    \item Add arbitrary tags to notes
-    \item Create bidirectional links with wiki syntax (\texttt{[[Note Title]]})
-    \item Display backlinks in note view
-    \item Visualize knowledge graph of connections
-    \item Filter notes by tags
-\end{itemize}
+\begin{enumerate}
+    \item System shall track overall quiz scores (percentage, number passed)
+    \item System shall track flashcard mastery percentage per deck
+    \item System shall track total study time (hours spent on quizzes, flashcards, notes)
+    \item System shall display progress metrics (quizzes attempted, cards reviewed, time spent)
+    \item System shall show performance trends over time (charts/graphs)
+    \item System shall identify weak topics based on quiz performance
+\end{enumerate}
 
 %==============================================================================
 \section{Non-Functional Requirements}
@@ -272,62 +357,70 @@ OghmaNotes is a web-based learning platform for students to create portable Mark
 
 \subsection{Performance}
 
-\begin{itemize}
-    \item RAG query end-to-end: $\leq 3$ seconds
-    \item PDF indexing (50MB): $\leq 2$ minutes
-    \item Keyword search: $\leq 5$ ms; semantic: $\leq 50$ ms; hybrid: $\leq 100$ ms
-    \item Quiz generation: $\leq 5$ seconds
-    \item Note sync (500KB): $\leq 2$ seconds
-    \item Cold page load: $\leq 4$ seconds; cached: $\leq 2$ seconds
-    \item Backend handles 10+ concurrent requests
-\end{itemize}
+\begin{tabular}{ll}
+\toprule
+\textbf{Metric} & \textbf{Target} \\
+\midrule
+Fuzzy keyword search & $\leq 5$ms \\
+Semantic vector search & $\leq 50$ms \\
+PDF text extraction (100MB) & $\leq 2$ minutes \\
+Quiz generation & $\leq 5$ seconds \\
+RAG response (end-to-end) & $\leq 3$ seconds \\
+Note sync (500KB) & $\leq 2$ seconds \\
+Cold page load & $\leq 4$ seconds \\
+Cached page load & $\leq 2$ seconds \\
+Concurrent requests & 10+ simultaneous \\
+\bottomrule
+\end{tabular}
 
 \subsection{Security}
 
 \begin{itemize}
-    \item APIs require JWT (except login, register, verify)
-    \item Passwords hashed with bcrypt (salt $\geq 10$)
-    \item HTTPS only (TLS 1.2+)
-    \item CORS restricts approved origins
-    \item Rate limiting on public endpoints
-    \item Credentials in environment variables, encrypted at rest
+    \item All API endpoints require JWT authentication (except register, login, password reset)
+    \item Passwords hashed with bcrypt using minimum 10 salt rounds
+    \item HTTPS/TLS 1.2+ required for all connections
+    \item CORS policy restricts requests to approved origins
+    \item Rate limiting on public endpoints (login, register, password reset)
+    \item Sensitive configuration via environment variables (encrypted at rest)
     \item S3 presigned URLs expire in 1 hour
-    \item Vector queries filtered by user ID
-    \item Password reset tokens: 1 hour, single-use
-    \item Email verification tokens: 24 hours
+    \item Vector queries filtered by user\_id to prevent cross-user data leakage
+    \item Password reset tokens valid for 1 hour and single-use only
+    \item Email verification tokens valid for 24 hours
 \end{itemize}
 
 \subsection{Reliability}
 
 \begin{itemize}
-    \item 99\% availability during grading window
-    \item Automated database backups (AWS RDS)
-    \item Failed jobs retry 3 times with exponential backoff
-    \item Graceful error handling for external API failures
-    \item User sessions survive service restarts
-    \item PWA reconnects within 30 seconds of network loss
+    \item 99\% availability during critical grading windows
+    \item AWS RDS automated backups enabled
+    \item Failed background jobs retry up to 3 times with exponential backoff
+    \item Graceful degradation when external APIs (LLM, email) are unavailable
+    \item Database migrations are versioned and reversible
+    \item PWA reconnects within 30 seconds after network loss
 \end{itemize}
 
 \subsection{Usability}
 
 \begin{itemize}
-    \item Modern, clean design (Tailwind, Material Design 3 patterns)
-    \item Register $\to$ upload PDF $\to$ ask question in $\leq 5$ minutes
-    \item Real-time form validation
-    \item Keyboard navigation support
-    \item Responsive (desktop, tablet)
-    \item Actionable error messages
+    \item Modern, clean design following Material Design 3 principles
+    \item Complete user onboarding in under 5 minutes (register, verify, start taking notes)
+    \item Real-time form validation with feedback
+    \item Keyboard navigation support throughout
+    \item Responsive design (desktop 1024px+, tablet 768px+)
+    \item Actionable error messages (not generic 500 errors)
     \item Dark mode only
+    \item VSCode-style layout for familiar developer UX
 \end{itemize}
 
 \subsection{Maintainability}
 
 \begin{itemize}
-    \item ESLint and Prettier enforced
+    \item ESLint and Prettier enforced for code quality
+    \item TypeScript with strict type checking enabled
     \item OpenAPI 3.1 API documentation
     \item Version-controlled database migrations
     \item Structured JSON logging
-    \item README with setup and deployment
+    \item README with setup and deployment instructions
     \item Automated dependency scanning (Dependabot)
 \end{itemize}
 
@@ -337,129 +430,435 @@ OghmaNotes is a web-based learning platform for students to create portable Mark
 
 \subsection{Authentication}
 
-\texttt{POST /api/auth/register}, \texttt{POST /api/auth/login}, \texttt{POST /api/auth/logout}, \texttt{POST /api/auth/forgot-password}, \texttt{POST /api/auth/reset-password}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+POST & \texttt{/api/auth/register} & Register new user \\
+POST & \texttt{/api/auth/login} & Login user \\
+POST & \texttt{/api/auth/logout} & Logout user \\
+POST & \texttt{/api/auth/forgot-password} & Request password reset \\
+POST & \texttt{/api/auth/reset-password} & Reset password with token \\
+GET & \texttt{/api/auth/me} & Get current user info \\
+\bottomrule
+\end{tabular}
 
 \subsection{Notes}
 
-\texttt{GET /api/notes}, \texttt{POST /api/notes}, \texttt{GET /api/notes/:id}, \texttt{PATCH /api/notes/:id}, \texttt{DELETE /api/notes/:id}, \texttt{GET /api/tree}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+GET & \texttt{/api/notes} & List all notes (paginated) \\
+POST & \texttt{/api/notes} & Create new note \\
+GET & \texttt{/api/notes/:id} & Get single note \\
+PUT & \texttt{/api/notes/:id} & Update note \\
+DELETE & \texttt{/api/notes/:id} & Delete note \\
+GET & \texttt{/api/tree} & Get folder hierarchy \\
+POST & \texttt{/api/tree} & Reorder/mutate tree structure \\
+\bottomrule
+\end{tabular}
 
 \subsection{Search}
 
-\texttt{GET /api/search?q=QUERY\&type=fuzzy|semantic}, \texttt{POST /api/notes/:id/embed}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+GET & \texttt{/api/search?type=fuzzy\&q=...} & Fuzzy keyword search \\
+GET & \texttt{/api/search?type=semantic\&q=...} & Semantic vector search \\
+POST & \texttt{/api/notes/:id/embed} & Generate embeddings for note \\
+\bottomrule
+\end{tabular}
 
-\subsection{RAG}
+\subsection{RAG Chat}
 
-\texttt{POST /api/rag/chat}, \texttt{GET /api/rag/search}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+POST & \texttt{/api/rag/chat} & Send question, receive answer \\
+GET & \texttt{/api/rag/search} & Retrieve relevant chunks \\
+\bottomrule
+\end{tabular}
 
 \subsection{Files}
 
-\texttt{POST /api/upload}, \texttt{GET /api/notes/:id/download}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+POST & \texttt{/api/upload} & Upload file (returns S3 URL) \\
+GET & \texttt{/api/upload/:id} & Get file (returns presigned URL) \\
+POST & \texttt{/api/extract} & Extract text from PDF \\
+\bottomrule
+\end{tabular}
+
+\subsection{Learning Tools}
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+POST & \texttt{/api/quiz} & Generate quiz \\
+GET & \texttt{/api/quiz/:id} & Get quiz \\
+POST & \texttt{/api/flashcards} & Create flashcard \\
+GET & \texttt{/api/flashcards/queue} & Get daily review queue \\
+PUT & \texttt{/api/flashcards/:id/rate} & Rate flashcard \\
+\bottomrule
+\end{tabular}
+
+\subsection{Canvas LMS Integration}
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+POST & \texttt{/api/canvas/oauth} & Start Canvas OAuth flow \\
+GET & \texttt{/api/canvas/callback} & Canvas OAuth callback \\
+GET & \texttt{/api/canvas/assignments} & Get Canvas assignments \\
+POST & \texttt{/api/canvas/sync} & Manual sync of assignments \\
+DELETE & \texttt{/api/canvas/disconnect} & Disconnect Canvas account \\
+\bottomrule
+\end{tabular}
+
+\subsection{Analytics}
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
+\midrule
+GET & \texttt{/api/analytics/overview} & Overall scores and progress \\
+GET & \texttt{/api/analytics/quiz} & Quiz performance by topic \\
+GET & \texttt{/api/analytics/flashcards} & Flashcard mastery metrics \\
+GET & \texttt{/api/analytics/study-time} & Study time tracking \\
+GET & \texttt{/api/analytics/weak-topics} & Identified weak topics \\
+\bottomrule
+\end{tabular}
 
 %==============================================================================
-\section{Database}
+\section{Database Schema}
 %==============================================================================
-
-\subsection{ID Strategy}
-
-All ID columns use UUID v7:
-\begin{itemize}
-    \item Cryptographically secure
-    \item Sortable by timestamp
-    \item Generated server-side
-    \item Applied to: users, notes, documents, chunks
-\end{itemize}
 
 \subsection{Core Tables}
 
-\begin{itemize}
-    \item \texttt{app.login} --- User accounts, passwords (bcrypt)
-    \item \texttt{app.notes} --- Note content, metadata
-    \item \texttt{app.documents} --- PDF metadata and S3 paths
-    \item \texttt{app.chunks} --- Text chunks with embeddings and metadata
-\end{itemize}
+\subsubsection{app.login}
 
-\subsection{Search Columns}
+Users and authentication. All IDs use UUID v7.
 
-Notes table includes:
-\begin{itemize}
-    \item \texttt{extracted\_text} --- Full text for FULLTEXT search
-    \item \texttt{embedding} --- Vector (1536-dim) for semantic search
-    \item \texttt{search\_vector} --- PostgreSQL tsvector for indexing
-    \item \texttt{relative\_path} --- For organizing results
-\end{itemize}
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+email & varchar(255) & UNIQUE, NOT NULL \\
+password & varchar(255) & NOT NULL (bcrypt hash) \\
+verified & boolean & DEFAULT false \\
+created\_at & timestamptz & DEFAULT now() \\
+updated\_at & timestamptz & DEFAULT now() \\
+deleted\_at & timestamptz & NULL (soft delete) \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.notes}
+
+Notes data and metadata.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+title & varchar(255) & NOT NULL \\
+content & text & NULL \\
+pid & uuid v7 & FOREIGN KEY (notes.id), NULL \\
+deleted & boolean & DEFAULT false \\
+pinned & boolean & DEFAULT false \\
+created\_at & timestamptz & DEFAULT now() \\
+updated\_at & timestamptz & DEFAULT now() \\
+s3\_path & varchar(255) & NULL \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.documents}
+
+PDF documents metadata.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+file\_name & varchar(255) & NOT NULL \\
+s3\_path & varchar(255) & NOT NULL \\
+page\_count & integer & NULL \\
+created\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.chunks}
+
+Text chunks from PDFs with embeddings for semantic search.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+document\_id & uuid v7 & FOREIGN KEY (documents.id) \\
+content & text & NOT NULL \\
+page\_number & integer & NULL \\
+embedding & vector(1536) & NULL \\
+created\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.canvas\_assignments}
+
+Canvas assignment metadata from LMS sync.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+canvas\_id & varchar(255) & NOT NULL \\
+course\_name & varchar(255) & NOT NULL \\
+assignment\_name & varchar(255) & NOT NULL \\
+due\_date & timestamptz & NOT NULL \\
+canvas\_url & varchar(255) & NULL \\
+synced\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.quiz\_results}
+
+Quiz attempt history for analytics.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+quiz\_id & uuid v7 & NULL \\
+score & integer & NOT NULL (0--100) \\
+time\_spent & integer & NULL (seconds) \\
+created\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.flashcard\_review}
+
+Flashcard review history for SM-2 tracking.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+card\_id & uuid v7 & NOT NULL \\
+rating & integer & NOT NULL (1--5) \\
+reviewed\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
 
 \subsection{Indexes}
 
 \begin{itemize}
-    \item GIN index on \texttt{search\_vector} (FULLTEXT)
-    \item ivfflat index on \texttt{embedding} (semantic)
-    \item Compound indexes on \texttt{user\_id + created\_at}, \texttt{user\_id + updated\_at}
+    \item GIN index on \texttt{notes.search\_vector} (full-text search)
+    \item ivfflat index on \texttt{chunks.embedding} (semantic search)
+    \item Compound index on \texttt{(user\_id, created\_at)}
+    \item Compound index on \texttt{(user\_id, updated\_at)}
+    \item Index on \texttt{documents.user\_id}
 \end{itemize}
 
 %==============================================================================
-\section{Data \& Compliance}
+\section{Design Decisions}
 %==============================================================================
 
-\subsection{Data Handling}
+\subsection{User API Key Management}
 
+\textbf{Decision:} Users provide their own LLM API keys (OpenAI, Anthropic, etc).
+
+\textbf{Rationale:}
 \begin{itemize}
-    \item Encryption in transit (TLS 1.2+)
-    \item Encryption at rest (S3, RDS)
-    \item Soft-delete before hard-delete (7-day period)
-    \item Full vault export for portability
-    \item User data deleted within 7 days of account deletion
+    \item Eliminates backend LLM infrastructure and costs
+    \item Users maintain control of their API keys and usage
+    \item Reduces vendor lock-in
+    \item Simplifies deployment and scaling
 \end{itemize}
 
-\subsection{Compliance}
-
+\textbf{Implementation:}
 \begin{itemize}
-    \item GDPR: Data subject rights (access, deletion, portability)
-    \item Notea: MIT License attribution in docs and UI
-    \item Audit logging: 90+ day retention
+    \item API keys stored in user settings (encrypted at rest)
+    \item Keys used client-side or via secure proxy with CORS
+    \item Server never handles raw API keys beyond transit
+\end{itemize}
+
+\subsection{Note Storage Architecture}
+
+\textbf{Decision:} Notes stored in S3 as JSON files, not in PostgreSQL BLOB columns.
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item S3 scales independently from database
+    \item Simpler backup and disaster recovery
+    \item Better versioning and audit trail support
+    \item Natural compatibility with PWA offline storage
+\end{itemize}
+
+\subsection{UUID v7 for All IDs}
+
+\textbf{Decision:} All primary keys use UUID v7 (not auto-increment integers).
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Cryptographically secure (no ID enumeration attacks)
+    \item Sortable by timestamp (useful for time-series queries)
+    \item No central coordination needed for distributed systems
+    \item Zero collision risk
+\end{itemize}
+
+\subsection{Semantic Search First}
+
+\textbf{Decision:} Semantic vector search is the primary search mode; fuzzy search is fallback.
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Better user experience (understands meaning, not just keywords)
+    \item Integrates naturally with RAG chat
+    \item Single-mode search UI (less cognitive load)
+\end{itemize}
+
+\subsection{No Collaborative Editing}
+
+\textbf{Decision:} Notes are single-user only (no real-time collaboration).
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Simplifies architecture (no WebSockets, CRDT, conflict resolution)
+    \item Reduces scope and time-to-market
+    \item Sufficient for individual student use case
+    \item Can be added later if needed
 \end{itemize}
 
 %==============================================================================
-\section{Testing \& Acceptance}
+\section{Acceptance Criteria}
 %==============================================================================
 
-\subsection{Testing Strategy}
-
-\begin{itemize}
-    \item Unit tests: Core logic with 70\%+ coverage
-    \item Integration tests: API endpoints with test database
-    \item E2E tests: Critical user flows
-    \item Manual QA: Realistic usage scenarios
-    \item Performance: Lighthouse audits
-\end{itemize}
-
-\subsection{Acceptance Criteria}
-
-The system ships when:
+The system is ready to ship when:
 
 \begin{enumerate}
-    \item All features implemented and verified
-    \item Non-functional requirements met
-    \item \texttt{docker compose up} works from scratch
-    \item E2E demo: register $\to$ verify $\to$ upload PDF $\to$ ask RAG question $\to$ generate quiz $\to$ review flashcard
-    \item AWS Amplify auto-deploy working
-    \item Code coverage $\geq 70\%$
-    \item Stakeholder approval
+    \item All core features implemented and working end-to-end
+    \begin{itemize}
+        \item Notes CRUD and organization
+        \item PDF upload and extraction
+        \item Fuzzy and semantic search
+        \item RAG chat with citations
+        \item Quiz generation
+        \item Flashcard system with SM-2
+        \item Canvas LMS integration (OAuth, assignment sync, calendar view)
+        \item Analytics basics (overall scores, flashcard mastery, study time)
+    \end{itemize}
+    
+    \item Non-functional requirements validated
+    \begin{itemize}
+        \item Performance benchmarks met (search \textless5-50ms, RAG \textless3s)
+        \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth)
+        \item Reliability: 99\% uptime, graceful degradation on API failures
+    \end{itemize}
+    
+
+    \item Complete end-to-end demo works:
+    \begin{itemize}
+        \item Register and verify email
+        \item Upload PDF and extract text
+        \item Search notes and PDFs
+        \item Ask RAG question with citations
+        \item Generate quiz and track score
+        \item Review flashcards and track mastery
+        \item Connect to Canvas and view assignment due dates
+        \item View analytics dashboard with basic metrics
+    \end{itemize}
+    
+    \item Automated deployment working (AWS Amplify, GitHub Actions)
+    
+    \item Documentation complete (README, setup, API docs, architecture)
+    
+    \item Code quality standards met (ESLint, Prettier, TypeScript strict mode)
 \end{enumerate}
 
 %==============================================================================
-\section*{Appendix: Glossary}
+\section{Timeline \& Phases}
 %==============================================================================
 
+\subsection{Phase 1: Search (Weeks 1--3)}
+
+Complete fuzzy and semantic search functionality.
+
 \begin{itemize}
-    \item \textbf{RAG}: Retrieval-Augmented Generation. Use vectors to retrieve relevant text; send text to LLM for grounded answers with citations.
-    \item \textbf{PWA}: Progressive Web App. Installable web app with offline support.
-    \item \textbf{SM-2}: SuperMemo 2 spaced repetition algorithm.
-    \item \textbf{JWT}: JSON Web Token for session authentication.
-    \item \textbf{Vector Embedding}: Numerical representation (1536-dim) for semantic similarity search.
-    \item \textbf{Chunking}: Splitting documents into segments (500 tokens, 50--100 overlap) for embedding and retrieval.
-    \item \textbf{pgvector}: PostgreSQL extension for vector similarity search (HNSW indexing).
-    \item \textbf{FULLTEXT}: PostgreSQL full-text search for keyword matching.
-    \item \textbf{Bidirectional Links}: Wiki-style note connections where both notes display the relationship.
+    \item Fuzzy keyword search endpoint
+    \item Semantic vector search with pgvector
+    \item Cmd+K search overlay UI
+    \item Load testing with 1000+ vectors
 \end{itemize}
+
+\subsection{Phase 2: RAG Chat (Weeks 4--7)}
+
+Implement PDF extraction pipeline and RAG chat.
+
+\begin{itemize}
+    \item PDF text extraction and chunking
+    \item Embedding generation for chunks
+    \item RAG chat endpoint with streaming
+    \item Citation generation and linking
+\end{itemize}
+
+\subsection{Phase 3: Learning Tools \& Canvas (Weeks 8--12)}
+
+Implement quiz, flashcards, Canvas integration, and analytics.
+
+\begin{itemize}
+    \item Quiz generation from notes/PDFs
+    \item Quiz UI and scoring
+    \item Flashcard creation and review UI
+    \item SM-2 spaced repetition algorithm
+    \item Canvas OAuth integration
+    \item Assignment sync and calendar view
+    \item Analytics dashboard (basic metrics)
+    \item Quiz results and flashcard tracking
+\end{itemize}
+
+\subsection{Post-MVP (Optional)}
+
+Nice-to-have features for future releases:
+
+\begin{itemize}
+    \item Note tagging system
+    \item Bidirectional note linking
+    \item Advanced analytics (learning patterns, AI-driven insights)
+    \item Additional LMS integrations
+\end{itemize}
+
+%==============================================================================
+\section{Glossary}
+%==============================================================================
+
+\begin{description}
+    \item[RAG] Retrieval-Augmented Generation. Technique for answering questions by retrieving relevant documents and using an LLM to synthesize answers.
+    \item[UUID v7] Universally Unique Identifier version 7. Cryptographically secure, sortable by timestamp.
+    \item[pgvector] PostgreSQL extension for storing and querying vector embeddings.
+    \item[Semantic Search] Search based on meaning using vector embeddings, not keyword matching.
+    \item[SM-2] Spaced Repetition algorithm for optimal flashcard review scheduling.
+    \item[PWA] Progressive Web App. Web application that works offline and can be installed.
+    \item[JWT] JSON Web Token. Stateless authentication mechanism.
+    \item[S3] AWS Simple Storage Service for object storage.
+\end{description}
 
 \end{document}
