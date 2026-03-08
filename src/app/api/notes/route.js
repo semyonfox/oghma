@@ -52,7 +52,7 @@ export async function GET(request) {
     // Get user's notes from PostgreSQL
     let notes = await sql`
       SELECT * FROM app.notes
-      WHERE user_id = ${user.user_id} AND deleted = 0
+      WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
     
@@ -91,7 +91,7 @@ export async function POST(request) {
     // Create new note in PostgreSQL
     const result = await sql`
       INSERT INTO app.notes (user_id, title, content, deleted, created_at, updated_at)
-      VALUES (${user.user_id}, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
+      VALUES (${user.user_id}::uuid, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
       RETURNING note_id, user_id, title, content, created_at, updated_at
     `;
 
