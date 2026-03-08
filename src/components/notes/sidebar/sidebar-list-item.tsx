@@ -10,6 +10,8 @@ import useNoteStore from '@/lib/notes/state/note';
 import usePortalStore from '@/lib/notes/state/portal';
 import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import useI18n from '@/lib/notes/hooks/use-i18n';
+import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 
 const TextSkeleton = () => (
     <span className="inline-block w-20 h-4 bg-neutral-300 dark:bg-neutral-700 rounded animate-pulse" />
@@ -45,6 +47,7 @@ const SidebarListItem: FC<{
     const pathname = usePathname();
     const { mutateItem, initLoaded, genNewId } = useNoteTreeStore();
     const { createNote } = useNoteStore();
+    const { activePane, setPaneA, setPaneB, setActivePane } = useLayoutStore();
     const {
         menu: { open, setData, setAnchor },
     } = usePortalStore();
@@ -55,8 +58,10 @@ const SidebarListItem: FC<{
     // derive active note id from pathname (e.g. "/abc123" -> "abc123")
     const activeId: string | null = useMemo(() => {
         if (!pathname || pathname === '/') return null;
-        // strip leading slash, take first segment
         const segments = pathname.split('/').filter(Boolean);
+        if (segments[0] === 'notes') {
+            return segments[1] || null;
+        }
         return segments[0] || null;
     }, [pathname]);
 
@@ -140,10 +145,31 @@ const SidebarListItem: FC<{
             // double click opens files, prevents default expand behavior
             if (!hasChildren) {
                 e.preventDefault();
+                setPaneA(buildFileSpec(item));
+                setActivePane('A');
                 router.push(linkHref);
             }
         },
-        [hasChildren, router, linkHref]
+        [hasChildren, item, linkHref, router, setActivePane, setPaneA]
+    );
+
+    const openInPane = useCallback(
+        (pane: 'A' | 'B') => (e: MouseEvent<HTMLButtonElement>) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const spec = buildFileSpec(item);
+            if (pane === 'A') {
+                setPaneA(spec);
+                setActivePane('A');
+                router.push(linkHref);
+                return;
+            }
+
+            setPaneB(spec);
+            setActivePane('B');
+        },
+        [item, linkHref, router, setActivePane, setPaneA, setPaneB]
     );
 
     // Memoize rename completion handler
@@ -277,6 +303,33 @@ const SidebarListItem: FC<{
                      aria-label={t('Note actions')}
                      tabIndex={-1}
                  ></IconButton>
+
+                 {!hasChildren && (
+                     <>
+                         <button
+                             onClick={openInPane('A')}
+                             className={`hidden rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors group-hover:block ${
+                                 activePane === 'A' && activeId === item.id
+                                     ? 'bg-sky-500/20 text-sky-200'
+                                     : 'text-slate-500 hover:bg-white/10 hover:text-slate-200'
+                             }`}
+                             title="Open in left pane"
+                         >
+                             L
+                         </button>
+                         <button
+                             onClick={openInPane('B')}
+                             className={`hidden rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors group-hover:block ${
+                                 activePane === 'B' && activeId === item.id
+                                     ? 'bg-sky-500/20 text-sky-200'
+                                     : 'text-slate-500 hover:bg-white/10 hover:text-slate-200'
+                             }`}
+                             title="Open in right pane"
+                         >
+                             R
+                         </button>
+                     </>
+                 )}
 
                  <IconButton
                      icon="Plus"
