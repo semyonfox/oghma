@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
+import { isValidUUID } from '@/lib/uuid-validation.js';
 
 /**
  * Helper: Filter tree item to only include requested fields
@@ -105,17 +106,16 @@ export async function POST(request: Request) {
                   return NextResponse.json({ success: true });
               }
               
-              // Convert string ID to number for database operations
-              const itemId = parseInt(id, 10);
-              if (isNaN(itemId)) {
+              // Validate item ID is a valid UUID
+              if (!isValidUUID(id)) {
                 return NextResponse.json(
-                  { error: 'Invalid item ID' },
+                  { error: 'Invalid item ID format' },
                   { status: 400 }
                 );
               }
 
               // Update tree item in PostgreSQL
-              await updateTreeItem(user.user_id, itemId, rest);
+              await updateTreeItem(user.user_id, id, rest);
               return NextResponse.json({ success: true });
           }
 
@@ -128,18 +128,44 @@ export async function POST(request: Request) {
                   );
               }
 
-              // Parse IDs
-              const noteIdStr = destination.parentId === ROOT_ID ? destination.parentId : destination.parentId;
+              // Get the tree to find the note_id being moved
+              const tree = await getTreeFromPG(user.user_id);
+              const sourceParentId = source.parentId;
+              const sourceIndex = source.index;
+              
+              // Get the item being moved from the source parent
+              const sourceParentItem = tree.items[sourceParentId];
+              if (!sourceParentItem || !sourceParentItem.children[sourceIndex]) {
+                  return NextResponse.json(
+                      { error: 'Invalid source position' },
+                      { status: 400 }
+                  );
+              }
+              
+              const noteId = sourceParentItem.children[sourceIndex];
+              
+              // Validate note ID
+              if (!isValidUUID(noteId)) {
+                  return NextResponse.json(
+                      { error: 'Invalid note ID' },
+                      { status: 400 }
+                  );
+              }
+              
+              // Determine new parent ID (null if moving to root)
               const newParentId = destination.parentId === ROOT_ID ? null : destination.parentId;
+              if (newParentId && !isValidUUID(newParentId)) {
+                  return NextResponse.json(
+                      { error: 'Invalid parent ID' },
+                      { status: 400 }
+                  );
+              }
               
-              // In a real implementation, you'd need to track which note is being moved
-              // For now, assuming the frontend passes the note_id or we query it
-              // This is a simplified version - you may need to adjust based on your tree structure
+              // Move the note in the tree with new position
+              const newPosition = destination.index ?? undefined;
+              await moveNoteInTree(user.user_id, noteId, newParentId, newPosition);
               
-              return NextResponse.json({ 
-                success: true,
-                message: 'Move operation would require more context about the note being moved'
-              });
+              return NextResponse.json({ success: true });
           }
 
           default:
