@@ -142,13 +142,9 @@ async function syncS3ToPG(userId) {
           continue;
         }
 
-        // Convert parent ID to UUID if needed
-        let parentId = s3Note.pid;
-        if (parentId && !isValidUUID(parentId)) {
-          parentId = generateUUIDForId(parentId);
-        }
-
         // Insert note into PostgreSQL
+        // Note: tree_items.parent_id is INTEGER, not UUID
+        // All notes go to root (parent_id = NULL)
         await sql`
           INSERT INTO app.notes (
             note_id,
@@ -177,9 +173,9 @@ async function syncS3ToPG(userId) {
           ON CONFLICT (note_id) DO NOTHING
         `;
 
-        // Add to tree if not soft-deleted
+        // Add to tree (always root since parent_id is INTEGER, not UUID)
         if (!s3Note.deleted) {
-          await addNoteToTree(userId, noteId, parentId || null);
+          await addNoteToTree(userId, noteId, null);
         }
 
         result.synced++;
