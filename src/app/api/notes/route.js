@@ -51,7 +51,7 @@ export async function GET(request) {
     
     // Get user's notes from PostgreSQL
     let notes = await sql`
-      SELECT * FROM app.notes
+      SELECT note_id, title, content, deleted, shared, pinned FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
@@ -62,8 +62,19 @@ export async function GET(request) {
       notes = notes.slice(skip, end);
     }
     
+    // Map to NoteModel format (rename note_id to id, convert numbers)
+    const mapped = notes.map(note => ({
+      id: note.note_id,
+      title: note.title,
+      content: note.content,
+      deleted: note.deleted,
+      shared: note.shared,
+      pinned: note.pinned,
+      editorsize: null,
+    }));
+    
     // Filter fields if requested
-    const filtered = notes.map(note => filterNoteFields(note, fields));
+    const filtered = mapped.map(note => filterNoteFields(note, fields));
     
     return NextResponse.json(filtered);
   } catch (error) {
@@ -105,9 +116,9 @@ export async function POST(request) {
       id: note.note_id,
       title: note.title,
       content: note.content,
-      deleted: NOTE_DELETED.NORMAL,
-      shared: NOTE_SHARED.PRIVATE,
-      pinned: NOTE_PINNED.UNPINNED,
+      deleted: 0,  // NOTE_DELETED.NORMAL
+      shared: 0,   // NOTE_SHARED.PRIVATE
+      pinned: 0,   // NOTE_PINNED.UNPINNED
       editorsize: null,
     }, { status: 201 });
   } catch (error) {
