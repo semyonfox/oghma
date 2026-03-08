@@ -102,12 +102,13 @@ export async function POST(request) {
     await addNoteToTree(user.user_id, note.note_id, null);
 
     return NextResponse.json({
-      note_id: note.note_id,
-      user_id: note.user_id,
+      id: note.note_id,
       title: note.title,
       content: note.content,
-      created_at: note.created_at,
-      updated_at: note.updated_at,
+      deleted: NOTE_DELETED.NORMAL,
+      shared: NOTE_SHARED.PRIVATE,
+      pinned: NOTE_PINNED.UNPINNED,
+      editorsize: null,
     }, { status: 201 });
   } catch (error) {
     console.error('Notes POST error:', error);
