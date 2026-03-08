@@ -53,20 +53,21 @@ export async function GET(request: NextRequest) {
         }
 
         const storage = getStorageProvider();
-        const content = await storage.getObject(path);
+        const exists = await storage.hasObject(path);
 
-        if (!content) {
+        if (!exists) {
             return NextResponse.json(
                 { error: 'File not found' },
                 { status: 404 }
             );
         }
 
+        const url = await storage.getSignUrl(path, 3600);
+
         return NextResponse.json({
             success: true,
             path,
-            content,
-            size: content.length,
+            url,
         });
     } catch (error) {
         console.error('Retrieve error:', error);

@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware';
 
 export type FileType = 'note' | 'pdf' | 'image' | 'video';
 export type NavSection = 'notes' | 'search' | 'calendar' | 'quiz' | 'flashcards' | 'analytics' | 'settings';
-export type RightPanelTab = 'todo' | 'chat' | 'links' | 'properties';
 
 interface PaneState {
   fileId: string;
   fileType: FileType;
   title?: string;
+  sourcePath?: string;
   editMode?: boolean; // For notes only
   lastOpened?: number; // timestamp
 }
@@ -26,7 +26,6 @@ interface LayoutState {
 
   // Right panel
   rightPanelOpen: boolean;
-  rightPanelTab: RightPanelTab;
 
   // UI sizes (persist to localStorage)
   treeWidth: number; // 200-600px
@@ -47,7 +46,6 @@ interface LayoutState {
   setPaneEditMode: (pane: 'A' | 'B', editMode: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
-  setRightPanelTab: (tab: RightPanelTab) => void;
   setSizes: (tree: number, right: number, split: number) => void;
   toggleExpandedNode: (nodeId: string) => void;
   toggleCollapsedSection: (section: string) => void;
@@ -56,14 +54,13 @@ interface LayoutState {
 
 const useLayoutStore = create<LayoutState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Initial state
       activeNav: 'notes',
       paneA: { fileId: '', fileType: 'note' as FileType },
       paneB: null,
       activePane: 'A',
-      rightPanelOpen: false,
-      rightPanelTab: 'todo',
+      rightPanelOpen: true,
       treeWidth: 250,
       rightPanelWidth: 300,
       splitPosition: 50,
@@ -120,7 +117,6 @@ const useLayoutStore = create<LayoutState>()(
       // Right panel
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
-      setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
 
       // Sizes
       setSizes: (tree, right, split) => {

@@ -2,6 +2,7 @@
 
 import { FC, useRef } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
+import { useFileUrl } from './use-file-url';
 
 interface VideoViewerProps {
   file: FileSpec;
@@ -13,8 +14,7 @@ interface VideoViewerProps {
  */
 const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const videoSrc = file.title || '';
+  const { url: videoSrc } = useFileUrl(file.sourcePath);
 
   return (
     <div className="h-full flex flex-col bg-gray-950">

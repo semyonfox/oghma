@@ -1,9 +1,9 @@
 'use client';
 
-import { FC, Suspense, useState } from 'react';
+import { FC } from 'react';
 import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import { DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { DocumentIcon, RectangleGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import FileUpload from './file-upload';
 
@@ -19,14 +19,7 @@ interface FileViewPaneProps {
  * Shows title, file type icon, and routes to appropriate viewer
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
-  const { setPaneA, setPaneB } = useLayoutStore();
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{
-    fileName: string;
-    path: string;
-    url: string;
-    size: number;
-    type: string;
-  }>>([]);
+  const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel } = useLayoutStore();
 
   if (!file || !file.fileId) {
     return (
@@ -46,7 +39,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div
+      className={`h-full flex flex-col bg-gray-900 ${activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''}`}
+      onMouseDown={() => setActivePane(pane)}
+    >
       {/* Pane Header */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
@@ -56,11 +52,18 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleRightPanel}
+            className={`p-1.5 rounded transition-colors ${
+              rightPanelOpen ? 'bg-white/10 text-gray-200' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'
+            }`}
+            title={rightPanelOpen ? 'Collapse sidebar' : 'Open sidebar'}
+          >
+            <RectangleGroupIcon className="w-4 h-4" />
+          </button>
           <FileUpload
             noteId={file.fileId}
-            onUploadComplete={(uploadedFile) => {
-              setUploadedFiles((prev) => [...prev, uploadedFile]);
-            }}
+            onUploadComplete={() => {}}
             onError={(error) => {
               console.error('Upload error:', error);
             }}

@@ -80,7 +80,7 @@ export async function addNoteToTree(userId, noteId, parentId) {
     const posResult = await sql`
       SELECT COALESCE(MAX(position), 0) as max_pos
       FROM app.tree_items
-      WHERE user_id = ${userId}::uuid AND parent_id IS ${actualParentId}
+      WHERE user_id = ${userId}::uuid AND parent_id IS NOT DISTINCT FROM ${actualParentId}::uuid
     `;
 
     const position = (posResult[0]?.max_pos || 0) + 1;
@@ -161,7 +161,7 @@ export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
       const posResult = await sql`
         SELECT COALESCE(MAX(position), 0) as max_pos
         FROM app.tree_items
-        WHERE user_id = ${userId}::uuid AND parent_id IS ${actualParentId}
+        WHERE user_id = ${userId}::uuid AND parent_id IS NOT DISTINCT FROM ${actualParentId}::uuid
       `;
       position = (posResult[0]?.max_pos || 0) + 1;
     }

@@ -4,6 +4,7 @@ import { FC, useState, useCallback } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { Document, Page } from 'react-pdf';
 import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
+import { useFileUrl } from './use-file-url';
 
 interface PDFViewerProps {
   file: FileSpec;
@@ -17,9 +18,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1);
-
-  // PDF path (from S3 or local)
-  const pdfPath = file.title || '';
+  const { url: pdfPath, loading } = useFileUrl(file.sourcePath);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -100,7 +99,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file }) => {
         <Document
           file={pdfPath}
           onLoadSuccess={onDocumentLoadSuccess}
-          loading={<div className="text-gray-500">Loading PDF...</div>}
+          loading={<div className="text-gray-500">{loading ? 'Loading PDF...' : 'Preparing PDF...'}</div>}
           error={<div className="text-red-500">Failed to load PDF</div>}
         >
           <Page
