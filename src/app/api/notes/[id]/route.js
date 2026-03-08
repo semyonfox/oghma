@@ -45,17 +45,28 @@ export async function GET(request, { params }) {
 
     // Get note from PostgreSQL (verify ownership)
     const result = await sql`
-      SELECT * FROM app.notes
+      SELECT note_id, title, content, deleted, shared, pinned FROM app.notes
       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
     `;
 
-    const note = result[0];
-    if (!note) {
+    const dbNote = result[0];
+    if (!dbNote) {
       return NextResponse.json(
         { error: 'Note not found' },
         { status: 404 }
       );
     }
+
+    // Map to NoteModel format
+    const note = {
+      id: dbNote.note_id,
+      title: dbNote.title,
+      content: dbNote.content,
+      deleted: dbNote.deleted,
+      shared: dbNote.shared,
+      pinned: dbNote.pinned,
+      editorsize: null,
+    };
 
     // Parse fields from query parameters
     const url = new URL(request.url);
@@ -119,10 +130,19 @@ export async function PUT(request, { params }) {
           content = ${body.content || existingNote.content},
           updated_at = NOW()
       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-      RETURNING *
+      RETURNING note_id, title, content, deleted, shared, pinned
     `;
 
-    return NextResponse.json(updatedNote[0]);
+    const dbNote = updatedNote[0];
+    return NextResponse.json({
+      id: dbNote.note_id,
+      title: dbNote.title,
+      content: dbNote.content,
+      deleted: dbNote.deleted,
+      shared: dbNote.shared,
+      pinned: dbNote.pinned,
+      editorsize: null,
+    });
   } catch (error) {
     console.error('Note PUT error:', error);
     return NextResponse.json(
