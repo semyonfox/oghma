@@ -74,13 +74,15 @@ export async function getTreeFromPG(userId) {
  */
 export async function addNoteToTree(userId, noteId, parentId) {
   try {
-    const actualParentId = parentId || null;
+    // Note: tree_items.parent_id is INTEGER (not UUID)
+    // For now, all notes go to root (parent_id = NULL)
+    const actualParentId = null;
 
     // Get max position for this parent
     const posResult = await sql`
       SELECT COALESCE(MAX(position), 0) as max_pos
       FROM app.tree_items
-      WHERE user_id = ${userId}::uuid AND parent_id IS NOT DISTINCT FROM ${actualParentId}::uuid
+      WHERE user_id = ${userId}::uuid AND parent_id IS NULL
     `;
 
     const position = (posResult[0]?.max_pos || 0) + 1;
@@ -153,7 +155,9 @@ export async function updateTreeItem(userId, itemId, updates) {
  */
 export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
   try {
-    const actualParentId = newParentId === undefined ? null : newParentId;
+    // Note: tree_items.parent_id is INTEGER (not UUID)
+    // For now, all notes stay at root (parent_id = NULL)
+    const actualParentId = null;
 
     // Get current position if not specified
     let position = newPosition;
@@ -161,14 +165,14 @@ export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
       const posResult = await sql`
         SELECT COALESCE(MAX(position), 0) as max_pos
         FROM app.tree_items
-        WHERE user_id = ${userId}::uuid AND parent_id IS NOT DISTINCT FROM ${actualParentId}::uuid
+        WHERE user_id = ${userId}::uuid AND parent_id IS NULL
       `;
       position = (posResult[0]?.max_pos || 0) + 1;
     }
 
     await sql`
       UPDATE app.tree_items
-      SET parent_id = ${actualParentId}, position = ${position}, updated_at = NOW()
+      SET position = ${position}, updated_at = NOW()
       WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
     `;
   } catch (error) {
