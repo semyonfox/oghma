@@ -11,13 +11,15 @@ export async function getTreeFromPG(userId) {
   try {
     const rows = await sql`
       SELECT 
-        id,
-        note_id,
-        parent_id,
-        is_expanded
-      FROM app.tree_items
-      WHERE user_id = ${userId}::uuid
-      ORDER BY parent_id, position
+        ti.id,
+        ti.note_id,
+        ti.parent_id,
+        ti.is_expanded
+      FROM app.tree_items ti
+      LEFT JOIN app.notes n ON ti.note_id = n.note_id
+      WHERE ti.user_id = ${userId}::uuid
+        AND (ti.note_id IS NULL OR (n.deleted = 0 AND n.deleted_at IS NULL))
+      ORDER BY ti.parent_id, ti.position
     `;
 
     // Build tree structure from flat results
@@ -180,13 +182,16 @@ export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
  */
 export async function syncTreeWithNotes(userId) {
   try {
-    // Delete tree items for notes that no longer exist
+    // Delete tree items for notes that no longer exist (or are soft-deleted)
     await sql`
       DELETE FROM app.tree_items
       WHERE user_id = ${userId}::uuid
         AND note_id IS NOT NULL
         AND note_id NOT IN (
-          SELECT note_id FROM app.notes WHERE user_id = ${userId}::uuid
+          SELECT note_id FROM app.notes 
+          WHERE user_id = ${userId}::uuid 
+            AND deleted = 0 
+            AND deleted_at IS NULL
         )
     `;
   } catch (error) {
@@ -204,6 +209,8 @@ export async function getOrphanedNotes(userId) {
       SELECT note_id
       FROM app.notes
       WHERE user_id = ${userId}::uuid
+        AND deleted = 0
+        AND deleted_at IS NULL
         AND note_id NOT IN (
           SELECT note_id FROM app.tree_items WHERE user_id = ${userId}::uuid AND note_id IS NOT NULL
         )
