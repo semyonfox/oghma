@@ -24,6 +24,17 @@ const SplitEditorPane: FC = () => {
           <FileViewPane pane="B" file={paneB} />
         </div>
       )}
+
+      {!paneB && (
+        <div className="hidden xl:flex flex-1 min-w-0 border-l border-neutral-800 bg-gray-950/60">
+          <div className="m-auto max-w-sm px-8 text-center">
+            <p className="text-sm text-gray-300">Open a second file in the right pane</p>
+            <p className="mt-2 text-xs text-gray-500">
+              Use the `R` action in the tree to place a note, PDF, image, or video beside the current file.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
