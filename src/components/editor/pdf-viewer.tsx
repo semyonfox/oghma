@@ -6,6 +6,9 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
 import { useFileUrl } from './use-file-url';
 
+// Import PDF.js styles for text layer and annotations
+import 'pdfjs-dist/web/pdf_viewer.css';
+
 // Configure PDF.js worker - use local file from public folder
 if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';

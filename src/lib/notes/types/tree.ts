@@ -9,6 +9,7 @@ export interface TreeItem {
     hasChildren?: boolean;
     isExpanded?: boolean;
     isChildrenLoading?: boolean;
+    isFolder?: boolean; // Whether this item is a folder (can contain children)
 }
 
 export interface TreeData {
