@@ -1,11 +1,10 @@
 'use client';
 
-import { FC } from 'react';
+import { FC, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { DocumentIcon, RectangleGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
-import FileUpload from './file-upload';
 
 const FileRenderer = dynamic(() => import('./file-renderer'), { ssr: false });
 
@@ -17,9 +16,12 @@ interface FileViewPaneProps {
 /**
  * Individual file view pane with header and dynamic renderer
  * Shows title, file type icon, and routes to appropriate viewer
+ * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
-  const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel } = useLayoutStore();
+  const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel, paneA, paneB } = useLayoutStore();
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   if (!file || !file.fileId) {
     return (
@@ -38,13 +40,78 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
     }
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!file) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('paneFile', JSON.stringify(file));
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    try {
+      const draggedFileData = e.dataTransfer.getData('paneFile');
+      if (!draggedFileData) return;
+
+      const draggedFile: FileSpec = JSON.parse(draggedFileData);
+      if (!draggedFile.fileId) return;
+
+      // Get the viewport width and drop position
+      const viewportWidth = window.innerWidth;
+      const dropX = e.clientX;
+      const rightThreshold = viewportWidth / 2;
+
+      // If dropped on right half: open in pane B
+      if (dropX > rightThreshold) {
+        if (pane === 'A') {
+          // File from pane A dropped on right side
+          setPaneB(draggedFile);
+        } else {
+          // File from pane B dropped on right side (no change needed)
+          setPaneB(draggedFile);
+        }
+      } else {
+        // If dropped on left half: open in pane A and move current to pane B
+        if (pane === 'A') {
+          // File from pane A dropped on left side (no swap needed)
+          setPaneA(draggedFile);
+        } else {
+          // File from pane B dropped on left side: swap to A, current A goes to B
+          setPaneA(draggedFile);
+          setPaneB(paneA);
+        }
+      }
+    } catch (error) {
+      console.error('Drop error:', error);
+    }
+  };
+
   return (
     <div
-      className={`h-full flex flex-col bg-gray-900 ${activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''}`}
+      ref={paneRef}
+      className={`h-full flex flex-col bg-gray-900 transition-colors ${
+        activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''
+      } ${isDragging ? 'opacity-60' : ''}`}
       onMouseDown={() => setActivePane(pane)}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       {/* Pane Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between cursor-move">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-gray-500">Pane {pane}</span>
           <span className="text-sm text-gray-300 truncate">{file.title || file.fileId}</span>
@@ -57,21 +124,15 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
             className={`p-1.5 rounded transition-colors ${
               rightPanelOpen ? 'bg-white/10 text-gray-200' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'
             }`}
-            title={rightPanelOpen ? 'Collapse sidebar' : 'Open sidebar'}
+            title="Toggle metadata & inspector panel"
           >
             <RectangleGroupIcon className="w-4 h-4" />
           </button>
-          <FileUpload
-            noteId={file.fileId}
-            onUploadComplete={() => {}}
-            onError={(error) => {
-              console.error('Upload error:', error);
-            }}
-          />
           {pane === 'B' && (
             <button
               onClick={handleClose}
               className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors"
+              title="Close this pane"
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
