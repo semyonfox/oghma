@@ -30,10 +30,11 @@ export async function getTreeFromPG(userId) {
       },
     };
 
-    // First pass: create all items
+    // First pass: create all items (use note_id, not ti.id!)
     for (const row of rows) {
-      items[row.id] = {
-        id: String(row.id),
+      const noteId = String(row.note_id);
+      items[noteId] = {
+        id: noteId,  // Use UUID note_id, not INTEGER tree_items.id
         children: [],
         isExpanded: row.is_expanded ?? false,
       };
@@ -41,6 +42,7 @@ export async function getTreeFromPG(userId) {
 
     // Second pass: build parent-child relationships
     for (const row of rows) {
+      const noteId = String(row.note_id);
       const parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
       if (!items[parentId]) {
         items[parentId] = {
@@ -48,7 +50,7 @@ export async function getTreeFromPG(userId) {
           children: [],
         };
       }
-      items[parentId].children.push(String(row.id));
+      items[parentId].children.push(noteId);
     }
 
     return {
