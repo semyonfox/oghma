@@ -2,7 +2,7 @@
 // rewritten for App Router + react-arborist v3.4.3 + Tailwind (no MUI)
 import { NoteModel } from '@/lib/notes/types/note';
 import Link from 'next/link';
-import React, { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import React, { FC, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import IconButton from '@/components/icon-button';
 import useNoteTreeStore from '@/lib/notes/state/tree';
@@ -51,9 +51,10 @@ const SidebarListItem: FC<{
     const {
         menu: { open, setData, setAnchor },
     } = usePortalStore();
-    const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
-    const [renameValue, setRenameValue] = useState(item.title || '');
-    const renameInputRef = useRef<HTMLInputElement>(null);
+     const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
+     const [renameValue, setRenameValue] = useState(item.title || '');
+     const renameInputRef = useRef<HTMLInputElement>(null);
+     const itemElementRef = useRef<HTMLDivElement>(null);
 
     // derive active note id from pathname (e.g. "/abc123" -> "abc123")
     const activeId: string | null = useMemo(() => {
@@ -86,50 +87,65 @@ const SidebarListItem: FC<{
         return `/${item.id}`;
     }, [pathname, item.id, hasChildren]);
 
-    const onAddNote = useCallback(
-        async (e: MouseEvent) => {
-            e.preventDefault();
-            // Create a new note under this item without navigation
-            const newId = genNewId();
-            const newNote = await createNote({
-                id: newId,
-                title: 'Untitled',
-                content: '\n',
-                pid: item.id,
-            });
+     const onAddNote = useCallback(
+         async (e: React.MouseEvent) => {
+             e.preventDefault();
+             // Create a new note under this item without navigation
+             const newId = genNewId();
+             const newNote = await createNote({
+                 id: newId,
+                 title: 'Untitled',
+                 content: '\n',
+                 pid: item.id,
+             });
 
-            if (newNote) {
-                // Expand the parent and navigate to the new note
-                await mutateItem(item.id, {
-                    isExpanded: true,
-                });
-                router.push(`/notes/${newId}`);
-            }
-        },
-        [item.id, mutateItem, genNewId, createNote, router]
-    );
+             if (newNote) {
+                 // Expand the parent and navigate to the new note
+                 await mutateItem(item.id, {
+                     isExpanded: true,
+                 });
+                 router.push(`/notes/${newId}`);
+             }
+         },
+         [item.id, mutateItem, genNewId, createNote, router]
+     );
 
-    const handleClickMenu = useCallback(
-        (event: MouseEvent) => {
-            event.preventDefault();
-            setAnchor(event.target as Element);
-            open();
-            setData(item);
-        },
-        [item, open, setAnchor, setData]
-    );
+      const handleClickMenu = useCallback(
+          (event: React.MouseEvent) => {
+              event.preventDefault();
+              event.stopPropagation();
+              
+              // Get button position to show menu nearby
+              const button = event.currentTarget as HTMLElement;
+              const rect = button.getBoundingClientRect();
+              
+              // Create synthetic right-click event with button position
+              const syntheticEvent = new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: rect.left,
+                  clientY: rect.bottom + 4, // Position menu below button
+              }) as any;
+              
+              // Dispatch on the wrapper element to trigger right-click menu
+              if (itemElementRef.current) {
+                  itemElementRef.current.dispatchEvent(syntheticEvent);
+              }
+          },
+          [itemElementRef]
+      );
 
-    const handleClickIcon = useCallback(
-        (e: MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggle();
-        },
-        [onToggle]
-    );
+     const handleClickIcon = useCallback(
+         (e: React.MouseEvent) => {
+             e.preventDefault();
+             e.stopPropagation();
+             onToggle();
+         },
+         [onToggle]
+     );
 
-    const handleClickItem = useCallback(
-        (e: MouseEvent) => {
+     const handleClickItem = useCallback(
+         (e: React.MouseEvent) => {
             // only folders can be toggled on single click
             if (hasChildren) {
                 e.preventDefault();
@@ -153,8 +169,8 @@ const SidebarListItem: FC<{
         [hasChildren, item, linkHref, router, setActivePane, setPaneA]
     );
 
-    const openInPane = useCallback(
-        (pane: 'A' | 'B') => (e: MouseEvent<HTMLButtonElement>) => {
+     const openInPane = useCallback(
+         (pane: 'A' | 'B') => (e: React.MouseEvent<HTMLButtonElement>) => {
             e.preventDefault();
             e.stopPropagation();
 
@@ -206,7 +222,10 @@ const SidebarListItem: FC<{
          <>
               <div
                   {...attrs}
-                  ref={innerRef}
+                  ref={(el) => {
+                      itemElementRef.current = el;
+                      innerRef(el);
+                  }}
                   className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
                       snapshot.isDragging ? 'shadow' : ''
                   } ${
