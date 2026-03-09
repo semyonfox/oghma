@@ -40,6 +40,13 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     fetchNote: async (id: string) => {
         const state = get();
         const { noteAPI } = state;
+        
+        // Guard: noteAPI must be initialized
+        if (!noteAPI) {
+            console.warn('noteAPI not initialized yet');
+            return undefined;
+        }
+        
         const cache = await noteCache.getItem(id);
         if (cache) {
             set({ note: cache });
@@ -61,8 +68,19 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         const state = get();
         const { noteAPI, treeStore } = state;
 
-        // Call DELETE endpoint (soft delete on server)
-        await noteAPI.remove(id);
+        // Guard: noteAPI and treeStore must be initialized
+        if (!noteAPI || !treeStore) {
+            console.warn('noteAPI or treeStore not initialized yet');
+            return;
+        }
+
+        try {
+            // Call DELETE endpoint (soft delete on server)
+            await noteAPI.remove(id);
+        } catch (error) {
+            console.error('Error deleting note:', error);
+            throw error;
+        }
         
         // Remove from cache
         await noteCache.removeItem(id);
@@ -80,6 +98,12 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         const state = get();
         const { noteAPI, treeStore } = state;
         
+        // Guard: noteAPI must be initialized
+        if (!noteAPI) {
+            console.warn('noteAPI not initialized yet');
+            return;
+        }
+        
         // try to get note from cache, fall back to store, fall back to fetching
         let note = await noteCache.getItem(id);
         if (!note && state.note?.id === id) {
@@ -87,7 +111,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
             // populate cache so future mutations work
             if (note) await noteCache.setItem(id, note);
         }
-        if (!note) {
+        if (!note && noteAPI) {
             // last resort: fetch from API and cache it
             try {
                 const fetched = await noteAPI.find(id);
@@ -131,6 +155,13 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     createNote: async (body: Partial<NoteModel>) => {
         const state = get();
         const { noteAPI, treeStore, toast } = state;
+        
+        // Guard: dependencies must be initialized
+        if (!noteAPI || !treeStore) {
+            console.warn('noteAPI or treeStore not initialized yet');
+            return;
+        }
+        
         const result = await noteAPI.create(body);
 
         if (!result) {
@@ -152,6 +183,13 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     createNoteWithTitle: async (title: NoteModel['title']) => {
         const state = get();
         const { noteAPI, treeStore } = state;
+        
+        // Guard: dependencies must be initialized
+        if (!noteAPI || !treeStore) {
+            console.warn('noteAPI or treeStore not initialized yet');
+            return;
+        }
+        
         const id = treeStore.getState().genNewId();
         const result = await noteAPI.create({
             id,
@@ -176,6 +214,12 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         const state = get();
         const { noteAPI, treeStore, toast } = state;
         const currentNote = get().note;
+
+        // Guard: noteAPI must be initialized
+        if (!noteAPI) {
+            console.warn('noteAPI not initialized yet');
+            return;
+        }
 
         noteAPI.abort();
 
@@ -229,6 +273,8 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     abortFindNote: () => {
         const state = get();
         const { noteAPI } = state;
+        // Guard: noteAPI must be initialized
+        if (!noteAPI) return;
         noteAPI.abort();
     },
 }));
