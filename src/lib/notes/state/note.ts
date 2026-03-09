@@ -60,19 +60,20 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     removeNote: async (id: string) => {
         const state = get();
         const { noteAPI, treeStore } = state;
-        const payload = {
-            deleted: NOTE_DELETED.DELETED,
-        };
 
-        set((state) => ({
-            note:
-                state.note?.id === id
-                    ? { ...state.note, ...payload }
-                    : state.note,
-        }));
-        await noteAPI.mutate(id, payload);
-        await noteCache.mutateItem(id, payload);
+        // Call DELETE endpoint (soft delete on server)
+        await noteAPI.remove(id);
+        
+        // Remove from cache
+        await noteCache.removeItem(id);
+        
+        // Remove from tree
         await treeStore.getState().removeItem(id);
+        
+        // Clear current note if it's the one being deleted
+        if (state.note?.id === id) {
+            set({ note: null });
+        }
     },
 
     mutateNote: async (id: string, payload: Partial<NoteModel>) => {
