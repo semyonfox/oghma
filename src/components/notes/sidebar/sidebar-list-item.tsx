@@ -190,21 +190,33 @@ const SidebarListItem: FC<{
         return undefined;
     }, [item.title]);
 
-    return (
-        <>
-             <div
-                 {...attrs}
-                 ref={innerRef}
-                 className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                     snapshot.isDragging ? 'shadow' : ''
-                 } ${
-                     activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                 }`}
-                 role="treeitem"
-                 aria-expanded={hasChildren ? isExpanded : undefined}
-                 aria-selected={activeId === item.id}
-                 aria-current={activeId === item.id ? 'page' : undefined}
-              >
+     // Determine if this is a true folder (has folder emoji or is a container)
+     const isActualFolder = useMemo(() => {
+         // Check if title contains folder emoji
+         if (item.title?.includes('📁')) return true;
+         // Check if it's content is a file path (S3 upload) vs regular note
+         if (item.content && (item.content.startsWith('s3://') || item.content.startsWith('http'))) {
+             return false; // File content, not a folder
+         }
+         // Default: items with children are folders
+         return hasChildren;
+     }, [item.title, item.content, hasChildren]);
+
+     return (
+         <>
+              <div
+                  {...attrs}
+                  ref={innerRef}
+                  className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                      snapshot.isDragging ? 'shadow' : ''
+                  } ${
+                      activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                  }`}
+                  role="treeitem"
+                  aria-expanded={hasChildren ? isExpanded : undefined}
+                  aria-selected={activeId === item.id}
+                  aria-current={activeId === item.id ? 'page' : undefined}
+               >
                   <Link 
                       href={linkHref}
                       className="flex flex-1 items-center truncate"
@@ -295,50 +307,25 @@ const SidebarListItem: FC<{
                      )}
                  </Link>
 
-                 <IconButton
-                     icon="DotsHorizontal"
-                     onClick={handleClickMenu}
-                     className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
-                     title={t('Remove, Copy Link, etc')}
-                     aria-label={t('Note actions')}
-                     tabIndex={-1}
-                 ></IconButton>
+                  <IconButton
+                      icon="DotsHorizontal"
+                      onClick={handleClickMenu}
+                      className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                      title={t('Remove, Copy Link, etc')}
+                      aria-label={t('Note actions')}
+                      tabIndex={-1}
+                  ></IconButton>
 
-                 {!hasChildren && (
-                     <>
-                         <button
-                             onClick={openInPane('A')}
-                             className={`hidden rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors group-hover:block ${
-                                 activePane === 'A' && activeId === item.id
-                                     ? 'bg-sky-500/20 text-sky-200'
-                                     : 'text-slate-500 hover:bg-white/10 hover:text-slate-200'
-                             }`}
-                             title="Open in left pane"
-                         >
-                             L
-                         </button>
-                         <button
-                             onClick={openInPane('B')}
-                             className={`hidden rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors group-hover:block ${
-                                 activePane === 'B' && activeId === item.id
-                                     ? 'bg-sky-500/20 text-sky-200'
-                                     : 'text-slate-500 hover:bg-white/10 hover:text-slate-200'
-                             }`}
-                             title="Open in right pane"
-                         >
-                             R
-                         </button>
-                     </>
-                 )}
-
-                 <IconButton
-                     icon="Plus"
-                     onClick={onAddNote}
-                     className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
-                     title={t('Add a page inside')}
-                     aria-label={t('Add note')}
-                     tabIndex={-1}
-                 ></IconButton>
+                  {isActualFolder && (
+                      <IconButton
+                          icon="Plus"
+                          onClick={onAddNote}
+                          className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                          title={t('Add a page inside this folder')}
+                          aria-label={t('Add note')}
+                          tabIndex={-1}
+                      ></IconButton>
+                  )}
              </div>
 
              {!hasChildren && isExpanded && (

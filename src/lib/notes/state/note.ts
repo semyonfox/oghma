@@ -88,9 +88,9 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         // Remove from tree
         await treeStore.getState().removeItem(id);
         
-        // Clear current note if it's the one being deleted
+         // Clear current note if it's the one being deleted
         if (state.note?.id === id) {
-            set({ note: null });
+            set({ note: undefined });
         }
     },
 
