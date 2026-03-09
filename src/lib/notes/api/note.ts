@@ -43,6 +43,19 @@ export default function useNoteAPI() {
         [request]
     );
 
+    const remove = useCallback(
+        async (id: string) => {
+            return request<null, { success: boolean }>(
+                {
+                    method: 'DELETE',
+                    url: `/api/notes/${id}`,
+                },
+                null
+            );
+        },
+        [request]
+    );
+
     // fetch note from cache or api
     const fetch = useCallback(
         async (id: string) => {
@@ -67,6 +80,7 @@ export default function useNoteAPI() {
         find,
         create,
         mutate,
+        remove,
         fetch,
     };
 }
