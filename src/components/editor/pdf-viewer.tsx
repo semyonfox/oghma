@@ -6,16 +6,10 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
 import { useFileUrl } from './use-file-url';
 
-// Load PDF.js CSS - inject styles on client side
-if (typeof document !== 'undefined') {
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = '/pdf_viewer.css';
-  link.id = 'pdfjs-styles';
-  if (!document.getElementById('pdfjs-styles')) {
-    document.head.appendChild(link);
-  }
-}
+// Import react-pdf styles for text layer and annotations
+// Must be imported before Page component is rendered
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
 
 // Configure PDF.js worker - use local file from public folder
 if (typeof window !== 'undefined') {
