@@ -47,22 +47,27 @@ export default function NoteContextMenu({
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
         
-        // Estimate menu dimensions
-        const menuWidth = 192; // w-48 = 12rem = 192px
-        const menuHeight = 300; // approximate
+        // Exact menu dimensions
+        const menuWidth = 192; // w-48
+        const menuHeight = 320; // better estimate
         const padding = 8;
         
         let x = e.clientX;
         let y = e.clientY;
         
-        // If menu would overflow right, position it to the LEFT of cursor
+        // Adjust if menu would overflow right - position LEFT of cursor instead
         if (x + menuWidth > viewportWidth - padding) {
             x = Math.max(padding, x - menuWidth);
         }
         
-        // If menu would overflow bottom, position it ABOVE cursor
+        // Adjust if menu would overflow bottom - position ABOVE cursor instead  
         if (y + menuHeight > viewportHeight - padding) {
-            y = Math.max(padding, y - menuHeight);
+            y = Math.max(padding, y - menuHeight - 4); // -4 to account for small gap above
+        }
+        
+        // If positioned to the left, add small offset so it doesn't hide the cursor
+        if (e.clientX + menuWidth > viewportWidth - padding) {
+            x = Math.max(padding, x - 8);
         }
         
         setPosition({ x, y });
