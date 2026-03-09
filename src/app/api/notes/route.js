@@ -108,9 +108,10 @@ export async function POST(request) {
 
     const note = result[0];
 
-    // Add note to tree (always to root - parent_id is integer in tree_items schema)
-    // Note: parent_id in tree_items is INTEGER, not UUID, so we keep it NULL
-    await addNoteToTree(user.user_id, note.note_id, null);
+    // Add note to tree with optional parent_id from request body
+    // If pid is provided, use it; otherwise add to root (parent_id = null)
+    const parentId = body.pid || null;
+    await addNoteToTree(user.user_id, note.note_id, parentId);
 
     return NextResponse.json({
       id: note.note_id,

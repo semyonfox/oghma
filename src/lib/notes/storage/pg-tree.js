@@ -76,16 +76,25 @@ export async function getTreeFromPG(userId) {
  */
 export async function addNoteToTree(userId, noteId, parentId) {
   try {
-    // Note: tree_items.parent_id is INTEGER (not UUID)
-    // For now, all notes go to root (parent_id = NULL)
-    const actualParentId = null;
+    // tree_items.parent_id is UUID and references the parent note's UUID
+    // If no parentId provided, note is added to root (parent_id = NULL)
+    const actualParentId = parentId || null;
 
     // Get max position for this parent
-    const posResult = await sql`
-      SELECT COALESCE(MAX(position), 0) as max_pos
-      FROM app.tree_items
-      WHERE user_id = ${userId}::uuid AND parent_id IS NULL
-    `;
+    let posResult;
+    if (actualParentId) {
+      posResult = await sql`
+        SELECT COALESCE(MAX(position), 0) as max_pos
+        FROM app.tree_items
+        WHERE user_id = ${userId}::uuid AND parent_id = ${actualParentId}::uuid
+      `;
+    } else {
+      posResult = await sql`
+        SELECT COALESCE(MAX(position), 0) as max_pos
+        FROM app.tree_items
+        WHERE user_id = ${userId}::uuid AND parent_id IS NULL
+      `;
+    }
 
     const position = (posResult[0]?.max_pos || 0) + 1;
 
