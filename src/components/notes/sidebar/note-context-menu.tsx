@@ -50,18 +50,19 @@ export default function NoteContextMenu({
         // Estimate menu dimensions
         const menuWidth = 192; // w-48 = 12rem = 192px
         const menuHeight = 300; // approximate
+        const padding = 8;
         
         let x = e.clientX;
         let y = e.clientY;
         
-        // Adjust if menu would overflow right
-        if (x + menuWidth > viewportWidth) {
-            x = Math.max(0, viewportWidth - menuWidth - 8);
+        // If menu would overflow right, position it to the LEFT of cursor
+        if (x + menuWidth > viewportWidth - padding) {
+            x = Math.max(padding, x - menuWidth);
         }
         
-        // Adjust if menu would overflow bottom
-        if (y + menuHeight > viewportHeight) {
-            y = Math.max(0, viewportHeight - menuHeight - 8);
+        // If menu would overflow bottom, position it ABOVE cursor
+        if (y + menuHeight > viewportHeight - padding) {
+            y = Math.max(padding, y - menuHeight);
         }
         
         setPosition({ x, y });
@@ -108,7 +109,7 @@ export default function NoteContextMenu({
             {isVisible && (
                 <div
                     ref={menuRef}
-                    className="fixed z-50 w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none"
+                    className="fixed z-[9999] w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none backdrop-blur-sm"
                     style={{
                         top: `${position.y}px`,
                         left: `${position.x}px`,
