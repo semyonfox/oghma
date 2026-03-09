@@ -142,7 +142,7 @@ export async function updateTreeItem(userId, itemId, updates) {
     const query = `
       UPDATE app.tree_items
       SET ${setClauses.join(', ')}, updated_at = NOW()
-      WHERE user_id = $1 AND id = $2
+      WHERE user_id = $1 AND note_id = $2::uuid
     `;
 
     await sql.unsafe(query, values);

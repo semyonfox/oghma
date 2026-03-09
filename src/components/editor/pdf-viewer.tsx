@@ -6,8 +6,16 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
 import { useFileUrl } from './use-file-url';
 
-// Import PDF.js styles for text layer and annotations
-import 'pdfjs-dist/web/pdf_viewer.css';
+// Load PDF.js CSS - inject styles on client side
+if (typeof document !== 'undefined') {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/pdf_viewer.css';
+  link.id = 'pdfjs-styles';
+  if (!document.getElementById('pdfjs-styles')) {
+    document.head.appendChild(link);
+  }
+}
 
 // Configure PDF.js worker - use local file from public folder
 if (typeof window !== 'undefined') {
