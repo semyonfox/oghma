@@ -8,7 +8,6 @@ import FileTreePanel from '@/components/sidebar/file-tree-panel';
 import SplitEditorPane from '@/components/editor/split-editor-pane';
 import NotesInspectorSidebar from '@/components/panels/notes-inspector-sidebar';
 import { buildFileSpec } from '@/lib/notes/utils/file-spec';
-import { RectangleGroupIcon } from '@heroicons/react/24/outline';
 
 /**
  * Main VSCode-style 3-pane layout container
@@ -129,17 +128,6 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
           </div>
         )}
       </div>
-
-      {!rightPanelOpen && (
-        <button
-          onClick={() => useLayoutStore.getState().setRightPanelOpen(true)}
-          className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-gray-900/90 px-3 py-2 text-xs text-gray-300 backdrop-blur transition-colors hover:bg-gray-800"
-          title="Open inspector"
-        >
-          <RectangleGroupIcon className="h-4 w-4" />
-          Inspector
-        </button>
-      )}
     </div>
   );
 };
