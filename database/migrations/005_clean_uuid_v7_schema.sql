@@ -95,7 +95,6 @@ CREATE TABLE app.tree_items (
     user_id     UUID NOT NULL REFERENCES app.login(user_id) ON DELETE CASCADE,
     note_id     UUID NOT NULL REFERENCES app.notes(note_id) ON DELETE CASCADE,
     parent_id   UUID REFERENCES app.notes(note_id) ON DELETE CASCADE,
-    position    DOUBLE PRECISION NOT NULL DEFAULT 0,
     is_expanded BOOLEAN NOT NULL DEFAULT false,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -103,7 +102,7 @@ CREATE TABLE app.tree_items (
 );
 
 -- Tree traversal indexes
-CREATE INDEX idx_tree_user_parent_pos ON app.tree_items(user_id, parent_id, position);
+CREATE INDEX idx_tree_user_parent ON app.tree_items(user_id, parent_id);
 CREATE INDEX idx_tree_note ON app.tree_items(note_id);
 CREATE INDEX idx_tree_user_note ON app.tree_items(user_id, note_id);
 
@@ -176,7 +175,7 @@ COMMENT ON TABLE app.tree_items IS 'Per-user file tree. One row per (user_id, no
 COMMENT ON COLUMN app.notes.is_folder IS 'true if this note represents a folder/directory; false if it is a leaf note.';
 COMMENT ON COLUMN app.notes.deleted_at IS 'Soft-delete timestamp. Rows marked deleted are hidden from queries.';
 COMMENT ON COLUMN app.notes.cloned_from IS 'FK to original note if this is a shared/cloned copy. NULL = original note.';
-COMMENT ON COLUMN app.tree_items.position IS 'DOUBLE PRECISION for gap-based ordering. Sibling order determined by this; 0=first, 1000=second, etc.';
+-- Sorting by title: ORDER BY app.notes.title ASC in queries
 
 -- ============================================================================
 -- VERIFICATION (uncomment to run checks)

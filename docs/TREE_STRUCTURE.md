@@ -9,7 +9,8 @@
 ├─────────────────────────────────┤
 │ note_id (UUID) ← ITEM ID        │
 │ user_id (UUID)                  │
-│ title, content, is_folder, ...  │
+│ title (TEXT) ← sort by this     │
+│ content, is_folder, ...         │
 └─────────────────────────────────┘
          ↑           ↑
     note_id FK   cloned_from FK
@@ -22,7 +23,6 @@
 │ user_id (UUID)                  │
 │ note_id (UUID FK)               │
 │ parent_id (UUID FK) ← KEY!      │
-│ position (DOUBLE)               │
 │ is_expanded (BOOL)              │
 └─────────────────────────────────┘
 ```
@@ -57,13 +57,15 @@ note_id       | title
 
 **In `app.tree_items`:**
 ```
-id            | note_id       | parent_id     | position
-──────────────────────────────────────────────────────
-tree-1        | 1111-1111-... | NULL          | 1000      (Note A @ root)
-tree-2        | 2222-2222-... | NULL          | 2000      (Note B @ root)
-tree-3        | 3333-3333-... | 2222-2222-... | 1000      (Note C under B)
-tree-4        | 4444-4444-... | 2222-2222-... | 2000      (Note D under B)
+id            | note_id       | parent_id
+────────────────────────────────────────────
+tree-1        | 1111-1111-... | NULL            (Note A @ root)
+tree-2        | 2222-2222-... | NULL            (Note B @ root)
+tree-3        | 3333-3333-... | 2222-2222-...   (Note C under B)
+tree-4        | 4444-4444-... | 2222-2222-...   (Note D under B)
 ```
+
+**Sorting:** When querying children, use `ORDER BY n.title ASC` to get A-Z order.
 
 **The critical FKs:**
 - `tree_items.note_id` → `notes.note_id` (this item IS this note)
@@ -71,23 +73,23 @@ tree-4        | 4444-4444-... | 2222-2222-... | 2000      (Note D under B)
 
 ### Query Pattern
 
-To get "children of Note B":
+To get "children of Note B" (sorted A-Z):
 
 ```sql
-SELECT ti.note_id, n.title, ti.position
+SELECT ti.note_id, n.title
 FROM app.tree_items ti
 JOIN app.notes n ON ti.note_id = n.note_id
 WHERE ti.user_id = 'alice-uuid'
   AND ti.parent_id = '2222-2222-...'::uuid  -- ← parent_id is a note_id
-ORDER BY ti.position;
+ORDER BY n.title ASC;  -- ← A-Z sort
 ```
 
 Result:
 ```
-note_id       | title   | position
-──────────────────────────────────
-3333-3333-... | Note C  | 1000
-4444-4444-... | Note D  | 2000
+note_id       | title
+──────────────────────
+3333-3333-... | Note C
+4444-4444-... | Note D
 ```
 
 ---
@@ -118,32 +120,32 @@ INSERT INTO app.notes (note_id, user_id, title, is_folder)
 VALUES ('5555-...'::uuid, 'alice-uuid'::uuid, 'Note E', false);
 
 -- 2. Insert into tree_items
--- parent_id = 2222-... (Note B's note_id, not tree_items.id!)
-INSERT INTO app.tree_items (user_id, note_id, parent_id, position)
-VALUES ('alice-uuid'::uuid, '5555-...'::uuid, '2222-...'::uuid, 3000);
+INSERT INTO app.tree_items (user_id, note_id, parent_id)
+VALUES ('alice-uuid'::uuid, '5555-...'::uuid, '2222-...'::uuid);
 ```
 
-**Key line:** `parent_id = '2222-...'::uuid` ← This is Note B's `note_id`, not its `tree_items.id`.
+**That's it.** No position calculation. Will appear in A-Z order when folder is loaded.
 
 ### Move Note C from B to Root
 
 ```sql
 UPDATE app.tree_items
-SET parent_id = NULL,  -- ← Move to root (no parent)
-    position = 3000
+SET parent_id = NULL  -- ← Move to root (no parent)
 WHERE user_id = 'alice-uuid'::uuid
   AND note_id = '3333-...'::uuid;
 ```
 
 Before:
 ```
-tree-3 | note_id=3333-... | parent_id=2222-... | position=1000
+tree-3 | note_id=3333-... | parent_id=2222-...
 ```
 
 After:
 ```
-tree-3 | note_id=3333-... | parent_id=NULL     | position=3000
+tree-3 | note_id=3333-... | parent_id=NULL
 ```
+
+Note C will now appear at root, in alphabetical position among other root items.
 
 ---
 
@@ -219,132 +221,44 @@ A parent is a note, which is in many users' trees.
 
 ---
 
-## About Position: Why It's Needed & How It Works
+## Sorting: A-Z Everywhere
 
-### Is Position Even Necessary?
+No `position` column needed.
 
-**YES.** `parent_id` alone is not enough.
+**Sorting strategy:**
+- Folders sorted alphabetically (A-Z by title)
+- Notes within folders sorted alphabetically (A-Z by title)
+- Query: `ORDER BY n.title ASC`
 
-| Column | Meaning |
-|---|---|
-| `parent_id` | **Which folder am I in?** |
-| `position` | **What order am I within that folder?** |
-
-**Example:** Alice's folder B has children C and D.
-
-```sql
-WHERE parent_id = '2222-...'  -- All of B's children
-ORDER BY position;            -- ...in this order
+**Example:**
+```
+📁 CT213
+📁 University Notes
+📋 Meeting Notes
+📋 Personal TODO
 ```
 
-Without `position`, you have no way to preserve the user's drag-and-drop order. It would be lost on page refresh.
-
-### Why Gap-Based (1000, 2000, 4500...)?
-
-Could we just use 1, 2, 3, 4?
-
-```
-position: 1, 2, 3, 4
-```
-
-**Problem:** User drags item 1 between 2 and 3.
-
-Option A: Update all items after position 2
-```
-1, 2, 1.5, 3, 4  ← fractional anyway
-```
-
-Option B: Renumber everything
-```
-DELETE item 1
-  1, 2, 3, 4
-INSERT item 1 as position 2.5
-  1, 2, 2.5, 3, 4
-Then somebody else drags → now 1.25? 1.75?
-```
-
-You end up with fractional positions anyway, and you're constantly rewriting siblings.
-
-**Better:** Start with gaps
-
-```
-position: 1000, 2000, 3000, 4000
-```
-
-Drag item 1 between 2 and 3:
-```
-position = (2000 + 3000) / 2 = 2500
-Result: 1000, 2000, 2500, 3000, 4000
-```
-
-**Why 1000 specifically?** Arbitrary. Could be 0, 10, 100. Just needs room to insert.
-
-### How It Works: Gap-Based Insertion
-
-```
-Initial:  pos 1000, 2000, 3000
-Insert between pos 2000 and 3000:
-  new_pos = (2000 + 3000) / 2 = 2500
-
-Result:   pos 1000, 2000, 2500, 3000
-
-Insert between 2000 and 2500:
-  new_pos = (2000 + 2500) / 2 = 2250
-
-Result:   pos 1000, 2000, 2250, 2500, 3000
-```
-
-You can keep inserting indefinitely without rewriting other positions.
-
-**Performance:**
-- Move/reorder: **O(1)** — only update one row
-- No cascading updates
-- Index `(user_id, parent_id, position)` makes retrieval fast
-
-### What's the Alternative?
-
-Sequential IDs that require renumbering siblings:
-
-```sql
-CREATE TABLE tree_items (
-  id INT,
-  note_id UUID,
-  parent_id UUID,
-  position INT,  -- 1, 2, 3, 4
-  ...
-);
-
--- User drags item at position 2 to position 3.5
--- You have to:
-UPDATE tree_items
-  SET position = position + 1
-  WHERE user_id = ? AND parent_id = ? AND position >= 3;
-UPDATE tree_items
-  SET position = 3
-  WHERE id = ?;
-```
-
-**Cost:** O(n) updates (all siblings after the insertion point). At scale, this gets slow.
-
-### The Right Solution: DOUBLE PRECISION
-
-```sql
-position DOUBLE PRECISION NOT NULL
-```
-
-Allows fractional positions. Gap-based insertion avoids rewrites.
+Always the same order. Clean, predictable, no custom drag-and-drop needed.
 
 ---
 
 ## Summary
 
 ```
-tree_items.parent_id is a FK to app.notes.note_id
-tree_items.position is DOUBLE PRECISION (gap-based)
+tree_items only has:
+  - id (tree node UUID)
+  - user_id (FK)
+  - note_id (FK) — what is this item
+  - parent_id (FK) — where does it go
+  - is_expanded (UI state)
 ```
 
-- `parent_id` = which folder
-- `position` = order within folder
-- Gap-based = O(1) insert/reorder without cascading updates
+To get children in order:
+```sql
+SELECT * FROM tree_items ti
+JOIN app.notes n ON ti.note_id = n.note_id
+WHERE ti.user_id = ? AND ti.parent_id = ?
+ORDER BY n.title ASC;
+```
 
-Nothing to do with `tree_items.id`. ✓
+That's the entire tree system. ✓
