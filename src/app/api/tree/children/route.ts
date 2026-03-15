@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import sql from '@/database/pgsql.js';
+const database = sql as any;
 
 /**
  * GET /api/tree/children?parent_id=<uuid>
@@ -32,21 +33,39 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch children, sorted A-Z by title
-    const rows = await sql`
-      SELECT 
-        ti.note_id,
-        n.title,
-        n.is_folder,
-        ti.is_expanded
-      FROM app.tree_items ti
-      JOIN app.notes n ON ti.note_id = n.note_id
-      WHERE ti.user_id = ${user.user_id}::uuid
-        AND ti.parent_id IS ${parentId ? `${parentId}::uuid` : 'NULL'}
-        AND n.deleted = 0 
-        AND n.deleted_at IS NULL
-      ORDER BY n.title ASC
-    `;
+    // Fetch children, sorted A-Z by title.
+    // Split into two queries because postgres tagged templates always
+    // parameterise interpolated values — you cannot embed raw SQL like
+    // "IS NULL" or "= $2::uuid" in the same template branch.
+    const rows = parentId
+      ? await database`
+          SELECT
+            ti.note_id,
+            n.title,
+            n.is_folder,
+            ti.is_expanded
+          FROM app.tree_items ti
+          JOIN app.notes n ON ti.note_id = n.note_id
+          WHERE ti.user_id = ${user.user_id}::uuid
+            AND ti.parent_id = ${parentId}::uuid
+            AND n.deleted = 0
+            AND n.deleted_at IS NULL
+          ORDER BY n.title ASC
+        `
+      : await database`
+          SELECT
+            ti.note_id,
+            n.title,
+            n.is_folder,
+            ti.is_expanded
+          FROM app.tree_items ti
+          JOIN app.notes n ON ti.note_id = n.note_id
+          WHERE ti.user_id = ${user.user_id}::uuid
+            AND ti.parent_id IS NULL
+            AND n.deleted = 0
+            AND n.deleted_at IS NULL
+          ORDER BY n.title ASC
+        `;
 
     return NextResponse.json({
       parentId: parentId || 'root',
