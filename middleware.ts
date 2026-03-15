@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authConfig } from '@/auth.config';
+import { getToken } from 'next-auth/jwt';
 import { validateSession } from '@/lib/auth';
 
+// routes that don't require authentication
 const PUBLIC_ROUTES = [
   '/api/auth/login',
   '/api/auth/register',
@@ -18,6 +18,7 @@ const PUBLIC_ROUTES = [
   '/',
 ];
 
+// routes that require a valid session
 const PROTECTED_ROUTES = [
   '/api/notes',
   '/api/tree',
@@ -30,35 +31,33 @@ const PROTECTED_ROUTES = [
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Skip public routes
+  // pass through public routes immediately
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 
-  // Protect all protected routes
+  // enforce auth on protected routes
   if (PROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
-    // Try Auth.js session first (OAuth users)
-    try {
-      const authJsSession = await getServerSession(authConfig);
-      if (authJsSession && (authJsSession as any).user) {
-        return NextResponse.next();
-      }
-    } catch (error) {
-      // Auth.js session check failed, continue to JWT fallback
+    // check next-auth OAuth session via JWT (Edge-safe — uses jose only, no bcryptjs/postgres)
+    const nextAuthToken = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+    });
+    if (nextAuthToken) {
+      return NextResponse.next();
     }
 
-    // Fall back to custom JWT (email/password users)
+    // check custom JWT session (email/password users via /api/auth/login)
     const jwtUser = await validateSession();
     if (jwtUser) {
       return NextResponse.next();
     }
 
-    // No valid session - reject request
+    // no valid session — reject
     if (pathname.startsWith('/api')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    // Redirect to login for page routes
+
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
