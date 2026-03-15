@@ -22,9 +22,16 @@ export default function LoginPage() {
     userRef.current?.focus()
   }, [])
 
-  useEffect(() => {
+  // Clear error message on input change (via input handlers below, not effect)
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value)
     setErrMsg('')
-  }, [email, pwd])
+  }
+
+  const handlePasswordChange = (e) => {
+    setPwd(e.target.value)
+    setErrMsg('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -78,16 +85,16 @@ export default function LoginPage() {
               </label>
               <div className="mt-2">
                 <input
-                  ref={userRef}
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
+                   ref={userRef}
+                   id="email"
+                   name="email"
+                   type="email"
+                   required
+                   autoComplete="email"
+                   value={email}
+                   onChange={handleEmailChange}
+                   className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                 />
               </div>
             </div>
 
@@ -97,15 +104,15 @@ export default function LoginPage() {
               </label>
               <div className="mt-2">
                 <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
+                   id="password"
+                   name="password"
+                   type="password"
+                   required
+                   autoComplete="current-password"
+                   value={pwd}
+                   onChange={handlePasswordChange}
+                   className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                 />
               </div>
             </div>
 
