@@ -8,12 +8,7 @@
     "build": "next build",
     "start": "next start",
     "start:next": "next start",
-    "lint": "eslint",
-    "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate",
-    "db:seed": "node prisma/seed.js",
-    "db:reset": "prisma migrate reset --force"
+    "lint": "eslint"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",
@@ -29,7 +24,6 @@
     "@lexical/markdown": "^0.41.0",
     "@lexical/react": "^0.41.0",
     "@lexical/rich-text": "^0.41.0",
-    "@prisma/client": "^7.5.0",
     "@radix-ui/react-context-menu": "2.2.16",
     "allotment": "^1.20.5",
     "bcryptjs": "^3.0.3",
@@ -96,7 +90,6 @@
     "eslint-config-next": "16.1.6",
     "eslint-plugin-react-hooks": "^7.0.1",
     "postcss": "^8.5.8",
-    "prisma": "^7.5.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3"
   }

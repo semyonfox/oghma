@@ -15,7 +15,7 @@ if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
     Google({
       clientId: process.env.GOOGLE_ID,
       clientSecret: process.env.GOOGLE_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      // Security: disabled email account linking - requires email verification
     })
   );
 }
@@ -25,7 +25,7 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
     GitHub({
       clientId: process.env.GITHUB_ID,
       clientSecret: process.env.GITHUB_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      // Security: disabled email account linking - requires email verification
     })
   );
 }
@@ -36,7 +36,7 @@ if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.en
       clientId: process.env.AZURE_CLIENT_ID,
       clientSecret: process.env.AZURE_CLIENT_SECRET,
       tenantId: process.env.AZURE_TENANT_ID,
-      allowDangerousEmailAccountLinking: true,
+      // Security: disabled email account linking - requires email verification
     })
   );
 }
@@ -46,7 +46,7 @@ if (process.env.APPLE_ID && process.env.APPLE_SECRET) {
     Apple({
       clientId: process.env.APPLE_ID,
       clientSecret: process.env.APPLE_SECRET,
-      allowDangerousEmailAccountLinking: true,
+      // Security: disabled email account linking - requires email verification
     })
   );
 }
