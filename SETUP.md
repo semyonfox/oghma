@@ -1,29 +1,32 @@
 # Setup
 
+## Requirements
+
+- Node.js 18+
+- Docker (for local PostgreSQL)
+
 ## Local Development
 
-Requirements: Node.js 18+, Docker
-
 ```bash
-# Install dependencies
+# Install deps
 npm install
 
-# Copy environment template
+# Copy the env template
 cp .env.example .env.local
 
-# Add AWS S3 credentials to .env.local
-# STORAGE_ACCESS_KEY=...
-# STORAGE_SECRET_KEY=...
+# Add your S3 credentials to .env.local:
+# STORAGE_ACCESS_KEY=your-key
+# STORAGE_SECRET_KEY=your-secret
 # STORAGE_BUCKET=your-bucket-name
 
-# Start PostgreSQL + app
+# Start the database (and app if you want)
 docker-compose up
 
 # In another terminal
 npm run dev
 ```
 
-App runs at `http://localhost:3000`
+App runs at `http://localhost:3000`.
 
 ## Production
 
@@ -31,20 +34,20 @@ App runs at `http://localhost:3000`
 
 ```bash
 # Create PostgreSQL instance
-# Ensure pgvector extension is installed
+# Make sure pgvector is installed
 
 psql -h <endpoint> -U <user> -d <database> -c "CREATE EXTENSION vector;"
 psql -h <endpoint> -U <user> -d <database> < database/schema.sql
 ```
 
-### Environment
+### Environment Variables
 
-Set in AWS Amplify console:
-- `DATABASE_URL`: PostgreSQL connection
-- `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET`: S3
-- `AWS_SES_REGION`, `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY`: Email
-- `JWT_SECRET`: Generate with `openssl rand -base64 32`
-- `NEXT_PUBLIC_APP_URL`: Your domain
+Set these in AWS Amplify console:
+- `DATABASE_URL` - PostgreSQL connection string
+- `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET` - S3 credentials
+- `AWS_SES_REGION`, `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY` - Email (SES)
+- `JWT_SECRET` - Generate with `openssl rand -base64 32`
+- `NEXT_PUBLIC_APP_URL` - Your domain
 
 ### Deploy
 
@@ -52,27 +55,27 @@ Set in AWS Amplify console:
 git push origin prod
 ```
 
-Amplify auto-deploys from `prod` branch.
+Amplify watches the `prod` branch and deploys automatically.
 
-## Troubleshooting
+## Common Issues
 
-**Database fails**
+**Database won't start?**
 - Check `docker-compose ps`
 - Verify DATABASE_URL in .env.local
 
-**S3 upload fails**
-- Verify bucket exists, credentials correct
-- Check IAM has s3:PutObject, s3:GetObject
+**S3 uploads failing?**
+- Bucket exists? Credentials correct?
+- IAM needs s3:PutObject, s3:GetObject permissions
 
-**Build fails**
-- Run `npm install` again
-- Remove `.next` folder
+**Build errors?**
+- Try `npm install` again
+- Delete `.next` folder and rebuild
 
 ## Commands
 
 ```bash
-npm run dev      # Development
+npm run dev      # Dev server
 npm run build    # Production build
-npm start        # Run build
+npm start        # Run built app
 npm run lint     # Lint code
 ```

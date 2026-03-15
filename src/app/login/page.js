@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { getErrorMessage, login } from '@/lib/apiClient'
 import { Alert } from '@/components/alert'
 import Link from 'next/link'
@@ -51,10 +52,9 @@ export default function LoginPage() {
     }
   }
 
-  // TODO: Implement social login handlers (Google, Microsoft, GitHub, Apple)
+  // OAuth login handler - delegates to Auth.js
   const handleSocialLogin = (provider) => {
-    console.log(`Social login with ${provider}`)
-    // TODO: Redirect to OAuth endpoint or backend authentication
+    signIn(provider, { redirect: true, redirectTo: '/notes' })
   }
 
   return (
@@ -178,10 +178,10 @@ export default function LoginPage() {
                 <span className="text-sm/6 font-semibold">Google</span>
               </button>
 
-              {/* Microsoft */}
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('microsoft')}
+               {/* Microsoft */}
+               <button
+                 type="button"
+                 onClick={() => handleSocialLogin('azure-ad')}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
                 <svg viewBox="0 0 2499.6 2500" aria-hidden="true" className="h-5 w-5">
