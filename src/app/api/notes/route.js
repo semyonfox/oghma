@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
+import { generateUUID } from '@/lib/utils/uuid.js';
 import sql from '@/database/pgsql.js';
 
 // Constants
@@ -99,10 +100,13 @@ export async function POST(request) {
 
     const body = await request.json();
     
+    // Generate UUID v7 for note
+    const noteId = generateUUID();
+    
     // Create new note in PostgreSQL
     const result = await sql`
-      INSERT INTO app.notes (user_id, title, content, deleted, created_at, updated_at)
-      VALUES (${user.user_id}::uuid, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
+      INSERT INTO app.notes (note_id, user_id, title, content, deleted, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
       RETURNING note_id, user_id, title, content, created_at, updated_at
     `;
 
