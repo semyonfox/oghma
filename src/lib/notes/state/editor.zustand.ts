@@ -121,6 +121,8 @@ const useEditorStore = create<EditorState>()(
         {
             name: 'editor-store',
             storage: createJSONStorage(() => sessionStorage),
+            // editorEl is a React ref — cannot be serialized
+            partialize: ({ editorEl: _editorEl, ...rest }) => rest,
         }
     )
 );
