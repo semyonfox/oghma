@@ -45,6 +45,12 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
         const state = get();
         const { trashAPI, treeStore } = state;
 
+        // Guard: trashAPI and treeStore must be initialized
+        if (!trashAPI || !treeStore) {
+            console.warn('trashAPI or treeStore not initialized yet');
+            return note;
+        }
+
         // 父页面被删除时，恢复页面的 parent 改成 root
         const pNote = note.pid && (await noteCache.getItem(note.pid));
         if (
@@ -73,6 +79,12 @@ const useTrashStore = create<TrashStoreState>((set, get) => ({
     deleteNote: async (id: string) => {
         const state = get();
         const { trashAPI, treeStore } = state;
+
+        // Guard: trashAPI and treeStore must be initialized
+        if (!trashAPI || !treeStore) {
+            console.warn('trashAPI or treeStore not initialized yet');
+            return;
+        }
 
         await trashAPI.mutate({
             action: 'delete',

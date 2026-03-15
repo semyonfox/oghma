@@ -194,11 +194,17 @@ const SidebarList = () => {
 
     const handleDelete = useCallback(
         async (id: string) => {
+            // Guard: ensure store is ready before allowing delete
+            if (!initLoaded) {
+                alert('Please wait for notes to load before deleting.');
+                return;
+            }
+
             if (confirm(`Are you sure you want to delete this ${tree.items[id]?.children.length > 0 ? 'folder and all its contents' : 'note'}?`)) {
                 await removeNote(id);
             }
         },
-        [removeNote, tree.items]
+        [removeNote, tree.items, initLoaded]
     );
 
     const handleDuplicate = useCallback(
