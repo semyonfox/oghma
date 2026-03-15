@@ -5,6 +5,8 @@ import noteCache from '../cache/note';
 import { NoteModel } from '@/lib/notes/types/note';
 import useSyncStatusStore from './sync-status';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface NoteStoreState {
     note: NoteModel | undefined;
     loading: boolean;
@@ -44,6 +46,13 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         // Guard: noteAPI must be initialized
         if (!noteAPI) {
             console.warn('noteAPI not initialized yet');
+            return undefined;
+        }
+
+        // Guard: reject stale nanoid IDs — server always returns 400 for them
+        if (!UUID_RE.test(id)) {
+            console.warn(`[noteStore] fetchNote: non-UUID id ${id} — evicting from cache`);
+            await noteCache.removeItem(id);
             return undefined;
         }
         
