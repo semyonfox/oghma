@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { isValidUUID } from '@/lib/uuid-validation.js';
-import { generateUUID } from '@/lib/utils/uuid.js';
+import { generateUUID } from '@/lib/utils/uuid';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import sql from '@/database/pgsql.js';
 
@@ -16,7 +16,7 @@ import sql from '@/database/pgsql.js';
  * @param targetParentId - Where to place clone (null = root)
  * @returns Cloned note ID
  */
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await validateSession();
     if (!user) {
@@ -26,7 +26,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       );
     }
 
-    const sourceNoteId = params.id;
+    const { id } = await params;
+    const sourceNoteId = id;
     if (!isValidUUID(sourceNoteId)) {
       return NextResponse.json(
         { error: 'Invalid note ID' },
