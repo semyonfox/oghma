@@ -219,15 +219,132 @@ A parent is a note, which is in many users' trees.
 
 ---
 
+## About Position: Why It's Needed & How It Works
+
+### Is Position Even Necessary?
+
+**YES.** `parent_id` alone is not enough.
+
+| Column | Meaning |
+|---|---|
+| `parent_id` | **Which folder am I in?** |
+| `position` | **What order am I within that folder?** |
+
+**Example:** Alice's folder B has children C and D.
+
+```sql
+WHERE parent_id = '2222-...'  -- All of B's children
+ORDER BY position;            -- ...in this order
+```
+
+Without `position`, you have no way to preserve the user's drag-and-drop order. It would be lost on page refresh.
+
+### Why Gap-Based (1000, 2000, 4500...)?
+
+Could we just use 1, 2, 3, 4?
+
+```
+position: 1, 2, 3, 4
+```
+
+**Problem:** User drags item 1 between 2 and 3.
+
+Option A: Update all items after position 2
+```
+1, 2, 1.5, 3, 4  ← fractional anyway
+```
+
+Option B: Renumber everything
+```
+DELETE item 1
+  1, 2, 3, 4
+INSERT item 1 as position 2.5
+  1, 2, 2.5, 3, 4
+Then somebody else drags → now 1.25? 1.75?
+```
+
+You end up with fractional positions anyway, and you're constantly rewriting siblings.
+
+**Better:** Start with gaps
+
+```
+position: 1000, 2000, 3000, 4000
+```
+
+Drag item 1 between 2 and 3:
+```
+position = (2000 + 3000) / 2 = 2500
+Result: 1000, 2000, 2500, 3000, 4000
+```
+
+**Why 1000 specifically?** Arbitrary. Could be 0, 10, 100. Just needs room to insert.
+
+### How It Works: Gap-Based Insertion
+
+```
+Initial:  pos 1000, 2000, 3000
+Insert between pos 2000 and 3000:
+  new_pos = (2000 + 3000) / 2 = 2500
+
+Result:   pos 1000, 2000, 2500, 3000
+
+Insert between 2000 and 2500:
+  new_pos = (2000 + 2500) / 2 = 2250
+
+Result:   pos 1000, 2000, 2250, 2500, 3000
+```
+
+You can keep inserting indefinitely without rewriting other positions.
+
+**Performance:**
+- Move/reorder: **O(1)** — only update one row
+- No cascading updates
+- Index `(user_id, parent_id, position)` makes retrieval fast
+
+### What's the Alternative?
+
+Sequential IDs that require renumbering siblings:
+
+```sql
+CREATE TABLE tree_items (
+  id INT,
+  note_id UUID,
+  parent_id UUID,
+  position INT,  -- 1, 2, 3, 4
+  ...
+);
+
+-- User drags item at position 2 to position 3.5
+-- You have to:
+UPDATE tree_items
+  SET position = position + 1
+  WHERE user_id = ? AND parent_id = ? AND position >= 3;
+UPDATE tree_items
+  SET position = 3
+  WHERE id = ?;
+```
+
+**Cost:** O(n) updates (all siblings after the insertion point). At scale, this gets slow.
+
+### The Right Solution: DOUBLE PRECISION
+
+```sql
+position DOUBLE PRECISION NOT NULL
+```
+
+Allows fractional positions. Gap-based insertion avoids rewrites.
+
+---
+
 ## Summary
 
 ```
 tree_items.parent_id is a FK to app.notes.note_id
+tree_items.position is DOUBLE PRECISION (gap-based)
 ```
 
-It says: "This item's parent is the note with this UUID."
-
-Use `parent_id = NULL` for root items.
-Use `parent_id = '<some-note-uuid>'` for items under a parent.
+- `parent_id` = which folder
+- `position` = order within folder
+- Gap-based = O(1) insert/reorder without cascading updates
 
 Nothing to do with `tree_items.id`. ✓
