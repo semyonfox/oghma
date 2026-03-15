@@ -1,7 +1,6 @@
 // extracted from Notea (MIT License)
 import { create } from 'zustand';
 import { Settings } from '@/lib/notes/types/settings';
-import useSettingsAPI from '@/lib/notes/api/settings';
 
 interface SettingsStore {
     settings: Settings;
@@ -13,8 +12,11 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
     settings: {} as Settings,
     setSettings: (settings) => set({ settings }),
     updateSettings: async (body: Partial<Settings>) => {
-        const { mutate } = useSettingsAPI();
-        await mutate(body);
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
         set((state) => ({
             settings: {
                 ...state.settings,

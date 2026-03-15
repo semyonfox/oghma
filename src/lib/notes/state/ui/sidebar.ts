@@ -1,6 +1,5 @@
 // extracted from Notea (MIT License)
 import { create } from 'zustand';
-import useSettingsAPI from '@/lib/notes/api/settings';
 
 interface SidebarStore {
     isFold: boolean;
@@ -9,33 +8,37 @@ interface SidebarStore {
     close: () => void;
 }
 
+const postSidebarSetting = (isFold: boolean) =>
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sidebar_is_fold: isFold }),
+    }).catch((err) => console.error('Failed to persist sidebar state:', err));
+
 const createSidebarStore = (initState = false, isMobileOnly = false) => {
     return create<SidebarStore>((set) => ({
         isFold: initState,
         toggle: async (state?: boolean) => {
-            const { mutate } = useSettingsAPI();
             set((prev) => {
                 const isFold = typeof state === 'boolean' ? state : !prev.isFold;
                 if (!isMobileOnly) {
-                    mutate({ sidebar_is_fold: isFold });
+                    postSidebarSetting(isFold);
                 }
                 return { isFold };
             });
         },
         open: async () => {
-            const { mutate } = useSettingsAPI();
             set(() => {
                 if (!isMobileOnly) {
-                    mutate({ sidebar_is_fold: true });
+                    postSidebarSetting(true);
                 }
                 return { isFold: true };
             });
         },
         close: async () => {
-            const { mutate } = useSettingsAPI();
             set(() => {
                 if (!isMobileOnly) {
-                    mutate({ sidebar_is_fold: false });
+                    postSidebarSetting(false);
                 }
                 return { isFold: false };
             });

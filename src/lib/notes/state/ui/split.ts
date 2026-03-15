@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import useSettingsAPI from '@/lib/notes/api/settings';
 
 interface SplitStore {
     sizes: [number, number];
@@ -14,23 +13,27 @@ const normalizeSizes = (data: [number, number]): [number, number] => {
     return data;
 };
 
+const postSplitSizes = (sizes: [number, number]) =>
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ split_sizes: sizes }),
+    }).catch((err) => console.error('Failed to persist split sizes:', err));
+
 const createSplitStore = (initData: [number, number] = [50, 50]) => {
     return create<SplitStore>((set, get) => ({
         sizes: normalizeSizes(initData),
         saveSizes: async (newSizes: [number, number]) => {
-            const { mutate } = useSettingsAPI();
             if (!newSizes || !Array.isArray(newSizes) || newSizes.length !== 2) {
                 console.warn('Invalid sizes provided. Using fallback sizes.');
                 newSizes = [50, 50];
             }
             set({ sizes: newSizes });
-            await mutate({
-                split_sizes: newSizes,
-            });
+            await postSplitSizes(newSizes);
         },
         resize: (scale: number) => {
             const { sizes } = get();
-            const [size1, size2] = sizes;
+            const [size1] = sizes;
             const newSize1 = Math.max(0, Math.min(size1 * scale, 100));
             const newSize2 = Math.max(0, 100 - newSize1);
             const newSizes: [number, number] = [newSize1, newSize2];
