@@ -1,26 +1,27 @@
-# Tree API Endpoints
+# Tree API Endpoints (Lazy-Loading)
 
 ## Root Tree (Initial Load)
 
 **GET /api/tree**
 
-Fetch root level items for authenticated user. Sorted A-Z by title.
+Fetch root level items for authenticated user. **Returns only root items** to enable lazy-loading. Sorted A-Z by title.
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/tree
 ```
 
-Response:
+Response (lazy-loading format):
 ```json
 {
-  "rootId": "root",
-  "items": {
-    "root": { "id": "root", "children": ["note-uuid-1", "note-uuid-2"] },
-    "note-uuid-1": { "id": "note-uuid-1", "children": [] },
-    "note-uuid-2": { "id": "note-uuid-2", "children": ["note-uuid-3"] }
-  }
+  "parentId": "root",
+  "items": [
+    { "id": "note-uuid-1", "title": "My Folder", "isFolder": true, "isExpanded": false },
+    { "id": "note-uuid-2", "title": "My Note", "isFolder": false, "isExpanded": false }
+  ]
 }
 ```
+
+**Note:** This endpoint returns only root items. Children are loaded separately via `/api/tree/children` when user expands a folder. This enables fast initial page load even with 10,000+ notes.
 
 ---
 
