@@ -1,12 +1,35 @@
 // upload API route - handles file uploads for note attachments
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage/init';
+
+// Helper to validate UUID format
+function isValidUUID(id: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
 export async function POST(request: NextRequest) {
     try {
+        // Security: Authenticate user before allowing upload
+        const session = await validateSession();
+        if (!session) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        const noteId = formData.get('noteId') as string || 'test';
+        const noteId = formData.get('noteId') as string;
+
+        // Validation: require valid noteId, no default 'test'
+        if (!noteId || !isValidUUID(noteId)) {
+            return NextResponse.json(
+                { error: 'Valid noteId (UUID) is required' },
+                { status: 400 }
+            );
+        }
 
         if (!file) {
             return NextResponse.json(
@@ -43,6 +66,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
     try {
+        // Security: Authenticate user before allowing file retrieval
+        const session = await validateSession();
+        if (!session) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const path = request.nextUrl.searchParams.get('path');
 
         if (!path) {

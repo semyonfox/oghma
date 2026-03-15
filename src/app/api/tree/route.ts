@@ -141,9 +141,8 @@ export async function POST(request: Request) {
                   );
               }
               
-              // Move the note in the tree with new position
-              const newPosition = destination.index ?? undefined;
-              await moveNoteInTree(user.user_id, noteId, newParentId, newPosition);
+              // Move the note in the tree (position stored separately if needed)
+              await moveNoteInTree(user.user_id, noteId, newParentId);
               
               return NextResponse.json({ success: true });
           }

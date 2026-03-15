@@ -4,19 +4,14 @@ import { useSearchParams } from 'next/navigation';
 
 function ResetPasswordForm() {
     const searchParams = useSearchParams();
-    const [token, setToken] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        const tokenFromUrl = searchParams.get('token');
-        if (tokenFromUrl) {
-            setToken(tokenFromUrl);
-        }
-    }, [searchParams]);
+    // Get token from URL (no effect needed - just read on render)
+    const token = searchParams.get('token') || '';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
