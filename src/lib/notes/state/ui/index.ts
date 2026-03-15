@@ -79,24 +79,17 @@ export const initUIStore = ({
     });
 };
 
+// module-scope stores — created once, hook identity is stable across renders
+const useSidebarStore = createSidebarStore(false, false);
+const useSplitStore = createSplitStore(DEFAULT_SETTINGS.split_sizes);
+
 // Composite hook that returns full UI state
 export const useUIComposite = (): UIState => {
     const baseState = useUIBaseStore();
-    
-    // Create sidebar store for this instance
-    const sidebarStore = createSidebarStore(
-        baseState.ua?.isMobileOnly ? false : false,
-        baseState.ua?.isMobileOnly ?? false
-    );
-    
-    // Create split store for this instance
-    const splitStore = createSplitStore(DEFAULT_SETTINGS.split_sizes);
-    
-    // Get state from the stores
-    const sidebar = sidebarStore();
-    const split = splitStore();
-    const title = useTitleStore();  // Direct hook call
-    const settings = useSettingsStore();  // Direct hook call
+    const sidebar = useSidebarStore();
+    const split = useSplitStore();
+    const title = useTitleStore();
+    const settings = useSettingsStore();
 
     return {
         ...baseState,
