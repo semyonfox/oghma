@@ -3,27 +3,16 @@ import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { isValidUUID } from '@/lib/uuid-validation.js';
+import sql from '@/database/pgsql.js';
 
 /**
- * Helper: Filter tree item to only include requested fields
+ * GET /api/tree
+ * 
+ * Lazy-loading root endpoint. Returns root items only (not full tree).
+ * Delegates to /api/tree/children internally for consistency.
  */
-function filterTreeItemFields(item: any, fields?: string[]): any {
-  if (!fields || fields.length === 0) {
-    return item;
-  }
-  
-  const filtered: any = {};
-  for (const field of fields) {
-    if (field in item) {
-      filtered[field] = item[field];
-    }
-  }
-  return filtered;
-}
-
 export async function GET(request: Request) {
     try {
-      // Get authenticated user
       const user = await validateSession();
       if (!user) {
         return NextResponse.json(
@@ -32,40 +21,31 @@ export async function GET(request: Request) {
         );
       }
 
-      // Fetch tree from PostgreSQL (per-user)
-      const tree = await getTreeFromPG(user.user_id);
-      
-      // Parse query parameters
-      const url = new URL(request.url);
-      const fieldsParam = url.searchParams.get('fields');
-      const skipParam = url.searchParams.get('skip');
-      const limitParam = url.searchParams.get('limit');
-      
-      // Parse fields from comma-separated string
-      const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
-      
-      // Parse pagination
-      const skip = skipParam ? parseInt(skipParam, 10) : 0;
-      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
-      
-      // Get all tree items
-      let items = Object.entries(tree.items);
-      
-      // Apply pagination
-      if (skip > 0 || limit) {
-        const end = limit ? skip + limit : undefined;
-        items = items.slice(skip, end);
-      }
-      
-      // Build filtered result
-      const filteredTree = {
-        rootId: tree.rootId,
-        items: Object.fromEntries(
-          items.map(([id, item]) => [id, filterTreeItemFields(item, fields)])
-        ),
-      };
-      
-      return NextResponse.json(filteredTree);
+      // Fetch root items (parent_id IS NULL), sorted A-Z by title
+      const rows = await sql`
+        SELECT 
+          ti.note_id,
+          n.title,
+          n.is_folder,
+          ti.is_expanded
+        FROM app.tree_items ti
+        JOIN app.notes n ON ti.note_id = n.note_id
+        WHERE ti.user_id = ${user.user_id}::uuid
+          AND ti.parent_id IS NULL
+          AND n.deleted = 0 
+          AND n.deleted_at IS NULL
+        ORDER BY n.title ASC
+      `;
+
+      return NextResponse.json({
+        parentId: 'root',
+        items: rows.map(row => ({
+          id: row.note_id,
+          title: row.title,
+          isFolder: row.is_folder,
+          isExpanded: row.is_expanded,
+        })),
+      });
     } catch (error) {
       console.error('Tree GET error:', error);
       return NextResponse.json(

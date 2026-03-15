@@ -20,7 +20,7 @@ import CreateNoteModal from '@/components/notes/create-note-modal';
 const SidebarList = () => {
     const { t } = useI18n();
     const router = useRouter();
-    const { tree, moveItem, mutateItem, initLoaded, collapseAllItems, genNewId, addItem } =
+    const { tree, moveItem, mutateItem, initLoaded, collapseAllItems, genNewId, addItem, loadChildren } =
         useNoteTreeStore();
     const { createNote, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -49,18 +49,26 @@ const SidebarList = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // notification callback: sync react-arborist's toggle to application state
+    // notification callback: sync react-arborist's toggle to application state + lazy-load children
     const onToggle = useCallback(
         (id: string) => {
             const item = tree.items[id];
             if (!item) return;
 
+            const isExpanding = !item.isExpanded;
+            
+            // If expanding and children not yet loaded, lazy-load them
+            if (isExpanding && item.children.length === 0 && item.isFolder) {
+                loadChildren(id)
+                    .catch((e) => console.error(`Error loading children for ${id}:`, e));
+            }
+
             mutateItem(id, {
-                isExpanded: !item.isExpanded,
+                isExpanded: isExpanding,
             })
                 ?.catch((v) => console.error('Error whilst mutating item: %O', v));
         },
-        [mutateItem, tree.items]
+        [mutateItem, loadChildren, tree.items]
     );
 
     // move handler -- reads tree from store directly to avoid stale closures
