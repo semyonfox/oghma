@@ -11,6 +11,7 @@ import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
 import useTrashStore from '@/lib/notes/state/trash';
 import { clearDeduplicationCache } from '@/lib/notes/api/request-deduplicator';
+import { purgeNonUUIDNoteCache } from '@/lib/notes/cache/note';
 import { toast } from 'sonner';
 
 /**
@@ -49,6 +50,11 @@ const FileTreePanel: FC = () => {
     // clear any stale dedup cache from a previous mount / HMR rebuild
     // so initTree always fetches fresh data on the first load
     clearDeduplicationCache();
+
+    // purge any nanoid-format keys left from before the UUID v7 migration
+    purgeNonUUIDNoteCache().catch(e =>
+      console.warn('Failed to purge stale note cache:', e)
+    );
 
     // load the tree
     useNoteTreeStore.getState().initTree()

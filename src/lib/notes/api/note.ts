@@ -4,6 +4,8 @@ import { useCallback } from 'react';
 import noteCache from '../cache/note';
 import useFetcher from './fetcher';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function useNoteAPI() {
     const { loading, request, abort, error } = useFetcher();
 
@@ -59,6 +61,14 @@ export default function useNoteAPI() {
     // fetch note from cache or api
     const fetch = useCallback(
         async (id: string) => {
+            // reject stale nanoid IDs immediately — server will 400 them
+            if (!UUID_REGEX.test(id)) {
+                console.warn(`[noteAPI] skipping fetch for non-UUID id: ${id}`);
+                // evict from IndexedDB in case it snuck in
+                await noteCache.removeItem(id);
+                return undefined;
+            }
+
             const cache = await noteCache.getItem(id);
             if (cache) {
                 return cache;
