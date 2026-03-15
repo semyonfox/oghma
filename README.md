@@ -1,61 +1,49 @@
 # OghmaNotes
 
-AI-powered learning platform combining Markdown notes with RAG-powered search and retrieval.
+A note-taking app that started as a CT216 assignment and somehow became slightly more ambitious than intended. 
 
-## Getting Started
+Features:
+- Markdown notes with a tree-based folder system
+- User auth (register/login/password reset)
+- PDF uploads to S3
+- Soft delete (your data isn't truly gone for 7 days, so don't panic)
+- JWT-based sessions
+
+What's coming eventually:
+- Fuzzy search (you can actually find your notes)
+- AI chat with your notes (RAG-powered, because of course)
+- Quiz generation (because suffering is mandatory)
+
+## Quick Start
 
 ```bash
 npm install
 cp .env.example .env.local
+# Add your S3 credentials to .env.local
 docker-compose up
 npm run dev
 ```
 
-See [SETUP.md](SETUP.md) for detailed instructions.
-
-## What's Built
-
-- Auth (register, login, password reset)
-- Markdown notes with offline support (PWA)
-- PDF upload and annotation
-- File organization (folders, tree structure)
-- Fuzzy + semantic search (Phase 1)
-- RAG chat with citations (Phase 2)
+Visit `http://localhost:3000`. 
 
 ## Tech Stack
 
-- **Frontend:** Next.js 16, React 19, Tailwind CSS 4
-- **Backend:** Next.js API routes
-- **Database:** PostgreSQL 12+ with pgvector
-- **Storage:** AWS S3
-- **Email:** AWS SES
-- **Deploy:** AWS Amplify
+- Next.js 16 (frontend + API)
+- PostgreSQL with pgvector (for when we eventually do semantic search)
+- AWS S3 (file storage)
+- Zustand (state management - simpler than Redux, fight me)
+- Lexical editor (rich text, not markdown-only)
 
-## Search
+## Setup
 
-Cmd+K opens search overlay. Supports:
-- Fuzzy search (filename + content)
-- Semantic search (vector similarity)
-- Tree sorting (alphabetical, recent)
+See [SETUP.md](SETUP.md) for details. It's not complicated.
 
-See [SEARCH_ARCHITECTURE_PLAN.md](SEARCH_ARCHITECTURE_PLAN.md) for implementation details.
+## Credits
 
-## LLM Integration
-
-Users provide their own API keys (OpenAI, Anthropic, etc.) — no backend key management.
-
-See [docs/LLM_STRATEGY.md](docs/LLM_STRATEGY.md) for details.
-
-## Requirements (SRS)
-
-See [docs/SRS.tex](docs/SRS.tex) for formal specification.
+Based on Notea (MIT licensed). See [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md) for the full legalese.
 
 ## Team
 
 - Samuel Regan
-- Semyon Fox
+- Semyon Fox  
 - Shreyansh Singh
-
-## License
-
-MIT
