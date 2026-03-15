@@ -36,8 +36,10 @@ const responseCache: ResponseCache = new Map();
 
 // Configuration for post-dedup cache
 const DEDUP_CONFIG = {
-  // How long to keep recently-completed requests (milliseconds)
-  postDedupWindow: 10 * 1000, // 10 seconds - more requests can be combined
+  // How long to keep recently-completed responses (milliseconds).
+  // Kept short (2s) so simultaneous component mounts share one request,
+  // but user interactions (create/rename/move) see fresh data.
+  postDedupWindow: 2 * 1000,
   // Only deduplicate GET requests (safe to replay)
   dedupMethods: ['GET'],
   // Cleanup interval for stale responses
