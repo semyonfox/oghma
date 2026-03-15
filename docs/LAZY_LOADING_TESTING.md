@@ -1,215 +1,175 @@
-# Lazy-Loading Tree System - Testing Guide
+# lazy loading tree - test this
 
-## Overview
+basically the tree only loads what you need now. open the page, get root items fast. click a folder, it loads its kids. no more downloading 10k notes at once.
 
-The tree system now uses lazy-loading to scale to 10,000+ notes without downloading the entire tree on page load. This document describes how to test the implementation.
-
-## Architecture
+## endpoints
 
 ```
-/api/tree (GET)              → Returns root items only
-/api/tree/children (GET)     → Returns children of a specific parent
-/api/tree/status (GET)       → Returns tree health status
-/api/tree (POST)             → Move/mutate items (unchanged)
-/api/notes/[id]/share (POST) → Clone note to another user (unchanged)
+/api/tree (GET)              → just root items, fast
+/api/tree/children (GET)     → kids of a folder
+/api/tree/status (GET)       → tree health (orphans, etc)
+/api/tree (POST)             → move stuff around
+/api/notes/[id]/share (POST) → clone notes
 ```
 
-## Testing Scenarios
+## stuff to test
 
-### Scenario 1: Initial Page Load (Root Items Only)
+### 1. page loads fast
 
-1. Open browser DevTools → Network tab
-2. Navigate to `/notes`
-3. Observe in Console:
-   - `initTree()` should call `fetch()` which hits `GET /api/tree`
-   - Response should be: `{ parentId: "root", items: [{ id, title, isFolder, isExpanded }, ...] }`
-   - Should complete in ~100-200ms (network dependent)
-   - Left sidebar shows root items immediately
+- open devtools → network tab
+- go to `/notes`
+- should see GET /api/tree hit
+- response: `{ parentId: "root", items: [{ id, title, isFolder, isExpanded }, ...] }`
+- should take like 100-200ms tops
+- root folders show up right away
 
-**Expected Result**: Root folders appear in tree within 100-200ms
+✓ **looks good if**: folders appear instantly, tree request is fast
 
-### Scenario 2: Expand a Folder (Lazy-Load Children)
+### 2. expand folder = load children
 
-1. In left sidebar, click arrow icon next to a folder
-2. Observe in Console:
-   - `loadChildren(folderId)` should be called
-   - Makes request: `GET /api/tree/children?parent_id=<id>`
-   - Response: `{ parentId: "<id>", items: [...children...] }`
-   - Children appear in tree within 50-200ms
+- click the arrow next to a folder
+- network should show GET /api/tree/children?parent_id=<id>
+- kids appear after 50-200ms
+- no full tree download
 
-**Expected Result**: Children load dynamically without full tree download
+✓ **looks good if**: you see the children request, kids load
 
-### Scenario 3: Expand Nested Folder
+### 3. nested folders work same way
 
-1. After Scenario 2, expand a child that is also a folder
-2. Same process repeats: `loadChildren(childFolderId)`
-3. Each level loads independently
+- expand a folder
+- expand one of its kids (if it's also a folder)
+- same pattern repeats
+- each level loads separately
 
-**Expected Result**: Nested folders can be expanded indefinitely with per-folder loading
+✓ **looks good if**: you can go as deep as you want, each level loads on demand
 
-### Scenario 4: Prevent Duplicate Loads
+### 4. don't re-fetch (caching)
 
-1. Expand folder A (observe network request)
-2. Collapse folder A
-3. Expand folder A again
-4. Check Network tab: **No new request should be made**
-5. Children should appear instantly from tree state cache
+- expand folder A (watch network, see request)
+- collapse it
+- expand it again
+- **should NOT see a new request**
+- kids appear instantly from cache
 
-**Expected Result**: Children are cached in state after first load; repeated expansions are instant
+✓ **looks good if**: no duplicate requests
 
-### Scenario 5: Create Note in Root
+### 5. create note in root
 
-1. Use "Create Note" button
-2. New note should appear in tree immediately (no API call to children)
-3. Note is added to `tree.items` and root's children list locally
+- click create button
+- new note appears instantly
+- no API call to children (it's in memory now)
 
-**Expected Result**: Local state updates are instant
+✓ **looks good if**: it's instant
 
-### Scenario 6: Create Note in Nested Folder
+### 6. create note in a folder
 
-1. Expand nested folder
-2. Use context menu → "Create Note" or "Create Folder"
-3. New item should appear in expanded folder immediately
-4. Verify in `/api/tree/children?parent_id=<id>` it's persisted
+- expand a folder
+- create a note in it (context menu or whatever)
+- appears right away
+- should persist if you refresh
 
-**Expected Result**: New items appear locally and are persisted on backend
+✓ **looks good if**: note appears, doesn't disappear on refresh
 
-### Scenario 7: Move Note Between Folders
+### 7. drag notes around
 
-1. Drag a note from one folder to another
-2. Observe `POST /api/tree` with `action: "move"` in Network tab
-3. Tree updates locally after successful response
-4. Both folders' children lists should reflect the change
+- drag a note from one folder to another
+- network shows POST /api/tree with move action
+- tree updates after response
+- both folders' lists change
 
-**Expected Result**: Drag-and-drop works correctly with lazy-loaded items
+✓ **looks good if**: dragging works, tree updates correctly
 
-### Scenario 8: Share Note (Clone)
+### 8. share a note
 
-1. Right-click note → "Share" (if option exists)
-2. Select another user
-3. Call `POST /api/notes/:id/share` should succeed
-4. Clone appears in target user's tree under their account
+- right-click note → share (if it exists)
+- pick another user
+- POST /api/notes/:id/share happens
+- other user sees a clone in their tree
 
-**Expected Result**: Sharing creates independent copy with `cloned_from` reference
+✓ **looks good if**: clone appears, is independent
 
-## API Response Formats
+## what the API returns
 
-### GET /api/tree (Root)
+### root items
 ```json
 {
   "parentId": "root",
   "items": [
-    {
-      "id": "uuid-v7",
-      "title": "My Folder",
-      "isFolder": true,
-      "isExpanded": false
-    },
-    {
-      "id": "uuid-v7",
-      "title": "My Note",
-      "isFolder": false,
-      "isExpanded": false
-    }
+    { "id": "uuid-v7", "title": "My Folder", "isFolder": true, "isExpanded": false },
+    { "id": "uuid-v7", "title": "My Note", "isFolder": false, "isExpanded": false }
   ]
 }
 ```
 
-### GET /api/tree/children?parent_id=<uuid>
+### children of a folder
 ```json
 {
   "parentId": "<uuid>",
   "items": [
-    {
-      "id": "uuid-v7",
-      "title": "Nested Item",
-      "isFolder": false,
-      "isExpanded": false
-    }
+    { "id": "uuid-v7", "title": "Nested Item", "isFolder": false, "isExpanded": false }
   ]
 }
 ```
 
-### POST /api/tree (Move Item)
-```json
-{
-  "action": "move",
-  "data": {
-    "source": { "parentId": "root", "index": 0 },
-    "destination": { "parentId": "<uuid>", "index": 0 }
-  }
-}
-```
+## debugging
 
-Response: `{ "success": true }`
+### check tree state in console
 
-## Debugging
-
-### Check Tree State
-In browser console:
 ```javascript
-// Import the store hook
 import useNoteTreeStore from '@/lib/notes/state/tree';
 
-// Get current state
 const state = useNoteTreeStore.getState();
-console.log('Tree items:', state.tree.items);
-console.log('Loading children:', state.loadingChildren);
-console.log('Init loaded:', state.initLoaded);
+console.log(state.tree.items);        // all items loaded so far
+console.log(state.loadingChildren);   // folders currently loading
+console.log(state.initLoaded);        // is init done?
 ```
 
-### Monitor Network Requests
-1. Open DevTools → Network tab
-2. Filter by Fetch/XHR
-3. Look for:
-   - `/api/tree` (initial load)
-   - `/api/tree/children?parent_id=...` (folder expansion)
-   - `/api/tree` POST (mutations like move, rename)
+### watch network requests
 
-### Check Database
+- devtools → network
+- filter fetch/xhr
+- watch for:
+  - `/api/tree` (first load)
+  - `/api/tree/children?parent_id=...` (when you expand)
+  - `/api/tree` POST (drag, rename, etc)
+
+### check database
+
 ```sql
--- See tree structure for a user
+-- what's the tree look like for this user?
 SELECT * FROM app.tree_items WHERE user_id = 'user-uuid' LIMIT 20;
 
--- See all notes
-SELECT * FROM app.notes WHERE user_id = 'user-uuid' LIMIT 20;
-
--- Check for orphaned notes
+-- any orphaned notes?
 SELECT * FROM app.notes WHERE user_id = 'user-uuid' 
   AND note_id NOT IN (SELECT note_id FROM app.tree_items WHERE user_id = 'user-uuid');
 ```
 
-## Performance Expectations
+## rough timings
 
-| Operation | Target Time | Notes |
-|-----------|------------|-------|
-| Initial page load | < 200ms | Loading root items only |
-| Expand folder | 50-200ms | Depends on folder size (10-1000 items) |
-| Repeated expand | < 10ms | Instant (cached in state) |
-| Create note | < 100ms | Local update + API call |
-| Move note | 100-300ms | Local update + API call |
-| Drag-and-drop | < 500ms | Including expand animation |
+| thing | time | why |
+|------|------|-----|
+| page loads | ~100-200ms | just root items |
+| expand folder | 50-200ms | depends how many kids |
+| expand again | <10ms | cached, instant |
+| create note | ~100ms | local + api |
+| drag note | 100-300ms | local + api |
 
-## Known Limitations / Future Work
+## gotchas / future stuff
 
-1. **No full-text search across unloaded folders** - Only searches loaded items in memory
-   - Solution: Implement server-side search endpoint
-2. **No breadcrumb navigation yet** - Can't jump directly to deep folders
-   - Solution: Implement `/api/tree/path/:note_id` endpoint
-3. **No infinite scroll** - Each folder loads all children at once
-   - Solution: Add offset/limit pagination to `/api/tree/children`
+1. **search doesn't work across unloaded folders** - only searches what's open
+   - fix: server-side search
+2. **can't jump to deep folders** - gotta expand from top
+   - fix: breadcrumb navigation
+3. **if a folder has 1000s of items, loads em all**
+   - fix: pagination (offset/limit)
 
-## Rollback Plan
+## if it breaks
 
-If issues arise:
-1. Revert to commit before lazy-loading (full tree loading)
-2. Change `initTree()` to call full `/api/tree?full=true` endpoint
-3. Remove `loadChildren()` calls from UI
+revert the commits and go back to loading full tree. done.
 
-## Related Files
+## files that changed
 
-- `src/lib/notes/api/tree.ts` - API client
-- `src/lib/notes/state/tree.ts` - Zustand store
-- `src/components/notes/sidebar/sidebar-list.tsx` - UI component
-- `src/app/api/tree/route.ts` - Server endpoint
-- `src/app/api/tree/children/route.ts` - Server endpoint
+- `src/lib/notes/api/tree.ts` - added fetchChildren
+- `src/lib/notes/state/tree.ts` - added loadChildren
+- `src/components/notes/sidebar/sidebar-list.tsx` - triggers load on expand
+- `src/app/api/tree/route.ts` - simplified
