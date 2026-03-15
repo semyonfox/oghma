@@ -108,6 +108,12 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             return;
         }
 
+        // guard: dependencies must be injected before initTree is called
+        if (!treeAPI || !noteAPI) {
+            console.warn('initTree called before dependencies were set — skipping');
+            return;
+        }
+
         try {
             // Fetch only root items from API (lazy-loading)
             const apiResponse = await treeAPI.fetch();
@@ -174,6 +180,11 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const state = get();
         const { treeAPI, noteAPI, toast } = state;
         const parentKey = parentId || ROOT_ID;
+
+        if (!treeAPI || !noteAPI) {
+            console.warn('loadChildren called before dependencies were set — skipping');
+            return;
+        }
 
         // Skip if already loading
         if (state.loadingChildren.has(parentKey)) {
