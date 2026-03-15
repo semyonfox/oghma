@@ -37,12 +37,14 @@ export interface NoteTreeState {
     pinnedTree: TreeModel;
     initLoaded: boolean;
     loading: boolean;
+    loadingChildren: Set<string>; // Track which folders are currently loading children
     // API instances for dependency injection
     treeAPI: any;
     noteAPI: any;
     toast: any;
     // Methods
     initTree: () => Promise<void>;
+    loadChildren: (parentId: string | null) => Promise<void>; // Lazy-load children for a folder
     fetchNotes: (tree: TreeModel) => Promise<TreeModel>;
     addItem: (item: NoteModel) => void;
     removeItem: (id: string) => Promise<void>;
@@ -65,6 +67,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     pinnedTree: DEFAULT_TREE,
     initLoaded: false,
     loading: false,
+    loadingChildren: new Set<string>(),
     treeAPI: null,
     noteAPI: null,
     toast: null,
@@ -106,54 +109,153 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         }
 
         try {
-            let tree: TreeModel | null = null;
+            // Fetch only root items from API (lazy-loading)
+            const apiResponse = await treeAPI.fetch();
 
-            // Try to use cached tree first for instant UI
-            const cache = await uiCache.getItem<TreeModel>(TREE_CACHE_KEY);
-            if (cache && Object.keys(cache.items).length > 0) {
-                set({ tree: cache });
-                tree = cache;
-            }
+            if (apiResponse && apiResponse.items && apiResponse.items.length > 0) {
+                // Convert API response items to tree structure
+                const newTree = { ...DEFAULT_TREE, items: { ...DEFAULT_TREE.items } };
+                const rootChildren: string[] = [];
 
-            // Always fetch fresh tree from API
-            const apiTree = await treeAPI.fetch();
-
-            if (apiTree && apiTree.items && Object.keys(apiTree.items).length > 0) {
-                // Fetch any missing notes (skip root node, it's virtual)
-                const missingNotes = Object.values(apiTree.items).filter(
-                    (item: any) => !item.data && item.id !== ROOT_ID
-                );
-                if (missingNotes.length > 0) {
-                    await Promise.all(
-                        missingNotes.map(async (item: any) => {
-                            item.data = await noteAPI.fetch(item.id);
-                        })
-                    );
+                for (const item of apiResponse.items) {
+                    const treeItem: TreeItemModel = {
+                        id: item.id,
+                        children: [], // Will be loaded lazily on expand
+                        isExpanded: item.isExpanded ?? false,
+                        isChildrenLoading: false,
+                        isFolder: item.isFolder ?? false,
+                    };
+                    newTree.items[item.id] = treeItem;
+                    rootChildren.push(item.id);
                 }
-                const treeWithNotes = apiTree;
-                set({ tree: treeWithNotes });
-                tree = treeWithNotes;
 
-                // Update cache with fresh data
-                await Promise.all([
-                    uiCache.setItem(TREE_CACHE_KEY, treeWithNotes),
-                    noteCache.checkItems(treeWithNotes.items),
-                ]);
-            } else if (!tree) {
-                // No API tree and no cache
-                console.warn('Failed to load tree or tree is empty');
+                // Update root children
+                newTree.items[ROOT_ID].children = rootChildren;
+
+                // Fetch note data for root items
+                const notePromises = apiResponse.items.map((item: any) =>
+                    noteAPI.fetch(item.id)
+                        .then((noteData: NoteModel) => ({
+                            id: item.id,
+                            data: noteData,
+                        }))
+                        .catch((e: any) => {
+                            console.error(`Failed to fetch note ${item.id}:`, e);
+                            return null;
+                        })
+                );
+
+                const noteResults = await Promise.all(notePromises);
+                for (const result of noteResults) {
+                    if (result && newTree.items[result.id]) {
+                        newTree.items[result.id].data = result.data;
+                    }
+                }
+
+                set({ tree: newTree });
+
+                // Cache the root tree structure for instant load on next visit
+                await uiCache.setItem(TREE_CACHE_KEY, newTree);
+            } else {
+                console.warn('Failed to load root items');
                 toast('Failed to load notes', 'error');
-                set({ initLoaded: true });
-                return;
             }
 
-            // Successfully loaded tree (from cache or API)
             set({ initLoaded: true });
         } catch (error) {
             console.error('Error initializing tree:', error);
             const { toast: toastFn } = get();
             toastFn('Error loading notes', 'error');
             set({ initLoaded: true });
+        }
+    },
+
+    loadChildren: async (parentId: string | null) => {
+        const state = get();
+        const { treeAPI, noteAPI, toast } = state;
+        const parentKey = parentId || ROOT_ID;
+
+        // Skip if already loading
+        if (state.loadingChildren.has(parentKey)) {
+            return;
+        }
+
+        // Skip if already loaded
+        const currentTree = get().tree;
+        if (currentTree.items[parentKey]?.children.length > 0) {
+            return;
+        }
+
+        try {
+            // Mark as loading
+            const newLoadingChildren = new Set(state.loadingChildren);
+            newLoadingChildren.add(parentKey);
+            set({ loadingChildren: newLoadingChildren });
+
+            // Fetch children from API
+            const childrenResponse = await treeAPI.fetchChildren(parentId);
+
+            if (childrenResponse && childrenResponse.items) {
+                const newTree = { ...currentTree, items: { ...currentTree.items } };
+                const childIds: string[] = [];
+
+                for (const item of childrenResponse.items) {
+                    const treeItem: TreeItemModel = {
+                        id: item.id,
+                        children: [], // Children of children will be loaded on their expansion
+                        isExpanded: item.isExpanded ?? false,
+                        isChildrenLoading: false,
+                        isFolder: item.isFolder ?? false,
+                    };
+                    newTree.items[item.id] = treeItem;
+                    childIds.push(item.id);
+                }
+
+                // Update parent's children list
+                if (newTree.items[parentKey]) {
+                    newTree.items[parentKey] = {
+                        ...newTree.items[parentKey],
+                        children: childIds,
+                    };
+                }
+
+                // Fetch note data for children
+                const notePromises = childrenResponse.items.map((item: any) =>
+                    noteAPI.fetch(item.id)
+                        .then((noteData: NoteModel) => ({
+                            id: item.id,
+                            data: noteData,
+                        }))
+                        .catch((e: any) => {
+                            console.error(`Failed to fetch note ${item.id}:`, e);
+                            return null;
+                        })
+                );
+
+                const noteResults = await Promise.all(notePromises);
+                for (const result of noteResults) {
+                    if (result && newTree.items[result.id]) {
+                        newTree.items[result.id].data = result.data;
+                    }
+                }
+
+                set({ tree: newTree });
+                await uiCache.setItem(TREE_CACHE_KEY, newTree);
+            }
+
+            // Mark as done loading
+            const finalLoadingChildren = new Set(state.loadingChildren);
+            finalLoadingChildren.delete(parentKey);
+            set({ loadingChildren: finalLoadingChildren });
+        } catch (error) {
+            console.error(`Error loading children for ${parentKey}:`, error);
+            const { toast: toastFn } = get();
+            toastFn(`Failed to load folder contents`, 'error');
+
+            // Mark as done loading even on error
+            const finalLoadingChildren = new Set(state.loadingChildren);
+            finalLoadingChildren.delete(parentKey);
+            set({ loadingChildren: finalLoadingChildren });
         }
     },
 
