@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, ReactNode, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import IconNav from '@/components/sidebar/icon-nav';
 import FileTreePanel from '@/components/sidebar/file-tree-panel';
@@ -21,16 +21,27 @@ import { buildFileSpec } from '@/lib/notes/utils/file-spec';
  * - Tab: Switch between pane A and pane B (when in split mode)
  * - Escape: Close right panel
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { treeWidth, rightPanelWidth, rightPanelOpen, paneB, setPaneA, paneA } = useLayoutStore();
 
-  // Load file from URL path (e.g., /notes/file-id)
+  // Load file from URL path (e.g., /notes/<uuid>)
   useEffect(() => {
     if (!pathname || !pathname.startsWith('/notes/')) return;
 
     const fileId = pathname.replace('/notes/', '').split('/')[0];
     if (!fileId) return;
+
+    // stale nanoid IDs (pre-UUID migration) — redirect to /notes rather than
+    // hammering the server with requests it will always reject with 400
+    if (!UUID_RE.test(fileId)) {
+      console.warn(`[layout] non-UUID note id in URL: ${fileId} — redirecting to /notes`);
+      router.replace('/notes');
+      return;
+    }
 
     let cancelled = false;
 
