@@ -152,8 +152,17 @@ export async function deduplicatedFetch<T>(
       
       const data = await response.json();
 
-      // Cache successful responses for post-dedup window (only safe methods)
-      if (shouldDeduplicate && response.status === 200) {
+      // Cache successful responses for post-dedup window (only safe methods).
+      // Skip caching if the response carries an empty items array — these are
+      // valid for an empty account but stale after the first note is created,
+      // and serving them from cache would make initTree think the tree is empty.
+      const isEmptyItemsResponse =
+        data &&
+        typeof data === 'object' &&
+        Array.isArray(data.items) &&
+        data.items.length === 0;
+
+      if (shouldDeduplicate && response.status === 200 && !isEmptyItemsResponse) {
         responseCache.set(key, {
           data,
           timestamp: Date.now(),

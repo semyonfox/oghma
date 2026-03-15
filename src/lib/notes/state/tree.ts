@@ -118,61 +118,55 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             // Fetch only root items from API (lazy-loading)
             const apiResponse = await treeAPI.fetch();
 
-            if (apiResponse && apiResponse.items && apiResponse.items.length > 0) {
-                // Convert API response items to tree structure
-                const newTree = { ...DEFAULT_TREE, items: { ...DEFAULT_TREE.items } };
-                const rootChildren: string[] = [];
+            // apiResponse may be null (network failure) or have items: [] (empty account)
+            // Both are handled gracefully — empty is NOT an error
+            const items = apiResponse?.items ?? [];
 
-                for (const item of apiResponse.items) {
-                    const treeItem: TreeItemModel = {
-                        id: item.id,
-                        children: [], // Will be loaded lazily on expand
-                        isExpanded: item.isExpanded ?? false,
-                        isChildrenLoading: false,
-                        isFolder: item.isFolder ?? false,
-                    };
-                    newTree.items[item.id] = treeItem;
-                    rootChildren.push(item.id);
-                }
+            const newTree = { ...DEFAULT_TREE, items: { ...DEFAULT_TREE.items } };
+            const rootChildren: string[] = [];
 
-                // Update root children
-                newTree.items[ROOT_ID].children = rootChildren;
+            for (const item of items) {
+                const treeItem: TreeItemModel = {
+                    id: item.id,
+                    children: [], // loaded lazily on folder expand
+                    isExpanded: item.isExpanded ?? false,
+                    isChildrenLoading: false,
+                    isFolder: item.isFolder ?? false,
+                };
+                newTree.items[item.id] = treeItem;
+                rootChildren.push(item.id);
+            }
 
-                // Fetch note data for root items
-                const notePromises = apiResponse.items.map((item: any) =>
-                    noteAPI.fetch(item.id)
-                        .then((noteData: NoteModel) => ({
-                            id: item.id,
-                            data: noteData,
-                        }))
-                        .catch((e: any) => {
-                            console.error(`Failed to fetch note ${item.id}:`, e);
-                            return null;
-                        })
+            newTree.items[ROOT_ID].children = rootChildren;
+
+            if (items.length > 0) {
+                // Fetch note data for all root items in parallel
+                const noteResults = await Promise.all(
+                    items.map((item: any) =>
+                        noteAPI.fetch(item.id)
+                            .then((noteData: NoteModel) => ({ id: item.id, data: noteData }))
+                            .catch((e: any) => {
+                                console.error(`Failed to fetch note ${item.id}:`, e);
+                                return null;
+                            })
+                    )
                 );
-
-                const noteResults = await Promise.all(notePromises);
                 for (const result of noteResults) {
                     if (result && newTree.items[result.id]) {
                         newTree.items[result.id].data = result.data;
                     }
                 }
-
-                set({ tree: newTree });
-
-                // Cache the root tree structure for instant load on next visit
-                await uiCache.setItem(TREE_CACHE_KEY, newTree);
-            } else {
-                console.warn('Failed to load root items');
-                toast('Failed to load notes', 'error');
             }
 
-            set({ initLoaded: true });
+            set({ tree: newTree, initLoaded: true });
+
+            // persist tree structure to IndexedDB for instant load on next visit
+            await uiCache.setItem(TREE_CACHE_KEY, newTree);
         } catch (error) {
             console.error('Error initializing tree:', error);
+            // don't set initLoaded on failure so the caller can retry
             const { toast: toastFn } = get();
-            toastFn('Error loading notes', 'error');
-            set({ initLoaded: true });
+            toastFn?.('Error loading notes', 'error');
         }
     },
 

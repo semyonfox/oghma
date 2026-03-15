@@ -10,6 +10,7 @@ import useTrashAPI from '@/lib/notes/api/trash';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
 import useTrashStore from '@/lib/notes/state/trash';
+import { clearDeduplicationCache } from '@/lib/notes/api/request-deduplicator';
 import { toast } from 'sonner';
 
 /**
@@ -44,6 +45,10 @@ const FileTreePanel: FC = () => {
     useNoteTreeStore.getState().setDependencies(treeAPI, noteAPI, toastFn);
     useNoteStore.getState().setDependencies(noteAPI, useNoteTreeStore, toastFn);
     useTrashStore.getState().setDependencies(trashAPI, useNoteTreeStore);
+
+    // clear any stale dedup cache from a previous mount / HMR rebuild
+    // so initTree always fetches fresh data on the first load
+    clearDeduplicationCache();
 
     // load the tree
     useNoteTreeStore.getState().initTree()
