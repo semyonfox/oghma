@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
-import { generateUUID } from '@/lib/utils/uuid.js';
+import { generateUUID } from '@/lib/utils/uuid';
 import sql from '@/database/pgsql.js';
 
 // Constants
