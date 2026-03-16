@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
 import { SidebarLayout } from '@/components/sidebar-layout'
+import CanvasIntegration from '@/components/settings/canvas-integration'
 
 const navigationItems = [
   { name: 'Account', href: '#account', icon: Cog6ToothIcon, current: true },
@@ -407,79 +408,14 @@ export default function SettingsPage() {
             </div>
 
             {/* Canvas Integration */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+            <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Canvas Integration</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Connect and manage your Canvas LMS integration.</p>
+                <p className="mt-1 text-sm/6 text-gray-400">Connect your Canvas LMS account to automatically import course files.</p>
               </div>
-
-              <form className="md:col-span-2">
-                <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
-                  {/* Connection Status */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm/6 font-medium text-white">Canvas Account</h3>
-                        <p className="mt-1 text-sm text-gray-400">Not connected</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400"
-                        onClick={() => {
-                          // TODO: Implement Canvas OAuth connection
-                          console.log('Connect Canvas clicked')
-                        }}
-                      >
-                        Connect Canvas
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Sync Frequency */}
-                  <div className="border-t border-white/10 pt-6">
-                    <label htmlFor="sync-frequency" className="block text-sm/6 font-medium text-white mb-2">
-                      Sync Frequency
-                    </label>
-                    <select
-                      id="sync-frequency"
-                      name="sync-frequency"
-                      disabled
-                      className="w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-gray-500 outline-1 -outline-offset-1 outline-white/10 *:bg-gray-800 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option>Hourly</option>
-                      <option>Daily</option>
-                      <option>Weekly</option>
-                      <option>Manual</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex gap-3">
-                  <button
-                    type="submit"
-                    disabled
-                    className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // TODO: Update Canvas integration settings
-                      console.log('Save Canvas settings')
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => {
-                      // TODO: Disconnect Canvas
-                      console.log('Disconnect Canvas')
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </form>
+              <div className="md:col-span-2">
+                <CanvasIntegration />
+              </div>
             </div>
 
             {/* Danger Zone */}

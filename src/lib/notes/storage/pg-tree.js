@@ -37,9 +37,20 @@ export async function getTreeFromPG(userId) {
       };
     }
 
+    // Build a lookup from note_id → tree_item id so we can resolve parent_id.
+    // parent_id is now a note UUID (references notes.note_id), but items are
+    // keyed by tree_item id — this map bridges the two.
+    const noteIdToItemId = {};
+    for (const row of rows) {
+      noteIdToItemId[String(row.note_id)] = String(row.id);
+    }
+
     // Second pass: build parent-child relationships
     for (const row of rows) {
-      const parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
+      // Translate parent_id (note UUID) → tree_item id using the lookup map
+      const parentItemId = row.parent_id ? noteIdToItemId[String(row.parent_id)] : null;
+      const parentId = parentItemId || ROOT_ID;
+
       if (!items[parentId]) {
         items[parentId] = {
           id: parentId,
