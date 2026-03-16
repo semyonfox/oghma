@@ -195,6 +195,14 @@ const SidebarList = () => {
         [genNewId, createNote, router]
     );
 
+    const handleCreateFolderFromModal = useCallback(
+        async () => {
+            const newFolder = await createFolder(undefined);
+            // Don't navigate - let them create more items in the folder
+        },
+        [createFolder]
+    );
+
     const handleUploadFile = useCallback(async (file: File) => {
         // create a note entry for the uploaded file
         const newId = genNewId();
@@ -531,6 +539,7 @@ const SidebarList = () => {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onCreateNote={handleCreateNote}
+                onCreateFolder={handleCreateFolderFromModal}
                 onUploadFile={handleUploadFile}
             />
         </>

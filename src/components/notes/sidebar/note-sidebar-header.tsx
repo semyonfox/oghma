@@ -15,7 +15,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
   const { sidebar } = useUIComposite();
   const { genNewId } = useNoteTreeStore();
-  const { createNote } = useNoteStore();
+  const { createNote, createFolder } = useNoteStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleCreateNote = useCallback(
@@ -81,6 +81,13 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
     }
   }, [genNewId, createNote, router]);
 
+  const handleCreateFolder = useCallback(
+    async () => {
+      await createFolder(undefined);
+    },
+    [createFolder]
+  );
+
   return (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
@@ -119,6 +126,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateNote={handleCreateNote}
+        onCreateFolder={handleCreateFolder}
         onUploadFile={handleUploadFile}
       />
     </>
