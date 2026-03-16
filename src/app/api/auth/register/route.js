@@ -67,6 +67,13 @@ export async function POST(request) {
             detail: error.detail,
             stack: error.stack
         });
+
+        // Handle UNIQUE constraint violation on email (race condition fallback)
+        // error.code = '23505' for PostgreSQL unique_violation
+        if (error.code === '23505' && error.detail && error.detail.includes('email')) {
+            return createErrorResponse('User already exists', 409);
+        }
+
         return createErrorResponse(`Internal server error: ${error.message}`, 500);
     }
 }

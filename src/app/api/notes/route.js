@@ -104,10 +104,11 @@ export async function POST(request) {
     const noteId = generateUUID();
     
     // Create new note in PostgreSQL
+    const isFolder = body.isFolder === true || body.is_folder === true;
     const result = await sql`
-      INSERT INTO app.notes (note_id, user_id, title, content, deleted, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
-      RETURNING note_id, user_id, title, content, created_at, updated_at
+      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? 'New Folder' : 'Untitled')}, ${body.content || '\n'}, ${isFolder}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
+      RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
     `;
 
     const note = result[0];
@@ -121,8 +122,9 @@ export async function POST(request) {
       id: note.note_id,
       title: note.title,
       content: note.content,
+      isFolder: note.is_folder,
       deleted: 0,  // NOTE_DELETED.NORMAL
-      shared: 0,   // NOTE_SHARED.PRIVATE
+      shared: 0,   // NOTE_SHARE.PRIVATE
       pinned: 0,   // NOTE_PINNED.UNPINNED
       editorsize: null,
     }, { status: 201 });
