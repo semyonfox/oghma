@@ -1,17 +1,19 @@
-// extracted from Notea (MIT License)
-// rewritten for react-arborist v3.4.3 + App Router + Tailwind (no MUI)
+// rewritten for react-complex-tree + App Router + Tailwind
 import SidebarListItem from './sidebar-list-item';
 import NoteContextMenu from './note-context-menu';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
-import { Tree, TreeApi } from 'react-arborist';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import IconButton from '@/components/icon-button';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { Favorites } from './favorites';
-import { makeHierarchy, HierarchicalTreeItemModel } from '@/lib/notes/types/tree';
-import type { NodeApi, NodeRendererProps } from 'react-arborist';
+import {
+    ControlledTreeEnvironment,
+    Tree,
+    TreeItemIndex,
+} from 'react-complex-tree';
+import 'react-complex-tree/lib/style.css';
 import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from '@/lib/notes/types/meta';
 import { NoteModel } from '@/lib/notes/types/note';
 
@@ -20,68 +22,116 @@ import CreateNoteModal from '@/components/notes/create-note-modal';
 const SidebarList = () => {
     const { t } = useI18n();
     const router = useRouter();
-    const { tree, moveItem, mutateItem, initLoaded, collapseAllItems, genNewId, addItem, loadChildren } =
-        useNoteTreeStore();
+    const {
+        tree,
+        moveItem,
+        mutateItem,
+        initLoaded,
+        collapseAllItems,
+        genNewId,
+        addItem,
+        loadChildren,
+        expandedIds,
+        setExpandedIds,
+        selectedIds,
+        setSelectedIds,
+        focusedId,
+        setFocusedId,
+    } = useNoteTreeStore();
     const { createNote, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // ref to react-arborist's TreeApi for imperative open/close/toggle
-    const treeApiRef = useRef<TreeApi<HierarchicalTreeItemModel> | undefined>(undefined);
-
-    // convert flat tree structure to hierarchical format for react-arborist
+    // convert flat tree to react-complex-tree format: { [id]: { index, canMove, children } }
     const treeData = useMemo(() => {
-        const hierarchy = makeHierarchy(tree);
-        return hierarchy ? hierarchy.children : [];
+        const result: Record<string, any> = {};
+
+        // Add root
+        const root = tree.items['root'];
+        if (root) {
+            result['root'] = {
+                index: 'root',
+                canMove: false,
+                children: root.children,
+            };
+        }
+
+        // Add all other items
+        for (const id in tree.items) {
+            if (id === 'root') continue;
+            const item = tree.items[id];
+            if (!item) continue;
+
+            result[id] = {
+                index: id,
+                canMove: true,
+                canRename: true,
+                children: item.children,
+                data: item.data,
+                isFolder: item.isFolder,
+            };
+        }
+
+        return result;
     }, [tree]);
 
-    // compute initial open state from application tree state
-    // react-arborist uses this on mount, then manages open/close internally
-    const initialOpenState = useMemo(() => {
-        const openMap: Record<string, boolean> = {};
-        for (const id in tree.items) {
-            if (tree.items[id]?.isExpanded) {
-                openMap[id] = true;
+    // react-complex-tree callback: when a folder is expanded and children are missing, load them
+    const onMissingItems = useCallback(
+        async (itemIds: TreeItemIndex[]) => {
+            for (const itemId of itemIds) {
+                if (typeof itemId === 'string') {
+                    const item = tree.items[itemId];
+                    if (item && item.isFolder && item.children.length === 0) {
+                        await loadChildren(itemId).catch((e) =>
+                            console.error(`Error loading children for ${itemId}:`, e)
+                        );
+                    }
+                }
             }
-        }
-        return openMap;
-    // only compute once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // notification callback: sync react-arborist's toggle to application state + lazy-load children
-    const onToggle = useCallback(
-        (id: string) => {
-            const item = tree.items[id];
-            if (!item) return;
-
-            const isExpanding = !item.isExpanded;
-            
-            // If expanding and children not yet loaded, lazy-load them
-            if (isExpanding && item.children.length === 0 && item.isFolder) {
-                loadChildren(id)
-                    .catch((e) => console.error(`Error loading children for ${id}:`, e));
-            }
-
-            mutateItem(id, {
-                isExpanded: isExpanding,
-            })
-                ?.catch((v) => console.error('Error whilst mutating item: %O', v));
         },
-        [mutateItem, loadChildren, tree.items]
+        [tree.items, loadChildren]
     );
 
-    // move handler -- reads tree from store directly to avoid stale closures
-    const onMove = useCallback(
-        ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
-            if (!parentId || dragIds.length === 0) {
+    // react-complex-tree callback: when a folder expands
+    const handleExpandItem = useCallback(
+        (item: any) => {
+            const itemId = item.index;
+            if (typeof itemId === 'string') {
+                mutateItem(itemId, { isExpanded: true }).catch((v) =>
+                    console.error('Error expanding item:', v)
+                );
+            }
+        },
+        [mutateItem]
+    );
+
+    // react-complex-tree callback: when a folder collapses
+    const handleCollapseItem = useCallback(
+        (item: any) => {
+            const itemId = item.index;
+            if (typeof itemId === 'string') {
+                mutateItem(itemId, { isExpanded: false }).catch((v) =>
+                    console.error('Error collapsing item:', v)
+                );
+            }
+        },
+        [mutateItem]
+    );
+
+    // react-complex-tree callback: when items are dropped on a new parent
+    const handleDrop = useCallback(
+        (draggedItems: any[], target: any) => {
+            if (draggedItems.length === 0) {
                 return;
             }
 
-            const dragId = dragIds[0];
-
-            // read current tree from store (not from closure) to avoid stale data
+            // read current tree from store to find source position
             const currentItems = useNoteTreeStore.getState().tree.items;
+            const dragId = draggedItems[0]?.index;
+
+            if (typeof dragId !== 'string') {
+                return;
+            }
 
             // find source parent and index
             let sourceParentId = '';
@@ -102,14 +152,22 @@ const SidebarList = () => {
                 return;
             }
 
+            const targetItemId = target.targetItem?.index;
+            if (typeof targetItemId !== 'string') {
+                return;
+            }
+
+            // destination index is the count of target's children (append to end)
+            const destinationIndex = target.targetItem?.children?.length ?? 0;
+
             moveItem({
                 source: {
                     parentId: sourceParentId,
                     index: sourceIndex,
                 },
                 destination: {
-                    parentId: parentId,
-                    index: index,
+                    parentId: targetItemId,
+                    index: destinationIndex,
                 },
             }).catch((e) => {
                 console.error('Move error', e);
@@ -181,11 +239,11 @@ const SidebarList = () => {
         }
     }, [genNewId, createNote, router]);
 
-    // collapse all: use tree API ref to close all nodes, then sync to application state
+    // collapse all: clear expanded IDs and sync to application state
     const handleCollapseAll = useCallback(() => {
-        treeApiRef.current?.closeAll();
+        setExpandedIds(new Set());
         collapseAllItems();
-    }, [collapseAllItems]);
+    }, [collapseAllItems, setExpandedIds]);
 
     // context menu handlers
     const handleRename = useCallback((id: string) => {
@@ -252,15 +310,17 @@ const SidebarList = () => {
             });
 
             if (newNote) {
-                // expand parent in react-arborist + application state
-                treeApiRef.current?.open(parentId);
+                // expand parent in react-complex-tree + application state
+                const newExpandedIds = new Set(expandedIds);
+                newExpandedIds.add(parentId);
+                setExpandedIds(newExpandedIds);
                 await mutateItem(parentId, {
                     isExpanded: true,
                 });
                 router.push(`/notes/${newId}`);
             }
         },
-        [genNewId, createNote, mutateItem, router]
+        [genNewId, createNote, mutateItem, router, expandedIds, setExpandedIds]
     );
 
     const handleCreateFolder = useCallback(
@@ -273,23 +333,41 @@ const SidebarList = () => {
                 pid: parentId,
             });
 
-            // expand parent in react-arborist + application state
-            treeApiRef.current?.open(parentId);
+            // expand parent in react-complex-tree + application state
+            const newExpandedIds = new Set(expandedIds);
+            newExpandedIds.add(parentId);
+            setExpandedIds(newExpandedIds);
             await mutateItem(parentId, {
                 isExpanded: true,
             });
         },
-        [genNewId, createNote, mutateItem]
+        [genNewId, createNote, mutateItem, expandedIds, setExpandedIds]
+    );
+
+    // build viewState object for react-complex-tree
+    const viewState = useMemo(
+        () => ({
+            'notes-tree': {
+                expandedItems: Array.from(expandedIds) as TreeItemIndex[],
+                selectedItems: Array.from(selectedIds) as TreeItemIndex[],
+                focusedItem: focusedId as TreeItemIndex | undefined,
+            },
+        }),
+        [expandedIds, selectedIds, focusedId]
     );
 
     return (
         <>
-            <section className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto" aria-label="Notes list">
-                {/* Favorites - hidden since we have a separate section now */}
-                {/* <Favorites /> */}
-
+            <section
+                className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto"
+                aria-label="Notes list"
+            >
                 {/* Tree Section Header */}
-                <div className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10" role="toolbar" aria-label="Notes actions">
+                <div
+                    className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10"
+                    role="toolbar"
+                    aria-label="Notes actions"
+                >
                     <div className="flex-auto flex items-center">
                         <span id="my-pages-label">{t('My Pages')}</span>
                         {initLoaded ? null : (
@@ -322,74 +400,114 @@ const SidebarList = () => {
                         className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
                         title={t('Collapse all pages')}
                         aria-label={t('Collapse all pages')}
-                    ></IconButton>
+                    />
                     <IconButton
                         icon="Plus"
                         onClick={() => setIsModalOpen(true)}
                         className="text-gray-400 hover:text-white transition-colors"
                         title={t('Create page')}
                         aria-label={t('Create page')}
-                    ></IconButton>
+                    />
                 </div>
-                <div className="flex-grow pb-10">
-                    <Tree<HierarchicalTreeItemModel>
-                        ref={treeApiRef}
-                        data={treeData}
-                        openByDefault={false}
-                        initialOpenState={initialOpenState}
-                        width="100%"
-                        indent={10}
-                        rowHeight={36}
-                        overscanCount={8}
-                        onToggle={onToggle}
-                        onMove={onMove}
-                        disableDrag={false}
-                        disableDrop={false}
-                        aria-labelledby="my-pages-label"
-                    >
-                        {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
-                            const nodeData = node.data;
-                            const hasChildren = node.children ? node.children.length > 0 : false;
-                            const isPinned = nodeData.data?.pinned === NOTE_PINNED.PINNED;
 
-                            return (
-                                <div style={style} ref={dragHandle}>
-                                    <NoteContextMenu
-                                        noteId={node.id}
-                                        isFolder={hasChildren}
-                                        isPinned={isPinned}
-                                        onRename={handleRename}
-                                        onDelete={handleDelete}
-                                        onDuplicate={handleDuplicate}
-                                        onTogglePin={handleTogglePin}
-                                        onCreateNote={handleContextCreateNote}
-                                        onCreateFolder={handleCreateFolder}
+                {/* Tree Container */}
+                <div className="flex-grow pb-10 overflow-hidden">
+                    <ControlledTreeEnvironment
+                        items={treeData}
+                        getItemTitle={(item) => item.data?.title ?? 'Untitled'}
+                        viewState={viewState}
+                        onExpandItem={handleExpandItem}
+                        onCollapseItem={handleCollapseItem}
+                        onSelectItems={(items) => setSelectedIds(new Set(items as string[]))}
+                        onFocusItem={(item) => setFocusedId(item?.index as string | null)}
+                        onDrop={handleDrop}
+                        onMissingItems={onMissingItems}
+                        canDragAndDrop
+                        canReorderItems
+                        canDropOnFolder
+                    >
+                        <Tree
+                            treeId="notes-tree"
+                            rootItem="root"
+                            treeLabel={t('My Pages')}
+                            renderItem={({ item, depth, children, arrow, context }) => {
+                                const nodeData = item.data as any;
+                                const hasChildren = !!(item.children && item.children.length > 0);
+                                const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
+                                const isDragging = (context as any)?.isDragging === true;
+
+                                return (
+                                    <div
+                                        {...context.itemContainerWithChildrenProps}
+                                        className="flex flex-col"
                                     >
-                                        <SidebarListItem
-                                            onToggle={() => node.toggle()}
-                                            isExpanded={node.isOpen}
-                                            innerRef={() => {}}
-                                            hasChildren={hasChildren}
-                                            item={nodeData.data ?? { id: node.id, title: 'Untitled', deleted: NOTE_DELETED.NORMAL, shared: NOTE_SHARED.PRIVATE, pinned: NOTE_PINNED.UNPINNED, editorsize: null } as NoteModel}
-                                            snapshot={{
-                                                isDragging: node.state.isDragging,
-                                            }}
-                                            style={{
-                                                paddingLeft: node.level * 10,
-                                            }}
-                                            isRenaming={renamingId === node.id}
-                                            onRenameComplete={async (newTitle) => {
-                                                if (nodeData.data) {
-                                                    await mutateNote(node.id, { title: newTitle });
-                                                }
-                                                setRenamingId(null);
-                                            }}
-                                        />
-                                    </NoteContextMenu>
-                                </div>
-                            );
-                        }}
-                    </Tree>
+                                        <NoteContextMenu
+                                            noteId={item.index as string}
+                                            isFolder={hasChildren}
+                                            isPinned={isPinned}
+                                            onRename={handleRename}
+                                            onDelete={handleDelete}
+                                            onDuplicate={handleDuplicate}
+                                            onTogglePin={handleTogglePin}
+                                            onCreateNote={handleContextCreateNote}
+                                            onCreateFolder={handleCreateFolder}
+                                        >
+                                            <div
+                                                {...context.itemContainerWithoutChildrenProps}
+                                                className="flex items-center gap-1 px-2 py-1"
+                                            >
+                                                {arrow}
+                                                <SidebarListItem
+                                                    onToggle={() => {
+                                                        if (hasChildren && item.children) {
+                                                            const newExpandedIds = new Set(expandedIds);
+                                                            if (
+                                                                expandedIds.has(item.index as string)
+                                                            ) {
+                                                                newExpandedIds.delete(item.index as string);
+                                                            } else {
+                                                                newExpandedIds.add(item.index as string);
+                                                            }
+                                                            setExpandedIds(newExpandedIds);
+                                                        }
+                                                    }}
+                                                    isExpanded={expandedIds.has(item.index as string)}
+                                                    innerRef={() => {}}
+                                                    hasChildren={hasChildren}
+                                                    item={
+                                                        nodeData ?? ({
+                                                            id: item.index,
+                                                            title: 'Untitled',
+                                                            deleted: NOTE_DELETED.NORMAL,
+                                                            shared: NOTE_SHARED.PRIVATE,
+                                                            pinned: NOTE_PINNED.UNPINNED,
+                                                            editorsize: null,
+                                                        } as NoteModel)
+                                                    }
+                                                    snapshot={{
+                                                        isDragging,
+                                                    }}
+                                                    style={{
+                                                        paddingLeft: 0,
+                                                    }}
+                                                    isRenaming={renamingId === (item.index as string)}
+                                                    onRenameComplete={async (newTitle) => {
+                                                        if (nodeData) {
+                                                            await mutateNote(item.index as string, {
+                                                                title: newTitle,
+                                                            });
+                                                        }
+                                                        setRenamingId(null);
+                                                    }}
+                                                />
+                                            </div>
+                                        </NoteContextMenu>
+                                        {children}
+                                    </div>
+                                );
+                            }}
+                        />
+                    </ControlledTreeEnvironment>
                 </div>
             </section>
 
