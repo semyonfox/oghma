@@ -3,6 +3,8 @@ import SidebarListItem from './sidebar-list-item';
 import NoteContextMenu from './note-context-menu';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
+import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import IconButton from '@/components/icon-button';
@@ -344,6 +346,14 @@ const SidebarList = () => {
         [genNewId, createNote, mutateItem, expandedIds, setExpandedIds]
     );
 
+    const handleOpenInSplit = useCallback((id: string) => {
+        const item = tree.items[id];
+        if (!item?.data) return;
+        const { setPaneB, setActivePane } = useLayoutStore.getState();
+        setPaneB(buildFileSpec(item.data));
+        setActivePane('B');
+    }, [tree.items]);
+
     // build viewState object for react-complex-tree
     const viewState = useMemo(
         () => ({
@@ -451,6 +461,7 @@ const SidebarList = () => {
                                             onTogglePin={handleTogglePin}
                                             onCreateNote={handleContextCreateNote}
                                             onCreateFolder={handleCreateFolder}
+                                            onOpenInSplit={handleOpenInSplit}
                                         >
                                             <div
                                                 {...context.itemContainerWithoutChildrenProps}

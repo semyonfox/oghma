@@ -123,7 +123,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
         </div>
 
         {/* Pane 2: File Tree (Resizable 200-600px) */}
-        <div className="bg-gray-800 border-r border-white/10 overflow-hidden flex flex-col">
+        <div className="bg-gray-900 border-r border-white/10 overflow-hidden flex flex-col">
           <FileTreePanel />
         </div>
 

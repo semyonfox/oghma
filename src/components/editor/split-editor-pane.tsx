@@ -1,70 +1,53 @@
 'use client';
 
-import { FC, useRef, useCallback } from 'react';
+import { FC } from 'react';
+import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import FileViewPane from './file-view-pane';
 
 /**
- * Main editor pane component
- * Renders Pane A (required) and optionally Pane B side-by-side
- * Smart drag-drop: drag files over LEFT→opens in paneA, RIGHT→opens in paneB
- * Files open immediately on drag, no empty panes
+ * Main editor pane component with VS Code-style split behavior.
+ * 
+ * - Single pane by default (Pane A fills the space)
+ * - Pane B appears only when explicitly triggered via "Open in split right" context menu
+ * - No drag-to-split: splitting is context-menu only
  */
 const SplitEditorPane: FC = () => {
-  const { paneA, paneB, setPaneA, setPaneB, draggedFile } = useLayoutStore();
-  const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { paneA, paneB } = useLayoutStore();
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+  // split is active only when pane B has a file
+  const isSplitActive = paneB && paneB.fileId;
 
-    // Get dragged file from zustand store
-    const file = useLayoutStore.getState().draggedFile;
-    if (!file?.fileId) return;
-    
-    // Detect which side cursor is on
-    const container = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const midpoint = container.left + container.width / 2;
-    const isLeftSide = e.clientX < midpoint;
-
-    // Clear any pending timeout
-    if (dragTimeoutRef.current) {
-      clearTimeout(dragTimeoutRef.current);
-    }
-
-    // Debounce to avoid rapid re-opens while dragging
-    dragTimeoutRef.current = setTimeout(() => {
-      if (isLeftSide) {
-        setPaneA(file);
-      } else {
-        setPaneB(file);
-      }
-    }, 100);
-  }, [setPaneA, setPaneB]);
-
-  const handleDragLeave = useCallback(() => {
-    if (dragTimeoutRef.current) {
-      clearTimeout(dragTimeoutRef.current);
-    }
-  }, []);
-
-  return (
-    <div 
-      className="h-full flex flex-row gap-0"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-    >
-      {/* Pane A: Always rendered */}
-      <div className="flex-1 min-w-0">
+  if (!isSplitActive) {
+    return (
+      <div className="h-full w-full">
         <FileViewPane pane="A" file={paneA} />
       </div>
-      
-      {/* Pane B: Only rendered when it has content */}
-      {paneB && (
-        <div className="flex-1 min-w-0 border-l border-neutral-700">
-          <FileViewPane pane="B" file={paneB} />
-        </div>
-      )}
+    );
+  }
+
+  return (
+    <div className="h-full flex w-full">
+      <PanelGroup direction="horizontal" className="flex-1">
+        {/* Pane A */}
+        <Panel defaultSize={50} minSize={20} className="flex min-w-0">
+          <div className="w-full h-full">
+            <FileViewPane pane="A" file={paneA} />
+          </div>
+        </Panel>
+
+        {/* Resize handle */}
+        <PanelResizeHandle className="w-1 bg-gray-700/30 hover:bg-indigo-500/70 active:bg-indigo-500 transition-colors cursor-col-resize group flex items-center justify-center">
+          <div className="w-0.5 h-8 bg-gray-600/50 group-hover:bg-indigo-400 rounded-full transition-colors" />
+        </PanelResizeHandle>
+
+        {/* Pane B */}
+        <Panel defaultSize={50} minSize={20} className="flex min-w-0">
+          <div className="w-full h-full">
+            <FileViewPane pane="B" file={paneB} />
+          </div>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 };
