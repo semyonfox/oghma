@@ -34,16 +34,17 @@ export async function GET(request: Request) {
     }
 
     // Fetch children, sorted A-Z by title.
+    // Uses app.tree_items for hierarchy and app.notes for metadata.
     // Split into two queries because postgres tagged templates always
     // parameterise interpolated values — you cannot embed raw SQL like
     // "IS NULL" or "= $2::uuid" in the same template branch.
     const rows = parentId
       ? await database`
           SELECT
-            ti.note_id,
+            ti.note_id as id,
             n.title,
-            n.is_folder,
-            ti.is_expanded
+            n.is_folder as "isFolder",
+            ti.is_expanded as "isExpanded"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -54,10 +55,10 @@ export async function GET(request: Request) {
         `
       : await database`
           SELECT
-            ti.note_id,
+            ti.note_id as id,
             n.title,
-            n.is_folder,
-            ti.is_expanded
+            n.is_folder as "isFolder",
+            ti.is_expanded as "isExpanded"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -70,10 +71,10 @@ export async function GET(request: Request) {
     return NextResponse.json({
       parentId: parentId || 'root',
       items: rows.map(row => ({
-        id: row.note_id,
+        id: row.id,
         title: row.title,
-        isFolder: row.is_folder,
-        isExpanded: row.is_expanded,
+        isFolder: row.isFolder,
+        isExpanded: row.isExpanded,
       })),
     });
   } catch (error) {
