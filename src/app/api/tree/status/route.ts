@@ -45,17 +45,22 @@ export async function GET(request: Request) {
         AND n.deleted = 0 AND n.deleted_at IS NULL
     `;
 
-    const orphanedCount = orphaned[0]?.count || 0;
-    const stat = stats[0] || { total_notes: 0, total_folders: 0, total_files: 0 };
+    const orphanedCount = Number(orphaned[0]?.count || 0);
+    const stat = stats[0] || { total_notes: '0', total_folders: '0', total_files: '0' };
+
+    // Convert COUNT results to numbers (PostgreSQL returns as string)
+    const totalNotes = Number(stat.total_notes || 0);
+    const totalFolders = Number(stat.total_folders || 0);
+    const totalFiles = Number(stat.total_files || 0);
 
     const isHealthy = orphanedCount === 0;
 
     return NextResponse.json({
       status: isHealthy ? 'healthy' : 'issues',
       orphanedNotes: orphanedCount,
-      totalNotes: parseInt(stat.total_notes) || 0,
-      totalFolders: parseInt(stat.total_folders) || 0,
-      totalFiles: parseInt(stat.total_files) || 0,
+      totalNotes,
+      totalFolders,
+      totalFiles,
       message: isHealthy ? 'Tree structure is intact' : `${orphanedCount} orphaned note(s) found`,
     });
   } catch (error) {

@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { saveAnnotations, getAnnotations, deleteAnnotations, deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
+import { isValidUUID } from '@/lib/uuid-validation.js';
 import sql from '@/database/pgsql.js';
 
 /**
@@ -21,22 +22,21 @@ export async function GET(request) {
     }
 
     const url = new URL(request.url);
-    const noteIdParam = url.searchParams.get('noteId');
-    const attachmentIdParam = url.searchParams.get('attachmentId');
+    const noteId = url.searchParams.get('noteId');
+    const attachmentId = url.searchParams.get('attachmentId');
 
-    if (!noteIdParam) {
+    // Validate noteId is a valid UUID
+    if (!noteId || !isValidUUID(noteId)) {
       return NextResponse.json(
-        { error: 'noteId query parameter is required' },
+        { error: 'Valid noteId (UUID) is required' },
         { status: 400 }
       );
     }
 
-    const noteId = parseInt(noteIdParam, 10);
-    const attachmentId = attachmentIdParam ? parseInt(attachmentIdParam, 10) : null;
-
-    if (isNaN(noteId)) {
+    // Validate attachmentId if provided
+    if (attachmentId && !isValidUUID(attachmentId)) {
       return NextResponse.json(
-        { error: 'Invalid noteId' },
+        { error: 'Invalid attachmentId - must be a valid UUID' },
         { status: 400 }
       );
     }
@@ -44,7 +44,7 @@ export async function GET(request) {
     // Verify user owns this note
     const noteResult = await sql`
       SELECT note_id FROM app.notes
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
     `;
 
     if (noteResult.length === 0) {
@@ -91,6 +91,7 @@ export async function POST(request) {
     const body = await request.json();
     const { noteId, attachmentId, annotationData } = body;
 
+    // Validate required fields
     if (!noteId || !annotationData) {
       return NextResponse.json(
         { error: 'noteId and annotationData are required' },
@@ -98,12 +99,18 @@ export async function POST(request) {
       );
     }
 
-    const noteIdNum = parseInt(noteId, 10);
-    const attachmentIdNum = attachmentId ? parseInt(attachmentId, 10) : null;
-
-    if (isNaN(noteIdNum)) {
+    // Validate noteId is a UUID
+    if (!isValidUUID(noteId)) {
       return NextResponse.json(
-        { error: 'Invalid noteId' },
+        { error: 'Invalid noteId - must be a valid UUID' },
+        { status: 400 }
+      );
+    }
+
+    // Validate attachmentId if provided
+    if (attachmentId && !isValidUUID(attachmentId)) {
+      return NextResponse.json(
+        { error: 'Invalid attachmentId - must be a valid UUID' },
         { status: 400 }
       );
     }
@@ -111,7 +118,7 @@ export async function POST(request) {
     // Verify user owns this note
     const noteResult = await sql`
       SELECT note_id FROM app.notes
-      WHERE note_id = ${noteIdNum} AND user_id = ${user.user_id}
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
     `;
 
     if (noteResult.length === 0) {
@@ -122,7 +129,7 @@ export async function POST(request) {
     }
 
     // Save annotations
-    const result = await saveAnnotations(user.user_id, noteIdNum, attachmentIdNum, annotationData);
+    const result = await saveAnnotations(user.user_id, noteId, attachmentId, annotationData);
 
     return NextResponse.json({
       success: true,
@@ -153,20 +160,12 @@ export async function DELETE(request) {
     }
 
     const url = new URL(request.url);
-    const idParam = url.searchParams.get('id');
+    const annotationId = url.searchParams.get('id');
 
-    if (!idParam) {
+    // Validate annotationId is a UUID
+    if (!annotationId || !isValidUUID(annotationId)) {
       return NextResponse.json(
-        { error: 'id query parameter is required' },
-        { status: 400 }
-      );
-    }
-
-    const annotationId = parseInt(idParam, 10);
-
-    if (isNaN(annotationId)) {
-      return NextResponse.json(
-        { error: 'Invalid annotation ID' },
+        { error: 'Valid annotation ID (UUID) is required' },
         { status: 400 }
       );
     }
