@@ -304,21 +304,25 @@ const SidebarList = () => {
     const handleContextCreateNote = useCallback(
         async (parentId: string) => {
             const newId = genNewId();
+            // If creating at root level, don't specify pid
+            const pid = parentId === 'root' ? undefined : parentId;
             const newNote = await createNote({
                 id: newId,
                 title: 'Untitled',
                 content: '\n',
-                pid: parentId,
+                pid,
             });
 
             if (newNote) {
-                // expand parent in react-complex-tree + application state
-                const newExpandedIds = new Set(expandedIds);
-                newExpandedIds.add(parentId);
-                setExpandedIds(newExpandedIds);
-                await mutateItem(parentId, {
-                    isExpanded: true,
-                });
+                // Only expand/mutate if not creating at root
+                if (parentId !== 'root') {
+                    const newExpandedIds = new Set(expandedIds);
+                    newExpandedIds.add(parentId);
+                    setExpandedIds(newExpandedIds);
+                    await mutateItem(parentId, {
+                        isExpanded: true,
+                    });
+                }
                 router.push(`/notes/${newId}`);
             }
         },
@@ -327,16 +331,20 @@ const SidebarList = () => {
 
     const handleCreateFolder = useCallback(
         async (parentId: string) => {
-            const newFolder = await createFolder(parentId);
+            // If creating at root level, pass undefined as parentId
+            const pid = parentId === 'root' ? undefined : parentId;
+            const newFolder = await createFolder(pid);
 
             if (newFolder) {
-                // expand parent in react-complex-tree + application state
-                const newExpandedIds = new Set(expandedIds);
-                newExpandedIds.add(parentId);
-                setExpandedIds(newExpandedIds);
-                await mutateItem(parentId, {
-                    isExpanded: true,
-                });
+                // Only expand/mutate if not creating at root
+                if (parentId !== 'root') {
+                    const newExpandedIds = new Set(expandedIds);
+                    newExpandedIds.add(parentId);
+                    setExpandedIds(newExpandedIds);
+                    await mutateItem(parentId, {
+                        isExpanded: true,
+                    });
+                }
             }
         },
         [createFolder, mutateItem, expandedIds, setExpandedIds]

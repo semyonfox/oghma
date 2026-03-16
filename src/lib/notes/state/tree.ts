@@ -293,6 +293,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const newTree = TreeActions.addItem(currentTree, item.id, item.pid);
 
         newTree.items[item.id].data = item;
+        newTree.items[item.id].isFolder = item.isFolder ?? false;
         set({ tree: newTree });
 
         // persist tree to IndexedDB cache

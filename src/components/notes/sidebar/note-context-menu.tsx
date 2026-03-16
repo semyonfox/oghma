@@ -173,13 +173,13 @@ export default function NoteContextMenu({
                         </button>
                     )}
 
-                    {isFolder && (
+                    {(isFolder || noteId === 'root') && (
                         <>
                             <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onCreateNote(noteId);
+                                    onCreateNote(noteId === 'root' ? 'root' : noteId);
                                     handleClose();
                                 }}
                                 className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -193,7 +193,7 @@ export default function NoteContextMenu({
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onCreateFolder(noteId);
+                                    onCreateFolder(noteId === 'root' ? 'root' : noteId);
                                     handleClose();
                                 }}
                                 className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
