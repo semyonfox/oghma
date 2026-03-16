@@ -55,7 +55,7 @@
     "pupa": "^3.3.0",
     "qss": "^3.0.0",
     "react": "^19.2.4",
-    "react-arborist": "^3.4.3",
+    "react-complex-tree": "^2.6.1",
     "react-div-100vh": "^0.7.0",
     "react-dom": "^19.2.4",
     "react-hotkeys-hook": "5.2.4",

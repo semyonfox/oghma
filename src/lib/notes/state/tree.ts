@@ -38,6 +38,10 @@ export interface NoteTreeState {
     initLoaded: boolean;
     loading: boolean;
     loadingChildren: Set<string>; // Track which folders are currently loading children
+    // View state for react-complex-tree
+    expandedIds: Set<string>;
+    selectedIds: Set<string>;
+    focusedId: string | null;
     // API instances for dependency injection
     treeAPI: any;
     noteAPI: any;
@@ -60,6 +64,10 @@ export interface NoteTreeState {
     collapseAllItems: () => void;
     setLoading: (loading: boolean) => void;
     setDependencies: (treeAPI: any, noteAPI: any, toast: any) => void;
+    // View state setters for react-complex-tree
+    setExpandedIds: (ids: Set<string>) => void;
+    setSelectedIds: (ids: Set<string>) => void;
+    setFocusedId: (id: string | null) => void;
 }
 
 const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
@@ -68,6 +76,10 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     initLoaded: false,
     loading: false,
     loadingChildren: new Set<string>(),
+    // View state for react-complex-tree
+    expandedIds: new Set<string>(),
+    selectedIds: new Set<string>(),
+    focusedId: null,
     treeAPI: null,
     noteAPI: null,
     toast: null,
@@ -78,6 +90,18 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
     setLoading: (loading: boolean) => {
         set({ loading });
+    },
+
+    setExpandedIds: (ids: Set<string>) => {
+        set({ expandedIds: ids });
+    },
+
+    setSelectedIds: (ids: Set<string>) => {
+        set({ selectedIds: ids });
+    },
+
+    setFocusedId: (id: string | null) => {
+        set({ focusedId: id });
     },
 
     fetchNotes: async (tree: TreeModel) => {
@@ -331,6 +355,17 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const currentTree = get().tree;
         const newTree = TreeActions.mutateItem(currentTree, id, data);
         set({ tree: newTree });
+
+        // sync expanded state with react-complex-tree
+        if (data.isExpanded !== undefined) {
+            const newExpandedIds = new Set(state.expandedIds);
+            if (data.isExpanded) {
+                newExpandedIds.add(id);
+            } else {
+                newExpandedIds.delete(id);
+            }
+            set({ expandedIds: newExpandedIds });
+        }
 
         // update cache with new tree state
         await uiCache.setItem(TREE_CACHE_KEY, newTree);
