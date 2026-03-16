@@ -20,6 +20,7 @@ export interface NoteStoreState {
     removeNote: (id: string) => Promise<void>;
     mutateNote: (id: string, payload: Partial<NoteModel>) => Promise<void>;
     createNote: (body: Partial<NoteModel>) => Promise<NoteModel | undefined>;
+    createFolder: (parentId?: string) => Promise<NoteModel | undefined>;
     createNoteWithTitle: (title: NoteModel['title']) => Promise<{ id: string } | undefined>;
     updateNote: (data: Partial<NoteModel>) => Promise<void>;
     initNote: (note: Partial<NoteModel>) => void;
@@ -184,6 +185,39 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         treeStore.getState().addItem(result);
 
         // mark as new in sync status (green accent in tree)
+        useSyncStatusStore.getState().markNew(result.id);
+
+        return result;
+    },
+
+    createFolder: async (parentId?: string) => {
+        const state = get();
+        const { noteAPI, treeStore, toast } = state;
+        
+        // Guard: dependencies must be initialized
+        if (!noteAPI || !treeStore) {
+            console.warn('noteAPI or treeStore not initialized yet');
+            return;
+        }
+        
+        const body: Partial<NoteModel> = {
+            title: 'New Folder',
+            content: '',
+            isFolder: true,
+            pid: parentId,
+        };
+
+        const result = await noteAPI.create(body);
+
+        if (!result) {
+            toast(noteAPI.error || 'Failed to create folder', 'error');
+            return;
+        }
+
+        await noteCache.setItem(result.id, result);
+        treeStore.getState().addItem(result);
+
+        // mark as new in sync status
         useSyncStatusStore.getState().markNew(result.id);
 
         return result;

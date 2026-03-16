@@ -40,7 +40,7 @@ const SidebarList = () => {
         focusedId,
         setFocusedId,
     } = useNoteTreeStore();
-    const { createNote, mutateNote, removeNote } = useNoteStore();
+    const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -327,23 +327,19 @@ const SidebarList = () => {
 
     const handleCreateFolder = useCallback(
         async (parentId: string) => {
-            const newId = genNewId();
-            await createNote({
-                id: newId,
-                title: '\u{1F4C1} New Folder',
-                content: '\n',
-                pid: parentId,
-            });
+            const newFolder = await createFolder(parentId);
 
-            // expand parent in react-complex-tree + application state
-            const newExpandedIds = new Set(expandedIds);
-            newExpandedIds.add(parentId);
-            setExpandedIds(newExpandedIds);
-            await mutateItem(parentId, {
-                isExpanded: true,
-            });
+            if (newFolder) {
+                // expand parent in react-complex-tree + application state
+                const newExpandedIds = new Set(expandedIds);
+                newExpandedIds.add(parentId);
+                setExpandedIds(newExpandedIds);
+                await mutateItem(parentId, {
+                    isExpanded: true,
+                });
+            }
         },
-        [genNewId, createNote, mutateItem, expandedIds, setExpandedIds]
+        [createFolder, mutateItem, expandedIds, setExpandedIds]
     );
 
     const handleOpenInSplit = useCallback((id: string) => {
@@ -441,19 +437,20 @@ const SidebarList = () => {
                             rootItem="root"
                             treeLabel={t('My Pages')}
                             renderItem={({ item, depth, children, arrow, context }) => {
-                                const nodeData = item.data as any;
-                                const hasChildren = !!(item.children && item.children.length > 0);
-                                const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
-                                const isDragging = (context as any)?.isDragging === true;
+                                 const nodeData = item.data as any;
+                                 const hasChildren = !!(item.children && item.children.length > 0);
+                                 const isFolder = item.isFolder || nodeData?.isFolder || hasChildren;
+                                 const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
+                                 const isDragging = (context as any)?.isDragging === true;
 
-                                return (
-                                    <div
-                                        {...context.itemContainerWithChildrenProps}
-                                        className="flex flex-col"
-                                    >
-                                        <NoteContextMenu
-                                            noteId={item.index as string}
-                                            isFolder={hasChildren}
+                                 return (
+                                     <div
+                                         {...context.itemContainerWithChildrenProps}
+                                         className="flex flex-col"
+                                     >
+                                         <NoteContextMenu
+                                             noteId={item.index as string}
+                                             isFolder={isFolder}
                                             isPinned={isPinned}
                                             onRename={handleRename}
                                             onDelete={handleDelete}
