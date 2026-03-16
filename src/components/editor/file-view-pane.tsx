@@ -43,6 +43,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   const handleDragStart = (e: React.DragEvent) => {
     if (!file) return;
     e.dataTransfer.effectAllowed = 'move';
+    // set both formats: application/json (standard) and paneFile (legacy compat)
+    e.dataTransfer.setData('application/json', JSON.stringify(file));
     e.dataTransfer.setData('paneFile', JSON.stringify(file));
     setIsDragging(true);
   };
@@ -61,10 +63,13 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
     setIsDragging(false);
 
     try {
-      const draggedFileData = e.dataTransfer.getData('paneFile');
-      if (!draggedFileData) return;
+      // accept application/json (sidebar drags) and paneFile (pane-to-pane drags)
+      const jsonData = e.dataTransfer.getData('application/json');
+      const paneFileData = e.dataTransfer.getData('paneFile');
+      const rawData = jsonData || paneFileData;
+      if (!rawData) return;
 
-      const draggedFile: FileSpec = JSON.parse(draggedFileData);
+      const draggedFile: FileSpec = JSON.parse(rawData);
       if (!draggedFile.fileId) return;
 
       // Get the viewport width and drop position

@@ -8,6 +8,7 @@ import {
     FolderPlusIcon,
     DocumentPlusIcon,
     StarIcon,
+    Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface NoteContextMenuProps {
@@ -20,6 +21,7 @@ interface NoteContextMenuProps {
     onTogglePin: (id: string) => void;
     onCreateNote: (parentId: string) => void;
     onCreateFolder: (parentId: string) => void;
+    onOpenInSplit: (id: string) => void;
     children: React.ReactNode;
 }
 
@@ -33,6 +35,7 @@ export default function NoteContextMenu({
     onTogglePin,
     onCreateNote,
     onCreateFolder,
+    onOpenInSplit,
     children,
 }: NoteContextMenuProps) {
     const [isVisible, setIsVisible] = useState(false);
@@ -202,6 +205,25 @@ export default function NoteContextMenu({
                                 New Folder
                             </button>
                         </>
+                    )}
+
+                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+
+                    {!isFolder && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenInSplit(noteId);
+                                handleClose();
+                            }}
+                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <Squares2X2Icon
+                                className="mr-3 h-4 w-4"
+                                aria-hidden="true"
+                            />
+                            Open in split right
+                        </button>
                     )}
 
                     <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
