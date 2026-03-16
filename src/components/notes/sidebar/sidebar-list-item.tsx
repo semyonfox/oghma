@@ -156,18 +156,45 @@ const SidebarListItem: FC<{
         [hasChildren, onToggle]
     );
 
-    const handleDoubleClick = useCallback(
-        (e: React.MouseEvent) => {
-            // double click opens files, prevents default expand behavior
-            if (!hasChildren) {
-                e.preventDefault();
-                setPaneA(buildFileSpec(item));
-                setActivePane('A');
-                router.push(linkHref);
-            }
-        },
-        [hasChildren, item, linkHref, router, setActivePane, setPaneA]
-    );
+     const handleDoubleClick = useCallback(
+         (e: React.MouseEvent) => {
+             // double click opens files, prevents default expand behavior
+             if (!hasChildren) {
+                 e.preventDefault();
+                 setPaneA(buildFileSpec(item));
+                 setActivePane('A');
+                 router.push(linkHref);
+             }
+         },
+         [hasChildren, item, linkHref, router, setActivePane, setPaneA]
+     );
+
+     /**
+      * Handle drag start - store file in zustand for drop handling
+      */
+     const handleDragStart = useCallback(
+         (e: React.DragEvent) => {
+             if (hasChildren) return; // Don't drag folders
+             
+             const spec = buildFileSpec(item);
+             
+             // Store in zustand so split pane can access it
+             useLayoutStore.getState().setDraggedFile(spec);
+             
+             // Also set in dataTransfer for fallback
+             e.dataTransfer.effectAllowed = 'copy';
+             e.dataTransfer.setData('application/json', JSON.stringify(spec));
+             e.dataTransfer.setData('text/plain', item.title || 'Untitled');
+         },
+         [hasChildren, item]
+     );
+
+     /**
+      * Handle drag end - clear stored file
+      */
+     const handleDragEnd = useCallback(() => {
+         useLayoutStore.getState().setDraggedFile(null);
+     }, []);
 
      const openInPane = useCallback(
          (pane: 'A' | 'B') => (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -220,130 +247,134 @@ const SidebarListItem: FC<{
 
      return (
          <>
-              <div
-                  {...attrs}
-                  ref={(el) => {
-                      itemElementRef.current = el;
-                      innerRef(el);
-                  }}
-                  className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                      snapshot.isDragging ? 'shadow' : ''
-                  } ${
-                      activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                  }`}
-                  role="treeitem"
-                  aria-expanded={hasChildren ? isExpanded : undefined}
-                  aria-selected={activeId === item.id}
-                  aria-current={activeId === item.id ? 'page' : undefined}
-               >
-                   <Link 
-                       href={linkHref}
-                       className="flex flex-1 items-center truncate min-w-0"
-                       onClick={handleClickItem}
-                       onDoubleClick={handleDoubleClick}
-                       aria-label={item.title || t('Untitled')}
-                   >
-                       {hasChildren ? (
-                           // Folders: show expand/collapse icon
-                           emoji ? (
-                               <span
-                                   onClick={handleClickIcon}
-                                   className="flex-shrink-0 block p-0.5 cursor-pointer w-5 h-5 rounded mr-0.5 text-center hover:bg-white/10 transition-colors text-lg"
-                                   role="button"
-                                   tabIndex={0}
-                                   aria-label={isExpanded ? t('Collapse') : t('Expand')}
-                                   onKeyDown={(e) => {
-                                       if (e.key === 'Enter' || e.key === ' ') {
-                                           e.preventDefault();
-                                           handleClickIcon(e as any);
-                                       }
-                                   }}
-                               >
-                                   {emoji}
-                               </span>
-                           ) : (
-                               <IconButton
-                                   className="flex-shrink-0 w-4 h-4 mr-0.5 transition-transform transform"
-                                   icon="ChevronRight"
-                                   iconClassName={`${isExpanded ? 'rotate-90' : ''}`}
-                                   onClick={handleClickIcon}
-                                   aria-label={isExpanded ? t('Collapse') : t('Expand')}
-                               ></IconButton>
-                           )
-                       ) : (
-                           // Files: show file icon based on type
-                           <span className="flex-shrink-0 w-4 h-4 mr-0.5 text-slate-500 text-xs font-bold flex items-center justify-center">
-                               {item.title?.endsWith('.pdf') ? '📄' : item.title?.endsWith('.txt') ? '📝' : '📋'}
-                           </span>
-                       )}
-
-                      {isRenaming ? (
-                          <input
-                              ref={renameInputRef}
-                              type="text"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onBlur={() => handleRenameCompleteMemoized(renameValue)}
-                              onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      if (renameValue.trim()) {
-                                          handleRenameCompleteMemoized(renameValue);
+               <div
+                   {...attrs}
+                   ref={(el) => {
+                       itemElementRef.current = el;
+                       innerRef(el);
+                   }}
+                   draggable={!hasChildren}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                       snapshot.isDragging ? 'shadow' : ''
+                   } ${
+                       activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                   }`}
+                   role="treeitem"
+                   aria-expanded={hasChildren ? isExpanded : undefined}
+                   aria-selected={activeId === item.id}
+                   aria-current={activeId === item.id ? 'page' : undefined}
+                >
+                  <Link 
+                      href={linkHref}
+                      className="flex flex-1 items-center truncate"
+                      onClick={handleClickItem}
+                      onDoubleClick={handleDoubleClick}
+                      aria-label={item.title || t('Untitled')}
+                  >
+                      {hasChildren ? (
+                          // Folders: show expand/collapse icon
+                          emoji ? (
+                              <span
+                                  onClick={handleClickIcon}
+                                  className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-white/10 transition-colors"
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={isExpanded ? t('Collapse') : t('Expand')}
+                                  onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleClickIcon(e as any);
                                       }
-                                  } else if (e.key === 'Escape') {
-                                      e.preventDefault();
-                                      setRenameValue(item.title || '');
-                                      handleRenameCompleteMemoized(item.title || '');
-                                  }
-                              }}
-                              className="flex-1 truncate bg-white/10 border border-slate-600 rounded px-1 py-0.5 outline-none text-slate-300 focus:bg-white/20 focus:border-blue-500 transition-colors text-xs"
-                              dir="auto"
-                              onClick={(e) => e.stopPropagation()}
-                              aria-label={t('Rename note')}
-                          />
+                                  }}
+                              >
+                                  {emoji}
+                              </span>
+                          ) : (
+                              <IconButton
+                                  className="flex-shrink-0 w-4 h-4 mr-1 transition-transform transform"
+                                  icon="ChevronRight"
+                                  iconClassName={`${isExpanded ? 'rotate-90' : ''}`}
+                                  onClick={handleClickIcon}
+                                  aria-label={isExpanded ? t('Collapse') : t('Expand')}
+                              ></IconButton>
+                          )
                       ) : (
-                      <span
-                               className={`flex-1 truncate text-xs ${
-                                   syncStatus === 'modified' ? 'text-amber-400' :
-                                   syncStatus === 'new' ? 'text-green-400' : ''
-                               }`}
-                               dir="auto"
-                           >
-                               {(emoji
-                                   ? item.title.replace(emoji, '').trimLeft()
-                                   : item.title) ||
-                                   (initLoaded ? t('Untitled') : <TextSkeleton />)}
-                               {syncStatus === 'modified' && (
-                                   <span className="ml-1 text-amber-400 text-xs" title="Modified">M</span>
-                               )}
-                               {syncStatus === 'new' && (
-                                   <span className="ml-1 text-green-400 text-xs" title="New">U</span>
-                               )}
-                           </span>
+                          // Files: just show the file icon, no click handler
+                          <IconButton
+                              className="flex-shrink-0 w-4 h-4 mr-1"
+                              icon={item.title ? 'DocumentText' : 'Document'}
+                              aria-label={t('Document')}
+                              onClick={(e) => e.preventDefault()}
+                          ></IconButton>
                       )}
-                  </Link>
 
-                   {/* Action buttons - only show on hover, compact layout */}
-                   <div className="flex items-center gap-0.5 hidden group-hover:flex flex-shrink-0">
-                       {isActualFolder && (
-                           <IconButton
-                               icon="Plus"
-                               onClick={onAddNote}
-                               className="p-0.5 text-slate-600 hover:text-slate-300 rounded transition-colors text-xs"
-                               title={t('Add file/folder')}
-                               aria-label={t('Add')}
-                               tabIndex={-1}
-                           ></IconButton>
-                       )}
+                     {isRenaming ? (
+                         <input
+                             ref={renameInputRef}
+                             type="text"
+                             value={renameValue}
+                             onChange={(e) => setRenameValue(e.target.value)}
+                             onBlur={() => handleRenameCompleteMemoized(renameValue)}
+                             onKeyDown={(e) => {
+                                 if (e.key === 'Enter') {
+                                     e.preventDefault();
+                                     if (renameValue.trim()) {
+                                         handleRenameCompleteMemoized(renameValue);
+                                     }
+                                 } else if (e.key === 'Escape') {
+                                     e.preventDefault();
+                                     setRenameValue(item.title || '');
+                                     handleRenameCompleteMemoized(item.title || '');
+                                 }
+                             }}
+                             className="flex-1 truncate bg-white/10 border border-slate-600 rounded px-1 py-0.5 outline-none text-slate-300 focus:bg-white/20 focus:border-blue-500 transition-colors text-sm"
+                             dir="auto"
+                             onClick={(e) => e.stopPropagation()}
+                             aria-label={t('Rename note')}
+                         />
+                     ) : (
+                     <span
+                              className={`flex-1 truncate text-sm ${
+                                  syncStatus === 'modified' ? 'text-amber-400' :
+                                  syncStatus === 'new' ? 'text-green-400' : ''
+                              }`}
+                              dir="auto"
+                          >
+                              {(emoji
+                                  ? item.title.replace(emoji, '').trimLeft()
+                                  : item.title) ||
+                                  (initLoaded ? t('Untitled') : <TextSkeleton />)}
+                              {syncStatus === 'modified' && (
+                                  <span className="ml-1 text-amber-400 text-xs" title="Modified">M</span>
+                              )}
+                              {syncStatus === 'new' && (
+                                  <span className="ml-1 text-green-400 text-xs" title="New">U</span>
+                              )}
+                          </span>
+                     )}
+                 </Link>
+
+                    <IconButton
+                       icon="DotsHorizontal"
+                       onClick={handleClickMenu}
+                       className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                       title={t('Remove, Copy Link, etc')}
+                       aria-label={t('Note actions')}
+                       tabIndex={-1}
+                   ></IconButton>
+
+                   {isActualFolder && (
                        <IconButton
-                           icon="DotsHorizontal"
-                           onClick={handleClickMenu}
-                           className="p-0.5 text-slate-600 hover:text-slate-300 rounded transition-colors text-xs"
-                           title={t('More options')}
-                           aria-label={t('Options')}
+                           icon="Plus"
+                           onClick={onAddNote}
+                           className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                           title={t('Add a page inside this folder')}
+                           aria-label={t('Add note')}
                            tabIndex={-1}
                        ></IconButton>
-                   </div>
+                   )}
              </div>
 
              {!hasChildren && isExpanded && (
