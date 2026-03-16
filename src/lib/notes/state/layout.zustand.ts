@@ -37,6 +37,9 @@ interface LayoutState {
   collapsedSections: Set<string>; // Notes, Documents, Media, Tags
   selectedNode: string | null;
 
+  // Drag state
+  draggedFile: FileSpec | null;
+
   // Methods
   setActiveNav: (nav: NavSection) => void;
   setPaneA: (file: FileSpec | undefined) => void;
@@ -50,6 +53,7 @@ interface LayoutState {
   toggleExpandedNode: (nodeId: string) => void;
   toggleCollapsedSection: (section: string) => void;
   setSelectedNode: (nodeId: string | null) => void;
+  setDraggedFile: (file: FileSpec | null) => void;
 }
 
 const useLayoutStore = create<LayoutState>()(
@@ -64,9 +68,10 @@ const useLayoutStore = create<LayoutState>()(
       treeWidth: 250,
       rightPanelWidth: 300,
       splitPosition: 50,
-      expandedNodes: new Set(['root']),
-      collapsedSections: new Set(),
-      selectedNode: null,
+       expandedNodes: new Set(['root']),
+       collapsedSections: new Set(),
+       selectedNode: null,
+       draggedFile: null,
 
       // Navigation
       setActiveNav: (nav) => set({ activeNav: nav }),
@@ -153,6 +158,8 @@ const useLayoutStore = create<LayoutState>()(
       },
 
       setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
+
+      setDraggedFile: (file) => set({ draggedFile: file }),
     }),
     {
       name: 'oghmaNotes-layout-store',
