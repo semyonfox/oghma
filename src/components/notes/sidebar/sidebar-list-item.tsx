@@ -247,16 +247,13 @@ const SidebarListItem: FC<{
 
      return (
          <>
-               <div
-                   {...attrs}
-                   ref={(el) => {
-                       itemElementRef.current = el;
-                       innerRef(el);
-                   }}
-                   draggable={!hasChildren}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                <div
+                    {...attrs}
+                    ref={(el) => {
+                        itemElementRef.current = el;
+                        innerRef(el);
+                    }}
+                     className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
                        snapshot.isDragging ? 'shadow' : ''
                    } ${
                        activeId === item.id ? 'bg-white/10 text-slate-300' : ''
