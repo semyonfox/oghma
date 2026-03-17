@@ -27,7 +27,7 @@ frontend:
         - echo "STORAGE_ENDPOINT=$STORAGE_ENDPOINT" >> .env.production
         - echo "STORAGE_PREFIX=$STORAGE_PREFIX" >> .env.production
         - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
-        - npm run build
+        - npx next build --no-turbopack
   artifacts:
     baseDirectory: .next
     files:
