@@ -254,7 +254,7 @@ const SidebarListItem: FC<{
                         innerRef(el);
                     }}
                      className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                       snapshot.isDragging ? 'shadow' : ''
+                       snapshot.isDragging ? 'opacity-50 bg-indigo-500/20 shadow-lg ring-1 ring-indigo-500/40' : ''
                    } ${
                        activeId === item.id ? 'bg-white/10 text-slate-300' : ''
                    }`}
