@@ -36,8 +36,10 @@ const responseCache: ResponseCache = new Map();
 
 // Configuration for post-dedup cache
 const DEDUP_CONFIG = {
-  // How long to keep recently-completed requests (milliseconds)
-  postDedupWindow: 10 * 1000, // 10 seconds - more requests can be combined
+  // How long to keep recently-completed responses (milliseconds).
+  // Kept short (2s) so simultaneous component mounts share one request,
+  // but user interactions (create/rename/move) see fresh data.
+  postDedupWindow: 2 * 1000,
   // Only deduplicate GET requests (safe to replay)
   dedupMethods: ['GET'],
   // Cleanup interval for stale responses
@@ -150,8 +152,17 @@ export async function deduplicatedFetch<T>(
       
       const data = await response.json();
 
-      // Cache successful responses for post-dedup window (only safe methods)
-      if (shouldDeduplicate && response.status === 200) {
+      // Cache successful responses for post-dedup window (only safe methods).
+      // Skip caching if the response carries an empty items array — these are
+      // valid for an empty account but stale after the first note is created,
+      // and serving them from cache would make initTree think the tree is empty.
+      const isEmptyItemsResponse =
+        data &&
+        typeof data === 'object' &&
+        Array.isArray(data.items) &&
+        data.items.length === 0;
+
+      if (shouldDeduplicate && response.status === 200 && !isEmptyItemsResponse) {
         responseCache.set(key, {
           data,
           timestamp: Date.now(),

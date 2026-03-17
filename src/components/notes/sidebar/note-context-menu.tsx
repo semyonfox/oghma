@@ -8,6 +8,7 @@ import {
     FolderPlusIcon,
     DocumentPlusIcon,
     StarIcon,
+    Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface NoteContextMenuProps {
@@ -20,6 +21,7 @@ interface NoteContextMenuProps {
     onTogglePin: (id: string) => void;
     onCreateNote: (parentId: string) => void;
     onCreateFolder: (parentId: string) => void;
+    onOpenInSplit: (id: string) => void;
     children: React.ReactNode;
 }
 
@@ -33,6 +35,7 @@ export default function NoteContextMenu({
     onTogglePin,
     onCreateNote,
     onCreateFolder,
+    onOpenInSplit,
     children,
 }: NoteContextMenuProps) {
     const [isVisible, setIsVisible] = useState(false);
@@ -47,21 +50,27 @@ export default function NoteContextMenu({
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
         
-        // Estimate menu dimensions
-        const menuWidth = 192; // w-48 = 12rem = 192px
-        const menuHeight = 300; // approximate
+        // Exact menu dimensions
+        const menuWidth = 192; // w-48
+        const menuHeight = 320; // better estimate
+        const padding = 8;
         
         let x = e.clientX;
         let y = e.clientY;
         
-        // Adjust if menu would overflow right
-        if (x + menuWidth > viewportWidth) {
-            x = Math.max(0, viewportWidth - menuWidth - 8);
+        // Adjust if menu would overflow right - position LEFT of cursor instead
+        if (x + menuWidth > viewportWidth - padding) {
+            x = Math.max(padding, x - menuWidth);
         }
         
-        // Adjust if menu would overflow bottom
-        if (y + menuHeight > viewportHeight) {
-            y = Math.max(0, viewportHeight - menuHeight - 8);
+        // Adjust if menu would overflow bottom - position ABOVE cursor instead  
+        if (y + menuHeight > viewportHeight - padding) {
+            y = Math.max(padding, y - menuHeight - 4); // -4 to account for small gap above
+        }
+        
+        // If positioned to the left, add small offset so it doesn't hide the cursor
+        if (e.clientX + menuWidth > viewportWidth - padding) {
+            x = Math.max(padding, x - 8);
         }
         
         setPosition({ x, y });
@@ -108,7 +117,7 @@ export default function NoteContextMenu({
             {isVisible && (
                 <div
                     ref={menuRef}
-                    className="fixed z-50 w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none"
+                    className="fixed z-[9999] w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none backdrop-blur-sm"
                     style={{
                         top: `${position.y}px`,
                         left: `${position.x}px`,
@@ -164,13 +173,13 @@ export default function NoteContextMenu({
                         </button>
                     )}
 
-                    {isFolder && (
+                    {(isFolder || noteId === 'root') && (
                         <>
                             <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onCreateNote(noteId);
+                                    onCreateNote(noteId === 'root' ? 'root' : noteId);
                                     handleClose();
                                 }}
                                 className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -184,7 +193,7 @@ export default function NoteContextMenu({
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onCreateFolder(noteId);
+                                    onCreateFolder(noteId === 'root' ? 'root' : noteId);
                                     handleClose();
                                 }}
                                 className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -196,6 +205,25 @@ export default function NoteContextMenu({
                                 New Folder
                             </button>
                         </>
+                    )}
+
+                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+
+                    {!isFolder && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenInSplit(noteId);
+                                handleClose();
+                            }}
+                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <Squares2X2Icon
+                                className="mr-3 h-4 w-4"
+                                aria-hidden="true"
+                            />
+                            Open in split right
+                        </button>
                     )}
 
                     <div className="my-1 border-t border-gray-200 dark:border-gray-700" />

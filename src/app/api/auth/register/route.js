@@ -11,6 +11,7 @@
 import sql from "@/database/pgsql.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
+import {generateUUID} from "@/lib/utils/uuid";
 import bcrypt from "bcryptjs";
 
 export async function POST(request) {
@@ -41,10 +42,13 @@ export async function POST(request) {
         // 4. Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 5. Insert new user into database
+        // 5. Generate UUID v7 for user
+        const userId = generateUUID();
+
+        // 6. Insert new user into database
         const data = await sql`
-            INSERT INTO app.login (email, hashed_password)
-            VALUES (${email.trim()}, ${hashedPassword}) RETURNING user_id, email
+            INSERT INTO app.login (user_id, email, hashed_password)
+            VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}) RETURNING user_id, email
         `;
 
         const user = data[0];
@@ -53,7 +57,7 @@ export async function POST(request) {
             return createErrorResponse('An error occurred while creating your account', 500);
         }
 
-        // 6. Create auth session (generates JWT, sets cookie, returns response)
+        // 7. Create auth session (generates JWT, sets cookie, returns response)
         return await createAuthSession(user, 1);
 
     } catch (error) {
@@ -63,6 +67,13 @@ export async function POST(request) {
             detail: error.detail,
             stack: error.stack
         });
+
+        // Handle UNIQUE constraint violation on email (race condition fallback)
+        // error.code = '23505' for PostgreSQL unique_violation
+        if (error.code === '23505' && error.detail && error.detail.includes('email')) {
+            return createErrorResponse('User already exists', 409);
+        }
+
         return createErrorResponse(`Internal server error: ${error.message}`, 500);
     }
 }

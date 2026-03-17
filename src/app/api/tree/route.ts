@@ -2,27 +2,17 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
+import { isValidUUID } from '@/lib/uuid-validation.js';
+import sql from '@/database/pgsql.js';
 
 /**
- * Helper: Filter tree item to only include requested fields
+ * GET /api/tree
+ * 
+ * Lazy-loading root endpoint. Returns root items only (not full tree).
+ * Delegates to /api/tree/children internally for consistency.
  */
-function filterTreeItemFields(item: any, fields?: string[]): any {
-  if (!fields || fields.length === 0) {
-    return item;
-  }
-  
-  const filtered: any = {};
-  for (const field of fields) {
-    if (field in item) {
-      filtered[field] = item[field];
-    }
-  }
-  return filtered;
-}
-
 export async function GET(request: Request) {
     try {
-      // Get authenticated user
       const user = await validateSession();
       if (!user) {
         return NextResponse.json(
@@ -31,40 +21,31 @@ export async function GET(request: Request) {
         );
       }
 
-      // Fetch tree from PostgreSQL (per-user)
-      const tree = await getTreeFromPG(user.user_id);
-      
-      // Parse query parameters
-      const url = new URL(request.url);
-      const fieldsParam = url.searchParams.get('fields');
-      const skipParam = url.searchParams.get('skip');
-      const limitParam = url.searchParams.get('limit');
-      
-      // Parse fields from comma-separated string
-      const fields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : undefined;
-      
-      // Parse pagination
-      const skip = skipParam ? parseInt(skipParam, 10) : 0;
-      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
-      
-      // Get all tree items
-      let items = Object.entries(tree.items);
-      
-      // Apply pagination
-      if (skip > 0 || limit) {
-        const end = limit ? skip + limit : undefined;
-        items = items.slice(skip, end);
-      }
-      
-      // Build filtered result
-      const filteredTree = {
-        rootId: tree.rootId,
-        items: Object.fromEntries(
-          items.map(([id, item]) => [id, filterTreeItemFields(item, fields)])
-        ),
-      };
-      
-      return NextResponse.json(filteredTree);
+      // Fetch root items (parent_id IS NULL), sorted A-Z by title
+      const rows = await sql`
+        SELECT 
+          ti.note_id,
+          n.title,
+          n.is_folder,
+          ti.is_expanded
+        FROM app.tree_items ti
+        JOIN app.notes n ON ti.note_id = n.note_id
+        WHERE ti.user_id = ${user.user_id}::uuid
+          AND ti.parent_id IS NULL
+          AND n.deleted = 0 
+          AND n.deleted_at IS NULL
+        ORDER BY n.title ASC
+      `;
+
+      return NextResponse.json({
+        parentId: 'root',
+        items: rows.map(row => ({
+          id: row.note_id,
+          title: row.title,
+          isFolder: row.is_folder,
+          isExpanded: row.is_expanded,
+        })),
+      });
     } catch (error) {
       console.error('Tree GET error:', error);
       return NextResponse.json(
@@ -105,17 +86,16 @@ export async function POST(request: Request) {
                   return NextResponse.json({ success: true });
               }
               
-              // Convert string ID to number for database operations
-              const itemId = parseInt(id, 10);
-              if (isNaN(itemId)) {
+              // Validate item ID is a valid UUID
+              if (!isValidUUID(id)) {
                 return NextResponse.json(
-                  { error: 'Invalid item ID' },
+                  { error: 'Invalid item ID format' },
                   { status: 400 }
                 );
               }
 
               // Update tree item in PostgreSQL
-              await updateTreeItem(user.user_id, itemId, rest);
+              await updateTreeItem(user.user_id, id, rest);
               return NextResponse.json({ success: true });
           }
 
@@ -128,18 +108,43 @@ export async function POST(request: Request) {
                   );
               }
 
-              // Parse IDs
-              const noteIdStr = destination.parentId === ROOT_ID ? destination.parentId : destination.parentId;
+              // Get the tree to find the note_id being moved
+              const tree = await getTreeFromPG(user.user_id);
+              const sourceParentId = source.parentId;
+              const sourceIndex = source.index;
+              
+              // Get the item being moved from the source parent
+              const sourceParentItem = tree.items[sourceParentId];
+              if (!sourceParentItem || !sourceParentItem.children[sourceIndex]) {
+                  return NextResponse.json(
+                      { error: 'Invalid source position' },
+                      { status: 400 }
+                  );
+              }
+              
+              const noteId = sourceParentItem.children[sourceIndex];
+              
+              // Validate note ID
+              if (!isValidUUID(noteId)) {
+                  return NextResponse.json(
+                      { error: 'Invalid note ID' },
+                      { status: 400 }
+                  );
+              }
+              
+              // Determine new parent ID (null if moving to root)
               const newParentId = destination.parentId === ROOT_ID ? null : destination.parentId;
+              if (newParentId && !isValidUUID(newParentId)) {
+                  return NextResponse.json(
+                      { error: 'Invalid parent ID' },
+                      { status: 400 }
+                  );
+              }
               
-              // In a real implementation, you'd need to track which note is being moved
-              // For now, assuming the frontend passes the note_id or we query it
-              // This is a simplified version - you may need to adjust based on your tree structure
+              // Move the note in the tree (position stored separately if needed)
+              await moveNoteInTree(user.user_id, noteId, newParentId);
               
-              return NextResponse.json({ 
-                success: true,
-                message: 'Move operation would require more context about the note being moved'
-              });
+              return NextResponse.json({ success: true });
           }
 
           default:
