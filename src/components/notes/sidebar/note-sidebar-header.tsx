@@ -3,8 +3,8 @@ import { PlusIcon, ChevronDoubleLeftIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import React, { FC, useCallback, useState } from 'react';
 import useUIComposite from '@/lib/notes/state/ui';
-import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
+import useNoteTreeStore from '@/lib/notes/state/tree';
 import CreateNoteModal from '@/components/notes/create-note-modal';
 
 interface NoteSidebarHeaderProps {
@@ -20,24 +20,21 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
 
   const handleCreateNote = useCallback(
     async (title: string, language: string) => {
-      const newId = genNewId();
       const newNote = await createNote({
-        id: newId,
         title: title,
         content: '\n',
         pid: undefined,
       });
 
       if (newNote) {
-        router.push(`/notes/${newId}`);
+        router.push(`/notes/${newNote.id}`);
       }
     },
-    [genNewId, createNote, router]
+    [createNote, router]
   );
 
   const handleUploadFile = useCallback(async (file: File) => {
-    // create a note entry for the uploaded file
-    const newId = genNewId();
+    const noteId = genNewId();
     const fileName = file.name || 'Untitled';
     const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
 
@@ -50,7 +47,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
     // upload file to S3 via the upload API
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('noteId', newId);
+    formData.append('noteId', noteId);
 
     const uploadRes = await fetch('/api/upload', {
       method: 'POST',
@@ -71,13 +68,13 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
       : uploadData.path;
 
     const newNote = await createNote({
-      id: newId,
+      id: noteId,
       title: fileName,
       content,
     });
 
     if (newNote) {
-      router.push(`/notes/${newId}`);
+      router.push(`/notes/${newNote.id}`);
     }
   }, [genNewId, createNote, router]);
 
