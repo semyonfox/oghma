@@ -1,67 +1,53 @@
 # Setup
 
+## Requirements
+
+- Node.js 18+
+- Docker (for local PostgreSQL)
+
 ## Local Development
 
-**Requirements:** Node.js 18+, Docker
-
-### Quick Start
-
 ```bash
+# Install deps
 npm install
+
+# Copy the env template
 cp .env.example .env.local
-docker-compose up  # Terminal 1
-npm run dev        # Terminal 2
+
+# Add your S3 credentials to .env.local:
+# STORAGE_ACCESS_KEY=your-key
+# STORAGE_SECRET_KEY=your-secret
+# STORAGE_BUCKET=your-bucket-name
+
+# Start the database (and app if you want)
+docker-compose up
+
+# In another terminal
+npm run dev
 ```
 
-App at `http://localhost:3000`
-
-### Setup Details
-
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-2. **Configure environment**
-   ```bash
-   cp .env.example .env.local
-   # Add AWS S3 credentials (optional for local dev):
-   # STORAGE_ACCESS_KEY=...
-   # STORAGE_SECRET_KEY=...
-   # STORAGE_BUCKET=...
-   ```
-
-3. **Start database**
-   ```bash
-   docker-compose up
-   ```
-   
-   PostgreSQL runs on `localhost:5432`, database `oghmanotes`. Schema applied automatically.
-
-4. **Start dev server** (new terminal)
-   ```bash
-   npm run dev
-   ```
-   
-   Hot-reload on port 3000.
+App runs at `http://localhost:3000`.
 
 ## Production
 
 ### Database (AWS RDS)
 
 ```bash
-# Create PostgreSQL 12+ instance with pgvector extension
+# Create PostgreSQL instance
+# Make sure pgvector is installed
+
 psql -h <endpoint> -U <user> -d <database> -c "CREATE EXTENSION vector;"
 psql -h <endpoint> -U <user> -d <database> < database/schema.sql
 ```
 
-### Environment (AWS Amplify)
+### Environment Variables
 
-- `DATABASE_URL`: PostgreSQL connection
-- `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET`: S3
-- `AWS_SES_REGION`, `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY`: Email
-- `JWT_SECRET`: `openssl rand -base64 32`
-- `NEXT_PUBLIC_APP_URL`: Your domain
+Set these in AWS Amplify console:
+- `DATABASE_URL` - PostgreSQL connection string
+- `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET` - S3 credentials
+- `AWS_SES_REGION`, `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY` - Email (SES)
+- `JWT_SECRET` - Generate with `openssl rand -base64 32`
+- `NEXT_PUBLIC_APP_URL` - Your domain
 
 ### Deploy
 
@@ -69,20 +55,26 @@ psql -h <endpoint> -U <user> -d <database> < database/schema.sql
 git push origin prod
 ```
 
-Auto-deploys from `prod` branch.
+Amplify watches the `prod` branch and deploys automatically.
 
-## Troubleshooting
+## Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| Database fails | Check `docker-compose ps`, verify DATABASE_URL |
-| S3 upload fails | Verify bucket exists, IAM has s3:PutObject, s3:GetObject |
-| Build fails | Run `npm install` again, remove `.next` folder |
+**Database won't start?**
+- Check `docker-compose ps`
+- Verify DATABASE_URL in .env.local
+
+**S3 uploads failing?**
+- Bucket exists? Credentials correct?
+- IAM needs s3:PutObject, s3:GetObject permissions
+
+**Build errors?**
+- Try `npm install` again
+- Delete `.next` folder and rebuild
 
 ## Commands
 
 ```bash
-npm run dev      # Development
+npm run dev      # Dev server
 npm run build    # Production build
 npm start        # Run built app
 npm run lint     # Lint code

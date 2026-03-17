@@ -16,6 +16,13 @@ function getSQL() {
         const requiresSSL = url.includes('sslmode=require');
         sql = postgres(url, {
             ssl: requiresSSL ? { rejectUnauthorized: false } : false,
+            // Connection timeout settings (in milliseconds)
+            idle_in_transaction_session_timeout: 30000, // 30s - max time for transaction
+            statement_timeout: 30000, // 30s - max time for a single query
+            // Connection pool settings
+            max: 20, // max 20 connections in pool
+            idle_timeout: 10, // close idle connections after 10s
+            connect_timeout: 10, // 10s to establish connection
         });
     }
     return sql;

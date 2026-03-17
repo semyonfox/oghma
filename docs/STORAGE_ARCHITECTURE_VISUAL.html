@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OghmaNotes - Consolidated Storage Architecture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .section {
+            padding: 40px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .section h2 {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section h2::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-right: 15px;
+            border-radius: 3px;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+        
+        .diagram {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            overflow-x: auto;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .card {
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        
+        .card.data {
+            background: #e3f2fd;
+            border-left-color: #4299e1;
+        }
+        
+        .card.process {
+            background: #fff3e0;
+            border-left-color: #ed8936;
+        }
+        
+        .card.success {
+            background: #e8f5e9;
+            border-left-color: #48bb78;
+        }
+        
+        .card.ai {
+            background: #f3e5f5;
+            border-left-color: #9f7aea;
+        }
+        
+        .card h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .card p {
+            font-size: 0.95em;
+            line-height: 1.6;
+            color: #666;
+        }
+        
+        .card ul {
+            margin: 15px 0 0 20px;
+            color: #666;
+            font-size: 0.95em;
+        }
+        
+        .card li {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 5px 5px 5px 0;
+        }
+        
+        .badge.primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .badge.success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .badge.warning {
+            background: #ed8936;
+            color: white;
+        }
+        
+        .flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .flow-step {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: white;
+            border-radius: 6px;
+            margin: 0 10px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .flow-step.active {
+            border-color: #667eea;
+            background: #f5f7ff;
+        }
+        
+        .flow-arrow {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .before, .after {
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .before {
+            background: #ffebee;
+            border-left: 4px solid #ef5350;
+        }
+        
+        .after {
+            background: #e8f5e9;
+            border-left: 4px solid #66bb6a;
+        }
+        
+        .before h3, .after h3 {
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .before h3 {
+            color: #c62828;
+        }
+        
+        .after h3 {
+            color: #2e7d32;
+        }
+        
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .checklist li {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #e0e0e0;
+        }
+        
+        .checklist li::before {
+            content: '☐ ';
+            margin-right: 10px;
+            font-weight: bold;
+            color: #999;
+        }
+        
+        .checklist li.done {
+            opacity: 0.6;
+            border-left-color: #48bb78;
+        }
+        
+        .checklist li.done::before {
+            content: '✓ ';
+            color: #48bb78;
+        }
+        
+        .checklist li.in-progress {
+            background: #f5f7ff;
+            border-left-color: #667eea;
+        }
+        
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+        
+        .timeline-item {
+            display: flex;
+            margin: 20px 0;
+            position: relative;
+            padding-left: 40px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border: 3px solid #667eea;
+            border-radius: 50%;
+        }
+        
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 24px;
+            width: 3px;
+            height: 60px;
+            background: #ddd;
+        }
+        
+        .timeline-item:last-child::after {
+            display: none;
+        }
+        
+        .timeline-content {
+            flex: 1;
+        }
+        
+        .timeline-content h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .timeline-content p {
+            color: #666;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+        }
+        
+        .timeline-content .tasks {
+            margin-top: 10px;
+        }
+        
+        .timeline-content .tasks li {
+            font-size: 0.9em;
+            margin: 3px 0;
+            color: #777;
+        }
+        
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .highlight {
+            background: #fff59d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+        
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.95em;
+        }
+        
+        @media (max-width: 768px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header h1 {
+                font-size: 1.8em;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏗️ OghmaNotes Storage Architecture</h1>
+            <p>Consolidated PostgreSQL-Primary Storage with BullMQ OCR/RAG Pipeline</p>
+        </header>
+
+        <!-- Current Problem -->
+        <div class="section">
+            <h2>The Current Problem</h2>
+            <div class="comparison">
+                <div class="before">
+                    <h3>❌ Before: Dual Storage</h3>
+                    <ul class="checklist">
+                        <li>Notes in PostgreSQL AND S3</li>
+                        <li>Tree structure in PostgreSQL AND S3</li>
+                        <li>Settings only in S3</li>
+                        <li>One-way sync (S3→PG) incomplete</li>
+                        <li>No clear source of truth</li>
+                        <li>Data inconsistency risks</li>
+                        <li>Complex debugging</li>
+                    </ul>
+                </div>
+                <div class="after">
+                    <h3>✅ After: Single Source of Truth</h3>
+                    <ul class="checklist done">
+                        <li done>PostgreSQL = master</li>
+                        <li done>S3 = binaries only</li>
+                        <li done>No sync complexity</li>
+                        <li done>Single query answers questions</li>
+                        <li done>Consistent state always</li>
+                        <li done>Audit trail via timestamps</li>
+                        <li done>Clear responsibilities</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Overview -->
+        <div class="section">
+            <h2>Storage Distribution</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data Type</th>
+                        <th>Primary Backend</th>
+                        <th>Why Here?</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Note Metadata</strong></td>
+                        <td>PostgreSQL</td>
+                        <td>Indexed queries, consistency</td>
+                        <td>title, timestamps, flags</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Note Content</strong></td>
+                        <td>PostgreSQL</td>
+                        <td>Edited in Lexical, full-text search</td>
+                        <td>HTML/Markdown</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tree Structure</strong></td>
+                        <td>PostgreSQL</td>
+                        <td>Hierarchical queries, single source</td>
+                        <td>folder hierarchy, parent_id</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Extracted Text</strong></td>
+                        <td>PostgreSQL</td>
+                        <td>Full-text search, processed</td>
+                        <td>OCR output (cleaned)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Embeddings</strong></td>
+                        <td>PostgreSQL (pgvector)</td>
+                        <td>Semantic search, RAG retrieval</td>
+                        <td>1536-dim vectors</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Binary Attachments</strong></td>
+                        <td>S3</td>
+                        <td>Large files, CDN, cost-effective</td>
+                        <td>PDFs, images, videos</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Raw OCR Output</strong></td>
+                        <td>S3</td>
+                        <td>Audit trail, large text</td>
+                        <td>Full pre-processed OCR</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Data Flow Diagram -->
+        <div class="section">
+            <h2>Data Flow: Upload → Searchable</h2>
+            <div class="diagram">
+                <svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%;">
+                    <!-- Title -->
+                    <text x="500" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">
+                        Complete Data Pipeline
+                    </text>
+
+                    <!-- Stage 1: Upload -->
+                    <rect x="20" y="80" width="160" height="120" fill="#e3f2fd" stroke="#4299e1" stroke-width="2" rx="6"/>
+                    <text x="100" y="105" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">1. User Upload</text>
+                    <text x="100" y="130" text-anchor="middle" font-size="12" fill="#666">POST /api/upload</text>
+                    <text x="100" y="150" text-anchor="middle" font-size="11" fill="#666">PDF/Image file</text>
+                    <text x="100" y="170" text-anchor="middle" font-size="11" fill="#666">+ Authenticated</text>
+
+                    <!-- Arrow 1 -->
+                    <path d="M 180 140 L 220 140" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Stage 2: S3 Storage -->
+                    <rect x="220" y="80" width="160" height="120" fill="#e8f5e9" stroke="#48bb78" stroke-width="2" rx="6"/>
+                    <text x="300" y="105" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">2. S3 Storage</text>
+                    <text x="300" y="130" text-anchor="middle" font-size="12" fill="#666">Binary file</text>
+                    <text x="300" y="150" text-anchor="middle" font-size="11" fill="#666">notes/{noteId}/</text>
+                    <text x="300" y="170" text-anchor="middle" font-size="11" fill="#666">{filename}</text>
+
+                    <!-- Arrow 2 -->
+                    <path d="M 380 140 L 420 140" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Stage 3: DB Record -->
+                    <rect x="420" y="80" width="160" height="120" fill="#fff3e0" stroke="#ed8936" stroke-width="2" rx="6"/>
+                    <text x="500" y="105" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">3. Attachment DB</text>
+                    <text x="500" y="130" text-anchor="middle" font-size="12" fill="#666">Insert with</text>
+                    <text x="500" y="150" text-anchor="middle" font-size="11" fill="#666">status='pending'</text>
+                    <text x="500" y="170" text-anchor="middle" font-size="11" fill="#666">+ job_id</text>
+
+                    <!-- Arrow 3 -->
+                    <path d="M 580 140 L 620 140" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Stage 4: Queue -->
+                    <rect x="620" y="80" width="160" height="120" fill="#f3e5f5" stroke="#9f7aea" stroke-width="2" rx="6"/>
+                    <text x="700" y="105" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">4. BullMQ Job</text>
+                    <text x="700" y="130" text-anchor="middle" font-size="12" fill="#666">Enqueue OCR</text>
+                    <text x="700" y="150" text-anchor="middle" font-size="11" fill="#666">with retry logic</text>
+                    <text x="700" y="170" text-anchor="middle" font-size="11" fill="#666">(async)</text>
+
+                    <!-- Arrow 4 down -->
+                    <path d="M 700 200 L 700 240" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Worker Container -->
+                    <rect x="580" y="240" width="240" height="200" fill="#f8f9fa" stroke="#667eea" stroke-width="2" rx="6" stroke-dasharray="5,5"/>
+                    <text x="700" y="265" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">BullMQ Worker Process</text>
+
+                    <!-- Worker steps -->
+                    <text x="600" y="295" font-size="11" fill="#666">• Download from S3</text>
+                    <text x="600" y="320" font-size="11" fill="#666">• OCR (Tesseract/API)</text>
+                    <text x="600" y="345" font-size="11" fill="#666">• Text processing (stopwords)</text>
+                    <text x="600" y="370" font-size="11" fill="#666">• Generate embeddings</text>
+                    <text x="600" y="395" font-size="11" fill="#666">• Update DB + S3 audit trail</text>
+                    <text x="600" y="420" font-size="11" fill="#666">• Mark attachment complete</text>
+
+                    <!-- Arrow from worker to DB -->
+                    <path d="M 580 340 L 420 340" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Final Stage: Search -->
+                    <rect x="80" y="310" width="180" height="100" fill="#e3f2fd" stroke="#4299e1" stroke-width="2" rx="6"/>
+                    <text x="170" y="335" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">5. Searchable</text>
+                    <text x="170" y="360" text-anchor="middle" font-size="11" fill="#666">• FTS on extracted text</text>
+                    <text x="170" y="380" text-anchor="middle" font-size="11" fill="#666">• Semantic search (vectors)</text>
+
+                    <!-- Arrow from final to search -->
+                    <path d="M 420 340 L 260 340" stroke="#667eea" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Legend -->
+                    <text x="20" y="470" font-size="10" fill="#999">🔒 All operations authenticated | 📝 Full audit trail | ⚡ Async processing with retries</text>
+
+                    <!-- Arrow marker definition -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#667eea"/>
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Component Grid -->
+        <div class="section">
+            <h2>Core Components</h2>
+            <div class="grid">
+                <div class="card data">
+                    <h3>PostgreSQL (Source of Truth)</h3>
+                    <ul>
+                        <li>All note metadata & content</li>
+                        <li>Tree structure & hierarchy</li>
+                        <li>Extracted text (processed)</li>
+                        <li>pgvector embeddings</li>
+                        <li>Audit timestamps</li>
+                        <li>Processing status</li>
+                    </ul>
+                </div>
+
+                <div class="card success">
+                    <h3>S3 Storage (Assets)</h3>
+                    <ul>
+                        <li>Binary files (PDFs, images)</li>
+                        <li>Raw OCR outputs</li>
+                        <li>Signed URLs (on-demand)</li>
+                        <li>Archive & versioning</li>
+                        <li>Cost-effective blob storage</li>
+                        <li>Disaster recovery</li>
+                    </ul>
+                </div>
+
+                <div class="card process">
+                    <h3>BullMQ + Redis</h3>
+                    <ul>
+                        <li>Async job queue</li>
+                        <li>OCR worker pool</li>
+                        <li>Embedding generation</li>
+                        <li>Retry logic & backoff</li>
+                        <li>Job monitoring</li>
+                        <li>Dead letter handling</li>
+                    </ul>
+                </div>
+
+                <div class="card ai">
+                    <h3>Search & RAG</h3>
+                    <ul>
+                        <li>Full-text search (tsvector)</li>
+                        <li>Semantic search (vectors)</li>
+                        <li>Similarity ranking</li>
+                        <li>RAG context retrieval</li>
+                        <li>Progress tracking</li>
+                        <li>Error recovery</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Endpoints -->
+        <div class="section">
+            <h2>API Endpoints (Updated)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Method</th>
+                        <th>Auth</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>/api/upload</code></td>
+                        <td>POST</td>
+                        <td>✓ Required</td>
+                        <td>Upload file → S3 + enqueue OCR</td>
+                    </tr>
+                    <tr>
+                        <td><code>/api/notes/{id}</code></td>
+                        <td>GET</td>
+                        <td>✓ Required</td>
+                        <td>Fetch note (from PostgreSQL)</td>
+                    </tr>
+                    <tr>
+                        <td><code>/api/notes/{id}</code></td>
+                        <td>PUT</td>
+                        <td>✓ Required</td>
+                        <td>Update note content/metadata</td>
+                    </tr>
+                    <tr>
+                        <td><code>/api/search</code></td>
+                        <td>POST</td>
+                        <td>✓ Required</td>
+                        <td>FTS or semantic search</td>
+                    </tr>
+                    <tr>
+                        <td><code>/api/notes/{id}/processing-status</code></td>
+                        <td>GET</td>
+                        <td>✓ Required</td>
+                        <td>Get OCR + embedding status</td>
+                    </tr>
+                    <tr>
+                        <td><code>/api/tree</code></td>
+                        <td>GET/POST</td>
+                        <td>✓ Required</td>
+                        <td>Tree ops (PostgreSQL only)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Migration Timeline -->
+        <div class="section">
+            <h2>Implementation Roadmap</h2>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <h4>Phase 1: Schema & Cleanup (Week 1)</h4>
+                        <p><span class="badge primary">Foundation</span></p>
+                        <ul class="checklist tasks">
+                            <li>Remove Prisma dependencies</li>
+                            <li>Add new columns to <code>app.notes</code></li>
+                            <li>Create FTS + vector indexes</li>
+                            <li>Consolidate auth (next-auth only)</li>
+                            <li>Update middleware</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <h4>Phase 2: API Refactor (Week 2-3)</h4>
+                        <p><span class="badge primary">Integration</span></p>
+                        <ul class="checklist tasks">
+                            <li>Update <code>/api/upload</code> with auth</li>
+                            <li>Implement <code>/api/search</code></li>
+                            <li>Add processing-status endpoint</li>
+                            <li>Remove S3 calls from note CRUD</li>
+                            <li>Consolidate tree to PostgreSQL only</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <h4>Phase 3: BullMQ Setup (Week 3-4)</h4>
+                        <p><span class="badge warning">Processing</span></p>
+                        <ul class="checklist tasks">
+                            <li>Install BullMQ + Redis</li>
+                            <li>Implement OCR worker</li>
+                            <li>Add embedding generation</li>
+                            <li>Set up job monitoring</li>
+                            <li>Test with sample PDFs</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <h4>Phase 4: Data Migration (Week 4-5)</h4>
+                        <p><span class="badge primary">Validation</span></p>
+                        <ul class="checklist tasks">
+                            <li>Build migration script</li>
+                            <li>Test in staging</li>
+                            <li>Verify consistency</li>
+                            <li>Validate no data loss</li>
+                            <li>Deploy to production</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <h4>Phase 5: Cleanup (Week 5)</h4>
+                        <p><span class="badge success">Complete</span></p>
+                        <ul class="checklist tasks">
+                            <li>Delete S3 sync code</li>
+                            <li>Remove legacy storage layer</li>
+                            <li>Archive old S3 files</li>
+                            <li>Full regression testing</li>
+                            <li>Documentation update</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Benefits -->
+        <div class="section">
+            <h2>Benefits Summary</h2>
+            <div class="grid">
+                <div class="card success">
+                    <h3>✅ Single Source of Truth</h3>
+                    <p>PostgreSQL is the master. One query answers any question. No more "which one is correct?"</p>
+                </div>
+                <div class="card success">
+                    <h3>✅ No Sync Complexity</h3>
+                    <p>Remove one-way S3→PG sync code. No more stale data or data inconsistency.</p>
+                </div>
+                <div class="card success">
+                    <h3>✅ Consistent State</h3>
+                    <p>Transactions ensure integrity. Audit trail via timestamps.</p>
+                </div>
+                <div class="card process">
+                    <h3>⚡ Scalable Pipeline</h3>
+                    <p>BullMQ worker pool handles OCR asynchronously with retry logic.</p>
+                </div>
+                <div class="card ai">
+                    <h3>🔍 Dual Search</h3>
+                    <p>Full-text search (keyword) + semantic search (meaning-based).</p>
+                </div>
+                <div class="card ai">
+                    <h3>🤖 RAG Ready</h3>
+                    <p>Embeddings + retrieved text ready for LLM context injection.</p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>OghmaNotes Storage Architecture</strong> • PostgreSQL-Primary with BullMQ OCR Pipeline</p>
+            <p>See <code>STORAGE_ARCHITECTURE.md</code> for detailed schema, API specs, and code examples</p>
+        </footer>
+    </div>
+</body>
+</html>

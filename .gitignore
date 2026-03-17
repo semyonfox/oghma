@@ -33,11 +33,10 @@ yarn-error.log*
 .pnpm-debug.log*
 pnpm-lock.yaml
 
-# env files: ignore all env files by default but keep .env.example and templates committed
+# env files: ignore all, only .env.example and *.template files committed
 .env*
 !.env.example
-!.env.local
-!.env.staging.template
+!*.template
 
 # local-specific envs
 .env.local
@@ -52,6 +51,9 @@ stack.env
 # backups of old envs
 env.old/
 .env
+
+# generated manifests that may contain secrets
+STORAGE_FINDINGS_MANIFEST.txt
 
 
 CLAUDE.md

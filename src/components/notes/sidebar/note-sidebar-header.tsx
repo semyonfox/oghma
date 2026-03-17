@@ -15,7 +15,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
   const { sidebar } = useUIComposite();
   const { genNewId } = useNoteTreeStore();
-  const { createNote } = useNoteStore();
+  const { createNote, createFolder } = useNoteStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleCreateNote = useCallback(
@@ -36,9 +36,57 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   );
 
   const handleUploadFile = useCallback(async (file: File) => {
-    // TODO: Implement file upload logic
-    console.log('Upload file:', file);
-  }, []);
+    // create a note entry for the uploaded file
+    const newId = genNewId();
+    const fileName = file.name || 'Untitled';
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+
+    // determine file type for the renderer
+    let fileType: 'note' | 'pdf' | 'image' | 'video' = 'note';
+    if (ext === 'pdf') fileType = 'pdf';
+    else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) fileType = 'image';
+    else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) fileType = 'video';
+
+    // upload file to S3 via the upload API
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('noteId', newId);
+
+    const uploadRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      console.error('Upload failed:', await uploadRes.text());
+      return;
+    }
+
+    const uploadData = await uploadRes.json();
+
+    // create a note record so it appears in the tree
+    // for non-markdown files, store the S3 path as content so the viewer can retrieve it
+    const content = fileType === 'note'
+      ? (await file.text())
+      : uploadData.path;
+
+    const newNote = await createNote({
+      id: newId,
+      title: fileName,
+      content,
+    });
+
+    if (newNote) {
+      router.push(`/notes/${newId}`);
+    }
+  }, [genNewId, createNote, router]);
+
+  const handleCreateFolder = useCallback(
+    async () => {
+      await createFolder(undefined);
+    },
+    [createFolder]
+  );
 
   return (
     <>
@@ -78,6 +126,7 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateNote={handleCreateNote}
+        onCreateFolder={handleCreateFolder}
         onUploadFile={handleUploadFile}
       />
     </>

@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware';
 
 export type FileType = 'note' | 'pdf' | 'image' | 'video';
 export type NavSection = 'notes' | 'search' | 'calendar' | 'quiz' | 'flashcards' | 'analytics' | 'settings';
-export type RightPanelTab = 'todo' | 'chat' | 'links' | 'properties';
 
 interface PaneState {
   fileId: string;
   fileType: FileType;
   title?: string;
+  sourcePath?: string;
   editMode?: boolean; // For notes only
   lastOpened?: number; // timestamp
 }
@@ -26,7 +26,6 @@ interface LayoutState {
 
   // Right panel
   rightPanelOpen: boolean;
-  rightPanelTab: RightPanelTab;
 
   // UI sizes (persist to localStorage)
   treeWidth: number; // 200-600px
@@ -38,6 +37,9 @@ interface LayoutState {
   collapsedSections: Set<string>; // Notes, Documents, Media, Tags
   selectedNode: string | null;
 
+  // Drag state
+  draggedFile: FileSpec | null;
+
   // Methods
   setActiveNav: (nav: NavSection) => void;
   setPaneA: (file: FileSpec | undefined) => void;
@@ -47,29 +49,29 @@ interface LayoutState {
   setPaneEditMode: (pane: 'A' | 'B', editMode: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
-  setRightPanelTab: (tab: RightPanelTab) => void;
   setSizes: (tree: number, right: number, split: number) => void;
   toggleExpandedNode: (nodeId: string) => void;
   toggleCollapsedSection: (section: string) => void;
   setSelectedNode: (nodeId: string | null) => void;
+  setDraggedFile: (file: FileSpec | null) => void;
 }
 
 const useLayoutStore = create<LayoutState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Initial state
       activeNav: 'notes',
       paneA: { fileId: '', fileType: 'note' as FileType },
       paneB: null,
       activePane: 'A',
-      rightPanelOpen: false,
-      rightPanelTab: 'todo',
+      rightPanelOpen: true,
       treeWidth: 250,
       rightPanelWidth: 300,
       splitPosition: 50,
-      expandedNodes: new Set(['root']),
-      collapsedSections: new Set(),
-      selectedNode: null,
+       expandedNodes: new Set(['root']),
+       collapsedSections: new Set(),
+       selectedNode: null,
+       draggedFile: null,
 
       // Navigation
       setActiveNav: (nav) => set({ activeNav: nav }),
@@ -120,7 +122,6 @@ const useLayoutStore = create<LayoutState>()(
       // Right panel
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
-      setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
 
       // Sizes
       setSizes: (tree, right, split) => {
@@ -157,6 +158,8 @@ const useLayoutStore = create<LayoutState>()(
       },
 
       setSelectedNode: (nodeId) => set({ selectedNode: nodeId }),
+
+      setDraggedFile: (file) => set({ draggedFile: file }),
     }),
     {
       name: 'oghmaNotes-layout-store',

@@ -62,6 +62,16 @@ export async function POST(request) {
             return createErrorResponse('Invalid email or password', 401);
         }
 
+        // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
+        if (data.length > 1) {
+            console.error('Security alert: Multiple accounts with same email detected', {
+                email: email.trim(),
+                count: data.length,
+                user_ids: data.map(u => u.user_id)
+            });
+            return createErrorResponse('Account configuration error. Please contact support.', 500);
+        }
+
         // 6. Verify password
         const matchingPassword = await bcrypt.compare(password, user.hashed_password);
 

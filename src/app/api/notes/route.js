@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
+import { generateUUID } from '@/lib/utils/uuid';
 import sql from '@/database/pgsql.js';
 
 // Constants
@@ -51,8 +52,8 @@ export async function GET(request) {
     
     // Get user's notes from PostgreSQL
     let notes = await sql`
-      SELECT * FROM app.notes
-      WHERE user_id = ${user.user_id} AND deleted = 0
+      SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+      WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
     
@@ -62,8 +63,21 @@ export async function GET(request) {
       notes = notes.slice(skip, end);
     }
     
+    // Map to NoteModel format (rename note_id to id, convert numbers)
+    const mapped = notes.map(note => ({
+      id: note.note_id,
+      title: note.title,
+      content: note.content,
+      deleted: note.deleted,
+      shared: note.shared,
+      pinned: note.pinned,
+      editorsize: null,
+      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
+      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
+    }));
+    
     // Filter fields if requested
-    const filtered = notes.map(note => filterNoteFields(note, fields));
+    const filtered = mapped.map(note => filterNoteFields(note, fields));
     
     return NextResponse.json(filtered);
   } catch (error) {
@@ -88,26 +102,35 @@ export async function POST(request) {
 
     const body = await request.json();
     
+    // Generate UUID v7 for note
+    const noteId = generateUUID();
+    
     // Create new note in PostgreSQL
+    const isFolder = body.isFolder === true || body.is_folder === true;
     const result = await sql`
-      INSERT INTO app.notes (user_id, title, content, deleted, created_at, updated_at)
-      VALUES (${user.user_id}, ${body.title || 'Untitled'}, ${body.content || '\n'}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
-      RETURNING note_id, user_id, title, content, created_at, updated_at
+      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? 'New Folder' : 'Untitled')}, ${body.content || '\n'}, ${isFolder}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
+      RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
     `;
 
     const note = result[0];
 
-    // Add note to tree (in root if no parent specified)
-    const parentId = body.pid ? parseInt(body.pid, 10) : null;
+    // Add note to tree with optional parent_id from request body
+    // If pid is provided, use it; otherwise add to root (parent_id = null)
+    const parentId = body.pid || null;
     await addNoteToTree(user.user_id, note.note_id, parentId);
 
     return NextResponse.json({
-      note_id: note.note_id,
-      user_id: note.user_id,
+      id: note.note_id,
       title: note.title,
       content: note.content,
-      created_at: note.created_at,
-      updated_at: note.updated_at,
+      isFolder: note.is_folder,
+      deleted: 0,  // NOTE_DELETED.NORMAL
+      shared: 0,   // NOTE_SHARE.PRIVATE
+      pinned: 0,   // NOTE_PINNED.UNPINNED
+      editorsize: null,
+      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
+      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
     }, { status: 201 });
   } catch (error) {
     console.error('Notes POST error:', error);

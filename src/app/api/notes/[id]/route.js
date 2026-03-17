@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
+import { isValidUUID } from '@/lib/uuid-validation.js';
 import { removeNoteFromTree } from '@/lib/notes/storage/pg-tree.js';
 import { deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
 import sql from '@/database/pgsql.js';
@@ -33,28 +34,41 @@ export async function GET(request, { params }) {
     }
 
     const { id } = await params;
-    const noteId = parseInt(id, 10);
+    const noteId = id;
     
-    if (isNaN(noteId)) {
+    if (!isValidUUID(noteId)) {
       return NextResponse.json(
         { error: 'Invalid note ID' },
         { status: 400 }
       );
     }
 
-    // Get note from PostgreSQL (verify ownership)
-    const result = await sql`
-      SELECT * FROM app.notes
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
-    `;
+     // Get note from PostgreSQL (verify ownership)
+     const result = await sql`
+       SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
+     `;
 
-    const note = result[0];
-    if (!note) {
-      return NextResponse.json(
-        { error: 'Note not found' },
-        { status: 404 }
-      );
-    }
+     const dbNote = result[0];
+     if (!dbNote) {
+       return NextResponse.json(
+         { error: 'Note not found' },
+         { status: 404 }
+       );
+     }
+
+     // Map to NoteModel format
+     const note = {
+       id: dbNote.note_id,
+       title: dbNote.title,
+       content: dbNote.content,
+       deleted: dbNote.deleted,
+       shared: dbNote.shared,
+       pinned: dbNote.pinned,
+       editorsize: null,
+       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
+       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
+     };
 
     // Parse fields from query parameters
     const url = new URL(request.url);
@@ -86,9 +100,9 @@ export async function PUT(request, { params }) {
     }
 
     const { id } = await params;
-    const noteId = parseInt(id, 10);
+    const noteId = id;
     
-    if (isNaN(noteId)) {
+    if (!isValidUUID(noteId)) {
       return NextResponse.json(
         { error: 'Invalid note ID' },
         { status: 400 }
@@ -100,7 +114,7 @@ export async function PUT(request, { params }) {
     // Get existing note (verify ownership)
     const result = await sql`
       SELECT * FROM app.notes
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
     `;
 
     const existingNote = result[0];
@@ -117,11 +131,22 @@ export async function PUT(request, { params }) {
       SET title = ${body.title || existingNote.title},
           content = ${body.content || existingNote.content},
           updated_at = NOW()
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
-      RETURNING *
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+      RETURNING note_id, title, content, deleted, shared, pinned, created_at, updated_at
     `;
 
-    return NextResponse.json(updatedNote[0]);
+    const dbNote = updatedNote[0];
+    return NextResponse.json({
+      id: dbNote.note_id,
+      title: dbNote.title,
+      content: dbNote.content,
+      deleted: dbNote.deleted,
+      shared: dbNote.shared,
+      pinned: dbNote.pinned,
+      editorsize: null,
+      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
+      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
+    });
   } catch (error) {
     console.error('Note PUT error:', error);
     return NextResponse.json(
@@ -143,9 +168,9 @@ export async function DELETE(request, { params }) {
     }
 
     const { id } = await params;
-    const noteId = parseInt(id, 10);
+    const noteId = id;
     
-    if (isNaN(noteId)) {
+    if (!isValidUUID(noteId)) {
       return NextResponse.json(
         { error: 'Invalid note ID' },
         { status: 400 }
@@ -155,7 +180,7 @@ export async function DELETE(request, { params }) {
     // Verify ownership and note exists
     const result = await sql`
       SELECT * FROM app.notes
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
     `;
 
     if (result.length === 0) {
@@ -165,10 +190,11 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Delete note from PostgreSQL
+    // Soft delete note (set deleted flag and timestamp)
     await sql`
-      DELETE FROM app.notes
-      WHERE note_id = ${noteId} AND user_id = ${user.user_id}
+      UPDATE app.notes
+      SET deleted = 1, deleted_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
     `;
 
     // Remove from tree

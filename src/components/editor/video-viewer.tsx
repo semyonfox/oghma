@@ -2,6 +2,7 @@
 
 import { FC, useRef } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
+import { useFileUrl } from './use-file-url';
 
 interface VideoViewerProps {
   file: FileSpec;
@@ -13,11 +14,10 @@ interface VideoViewerProps {
  */
 const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const videoSrc = file.title || '';
+  const { url: videoSrc } = useFileUrl(file.sourcePath);
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
+    <div className="h-full flex flex-col bg-gray-800">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
         <span className="text-xs text-gray-400">{file.title}</span>
@@ -25,7 +25,7 @@ const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
       </div>
 
       {/* Video Player */}
-      <div className="flex-1 flex items-center justify-center bg-gray-950 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
         <video
           ref={videoRef}
           src={videoSrc}

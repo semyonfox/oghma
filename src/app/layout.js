@@ -1,5 +1,8 @@
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import "./globals.css";
+// Import react-pdf styles globally so they're available for all PDF viewers
+import "react-pdf/dist/Page/TextLayer.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
 
 export const metadata = {
     title: "OghmaNotes",
