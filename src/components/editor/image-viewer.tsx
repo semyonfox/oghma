@@ -63,7 +63,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-800">
+    <div className="h-full flex flex-col bg-gray-950">
       {/* Controls */}
       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -104,7 +104,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
 
       {/* Image Container */}
       <div
-        className="flex-1 overflow-auto bg-gray-800 flex items-center justify-center cursor-grab active:cursor-grabbing"
+        className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

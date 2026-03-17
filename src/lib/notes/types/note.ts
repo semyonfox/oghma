@@ -12,8 +12,6 @@ export interface NoteModel {
     content?: string;
     pic?: string;
     date?: string;
-    createdAt?: string; // ISO 8601 timestamp
-    updatedAt?: string; // ISO 8601 timestamp
     isFolder?: boolean; // true if this note is a folder/directory
     deleted: NOTE_DELETED;
     shared: NOTE_SHARED;

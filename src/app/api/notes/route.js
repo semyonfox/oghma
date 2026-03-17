@@ -52,7 +52,7 @@ export async function GET(request) {
     
     // Get user's notes from PostgreSQL
     let notes = await sql`
-      SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+      SELECT note_id, title, content, deleted, shared, pinned FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
@@ -72,8 +72,6 @@ export async function GET(request) {
       shared: note.shared,
       pinned: note.pinned,
       editorsize: null,
-      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
-      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
     }));
     
     // Filter fields if requested
@@ -129,8 +127,6 @@ export async function POST(request) {
       shared: 0,   // NOTE_SHARE.PRIVATE
       pinned: 0,   // NOTE_PINNED.UNPINNED
       editorsize: null,
-      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
-      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
     }, { status: 201 });
   } catch (error) {
     console.error('Notes POST error:', error);

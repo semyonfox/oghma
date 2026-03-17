@@ -216,7 +216,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       </div>
 
        {/* Content Area - Same background for both modes */}
-       <div className="flex-1 overflow-auto flex flex-col items-center bg-gray-800">
+       <div className="flex-1 overflow-auto flex flex-col items-center">
          {mode === 'source' ? (
            loaded ? (
              <div className="w-full max-w-5xl h-full">
@@ -230,7 +230,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
                  }}
                  onKeyDown={handleTextareaKeyDown}
                  spellCheck={false}
-                 className="w-full h-full bg-gray-800 text-gray-200 font-mono text-sm leading-relaxed px-12 py-8 outline-none resize-none"
+                 className="w-full h-full bg-transparent text-gray-200 font-mono text-sm leading-relaxed px-12 py-8 outline-none resize-none"
                  placeholder="Start writing..."
                />
              </div>
@@ -241,9 +241,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
            )
          ) : (
            loaded ? (
-             <div className="w-full max-w-5xl h-full bg-gray-800">
+             <div className="w-full max-w-5xl h-full">
                {/* Centered rendered view with same styling */}
-               <div className="px-12 py-8 prose prose-invert h-full bg-gray-800 text-gray-200">
+               <div className="px-12 py-8 prose prose-invert h-full">
                  <PreviewRenderer content={displayContent} />
                </div>
              </div>
