@@ -57,7 +57,7 @@ npm run dev
 ### Read the Reference Implementation
 
 Before writing any endpoint, read:
-- **`src/app/api/auth/login/route.js`** - This is the pattern to copy
+- **`src/app/api/auth/login/route.ts`** - This is the pattern to copy
 - **[DEVELOPMENT_PATTERNS.md](DEVELOPMENT_PATTERNS.md)** - Detailed breakdown of that pattern
 
 Key things to notice:
@@ -92,7 +92,7 @@ This is exactly what your new endpoints should do.
 
 | What | Where | Why |
 |------|-------|-----|
-| Create API endpoints | `src/app/api/[feature]/route.js` | All backend logic |
+| Create API endpoints | `src/app/api/[feature]/route.ts` | All backend logic |
 | Validate user input | `src/lib/validation.js` | Prevent bad data |
 | Database queries | `src/database/pgsql.js` | Connect to PostgreSQL |
 | API specs | `docs/API_SPECS.md` | Know exactly what to build |
@@ -126,10 +126,10 @@ This is exactly what your new endpoints should do.
 less docs/API_SPECS.md  # Find "POST /api/events" section
 
 # 2. Look at the pattern
-cat src/app/api/auth/register/route.js  # Copy this structure
+cat src/app/api/auth/register/route.ts # Copy this structure
 
 # 3. Create your file
-touch src/app/api/events/route.js
+touch src/app/api/events/route.ts
 
 # 4. Write the endpoint (reference the pattern)
 # Remember: validate → query → respond
@@ -211,7 +211,7 @@ Check **[TECH_LEAD_GUIDE.md](TECH_LEAD_GUIDE.md)** to see what Semyon is trackin
 
 ### "Where do I put this code?"
 
-- **API endpoints?** `src/app/api/[feature]/route.js`
+- **API endpoints?** `src/app/api/[feature]/route.ts`
 - **Reusable logic?** `src/lib/[feature].js`
 - **Database queries?** In the endpoint or `src/database/pgsql.js`
 - **UI components?** `src/components/[feature]/` (eventually)

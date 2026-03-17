@@ -15,7 +15,7 @@
 
 ## Checklist
 
-- [ ] Code follows the auth pattern in `/src/app/api/auth/login/route.js`
+- [ ] Code follows the auth pattern in `/src/app/api/auth/login/route.ts`
 - [ ] All functions have JSDoc with purpose + security notes
 - [ ] No `console.log` statements (except in development)
 - [ ] Error handling: catches errors, returns proper HTTP status

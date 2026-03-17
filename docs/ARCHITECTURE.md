@@ -179,10 +179,10 @@ ct216_project/
 ├── src/app/
 │   ├── api/                        # BACKEND - API Routes
 │   │   ├── auth/
-│   │   │   ├── login/route.js      # POST /api/auth/login
-│   │   │   └── register/route.js   # POST /api/auth/register
+│   │   │   ├── login/route.ts      # POST /api/auth/login
+│   │   │   └── register/route.ts   # POST /api/auth/register
 │   │   └── events/
-│   │       └── route.js            # GET/POST /api/events
+│   │       └── route.ts            # GET/POST /api/events
 │   │
 │   ├── login/                      # FRONTEND - Pages
 │   │   └── page.js                 # Login page UI
