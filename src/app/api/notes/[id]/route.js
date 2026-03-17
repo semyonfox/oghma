@@ -45,7 +45,7 @@ export async function GET(request, { params }) {
 
     // Get note from PostgreSQL (verify ownership)
     const result = await sql`
-      SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+      SELECT note_id, title, content, deleted, shared, pinned FROM app.notes
       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
     `;
 
@@ -66,8 +66,6 @@ export async function GET(request, { params }) {
       shared: dbNote.shared,
       pinned: dbNote.pinned,
       editorsize: null,
-      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
     };
 
     // Parse fields from query parameters
@@ -132,7 +130,7 @@ export async function PUT(request, { params }) {
           content = ${body.content || existingNote.content},
           updated_at = NOW()
       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-      RETURNING note_id, title, content, deleted, shared, pinned, created_at, updated_at
+      RETURNING note_id, title, content, deleted, shared, pinned
     `;
 
     const dbNote = updatedNote[0];
@@ -144,8 +142,6 @@ export async function PUT(request, { params }) {
       shared: dbNote.shared,
       pinned: dbNote.pinned,
       editorsize: null,
-      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
     });
   } catch (error) {
     console.error('Note PUT error:', error);

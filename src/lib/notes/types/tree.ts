@@ -113,7 +113,7 @@ function moveItem(
         return tree;
     }
 
-    // Create new tree with copy of items
+    // Simple implementation - find item at source position and move to destination
     const newTree = { ...tree, items: { ...tree.items } };
     const sourceParent = newTree.items[source.parentId];
     const destParent = newTree.items[destination.parentId];
@@ -127,42 +127,19 @@ function moveItem(
         return tree;
     }
 
-    // Handle same-parent moves (reordering within same folder)
-    if (source.parentId === destination.parentId) {
-        // Prevent moving to the same position or adjacent positions
-        if (Math.abs(source.index - destination.index) <= 1) {
-            return tree;
-        }
-        
-        // Remove from source and insert at destination
-        const newChildren = [...sourceParent.children];
-        newChildren.splice(source.index, 1); // Remove from source
-        
-        // Adjust destination index if moving down
-        const adjustedIndex = source.index < destination.index 
-            ? destination.index - 1 
-            : destination.index;
-        
-        newChildren.splice(adjustedIndex, 0, itemId); // Insert at destination
-        newTree.items[source.parentId] = {
-            ...sourceParent,
-            children: newChildren,
-        };
-    } else {
-        // Different parent - remove from source and add to destination
-        const sourceChildren = sourceParent.children.filter((_, idx) => idx !== source.index);
-        newTree.items[source.parentId] = {
-            ...sourceParent,
-            children: sourceChildren,
-        };
+    // Remove from source
+    newTree.items[source.parentId] = {
+        ...sourceParent,
+        children: sourceParent.children.filter((_, idx) => idx !== source.index),
+    };
 
-        const destChildren = [...destParent.children];
-        destChildren.splice(destination.index, 0, itemId);
-        newTree.items[destination.parentId] = {
-            ...destParent,
-            children: destChildren,
-        };
-    }
+    // Add to destination
+    const newDestChildren = [...destParent.children];
+    newDestChildren.splice(destination.index, 0, itemId);
+    newTree.items[destination.parentId] = {
+        ...destParent,
+        children: newDestChildren,
+    };
 
     return newTree;
 }

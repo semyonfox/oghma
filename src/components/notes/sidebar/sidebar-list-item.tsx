@@ -31,7 +31,6 @@ const SidebarListItem: FC<{
     };
     isRenaming?: boolean;
     onRenameComplete?: (newTitle: string) => void;
-    interactiveProps?: React.HTMLAttributes<HTMLDivElement>;
 }> = ({
     item,
     innerRef,
@@ -41,13 +40,12 @@ const SidebarListItem: FC<{
     hasChildren,
     isRenaming = false,
     onRenameComplete,
-    interactiveProps,
     ...attrs
 }) => {
     const { t } = useI18n();
     const router = useRouter();
     const pathname = usePathname();
-    const { mutateItem, initLoaded } = useNoteTreeStore();
+    const { mutateItem, initLoaded, genNewId } = useNoteTreeStore();
     const { createNote } = useNoteStore();
     const { activePane, setPaneA, setPaneB, setActivePane } = useLayoutStore();
     const {
@@ -89,24 +87,28 @@ const SidebarListItem: FC<{
         return `/${item.id}`;
     }, [pathname, item.id, hasChildren]);
 
-      const onAddNote = useCallback(
-          async (e: React.MouseEvent) => {
-              e.preventDefault();
-              const newNote = await createNote({
-                  title: 'Untitled',
-                  content: '\n',
-                  pid: item.id,
-              });
+     const onAddNote = useCallback(
+         async (e: React.MouseEvent) => {
+             e.preventDefault();
+             // Create a new note under this item without navigation
+             const newId = genNewId();
+             const newNote = await createNote({
+                 id: newId,
+                 title: 'Untitled',
+                 content: '\n',
+                 pid: item.id,
+             });
 
-              if (newNote) {
-                  await mutateItem(item.id, {
-                      isExpanded: true,
-                  });
-                  router.push(`/notes/${newNote.id}`);
-              }
-          },
-          [item.id, mutateItem, createNote, router]
-      );
+             if (newNote) {
+                 // Expand the parent and navigate to the new note
+                 await mutateItem(item.id, {
+                     isExpanded: true,
+                 });
+                 router.push(`/notes/${newId}`);
+             }
+         },
+         [item.id, mutateItem, genNewId, createNote, router]
+     );
 
       const handleClickMenu = useCallback(
           (event: React.MouseEvent) => {
@@ -170,20 +172,22 @@ const SidebarListItem: FC<{
      /**
       * Handle drag start - store file in zustand for drop handling
       */
-      const handleDragStart = useCallback(
-          (e: React.DragEvent) => {
-              if (hasChildren) return;
-
-              const spec = buildFileSpec(item);
-
-              useLayoutStore.getState().setDraggedFile(spec);
-
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('application/json', JSON.stringify(spec));
-              e.dataTransfer.setData('text/plain', item.title || 'Untitled');
-          },
-          [hasChildren, item]
-      );
+     const handleDragStart = useCallback(
+         (e: React.DragEvent) => {
+             if (hasChildren) return; // Don't drag folders
+             
+             const spec = buildFileSpec(item);
+             
+             // Store in zustand so split pane can access it
+             useLayoutStore.getState().setDraggedFile(spec);
+             
+             // Also set in dataTransfer for fallback
+             e.dataTransfer.effectAllowed = 'copy';
+             e.dataTransfer.setData('application/json', JSON.stringify(spec));
+             e.dataTransfer.setData('text/plain', item.title || 'Untitled');
+         },
+         [hasChildren, item]
+     );
 
      /**
       * Handle drag end - clear stored file
@@ -230,50 +234,42 @@ const SidebarListItem: FC<{
     }, [item.title]);
 
      // Determine if this is a true folder (has folder emoji or is a container)
-      const isActualFolder = useMemo(() => {
-          if (item.isFolder) return true;
-          if (item.title?.includes('📁')) return true;
-          if (item.content && (item.content.startsWith('s3://') || item.content.startsWith('http'))) {
-              return false;
-          }
-          return hasChildren;
-      }, [item.isFolder, item.title, item.content, hasChildren]);
+     const isActualFolder = useMemo(() => {
+         // Check if title contains folder emoji
+         if (item.title?.includes('📁')) return true;
+         // Check if it's content is a file path (S3 upload) vs regular note
+         if (item.content && (item.content.startsWith('s3://') || item.content.startsWith('http'))) {
+             return false; // File content, not a folder
+         }
+         // Default: items with children are folders
+         return hasChildren;
+     }, [item.title, item.content, hasChildren]);
 
      return (
          <>
                 <div
                     {...attrs}
-                    {...interactiveProps}
                     ref={(el) => {
                         itemElementRef.current = el;
                         innerRef(el);
                     }}
-                    className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                        snapshot.isDragging ? 'shadow' : ''
-                    } ${
-                        activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                    }`}
-                    role="treeitem"
-                    aria-expanded={hasChildren ? isExpanded : undefined}
-                    aria-selected={activeId === item.id}
-                    aria-current={activeId === item.id ? 'page' : undefined}
-                    onDragStart={(e) => {
-                        handleDragStart(e);
-                        interactiveProps?.onDragStart?.(e);
-                    }}
-                    onDragEnd={(e) => {
-                        handleDragEnd();
-                        interactiveProps?.onDragEnd?.(e);
-                    }}
-                 >
+                     className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                       snapshot.isDragging ? 'shadow' : ''
+                   } ${
+                       activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                   }`}
+                   role="treeitem"
+                   aria-expanded={hasChildren ? isExpanded : undefined}
+                   aria-selected={activeId === item.id}
+                   aria-current={activeId === item.id ? 'page' : undefined}
+                >
                   <Link 
-                       href={linkHref}
-                       className="flex flex-1 items-center truncate"
-                       onClick={handleClickItem}
-                       onDoubleClick={handleDoubleClick}
-                       aria-label={item.title || t('Untitled')}
-                       draggable={false}
-                   >
+                      href={linkHref}
+                      className="flex flex-1 items-center truncate"
+                      onClick={handleClickItem}
+                      onDoubleClick={handleDoubleClick}
+                      aria-label={item.title || t('Untitled')}
+                  >
                       {hasChildren ? (
                           // Folders: show expand/collapse icon
                           emoji ? (
