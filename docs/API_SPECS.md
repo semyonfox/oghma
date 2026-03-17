@@ -1,7 +1,7 @@
 # API Specifications
 
 **Purpose:** Define all API endpoints that the team will build.
-**Pattern Reference:** Follow the auth pattern in `/src/app/api/auth/login/route.js`
+**Pattern Reference:** Follow the auth pattern in `/src/app/api/auth/login/route.ts`
 
 ---
 
@@ -323,7 +323,7 @@ All endpoints follow this pattern:
 
 ## Implementation Notes
 
-**Reference Implementation:** `/src/app/api/auth/login/route.js`
+**Reference Implementation:** `/src/app/api/auth/login/route.ts`
 - Use same response helpers: `createSuccessResponse()`, `createErrorResponse()`, etc.
 - Use same validation pattern: `validateAuthCredentials()` approach
 - Use same database pattern: `await sql\`...\`` with parameterized values

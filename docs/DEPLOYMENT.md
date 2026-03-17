@@ -314,7 +314,7 @@ psycopg2-binary
 
 **In Next.js API route:**
 ```javascript
-// app/api/recommendations/route.js
+// app/api/recommendations/route.ts
 export async function GET(request) {
   const userId = request.headers.get('x-user-id');
   

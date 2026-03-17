@@ -358,12 +358,12 @@ api-client.ts
 // Next.js routes are CASE-SENSITIVE
 
 // WRONG - will cause 404 errors
-src/app/api/auth/Login/route.js    → /api/auth/Login (broken)
-src/app/api/auth/Register/route.js → /api/auth/Register (broken)
+src/app/api/auth/Login/route.ts    → /api/auth/Login (broken)
+src/app/api/auth/Register/route.ts → /api/auth/Register (broken)
 
 // CORRECT
-src/app/api/auth/login/route.js    → /api/auth/login
-src/app/api/auth/register/route.js → /api/auth/register
+src/app/api/auth/login/route.ts    → /api/auth/login
+src/app/api/auth/register/route.ts → /api/auth/register
 ```
 
 > **Note:** If your API returns 404 and the route file exists, CHECK THE FOLDER NAME CASING FIRST!

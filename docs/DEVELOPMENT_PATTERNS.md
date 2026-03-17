@@ -2,7 +2,7 @@
 
 This guide shows you exactly how to write code that fits the SocsBoard style. Copy these patterns.
 
-**Reference implementation:** `src/app/api/auth/login/route.js`
+**Reference implementation:** `src/app/api/auth/login/route.ts`
 
 ---
 
@@ -10,7 +10,7 @@ This guide shows you exactly how to write code that fits the SocsBoard style. Co
 
 All endpoints follow this structure.
 
-### File: `src/app/api/[feature]/[action]/route.js`
+### File: `src/app/api/[feature]/[action]/route.ts`
 
 ```javascript
 import { validateEmail } from '@/lib/validation';

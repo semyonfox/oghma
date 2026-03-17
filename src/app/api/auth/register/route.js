@@ -30,7 +30,7 @@ export async function POST(request) {
         // 3. Check if user already exists
         const existingUser = await sql`
             SELECT user_id
-            FROM public.login
+            FROM sam.login
             WHERE email = ${email.trim()}
         `;
 
@@ -43,7 +43,7 @@ export async function POST(request) {
 
         // 5. Insert new user into database
         const data = await sql`
-            INSERT INTO public.login (email, hashed_password)
+            INSERT INTO sam.login (email, hashed_password)
             VALUES (${email.trim()}, ${hashedPassword}) RETURNING user_id, email
         `;
 

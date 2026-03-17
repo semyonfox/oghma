@@ -34,7 +34,7 @@ assignees: ''
 - `/src/database/...` - queries
 
 ### Reference
-Follow the pattern from: `/src/app/api/auth/login/route.js`
+Follow the pattern from: `/src/app/api/auth/login/route.ts`
 
 ## Testing Checklist
 

@@ -49,7 +49,7 @@ export async function POST(request) {
         // 5. Query database for user
         const data = await sql`
             SELECT user_id, email, hashed_password
-            FROM public.login
+            FROM sam.login
             WHERE email = ${email.trim()};
         `;
 
