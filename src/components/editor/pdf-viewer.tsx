@@ -43,7 +43,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-gray-800">
+    <div className="h-full flex flex-col bg-gray-950">
       {/* Controls */}
       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
         <div className="text-xs text-gray-400">
@@ -73,7 +73,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
       </div>
 
       {/* PDF Canvas - Scrollable */}
-      <div className="flex-1 overflow-y-auto flex items-start justify-center bg-gray-800 p-4">
+      <div className="flex-1 overflow-y-auto flex items-start justify-center bg-gray-950 p-4">
         <Document
           file={pdfPath}
           onLoadSuccess={onDocumentLoadSuccess}

@@ -12,27 +12,6 @@ export interface Note {
   updatedAt?: string;
 }
 
-/**
- * Format ISO 8601 timestamp to readable date/time string
- */
-const formatTimestamp = (timestamp: string | undefined): string => {
-  if (!timestamp) return 'Unknown';
-  try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return 'Invalid date';
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  } catch {
-    return 'Invalid date';
-  }
-};
-
 export interface MetadataSectionProps {
   note: Note | null;
 }
@@ -93,23 +72,13 @@ export const MetadataSection: FC<MetadataSectionProps> = ({ note }) => {
           </Text>
           <Text className="text-slate-400 mt-1">{stats.charCount} characters</Text>
         </div>
-        {note.createdAt && (
-          <div>
-            <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-              Created
-            </Text>
-            <Text className="text-xs text-slate-400 mt-1">
-              {formatTimestamp(note.createdAt)}
-            </Text>
-          </div>
-        )}
         {note.updatedAt && (
           <div>
             <Text className="text-xs font-medium text-slate-500 uppercase tracking-wide">
               Last Modified
             </Text>
             <Text className="text-xs text-slate-400 mt-1">
-              {formatTimestamp(note.updatedAt)}
+              {new Date(note.updatedAt).toLocaleDateString()}
             </Text>
           </div>
         )}

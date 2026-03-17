@@ -31,6 +31,7 @@ const SidebarList = () => {
         initLoaded,
         collapseAllItems,
         genNewId,
+        addItem,
         loadChildren,
         expandedIds,
         setExpandedIds,
@@ -54,7 +55,6 @@ const SidebarList = () => {
                 index: 'root',
                 canMove: false,
                 children: root.children,
-                isFolder: true,
             };
         }
 
@@ -64,16 +64,13 @@ const SidebarList = () => {
             const item = tree.items[id];
             if (!item) continue;
 
-            const hasChildren = item.children.length > 0;
-            const isFolder = item.isFolder || item.data?.isFolder || hasChildren;
-
             result[id] = {
                 index: id,
                 canMove: true,
                 canRename: true,
                 children: item.children,
                 data: item.data,
-                isFolder,
+                isFolder: item.isFolder,
             };
         }
 
@@ -138,132 +135,64 @@ const SidebarList = () => {
                 return;
             }
 
-            const dragItem = currentItems[dragId];
-            const dragData = dragItem?.data;
-            const dragIsFolder = dragItem?.isFolder || dragData?.isFolder || false;
+            // find source parent and index
+            let sourceParentId = '';
+            let sourceIndex = -1;
 
-            const parentById: Record<string, string> = {};
             for (const itemId in currentItems) {
                 const item = currentItems[itemId];
-                for (const childId of item.children) {
-                    parentById[childId] = itemId;
+                const idx = item.children.indexOf(dragId);
+                if (idx !== -1) {
+                    sourceParentId = itemId;
+                    sourceIndex = idx;
+                    break;
                 }
             }
 
-            const sourceParentId = parentById[dragId];
-            if (!sourceParentId) {
-                console.error("Can't find source parent for drag item", dragId);
-                return;
-            }
-            const sourceIndex = currentItems[sourceParentId]?.children.indexOf(dragId) ?? -1;
             if (sourceIndex === -1) {
-                console.error("Can't find source item index", dragId);
+                console.error("Can't find source item");
                 return;
             }
 
-            const targetType = target.targetType as string | undefined;
-            let destinationParentId = '';
-            let destinationIndex = 0;
+            const targetItemId = target.targetItem?.index;
+            if (typeof targetItemId !== 'string') {
+                return;
+            }
 
-            if (targetType === 'root') {
-                destinationParentId = 'root';
-                destinationIndex = currentItems['root']?.children.length ?? 0;
-             } else if (targetType === 'item') {
-                 const targetItemId = target.targetItem;
-                 if (typeof targetItemId !== 'string') {
-                     console.error('Invalid target item ID');
-                     return;
-                 }
-                 const targetItem = currentItems[targetItemId];
-                 if (!targetItem) {
-                     console.error('Target item not found in tree', targetItemId);
-                     return;
-                 }
-                 
-                 // Check if target is a folder: has children OR explicitly marked as folder
-                 const hasChildren = (targetItem.children && targetItem.children.length > 0);
-                 const targetIsFolder = targetItem?.isFolder || targetItem?.data?.isFolder || hasChildren;
+            // destination index is the count of target's children (append to end)
+            const destinationIndex = target.targetItem?.children?.length ?? 0;
 
-                  // If dropping on a folder, put it inside the folder
-                  // Otherwise, put it after the target item at the same level
-                  if (targetIsFolder) {
-                      destinationParentId = targetItemId;
-                      destinationIndex = targetItem.children?.length ?? 0;
-                  } else {
-                      const parentItemId = parentById[targetItemId];
-                      if (!parentItemId) {
-                          console.error('Cannot find parent of target item', targetItemId);
-                          return;
-                      }
-                      destinationParentId = parentItemId;
-                      const targetIndex = currentItems[destinationParentId]?.children.indexOf(targetItemId) ?? -1;
-                      // Place right after the target item
-                      destinationIndex = targetIndex >= 0 ? targetIndex + 1 : (currentItems[destinationParentId]?.children.length ?? 0);
-                  }
-                 
-                 if (typeof destinationParentId !== 'string') {
-                     console.error('Invalid destination parent ID');
-                     return;
-                 }
-             } else if (targetType === 'between-items') {
-                 const parentItemId = target.parentItem;
-                 if (typeof parentItemId !== 'string') {
-                     console.error('Invalid parent item ID for between-items drop');
-                     return;
-                 }
-                 destinationParentId = parentItemId;
-                 destinationIndex = target.childIndex ?? 0;
-             } else {
-                 console.warn('Unknown drop target type:', targetType);
-                 return;
-             }
-
-             // Prevent moving a folder into itself or its descendants
-             if (dragIsFolder) {
-                 let cursor: string | undefined = destinationParentId;
-                 while (cursor && cursor !== 'root') {
-                     if (cursor === dragId) {
-                         console.error('Cannot move folder into itself or its descendants');
-                         return;
-                     }
-                     cursor = parentById[cursor];
-                 }
-             }
-
-              // Prevent dropping an item in the same location (no-op move)
-              if (sourceParentId === destinationParentId && sourceIndex === destinationIndex) {
-                  return;
-              }
-
-             moveItem({
-                 source: {
-                     parentId: sourceParentId,
-                     index: sourceIndex,
-                 },
-                 destination: {
-                     parentId: destinationParentId,
-                     index: destinationIndex,
-                 },
-             }).catch((e) => {
-                 console.error('Move failed:', e);
-             });
+            moveItem({
+                source: {
+                    parentId: sourceParentId,
+                    index: sourceIndex,
+                },
+                destination: {
+                    parentId: targetItemId,
+                    index: destinationIndex,
+                },
+            }).catch((e) => {
+                console.error('Move error', e);
+            });
         },
         [moveItem]
     );
 
     const handleCreateNote = useCallback(
         async (title: string, language: string) => {
+            const newId = genNewId();
             const newNote = await createNote({
+                id: newId,
                 title: title,
                 content: '\n',
                 pid: undefined,
             });
 
             if (newNote) {
-                router.push(`/notes/${newNote.id}`);
+                router.push(`/notes/${newId}`);
             }
         },
-        [createNote, router]
+        [genNewId, createNote, router]
     );
 
     const handleCreateFolderFromModal = useCallback(
@@ -275,6 +204,8 @@ const SidebarList = () => {
     );
 
     const handleUploadFile = useCallback(async (file: File) => {
+        // create a note entry for the uploaded file
+        const newId = genNewId();
         const fileName = file.name || 'Untitled';
         const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
 
@@ -287,8 +218,7 @@ const SidebarList = () => {
         // upload file to S3 via the upload API
         const formData = new FormData();
         formData.append('file', file);
-        const noteId = genNewId();
-        formData.append('noteId', noteId);
+        formData.append('noteId', newId);
 
         const uploadRes = await fetch('/api/upload', {
             method: 'POST',
@@ -309,13 +239,13 @@ const SidebarList = () => {
             : uploadData.path;
 
         const newNote = await createNote({
-            id: noteId,
+            id: newId,
             title: fileName,
             content,
         });
 
         if (newNote) {
-            router.push(`/notes/${newNote.id}`);
+            router.push(`/notes/${newId}`);
         }
     }, [genNewId, createNote, router]);
 
@@ -350,17 +280,19 @@ const SidebarList = () => {
             const original = tree.items[id];
             if (!original?.data) return;
 
+            const newId = genNewId();
             const newNote = await createNote({
+                id: newId,
                 title: `${original.data.title} (Copy)`,
                 content: original.data.content || '\n',
                 pid: original.data.pid,
             });
 
             if (newNote) {
-                router.push(`/notes/${newNote.id}`);
+                router.push(`/notes/${newId}`);
             }
         },
-        [tree.items, createNote, router]
+        [tree.items, genNewId, createNote, router]
     );
 
     const handleTogglePin = useCallback(
@@ -379,9 +311,11 @@ const SidebarList = () => {
 
     const handleContextCreateNote = useCallback(
         async (parentId: string) => {
+            const newId = genNewId();
             // If creating at root level, don't specify pid
             const pid = parentId === 'root' ? undefined : parentId;
             const newNote = await createNote({
+                id: newId,
                 title: 'Untitled',
                 content: '\n',
                 pid,
@@ -397,10 +331,10 @@ const SidebarList = () => {
                         isExpanded: true,
                     });
                 }
-                router.push(`/notes/${newNote.id}`);
+                router.push(`/notes/${newId}`);
             }
         },
-        [createNote, mutateItem, router, expandedIds, setExpandedIds]
+        [genNewId, createNote, mutateItem, router, expandedIds, setExpandedIds]
     );
 
     const handleCreateFolder = useCallback(
@@ -499,131 +433,106 @@ const SidebarList = () => {
                 </div>
 
                 {/* Tree Container */}
-                <NoteContextMenu
-                    noteId="root"
-                    isFolder
-                    isPinned={false}
-                    onRename={handleRename}
-                    onDelete={handleDelete}
-                    onDuplicate={handleDuplicate}
-                    onTogglePin={handleTogglePin}
-                    onCreateNote={handleContextCreateNote}
-                    onCreateFolder={handleCreateFolder}
-                    onOpenInSplit={handleOpenInSplit}
-                >
-                    <div className="flex-grow pb-10 overflow-hidden">
-                        <ControlledTreeEnvironment
-                            items={treeData}
-                            getItemTitle={(item) => item.data?.title ?? 'Untitled'}
-                            viewState={viewState}
-                            onExpandItem={handleExpandItem}
-                            onCollapseItem={handleCollapseItem}
-                            onSelectItems={(items) => setSelectedIds(new Set(items as string[]))}
-                            onFocusItem={(item) => setFocusedId(item?.index as string | null)}
-                            onDrop={handleDrop}
-                            onMissingItems={onMissingItems}
-                            canDragAndDrop
-                            canReorderItems
-                            canDropOnFolder
-                            canDropOnNonFolder={false}
-                            canDropBelowOpenFolders
-                            canDropAt={(items, target: any) => {
-                                if (target.targetType === 'item') {
-                                    const targetItem = treeData[target.targetItem as string];
-                                    return !!targetItem?.isFolder;
-                                }
-                                return true;
-                            }}
-                        >
-                            <Tree
-                                treeId="notes-tree"
-                                rootItem="root"
-                                treeLabel={t('My Pages')}
-                                renderItem={({ item, depth, children, arrow, context }) => {
-                                    const nodeData = item.data as any;
-                                    const hasChildren = !!(item.children && item.children.length > 0);
-                                    const isFolder = item.isFolder || nodeData?.isFolder || hasChildren;
-                                    const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
-                                    const isDragging = (context as any)?.isDragging === true;
-                                    const itemData = nodeData
-                                        ? ({ ...nodeData, isFolder } as NoteModel)
-                                        : ({
-                                            id: item.index,
-                                            title: 'Untitled',
-                                            deleted: NOTE_DELETED.NORMAL,
-                                            shared: NOTE_SHARED.PRIVATE,
-                                            pinned: NOTE_PINNED.UNPINNED,
-                                            editorsize: null,
-                                            isFolder,
-                                        } as NoteModel);
+                <div className="flex-grow pb-10 overflow-hidden">
+                    <ControlledTreeEnvironment
+                        items={treeData}
+                        getItemTitle={(item) => item.data?.title ?? 'Untitled'}
+                        viewState={viewState}
+                        onExpandItem={handleExpandItem}
+                        onCollapseItem={handleCollapseItem}
+                        onSelectItems={(items) => setSelectedIds(new Set(items as string[]))}
+                        onFocusItem={(item) => setFocusedId(item?.index as string | null)}
+                        onDrop={handleDrop}
+                        onMissingItems={onMissingItems}
+                        canDragAndDrop
+                        canReorderItems
+                        canDropOnFolder
+                    >
+                        <Tree
+                            treeId="notes-tree"
+                            rootItem="root"
+                            treeLabel={t('My Pages')}
+                            renderItem={({ item, depth, children, arrow, context }) => {
+                                 const nodeData = item.data as any;
+                                 const hasChildren = !!(item.children && item.children.length > 0);
+                                 const isFolder = item.isFolder || nodeData?.isFolder || hasChildren;
+                                 const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
+                                 const isDragging = (context as any)?.isDragging === true;
 
-                                    return (
-                                        <div
-                                            {...context.itemContainerWithChildrenProps}
-                                            className="flex flex-col"
+                                 return (
+                                     <div
+                                         {...context.itemContainerWithChildrenProps}
+                                         className="flex flex-col"
+                                     >
+                                         <NoteContextMenu
+                                             noteId={item.index as string}
+                                             isFolder={isFolder}
+                                            isPinned={isPinned}
+                                            onRename={handleRename}
+                                            onDelete={handleDelete}
+                                            onDuplicate={handleDuplicate}
+                                            onTogglePin={handleTogglePin}
+                                            onCreateNote={handleContextCreateNote}
+                                            onCreateFolder={handleCreateFolder}
+                                            onOpenInSplit={handleOpenInSplit}
                                         >
-                                            <NoteContextMenu
-                                                noteId={item.index as string}
-                                                isFolder={isFolder}
-                                                isPinned={isPinned}
-                                                onRename={handleRename}
-                                                onDelete={handleDelete}
-                                                onDuplicate={handleDuplicate}
-                                                onTogglePin={handleTogglePin}
-                                                onCreateNote={handleContextCreateNote}
-                                                onCreateFolder={handleCreateFolder}
-                                                onOpenInSplit={handleOpenInSplit}
+                                            <div
+                                                {...context.itemContainerWithoutChildrenProps}
+                                                className="flex items-center gap-1 px-2 py-1"
                                             >
-                                                <div
-                                                    {...context.itemContainerWithoutChildrenProps}
-                                                    className="flex items-center gap-1 px-2 py-1"
-                                                >
-                                                    {arrow}
-                                                    <SidebarListItem
-                                                        interactiveProps={context.interactiveElementProps}
-                                                        onToggle={() => {
-                                                            if (hasChildren && item.children) {
-                                                                const newExpandedIds = new Set(expandedIds);
-                                                                if (
-                                                                    expandedIds.has(item.index as string)
-                                                                ) {
-                                                                    newExpandedIds.delete(item.index as string);
-                                                                } else {
-                                                                    newExpandedIds.add(item.index as string);
-                                                                }
-                                                                setExpandedIds(newExpandedIds);
+                                                {arrow}
+                                                <SidebarListItem
+                                                    onToggle={() => {
+                                                        if (hasChildren && item.children) {
+                                                            const newExpandedIds = new Set(expandedIds);
+                                                            if (
+                                                                expandedIds.has(item.index as string)
+                                                            ) {
+                                                                newExpandedIds.delete(item.index as string);
+                                                            } else {
+                                                                newExpandedIds.add(item.index as string);
                                                             }
-                                                        }}
-                                                        isExpanded={expandedIds.has(item.index as string)}
-                                                        innerRef={() => {}}
-                                                        hasChildren={hasChildren || isFolder}
-                                                        item={itemData}
-                                                        snapshot={{
-                                                            isDragging,
-                                                        }}
-                                                        style={{
-                                                            paddingLeft: 0,
-                                                        }}
-                                                        isRenaming={renamingId === (item.index as string)}
-                                                        onRenameComplete={async (newTitle) => {
-                                                            if (nodeData) {
-                                                                await mutateNote(item.index as string, {
-                                                                    title: newTitle,
-                                                                });
-                                                            }
-                                                            setRenamingId(null);
-                                                        }}
-                                                    />
-                                                </div>
-                                            </NoteContextMenu>
-                                            {children}
-                                        </div>
-                                    );
-                                }}
-                            />
-                        </ControlledTreeEnvironment>
-                    </div>
-                </NoteContextMenu>
+                                                            setExpandedIds(newExpandedIds);
+                                                        }
+                                                    }}
+                                                    isExpanded={expandedIds.has(item.index as string)}
+                                                    innerRef={() => {}}
+                                                    hasChildren={hasChildren}
+                                                    item={
+                                                        nodeData ?? ({
+                                                            id: item.index,
+                                                            title: 'Untitled',
+                                                            deleted: NOTE_DELETED.NORMAL,
+                                                            shared: NOTE_SHARED.PRIVATE,
+                                                            pinned: NOTE_PINNED.UNPINNED,
+                                                            editorsize: null,
+                                                        } as NoteModel)
+                                                    }
+                                                    snapshot={{
+                                                        isDragging,
+                                                    }}
+                                                    style={{
+                                                        paddingLeft: 0,
+                                                    }}
+                                                    isRenaming={renamingId === (item.index as string)}
+                                                    onRenameComplete={async (newTitle) => {
+                                                        if (nodeData) {
+                                                            await mutateNote(item.index as string, {
+                                                                title: newTitle,
+                                                            });
+                                                        }
+                                                        setRenamingId(null);
+                                                    }}
+                                                />
+                                            </div>
+                                        </NoteContextMenu>
+                                        {children}
+                                    </div>
+                                );
+                            }}
+                        />
+                    </ControlledTreeEnvironment>
+                </div>
             </section>
 
             <CreateNoteModal
