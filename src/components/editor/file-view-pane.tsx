@@ -145,10 +145,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
         </div>
       </div>
 
-      {/* File Renderer */}
-      <div className="flex-1 overflow-auto bg-gray-900">
-        <FileRenderer pane={pane} file={file} />
-      </div>
+       {/* File Renderer */}
+       <div className="flex-1 overflow-auto bg-gray-900">
+         <FileRenderer key={file.fileId} pane={pane} file={file} />
+       </div>
     </div>
   );
 };
