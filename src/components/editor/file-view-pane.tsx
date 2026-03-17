@@ -105,7 +105,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   return (
     <div
       ref={paneRef}
-      className={`h-full flex flex-col bg-gray-900 transition-colors ${
+      className={`h-full flex flex-col bg-gray-800 transition-colors ${
         activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''
       } ${isDragging ? 'opacity-60' : ''}`}
       onMouseDown={() => setActivePane(pane)}
@@ -146,8 +146,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       </div>
 
       {/* File Renderer */}
-      <div className="flex-1 overflow-auto bg-gray-900">
-        <FileRenderer pane={pane} file={file} />
+      <div className="flex-1 overflow-auto bg-gray-800">
+        <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
   );
