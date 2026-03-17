@@ -1,7 +1,7 @@
 'use client';
 
 import { FC } from 'react';
-import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import FileViewPane from './file-view-pane';
 
@@ -28,7 +28,7 @@ const SplitEditorPane: FC = () => {
 
   return (
     <div className="h-full flex w-full">
-      <PanelGroup direction="horizontal" className="flex-1">
+      <PanelGroup orientation="horizontal" className="flex-1">
         {/* Pane A */}
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
           <div className="w-full h-full">
