@@ -123,57 +123,51 @@ const SidebarList = () => {
     // react-complex-tree callback: when items are dropped on a new parent
     const handleDrop = useCallback(
         (draggedItems: any[], target: any) => {
-            if (draggedItems.length === 0) {
-                return;
-            }
+            if (draggedItems.length === 0) return;
 
-            // read current tree from store to find source position
             const currentItems = useNoteTreeStore.getState().tree.items;
             const dragId = draggedItems[0]?.index;
+            if (typeof dragId !== 'string') return;
 
-            if (typeof dragId !== 'string') {
-                return;
-            }
-
-            // find source parent and index
+            // find source parent and its index within that parent
             let sourceParentId = '';
             let sourceIndex = -1;
-
             for (const itemId in currentItems) {
-                const item = currentItems[itemId];
-                const idx = item.children.indexOf(dragId);
+                const idx = currentItems[itemId].children.indexOf(dragId);
                 if (idx !== -1) {
                     sourceParentId = itemId;
                     sourceIndex = idx;
                     break;
                 }
             }
-
             if (sourceIndex === -1) {
-                console.error("Can't find source item");
+                console.error("Can't find source item in tree");
                 return;
             }
 
-            const targetItemId = target.targetItem?.index;
-            if (typeof targetItemId !== 'string') {
-                return;
+            let destParentId: string;
+            let destIndex: number;
+
+            if (target.targetType === 'item') {
+                // dropped directly on a folder — nest inside it at the end
+                destParentId = target.targetItem;
+                destIndex = currentItems[destParentId]?.children?.length ?? 0;
+            } else if (target.targetType === 'between-items') {
+                // dropped between items — use the parent and the child insertion index
+                destParentId = target.parentItem;
+                destIndex = target.childIndex ?? 0;
+            } else {
+                // dropped on root
+                destParentId = 'root';
+                destIndex = currentItems['root']?.children?.length ?? 0;
             }
 
-            // destination index is the count of target's children (append to end)
-            const destinationIndex = target.targetItem?.children?.length ?? 0;
+            if (typeof destParentId !== 'string') return;
 
             moveItem({
-                source: {
-                    parentId: sourceParentId,
-                    index: sourceIndex,
-                },
-                destination: {
-                    parentId: targetItemId,
-                    index: destinationIndex,
-                },
-            }).catch((e) => {
-                console.error('Move error', e);
-            });
+                source: { parentId: sourceParentId, index: sourceIndex },
+                destination: { parentId: destParentId, index: destIndex },
+            }).catch((e) => console.error('Move error', e));
         },
         [moveItem]
     );
