@@ -180,6 +180,9 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         }
 
         result.content = result.content || '\n';
+        if (body.pid) {
+            result.pid = body.pid;
+        }
         await noteCache.setItem(result.id, result);
         set({ note: result });
         treeStore.getState().addItem(result);
@@ -214,6 +217,9 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
             return;
         }
 
+        if (parentId) {
+            result.pid = parentId;
+        }
         await noteCache.setItem(result.id, result);
         treeStore.getState().addItem(result);
 

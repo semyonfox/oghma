@@ -141,20 +141,22 @@ export default function NoteContextMenu({
                         </button>
                     )}
 
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onRename(noteId);
-                            handleClose();
-                        }}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                        <PencilIcon
-                            className="mr-3 h-4 w-4"
-                            aria-hidden="true"
-                        />
-                        Rename
-                    </button>
+                    {noteId !== 'root' && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRename(noteId);
+                                handleClose();
+                            }}
+                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <PencilIcon
+                                className="mr-3 h-4 w-4"
+                                aria-hidden="true"
+                            />
+                            Rename
+                        </button>
+                    )}
 
                     {!isFolder && (
                         <button
@@ -226,22 +228,25 @@ export default function NoteContextMenu({
                         </button>
                     )}
 
-                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(noteId);
-                            handleClose();
-                        }}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
-                    >
-                        <TrashIcon
-                            className="mr-3 h-4 w-4"
-                            aria-hidden="true"
-                        />
-                        Delete
-                    </button>
+                    {noteId !== 'root' && (
+                        <>
+                            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(noteId);
+                                    handleClose();
+                                }}
+                                className="group flex w-full items-center px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
+                            >
+                                <TrashIcon
+                                    className="mr-3 h-4 w-4"
+                                    aria-hidden="true"
+                                />
+                                Delete
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
         </>
