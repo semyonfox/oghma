@@ -43,30 +43,32 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Get note from PostgreSQL (verify ownership)
-    const result = await sql`
-      SELECT note_id, title, content, deleted, shared, pinned FROM app.notes
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
-    `;
+     // Get note from PostgreSQL (verify ownership)
+     const result = await sql`
+       SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
+     `;
 
-    const dbNote = result[0];
-    if (!dbNote) {
-      return NextResponse.json(
-        { error: 'Note not found' },
-        { status: 404 }
-      );
-    }
+     const dbNote = result[0];
+     if (!dbNote) {
+       return NextResponse.json(
+         { error: 'Note not found' },
+         { status: 404 }
+       );
+     }
 
-    // Map to NoteModel format
-    const note = {
-      id: dbNote.note_id,
-      title: dbNote.title,
-      content: dbNote.content,
-      deleted: dbNote.deleted,
-      shared: dbNote.shared,
-      pinned: dbNote.pinned,
-      editorsize: null,
-    };
+     // Map to NoteModel format
+     const note = {
+       id: dbNote.note_id,
+       title: dbNote.title,
+       content: dbNote.content,
+       deleted: dbNote.deleted,
+       shared: dbNote.shared,
+       pinned: dbNote.pinned,
+       editorsize: null,
+       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
+       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
+     };
 
     // Parse fields from query parameters
     const url = new URL(request.url);
@@ -130,7 +132,7 @@ export async function PUT(request, { params }) {
           content = ${body.content || existingNote.content},
           updated_at = NOW()
       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-      RETURNING note_id, title, content, deleted, shared, pinned
+      RETURNING note_id, title, content, deleted, shared, pinned, created_at, updated_at
     `;
 
     const dbNote = updatedNote[0];
@@ -142,6 +144,8 @@ export async function PUT(request, { params }) {
       shared: dbNote.shared,
       pinned: dbNote.pinned,
       editorsize: null,
+      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
+      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
     });
   } catch (error) {
     console.error('Note PUT error:', error);
