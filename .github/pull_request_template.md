@@ -1,28 +1,15 @@
 ## What does this PR do?
 
-<!-- Describe what you built and why -->
+<!-- what you built and why -->
 
-## Implementation Notes
+## Notes
 
-<!-- Any gotchas, decisions, or things to know -->
-
-## Testing
-
-- [ ] Manual testing completed
-- [ ] Tested happy path
-- [ ] Tested error cases
+<!-- gotchas, decisions, anything worth knowing -->
 
 ## Checklist
 
-- [ ] Follows auth pattern in `/src/app/api/auth/login/route.js`
-- [ ] Functions have JSDoc comments
-- [ ] No `console.log` (except dev)
-- [ ] Error handling: proper HTTP status
-- [ ] Input validation: parameterized SQL queries
-- [ ] No SQL injection, XSS, CSRF vulnerabilities
-- [ ] ESLint passes (`npm run lint`)
+- [ ] manually tested
+- [ ] no console.log left in
+- [ ] lint passes (`npm run lint`)
 
-## Closes
-
-- #<!-- Issue number -->
-- Spec: [SEARCH_ARCHITECTURE_PLAN.md](../../SEARCH_ARCHITECTURE_PLAN.md)
+Closes #

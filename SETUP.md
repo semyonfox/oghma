@@ -52,10 +52,10 @@ Set these in AWS Amplify console:
 ### Deploy
 
 ```bash
-git push origin prod
+git push origin production
 ```
 
-Amplify watches the `prod` branch and deploys automatically.
+Amplify watches the `production` branch and deploys automatically.
 
 ## Common Issues
 

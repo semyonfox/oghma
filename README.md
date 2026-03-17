@@ -1,49 +1,49 @@
 # OghmaNotes
 
-A note-taking app that started as a CT216 assignment and somehow became slightly more ambitious than intended. 
+A note-taking app built for the CT216 software engineering module.
 
 Features:
 - Markdown notes with a tree-based folder system
 - User auth (register/login/password reset)
 - PDF uploads to S3
-- Soft delete (your data isn't truly gone for 7 days, so don't panic)
+- Soft delete (notes are recoverable for 7 days)
 - JWT-based sessions
 
-What's coming eventually:
-- Fuzzy search (you can actually find your notes)
-- AI chat with your notes (RAG-powered, because of course)
-- Quiz generation (because suffering is mandatory)
+Planned:
+- Fuzzy search
+- AI chat with your notes (RAG)
+- Quiz generation
 
-## Quick Start
+## Quick start
 
 ```bash
 npm install
 cp .env.example .env.local
-# Add your S3 credentials to .env.local
+# fill in S3 credentials in .env.local
 docker-compose up
 npm run dev
 ```
 
-Visit `http://localhost:3000`. 
+Visit `http://localhost:3000`.
 
-## Tech Stack
+## Tech stack
 
-- Next.js 16 (frontend + API)
-- PostgreSQL with pgvector (for when we eventually do semantic search)
+- Next.js 16 (frontend + API routes)
+- PostgreSQL with pgvector
 - AWS S3 (file storage)
-- Zustand (state management - simpler than Redux, fight me)
-- Lexical editor (rich text, not markdown-only)
+- Zustand (state)
+- Lexical (rich text editor)
 
 ## Setup
 
-See [SETUP.md](SETUP.md) for details. It's not complicated.
+See [SETUP.md](SETUP.md).
 
 ## Credits
 
-Based on Notea (MIT licensed). See [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md) for the full legalese.
+Based on Notea (MIT licensed).
 
 ## Team
 
 - Samuel Regan
-- Semyon Fox  
+- Semyon Fox
 - Shreyansh Singh
