@@ -98,6 +98,22 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               {children}
             </td>
           ),
+          // explicit list styles — Tailwind base resets list-style-type by default
+          ul: ({ node, children, ...props }) => (
+            <ul className="list-disc list-outside pl-6 my-3 space-y-1 text-gray-200" {...props}>
+              {children}
+            </ul>
+          ),
+          ol: ({ node, children, ...props }) => (
+            <ol className="list-decimal list-outside pl-6 my-3 space-y-1 text-gray-200" {...props}>
+              {children}
+            </ol>
+          ),
+          li: ({ node, children, ...props }) => (
+            <li className="ml-1 leading-relaxed" {...props}>
+              {children}
+            </li>
+          ),
         }}
       >
         {content || '*No content*'}

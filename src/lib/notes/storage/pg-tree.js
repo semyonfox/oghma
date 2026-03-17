@@ -5,19 +5,22 @@ import sql from '@/database/pgsql.js';
 const ROOT_ID = 'root';
 
 /**
- * Get tree for a specific user from PostgreSQL
+ * Get tree for a specific user from PostgreSQL (sorted A-Z by title)
  */
 export async function getTreeFromPG(userId) {
   try {
     const rows = await sql`
       SELECT 
-        id,
-        note_id,
-        parent_id,
-        is_expanded
-      FROM app.tree_items
-      WHERE user_id = ${userId}
-      ORDER BY parent_id, position
+        ti.id,
+        ti.note_id,
+        ti.parent_id,
+        ti.is_expanded,
+        n.title
+      FROM app.tree_items ti
+      LEFT JOIN app.notes n ON ti.note_id = n.note_id
+      WHERE ti.user_id = ${userId}::uuid
+        AND (ti.note_id IS NULL OR (n.deleted = 0 AND n.deleted_at IS NULL))
+      ORDER BY ti.parent_id, n.title ASC
     `;
 
     // Build tree structure from flat results
@@ -28,10 +31,11 @@ export async function getTreeFromPG(userId) {
       },
     };
 
-    // First pass: create all items
+    // First pass: create all items (use note_id, not ti.id!)
     for (const row of rows) {
-      items[row.id] = {
-        id: String(row.id),
+      const noteId = String(row.note_id);
+      items[noteId] = {
+        id: noteId,  // Use UUID note_id, not INTEGER tree_items.id
         children: [],
         isExpanded: row.is_expanded ?? false,
       };
@@ -39,6 +43,7 @@ export async function getTreeFromPG(userId) {
 
     // Second pass: build parent-child relationships
     for (const row of rows) {
+      const noteId = String(row.note_id);
       const parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
       if (!items[parentId]) {
         items[parentId] = {
@@ -46,7 +51,7 @@ export async function getTreeFromPG(userId) {
           children: [],
         };
       }
-      items[parentId].children.push(String(row.id));
+      items[parentId].children.push(noteId);
     }
 
     return {
@@ -68,24 +73,17 @@ export async function getTreeFromPG(userId) {
 }
 
 /**
- * Add a note to user's tree
+ * Add a note to user's tree (sorted A-Z by title)
  */
 export async function addNoteToTree(userId, noteId, parentId) {
   try {
+    // tree_items.parent_id is UUID and references the parent note's UUID
+    // If no parentId provided, note is added to root (parent_id = NULL)
     const actualParentId = parentId || null;
 
-    // Get max position for this parent
-    const posResult = await sql`
-      SELECT COALESCE(MAX(position), 0) as max_pos
-      FROM app.tree_items
-      WHERE user_id = ${userId} AND parent_id IS ${actualParentId}
-    `;
-
-    const position = (posResult[0]?.max_pos || 0) + 1;
-
     await sql`
-      INSERT INTO app.tree_items (user_id, note_id, parent_id, position)
-      VALUES (${userId}, ${noteId}, ${actualParentId}, ${position})
+      INSERT INTO app.tree_items (user_id, note_id, parent_id)
+      VALUES (${userId}::uuid, ${noteId}::uuid, ${actualParentId})
     `;
   } catch (error) {
     console.error('Error adding note to tree:', error);
@@ -100,7 +98,7 @@ export async function removeNoteFromTree(userId, noteId) {
   try {
     await sql`
       DELETE FROM app.tree_items
-      WHERE user_id = ${userId} AND note_id = ${noteId}
+      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
     `;
   } catch (error) {
     console.error('Error removing note from tree:', error);
@@ -109,37 +107,27 @@ export async function removeNoteFromTree(userId, noteId) {
 }
 
 /**
- * Update tree item (e.g., expand/collapse)
+ * Update tree item (e.g., expand/collapse, move to parent)
  */
-export async function updateTreeItem(userId, itemId, updates) {
+export async function updateTreeItem(userId, noteId, updates) {
   try {
-    const setClauses = [];
-    const values = [userId, itemId];
-
     if (updates.isExpanded !== undefined) {
-      setClauses.push('is_expanded = $' + (values.length + 1));
-      values.push(updates.isExpanded);
+      await sql`
+        UPDATE app.tree_items
+        SET is_expanded = ${updates.isExpanded},
+            updated_at = NOW()
+        WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+      `;
     }
 
     if (updates.parentId !== undefined) {
-      setClauses.push('parent_id = $' + (values.length + 1));
-      values.push(updates.parentId || null);
+      await sql`
+        UPDATE app.tree_items
+        SET parent_id = ${updates.parentId || null},
+            updated_at = NOW()
+        WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+      `;
     }
-
-    if (updates.position !== undefined) {
-      setClauses.push('position = $' + (values.length + 1));
-      values.push(updates.position);
-    }
-
-    if (setClauses.length === 0) return;
-
-    const query = `
-      UPDATE app.tree_items
-      SET ${setClauses.join(', ')}, updated_at = NOW()
-      WHERE user_id = $1 AND id = $2
-    `;
-
-    await sql.unsafe(query, values);
   } catch (error) {
     console.error('Error updating tree item:', error);
     throw error;
@@ -147,27 +135,17 @@ export async function updateTreeItem(userId, itemId, updates) {
 }
 
 /**
- * Move a note in the tree (reorder within parent or change parent)
+ * Move a note in the tree (change parent, will sort A-Z)
  */
-export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
+export async function moveNoteInTree(userId, noteId, newParentId) {
   try {
-    const actualParentId = newParentId === undefined ? null : newParentId;
-
-    // Get current position if not specified
-    let position = newPosition;
-    if (position === undefined) {
-      const posResult = await sql`
-        SELECT COALESCE(MAX(position), 0) as max_pos
-        FROM app.tree_items
-        WHERE user_id = ${userId} AND parent_id IS ${actualParentId}
-      `;
-      position = (posResult[0]?.max_pos || 0) + 1;
-    }
+    // tree_items.parent_id is UUID and references the parent note's UUID
+    const actualParentId = newParentId || null;
 
     await sql`
       UPDATE app.tree_items
-      SET parent_id = ${actualParentId}, position = ${position}, updated_at = NOW()
-      WHERE user_id = ${userId} AND note_id = ${noteId}
+      SET parent_id = ${actualParentId}, updated_at = NOW()
+      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
     `;
   } catch (error) {
     console.error('Error moving note in tree:', error);
@@ -180,13 +158,16 @@ export async function moveNoteInTree(userId, noteId, newParentId, newPosition) {
  */
 export async function syncTreeWithNotes(userId) {
   try {
-    // Delete tree items for notes that no longer exist
+    // Delete tree items for notes that no longer exist (or are soft-deleted)
     await sql`
       DELETE FROM app.tree_items
-      WHERE user_id = ${userId}
+      WHERE user_id = ${userId}::uuid
         AND note_id IS NOT NULL
         AND note_id NOT IN (
-          SELECT note_id FROM app.notes WHERE user_id = ${userId}
+          SELECT note_id FROM app.notes 
+          WHERE user_id = ${userId}::uuid 
+            AND deleted = 0 
+            AND deleted_at IS NULL
         )
     `;
   } catch (error) {
@@ -203,9 +184,11 @@ export async function getOrphanedNotes(userId) {
     const rows = await sql`
       SELECT note_id
       FROM app.notes
-      WHERE user_id = ${userId}
+      WHERE user_id = ${userId}::uuid
+        AND deleted = 0
+        AND deleted_at IS NULL
         AND note_id NOT IN (
-          SELECT note_id FROM app.tree_items WHERE user_id = ${userId} AND note_id IS NOT NULL
+          SELECT note_id FROM app.tree_items WHERE user_id = ${userId}::uuid AND note_id IS NOT NULL
         )
     `;
 

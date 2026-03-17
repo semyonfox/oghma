@@ -1,56 +1,78 @@
-// extracted from Notea (MIT License)
-// rewritten for react-arborist v3.4.3 + Tailwind (no MUI)
-import { Tree } from 'react-arborist';
+// rewritten for react-complex-tree + Tailwind
 import IconButton from '@/components/icon-button';
-import TreeActions, { ROOT_ID, HierarchicalTreeItemModel, DEFAULT_TREE } from '@/lib/notes/types/tree';
+import TreeActions, { ROOT_ID, DEFAULT_TREE } from '@/lib/notes/types/tree';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import React, { FC, useCallback, useMemo, useState } from 'react';
 import SidebarListItem from './sidebar-list-item';
-import { makeHierarchy } from '@/lib/notes/types/tree';
-import type { NodeRendererProps } from 'react-arborist';
+import { ControlledTreeEnvironment, Tree, TreeItemIndex } from 'react-complex-tree';
+import 'react-complex-tree/lib/style.css';
 import { NoteModel } from '@/lib/notes/types/note';
 
 export const Favorites: FC = () => {
     const { t } = useI18n();
-    const { pinnedTree } = useNoteTreeStore(); // Removed premature logging
-
-console.log('Pinned Tree:', pinnedTree);
-    const [tree, setTree] = useState(pinnedTree || DEFAULT_TREE);
+    const { pinnedTree } = useNoteTreeStore();
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [isFold, setFold] = useState(false);
-    const mergedTree = useMemo(() => {
-        const items = JSON.parse(JSON.stringify(pinnedTree.items));
-        const baseTree = tree || pinnedTree;
 
-        for (const itemId in items) {
-            const item = items[itemId];
-            if (item) {
-                item.isExpanded = baseTree.items[item.id]?.isExpanded ?? false;
-            }
+    // convert flat tree to react-complex-tree format
+    const treeData = useMemo(() => {
+        const result: Record<string, any> = {};
+
+        // Add root
+        const root = pinnedTree.items['root'];
+        if (root) {
+            result['root'] = {
+                index: 'root',
+                canMove: false,
+                children: root.children,
+            };
         }
 
-        return { ...pinnedTree, items };
-    }, [pinnedTree, tree]);
+        // Add all other pinned items
+        for (const id in pinnedTree.items) {
+            if (id === 'root') continue;
+            const item = pinnedTree.items[id];
+            if (!item) continue;
+
+            result[id] = {
+                index: id,
+                canMove: false,
+                children: item.children,
+                data: item.data,
+            };
+        }
+
+        return result;
+    }, [pinnedTree]);
 
     const hasPinned = useMemo(
-        () => mergedTree.items[ROOT_ID].children.length,
-        [mergedTree]
+        () => pinnedTree.items[ROOT_ID]?.children.length > 0,
+        [pinnedTree]
     );
 
-    // convert flat tree structure to hierarchical format for react-arborist
-    const treeData = useMemo(() => {
-        const hierarchy = makeHierarchy(mergedTree);
-        return hierarchy ? hierarchy.children : [];
-    }, [mergedTree]);
+    const viewState = useMemo(
+        () => ({
+            'favorites-tree': {
+                expandedItems: Array.from(expandedIds) as TreeItemIndex[],
+                selectedItems: [],
+            },
+        }),
+        [expandedIds]
+    );
 
-    // notification callback: sync react-arborist toggle to local state for persistence
-    const onToggle = useCallback((id: string) => {
-        setTree((prev) => {
-            const item = prev.items[id];
-            if (!item) return prev;
-            return TreeActions.mutateItem(prev, id, { isExpanded: !item.isExpanded });
-        });
-    }, []);
+    const handleToggleExpanded = useCallback((item: any) => {
+        const itemId = item.index;
+        if (typeof itemId === 'string') {
+            const newExpandedIds = new Set(expandedIds);
+            if (expandedIds.has(itemId)) {
+                newExpandedIds.delete(itemId);
+            } else {
+                newExpandedIds.add(itemId);
+            }
+            setExpandedIds(newExpandedIds);
+        }
+    }, [expandedIds]);
 
     if (!hasPinned) {
         return null;
@@ -67,42 +89,65 @@ console.log('Pinned Tree:', pinnedTree);
                     onClick={() => setFold((prev) => !prev)}
                     className="text-neutral-600 dark:text-neutral-400 invisible group-hover:visible"
                     title={t('Fold Favorites')}
-                ></IconButton>
+                />
             </div>
             {!isFold ? (
                 <div>
-                    <Tree<HierarchicalTreeItemModel>
-                        data={treeData}
-                        openByDefault={false}
-                        width="100%"
-                        indent={10}
-                        rowHeight={36}
-                        overscanCount={8}
-                        onToggle={onToggle}
-                        disableDrag={true}
-                        disableDrop={true}
+                    <ControlledTreeEnvironment
+                        items={treeData}
+                        getItemTitle={(item) => item.data?.title ?? 'Untitled'}
+                        viewState={viewState}
+                        onExpandItem={(item) => handleToggleExpanded(item)}
+                        onCollapseItem={(item) => handleToggleExpanded(item)}
+                        canDragAndDrop={false}
                     >
-                        {({ node, style, dragHandle }: NodeRendererProps<HierarchicalTreeItemModel>) => {
-                            const nodeData = node.data;
-                            return (
-                                <div style={style} ref={dragHandle}>
-                                    <SidebarListItem
-                                        onToggle={() => node.toggle()}
-                                        isExpanded={node.isOpen}
-                                        innerRef={() => {}}
-                                        hasChildren={node.children ? node.children.length > 0 : false}
-                                        item={nodeData.data as NoteModel}
-                                        snapshot={{
-                                            isDragging: false,
-                                        }}
-                                        style={{
-                                            paddingLeft: node.level * 10,
-                                        }}
-                                    />
-                                </div>
-                            );
-                        }}
-                    </Tree>
+                        <Tree
+                            treeId="favorites-tree"
+                            rootItem="root"
+                            treeLabel={t('Favorites')}
+                            renderItem={({ item, children, arrow, context }) => {
+                                const nodeData = item.data as any;
+                                const hasChildren = !!(item.children && item.children.length > 0);
+
+                                return (
+                                    <div
+                                        {...context.itemContainerWithChildrenProps}
+                                        className="flex flex-col"
+                                    >
+                                        <div
+                                            {...context.itemContainerWithoutChildrenProps}
+                                            className="flex items-center gap-1 px-2 py-1"
+                                        >
+                                            {arrow}
+                                            <SidebarListItem
+                                                onToggle={() => handleToggleExpanded(item)}
+                                                isExpanded={expandedIds.has(item.index as string)}
+                                                innerRef={() => {}}
+                                                hasChildren={hasChildren}
+                                                item={
+                                                    nodeData ?? ({
+                                                        id: item.index,
+                                                        title: 'Untitled',
+                                                        deleted: 0,
+                                                        shared: 0,
+                                                        pinned: 1,
+                                                        editorsize: null,
+                                                    } as NoteModel)
+                                                }
+                                                snapshot={{
+                                                    isDragging: false,
+                                                }}
+                                                style={{
+                                                    paddingLeft: 0,
+                                                }}
+                                            />
+                                        </div>
+                                        {children}
+                                    </div>
+                                );
+                            }}
+                        />
+                    </ControlledTreeEnvironment>
                 </div>
             ) : null}
         </>

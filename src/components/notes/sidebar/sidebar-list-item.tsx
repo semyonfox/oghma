@@ -2,7 +2,7 @@
 // rewritten for App Router + react-arborist v3.4.3 + Tailwind (no MUI)
 import { NoteModel } from '@/lib/notes/types/note';
 import Link from 'next/link';
-import React, { FC, MouseEvent, useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import React, { FC, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import IconButton from '@/components/icon-button';
 import useNoteTreeStore from '@/lib/notes/state/tree';
@@ -10,6 +10,8 @@ import useNoteStore from '@/lib/notes/state/note';
 import usePortalStore from '@/lib/notes/state/portal';
 import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import useI18n from '@/lib/notes/hooks/use-i18n';
+import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 
 const TextSkeleton = () => (
     <span className="inline-block w-20 h-4 bg-neutral-300 dark:bg-neutral-700 rounded animate-pulse" />
@@ -45,18 +47,22 @@ const SidebarListItem: FC<{
     const pathname = usePathname();
     const { mutateItem, initLoaded, genNewId } = useNoteTreeStore();
     const { createNote } = useNoteStore();
+    const { activePane, setPaneA, setPaneB, setActivePane } = useLayoutStore();
     const {
         menu: { open, setData, setAnchor },
     } = usePortalStore();
-    const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
-    const [renameValue, setRenameValue] = useState(item.title || '');
-    const renameInputRef = useRef<HTMLInputElement>(null);
+     const syncStatus = useSyncStatusStore((s) => s.status[item.id]);
+     const [renameValue, setRenameValue] = useState(item.title || '');
+     const renameInputRef = useRef<HTMLInputElement>(null);
+     const itemElementRef = useRef<HTMLDivElement>(null);
 
     // derive active note id from pathname (e.g. "/abc123" -> "abc123")
     const activeId: string | null = useMemo(() => {
         if (!pathname || pathname === '/') return null;
-        // strip leading slash, take first segment
         const segments = pathname.split('/').filter(Boolean);
+        if (segments[0] === 'notes') {
+            return segments[1] || null;
+        }
         return segments[0] || null;
     }, [pathname]);
 
@@ -81,50 +87,65 @@ const SidebarListItem: FC<{
         return `/${item.id}`;
     }, [pathname, item.id, hasChildren]);
 
-    const onAddNote = useCallback(
-        async (e: MouseEvent) => {
-            e.preventDefault();
-            // Create a new note under this item without navigation
-            const newId = genNewId();
-            const newNote = await createNote({
-                id: newId,
-                title: 'Untitled',
-                content: '\n',
-                pid: item.id,
-            });
+     const onAddNote = useCallback(
+         async (e: React.MouseEvent) => {
+             e.preventDefault();
+             // Create a new note under this item without navigation
+             const newId = genNewId();
+             const newNote = await createNote({
+                 id: newId,
+                 title: 'Untitled',
+                 content: '\n',
+                 pid: item.id,
+             });
 
-            if (newNote) {
-                // Expand the parent and navigate to the new note
-                await mutateItem(item.id, {
-                    isExpanded: true,
-                });
-                router.push(`/notes/${newId}`);
-            }
-        },
-        [item.id, mutateItem, genNewId, createNote, router]
-    );
+             if (newNote) {
+                 // Expand the parent and navigate to the new note
+                 await mutateItem(item.id, {
+                     isExpanded: true,
+                 });
+                 router.push(`/notes/${newId}`);
+             }
+         },
+         [item.id, mutateItem, genNewId, createNote, router]
+     );
 
-    const handleClickMenu = useCallback(
-        (event: MouseEvent) => {
-            event.preventDefault();
-            setAnchor(event.target as Element);
-            open();
-            setData(item);
-        },
-        [item, open, setAnchor, setData]
-    );
+      const handleClickMenu = useCallback(
+          (event: React.MouseEvent) => {
+              event.preventDefault();
+              event.stopPropagation();
+              
+              // Get button position to show menu nearby
+              const button = event.currentTarget as HTMLElement;
+              const rect = button.getBoundingClientRect();
+              
+              // Create synthetic right-click event with button position
+              const syntheticEvent = new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: rect.left,
+                  clientY: rect.bottom + 4, // Position menu below button
+              }) as any;
+              
+              // Dispatch on the wrapper element to trigger right-click menu
+              if (itemElementRef.current) {
+                  itemElementRef.current.dispatchEvent(syntheticEvent);
+              }
+          },
+          [itemElementRef]
+      );
 
-    const handleClickIcon = useCallback(
-        (e: MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggle();
-        },
-        [onToggle]
-    );
+     const handleClickIcon = useCallback(
+         (e: React.MouseEvent) => {
+             e.preventDefault();
+             e.stopPropagation();
+             onToggle();
+         },
+         [onToggle]
+     );
 
-    const handleClickItem = useCallback(
-        (e: MouseEvent) => {
+     const handleClickItem = useCallback(
+         (e: React.MouseEvent) => {
             // only folders can be toggled on single click
             if (hasChildren) {
                 e.preventDefault();
@@ -135,15 +156,63 @@ const SidebarListItem: FC<{
         [hasChildren, onToggle]
     );
 
-    const handleDoubleClick = useCallback(
-        (e: React.MouseEvent) => {
-            // double click opens files, prevents default expand behavior
-            if (!hasChildren) {
-                e.preventDefault();
+     const handleDoubleClick = useCallback(
+         (e: React.MouseEvent) => {
+             // double click opens files, prevents default expand behavior
+             if (!hasChildren) {
+                 e.preventDefault();
+                 setPaneA(buildFileSpec(item));
+                 setActivePane('A');
+                 router.push(linkHref);
+             }
+         },
+         [hasChildren, item, linkHref, router, setActivePane, setPaneA]
+     );
+
+     /**
+      * Handle drag start - store file in zustand for drop handling
+      */
+     const handleDragStart = useCallback(
+         (e: React.DragEvent) => {
+             if (hasChildren) return; // Don't drag folders
+             
+             const spec = buildFileSpec(item);
+             
+             // Store in zustand so split pane can access it
+             useLayoutStore.getState().setDraggedFile(spec);
+             
+             // Also set in dataTransfer for fallback
+             e.dataTransfer.effectAllowed = 'copy';
+             e.dataTransfer.setData('application/json', JSON.stringify(spec));
+             e.dataTransfer.setData('text/plain', item.title || 'Untitled');
+         },
+         [hasChildren, item]
+     );
+
+     /**
+      * Handle drag end - clear stored file
+      */
+     const handleDragEnd = useCallback(() => {
+         useLayoutStore.getState().setDraggedFile(null);
+     }, []);
+
+     const openInPane = useCallback(
+         (pane: 'A' | 'B') => (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const spec = buildFileSpec(item);
+            if (pane === 'A') {
+                setPaneA(spec);
+                setActivePane('A');
                 router.push(linkHref);
+                return;
             }
+
+            setPaneB(spec);
+            setActivePane('B');
         },
-        [hasChildren, router, linkHref]
+        [item, linkHref, router, setActivePane, setPaneA, setPaneB]
     );
 
     // Memoize rename completion handler
@@ -164,21 +233,36 @@ const SidebarListItem: FC<{
         return undefined;
     }, [item.title]);
 
-    return (
-        <>
-             <div
-                 {...attrs}
-                 ref={innerRef}
-                 className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                     snapshot.isDragging ? 'shadow' : ''
-                 } ${
-                     activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                 }`}
-                 role="treeitem"
-                 aria-expanded={hasChildren ? isExpanded : undefined}
-                 aria-selected={activeId === item.id}
-                 aria-current={activeId === item.id ? 'page' : undefined}
-              >
+     // Determine if this is a true folder (has folder emoji or is a container)
+     const isActualFolder = useMemo(() => {
+         // Check if title contains folder emoji
+         if (item.title?.includes('📁')) return true;
+         // Check if it's content is a file path (S3 upload) vs regular note
+         if (item.content && (item.content.startsWith('s3://') || item.content.startsWith('http'))) {
+             return false; // File content, not a folder
+         }
+         // Default: items with children are folders
+         return hasChildren;
+     }, [item.title, item.content, hasChildren]);
+
+     return (
+         <>
+                <div
+                    {...attrs}
+                    ref={(el) => {
+                        itemElementRef.current = el;
+                        innerRef(el);
+                    }}
+                     className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                       snapshot.isDragging ? 'shadow' : ''
+                   } ${
+                       activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                   }`}
+                   role="treeitem"
+                   aria-expanded={hasChildren ? isExpanded : undefined}
+                   aria-selected={activeId === item.id}
+                   aria-current={activeId === item.id ? 'page' : undefined}
+                >
                   <Link 
                       href={linkHref}
                       className="flex flex-1 items-center truncate"
@@ -269,23 +353,25 @@ const SidebarListItem: FC<{
                      )}
                  </Link>
 
-                 <IconButton
-                     icon="DotsHorizontal"
-                     onClick={handleClickMenu}
-                     className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
-                     title={t('Remove, Copy Link, etc')}
-                     aria-label={t('Note actions')}
-                     tabIndex={-1}
-                 ></IconButton>
+                    <IconButton
+                       icon="DotsHorizontal"
+                       onClick={handleClickMenu}
+                       className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                       title={t('Remove, Copy Link, etc')}
+                       aria-label={t('Note actions')}
+                       tabIndex={-1}
+                   ></IconButton>
 
-                 <IconButton
-                     icon="Plus"
-                     onClick={onAddNote}
-                     className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
-                     title={t('Add a page inside')}
-                     aria-label={t('Add note')}
-                     tabIndex={-1}
-                 ></IconButton>
+                   {isActualFolder && (
+                       <IconButton
+                           icon="Plus"
+                           onClick={onAddNote}
+                           className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                           title={t('Add a page inside this folder')}
+                           aria-label={t('Add note')}
+                           tabIndex={-1}
+                       ></IconButton>
+                   )}
              </div>
 
              {!hasChildren && isExpanded && (

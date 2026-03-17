@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { getErrorMessage, login } from '@/lib/apiClient'
 import { Alert } from '@/components/alert'
 import Link from 'next/link'
@@ -21,9 +22,16 @@ export default function LoginPage() {
     userRef.current?.focus()
   }, [])
 
-  useEffect(() => {
+  // Clear error message on input change (via input handlers below, not effect)
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value)
     setErrMsg('')
-  }, [email, pwd])
+  }
+
+  const handlePasswordChange = (e) => {
+    setPwd(e.target.value)
+    setErrMsg('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -51,10 +59,9 @@ export default function LoginPage() {
     }
   }
 
-  // TODO: Implement social login handlers (Google, Microsoft, GitHub, Apple)
+  // OAuth login handler - delegates to Auth.js
   const handleSocialLogin = (provider) => {
-    console.log(`Social login with ${provider}`)
-    // TODO: Redirect to OAuth endpoint or backend authentication
+    signIn(provider, { redirect: true, redirectTo: '/notes' })
   }
 
   return (
@@ -78,16 +85,16 @@ export default function LoginPage() {
               </label>
               <div className="mt-2">
                 <input
-                  ref={userRef}
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
+                   ref={userRef}
+                   id="email"
+                   name="email"
+                   type="email"
+                   required
+                   autoComplete="email"
+                   value={email}
+                   onChange={handleEmailChange}
+                   className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                 />
               </div>
             </div>
 
@@ -97,15 +104,15 @@ export default function LoginPage() {
               </label>
               <div className="mt-2">
                 <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={pwd}
-                  onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
+                   id="password"
+                   name="password"
+                   type="password"
+                   required
+                   autoComplete="current-password"
+                   value={pwd}
+                   onChange={handlePasswordChange}
+                   className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                 />
               </div>
             </div>
 
@@ -178,10 +185,10 @@ export default function LoginPage() {
                 <span className="text-sm/6 font-semibold">Google</span>
               </button>
 
-              {/* Microsoft */}
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('microsoft')}
+               {/* Microsoft */}
+               <button
+                 type="button"
+                 onClick={() => handleSocialLogin('azure-ad')}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
                 <svg viewBox="0 0 2499.6 2500" aria-hidden="true" className="h-5 w-5">

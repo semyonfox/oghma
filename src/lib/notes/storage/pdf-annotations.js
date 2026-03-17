@@ -9,8 +9,8 @@ export async function saveAnnotations(userId, noteId, attachmentId, annotationDa
     // Check if annotations exist for this note
     const existing = await sql`
       SELECT id FROM app.pdf_annotations
-      WHERE user_id = ${userId}
-        AND note_id = ${noteId}
+      WHERE user_id = ${userId}::uuid
+        AND note_id = ${noteId}::uuid
         AND attachment_id IS ${attachmentId}
       LIMIT 1
     `;
@@ -30,7 +30,7 @@ export async function saveAnnotations(userId, noteId, attachmentId, annotationDa
       result = await sql`
         INSERT INTO app.pdf_annotations
         (user_id, note_id, attachment_id, annotation_data)
-        VALUES (${userId}, ${noteId}, ${attachmentId}, ${JSON.stringify(annotationData)})
+        VALUES (${userId}::uuid, ${noteId}::uuid, ${attachmentId}, ${JSON.stringify(annotationData)})
         RETURNING *
       `;
     }
@@ -49,8 +49,8 @@ export async function getAnnotations(userId, noteId, attachmentId) {
   try {
     const rows = await sql`
       SELECT * FROM app.pdf_annotations
-      WHERE user_id = ${userId}
-        AND note_id = ${noteId}
+      WHERE user_id = ${userId}::uuid
+        AND note_id = ${noteId}::uuid
         ${attachmentId !== undefined ? sql`AND attachment_id IS ${attachmentId}` : sql``}
       ORDER BY updated_at DESC
     `;
@@ -77,7 +77,7 @@ export async function deleteAnnotations(userId, annotationId) {
   try {
     await sql`
       DELETE FROM app.pdf_annotations
-      WHERE id = ${annotationId} AND user_id = ${userId}
+      WHERE id = ${annotationId} AND user_id = ${userId}::uuid
     `;
   } catch (error) {
     console.error('Error deleting PDF annotations:', error);
@@ -92,7 +92,7 @@ export async function deleteNoteAnnotations(userId, noteId) {
   try {
     await sql`
       DELETE FROM app.pdf_annotations
-      WHERE user_id = ${userId} AND note_id = ${noteId}
+      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
     `;
   } catch (error) {
     console.error('Error deleting note annotations:', error);

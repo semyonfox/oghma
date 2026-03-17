@@ -5,16 +5,34 @@ import { isNoteLink, NoteModel } from '@/lib/notes/types/note';
 import { removeMarkdown } from '@/lib/notes/utils/markdown';
 import markdownLinkExtractor from 'markdown-link-extractor';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUUID = (id: string) => UUID_REGEX.test(id);
+
+/**
+ * Purge stale nanoid-format keys from the note cache.
+ * These were created before the app switched to UUID v7 IDs and the
+ * server now rejects them with 400, causing endless retry loops.
+ */
+export async function purgeNonUUIDNoteCache(): Promise<void> {
+    const keys = await noteCache.keys();
+    const stale = keys.filter(k => k && !isUUID(k));
+    if (stale.length > 0) {
+        console.debug(`[cache] purging ${stale.length} stale non-UUID note(s):`, stale);
+        await Promise.all(stale.map(k => noteCache.removeItem(k)));
+    }
+}
+
 /**
  * 清除本地存储中未使用的 note
  */
 async function checkItems(items: TreeModel['items']) {
-     const noteIds = Object.keys(items);
-     const localNoteIds = await noteCache.keys();
-     const unusedNoteIds = localNoteIds.filter(id => !noteIds.includes(id));
+    const noteIds = Object.keys(items);
+    const localNoteIds = await noteCache.keys();
+    // remove notes absent from the current tree AND notes with invalid (non-UUID) IDs
+    const toRemove = localNoteIds.filter(id => !noteIds.includes(id) || !isUUID(id));
 
     await Promise.all(
-        unusedNoteIds.map((id) => (id ? noteCache.removeItem(id) : undefined))
+        toRemove.map((id) => (id ? noteCache.removeItem(id) : undefined))
     );
 }
 

@@ -3,7 +3,7 @@
 import { FC, useState, useCallback } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
-import Image from 'next/image';
+import { useFileUrl } from './use-file-url';
 
 interface ImageViewerProps {
   file: FileSpec;
@@ -19,8 +19,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  const imageSrc = file.title || '';
+  const { url: imageSrc, loading } = useFileUrl(file.sourcePath);
 
   const handleZoomIn = useCallback(() => {
     setZoom((z) => Math.min(z + 0.2, 5));
@@ -64,7 +63,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-950">
+    <div className="h-full flex flex-col bg-gray-800">
       {/* Controls */}
       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -105,7 +104,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
 
       {/* Image Container */}
       <div
-        className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center cursor-grab active:cursor-grabbing"
+        className="flex-1 overflow-auto bg-gray-800 flex items-center justify-center cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -119,12 +118,16 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
             transition: isDragging ? 'none' : 'transform 0.2s ease-out',
           }}
         >
-          <img
-            src={imageSrc}
-            alt={file.title}
-            className="max-w-2xl max-h-96 select-none"
-            onDragStart={(e) => e.preventDefault()}
-          />
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt={file.title}
+              className="max-w-2xl max-h-96 select-none"
+              onDragStart={(e) => e.preventDefault()}
+            />
+          ) : (
+            <div className="text-sm text-gray-500">{loading ? 'Loading image...' : 'Image unavailable'}</div>
+          )}
         </div>
       </div>
     </div>

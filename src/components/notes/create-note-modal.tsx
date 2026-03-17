@@ -7,6 +7,7 @@ interface CreateNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateNote: (title: string, language: string) => Promise<void>;
+  onCreateFolder: () => Promise<void>;
   onUploadFile: (file: File) => Promise<void>;
 }
 
@@ -17,9 +18,10 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   isOpen,
   onClose,
   onCreateNote,
+  onCreateFolder,
   onUploadFile,
 }) => {
-  const [mode, setMode] = useState<'upload' | 'new'>('new');
+  const [mode, setMode] = useState<'upload' | 'new' | 'folder'>('new');
   const [isDragging, setIsDragging] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +99,18 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
     }
   }, [onCreateNote, onClose]);
 
+  const handleCreateFolder = useCallback(async () => {
+    setIsCreating(true);
+    try {
+      await onCreateFolder();
+      onClose();
+    } catch (error) {
+      console.error('Folder creation failed:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  }, [onCreateFolder, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -140,7 +154,18 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               } disabled:opacity-50`}
             >
-              New File
+              File
+            </button>
+            <button
+              onClick={() => setMode('folder')}
+              disabled={isCreating}
+              className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
+                mode === 'folder'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              } disabled:opacity-50`}
+            >
+              Folder
             </button>
             <button
               onClick={() => setMode('upload')}
@@ -159,7 +184,16 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           {mode === 'new' && (
             <div className="space-y-4">
               <p className="text-sm text-gray-400">
-                Create a new markdown file (.md)
+                Create a new markdown file
+              </p>
+            </div>
+          )}
+
+          {/* New Folder Mode */}
+          {mode === 'folder' && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400">
+                Create a new folder to organize your notes
               </p>
             </div>
           )}
@@ -211,6 +245,15 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           {mode === 'new' && (
             <button
               onClick={handleCreateNew}
+              disabled={isCreating}
+              className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+            >
+              {isCreating ? 'Creating...' : 'Create'}
+            </button>
+          )}
+          {mode === 'folder' && (
+            <button
+              onClick={handleCreateFolder}
               disabled={isCreating}
               className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
             >
