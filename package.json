@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "start:next": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest",
+    "test:ci": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",
@@ -77,6 +79,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.2.1",
+    "@testing-library/react": "^15.0.7",
+    "@testing-library/jest-dom": "^6.1.5",
     "@types/dompurify": "^3.2.0",
     "@types/lodash": "^4.17.24",
     "@types/node": "^25.5.0",
@@ -85,12 +89,15 @@
     "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",
+    "@vitest/ui": "^1.1.0",
     "autoprefixer": "^10.4.27",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.1.6",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "jsdom": "^24.0.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.1.0"
   }
 }

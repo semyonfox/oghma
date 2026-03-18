@@ -254,10 +254,10 @@ const SidebarListItem: FC<{
                         innerRef(el);
                     }}
                      className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                       snapshot.isDragging ? 'opacity-50 bg-indigo-500/20 shadow-lg ring-1 ring-indigo-500/40' : ''
-                   } ${
-                       activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                   }`}
+                        snapshot.isDragging ? 'opacity-60 bg-white/8 shadow-lg ring-1 ring-white/20' : ''
+                    } ${
+                        activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                    }`}
                    role="treeitem"
                    aria-expanded={hasChildren ? isExpanded : undefined}
                    aria-selected={activeId === item.id}
