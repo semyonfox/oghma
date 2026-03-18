@@ -26,8 +26,6 @@ const SidebarList = () => {
     const { t } = useI18n();
     const router = useRouter();
     
-    // Debug: confirm component is mounted
-    console.debug('[SidebarList] Component mounted, ready for drag/drop debugging');
     const {
         tree,
         moveItem,
@@ -63,7 +61,6 @@ const SidebarList = () => {
                 isFolder: true,
                 data: { title: 'Root', isFolder: true },
             };
-            console.log('[treeData] root has', root.children?.length || 0, 'direct children');
         }
 
         // Add all other items
@@ -90,10 +87,6 @@ const SidebarList = () => {
             };
         }
 
-        console.log('[treeData] Built tree: root + ' + itemCount + ' items (' + folderCount + ' folders, ' + (itemCount - folderCount) + ' notes)');
-        if (folderCount === 0) {
-            console.warn('[treeData] WARNING: No folders found! All items are flat at root level.');
-        }
         return result;
     }, [tree]);
 
@@ -104,9 +97,7 @@ const SidebarList = () => {
                 if (typeof itemId === 'string') {
                     const item = tree.items[itemId];
                     if (item && item.isFolder && item.children.length === 0) {
-                        await loadChildren(itemId).catch((e) =>
-                            console.error(`Error loading children for ${itemId}:`, e)
-                        );
+                        await loadChildren(itemId);
                     }
                 }
             }
@@ -119,9 +110,7 @@ const SidebarList = () => {
         (item: any) => {
             const itemId = item.index;
             if (typeof itemId === 'string') {
-                mutateItem(itemId, { isExpanded: true }).catch((v) =>
-                    console.error('Error expanding item:', v)
-                );
+                mutateItem(itemId, { isExpanded: true });
             }
         },
         [mutateItem]
@@ -132,9 +121,7 @@ const SidebarList = () => {
         (item: any) => {
             const itemId = item.index;
             if (typeof itemId === 'string') {
-                mutateItem(itemId, { isExpanded: false }).catch((v) =>
-                    console.error('Error collapsing item:', v)
-                );
+                mutateItem(itemId, { isExpanded: false });
             }
         },
         [mutateItem]
@@ -143,21 +130,15 @@ const SidebarList = () => {
     // react-complex-tree callback: when items are dropped on a new parent
     const handleDrop = useCallback(
         (draggedItems: any[], target: any) => {
-            console.log('[handleDrop] TRIGGERED! draggedItems:', draggedItems.length, 'target:', target);
-            
             if (draggedItems.length === 0) {
-                console.log('[handleDrop] ERROR: No dragged items');
                 return;
             }
 
             const currentItems = useNoteTreeStore.getState().tree.items;
             const dragId = draggedItems[0]?.index;
             if (typeof dragId !== 'string') {
-                console.debug('[handleDrop] Invalid dragId:', dragId);
                 return;
             }
-
-            console.debug('[handleDrop] target:', target);
 
             // find source parent and its index within that parent
             let sourceParentId = '';
@@ -171,7 +152,6 @@ const SidebarList = () => {
                 }
             }
             if (sourceIndex === -1) {
-                console.error("Can't find source item in tree");
                 return;
             }
 
@@ -182,30 +162,24 @@ const SidebarList = () => {
                 // dropped directly on a folder — nest inside it at the end
                 destParentId = target.targetItem;
                 destIndex = currentItems[destParentId]?.children?.length ?? 0;
-                console.debug('[handleDrop] Dropping ON item:', destParentId);
             } else if (target.targetType === 'between-items') {
                 // dropped between items — use the parent and the child insertion index
                 destParentId = target.parentItem;
                 destIndex = target.childIndex ?? 0;
-                console.debug('[handleDrop] Dropping BETWEEN items in parent:', destParentId, 'at index:', destIndex);
             } else {
                 // dropped on root
                 destParentId = 'root';
                 destIndex = currentItems['root']?.children?.length ?? 0;
-                console.debug('[handleDrop] Dropping on ROOT at index:', destIndex);
             }
 
             if (typeof destParentId !== 'string') {
-                console.error('Invalid destParentId:', destParentId);
                 return;
             }
-
-            console.debug('[handleDrop] Moving from', sourceParentId, 'index', sourceIndex, 'to', destParentId, 'index', destIndex);
 
             moveItem({
                 source: { parentId: sourceParentId, index: sourceIndex },
                 destination: { parentId: destParentId, index: destIndex },
-            }).catch((e) => console.error('Move error', e));
+            });
         },
         [moveItem]
     );
@@ -258,7 +232,6 @@ const SidebarList = () => {
         });
 
         if (!uploadRes.ok) {
-            console.error('Upload failed:', await uploadRes.text());
             return;
         }
 
@@ -516,19 +489,10 @@ const SidebarList = () => {
                             treeLabel={t('My Pages')}
                             renderItem={({ item, depth, children, arrow, context }) => {
                                   const nodeData = item.data as any;
-                                  const hasChildren = !!(item.children && item.children.length > 0);
-                                  const isFolder = item.isFolder || nodeData?.isFolder || hasChildren;
-                                  const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
-                                  const isDragging = (context as any)?.isDragging === true;
-                                  
-                                  // Log once for root and first few items to see context keys
-                                  if (item.index === 'root' || depth === 0) {
-                                    const contextKeys = Object.keys(context || {});
-                                    console.log('[renderItem]', String(item.index).slice(0, 8), 'depth:', depth, 'isDragging:', isDragging, 'hasChildren:', hasChildren, 'contextKeys:', contextKeys.length);
-                                    if (contextKeys.length === 0) {
-                                      console.warn('[renderItem] WARNING: context is empty! No drag handlers available');
-                                    }
-                                  }
+                                   const hasChildren = !!(item.children && item.children.length > 0);
+                                   const isFolder = item.isFolder || nodeData?.isFolder || hasChildren;
+                                   const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
+                                   const isDragging = (context as any)?.isDragging === true;
 
                                   return (
                                       <div className="flex flex-col w-full">
