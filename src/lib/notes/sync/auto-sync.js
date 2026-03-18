@@ -3,12 +3,7 @@
 
 import sql from '@/database/pgsql.js';
 import { getAllNotesFromS3 } from '@/lib/notes/storage/s3-storage';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidUUID(id) {
-  return UUID_REGEX.test(id);
-}
+import { isValidUUID } from '@/lib/uuid-validation';
 
 function generateUUIDForId(id) {
   // Generate deterministic UUID based on old ID
