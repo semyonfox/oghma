@@ -14,8 +14,8 @@ export default function Footer() {
       { name: t('Canvas Integration'), href: '#' },
     ],
     support: [
-      { name: t('Documentation'), href: '#' },
-      { name: t('Guides'), href: '#' },
+      { name: t('Documentation'), href: '/syntax-guide' },
+      { name: t('Guides'), href: '/syntax-guide' },
       { name: t('Contact'), href: '/#contact' },
     ],
     company: [
@@ -56,8 +56,20 @@ export default function Footer() {
 
   const handleLanguageChange = async (e) => {
     const nextLocale = e.target.value;
-    const module = await import(`@/locales/${nextLocale}.json`);
-    locale(nextLocale, module.default);
+    try {
+      // Load the new locale file
+      const module = await import(`@/locales/${nextLocale}.json`);
+      locale(nextLocale, module.default);
+
+      // Persist the language preference to user settings
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: nextLocale }),
+      });
+    } catch (error) {
+      console.error('Failed to change language:', error);
+    }
   };
 
   return (
