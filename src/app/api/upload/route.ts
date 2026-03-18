@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage/init';
 import { isValidUUID } from '@/lib/uuid-validation';
+import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
+import { generateUUID } from '@/lib/utils/uuid';
 import sql from '@/database/pgsql';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,19 +21,51 @@ export async function POST(request: NextRequest) {
 
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        const noteId = formData.get('noteId') as string;
-
-        // Validation: require valid noteId, no default 'test'
-        if (!noteId || !isValidUUID(noteId)) {
-            return NextResponse.json(
-                { error: 'Valid noteId (UUID) is required' },
-                { status: 400 }
-            );
-        }
+        let noteId = formData.get('noteId') as string;
 
         if (!file) {
             return NextResponse.json(
                 { error: 'No file provided' },
+                { status: 400 }
+            );
+        }
+
+        // If no noteId provided, create a new note for this file
+        let createdNewNote = false;
+        if (!noteId) {
+            noteId = generateUUID();
+            createdNewNote = true;
+
+            const fileName = file.name || 'unnamed';
+            try {
+                // Create a note for this uploaded file
+                await sql`
+                    INSERT INTO app.notes (
+                        note_id, user_id, title, content, is_folder, deleted, created_at, updated_at
+                    ) VALUES (
+                        ${noteId}::uuid,
+                        ${session.user_id}::uuid,
+                        ${fileName},
+                        '',
+                        false,
+                        0,
+                        NOW(),
+                        NOW()
+                    )
+                `;
+
+                // Add to tree (root level)
+                await addNoteToTree(session.user_id, noteId, null);
+            } catch (dbError) {
+                console.error('Failed to create note for uploaded file:', dbError);
+                return NextResponse.json(
+                    { error: 'Failed to create note for file' },
+                    { status: 500 }
+                );
+            }
+        } else if (!isValidUUID(noteId)) {
+            return NextResponse.json(
+                { error: 'Invalid noteId format' },
                 { status: 400 }
             );
         }
@@ -68,14 +102,29 @@ export async function POST(request: NextRequest) {
             // Don't fail the upload if DB insert fails, but log it
         }
 
+        // Update the note with the S3 key if we created it
+        if (createdNewNote) {
+            try {
+                await sql`
+                    UPDATE app.notes
+                    SET s3_key = ${storagePath}, updated_at = NOW()
+                    WHERE note_id = ${noteId}::uuid
+                `;
+            } catch (updateError) {
+                console.error('Failed to update note with s3_key:', updateError);
+            }
+        }
+
         return NextResponse.json({
             success: true,
+            noteId,
             fileName,
             path: storagePath,
             url: signedUrl,
             size: file.size,
             type: file.type,
             attachmentId,
+            createdNewNote,
         });
     } catch (error) {
         console.error('Upload error:', error);
