@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage/init';
+import sql from '@/database/pgsql';
+import { v4 as uuidv4 } from 'uuid';
 
 // Helper to validate UUID format
 function isValidUUID(id: string): boolean {
@@ -43,9 +45,32 @@ export async function POST(request: NextRequest) {
         const storagePath = `notes/${noteId}/${fileName}`;
 
         const storage = getStorageProvider();
-        await storage.putObject(storagePath, Buffer.from(buffer));
+        await storage.putObject(storagePath, Buffer.from(buffer), {
+            contentType: file.type || 'application/octet-stream'
+        });
 
         const signedUrl = await storage.getSignUrl(storagePath, 3600);
+
+        // Record attachment in database
+        const attachmentId = uuidv4();
+        try {
+            await sql`
+                INSERT INTO app.attachments
+                (id, note_id, user_id, filename, s3_key, mime_type, file_size)
+                VALUES (
+                    ${attachmentId}::uuid,
+                    ${noteId}::uuid,
+                    ${session.user_id}::uuid,
+                    ${fileName},
+                    ${storagePath},
+                    ${file.type || 'application/octet-stream'},
+                    ${file.size}
+                )
+            `;
+        } catch (dbError) {
+            console.error('Failed to record attachment in database:', dbError);
+            // Don't fail the upload if DB insert fails, but log it
+        }
 
         return NextResponse.json({
             success: true,
@@ -54,6 +79,7 @@ export async function POST(request: NextRequest) {
             url: signedUrl,
             size: file.size,
             type: file.type,
+            attachmentId,
         });
     } catch (error) {
         console.error('Upload error:', error);
