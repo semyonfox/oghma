@@ -106,7 +106,7 @@ const IconNav: FC = () => {
           id: 'settings',
           label: 'Settings',
           icon: Cog6ToothIcon,
-          href: '/notes',
+          href: '/settings',
           section: 'settings'
         })}
         className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-gray-500 hover:text-gray-400 hover:bg-white/5 group relative ${
