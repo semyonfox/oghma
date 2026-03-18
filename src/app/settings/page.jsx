@@ -52,6 +52,7 @@ export default function SettingsPage() {
     confirmPassword: '',
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [activeSection, setActiveSection] = useState('account')
 
   // Load user settings on mount
   useEffect(() => {
@@ -74,6 +75,25 @@ export default function SettingsPage() {
     }
     loadSettings()
   }, [setSettings])
+
+  // Track active section when user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = ['account', 'notifications', 'billing', 'data', 'canvas', 'danger']
+      for (const section of sections) {
+        const element = document.getElementById(section)
+        if (element) {
+          const rect = element.getBoundingClientRect()
+          if (rect.top <= 200 && rect.bottom >= 0) {
+            setActiveSection(section)
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const handleNavClick = (item) => {
     const element = document.querySelector(item.href)
@@ -205,21 +225,32 @@ export default function SettingsPage() {
                 role="list"
                 className="flex min-w-full flex-none gap-x-6 px-4 text-sm/6 font-semibold text-gray-400 sm:px-6 lg:px-8"
               >
-                {secondaryNavigation.map((item) => (
-                  <li key={item.name}>
-                    <a href={item.href} className={item.current ? 'text-indigo-400' : ''}>
-                      {item.name}
-                    </a>
-                  </li>
-                ))}
+               {secondaryNavigation.map((item) => {
+                   const sectionId = item.href.replace('#', '')
+                   const isActive = activeSection === sectionId
+                   return (
+                     <li key={item.name}>
+                       <a 
+                         href={item.href} 
+                         className={isActive ? 'text-indigo-400 border-b-2 border-indigo-400 pb-4' : 'hover:text-gray-300'}
+                         onClick={(e) => {
+                           e.preventDefault()
+                           handleNavClick(item)
+                         }}
+                       >
+                         {item.name}
+                       </a>
+                     </li>
+                   )
+                 })}
               </ul>
             </nav>
           </header>
 
-          {/* Main content */}
-          <main className="divide-y divide-white/10">
-            {/* Account Settings */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+           {/* Main content */}
+           <main className="divide-y divide-white/10">
+             {/* Account Settings */}
+             <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Personal Information</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Update your profile information and avatar.</p>
@@ -337,8 +368,8 @@ export default function SettingsPage() {
                </form>
              </div>
 
-             {/* Editor & Theme Settings */}
-             <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Editor & Theme Settings (Notifications section) */}
+             <div id="notifications" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                <div>
                  <h2 className="text-base/7 font-semibold text-white">Editor & Theme</h2>
                  <p className="mt-1 text-sm/6 text-gray-400">Customize your note editor appearance and behavior.</p>
@@ -405,8 +436,8 @@ export default function SettingsPage() {
                </form>
              </div>
 
-            {/* Change Password */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Change Password (Billing section for now) */}
+             <div id="billing" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Change password</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Update your password associated with your account.</p>
@@ -482,8 +513,8 @@ export default function SettingsPage() {
               </form>
             </div>
 
-            {/* Data & Export */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Data & Export */}
+             <div id="data" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Data & Export</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Import or export your notes in various formats.</p>
@@ -528,8 +559,8 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Canvas Integration */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Canvas Integration */}
+             <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Canvas Integration</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Connect and manage your Canvas LMS integration.</p>
@@ -604,8 +635,8 @@ export default function SettingsPage() {
               </form>
             </div>
 
-            {/* Danger Zone */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Danger Zone */}
+             <div id="danger" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Danger Zone</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Irreversible and destructive actions.</p>
