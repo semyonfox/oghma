@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type FileType = 'note' | 'pdf' | 'image' | 'video';
-export type NavSection = 'notes' | 'search' | 'calendar' | 'quiz' | 'flashcards' | 'analytics' | 'settings';
+export type NavSection = 'notes' | 'search' | 'calendar' | 'settings';
 
 interface PaneState {
   fileId: string;
@@ -64,9 +64,9 @@ const useLayoutStore = create<LayoutState>()(
       paneA: { fileId: '', fileType: 'note' as FileType },
       paneB: null,
       activePane: 'A',
-      rightPanelOpen: true,
-      treeWidth: 250,
-      rightPanelWidth: 300,
+      rightPanelOpen: false,
+      treeWidth: 220,
+      rightPanelWidth: 280,
       splitPosition: 50,
        expandedNodes: new Set(['root']),
        collapsedSections: new Set(),

@@ -20,31 +20,14 @@ interface InspectorNote {
   note_id?: string;
 }
 
-function Section({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  icon: typeof SparklesIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-white/10 bg-gray-900/80">
-      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <Icon className="h-4 w-4 text-gray-400" />
-        <h3 className="text-sm font-medium text-gray-200">{title}</h3>
-      </div>
-      <div className="p-4">{children}</div>
-    </section>
-  );
-}
+type InspectorTab = 'ai' | 'meta' | 'tags';
 
 export default function NotesInspectorSidebar() {
   const { activePane, paneA, paneB, rightPanelOpen, toggleRightPanel } = useLayoutStore();
   const activeFile = activePane === 'B' && paneB ? paneB : paneA;
   const [note, setNote] = useState<InspectorNote | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<InspectorTab>('meta');
 
   useEffect(() => {
     if (!activeFile?.fileId) {
@@ -83,101 +66,126 @@ export default function NotesInspectorSidebar() {
 
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
 
+  const tabClasses = (tab: InspectorTab) => `
+    px-3 py-2 text-xs font-medium transition-colors border-b-2
+    ${activeTab === tab
+      ? 'border-indigo-500 text-gray-200'
+      : 'border-transparent text-gray-600 hover:text-gray-500'
+    }
+  `;
+
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-gray-200">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Inspector</p>
-          <p className="mt-1 text-sm font-medium text-gray-200">
-            {activeFile?.title || 'No file selected'}
-          </p>
-        </div>
+    <div className="h-full flex flex-col bg-gray-800 text-gray-200">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/6 px-4 py-3">
+        <h3 className="text-sm font-medium text-gray-300">{activeFile?.title || 'No file'}</h3>
         {rightPanelOpen && (
           <button
             onClick={toggleRightPanel}
-            className="rounded-md p-2 text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-200"
-            title="Collapse sidebar"
+            className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+            title="Collapse panel"
           >
             <ChevronRightIcon className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <Section title="AI Sidebar" icon={SparklesIcon}>
-          {activeFile?.fileId ? (
-            <div className="space-y-3">
-              <button className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-gray-200 transition-colors hover:bg-white/10">
-                Summarize this file
-              </button>
-              <button className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-gray-200 transition-colors hover:bg-white/10">
-                Generate study prompts
-              </button>
-              <button className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-gray-200 transition-colors hover:bg-white/10">
-                Find related notes
-              </button>
-              <p className="text-xs text-gray-500">
-                Actions are scaffolded in the UI and can be wired to backend AI flows next.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Select a file to see AI actions.</p>
-          )}
-        </Section>
+      {/* Tabs */}
+      <div className="flex border-b border-white/6 px-3 gap-0">
+        <button onClick={() => setActiveTab('meta')} className={tabClasses('meta')}>
+          Meta
+        </button>
+        <button onClick={() => setActiveTab('tags')} className={tabClasses('tags')}>
+          Tags
+        </button>
+        <button onClick={() => setActiveTab('ai')} className={tabClasses('ai')}>
+          AI
+        </button>
+      </div>
 
-        <Section title="Metadata" icon={DocumentTextIcon}>
-          {loading ? (
-            <p className="text-sm text-gray-500">Loading metadata...</p>
-          ) : note ? (
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">Title</dt>
-                <dd className="mt-1 text-gray-200">{note.title || activeFile?.title || 'Untitled'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">Type</dt>
-                <dd className="mt-1 text-gray-200">{activeFile.fileType}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">Created</dt>
-                <dd className="mt-1 text-gray-200">
-                  {note.created_at ? new Date(note.created_at).toLocaleString() : 'Unknown'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">Updated</dt>
-                <dd className="mt-1 text-gray-200">
-                  {note.updated_at ? new Date(note.updated_at).toLocaleString() : 'Unknown'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-gray-500">ID</dt>
-                <dd className="mt-1 break-all font-mono text-xs text-gray-400">
-                  {note.note_id || note.id || activeFile.fileId}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-sm text-gray-500">Metadata is available when a note-backed file is selected.</p>
-          )}
-        </Section>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Metadata Tab */}
+        {activeTab === 'meta' && (
+          <div className="p-4">
+            {loading ? (
+              <p className="text-xs text-gray-500">Loading...</p>
+            ) : note ? (
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-xs uppercase tracking-widest text-gray-600">Title</dt>
+                  <dd className="mt-1 text-gray-300 text-sm">{note.title || activeFile?.title || 'Untitled'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-widest text-gray-600">Type</dt>
+                  <dd className="mt-1 text-gray-300 text-sm">{activeFile.fileType}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-widest text-gray-600">Created</dt>
+                  <dd className="mt-1 text-gray-400 text-sm">
+                    {note.created_at ? new Date(note.created_at).toLocaleDateString() : 'Unknown'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-widest text-gray-600">Updated</dt>
+                  <dd className="mt-1 text-gray-400 text-sm">
+                    {note.updated_at ? new Date(note.updated_at).toLocaleDateString() : 'Unknown'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-widest text-gray-600">ID</dt>
+                  <dd className="mt-1 break-all font-mono text-[10px] text-gray-500">
+                    {note.note_id || note.id || activeFile.fileId}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-xs text-gray-500">Select a note to view metadata.</p>
+            )}
+          </div>
+        )}
 
-        <Section title="Tags" icon={TagIcon}>
-          {tags.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-200"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">No tags found in this note yet.</p>
-          )}
-        </Section>
+        {/* Tags Tab */}
+        {activeTab === 'tags' && (
+          <div className="p-4">
+            {tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-xs text-gray-400"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">No tags found in this note.</p>
+            )}
+          </div>
+        )}
+
+        {/* AI Tab */}
+        {activeTab === 'ai' && (
+          <div className="p-4">
+            {activeFile?.fileId ? (
+              <div className="space-y-2">
+                <button className="w-full rounded border border-white/8 bg-white/5 px-3 py-2 text-left text-xs text-gray-300 transition-colors hover:bg-white/8">
+                  Summarize this file
+                </button>
+                <button className="w-full rounded border border-white/8 bg-white/5 px-3 py-2 text-left text-xs text-gray-300 transition-colors hover:bg-white/8">
+                  Generate study prompts
+                </button>
+                <button className="w-full rounded border border-white/8 bg-white/5 px-3 py-2 text-left text-xs text-gray-300 transition-colors hover:bg-white/8">
+                  Find related notes
+                </button>
+                <p className="text-[11px] text-gray-600 pt-2">Actions are scaffolded and ready for backend integration.</p>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">Select a file to see AI actions.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
