@@ -45,7 +45,7 @@ export async function GET(request, { params }) {
 
      // Get note from PostgreSQL (verify ownership)
      const result = await sql`
-       SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+       SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
        WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
      `;
 
@@ -62,6 +62,8 @@ export async function GET(request, { params }) {
        id: dbNote.note_id,
        title: dbNote.title,
        content: dbNote.content,
+       isFolder: dbNote.is_folder,
+       s3Key: dbNote.s3_key,
        deleted: dbNote.deleted,
        shared: dbNote.shared,
        pinned: dbNote.pinned,
@@ -125,28 +127,30 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Update note
-    const updatedNote = await sql`
-      UPDATE app.notes
-      SET title = ${body.title || existingNote.title},
-          content = ${body.content || existingNote.content},
-          updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-      RETURNING note_id, title, content, deleted, shared, pinned, created_at, updated_at
-    `;
+     // Update note
+     const updatedNote = await sql`
+       UPDATE app.notes
+       SET title = ${body.title || existingNote.title},
+           content = ${body.content || existingNote.content},
+           updated_at = NOW()
+       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+       RETURNING note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at
+     `;
 
-    const dbNote = updatedNote[0];
-    return NextResponse.json({
-      id: dbNote.note_id,
-      title: dbNote.title,
-      content: dbNote.content,
-      deleted: dbNote.deleted,
-      shared: dbNote.shared,
-      pinned: dbNote.pinned,
-      editorsize: null,
-      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
-    });
+     const dbNote = updatedNote[0];
+     return NextResponse.json({
+       id: dbNote.note_id,
+       title: dbNote.title,
+       content: dbNote.content,
+       isFolder: dbNote.is_folder,
+       s3Key: dbNote.s3_key,
+       deleted: dbNote.deleted,
+       shared: dbNote.shared,
+       pinned: dbNote.pinned,
+       editorsize: null,
+       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
+       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
+     });
   } catch (error) {
     console.error('Note PUT error:', error);
     return NextResponse.json(
