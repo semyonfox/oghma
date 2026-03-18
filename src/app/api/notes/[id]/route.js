@@ -3,24 +3,8 @@ import { validateSession } from '@/lib/auth.js';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import { removeNoteFromTree } from '@/lib/notes/storage/pg-tree.js';
 import { deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
+import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import sql from '@/database/pgsql.js';
-
-/**
- * Helper: Filter note to only include requested fields
- */
-function filterNoteFields(note, fields) {
-  if (!fields || fields.length === 0) {
-    return note;
-  }
-  
-  const filtered = {};
-  for (const field of fields) {
-    if (field in note) {
-      filtered[field] = note[field];
-    }
-  }
-  return filtered;
-}
 
 export async function GET(request, { params }) {
   try {
