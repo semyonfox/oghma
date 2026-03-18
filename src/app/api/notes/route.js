@@ -2,29 +2,13 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
+import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import sql from '@/database/pgsql.js';
 
 // Constants
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const NOTE_PINNED = { UNPINNED: 0, PINNED: 1 };
 const NOTE_SHARED = { PRIVATE: 0, SHARED: 1 };
-
-/**
- * Helper: Filter note to only include requested fields
- */
-function filterNoteFields(note, fields) {
-  if (!fields || fields.length === 0) {
-    return note;
-  }
-  
-  const filtered = {};
-  for (const field of fields) {
-    if (field in note) {
-      filtered[field] = note[field];
-    }
-  }
-  return filtered;
-}
 
 export async function GET(request) {
   try {
