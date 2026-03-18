@@ -1,5 +1,6 @@
 // trash API route - restore and permanently delete notes
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth';
 import {
     getNoteFromS3,
     restoreNoteFromTrash,
@@ -17,6 +18,14 @@ interface TrashAction {
 
 export async function GET() {
     try {
+        const user = await validateSession();
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const trash = await getTrashFromS3();
         return NextResponse.json({ items: trash });
     } catch (error) {
@@ -30,6 +39,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
     try {
+        const user = await validateSession();
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const body: TrashAction = await request.json();
 
         if (!body.action || (body.action !== 'list' && !body.data?.id)) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import { getNoteFromS3, saveNoteToS3 } from '@/lib/notes/storage/s3-storage';
 
@@ -8,6 +9,15 @@ export async function POST(
 ) {
   const { id } = await params;
   const noteId = id;
+
+  // Authenticate user
+  const user = await validateSession();
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
 
   if (!isValidUUID(noteId)) {
     return NextResponse.json(

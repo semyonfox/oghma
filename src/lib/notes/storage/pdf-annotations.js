@@ -11,7 +11,7 @@ export async function saveAnnotations(userId, noteId, attachmentId, annotationDa
       SELECT id FROM app.pdf_annotations
       WHERE user_id = ${userId}::uuid
         AND note_id = ${noteId}::uuid
-        AND attachment_id IS ${attachmentId}
+        AND attachment_id = ${attachmentId}::uuid
       LIMIT 1
     `;
 
@@ -51,7 +51,7 @@ export async function getAnnotations(userId, noteId, attachmentId) {
       SELECT * FROM app.pdf_annotations
       WHERE user_id = ${userId}::uuid
         AND note_id = ${noteId}::uuid
-        ${attachmentId !== undefined ? sql`AND attachment_id IS ${attachmentId}` : sql``}
+        ${attachmentId !== undefined ? sql`AND attachment_id = ${attachmentId}::uuid` : sql``}
       ORDER BY updated_at DESC
     `;
 
