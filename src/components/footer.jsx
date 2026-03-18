@@ -14,8 +14,8 @@ export default function Footer() {
       { name: t('Canvas Integration'), href: '#' },
     ],
     support: [
-      { name: t('Documentation'), href: '#' },
-      { name: t('Guides'), href: '#' },
+      { name: t('Documentation'), href: '/syntax-guide' },
+      { name: t('Guides'), href: '/syntax-guide' },
       { name: t('Contact'), href: '/#contact' },
     ],
     company: [
