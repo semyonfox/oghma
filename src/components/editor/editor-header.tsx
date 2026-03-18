@@ -1,7 +1,8 @@
 'use client';
 
 import { FC, useState, useRef, useEffect } from 'react';
-import { EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { EllipsisVerticalIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { NoteModel } from '@/lib/notes/types/note';
 
 interface EditorHeaderProps {
@@ -157,73 +158,11 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
                 >
                   + Add tag
                 </button>
-              )}
-            </div>
-          </div>
-
-          {/* Action Menu */}
-          <div className="relative" ref={menuRef}>
-             <button
-               onClick={() => setShowMenu(!showMenu)}
-               className="p-2 hover:bg-gray-700 rounded transition-colors"
-               title="More actions"
-             >
-               <EllipsisVerticalIcon className="w-6 h-6 text-slate-300" />
-             </button>
-
-            {showMenu && (
-              <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded shadow-lg z-50">
-                <button
-                  onClick={() => {
-                    onAction?.('share');
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-                >
-                  Share Note
-                </button>
-                <button
-                  onClick={() => {
-                    onAction?.('export');
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-                >
-                  Export to PDF
-                </button>
-                <button
-                  onClick={() => {
-                    onAction?.('duplicate');
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-                >
-                  Duplicate
-                </button>
-                <hr className="border-gray-700 my-1" />
-                <button
-                  onClick={() => {
-                    onAction?.('archive');
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left text-yellow-400 hover:bg-gray-700 transition-colors"
-                >
-                  Archive
-                </button>
-                <button
-                  onClick={() => {
-                    onAction?.('delete');
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-gray-700 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+               )}
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   );
 };
