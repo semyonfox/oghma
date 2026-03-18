@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import { processExtractedText } from '@/lib/canvas/text-processing.js';
@@ -72,6 +73,9 @@ export async function POST(request) {
     let failed = 0;
     let skipped = 0;
 
+    // Cache module folder IDs to avoid creating duplicates
+    const moduleFolder = {}; // key: `${courseId}:${module.id}`, value: folderId
+
     for (const courseId of courseIds) {
       // Fetch all modules in this course
       const { data: modules, forbidden: modulesForbidden } = await client.getModules(courseId);
@@ -90,6 +94,33 @@ export async function POST(request) {
         // Canvas module items can be many types (Page, Assignment, Quiz, etc.)
         // We only want File items for import
         const fileItems = items.filter(item => item.type === 'File');
+
+        // Create a folder for this module if it has files
+        let moduleFolderId = null;
+        if (fileItems.length > 0) {
+          const moduleKey = `${courseId}:${module.id}`;
+          if (!moduleFolder[moduleKey]) {
+            try {
+              // Create module folder
+              const folderId = uuidv4();
+
+              await sql`
+                INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
+                VALUES (${folderId}::uuid, ${user.user_id}::uuid, ${module.name}, '', true, 0, NOW(), NOW())
+              `;
+
+              // Add folder to tree at root
+              await addNoteToTree(user.user_id, folderId, null);
+              moduleFolder[moduleKey] = folderId;
+              moduleFolderId = folderId;
+            } catch (folderError) {
+              console.warn(`Failed to create module folder for ${module.name}:`, folderError);
+              // Continue without folder, files go to root
+            }
+          } else {
+            moduleFolderId = moduleFolder[moduleKey];
+          }
+        }
 
         for (const item of fileItems) {
           // Get full file metadata — includes download URL and MIME type
@@ -156,18 +187,17 @@ export async function POST(request) {
             });
 
             // Create the note — title is the Canvas filename, content starts empty
+            // Create a unique note_id
+            const noteId = uuidv4();
             const noteResult = await sql`
-              INSERT INTO app.notes (user_id, title, content, s3_key, deleted, created_at, updated_at)
-              VALUES (${user.user_id}, ${file.display_name}, '', ${s3Key}, 0, NOW(), NOW())
+              INSERT INTO app.notes (note_id, user_id, title, content, s3_key, deleted, created_at, updated_at)
+              VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${file.display_name}, '', ${s3Key}, 0, NOW(), NOW())
               RETURNING note_id
             `;
 
-            const noteId = noteResult[0].note_id;
-
-            // Add to root of the user's file tree.
-            // TODO: once directory support is added to the file tree, create a folder
-            // per module and pass its tree ID here instead of null.
-            await addNoteToTree(user.user_id, noteId, null);
+            // Add to the module folder in the file tree
+            // If module folder creation failed, files go to root (moduleFolderId is null)
+            await addNoteToTree(user.user_id, noteId, moduleFolderId);
 
             // ── RAG Pipeline ──────────────────────────────────────────────
 
