@@ -1,14 +1,22 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   Cog6ToothIcon,
   BellIcon,
   CreditCardIcon,
   PuzzlePieceIcon,
   PencilIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 import { MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
 import { SidebarLayout } from '@/components/sidebar-layout'
+import LanguageSelector from '@/components/common/LanguageSelector'
+import useI18n from '@/lib/notes/hooks/use-i18n'
+import { useSettingsStore } from '@/lib/notes/state/ui/settings'
+import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings'
 
 const navigationItems = [
   { name: 'Account', href: '#account', icon: Cog6ToothIcon, current: true },
@@ -29,10 +37,140 @@ const secondaryNavigation = [
 ]
 
 export default function SettingsPage() {
+  const router = useRouter()
+  const { t } = useI18n()
+  const { settings, setSettings, updateSettings } = useSettingsStore()
+  const [formState, setFormState] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    timezone: 'UTC',
+    theme: 'dark',
+    editorWidth: 'large',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [activeSection, setActiveSection] = useState('account')
+
+  // Load user settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        if (response.ok) {
+          const data = await response.json()
+          setSettings(data)
+          // Update form state with loaded data
+          setFormState((prev) => ({
+            ...prev,
+            theme: data.theme || 'dark',
+            editorWidth: data.editorsize === 'small' ? 'small' : 'large',
+          }))
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error)
+      }
+    }
+    loadSettings()
+  }, [setSettings])
+
+  // Track active section when user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = ['account', 'notifications', 'billing', 'data', 'canvas', 'danger']
+      for (const section of sections) {
+        const element = document.getElementById(section)
+        if (element) {
+          const rect = element.getBoundingClientRect()
+          if (rect.top <= 200 && rect.bottom >= 0) {
+            setActiveSection(section)
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   const handleNavClick = (item) => {
     const element = document.querySelector(item.href)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault()
+    setIsLoading(true)
+    try {
+      await updateSettings({
+        // Add any profile-related fields to settings if needed
+      })
+      toast.success(t('Settings saved successfully'))
+    } catch (error) {
+      console.error('Failed to save profile:', error)
+      toast.error(t('Failed to save settings'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEditorSettingsSave = async (e) => {
+    e.preventDefault()
+    setIsLoading(true)
+    try {
+      await updateSettings({
+        theme: formState.theme,
+        editorsize: formState.editorWidth === 'small' ? 'small' : 'large',
+      })
+      toast.success(t('Editor settings saved'))
+    } catch (error) {
+      console.error('Failed to save editor settings:', error)
+      toast.error(t('Failed to save settings'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    if (formState.newPassword !== formState.confirmPassword) {
+      toast.error(t('Passwords do not match'))
+      return
+    }
+    if (formState.newPassword.length < 8) {
+      toast.error(t('Password must be at least 8 characters'))
+      return
+    }
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: formState.currentPassword,
+          newPassword: formState.newPassword,
+        }),
+      })
+      if (response.ok) {
+        toast.success(t('Password changed successfully'))
+        setFormState((prev) => ({
+          ...prev,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        }))
+      } else {
+        toast.error(t('Failed to change password'))
+      }
+    } catch (error) {
+      console.error('Failed to change password:', error)
+      toast.error(t('Failed to change password'))
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -42,25 +180,43 @@ export default function SettingsPage() {
       logoText="OghmaNotes"
       pageTitle="Settings"
       onNavigate={handleNavClick}
-      children={
-        <>
-          {/* Top bar with search */}
-          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-6 border-b border-white/5 bg-gray-900 -mx-4 -mt-10 px-4 sm:px-6 lg:px-8 sm:hidden">
-            <div className="flex flex-1 gap-x-4 self-stretch">
-              <form action="#" method="GET" className="grid flex-1 grid-cols-1">
-                <input
-                  name="search"
-                  placeholder="Search settings"
-                  aria-label="Search"
-                  className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-base text-white outline-hidden placeholder:text-gray-500 sm:text-sm/6"
-                />
-                <MagnifyingGlassIcon
-                  aria-hidden="true"
-                  className="pointer-events-none col-start-1 row-start-1 size-5 self-center text-gray-500"
-                />
-              </form>
+        children={
+          <>
+            {/* Top bar with search and back button */}
+            <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-6 border-b border-white/5 bg-gray-900 -mx-4 -mt-10 px-4 sm:px-6 lg:px-8 sm:hidden">
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5 p-2"
+                title={t('Back')}
+              >
+                <ArrowLeftIcon className="h-6 w-6" />
+              </button>
+              <div className="flex flex-1 gap-x-4 self-stretch">
+                <form action="#" method="GET" className="grid flex-1 grid-cols-1">
+                  <input
+                    name="search"
+                    placeholder="Search settings"
+                    aria-label="Search"
+                    className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-base text-white outline-hidden placeholder:text-gray-500 sm:text-sm/6"
+                  />
+                  <MagnifyingGlassIcon
+                    aria-hidden="true"
+                    className="pointer-events-none col-start-1 row-start-1 size-5 self-center text-gray-500"
+                  />
+                </form>
+              </div>
             </div>
-          </div>
+
+            {/* Back button for larger screens */}
+            <div className="hidden sm:flex px-4 py-4 sm:px-6 lg:px-8 border-b border-white/5">
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-2 text-sm font-medium text-indigo-400 hover:text-indigo-300"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+                {t('Back')}
+              </button>
+            </div>
 
           {/* Secondary navigation */}
           <header className="border-b border-white/5 sticky top-16 z-30 bg-gray-900">
@@ -69,21 +225,32 @@ export default function SettingsPage() {
                 role="list"
                 className="flex min-w-full flex-none gap-x-6 px-4 text-sm/6 font-semibold text-gray-400 sm:px-6 lg:px-8"
               >
-                {secondaryNavigation.map((item) => (
-                  <li key={item.name}>
-                    <a href={item.href} className={item.current ? 'text-indigo-400' : ''}>
-                      {item.name}
-                    </a>
-                  </li>
-                ))}
+               {secondaryNavigation.map((item) => {
+                   const sectionId = item.href.replace('#', '')
+                   const isActive = activeSection === sectionId
+                   return (
+                     <li key={item.name}>
+                       <a 
+                         href={item.href} 
+                         className={isActive ? 'text-indigo-400 border-b-2 border-indigo-400 pb-4' : 'hover:text-gray-300'}
+                         onClick={(e) => {
+                           e.preventDefault()
+                           handleNavClick(item)
+                         }}
+                       >
+                         {item.name}
+                       </a>
+                     </li>
+                   )
+                 })}
               </ul>
             </nav>
           </header>
 
-          {/* Main content */}
-          <main className="divide-y divide-white/10">
-            {/* Account Settings */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+           {/* Main content */}
+           <main className="divide-y divide-white/10">
+             {/* Account Settings */}
+             <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Personal Information</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Update your profile information and avatar.</p>
@@ -189,105 +356,88 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="mt-8 flex">
-                  <button
-                    type="submit"
-                    className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // TODO: Handle profile update - call /api/settings endpoint
-                      console.log('Update profile')
-                    }}
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            </div>
+                   <button
+                     type="submit"
+                     disabled={isLoading}
+                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                     onClick={handleProfileSave}
+                   >
+                     {isLoading ? t('Saving...') : t('Save')}
+                   </button>
+                 </div>
+               </form>
+             </div>
 
-            {/* Editor & Theme Settings */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-              <div>
-                <h2 className="text-base/7 font-semibold text-white">Editor & Theme</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Customize your note editor appearance and behavior.</p>
-              </div>
+             {/* Editor & Theme Settings (Notifications section) */}
+             <div id="notifications" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+               <div>
+                 <h2 className="text-base/7 font-semibold text-white">Editor & Theme</h2>
+                 <p className="mt-1 text-sm/6 text-gray-400">Customize your note editor appearance and behavior.</p>
+               </div>
 
-              <form className="md:col-span-2">
-                <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
-                  {/* Theme Selection */}
-                  <div>
-                    <label className="block text-sm/6 font-medium text-white mb-3">Theme</label>
-                    <div className="flex gap-3">
-                      {['Light', 'Dark', 'System'].map((theme) => (
-                        <label key={theme} className="flex items-center cursor-pointer">
-                          <input
-                            type="radio"
-                            name="theme"
-                            value={theme.toLowerCase()}
-                            defaultChecked={theme === 'Dark'}
-                            className="mr-2"
-                          />
-                          <span className="text-sm text-gray-300">{theme}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+               <form className="md:col-span-2">
+                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
+                   {/* Theme Selection */}
+                   <div>
+                     <label className="block text-sm/6 font-medium text-white mb-3">{t('Theme')}</label>
+                     <div className="flex gap-3">
+                       {['Light', 'Dark', 'System'].map((theme) => (
+                         <label key={theme} className="flex items-center cursor-pointer">
+                           <input
+                             type="radio"
+                             name="theme"
+                             value={theme.toLowerCase()}
+                             checked={formState.theme === theme.toLowerCase()}
+                             onChange={(e) => setFormState((prev) => ({ ...prev, theme: e.target.value }))}
+                             className="mr-2"
+                           />
+                           <span className="text-sm text-gray-300">{theme}</span>
+                         </label>
+                       ))}
+                     </div>
+                   </div>
 
-                  {/* Editor Width */}
-                  <div>
-                    <label className="block text-sm/6 font-medium text-white mb-3">Editor Width</label>
-                    <div className="flex gap-3">
-                      {['Small', 'Large'].map((size) => (
-                        <label key={size} className="flex items-center cursor-pointer">
-                          <input
-                            type="radio"
-                            name="editor-width"
-                            value={size.toLowerCase()}
-                            defaultChecked={size === 'Large'}
-                            className="mr-2"
-                          />
-                          <span className="text-sm text-gray-300">{size}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                   {/* Editor Width */}
+                   <div>
+                     <label className="block text-sm/6 font-medium text-white mb-3">{t('Editor Width')}</label>
+                     <div className="flex gap-3">
+                       {['Small', 'Large'].map((size) => (
+                         <label key={size} className="flex items-center cursor-pointer">
+                           <input
+                             type="radio"
+                             name="editor-width"
+                             value={size.toLowerCase()}
+                             checked={formState.editorWidth === size.toLowerCase()}
+                             onChange={(e) => setFormState((prev) => ({ ...prev, editorWidth: e.target.value }))}
+                             className="mr-2"
+                           />
+                           <span className="text-sm text-gray-300">{size}</span>
+                         </label>
+                       ))}
+                     </div>
+                   </div>
 
-                  {/* Language */}
-                  <div>
-                    <label htmlFor="language" className="block text-sm/6 font-medium text-white mb-2">
-                      Language
-                    </label>
-                    <select
-                      id="language"
-                      name="language"
-                      className="w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 *:bg-gray-800 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                    >
-                      <option>English</option>
-                      <option>Spanish</option>
-                      <option>French</option>
-                      <option>German</option>
-                      <option>Chinese</option>
-                    </select>
-                  </div>
-                </div>
+                   {/* Language */}
+                   <div>
+                     <LanguageSelector variant="compact" showLabel={true} />
+                   </div>
+                 </div>
 
-                <div className="mt-8 flex">
-                  <button
-                    type="submit"
-                    className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // TODO: Handle editor settings update - call /api/settings endpoint
-                      console.log('Update editor settings')
-                    }}
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            </div>
+                 <div className="mt-8 flex">
+                   <button
+                     type="submit"
+                     disabled={isLoading}
+                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                     onClick={handleEditorSettingsSave}
+                   >
+                     {isLoading ? t('Saving...') : t('Save')}
+                   </button>
+                 </div>
+               </form>
+             </div>
 
-            {/* Change Password */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Change Password (Billing section for now) */}
+             <div id="billing" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Change password</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Update your password associated with your account.</p>
@@ -295,73 +445,76 @@ export default function SettingsPage() {
 
               <form className="md:col-span-2">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
-                  {/* Current Password */}
-                  <div className="col-span-full">
-                    <label htmlFor="current-password" className="block text-sm/6 font-medium text-white">
-                      Current password
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="current-password"
-                        name="current_password"
-                        type="password"
-                        autoComplete="current-password"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
+                   {/* Current Password */}
+                   <div className="col-span-full">
+                     <label htmlFor="current-password" className="block text-sm/6 font-medium text-white">
+                       {t('Current password')}
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="current-password"
+                         name="current_password"
+                         type="password"
+                         autoComplete="current-password"
+                         value={formState.currentPassword}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
 
-                  {/* New Password */}
-                  <div className="col-span-full">
-                    <label htmlFor="new-password" className="block text-sm/6 font-medium text-white">
-                      New password
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="new-password"
-                        name="new_password"
-                        type="password"
-                        autoComplete="new-password"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
+                   {/* New Password */}
+                   <div className="col-span-full">
+                     <label htmlFor="new-password" className="block text-sm/6 font-medium text-white">
+                       {t('New password')}
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="new-password"
+                         name="new_password"
+                         type="password"
+                         autoComplete="new-password"
+                         value={formState.newPassword}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, newPassword: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
 
-                  {/* Confirm Password */}
-                  <div className="col-span-full">
-                    <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-white">
-                      Confirm password
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="confirm-password"
-                        name="confirm_password"
-                        type="password"
-                        autoComplete="new-password"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
-                </div>
+                   {/* Confirm Password */}
+                   <div className="col-span-full">
+                     <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-white">
+                       {t('Confirm password')}
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="confirm-password"
+                         name="confirm_password"
+                         type="password"
+                         autoComplete="new-password"
+                         value={formState.confirmPassword}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
+                 </div>
 
-                <div className="mt-8 flex">
-                  <button
-                    type="submit"
-                    className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      // TODO: Handle password change - call /api/auth/change-password endpoint
-                      console.log('Change password')
-                    }}
-                  >
-                    Change password
-                  </button>
-                </div>
+                 <div className="mt-8 flex">
+                   <button
+                     type="submit"
+                     disabled={isLoading}
+                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                     onClick={handlePasswordChange}
+                   >
+                     {isLoading ? t('Updating...') : t('Change password')}
+                   </button>
+                 </div>
               </form>
             </div>
 
-            {/* Data & Export */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Data & Export */}
+             <div id="data" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Data & Export</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Import or export your notes in various formats.</p>
@@ -406,8 +559,8 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Canvas Integration */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Canvas Integration */}
+             <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Canvas Integration</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Connect and manage your Canvas LMS integration.</p>
@@ -482,8 +635,8 @@ export default function SettingsPage() {
               </form>
             </div>
 
-            {/* Danger Zone */}
-            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+             {/* Danger Zone */}
+             <div id="danger" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
               <div>
                 <h2 className="text-base/7 font-semibold text-white">Danger Zone</h2>
                 <p className="mt-1 text-sm/6 text-gray-400">Irreversible and destructive actions.</p>
