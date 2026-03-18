@@ -151,7 +151,9 @@ export async function POST(request) {
             // When the file tree supports directories, this path mirrors the
             // folder structure that should be created.
             const s3Key = `canvas/${user.user_id}/${courseId}/${module.id}/${file.filename}`;
-            await storage.putObject(s3Key, buffer);
+            await storage.putObject(s3Key, buffer, {
+              contentType: file.content_type || 'application/octet-stream'
+            });
 
             // Create the note — title is the Canvas filename, content starts empty
             const noteResult = await sql`
