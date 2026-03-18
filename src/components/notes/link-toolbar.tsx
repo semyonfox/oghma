@@ -40,40 +40,44 @@ const LinkToolbar: FC = () => {
     };
 
     return (
-        <>
-            <div
-                className="fixed inset-0 z-40"
-                onClick={() => linkToolbar.close()}
-            />
-            <div
-                className="fixed z-50 bg-gray-700 rounded-lg shadow-xl border border-white/10 overflow-hidden"
-                style={{ top, left }}
-                onMouseLeave={() => linkToolbar.close()}
-            >
-                <div className="p-2 max-w-[280px]">
-                    <p className="text-xs text-gray-500 truncate mb-2 px-1">
-                        {linkToolbar.data.href}
-                    </p>
-                    <div className="flex gap-1">
-                        <button
-                            onClick={handleOpen}
-                            className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors"
-                        >
-                            <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-                            {t('Open')}
-                        </button>
-                        <button
-                            onClick={handleCopy}
-                            className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors"
-                        >
-                            <ClipboardDocumentIcon className="w-4 h-4" />
-                            {t('Copy')}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </>
-    );
+         <>
+             <div
+                 className="fixed inset-0 z-40"
+                 onClick={() => linkToolbar.close()}
+             />
+             <div
+                 className="fixed z-50 bg-gray-700 rounded-lg shadow-xl border border-white/10 overflow-hidden"
+                 style={{ top, left }}
+                 onMouseLeave={() => linkToolbar.close()}
+             >
+                 <div className="p-2 max-w-[280px]">
+                     <p className="text-xs text-gray-500 truncate mb-2 px-1">
+                         {linkToolbar.data.href}
+                     </p>
+                     <div className="flex gap-1">
+                         <button
+                             onClick={handleOpen}
+                             className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors"
+                             title={t('Open link')}
+                             aria-label={t('Open link')}
+                         >
+                             <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                             {t('Open')}
+                         </button>
+                         <button
+                             onClick={handleCopy}
+                             className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors"
+                             title={t('Copy link to clipboard')}
+                             aria-label={t('Copy link')}
+                         >
+                             <ClipboardDocumentIcon className="w-4 h-4" />
+                             {t('Copy')}
+                         </button>
+                     </div>
+                 </div>
+             </div>
+         </>
+     );
 };
 
 export default LinkToolbar;
