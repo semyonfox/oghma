@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     DocumentDuplicateIcon,
     TrashIcon,
@@ -10,11 +11,10 @@ import {
     StarIcon,
     Squares2X2Icon,
 } from '@heroicons/react/24/outline';
+import useI18n from '@/lib/notes/hooks/use-i18n';
+import useContextMenuStore from '@/lib/notes/state/context-menu';
 
-interface NoteContextMenuProps {
-    noteId: string;
-    isFolder: boolean;
-    isPinned: boolean;
+interface NoteContextMenuPortalProps {
     onRename: (id: string) => void;
     onDelete: (id: string) => void;
     onDuplicate: (id: string) => void;
@@ -22,13 +22,9 @@ interface NoteContextMenuProps {
     onCreateNote: (parentId: string) => void;
     onCreateFolder: (parentId: string) => void;
     onOpenInSplit: (id: string) => void;
-    children: React.ReactNode;
 }
 
-export default function NoteContextMenu({
-    noteId,
-    isFolder,
-    isPinned,
+export default function NoteContextMenuPortal({
     onRename,
     onDelete,
     onDuplicate,
@@ -36,214 +32,144 @@ export default function NoteContextMenu({
     onCreateNote,
     onCreateFolder,
     onOpenInSplit,
-    children,
-}: NoteContextMenuProps) {
-    const [isVisible, setIsVisible] = useState(false);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
-    const menuRef = useRef<HTMLDivElement>(null);
-
-    const handleContextMenu = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Get viewport dimensions
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        
-        // Exact menu dimensions
-        const menuWidth = 192; // w-48
-        const menuHeight = 320; // better estimate
-        const padding = 8;
-        
-        let x = e.clientX;
-        let y = e.clientY;
-        
-        // Adjust if menu would overflow right - position LEFT of cursor instead
-        if (x + menuWidth > viewportWidth - padding) {
-            x = Math.max(padding, x - menuWidth);
-        }
-        
-        // Adjust if menu would overflow bottom - position ABOVE cursor instead  
-        if (y + menuHeight > viewportHeight - padding) {
-            y = Math.max(padding, y - menuHeight - 4); // -4 to account for small gap above
-        }
-        
-        // If positioned to the left, add small offset so it doesn't hide the cursor
-        if (e.clientX + menuWidth > viewportWidth - padding) {
-            x = Math.max(padding, x - 8);
-        }
-        
-        setPosition({ x, y });
-        setIsVisible(true);
-    }, []);
-
-    const handleClose = useCallback(() => {
-        setIsVisible(false);
-    }, []);
+}: NoteContextMenuPortalProps) {
+    const { t } = useI18n();
+    const { openMenuId, position, isFolder, isPinned, closeMenu } = useContextMenuStore();
 
     // close on click outside
     useEffect(() => {
-        const handleClick = () => handleClose();
-        const handleScroll = () => handleClose();
+        if (!openMenuId) return;
         
-        if (isVisible) {
-            document.addEventListener('click', handleClick);
-            document.addEventListener('scroll', handleScroll, true);
-            return () => {
-                document.removeEventListener('click', handleClick);
-                document.removeEventListener('scroll', handleScroll, true);
-            };
-        }
-    }, [isVisible, handleClose]);
+        const handleClick = () => closeMenu();
+        const handleScroll = () => closeMenu();
+        
+        document.addEventListener('click', handleClick);
+        document.addEventListener('scroll', handleScroll, true);
+        return () => {
+            document.removeEventListener('click', handleClick);
+            document.removeEventListener('scroll', handleScroll, true);
+        };
+    }, [openMenuId, closeMenu]);
 
     // close on escape
     useEffect(() => {
+        if (!openMenuId) return;
+        
         const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') handleClose();
+            if (e.key === 'Escape') closeMenu();
         };
         
-        if (isVisible) {
-            document.addEventListener('keydown', handleEscape);
-            return () => document.removeEventListener('keydown', handleEscape);
-        }
-    }, [isVisible, handleClose]);
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [openMenuId, closeMenu]);
 
-    return (
-        <>
-            <div onContextMenu={handleContextMenu}>
-                {children}
-            </div>
+    if (!openMenuId) return null;
 
-            {isVisible && (
-                <div
-                    ref={menuRef}
-                    className="fixed z-[9999] w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none backdrop-blur-sm"
-                    style={{
-                        top: `${position.y}px`,
-                        left: `${position.x}px`,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
+    const handleMenuClick = (callback: () => void) => {
+        callback();
+        closeMenu();
+    };
+
+    return createPortal(
+        <div
+            className="fixed z-[9999] w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none backdrop-blur-sm"
+            style={{
+                top: `${position.y}px`,
+                left: `${position.x}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {!isFolder && (
+                <button
+                    onClick={() => handleMenuClick(() => onTogglePin(openMenuId))}
+                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                    {!isFolder && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onTogglePin(noteId);
-                                handleClose();
-                            }}
-                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                            <StarIcon
-                                className={`mr-3 h-4 w-4 ${isPinned ? 'fill-yellow-400 text-yellow-400' : ''}`}
-                                aria-hidden="true"
-                            />
-                            {isPinned ? 'Unpin' : 'Pin to Favorites'}
-                        </button>
-                    )}
+                    <StarIcon
+                        className={`mr-3 h-4 w-4 ${isPinned ? 'fill-yellow-400 text-yellow-400' : ''}`}
+                        aria-hidden="true"
+                    />
+                    {isPinned ? t('Unpin') : t('Pin to Favorites')}
+                </button>
+            )}
 
+            <button
+                onClick={() => handleMenuClick(() => onRename(openMenuId))}
+                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+                <PencilIcon
+                    className="mr-3 h-4 w-4"
+                    aria-hidden="true"
+                />
+                {t('Rename')}
+            </button>
+
+            {!isFolder && (
+                <button
+                    onClick={() => handleMenuClick(() => onDuplicate(openMenuId))}
+                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                    <DocumentDuplicateIcon
+                        className="mr-3 h-4 w-4"
+                        aria-hidden="true"
+                    />
+                    {t('Duplicate')}
+                </button>
+            )}
+
+            {(isFolder || openMenuId === 'root') && (
+                <>
+                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
                     <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onRename(noteId);
-                            handleClose();
-                        }}
+                        onClick={() => handleMenuClick(() => onCreateNote(openMenuId === 'root' ? 'root' : openMenuId))}
                         className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                        <PencilIcon
+                        <DocumentPlusIcon
                             className="mr-3 h-4 w-4"
                             aria-hidden="true"
                         />
-                        Rename
+                        {t('New Note')}
                     </button>
-
-                    {!isFolder && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onDuplicate(noteId);
-                                handleClose();
-                            }}
-                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                            <DocumentDuplicateIcon
-                                className="mr-3 h-4 w-4"
-                                aria-hidden="true"
-                            />
-                            Duplicate
-                        </button>
-                    )}
-
-                    {(isFolder || noteId === 'root') && (
-                        <>
-                            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCreateNote(noteId === 'root' ? 'root' : noteId);
-                                    handleClose();
-                                }}
-                                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                                <DocumentPlusIcon
-                                    className="mr-3 h-4 w-4"
-                                    aria-hidden="true"
-                                />
-                                New Note
-                            </button>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCreateFolder(noteId === 'root' ? 'root' : noteId);
-                                    handleClose();
-                                }}
-                                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                                <FolderPlusIcon
-                                    className="mr-3 h-4 w-4"
-                                    aria-hidden="true"
-                                />
-                                New Folder
-                            </button>
-                        </>
-                    )}
-
-                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-
-                    {!isFolder && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenInSplit(noteId);
-                                handleClose();
-                            }}
-                            className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                            <Squares2X2Icon
-                                className="mr-3 h-4 w-4"
-                                aria-hidden="true"
-                            />
-                            Open in split right
-                        </button>
-                    )}
-
-                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
-
                     <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(noteId);
-                            handleClose();
-                        }}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
+                        onClick={() => handleMenuClick(() => onCreateFolder(openMenuId === 'root' ? 'root' : openMenuId))}
+                        className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                        <TrashIcon
+                        <FolderPlusIcon
                             className="mr-3 h-4 w-4"
                             aria-hidden="true"
                         />
-                        Delete
+                        {t('New Folder')}
                     </button>
-                </div>
+                </>
             )}
-        </>
+
+            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+
+            {!isFolder && (
+                <button
+                    onClick={() => handleMenuClick(() => onOpenInSplit(openMenuId))}
+                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                    <Squares2X2Icon
+                        className="mr-3 h-4 w-4"
+                        aria-hidden="true"
+                    />
+                    {t('Open in split right')}
+                </button>
+            )}
+
+            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+
+            <button
+                onClick={() => handleMenuClick(() => onDelete(openMenuId))}
+                className="group flex w-full items-center px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
+            >
+                <TrashIcon
+                    className="mr-3 h-4 w-4"
+                    aria-hidden="true"
+                />
+                {t('Delete')}
+            </button>
+        </div>,
+        document.body
     );
 }
