@@ -27,25 +27,27 @@ const FilterModalInput: FC<FilterModalInputProps> = ({ doFilter, keyword, placeh
     }, []);
 
     return (
-        <div className="flex items-center py-2 px-4 border-b border-white/10 dark:border-neutral-700">
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-500" />
-            <input
-                ref={inputRef}
-                defaultValue={keyword}
-                type="text"
-                className="appearance-none flex-1 outline-none ml-2 bg-transparent text-text placeholder-text-tertiary"
-                placeholder={placeholder}
-                autoFocus
-                onChange={(e) => debouncedFilter(e.target.value)}
-            />
-            <button
-                onClick={onClose}
-                className="text-sm text-gray-400 hover:text-text transition-colors"
-            >
-                {t('Cancel')}
-            </button>
-        </div>
-    );
+         <div className="flex items-center py-2 px-4 border-b border-white/10 dark:border-neutral-700">
+             <MagnifyingGlassIcon className="w-5 h-5 text-gray-500" aria-hidden="true" />
+             <input
+                 ref={inputRef}
+                 defaultValue={keyword}
+                 type="text"
+                 className="appearance-none flex-1 outline-none ml-2 bg-transparent text-text placeholder-text-tertiary"
+                 placeholder={placeholder}
+                 autoFocus
+                 onChange={(e) => debouncedFilter(e.target.value)}
+                 aria-label={placeholder}
+             />
+             <button
+                 onClick={onClose}
+                 className="text-sm text-gray-400 hover:text-text transition-colors"
+                 aria-label={t('Cancel')}
+             >
+                 {t('Cancel')}
+             </button>
+         </div>
+     );
 };
 
 export default FilterModalInput;

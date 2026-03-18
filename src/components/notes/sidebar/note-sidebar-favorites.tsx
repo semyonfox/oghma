@@ -3,10 +3,12 @@ import { StarIcon } from '@heroicons/react/24/solid';
 import React, { FC, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useNoteTreeStore from '@/lib/notes/state/tree';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import { useTreeItems } from '@/lib/notes/hooks/use-tree-selectors';
 import { NOTE_PINNED } from '@/lib/notes/types/meta';
 
 const NoteSidebarFavorites: FC = () => {
+  const { t } = useI18n();
   const router = useRouter();
   // Use tree selector to prevent re-renders when other state changes
   const treeItems = useTreeItems();
@@ -32,11 +34,11 @@ const NoteSidebarFavorites: FC = () => {
 
   return (
     <div className="px-4 py-3 border-b border-slate-700 flex-shrink-0">
-      {/* Section Title */}
-      <div className="flex items-center gap-2 mb-2">
-        <StarIcon className="w-4 h-4 text-amber-500" />
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide m-0">Your Favorites</h3>
-      </div>
+       {/* Section Title */}
+       <div className="flex items-center gap-2 mb-2">
+         <StarIcon className="w-4 h-4 text-amber-500" />
+         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide m-0">{t('Your Favorites')}</h3>
+       </div>
 
       {/* Favorites List */}
       <div className="space-y-1 px-1">

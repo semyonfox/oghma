@@ -1,18 +1,23 @@
+'use client'
+
 import Link from 'next/link'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
 import { blogCards } from '@/lib/blog-data'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export default function BlogPage() {
+  const { t } = useI18n()
+
   return (
     <div className="bg-gray-900 min-h-screen">
       <Header />
       <main className="pt-24 pb-16">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Our Blog</h2>
+            <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">{t('blog.title')}</h2>
             <p className="mt-2 text-lg leading-8 text-gray-400">
-              Insights on learning, study techniques, and how to get the most out of OghmaNotes.
+              {t('blog.subtitle')}
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
@@ -32,7 +37,7 @@ export default function BlogPage() {
                       {post.date}
                     </time>
                     <Link href={`/blog/${post.slug}`} className="relative z-10 rounded-full bg-gray-100 px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-200">
-                      Read
+                      {t('blog.readButton')}
                     </Link>
                   </div>
                   <div className="group relative">

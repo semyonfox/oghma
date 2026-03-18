@@ -53,7 +53,7 @@ const ButtonSearch = () => {
     const { search } = usePortalStore();
 
     return (
-        <ButtonItem onClick={search.open} aria-label="search" title={t('Search note')}>
+        <ButtonItem onClick={search.open} aria-label={t('Search note')} title={t('Search note')}>
             <SearchIcon />
         </ButtonItem>
     );
@@ -64,7 +64,7 @@ const ButtonTrash = () => {
     const { trash } = usePortalStore();
 
     return (
-        <ButtonItem onClick={trash.open} aria-label="trash" title={t('Trash')}>
+        <ButtonItem onClick={trash.open} aria-label={t('Trash')} title={t('Trash')}>
             <TrashIcon />
         </ButtonItem>
     );
@@ -78,7 +78,7 @@ const ButtonSettings = () => {
 
     return (
         <Link href="/settings">
-            <ButtonItem aria-label="settings" title={t('Settings')}>
+            <ButtonItem aria-label={t('Settings')} title={t('Settings')}>
                 <CogIcon />
             </ButtonItem>
         </Link>
