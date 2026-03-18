@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
-import { isValidUUID } from '@/lib/uuid-validation.js';
-import { getNoteFromS3, saveNoteToS3 } from '@/lib/notes/storage/s3-storage';
 
+/**
+ * @deprecated Use PUT /api/notes/:id instead
+ * This endpoint is no longer supported. Note metadata updates
+ * are now handled by the main PUT endpoint which uses PostgreSQL
+ * as the authoritative source.
+ */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const noteId = id;
-
-  // Authenticate user
   const user = await validateSession();
   if (!user) {
     return NextResponse.json(
@@ -19,32 +19,12 @@ export async function POST(
     );
   }
 
-  if (!isValidUUID(noteId)) {
-    return NextResponse.json(
-      { error: 'Invalid note ID' },
-      { status: 400 }
-    );
-  }
-
-  const body = await request.json();
-
-  try {
-    const existingNote = await getNoteFromS3(noteId);
-    if (!existingNote) {
-      return NextResponse.json(
-        { error: 'Note not found' },
-        { status: 404 }
-      );
-    }
-
-    const updatedNote = { ...existingNote, ...body };
-    await saveNoteToS3(updatedNote);
-    return NextResponse.json(updatedNote);
-  } catch (error) {
-    console.error(`Error updating meta for note ${noteId}:`, error);
-    return NextResponse.json(
-      { error: 'Failed to update note metadata' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    {
+      error: 'Endpoint deprecated',
+      message: 'Use PUT /api/notes/:id instead for updating note metadata',
+      example: { method: 'PUT', url: '/api/notes/:id', body: { title: 'New Title', content: 'New content' } }
+    },
+    { status: 410 }
+  );
 }
