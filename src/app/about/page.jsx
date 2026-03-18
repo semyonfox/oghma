@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import Header from '@/components/header'
 import { aboutBlogCards, authors } from '@/lib/blog-data'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 const universities = [
   {
@@ -164,6 +167,7 @@ const footerNavigation = {
 }
 
 export default function About() {
+  const { t } = useI18n()
   return (
     <div className="bg-gray-900">
       <Header />
@@ -212,10 +216,10 @@ export default function About() {
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
                   <h1 className="text-5xl font-semibold tracking-tight text-pretty text-white sm:text-7xl">
-                    We're changing the way people learn
+                    {t("We're changing the way people learn")}
                   </h1>
                   <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:max-w-md sm:text-xl/8 lg:max-w-none">
-                    OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.
+                    {t("OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.")}
                   </p>
                 </div>
                 <div className="mt-14 flex justify-end gap-8 sm:-mt-44 sm:justify-start sm:pl-20 lg:mt-0 lg:pl-0">
@@ -274,14 +278,14 @@ export default function About() {
         {/* Content section */}
         <div className="mx-auto -mt-12 max-w-7xl px-6 sm:mt-0 lg:px-8 xl:-mt-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Our mission</h2>
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Our mission")}</h2>
             <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
               <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
                 <p className="text-xl/8 text-gray-300">
-                  At OghmaNotes, we believe that better note-taking leads to better learning. Our mission is to provide students and professionals with intelligent tools that make capturing, organizing, and retaining information effortless and effective.
+                  {t("At OghmaNotes, we believe that better note-taking leads to better learning. That's why we've built a platform designed to help you capture, organize, and understand information more effectively.")}
                 </p>
                 <p className="mt-10 max-w-xl text-base/7 text-gray-400">
-                  Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes adapts to your workflow. With AI-powered insights, seamless Canvas integration, and intuitive organization, we're transforming how the world takes notes and learns.
+                  {t("Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes is designed to help you learn smarter, faster, and with greater retention.")}
                 </p>
               </div>
               <div className="lg:flex lg:flex-auto lg:justify-center">
@@ -310,9 +314,9 @@ export default function About() {
         {/* Features section */}
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Powerful features</h2>
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Powerful features")}</h2>
             <p className="mt-6 text-lg/8 text-gray-300">
-              Everything you need to take better notes and learn more effectively.
+              {t("Everything you need to take better notes and learn more effectively.")}
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
@@ -390,9 +394,9 @@ export default function About() {
             </svg>
           </div>
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <h2 className="text-center text-lg/8 font-semibold text-white">
-              Trusted by students and educators worldwide
-            </h2>
+             <h2 className="text-center text-lg/8 font-semibold text-white">
+               {t("Trusted by students and educators worldwide")}
+             </h2>
             <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-8 gap-y-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-10 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-12 lg:gap-y-16">
               {universities.map((uni) => (
                 <div
@@ -414,10 +418,9 @@ export default function About() {
         <div className="bg-gray-900 py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
-              <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">Meet our team</h2>
+              <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("Meet our team")}</h2>
               <p className="mt-6 text-lg/8 text-gray-400">
-                We're a dynamic group of individuals who are passionate about what we do and dedicated to delivering the
-                best results for our clients.
+                {t("We're a dynamic group of individuals who are passionate about what we do and dedicated to creating the best learning platform.")}
               </p>
             </div>
             <ul
@@ -475,8 +478,8 @@ export default function About() {
         {/* Blog section */}
         <div id="blog" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">From our blog</h2>
-            <p className="mt-2 text-lg/8 text-gray-400">Learn from our experts and community on note-taking, learning, and productivity.</p>
+            <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("From our blog")}</h2>
+            <p className="mt-2 text-lg/8 text-gray-400">{t("Learn from our experts and community on note-taking, learning, and productivity.")}</p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {blogPosts.map((post) => (
@@ -538,7 +541,7 @@ export default function About() {
             ))}
           </div>
           <p className="mt-10 text-center text-sm/6 text-gray-400">
-            &copy; 2024 OghmaNotes, Inc. All rights reserved.
+            {t("All rights reserved.")}
           </p>
         </div>
       </footer>
