@@ -1,0 +1,309 @@
+{
+  "total_strings": 41,
+  "total_files_scanned": 86,
+  "strings": [
+    {
+      "english": "Access restricted by lecturer",
+      "source_file": "src/lib/canvas/client.js",
+      "line_number": 40,
+      "context": "Canvas API - file access restriction"
+    },
+    {
+      "english": "An unexpected error occurred",
+      "source_file": "src/lib/apiClient.js",
+      "line_number": 98,
+      "context": "Generic fallback error message for API calls"
+    },
+    {
+      "english": "Auto-save failed:",
+      "source_file": "src/lib/notes/hooks/use-auto-save.ts",
+      "line_number": 118,
+      "context": "Console error when auto-save to server fails"
+    },
+    {
+      "english": "Content-Type must be application/json",
+      "source_file": "src/lib/auth.js",
+      "line_number": 202,
+      "context": "HTTP 415 error for invalid content type"
+    },
+    {
+      "english": "Could not load note: %O",
+      "source_file": "src/lib/notes/hooks/use-edit-container.ts",
+      "line_number": 97,
+      "context": "Console error when note fails to load in edit container"
+    },
+    {
+      "english": "Download error",
+      "source_file": "src/lib/canvas/client.js",
+      "line_number": 183,
+      "context": "Canvas file download failed"
+    },
+    {
+      "english": "Email is required",
+      "source_file": "src/lib/validation.js",
+      "line_number": 33,
+      "context": "Email validation - empty field error"
+    },
+    {
+      "english": "Error adding note to tree:",
+      "source_file": "src/lib/notes/storage/pg-tree.js",
+      "line_number": 89,
+      "context": "PostgreSQL operation failure - note tree"
+    },
+    {
+      "english": "Error deleting note:",
+      "source_file": "src/lib/notes/state/note.ts",
+      "line_number": 91,
+      "context": "Note deletion failure in store"
+    },
+    {
+      "english": "Error loading notes",
+      "source_file": "src/lib/notes/state/tree.ts",
+      "line_number": 193,
+      "context": "Toast error when tree initialization fails"
+    },
+    {
+      "english": "Error reading tree from PG:",
+      "source_file": "src/lib/notes/storage/pg-tree.js",
+      "line_number": 62,
+      "context": "PostgreSQL tree read failure"
+    },
+    {
+      "english": "Failed to create folder",
+      "source_file": "src/lib/notes/state/note.ts",
+      "line_number": 213,
+      "context": "Toast error when folder creation fails"
+    },
+    {
+      "english": "Failed to fetch",
+      "source_file": "src/lib/apiClient.js",
+      "line_number": 88,
+      "context": "Network error - no server response"
+    },
+    {
+      "english": "Failed to load even fallback locale",
+      "source_file": "src/lib/hooks/useLocaleLoader.ts",
+      "line_number": 49,
+      "context": "Console error when locale loading fails"
+    },
+    {
+      "english": "Failed to load user locale, using default",
+      "source_file": "src/lib/hooks/useLocaleLoader.ts",
+      "line_number": 41,
+      "context": "Console warning when user locale unavailable"
+    },
+    {
+      "english": "File download restricted",
+      "source_file": "src/lib/canvas/client.js",
+      "line_number": 172,
+      "context": "Canvas - lecturer restricted file download"
+    },
+    {
+      "english": "IndexedDB save failed:",
+      "source_file": "src/lib/notes/hooks/use-auto-save.ts",
+      "line_number": 58,
+      "context": "Local storage save failure"
+    },
+    {
+      "english": "Invalid email format",
+      "source_file": "src/lib/validation.js",
+      "line_number": 37,
+      "context": "Email validation - format error"
+    },
+    {
+      "english": "Invalid JSON in request body",
+      "source_file": "src/lib/auth.js",
+      "line_number": 213,
+      "context": "HTTP 400 - malformed JSON"
+    },
+    {
+      "english": "Invalid or expired Canvas token",
+      "source_file": "src/lib/canvas/client.js",
+      "line_number": 44,
+      "context": "Canvas API - authentication failure"
+    },
+    {
+      "english": "Invalid sizes provided. Using fallback sizes.",
+      "source_file": "src/lib/notes/state/ui/split.ts",
+      "line_number": 28,
+      "context": "Console warning for invalid split pane sizes"
+    },
+    {
+      "english": "Missing id on tree model",
+      "source_file": "src/lib/notes/types/tree.ts",
+      "line_number": 212,
+      "context": "Validation error - tree item missing ID"
+    },
+    {
+      "english": "No server response. Please check your connection.",
+      "source_file": "src/lib/apiClient.js",
+      "line_number": 89,
+      "context": "Network connectivity error"
+    },
+    {
+      "english": "Not found id",
+      "source_file": "src/lib/notes/state/note.ts",
+      "line_number": 270,
+      "context": "Toast error when note ID not found"
+    },
+    {
+      "english": "Not implemented yet.",
+      "source_file": "src/lib/notes/state/editor.zustand.ts",
+      "line_number": 36,
+      "context": "Feature not yet implemented"
+    },
+    {
+      "english": "Password confirmation is required",
+      "source_file": "src/lib/validation.js",
+      "line_number": 118,
+      "context": "Password validation - empty confirmation"
+    },
+    {
+      "english": "Password is required",
+      "source_file": "src/lib/validation.js",
+      "line_number": 70,
+      "context": "Password validation - empty field"
+    },
+    {
+      "english": "Password must be at least X characters long",
+      "source_file": "src/lib/validation.js",
+      "line_number": 75,
+      "context": "Password validation - minimum length requirement"
+    },
+    {
+      "english": "Password must contain at least one lowercase letter",
+      "source_file": "src/lib/validation.js",
+      "line_number": 83,
+      "context": "Password validation - character class requirement"
+    },
+    {
+      "english": "Password must contain at least one number",
+      "source_file": "src/lib/validation.js",
+      "line_number": 87,
+      "context": "Password validation - digit requirement"
+    },
+    {
+      "english": "Password must contain at least one special character",
+      "source_file": "src/lib/validation.js",
+      "line_number": 91,
+      "context": "Password validation - special char requirement"
+    },
+    {
+      "english": "Password must contain at least one uppercase letter",
+      "source_file": "src/lib/validation.js",
+      "line_number": 79,
+      "context": "Password validation - uppercase requirement"
+    },
+    {
+      "english": "Password Reset Request",
+      "source_file": "src/lib/email.js",
+      "line_number": 21,
+      "context": "Email subject line for password reset"
+    },
+    {
+      "english": "Passwords do not match",
+      "source_file": "src/lib/validation.js",
+      "line_number": 122,
+      "context": "Password confirmation validation error"
+    },
+    {
+      "english": "Request failed with status X",
+      "source_file": "src/lib/apiClient.js",
+      "line_number": 37,
+      "context": "Generic HTTP error response"
+    },
+    {
+      "english": "Request timeout",
+      "source_file": "src/lib/apiClient.js",
+      "line_number": 94,
+      "context": "HTTP 408 - request timeout"
+    },
+    {
+      "english": "Server response was empty",
+      "source_file": "src/lib/notes/hooks/use-auto-save.ts",
+      "line_number": 83,
+      "context": "Sync error - empty server response"
+    },
+    {
+      "english": "Sync error:",
+      "source_file": "src/lib/notes/hooks/use-auto-save.ts",
+      "line_number": 96,
+      "context": "Console error during note sync to server"
+    },
+    {
+      "english": "Unknown error",
+      "source_file": "src/lib/canvas/client.js",
+      "line_number": 55,
+      "context": "Generic fallback Canvas API error"
+    },
+    {
+      "english": "Upload failed",
+      "source_file": "src/lib/notes/state/editor.zustand.ts",
+      "line_number": 65,
+      "context": "File upload operation failure"
+    },
+    {
+      "english": "Validation failed",
+      "source_file": "src/lib/auth.js",
+      "line_number": 150,
+      "context": "HTTP 400 - validation error response"
+    }
+  ],
+  "summary": "Comprehensive scan of src/lib directory found 41 unique user-facing strings including validation messages, error messages, API error responses, toast notifications, email subjects, and console error/warning messages across authentication, notes management, Canvas LMS integration, and storage operations.",
+  "categories": {
+    "validation_errors": [
+      "Email is required",
+      "Invalid email format",
+      "Password is required",
+      "Password confirmation is required",
+      "Password must be at least X characters long",
+      "Password must contain at least one uppercase letter",
+      "Password must contain at least one lowercase letter",
+      "Password must contain at least one number",
+      "Password must contain at least one special character",
+      "Passwords do not match"
+    ],
+    "api_errors": [
+      "An unexpected error occurred",
+      "Request failed with status X",
+      "Request timeout",
+      "No server response. Please check your connection.",
+      "Content-Type must be application/json",
+      "Invalid JSON in request body",
+      "Validation failed"
+    ],
+    "canvas_lms_errors": [
+      "Access restricted by lecturer",
+      "Invalid or expired Canvas token",
+      "File download restricted",
+      "Download error",
+      "Unknown error"
+    ],
+    "notes_operations": [
+      "Error loading notes",
+      "Failed to create folder",
+      "Error deleting note:",
+      "Error adding note to tree:",
+      "Error reading tree from PG:",
+      "Server response was empty",
+      "Not found id"
+    ],
+    "sync_and_persistence": [
+      "Auto-save failed:",
+      "IndexedDB save failed:",
+      "Sync error:",
+      "Not implemented yet."
+    ],
+    "ui_state": [
+      "Invalid sizes provided. Using fallback sizes.",
+      "Could not load note: %O"
+    ],
+    "network_and_locale": [
+      "Failed to load user locale, using default",
+      "Failed to load even fallback locale"
+    ],
+    "email": [
+      "Password Reset Request"
+    ]
+  }
+}

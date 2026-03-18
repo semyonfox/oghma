@@ -52,7 +52,7 @@ export async function GET(request) {
     
     // Get user's notes from PostgreSQL
     let notes = await sql`
-      SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+      SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
@@ -68,6 +68,8 @@ export async function GET(request) {
       id: note.note_id,
       title: note.title,
       content: note.content,
+      isFolder: note.is_folder,
+      s3Key: note.s3_key,
       deleted: note.deleted,
       shared: note.shared,
       pinned: note.pinned,
