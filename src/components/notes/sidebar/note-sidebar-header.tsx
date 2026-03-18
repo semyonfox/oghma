@@ -5,6 +5,7 @@ import React, { FC, useCallback, useState } from 'react';
 import useUIComposite from '@/lib/notes/state/ui';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import CreateNoteModal from '@/components/notes/create-note-modal';
 
 interface NoteSidebarHeaderProps {
@@ -12,6 +13,7 @@ interface NoteSidebarHeaderProps {
 }
 
 const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
+  const { t } = useI18n();
   const router = useRouter();
   const { sidebar } = useUIComposite();
   const { genNewId } = useNoteTreeStore();
@@ -91,30 +93,30 @@ const NoteSidebarHeader: FC<NoteSidebarHeaderProps> = ({ onToggleSidebar }) => {
   return (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">📝 Notes</span>
-        </div>
+         {/* Logo */}
+         <div className="flex items-center gap-2">
+           <span className="text-sm font-semibold text-white">📝 {t('Notes')}</span>
+         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1">
-          {/* New Note Button */}
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-            title="Create new note or upload file"
-            aria-label="Create new note or upload file"
-          >
-            <PlusIcon className="w-5 h-5" />
-          </button>
+         {/* Actions */}
+         <div className="flex items-center gap-1">
+           {/* New Note Button */}
+           <button
+             onClick={() => setIsModalOpen(true)}
+             className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+             title={t('Create new note or upload file')}
+             aria-label={t('Create new note or upload file')}
+           >
+             <PlusIcon className="w-5 h-5" />
+           </button>
 
-          {/* Collapse Toggle */}
-          <button
-            onClick={onToggleSidebar}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-            title="Collapse sidebar"
-            aria-label="Toggle sidebar"
-          >
+           {/* Collapse Toggle */}
+           <button
+             onClick={onToggleSidebar}
+             className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+             title={t('Collapse sidebar')}
+             aria-label={t('Toggle sidebar')}
+           >
             <ChevronDoubleLeftIcon
               className={`w-5 h-5 transition-transform ${sidebar?.isFold ? 'rotate-180' : ''}`}
             />

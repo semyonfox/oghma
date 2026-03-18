@@ -4,6 +4,7 @@ import NoteContextMenu from './note-context-menu';
 import useNoteTreeStore from '@/lib/notes/state/tree';
 import useNoteStore from '@/lib/notes/state/note';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useContextMenuStore from '@/lib/notes/state/context-menu';
 import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -397,6 +398,36 @@ const SidebarList = () => {
         setActivePane('B');
     }, [tree.items]);
 
+    // handle right-click context menu
+    const handleItemContextMenu = useCallback((e: React.MouseEvent, itemId: string, isFolder: boolean, isPinned: boolean) => {
+        e.preventDefault();
+        
+        // Get viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Exact menu dimensions
+        const menuWidth = 192; // w-48
+        const menuHeight = 320;
+        const padding = 8;
+        
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // Adjust if menu would overflow right
+        if (x + menuWidth > viewportWidth - padding) {
+            x = Math.max(padding, x - menuWidth);
+        }
+        
+        // Adjust if menu would overflow bottom
+        if (y + menuHeight > viewportHeight - padding) {
+            y = Math.max(padding, y - menuHeight - 4);
+        }
+        
+        // Update context menu store to show menu at this position
+        useContextMenuStore.getState().setOpenMenu(itemId, x, y, isFolder, isPinned);
+    }, []);
+
     // build viewState object for react-complex-tree
     const viewState = useMemo(
         () => ({
@@ -502,71 +533,59 @@ const SidebarList = () => {
                                   return (
                                       <div className="flex flex-col w-full">
                                           {/* Wrapper div with context props FROM REACT-COMPLEX-TREE - these contain the drag handlers */}
-                                          <div
-                                              {...context.itemContainerWithoutChildrenProps}
-                                              className="flex items-center gap-1 px-2 py-1 rounded hover:bg-white/5 transition-colors w-full"
-                                          >
-                                              {/* Context menu wraps only the content, not the drag handlers */}
-                                              <NoteContextMenu
-                                                  noteId={item.index as string}
-                                                  isFolder={isFolder}
-                                                  isPinned={isPinned}
-                                                  onRename={handleRename}
-                                                  onDelete={handleDelete}
-                                                  onDuplicate={handleDuplicate}
-                                                  onTogglePin={handleTogglePin}
-                                                  onCreateNote={handleContextCreateNote}
-                                                  onCreateFolder={handleCreateFolder}
-                                                  onOpenInSplit={handleOpenInSplit}
-                                              >
-                                                  <div className="flex items-center gap-1 flex-1 min-w-0">
-                                                      {arrow}
-                                                      <SidebarListItem
-                                                          onToggle={() => {
-                                                              if (hasChildren && item.children) {
-                                                                  const newExpandedIds = new Set(expandedIds);
-                                                                  if (
-                                                                      expandedIds.has(item.index as string)
-                                                                  ) {
-                                                                      newExpandedIds.delete(item.index as string);
-                                                                  } else {
-                                                                      newExpandedIds.add(item.index as string);
-                                                                  }
-                                                                  setExpandedIds(newExpandedIds);
-                                                              }
-                                                          }}
-                                                          isExpanded={expandedIds.has(item.index as string)}
-                                                          innerRef={() => {}}
-                                                          hasChildren={hasChildren}
-                                                          item={
-                                                              nodeData ?? ({
-                                                                  id: item.index,
-                                                                  title: 'Untitled',
-                                                                  deleted: NOTE_DELETED.NORMAL,
-                                                                  shared: NOTE_SHARED.PRIVATE,
-                                                                  pinned: NOTE_PINNED.UNPINNED,
-                                                                  editorsize: null,
-                                                              } as NoteModel)
-                                                          }
-                                                          snapshot={{
-                                                              isDragging,
-                                                          }}
-                                                          style={{
-                                                              paddingLeft: 0,
-                                                          }}
-                                                          isRenaming={renamingId === (item.index as string)}
-                                                          onRenameComplete={async (newTitle) => {
-                                                              if (nodeData) {
-                                                                  await mutateNote(item.index as string, {
-                                                                      title: newTitle,
-                                                                  });
-                                                              }
-                                                              setRenamingId(null);
-                                                          }}
-                                                      />
-                                                  </div>
-                                              </NoteContextMenu>
-                                          </div>
+                                           <div
+                                               {...context.itemContainerWithoutChildrenProps}
+                                               className="flex items-center gap-1 px-2 py-1 rounded hover:bg-white/5 transition-colors w-full"
+                                               onContextMenu={(e) => handleItemContextMenu(e, item.index as string, isFolder, isPinned)}
+                                           >
+                                               {/* Content without context menu wrapper - allows drag/drop to work */}
+                                               <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                   {arrow}
+                                                   <SidebarListItem
+                                                       onToggle={() => {
+                                                           if (hasChildren && item.children) {
+                                                               const newExpandedIds = new Set(expandedIds);
+                                                               if (
+                                                                   expandedIds.has(item.index as string)
+                                                               ) {
+                                                                   newExpandedIds.delete(item.index as string);
+                                                               } else {
+                                                                   newExpandedIds.add(item.index as string);
+                                                               }
+                                                               setExpandedIds(newExpandedIds);
+                                                           }
+                                                       }}
+                                                       isExpanded={expandedIds.has(item.index as string)}
+                                                       innerRef={() => {}}
+                                                       hasChildren={hasChildren}
+                                                       item={
+                                                           nodeData ?? ({
+                                                               id: item.index,
+                                                               title: 'Untitled',
+                                                               deleted: NOTE_DELETED.NORMAL,
+                                                               shared: NOTE_SHARED.PRIVATE,
+                                                               pinned: NOTE_PINNED.UNPINNED,
+                                                               editorsize: null,
+                                                           } as NoteModel)
+                                                       }
+                                                       snapshot={{
+                                                           isDragging,
+                                                       }}
+                                                       style={{
+                                                           paddingLeft: 0,
+                                                       }}
+                                                       isRenaming={renamingId === (item.index as string)}
+                                                       onRenameComplete={async (newTitle) => {
+                                                           if (nodeData) {
+                                                               await mutateNote(item.index as string, {
+                                                                   title: newTitle,
+                                                               });
+                                                           }
+                                                           setRenamingId(null);
+                                                       }}
+                                                   />
+                                               </div>
+                                           </div>
                                           {/* Nested children - automatically handled by react-complex-tree */}
                                           {children}
                                      </div>
@@ -583,6 +602,16 @@ const SidebarList = () => {
                 onCreateNote={handleCreateNote}
                 onCreateFolder={handleCreateFolderFromModal}
                 onUploadFile={handleUploadFile}
+            />
+
+            <NoteContextMenu
+                onRename={handleRename}
+                onDelete={handleDelete}
+                onDuplicate={handleDuplicate}
+                onTogglePin={handleTogglePin}
+                onCreateNote={handleContextCreateNote}
+                onCreateFolder={handleCreateFolder}
+                onOpenInSplit={handleOpenInSplit}
             />
         </>
     );

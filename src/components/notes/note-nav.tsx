@@ -30,16 +30,17 @@ const MenuButton: FC = () => {
         [sidebar]
     );
 
+    const { t } = useI18n();
     return (
-        <button
-            onClick={onToggle}
-            className="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Toggle sidebar"
-            title="Toggle sidebar"
-        >
-            <Bars3Icon className="w-5 h-5" aria-hidden="true" />
-        </button>
-    );
+         <button
+             onClick={onToggle}
+             className="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+             aria-label={t('Toggle sidebar')}
+             title={t('Toggle sidebar')}
+         >
+             <Bars3Icon className="w-5 h-5" aria-hidden="true" />
+         </button>
+     );
 };
 
 const NoteNav: FC = () => {
@@ -130,16 +131,16 @@ const NoteNav: FC = () => {
                              homeHref="/"
                              pages={breadcrumbPages}
                          />
-                        {!isShown && (
-                            <button
-                                onClick={handleClickOpenInTree}
-                                className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                title={t('Show note in tree')}
-                                aria-label={t('Show note in tree')}
-                            >
-                                 <EyeIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
-                            </button>
-                        )}
+                         {!isShown && (
+                             <button
+                                 onClick={handleClickOpenInTree}
+                                 className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                 title={t('Reveal in sidebar')}
+                                 aria-label={t('Reveal in sidebar')}
+                             >
+                                  <EyeIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
+                             </button>
+                         )}
                     </>
                 )}
             </div>

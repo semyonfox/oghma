@@ -7,6 +7,7 @@ import NoteSidebarFavorites from '@/components/notes/sidebar/note-sidebar-favori
 import NoteSidebarStats from '@/components/notes/sidebar/note-sidebar-stats';
 import NoteSidebarActions from '@/components/notes/sidebar/note-sidebar-actions';
 import useUIComposite from '@/lib/notes/state/ui';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import { FC, useCallback } from 'react';
 
 const Sidebar: FC = () => {
@@ -16,6 +17,7 @@ const Sidebar: FC = () => {
 };
 
 const BrowserSidebar: FC = () => {
+    const { t } = useI18n();
     const { sidebar } = useUIComposite();
 
     const handleToggleSidebar = useCallback(() => {
@@ -27,12 +29,12 @@ const BrowserSidebar: FC = () => {
         return (
             <section className="flex h-full">
                 {/* Vertical icon toolbar */}
-                <aside className="h-full flex flex-col w-12 md:w-11 flex-none bg-gray-800 border-r border-white/10" role="complementary" aria-label="Collapsed notes sidebar">
-                    <nav className="flex flex-col items-center gap-2 p-2" role="toolbar" aria-label="Notes toolbar">
+                <aside className="h-full flex flex-col w-12 md:w-11 flex-none bg-gray-800 border-r border-white/10" role="complementary" aria-label={t('Collapsed notes sidebar')}>
+                    <nav className="flex flex-col items-center gap-2 p-2" role="toolbar" aria-label={t('Notes toolbar')}>
                         <button
                             className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-                            title="Search notes"
-                            aria-label="Search notes"
+                            title={t('Search notes')}
+                            aria-label={t('Search notes')}
                             onClick={handleToggleSidebar}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -41,11 +43,11 @@ const BrowserSidebar: FC = () => {
                         </button>
                     </nav>
                     <div className="flex-1" />
-                    <nav className="flex flex-col items-center gap-2 p-2 border-t border-white/10" role="toolbar" aria-label="Sidebar actions">
+                    <nav className="flex flex-col items-center gap-2 p-2 border-t border-white/10" role="toolbar" aria-label={t('Sidebar actions')}>
                         <button
                             className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-                            title="Settings"
-                            aria-label="Settings"
+                            title={t('Settings')}
+                            aria-label={t('Settings')}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -54,8 +56,8 @@ const BrowserSidebar: FC = () => {
                         </button>
                         <button
                             className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
-                            title="Toggle sidebar"
-                            aria-label="Expand sidebar"
+                            title={t('Toggle sidebar')}
+                            aria-label={t('Expand sidebar')}
                             onClick={handleToggleSidebar}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -70,7 +72,7 @@ const BrowserSidebar: FC = () => {
 
     // Full sidebar when expanded
     return (
-        <aside className="flex flex-col h-full w-72 bg-gray-800" role="complementary" aria-label="Notes sidebar">
+        <aside className="flex flex-col h-full w-72 bg-gray-800" role="complementary" aria-label={t('Notes sidebar')}>
             {/* Header */}
             <NoteSidebarHeader onToggleSidebar={handleToggleSidebar} />
 
@@ -81,8 +83,8 @@ const BrowserSidebar: FC = () => {
             <NoteSidebarFavorites />
 
             {/* Tree - scrollable */}
-            <nav className="flex-1 overflow-y-auto px-3 py-2" role="tree" aria-label="Notes hierarchy">
-                <h3 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">📂 All Notes</h3>
+            <nav className="flex-1 overflow-y-auto px-3 py-2" role="tree" aria-label={t('Notes hierarchy')}>
+                <h3 className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">📂 {t('All Notes')}</h3>
                 <SidebarList />
             </nav>
 
@@ -96,6 +98,7 @@ const BrowserSidebar: FC = () => {
 };
 
 const MobileSidebar: FC = () => {
+    const { t } = useI18n();
     const { sidebar } = useUIComposite();
 
     const handleToggleSidebar = useCallback(() => {
@@ -104,7 +107,7 @@ const MobileSidebar: FC = () => {
 
     // Mobile always shows full sidebar (no collapse)
     return (
-        <aside className="flex flex-col h-full w-4/5" role="complementary" aria-label="Notes sidebar">
+        <aside className="flex flex-col h-full w-4/5" role="complementary" aria-label={t('Notes sidebar')}>
             {/* Header */}
             <NoteSidebarHeader onToggleSidebar={handleToggleSidebar} />
 
@@ -115,8 +118,8 @@ const MobileSidebar: FC = () => {
             <NoteSidebarFavorites />
 
            {/* Tree - scrollable */}
-             <nav className="flex-1 overflow-y-auto px-3 py-2" role="tree" aria-label="Notes hierarchy">
-                 <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide" aria-hidden="true">📂 All Notes</h3>
+             <nav className="flex-1 overflow-y-auto px-3 py-2" role="tree" aria-label={t('Notes hierarchy')}>
+                  <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide" aria-hidden="true">📂 {t('All Notes')}</h3>
                  <SidebarList />
              </nav>
 
