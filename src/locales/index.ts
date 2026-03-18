@@ -6,6 +6,7 @@
 export enum Locale {
   ZH_CN = 'zh-CN',
   EN = 'en',
+  GA = 'ga',
   de_DE = 'de-DE',
   ru_RU = 'ru-RU',
   ar = 'ar',
@@ -18,6 +19,7 @@ export enum Locale {
 // locale display names for settings UI
 export const configLocale: Record<Locale, string> = {
   [Locale.EN]: 'English',
+  [Locale.GA]: 'Gaeilge',
   [Locale.ZH_CN]: '简体中文',
   [Locale.de_DE]: 'Deutsch',
   [Locale.ru_RU]: 'Русский',
