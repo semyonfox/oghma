@@ -54,26 +54,43 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState('account')
 
-  // Load user settings on mount
+  // Load user profile and settings on mount
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadUserData = async () => {
       try {
-        const response = await fetch('/api/settings')
-        if (response.ok) {
-          const data = await response.json()
-          setSettings(data)
-          // Update form state with loaded data
+        // Fetch user profile (includes OAuth data from Auth.js session)
+        const profileResponse = await fetch('/api/auth/me')
+        if (profileResponse.ok) {
+          const { user } = await profileResponse.json()
+          if (user) {
+            const nameParts = (user.name || '').split(' ')
+            setFormState((prev) => ({
+              ...prev,
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' ') || '',
+              email: user.email || '',
+            }))
+          }
+        }
+
+        // Fetch user settings (theme, editor size, timezone, etc.)
+        const settingsResponse = await fetch('/api/settings')
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json()
+          setSettings(settingsData)
+          // Update form state with loaded settings
           setFormState((prev) => ({
             ...prev,
-            theme: data.theme || 'dark',
-            editorWidth: data.editorsize === 'small' ? 'small' : 'large',
+            theme: settingsData.theme || 'dark',
+            editorWidth: settingsData.editorsize === 'small' ? 'small' : 'large',
+            timezone: settingsData.timezone || 'UTC',
           }))
         }
       } catch (error) {
-        console.error('Failed to load settings:', error)
+        console.error('Failed to load user data:', error)
       }
     }
-    loadSettings()
+    loadUserData()
   }, [setSettings])
 
   // Track active section when user scrolls
@@ -106,13 +123,29 @@ export default function SettingsPage() {
     e.preventDefault()
     setIsLoading(true)
     try {
-      await updateSettings({
-        // Add any profile-related fields to settings if needed
+      // Save profile data (timezone) via settings API
+      // Note: firstName, lastName, email are from OAuth/Auth and typically read-only
+      // But we can save them as preferences in case user wants to override display names
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timezone: formState.timezone,
+          // Store profile display preferences
+          firstName: formState.firstName,
+          lastName: formState.lastName,
+        }),
       })
-      toast.success(t('Settings saved successfully'))
+      
+      if (response.ok) {
+        toast.success(t('Profile updated successfully'))
+      } else {
+        const error = await response.json()
+        toast.error(error.error || t('Failed to save profile'))
+      }
     } catch (error) {
       console.error('Failed to save profile:', error)
-      toast.error(t('Failed to save settings'))
+      toast.error(t('Failed to save profile'))
     } finally {
       setIsLoading(false)
     }
@@ -280,91 +313,105 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* First Name */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="first-name" className="block text-sm/6 font-medium text-white">
-                      First name
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="first-name"
-                        name="first-name"
-                        type="text"
-                        autoComplete="given-name"
-                        placeholder="John"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
+                   {/* First Name */}
+                   <div className="sm:col-span-3">
+                     <label htmlFor="first-name" className="block text-sm/6 font-medium text-white">
+                       First name
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="first-name"
+                         name="first-name"
+                         type="text"
+                         autoComplete="given-name"
+                         placeholder="John"
+                         value={formState.firstName}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, firstName: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
 
-                  {/* Last Name */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="last-name" className="block text-sm/6 font-medium text-white">
-                      Last name
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="last-name"
-                        name="last-name"
-                        type="text"
-                        autoComplete="family-name"
-                        placeholder="Doe"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
+                   {/* Last Name */}
+                   <div className="sm:col-span-3">
+                     <label htmlFor="last-name" className="block text-sm/6 font-medium text-white">
+                       Last name
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="last-name"
+                         name="last-name"
+                         type="text"
+                         autoComplete="family-name"
+                         placeholder="Doe"
+                         value={formState.lastName}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, lastName: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
 
-                  {/* Email */}
-                  <div className="col-span-full">
-                    <label htmlFor="email" className="block text-sm/6 font-medium text-white">
-                      Email address
-                    </label>
-                    <div className="mt-2">
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="john@example.com"
-                        className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      />
-                    </div>
-                  </div>
+                   {/* Email */}
+                   <div className="col-span-full">
+                     <label htmlFor="email" className="block text-sm/6 font-medium text-white">
+                       Email address
+                     </label>
+                     <div className="mt-2">
+                       <input
+                         id="email"
+                         name="email"
+                         type="email"
+                         autoComplete="email"
+                         placeholder="john@example.com"
+                         value={formState.email}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, email: e.target.value }))}
+                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       />
+                     </div>
+                   </div>
 
-                  {/* Timezone */}
-                  <div className="col-span-full">
-                    <label htmlFor="timezone" className="block text-sm/6 font-medium text-white">
-                      Timezone
-                    </label>
-                    <div className="mt-2 grid grid-cols-1">
-                      <select
-                        id="timezone"
-                        name="timezone"
-                        className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 *:bg-gray-800 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                      >
-                        <option>Pacific Standard Time</option>
-                        <option>Eastern Standard Time</option>
-                        <option>Greenwich Mean Time</option>
-                        <option>Central European Time</option>
-                      </select>
+                   {/* Timezone */}
+                   <div className="col-span-full">
+                     <label htmlFor="timezone" className="block text-sm/6 font-medium text-white">
+                       Timezone
+                     </label>
+                     <div className="mt-2 grid grid-cols-1">
+                       <select
+                         id="timezone"
+                         name="timezone"
+                         value={formState.timezone}
+                         onChange={(e) => setFormState((prev) => ({ ...prev, timezone: e.target.value }))}
+                         className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 *:bg-gray-800 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                       >
+                         <option>UTC</option>
+                         <option>Pacific Standard Time</option>
+                         <option>Eastern Standard Time</option>
+                         <option>Greenwich Mean Time</option>
+                         <option>Central European Time</option>
+                       </select>
                       <ChevronDownIcon
                         aria-hidden="true"
                         className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-400 sm:size-4"
                       />
                     </div>
-                  </div>
-                </div>
+                   </div>
 
-                <div className="mt-8 flex">
-                   <button
-                     type="submit"
-                     disabled={isLoading}
-                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                     onClick={handleProfileSave}
-                   >
-                     {isLoading ? t('Saving...') : t('Save')}
-                   </button>
+                   {/* Language Selection */}
+                   <div className="col-span-full">
+                     <LanguageSelector variant="compact" showLabel={true} />
+                   </div>
                  </div>
+
+                 <div className="mt-8 flex">
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleProfileSave}
+                    >
+                      {isLoading ? t('Saving...') : t('Save')}
+                    </button>
+                  </div>
                </form>
              </div>
 
@@ -415,13 +462,8 @@ export default function SettingsPage() {
                          </label>
                        ))}
                      </div>
-                   </div>
-
-                   {/* Language */}
-                   <div>
-                     <LanguageSelector variant="compact" showLabel={true} />
-                   </div>
-                 </div>
+                    </div>
+                  </div>
 
                  <div className="mt-8 flex">
                    <button
