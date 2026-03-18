@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { register, getErrorMessage } from '@/lib/apiClient'
 import { Alert } from '@/components/alert'
 import Link from 'next/link'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export default function RegisterPage() {
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [pwd, setPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
@@ -19,17 +21,17 @@ export default function RegisterPage() {
     e.preventDefault()
     setErrMsg('')
 
-    if (pwd !== confirmPwd) {
-      setErrMsg('Passwords do not match')
-      errRef.current?.focus()
-      return
-    }
+     if (pwd !== confirmPwd) {
+       setErrMsg(t('Passwords do not match'))
+       errRef.current?.focus()
+       return
+     }
 
-    if (pwd.length < 8) {
-      setErrMsg('Password must be at least 8 characters')
-      errRef.current?.focus()
-      return
-    }
+     if (pwd.length < 8) {
+       setErrMsg(t('Password must be at least 8 characters'))
+       errRef.current?.focus()
+       return
+     }
 
     setLoading(true)
     try {
@@ -62,22 +64,22 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">Create your account</h2>
-      </div>
+       <div className="sm:mx-auto sm:w-full sm:max-w-md">
+         <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">{t('Create your account')}</h2>
+       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
         <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef}>
-                <Alert variant="error" title="Registration failed" description={errMsg} />
+                <Alert variant="error" title={t('Registration failed')} description={errMsg} />
               </div>
             )}
 
             <div>
               <label htmlFor="email" className="block text-sm/6 font-medium text-white">
-                Email address
+                {t('Email address')}
               </label>
               <div className="mt-2">
                 <input
@@ -95,7 +97,7 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm/6 font-medium text-white">
-                Password
+                {t('Password')}
               </label>
               <div className="mt-2">
                 <input
@@ -109,12 +111,12 @@ export default function RegisterPage() {
                   className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-400">Minimum 8 characters</p>
+              <p className="mt-1 text-xs text-gray-400">{t('Minimum 8 characters')}</p>
             </div>
 
             <div>
               <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-white">
-                Confirm password
+                {t('Confirm password')}
               </label>
               <div className="mt-2">
                 <input
@@ -136,7 +138,7 @@ export default function RegisterPage() {
                 disabled={loading}
                 className="flex w-full justify-center rounded-md bg-indigo-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creating account...' : 'Create account'}
+                {loading ? t('Creating account...') : t('Create account')}
               </button>
             </div>
           </form>
@@ -145,7 +147,7 @@ export default function RegisterPage() {
           <div>
             <div className="mt-10 flex items-center gap-x-6">
               <div className="w-full flex-1 border-t border-white/10" />
-              <p className="text-sm/6 font-medium text-nowrap text-white">Or sign up with</p>
+              <p className="text-sm/6 font-medium text-nowrap text-white">{t('Or sign up with')}</p>
               <div className="w-full flex-1 border-t border-white/10" />
             </div>
 
@@ -227,9 +229,9 @@ export default function RegisterPage() {
         </div>
 
         <p className="mt-10 text-center text-sm/6 text-gray-400">
-          Already have an account?{' '}
+          {t('Already have an account?')}{' '}
           <Link href="/login" className="font-semibold text-indigo-400 hover:text-indigo-300">
-            Sign in
+            {t('Sign in')}
           </Link>
         </p>
       </div>

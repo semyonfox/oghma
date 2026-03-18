@@ -19,23 +19,8 @@ import useI18n from '@/lib/notes/hooks/use-i18n'
 import { useSettingsStore } from '@/lib/notes/state/ui/settings'
 import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings'
 
-const navigationItems = [
-  { name: 'Account', href: '#account', icon: Cog6ToothIcon, current: true },
-  { name: 'Notifications', href: '#notifications', icon: BellIcon, current: false },
-  { name: 'Billing', href: '#billing', icon: CreditCardIcon, current: false },
-  { name: 'Canvas Integration', href: '#canvas', icon: PuzzlePieceIcon, current: false },
-  { name: 'AI Settings', href: '#ai', icon: Cog6ToothIcon, current: false },
-]
-
-const secondaryNavigation = [
-  { name: 'Account', href: '#account', current: true },
-  { name: 'Notifications', href: '#notifications', current: false },
-  { name: 'Billing', href: '#billing', current: false },
-  { name: 'Canvas Integration', href: '#canvas', current: false },
-  { name: 'AI Settings', href: '#ai', current: false },
-  { name: 'Data & Export', href: '#data', current: false },
-  { name: 'Danger Zone', href: '#danger', current: false },
-]
+// Navigation items will be created dynamically with useI18n
+// See below in component for definition
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -54,6 +39,25 @@ export default function SettingsPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState('account')
+
+  // Navigation items with translations
+  const navigationItems = [
+    { name: t('Account'), href: '#account', icon: Cog6ToothIcon, current: true },
+    { name: t('Notifications'), href: '#notifications', icon: BellIcon, current: false },
+    { name: t('Billing'), href: '#billing', icon: CreditCardIcon, current: false },
+    { name: t('Canvas Integration'), href: '#canvas', icon: PuzzlePieceIcon, current: false },
+    { name: t('AI Settings'), href: '#ai', icon: Cog6ToothIcon, current: false },
+  ]
+
+  const secondaryNavigation = [
+    { name: t('Account'), href: '#account', current: true },
+    { name: t('Notifications'), href: '#notifications', current: false },
+    { name: t('Billing'), href: '#billing', current: false },
+    { name: t('Canvas Integration'), href: '#canvas', current: false },
+    { name: t('AI Settings'), href: '#ai', current: false },
+    { name: t('Data & Export'), href: '#data', current: false },
+    { name: t('Danger Zone'), href: '#danger', current: false },
+  ]
 
   // Load user profile and settings on mount
   useEffect(() => {
@@ -212,7 +216,7 @@ export default function SettingsPage() {
     <SidebarLayout
       navigationItems={navigationItems}
       logoText="OghmaNotes"
-      pageTitle="Settings"
+      pageTitle={t('Settings')}
       onNavigate={handleNavClick}
         children={
           <>
@@ -229,8 +233,8 @@ export default function SettingsPage() {
                 <form action="#" method="GET" className="grid flex-1 grid-cols-1">
                   <input
                     name="search"
-                    placeholder="Search settings"
-                    aria-label="Search"
+                    placeholder={t('Search settings')}
+                    aria-label={t('Search')}
                     className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-base text-white outline-hidden placeholder:text-gray-500 sm:text-sm/6"
                   />
                   <MagnifyingGlassIcon
@@ -284,11 +288,11 @@ export default function SettingsPage() {
            {/* Main content */}
            <main className="divide-y divide-white/10">
              {/* Account Settings */}
-             <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-              <div>
-                <h2 className="text-base/7 font-semibold text-white">Personal Information</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Update your profile information and avatar.</p>
-              </div>
+              <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+               <div>
+                 <h2 className="text-base/7 font-semibold text-white">{t('Personal Information')}</h2>
+                 <p className="mt-1 text-sm/6 text-gray-400">{t('Update your profile information and avatar.')}</p>
+               </div>
 
               <form className="md:col-span-2">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
@@ -307,75 +311,75 @@ export default function SettingsPage() {
                           // TODO: Implement avatar upload functionality
                           console.log('Avatar upload clicked')
                         }}
-                      >
-                        Change avatar
-                      </button>
-                      <p className="mt-2 text-xs/5 text-gray-400">JPG, GIF or PNG. 1MB max.</p>
+                       >
+                         {t('Change avatar')}
+                       </button>
+                       <p className="mt-2 text-xs/5 text-gray-400">{t('JPG, GIF or PNG. 1MB max.')}</p>
                     </div>
                   </div>
 
-                   {/* First Name */}
-                   <div className="sm:col-span-3">
-                     <label htmlFor="first-name" className="block text-sm/6 font-medium text-white">
-                       First name
-                     </label>
+                    {/* First Name */}
+                    <div className="sm:col-span-3">
+                      <label htmlFor="first-name" className="block text-sm/6 font-medium text-white">
+                        {t('First name')}
+                      </label>
                      <div className="mt-2">
                        <input
-                         id="first-name"
-                         name="first-name"
-                         type="text"
-                         autoComplete="given-name"
-                         placeholder="John"
-                         value={formState.firstName}
+                          id="first-name"
+                          name="first-name"
+                          type="text"
+                          autoComplete="given-name"
+                          placeholder={t('John')}
+                          value={formState.firstName}
                          onChange={(e) => setFormState((prev) => ({ ...prev, firstName: e.target.value }))}
                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
                        />
                      </div>
                    </div>
 
-                   {/* Last Name */}
-                   <div className="sm:col-span-3">
-                     <label htmlFor="last-name" className="block text-sm/6 font-medium text-white">
-                       Last name
-                     </label>
+                    {/* Last Name */}
+                    <div className="sm:col-span-3">
+                      <label htmlFor="last-name" className="block text-sm/6 font-medium text-white">
+                        {t('Last name')}
+                      </label>
                      <div className="mt-2">
                        <input
-                         id="last-name"
-                         name="last-name"
-                         type="text"
-                         autoComplete="family-name"
-                         placeholder="Doe"
-                         value={formState.lastName}
+                          id="last-name"
+                          name="last-name"
+                          type="text"
+                          autoComplete="family-name"
+                          placeholder={t('Doe')}
+                          value={formState.lastName}
                          onChange={(e) => setFormState((prev) => ({ ...prev, lastName: e.target.value }))}
                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
                        />
                      </div>
                    </div>
 
-                   {/* Email */}
-                   <div className="col-span-full">
-                     <label htmlFor="email" className="block text-sm/6 font-medium text-white">
-                       Email address
-                     </label>
+                    {/* Email */}
+                    <div className="col-span-full">
+                      <label htmlFor="email" className="block text-sm/6 font-medium text-white">
+                        {t('Email address')}
+                      </label>
                      <div className="mt-2">
                        <input
-                         id="email"
-                         name="email"
-                         type="email"
-                         autoComplete="email"
-                         placeholder="john@example.com"
-                         value={formState.email}
+                          id="email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          placeholder={t('john@example.com')}
+                          value={formState.email}
                          onChange={(e) => setFormState((prev) => ({ ...prev, email: e.target.value }))}
                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
                        />
                      </div>
                    </div>
 
-                   {/* Timezone */}
-                   <div className="col-span-full">
-                     <label htmlFor="timezone" className="block text-sm/6 font-medium text-white">
-                       Timezone
-                     </label>
+                    {/* Timezone */}
+                    <div className="col-span-full">
+                      <label htmlFor="timezone" className="block text-sm/6 font-medium text-white">
+                        {t('Timezone')}
+                      </label>
                      <div className="mt-2 grid grid-cols-1">
                        <select
                          id="timezone"
@@ -403,88 +407,88 @@ export default function SettingsPage() {
                    </div>
                  </div>
 
-                 <div className="mt-8 flex">
+                  <div className="mt-8 flex">
+                     <button
+                       type="submit"
+                       disabled={isLoading}
+                       className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                       onClick={handleProfileSave}
+                     >
+                       {isLoading ? t('Saving...') : t('Save changes')}
+                     </button>
+                   </div>
+               </form>
+             </div>
+
+              {/* Editor & Theme Settings (Notifications section) */}
+              <div id="notifications" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+                <div>
+                  <h2 className="text-base/7 font-semibold text-white">{t('Editor & Theme')}</h2>
+                  <p className="mt-1 text-sm/6 text-gray-400">{t('Customize your note editor appearance and behavior.')}</p>
+                </div>
+
+               <form className="md:col-span-2">
+                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
+                    {/* Theme Selection */}
+                    <div>
+                      <label className="block text-sm/6 font-medium text-white mb-3">{t('Theme')}</label>
+                      <div className="flex gap-3">
+                        {[{ label: t('Light'), value: 'light' }, { label: t('Dark'), value: 'dark' }, { label: t('System'), value: 'system' }].map((theme) => (
+                          <label key={theme.value} className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name="theme"
+                              value={theme.value}
+                              checked={formState.theme === theme.value}
+                              onChange={(e) => setFormState((prev) => ({ ...prev, theme: e.target.value }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-300">{theme.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Editor Width */}
+                    <div>
+                      <label className="block text-sm/6 font-medium text-white mb-3">{t('Editor Width')}</label>
+                      <div className="flex gap-3">
+                        {[{ label: t('Small'), value: 'small' }, { label: t('Large'), value: 'large' }].map((size) => (
+                          <label key={size.value} className="flex items-center cursor-pointer">
+                            <input
+                              type="radio"
+                              name="editor-width"
+                              value={size.value}
+                              checked={formState.editorWidth === size.value}
+                              onChange={(e) => setFormState((prev) => ({ ...prev, editorWidth: e.target.value }))}
+                              className="mr-2"
+                            />
+                            <span className="text-sm text-gray-300">{size.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                     </div>
+                  </div>
+
+                  <div className="mt-8 flex">
                     <button
                       type="submit"
                       disabled={isLoading}
                       className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={handleProfileSave}
+                      onClick={handleEditorSettingsSave}
                     >
-                      {isLoading ? t('Saving...') : t('Save')}
+                      {isLoading ? t('Saving...') : t('Save changes')}
                     </button>
                   </div>
-               </form>
-             </div>
-
-             {/* Editor & Theme Settings (Notifications section) */}
-             <div id="notifications" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-               <div>
-                 <h2 className="text-base/7 font-semibold text-white">Editor & Theme</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">Customize your note editor appearance and behavior.</p>
-               </div>
-
-               <form className="md:col-span-2">
-                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
-                   {/* Theme Selection */}
-                   <div>
-                     <label className="block text-sm/6 font-medium text-white mb-3">{t('Theme')}</label>
-                     <div className="flex gap-3">
-                       {['Light', 'Dark', 'System'].map((theme) => (
-                         <label key={theme} className="flex items-center cursor-pointer">
-                           <input
-                             type="radio"
-                             name="theme"
-                             value={theme.toLowerCase()}
-                             checked={formState.theme === theme.toLowerCase()}
-                             onChange={(e) => setFormState((prev) => ({ ...prev, theme: e.target.value }))}
-                             className="mr-2"
-                           />
-                           <span className="text-sm text-gray-300">{theme}</span>
-                         </label>
-                       ))}
-                     </div>
-                   </div>
-
-                   {/* Editor Width */}
-                   <div>
-                     <label className="block text-sm/6 font-medium text-white mb-3">{t('Editor Width')}</label>
-                     <div className="flex gap-3">
-                       {['Small', 'Large'].map((size) => (
-                         <label key={size} className="flex items-center cursor-pointer">
-                           <input
-                             type="radio"
-                             name="editor-width"
-                             value={size.toLowerCase()}
-                             checked={formState.editorWidth === size.toLowerCase()}
-                             onChange={(e) => setFormState((prev) => ({ ...prev, editorWidth: e.target.value }))}
-                             className="mr-2"
-                           />
-                           <span className="text-sm text-gray-300">{size}</span>
-                         </label>
-                       ))}
-                     </div>
-                    </div>
-                  </div>
-
-                 <div className="mt-8 flex">
-                   <button
-                     type="submit"
-                     disabled={isLoading}
-                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                     onClick={handleEditorSettingsSave}
-                   >
-                     {isLoading ? t('Saving...') : t('Save')}
-                   </button>
-                 </div>
-               </form>
-             </div>
-
-             {/* Change Password (Billing section for now) */}
-             <div id="billing" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-              <div>
-                <h2 className="text-base/7 font-semibold text-white">Change password</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Update your password associated with your account.</p>
+                </form>
               </div>
+
+              {/* Change Password (Billing section for now) */}
+              <div id="billing" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+               <div>
+                 <h2 className="text-base/7 font-semibold text-white">{t('Change password')}</h2>
+                 <p className="mt-1 text-sm/6 text-gray-400">{t('Update your password associated with your account.')}</p>
+               </div>
 
               <form className="md:col-span-2">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
@@ -556,105 +560,105 @@ export default function SettingsPage() {
               </form>
             </div>
 
-             {/* Data & Export */}
-             <div id="data" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-              <div>
-                <h2 className="text-base/7 font-semibold text-white">Data & Export</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Import or export your notes in various formats.</p>
-              </div>
+              {/* Data & Export */}
+              <div id="data" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+               <div>
+                 <h2 className="text-base/7 font-semibold text-white">{t('Data & Export')}</h2>
+                 <p className="mt-1 text-sm/6 text-gray-400">{t('Import or export your notes in various formats.')}</p>
+               </div>
 
               <div className="md:col-span-2">
                 <div className="space-y-6">
-                  {/* Import Section */}
-                  <div>
-                    <h3 className="text-sm/6 font-medium text-white mb-3">Import Notes</h3>
-                    <p className="text-sm text-gray-400 mb-4">Import a zip file containing markdown files.</p>
-                    <button
-                      type="button"
-                      className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled
-                      onClick={() => {
-                        // TODO: Implement import functionality - handle zip file upload
-                        console.log('Import clicked')
-                      }}
-                    >
-                      Import (Coming soon)
-                    </button>
-                  </div>
+                   {/* Import Section */}
+                   <div>
+                     <h3 className="text-sm/6 font-medium text-white mb-3">{t('Import Notes')}</h3>
+                     <p className="text-sm text-gray-400 mb-4">{t('Import a zip file containing markdown files.')}</p>
+                     <button
+                       type="button"
+                       className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                       disabled
+                       onClick={() => {
+                         // TODO: Implement import functionality - handle zip file upload
+                         console.log('Import clicked')
+                       }}
+                     >
+                       {t('Import (Coming soon)')}
+                     </button>
+                   </div>
 
-                  {/* Export Section */}
-                  <div className="border-t border-white/10 pt-6">
-                    <h3 className="text-sm/6 font-medium text-white mb-3">Export Notes</h3>
-                    <p className="text-sm text-gray-400 mb-4">Download all your notes as a zip file.</p>
-                    <button
-                      type="button"
-                      className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled
-                      onClick={() => {
-                        // TODO: Implement export functionality - call /api/import-export endpoint
-                        console.log('Export clicked')
-                      }}
-                    >
-                      Export (Coming soon)
-                    </button>
-                  </div>
+                   {/* Export Section */}
+                   <div className="border-t border-white/10 pt-6">
+                     <h3 className="text-sm/6 font-medium text-white mb-3">{t('Export Notes')}</h3>
+                     <p className="text-sm text-gray-400 mb-4">{t('Download all your notes as a zip file.')}</p>
+                     <button
+                       type="button"
+                       className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                       disabled
+                       onClick={() => {
+                         // TODO: Implement export functionality - call /api/import-export endpoint
+                         console.log('Export clicked')
+                       }}
+                     >
+                       {t('Export (Coming soon)')}
+                     </button>
+                   </div>
                 </div>
               </div>
             </div>
 
-              {/* Canvas Integration */}
-              <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-               <div>
-                 <h2 className="text-base/7 font-semibold text-white">Canvas Integration</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">Connect your Canvas LMS account to import your courses and lecture materials.</p>
-               </div>
+               {/* Canvas Integration */}
+               <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+                <div>
+                  <h2 className="text-base/7 font-semibold text-white">{t('Canvas Integration')}</h2>
+                  <p className="mt-1 text-sm/6 text-gray-400">{t('Connect your Canvas LMS account to import your courses and lecture materials.')}</p>
+                </div>
 
                <div className="md:col-span-2">
                  <CanvasIntegration />
                </div>
              </div>
 
-             {/* Danger Zone */}
-             <div id="danger" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-              <div>
-                <h2 className="text-base/7 font-semibold text-white">Danger Zone</h2>
-                <p className="mt-1 text-sm/6 text-gray-400">Irreversible and destructive actions.</p>
-              </div>
+              {/* Danger Zone */}
+              <div id="danger" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+               <div>
+                 <h2 className="text-base/7 font-semibold text-white">{t('Danger Zone')}</h2>
+                 <p className="mt-1 text-sm/6 text-gray-400">{t('Irreversible and destructive actions.')}</p>
+               </div>
 
               <div className="md:col-span-2 space-y-6">
-                {/* Log out other sessions */}
-                <div>
-                  <h3 className="text-sm/6 font-medium text-white mb-2">Log out other sessions</h3>
-                  <p className="text-sm text-gray-400 mb-4">Sign out all other active sessions on your account.</p>
-                  <button
-                    type="button"
-                    className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 hover:bg-yellow-500/20"
-                    onClick={() => {
-                      // TODO: Log out other sessions - call /api/auth/logout-all endpoint
-                      console.log('Log out other sessions')
-                    }}
-                  >
-                    Log out other sessions
-                  </button>
-                </div>
+                 {/* Log out other sessions */}
+                 <div>
+                   <h3 className="text-sm/6 font-medium text-white mb-2">{t('Log out other sessions')}</h3>
+                   <p className="text-sm text-gray-400 mb-4">{t('Sign out all other active sessions on your account.')}</p>
+                   <button
+                     type="button"
+                     className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 hover:bg-yellow-500/20"
+                     onClick={() => {
+                       // TODO: Log out other sessions - call /api/auth/logout-all endpoint
+                       console.log('Log out other sessions')
+                     }}
+                   >
+                     {t('Log out other sessions')}
+                   </button>
+                 </div>
 
-                {/* Delete Account */}
-                <div className="border-t border-white/10 pt-6">
-                  <h3 className="text-sm/6 font-medium text-white mb-2">Delete account</h3>
-                  <p className="text-sm text-gray-400 mb-4">
-                    Permanently delete your account and all associated data. This action cannot be undone.
-                  </p>
-                  <button
-                    type="button"
-                    className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400"
-                    onClick={() => {
-                      // TODO: Implement account deletion - show confirmation modal and call /api/auth/delete-account endpoint
-                      console.log('Delete account clicked')
-                    }}
-                  >
-                    Delete my account
-                  </button>
-                </div>
+                 {/* Delete Account */}
+                 <div className="border-t border-white/10 pt-6">
+                   <h3 className="text-sm/6 font-medium text-white mb-2">{t('Delete account')}</h3>
+                   <p className="text-sm text-gray-400 mb-4">
+                     {t('Permanently delete your account and all associated data. This action cannot be undone.')}
+                   </p>
+                   <button
+                     type="button"
+                     className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400"
+                     onClick={() => {
+                       // TODO: Implement account deletion - show confirmation modal and call /api/auth/delete-account endpoint
+                       console.log('Delete account clicked')
+                     }}
+                   >
+                     {t('Delete my account')}
+                   </button>
+                 </div>
               </div>
             </div>
           </main>

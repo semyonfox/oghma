@@ -8,8 +8,10 @@ import usePortalStore from '@/lib/notes/state/portal';
 import { useRouter } from 'next/navigation';
 import { DocumentTextIcon } from '@heroicons/react/24/solid';
 import { debounce } from '@/lib/notes/utils/debounce';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 export default function SearchModal() {
+    const { t } = useI18n();
     const { search } = usePortalStore();
     const { keyword, setKeyword, filterNotes } = useSearchStore();
     const router = useRouter();
@@ -102,7 +104,7 @@ export default function SearchModal() {
                                     <input
                                         type="text"
                                         className="ml-3 flex-1 border-none outline-none bg-transparent text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
-                                        placeholder="Search notes..."
+                                        placeholder={t('Search notes...')}
                                         value={keyword}
                                         onChange={(e) => setKeyword(e.target.value)}
                                         autoFocus
@@ -117,35 +119,35 @@ export default function SearchModal() {
 
                                 <div className="max-h-96 overflow-y-auto">
                                     {!keyword && (
-                                        <div className="px-4 py-8 text-center text-neutral-500">
-                                            <MagnifyingGlassIcon className="mx-auto h-12 w-12 text-neutral-300 dark:text-neutral-600" />
-                                            <p className="mt-2">Type to search notes</p>
-                                            <p className="mt-1 text-sm text-neutral-400">
-                                                Press{' '}
-                                                <kbd className="px-2 py-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-xs">
-                                                    {typeof navigator !== 'undefined' &&
-                                                    navigator.platform.includes('Mac')
-                                                        ? '⌘'
-                                                        : 'Ctrl'}
-                                                    +K
-                                                </kbd>{' '}
-                                                to open search
-                                            </p>
-                                        </div>
-                                    )}
+                                         <div className="px-4 py-8 text-center text-neutral-500">
+                                             <MagnifyingGlassIcon className="mx-auto h-12 w-12 text-neutral-300 dark:text-neutral-600" />
+                                             <p className="mt-2">{t('Type to search notes')}</p>
+                                             <p className="mt-1 text-sm text-neutral-400">
+                                                 {t('Press')}{' '}
+                                                 <kbd className="px-2 py-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-xs">
+                                                     {typeof navigator !== 'undefined' &&
+                                                     navigator.platform.includes('Mac')
+                                                         ? '⌘'
+                                                         : 'Ctrl'}
+                                                     +K
+                                                 </kbd>{' '}
+                                                 {t('to open search')}
+                                             </p>
+                                         </div>
+                                     )}
 
                                     {keyword && isSearching && (
-                                        <div className="px-4 py-8 text-center text-neutral-500">
-                                            <div className="mx-auto h-6 w-6 border-2 border-neutral-300 border-t-blue-400 rounded-full animate-spin" />
-                                            <p className="mt-3">Searching notes...</p>
-                                        </div>
-                                    )}
+                                         <div className="px-4 py-8 text-center text-neutral-500">
+                                             <div className="mx-auto h-6 w-6 border-2 border-neutral-300 border-t-blue-400 rounded-full animate-spin" />
+                                             <p className="mt-3">{t('Searching notes...')}</p>
+                                         </div>
+                                     )}
 
                                     {keyword && !isSearching && searchResults.length === 0 && (
-                                        <div className="px-4 py-8 text-center text-neutral-500">
-                                            <p>No results found for &quot;{keyword}&quot;</p>
-                                        </div>
-                                    )}
+                                         <div className="px-4 py-8 text-center text-neutral-500">
+                                             <p>{t('No results found for')} &quot;{keyword}&quot;</p>
+                                         </div>
+                                     )}
 
                                     {keyword && searchResults.length > 0 && (
                                         <ul className="divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -178,11 +180,11 @@ export default function SearchModal() {
                                 <div className="border-t border-neutral-200 dark:border-neutral-700 px-4 py-2 text-xs text-neutral-500">
                                     <div className="flex items-center justify-between">
                                         <span>
-                                            Navigate with <kbd className="px-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded">↑</kbd>{' '}
+                                            {t('Navigate with')} <kbd className="px-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded">↑</kbd>{' '}
                                             <kbd className="px-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded">↓</kbd>
                                         </span>
                                         <span>
-                                            Select with{' '}
+                                            {t('Select with')}{' '}
                                             <kbd className="px-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded">Enter</kbd>
                                         </span>
                                     </div>

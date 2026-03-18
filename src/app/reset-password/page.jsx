@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 function ResetPasswordForm() {
+    const { t } = useI18n();
     const searchParams = useSearchParams();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,7 +21,7 @@ function ResetPasswordForm() {
         setMessage('');
 
         if (password !== confirmPassword) {
-            setError('Passwords do not match');
+            setError(t('Passwords do not match'));
             return;
         }
 
@@ -35,15 +37,15 @@ function ResetPasswordForm() {
             const data = await res.json();
 
             if (res.ok) {
-                setMessage('Password reset successful! Redirecting to login...');
+                setMessage(t('Password reset successful! Redirecting to login...'));
                 setTimeout(() => {
                     window.location.href = '/login';
                 }, 2000);
             } else {
-                setError(data.error || data.errors?.join(', ') || 'Failed to reset password');
+                setError(data.error || data.errors?.join(', ') || t('Failed to reset password'));
             }
         } catch (err) {
-            setError('An error occurred. Please try again.');
+            setError(t('An error occurred. Please try again.'));
         }
 
         setLoading(false);
@@ -52,26 +54,26 @@ function ResetPasswordForm() {
     if (!token) {
         return (
             <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
-                <h1>Invalid Reset Link</h1>
-                <p>The password reset link is invalid or missing.</p>
+                <h1>{t('Invalid Reset Link')}</h1>
+                <p>{t('The password reset link is invalid or missing.')}</p>
             </div>
         );
     }
 
     return (
         <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
-            <h1>Reset Password</h1>
+            <h1>{t('Reset Password')}</h1>
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '15px' }}>
                     <label htmlFor="password" style={{ display: 'block', marginBottom: '5px' }}>
-                        New Password
+                        {t('New Password')}
                     </label>
                     <input
                         id="password"
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter new password"
+                        placeholder={t('Enter new password')}
                         required
                         style={{ width: '100%', padding: '10px', fontSize: '16px' }}
                     />
@@ -79,14 +81,14 @@ function ResetPasswordForm() {
 
                 <div style={{ marginBottom: '15px' }}>
                     <label htmlFor="confirmPassword" style={{ display: 'block', marginBottom: '5px' }}>
-                        Confirm Password
+                        {t('Confirm Password')}
                     </label>
                     <input
                         id="confirmPassword"
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
+                        placeholder={t('Confirm new password')}
                         required
                         style={{ width: '100%', padding: '10px', fontSize: '16px' }}
                     />
@@ -106,7 +108,7 @@ function ResetPasswordForm() {
                         cursor: loading ? 'not-allowed' : 'pointer'
                     }}
                 >
-                    {loading ? 'Resetting...' : 'Reset Password'}
+                    {loading ? t('Resetting...') : t('Reset Password')}
                 </button>
             </form>
 
@@ -125,8 +127,9 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+    const { t } = useI18n();
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div>{t('Loading...')}</div>}>
             <ResetPasswordForm />
         </Suspense>
     );
