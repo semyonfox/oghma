@@ -169,25 +169,25 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   return (
     <div className="h-full flex flex-col bg-gray-900">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-white/6 flex items-center justify-between bg-gray-900">
         {/* Source / Read toggle */}
-        <div className="flex items-center gap-1 bg-white/5 p-1 rounded">
+        <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
           <button
             onClick={() => setMode('source')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+            className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
               mode === 'source'
                 ? 'bg-indigo-500 text-white'
-                : 'text-gray-400 hover:text-gray-300'
+                : 'text-gray-500 hover:text-gray-400'
             }`}
           >
             Source
           </button>
           <button
             onClick={() => setMode('read')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+            className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
               mode === 'read'
                 ? 'bg-indigo-500 text-white'
-                : 'text-gray-400 hover:text-gray-300'
+                : 'text-gray-500 hover:text-gray-400'
             }`}
           >
             Read
@@ -195,16 +195,16 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         </div>
 
         {/* Save Status + Guide link */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Link
             href="/syntax-guide"
             target="_blank"
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-[11px] text-gray-600 hover:text-gray-500 transition-colors"
           >
             Syntax Guide
           </Link>
           <span
-            className={`text-xs font-mono ${
+            className={`text-[11px] font-mono ${
               isSaving || isDirty ? 'text-yellow-500' : 'text-green-500'
             }`}
           >
@@ -216,37 +216,37 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       </div>
 
        {/* Content Area - Same background for both modes */}
-       <div className="flex-1 overflow-auto flex flex-col items-center bg-gray-800">
-         {mode === 'source' ? (
-           loaded ? (
-             <div className="w-full max-w-5xl h-full">
-               {/* Centered editor with same inset as read mode */}
-               <textarea
-                 ref={textareaRef}
-                 value={displayContent}
-                 onChange={(e) => {
-                   setLocalContent(e.target.value);
-                   setIsDirty(true);
-                 }}
-                 onKeyDown={handleTextareaKeyDown}
-                 spellCheck={false}
-                 className="w-full h-full bg-gray-800 text-gray-200 font-mono text-sm leading-relaxed px-12 py-8 outline-none resize-none"
-                 placeholder="Start writing..."
-               />
-             </div>
-           ) : (
-             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-               Loading...
-             </div>
-           )
-         ) : (
-           loaded ? (
-             <div className="w-full max-w-5xl h-full bg-gray-800">
-               {/* Centered rendered view with same styling */}
-               <div className="px-12 py-8 prose prose-invert h-full bg-gray-800 text-gray-200">
-                 <PreviewRenderer content={displayContent} />
-               </div>
-             </div>
+       <div className="flex-1 overflow-auto flex flex-col items-center bg-gray-900">
+          {mode === 'source' ? (
+            loaded ? (
+              <div className="w-full max-w-[65ch] mx-auto h-full">
+                {/* Centered editor with max content width */}
+                <textarea
+                  ref={textareaRef}
+                  value={displayContent}
+                  onChange={(e) => {
+                    setLocalContent(e.target.value);
+                    setIsDirty(true);
+                  }}
+                  onKeyDown={handleTextareaKeyDown}
+                  spellCheck={false}
+                  className="w-full h-full bg-gray-900 text-gray-300 font-mono text-sm leading-relaxed px-12 pt-12 pb-48 outline-none resize-none"
+                  placeholder="Start writing..."
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                Loading...
+              </div>
+            )
+          ) : (
+            loaded ? (
+              <div className="w-full max-w-[65ch] mx-auto h-full">
+                {/* Centered rendered view with max content width */}
+                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-gray-300">
+                  <PreviewRenderer content={displayContent} />
+                </div>
+              </div>
            ) : (
              <div className="flex items-center justify-center h-full text-gray-500 text-sm">
                Loading...
