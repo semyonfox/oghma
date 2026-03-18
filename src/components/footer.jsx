@@ -79,10 +79,10 @@ export default function Footer() {
           <div className="space-y-8">
             <div className="text-2xl font-bold text-white flex items-center gap-2">
               <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
-              OghmaNotes
+              {t('OghmaNotes')}
             </div>
             <p className="text-sm/6 text-balance text-gray-400">
-              RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.
+              {t('RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.')}
             </p>
             <div className="flex gap-x-6">
               {navigation.social.map((item) => (
@@ -173,7 +173,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-xs/5 text-gray-400">&copy; {new Date().getFullYear()} OghmaNotes. All rights reserved.</p>
+          <p className="text-xs/5 text-gray-400">{t(`© ${new Date().getFullYear()} OghmaNotes. All rights reserved.`)}</p>
         </div>
       </div>
     </footer>
