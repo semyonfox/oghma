@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    auto-merge:
+      merge-type: "squash"
+      auto-commit-message: "chore: bump dependencies"
+    reviewers:
+      - "semyonfox"
+    assignees:
+      - "semyonfox"

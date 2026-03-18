@@ -2,13 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage/init';
+import { isValidUUID } from '@/lib/uuid-validation';
 import sql from '@/database/pgsql';
 import { v4 as uuidv4 } from 'uuid';
-
-// Helper to validate UUID format
-function isValidUUID(id: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
 
 export async function POST(request: NextRequest) {
     try {
