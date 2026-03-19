@@ -4,6 +4,64 @@ import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
 
 /**
+ * GET /api/canvas/connect
+ *
+ * Checks whether the current user has a stored Canvas connection and whether
+ * the token is still valid. Returns courses on success so the UI can skip
+ * straight to course selection without a separate round trip.
+ *
+ * Response:
+ *   { connected: true,  domain: string, courses: Course[] }
+ *   { connected: false }
+ */
+export async function GET() {
+  try {
+    const user = await validateSession();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rows = await sql`
+      SELECT canvas_token, canvas_domain
+      FROM app.login
+      WHERE user_id = ${user.user_id}
+    `;
+
+    const { canvas_token, canvas_domain } = rows[0] ?? {};
+
+    if (!canvas_token || !canvas_domain) {
+      return NextResponse.json({ connected: false });
+    }
+
+    // Validate the stored token is still live by fetching courses
+    const client = new CanvasClient(canvas_domain, canvas_token);
+    const { data: courses, error } = await client.getCourses();
+
+    if (error) {
+      return NextResponse.json({ connected: false });
+    }
+
+    // Fetch modules for each course so the UI has the full folder preview
+    const coursesWithModules = await Promise.all(
+      (courses ?? []).map(async (course) => {
+        const { data: modules } = await client.getModules(course.id);
+        return { ...course, modules: modules ?? [] };
+      })
+    );
+
+    return NextResponse.json({
+      connected: true,
+      domain: canvas_domain,
+      courses: coursesWithModules,
+    });
+
+  } catch (err) {
+    console.error('Canvas connection check error:', err);
+    return NextResponse.json({ connected: false });
+  }
+}
+
+/**
  * DELETE /api/canvas/connect
  *
  * Disconnects Canvas by clearing the stored token and domain
