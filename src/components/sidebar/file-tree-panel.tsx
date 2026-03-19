@@ -66,20 +66,20 @@ const FileTreePanel: FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Search Box */}
-      <div className="flex-shrink-0 p-3 border-b border-white/6">
+      <div className="flex-shrink-0 p-3 border-b border-border-subtle">
         <div className="relative flex items-center">
-          <MagnifyingGlassIcon className="absolute left-3 w-4 h-4 text-gray-600 pointer-events-none" />
+          <MagnifyingGlassIcon className="absolute left-3 w-4 h-4 text-text-tertiary pointer-events-none" />
           <input
             type="text"
             placeholder={t('Find...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-gray-900 border border-white/6 rounded text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+            className="w-full pl-8 pr-3 py-1.5 bg-background border border-border-subtle rounded text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 p-1 hover:bg-white/5 rounded text-gray-600 hover:text-gray-400 transition-colors"
+              className="absolute right-2 p-1 hover:bg-white/5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
             >
               <XMarkIcon className="w-4 h-4" />
             </button>

@@ -108,7 +108,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   }, [paneB, rightPanelOpen]);
 
   return (
-    <div className="relative h-screen w-screen flex flex-col bg-gray-900">
+    <div className="relative h-screen w-screen flex flex-col bg-background">
       {/* Main 3-pane container using CSS Grid */}
       <div
         className="flex-1 overflow-hidden grid"
@@ -118,23 +118,23 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
         }}
       >
         {/* Pane 1: Icon Navigation (Fixed 48px) */}
-        <div className="bg-gray-900 border-r border-white/6 overflow-y-auto flex flex-col">
+        <div className="bg-background border-r border-border-subtle overflow-y-auto flex flex-col">
           <IconNav />
         </div>
 
         {/* Pane 2: File Tree (Resizable, default 220px) */}
-        <div className="bg-gray-900 border-r border-white/6 overflow-hidden flex flex-col">
+        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
           <FileTreePanel />
         </div>
 
         {/* Pane 3: Main Editor (Flex fill) */}
-        <div className="bg-gray-900 overflow-hidden flex flex-col">
+        <div className="bg-background overflow-hidden flex flex-col">
           <SplitEditorPane />
         </div>
 
         {/* Pane 4: Right Panel (Collapsible, default 280px) */}
         {rightPanelOpen && (
-          <div className="bg-gray-800 border-l border-white/6 overflow-hidden flex flex-col">
+          <div className="bg-surface border-l border-border-subtle overflow-hidden flex flex-col">
             <NotesInspectorSidebar />
           </div>
         )}

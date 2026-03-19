@@ -169,17 +169,17 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col bg-background">
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-white/6 flex items-center justify-between bg-gray-900">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
         {/* Source / Read toggle */}
         <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
           <button
             onClick={() => setMode('source')}
             className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
               mode === 'source'
-                ? 'bg-indigo-500 text-white'
-                : 'text-gray-500 hover:text-gray-400'
+                ? 'bg-primary-500 text-text'
+                : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
             Source
@@ -188,8 +188,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
             onClick={() => setMode('read')}
             className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
               mode === 'read'
-                ? 'bg-indigo-500 text-white'
-                : 'text-gray-500 hover:text-gray-400'
+                ? 'bg-primary-500 text-text'
+                : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
             Read
@@ -197,17 +197,17 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         </div>
 
         {/* Save Status + Guide link */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Link
             href="/syntax-guide"
             target="_blank"
-            className="text-[11px] text-gray-600 hover:text-gray-500 transition-colors"
+            className="text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
           >
             Syntax Guide
           </Link>
           <span
             className={`text-[11px] font-mono ${
-              isSaving || isDirty ? 'text-yellow-500' : 'text-green-500'
+              isSaving || isDirty ? 'text-yellow-500' : 'text-success-500'
             }`}
           >
             {isSaving && 'Saving...'}
@@ -217,12 +217,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         </div>
       </div>
 
-       {/* Content Area - Same background for both modes */}
-       <div className="flex-1 overflow-auto flex flex-col items-center bg-gray-900">
+       {/* Content Area */}
+       <div className="flex-1 overflow-auto flex flex-col items-center bg-background">
           {mode === 'source' ? (
             loaded ? (
               <div className="w-full max-w-[65ch] mx-auto h-full">
-                {/* Centered editor with max content width */}
                 <textarea
                    ref={textareaRef}
                    value={displayContent}
@@ -232,25 +231,24 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
                    }}
                    onKeyDown={handleTextareaKeyDown}
                    spellCheck={false}
-                   className="w-full h-full bg-gray-900 text-gray-300 font-mono text-sm leading-relaxed px-12 pt-12 pb-48 outline-none resize-none"
+                   className="w-full h-full bg-background text-text-secondary font-mono text-sm leading-relaxed px-12 pt-12 pb-48 outline-none resize-none"
                    placeholder={t('Start writing...')}
                  />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
                 Loading...
               </div>
             )
           ) : (
             loaded ? (
               <div className="w-full max-w-[65ch] mx-auto h-full">
-                {/* Centered rendered view with max content width */}
-                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-gray-300">
+                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
                   <PreviewRenderer content={displayContent} />
                 </div>
               </div>
            ) : (
-             <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
                Loading...
              </div>
            )

@@ -72,7 +72,7 @@ export default function NoteContextMenuPortal({
 
     return createPortal(
         <div
-            className="fixed z-[9999] w-48 rounded-md bg-white dark:bg-gray-800 py-1 shadow-xl ring-1 ring-black/5 dark:ring-white/10 focus:outline-none backdrop-blur-sm"
+            className="fixed z-[9999] w-48 rounded-md bg-surface py-1 shadow-xl ring-1 ring-border focus:outline-none backdrop-blur-sm"
             style={{
                 top: `${position.y}px`,
                 left: `${position.x}px`,
@@ -82,7 +82,7 @@ export default function NoteContextMenuPortal({
             {!isFolder && (
                 <button
                     onClick={() => handleMenuClick(() => onTogglePin(openMenuId))}
-                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
                 >
                     <StarIcon
                         className={`mr-3 h-4 w-4 ${isPinned ? 'fill-yellow-400 text-yellow-400' : ''}`}
@@ -94,7 +94,7 @@ export default function NoteContextMenuPortal({
 
             <button
                 onClick={() => handleMenuClick(() => onRename(openMenuId))}
-                className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
             >
                 <PencilIcon
                     className="mr-3 h-4 w-4"
@@ -106,9 +106,9 @@ export default function NoteContextMenuPortal({
             {!isFolder && (
                 <button
                     onClick={() => handleMenuClick(() => onDuplicate(openMenuId))}
-                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                    <DocumentDuplicateIcon
+                        className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
+                    >
+                        <DocumentDuplicateIcon
                         className="mr-3 h-4 w-4"
                         aria-hidden="true"
                     />
@@ -118,10 +118,10 @@ export default function NoteContextMenuPortal({
 
             {(isFolder || openMenuId === 'root') && (
                 <>
-                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+                    <div className="my-1 border-t border-border-subtle" />
                     <button
                         onClick={() => handleMenuClick(() => onCreateNote(openMenuId === 'root' ? 'root' : openMenuId))}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
                     >
                         <DocumentPlusIcon
                             className="mr-3 h-4 w-4"
@@ -131,7 +131,7 @@ export default function NoteContextMenuPortal({
                     </button>
                     <button
                         onClick={() => handleMenuClick(() => onCreateFolder(openMenuId === 'root' ? 'root' : openMenuId))}
-                        className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
                     >
                         <FolderPlusIcon
                             className="mr-3 h-4 w-4"
@@ -142,12 +142,12 @@ export default function NoteContextMenuPortal({
                 </>
             )}
 
-            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+            <div className="my-1 border-t border-border-subtle" />
 
             {!isFolder && (
                 <button
                     onClick={() => handleMenuClick(() => onOpenInSplit(openMenuId))}
-                    className="group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="group flex w-full items-center px-4 py-2 text-sm text-text-secondary hover:bg-surface-elevated"
                 >
                     <Squares2X2Icon
                         className="mr-3 h-4 w-4"
@@ -157,11 +157,11 @@ export default function NoteContextMenuPortal({
                 </button>
             )}
 
-            <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+            <div className="my-1 border-t border-border-subtle" />
 
             <button
                 onClick={() => handleMenuClick(() => onDelete(openMenuId))}
-                className="group flex w-full items-center px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20"
+                className="group flex w-full items-center px-4 py-2 text-sm text-error-400 hover:bg-error-900/20"
             >
                 <TrashIcon
                     className="mr-3 h-4 w-4"

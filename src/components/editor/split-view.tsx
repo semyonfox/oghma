@@ -12,9 +12,9 @@ export default function SplitView({ content, onContentChange }: SplitViewProps) 
   return (
     <div className="h-full flex flex-row gap-0">
       {/* Source editor pane */}
-      <div className="flex-1 min-w-0 border-r border-border dark:border-neutral-700">
+      <div className="flex-1 min-w-0 border-r border-border">
         <div className="h-full flex flex-col">
-          <div className="px-4 py-2 bg-background dark:bg-neutral-800 border-b border-border dark:border-neutral-700 text-sm font-medium text-text-secondary dark:text-neutral-400">
+          <div className="px-4 py-2 bg-background border-b border-border text-sm font-medium text-text-secondary">
             Source
           </div>
           <div className="flex-1">
@@ -26,7 +26,7 @@ export default function SplitView({ content, onContentChange }: SplitViewProps) 
       {/* Preview pane */}
       <div className="flex-1 min-w-0">
         <div className="h-full flex flex-col">
-          <div className="px-4 py-2 bg-background dark:bg-neutral-800 border-b border-border dark:border-neutral-700 text-sm font-medium text-text-secondary dark:text-neutral-400">
+          <div className="px-4 py-2 bg-background border-b border-border text-sm font-medium text-text-secondary">
             Preview
           </div>
           <div className="flex-1 overflow-auto">

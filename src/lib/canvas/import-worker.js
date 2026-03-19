@@ -95,7 +95,18 @@ async function downloadAndStoreFile(file, courseId, moduleId, userId, parentFold
 
     if (!PROCESSABLE_TYPES.has(resolvedMimeType)) {
       console.log(`Skipped (non-processable): ${file.display_name}`);
-      return;
+      return { skipped: true };
+    }
+
+    // skip files already successfully imported (dedup)
+    const existing = await sql`
+      SELECT 1 FROM app.canvas_imports
+      WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int AND status = 'complete'
+      LIMIT 1
+    `;
+    if (existing.length > 0) {
+      console.log(`Already imported, skipping: ${file.display_name}`);
+      return { skipped: true };
     }
 
     // Create initial import record (downloading state)

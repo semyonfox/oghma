@@ -12,7 +12,7 @@ const Inner = () => {
     }
 
     return (
-        <div className="mt-10 rounded-none p-2 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 text-error-800 dark:text-error-200">
+        <div className="mt-10 rounded-none p-2 bg-error-900/20 border border-error-800 text-error-200">
             <span>{t('This page is in trash')}</span>
         </div>
     );
