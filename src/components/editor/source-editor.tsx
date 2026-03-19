@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useNoteStore from '@/lib/notes/state/note';
 import useEditorStore from '@/lib/notes/state/editor.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface SourceEditorProps {
   content: string;
@@ -13,6 +14,7 @@ export default function SourceEditor({ content, onContentChange }: SourceEditorP
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [localContent, setLocalContent] = useState(content);
   const { saveNow } = useEditorStore();
+  const { t } = useI18n();
 
   // sync content when prop changes
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function SourceEditor({ content, onContentChange }: SourceEditorP
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       className="w-full h-full p-4 font-mono text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-none outline-none resize-none shadow-md rounded-md transition-all"
-      placeholder="Write your markdown here..."
+      placeholder={t('Write your markdown here...')}
       spellCheck={false}
       dir="ltr"
     />

@@ -30,7 +30,7 @@ export default function Footer() {
     ],
     social: [
       {
-        name: 'GitHub',
+        name: t('GitHub'),
         href: 'https://github.com',
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -43,7 +43,7 @@ export default function Footer() {
         ),
       },
       {
-        name: 'X',
+        name: t('X'),
         href: 'https://x.com',
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>

@@ -296,11 +296,11 @@ export default function SettingsPage() {
 
               <form className="md:col-span-2">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
-                  {/* Profile Avatar */}
-                  <div className="col-span-full flex items-center gap-x-8">
-                    <img
-                      alt="Profile"
-                      src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                   {/* Profile Avatar */}
+                   <div className="col-span-full flex items-center gap-x-8">
+                     <img
+                       alt={t('Profile')}
+                       src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
                       className="size-24 flex-none rounded-lg bg-gray-800 object-cover outline -outline-offset-1 outline-white/10"
                     />
                     <div>

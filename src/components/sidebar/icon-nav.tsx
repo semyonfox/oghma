@@ -4,6 +4,7 @@ import { FC } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -13,7 +14,7 @@ import {
 
 interface NavItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
   section: 'notes' | 'search' | 'calendar' | 'settings';
@@ -22,21 +23,21 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   {
     id: 'notes',
-    label: 'Notes',
+    labelKey: 'Notes',
     icon: DocumentTextIcon,
     href: '/notes',
     section: 'notes',
   },
   {
     id: 'search',
-    label: 'Search',
+    labelKey: 'Search',
     icon: MagnifyingGlassIcon,
     href: '/notes',
     section: 'search',
   },
   {
     id: 'calendar',
-    label: 'Calendar',
+    labelKey: 'Calendar',
     icon: CalendarIcon,
     href: '/notes',
     section: 'calendar',
@@ -51,6 +52,7 @@ const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useLayoutStore();
+  const { t } = useI18n();
 
   const handleNavClick = (item: NavItem) => {
     setActiveNav(item.section);
@@ -71,6 +73,7 @@ const IconNav: FC = () => {
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
           const isActive = activeNav === item.section;
+          const translatedLabel = t(item.labelKey);
 
           return (
             <button
@@ -84,13 +87,13 @@ const IconNav: FC = () => {
                 }
                 group
               `}
-              title={item.label}
+              title={translatedLabel}
             >
               <IconComp className="w-5 h-5" />
 
               {/* Hover tooltip */}
               <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
-                {item.label}
+                {translatedLabel}
               </div>
             </button>
           );
@@ -104,7 +107,7 @@ const IconNav: FC = () => {
       <button
         onClick={() => handleNavClick({
           id: 'settings',
-          label: 'Settings',
+          labelKey: 'Settings',
           icon: Cog6ToothIcon,
           href: '/settings',
           section: 'settings'
@@ -112,13 +115,13 @@ const IconNav: FC = () => {
         className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-gray-500 hover:text-gray-400 hover:bg-white/5 group relative ${
           activeNav === 'settings' ? 'bg-white/8 text-gray-300' : ''
         }`}
-        title="Settings"
+        title={t('Settings')}
       >
         <Cog6ToothIcon className="w-5 h-5" />
 
         {/* Hover tooltip */}
         <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
-          Settings
+          {t('Settings')}
         </div>
       </button>
     </div>
