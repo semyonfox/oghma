@@ -218,55 +218,52 @@ html, body {
   }
 }
 
-/* react-complex-tree Dark Theme Overrides */
+/* react-complex-tree - obsidian-style overrides */
 :root {
-  /* Override library defaults with dark theme colors */
-  --rct-color-tree-bg: rgb(17, 24, 39); /* gray-900 */
-  --rct-color-tree-focus-outline: rgb(99, 102, 241); /* indigo-500 */
-  
-  --rct-color-focustree-item-selected-bg: rgba(255, 255, 255, 0.1); /* white/10 */
-  --rct-color-focustree-item-selected-text: rgb(229, 231, 235); /* gray-200 */
-  --rct-color-focustree-item-focused-border: rgb(99, 102, 241); /* indigo-500 */
-  --rct-color-focustree-item-draggingover-bg: rgba(99, 102, 241, 0.2); /* indigo-500/20 for drop target */
-  --rct-color-focustree-item-draggingover-color: rgb(229, 231, 235); /* gray-200 */
-  
-  --rct-color-nonfocustree-item-selected-bg: rgba(255, 255, 255, 0.05); /* white/5 */
-  --rct-color-nonfocustree-item-selected-text: rgb(209, 213, 219); /* gray-300 */
-  --rct-color-nonfocustree-item-focused-border: rgb(107, 114, 128); /* gray-600 */
-  
-  --rct-color-search-highlight-bg: rgb(99, 102, 241); /* indigo-500 */
-  --rct-color-drag-between-line-bg: rgb(99, 102, 241); /* indigo-500 */
-  --rct-color-arrow: rgb(107, 114, 128); /* gray-600 */
-  
+  --rct-color-tree-bg: transparent;
+  --rct-color-tree-focus-outline: transparent;
+  --rct-color-focustree-item-selected-bg: transparent;
+  --rct-color-focustree-item-selected-text: inherit;
+  --rct-color-focustree-item-focused-border: transparent;
+  --rct-color-focustree-item-draggingover-bg: rgba(59, 130, 246, 0.08);
+  --rct-color-focustree-item-draggingover-color: inherit;
+  --rct-color-nonfocustree-item-selected-bg: transparent;
+  --rct-color-nonfocustree-item-selected-text: inherit;
+  --rct-color-nonfocustree-item-focused-border: transparent;
+  --rct-color-search-highlight-bg: rgba(59, 130, 246, 0.3);
+  --rct-color-drag-between-line-bg: rgb(59, 130, 246);
+  --rct-color-arrow: transparent; /* we render our own arrows */
   --rct-color-renaming-input-submitbutton-bg: transparent;
-  --rct-color-renaming-input-submitbutton-bg-hover: rgb(99, 102, 241); /* indigo-500 */
-  --rct-color-renaming-input-submitbutton-bg-active: rgb(79, 70, 229); /* indigo-600 */
-  
-  --rct-color-renaming-input-submitbutton-text: rgb(209, 213, 219); /* gray-300 */
-  --rct-color-renaming-input-submitbutton-text-hover: rgb(255, 255, 255); /* white */
-  --rct-color-renaming-input-submitbutton-text-active: rgb(255, 255, 255); /* white */
+  --rct-color-renaming-input-submitbutton-bg-hover: transparent;
+  --rct-color-renaming-input-submitbutton-bg-active: transparent;
+  --rct-color-renaming-input-submitbutton-text: transparent;
+  --rct-color-renaming-input-submitbutton-text-hover: transparent;
+  --rct-color-renaming-input-submitbutton-text-active: transparent;
 }
 
+/* strip all library chrome - we do our own rendering */
 .rct-tree-root {
-  background-color: rgb(17, 24, 39) !important;
-  padding: 0.25rem 0 !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+  outline: none !important;
 }
 
-.rct-tree-item-button {
-  @apply rounded px-2 py-1 hover:bg-white/5 transition-colors;
+.rct-tree-item-button,
+.rct-tree-item-title-container,
+.rct-tree-item-title-container-selected {
   background-color: transparent !important;
   color: inherit !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
 }
 
-.rct-tree-item-title-container {
-  @apply hover:bg-white/5 transition-colors rounded;
-  background-color: transparent !important;
-}
-
-.rct-tree-item-title-container-draggingover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  border: 1px solid rgba(99, 102, 241, 0.4) !important;
-  @apply rounded;
+/* hide library arrows - we render our own chevrons */
+.rct-tree-item-arrow,
+.rct-tree-item-arrow-isFolder,
+.rct-tree-item-arrow-isFolder-open {
+  display: none !important;
+  width: 0 !important;
 }
 
 .rct-tree-item-li {
@@ -275,47 +272,50 @@ html, body {
   list-style: none !important;
 }
 
-.rct-tree-item {
-  @apply w-full;
-}
-
-.rct-item-container {
-  @apply flex flex-col w-full;
-}
-
-.rct-tree-item-title {
-  @apply flex items-center w-full;
-}
-
-/* Nested indentation */
-.rct-item-container > .rct-item-container {
-  @apply ml-4;
-}
-
-/* Drop zone visual feedback - extra specificity */
-.rct-tree-root.rct-tree-root-focus .rct-tree-item-title-container-draggingover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-}
-
-.rct-tree-root:not(.rct-tree-root-focus) .rct-tree-item-title-container-draggingover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-}
-
-/* Tree items container */
 .rct-tree-items-container {
   margin: 0 !important;
   padding: 0 !important;
 }
 
-/* Tree item styling */
-.rct-tree-item-title-container-selected {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: rgb(229, 231, 235) !important;
+/* drop target: subtle blue highlight on the folder row */
+.rct-tree-item-title-container-draggingover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 3px !important;
+  border: none !important;
 }
 
-/* Accessibility: Reduced Motion Support */
+/* drag-between line indicator */
+.rct-tree-drag-between-line {
+  height: 2px !important;
+  background: rgb(59, 130, 246) !important;
+  border-radius: 1px;
+  opacity: 0.6;
+}
+
+/* obsidian-style scrollbar */
+.obsidian-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
