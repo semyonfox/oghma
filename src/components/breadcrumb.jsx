@@ -2,8 +2,10 @@
 
 import { HomeIcon } from '@heroicons/react/20/solid'
 import Link from 'next/link'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export function Breadcrumb({ pages = [], homeHref = '/' }) {
+  const { t } = useI18n()
   return (
     <nav aria-label="Breadcrumb" className="flex">
       <ol role="list" className="flex items-center space-x-4">
@@ -11,7 +13,7 @@ export function Breadcrumb({ pages = [], homeHref = '/' }) {
           <div>
             <Link href={homeHref} className="text-gray-400 hover:text-gray-300">
               <HomeIcon aria-hidden="true" className="size-5 shrink-0" />
-              <span className="sr-only">Home</span>
+              <span className="sr-only">{t('Home')}</span>
             </Link>
           </div>
         </li>
