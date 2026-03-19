@@ -7,6 +7,7 @@ import PDFViewer from './pdf-viewer';
 import ImageViewer from './image-viewer';
 import VideoViewer from './video-viewer';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface FileRendererProps {
   pane: 'A' | 'B';
@@ -17,23 +18,29 @@ interface FileRendererProps {
  * Dynamic file renderer
  * Routes to appropriate viewer based on file type
  */
-const LoadingFallback = () => (
-  <div className="w-full h-full flex items-center justify-center text-gray-500">
-    <div className="text-center">
-      <div className="w-8 h-8 mx-auto mb-2 border-2 border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
-      <p className="text-sm">Loading...</p>
-    </div>
-  </div>
-);
+const LoadingFallback = () => {
+   const { t } = useI18n();
+   return (
+     <div className="w-full h-full flex items-center justify-center text-gray-500">
+       <div className="text-center">
+         <div className="w-8 h-8 mx-auto mb-2 border-2 border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
+         <p className="text-sm">{t('Loading...')}</p>
+       </div>
+     </div>
+   );
+};
 
-const ErrorFallback = ({ message }: { message: string }) => (
-  <div className="w-full h-full flex items-center justify-center text-gray-500">
-    <div className="text-center">
-      <ExclamationTriangleIcon className="w-12 h-12 mb-4 text-red-500 mx-auto" />
-      <p className="text-sm font-semibold text-red-400">{message}</p>
-    </div>
-  </div>
-);
+const ErrorFallback = ({ message }: { message: string }) => {
+   const { t } = useI18n();
+   return (
+     <div className="w-full h-full flex items-center justify-center text-gray-500">
+       <div className="text-center">
+         <ExclamationTriangleIcon className="w-12 h-12 mb-4 text-red-500 mx-auto" />
+         <p className="text-sm font-semibold text-red-400">{t(message)}</p>
+       </div>
+     </div>
+   );
+};
 
 const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
   switch (file.fileType) {
@@ -65,8 +72,8 @@ const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
         </Suspense>
       );
 
-    default:
-      return <ErrorFallback message={`Unsupported file type: ${file.fileType}`} />;
+     default:
+       return <ErrorFallback message="file_renderer.unsupported_type" />;
   }
 };
 

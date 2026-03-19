@@ -34,14 +34,14 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
   };
 
   return (
-    <div className="w-14 h-screen bg-slate-800 border-r border-slate-700 sticky top-0 flex flex-col items-center py-3 gap-3" role="navigation" aria-label="Main navigation">
+    <div className="w-14 h-screen bg-slate-800 border-r border-slate-700 sticky top-0 flex flex-col items-center py-3 gap-3" role="navigation" aria-label={t('Main navigation')}>
       {/* Logo/Branding */}
       <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 mb-2 flex-shrink-0 text-white font-bold text-sm" aria-label={t('SocsBoard')} role="img">
         S
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 flex flex-col items-center gap-2" aria-label="Section navigation">
+      <nav className="flex-1 flex flex-col items-center gap-2" aria-label={t('Section navigation')}>
         {sections.map((section) => {
           const Icon = section.icon;
           const isActive = activeSection === section.id;

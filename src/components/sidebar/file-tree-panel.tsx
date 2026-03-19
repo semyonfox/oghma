@@ -13,6 +13,7 @@ import useTrashStore from '@/lib/notes/state/trash';
 import { clearDeduplicationCache } from '@/lib/notes/api/request-deduplicator';
 import { purgeNonUUIDNoteCache } from '@/lib/notes/cache/note';
 import { toast } from 'sonner';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 /**
  * File tree panel with search and collapsible sections
@@ -20,6 +21,7 @@ import { toast } from 'sonner';
  * Also handles dependency injection and tree initialization
  */
 const FileTreePanel: FC = () => {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const { collapsedSections, toggleCollapsedSection } = useLayoutStore();
 
@@ -69,7 +71,7 @@ const FileTreePanel: FC = () => {
           <MagnifyingGlassIcon className="absolute left-3 w-4 h-4 text-gray-600 pointer-events-none" />
           <input
             type="text"
-            placeholder="Find..."
+            placeholder={t('Find...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-2 bg-gray-900 border border-white/6 rounded text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-colors"

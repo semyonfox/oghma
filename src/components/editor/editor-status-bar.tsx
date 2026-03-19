@@ -2,6 +2,7 @@
 
 import { FC, useMemo } from 'react';
 import { useEditorStats } from '@/lib/notes/hooks/use-editor-stats';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface EditorStatusBarProps {
   content: string;
@@ -26,6 +27,7 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
   zoom = 100,
   onZoomChange,
 }) => {
+  const { t } = useI18n();
   const stats = useEditorStats(content);
 
   const syncStatusUI = useMemo(() => {
@@ -34,32 +36,32 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
         return (
           <span className="text-[11px] text-gray-600 flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-green-500"></span>
-            {lastSaved ? `Saved ${formatTimeAgo(lastSaved)}` : 'Saved'}
+            {lastSaved ? `${t('Saved')} ${formatTimeAgo(lastSaved)}` : t('Saved')}
           </span>
         );
       case 'saving':
         return (
           <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
-            Saving...
+            {t('Saving...')}
           </span>
         );
       case 'offline':
         return (
           <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-yellow-500"></span>
-            Offline
+            {t('Offline')}
           </span>
         );
       case 'error':
         return (
           <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-red-500"></span>
-            Sync Error
+            {t('Sync Error')}
           </span>
         );
     }
-  }, [syncStatus, lastSaved]);
+  }, [syncStatus, lastSaved, t]);
 
   return (
     <div className="h-6 bg-gray-900 border-t border-gray-700 px-4 flex items-center justify-between text-[11px] text-gray-600 select-none">
@@ -69,7 +71,7 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
       </div>
 
       {/* Center section: Word count only */}
-      <span title="Word count" className="text-gray-600">{stats.wordCount} words</span>
+      <span title={t('Word count')} className="text-gray-600">{stats.wordCount} {t('words')}</span>
 
       {/* Right: Empty (removed zoom, cursor position, reading time) */}
       <div />
