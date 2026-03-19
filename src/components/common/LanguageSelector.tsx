@@ -89,14 +89,17 @@ export default function LanguageSelector({
     return (
       <div className={className}>
         {showLabel && (
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm/6 font-medium text-white mb-2">
             {t('Language')}
           </label>
         )}
         <select
           value={selectedLocale || activeLocale}
           onChange={(e) => handleLanguageChange(e.target.value as Locale)}
-          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2"
+          className="block w-full rounded-md bg-white/5 py-1.5 px-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6 appearance-none"
+          style={{
+            colorScheme: 'dark'
+          }}
         >
           {languages.map((lang) => (
             <option key={lang.code} value={lang.code}>
