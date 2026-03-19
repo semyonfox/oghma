@@ -14,7 +14,7 @@ import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 
 const TextSkeleton = () => (
-    <span className="inline-block w-20 h-4 bg-neutral-300 dark:bg-neutral-700 rounded animate-pulse" />
+    <span className="inline-block w-20 h-4 bg-surface-elevated rounded animate-pulse" />
 );
 
 const SidebarListItem: FC<{
@@ -235,10 +235,10 @@ const SidebarListItem: FC<{
                         itemElementRef.current = el;
                         innerRef(el);
                     }}
-                     className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+                     className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
                          snapshot.isDragging ? 'opacity-60 bg-white/8 shadow-lg ring-1 ring-white/20' : ''
                      } ${
-                         activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                         activeId === item.id ? 'bg-primary-500/10 text-primary-400' : ''
                      }`}
                      role="treeitem"
                      aria-expanded={isFolder ? isExpanded : undefined}
@@ -308,7 +308,7 @@ const SidebarListItem: FC<{
                                      handleRenameCompleteMemoized(item.title || '');
                                  }
                              }}
-                             className="flex-1 truncate bg-white/10 border border-slate-600 rounded px-1 py-0.5 outline-none text-slate-300 focus:bg-white/20 focus:border-blue-500 transition-colors text-sm"
+                              className="flex-1 truncate bg-white/10 border border-border rounded px-1 py-0.5 outline-none text-text-secondary focus:bg-white/20 focus:border-primary-500 transition-colors text-sm"
                              dir="auto"
                              onClick={(e) => e.stopPropagation()}
                              aria-label={t('Rename note')}
@@ -338,8 +338,8 @@ const SidebarListItem: FC<{
                     <IconButton
                        icon="DotsHorizontal"
                        onClick={handleClickMenu}
-                       className="p-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
-                       title={t('Remove, Copy Link, etc')}
+                        className="p-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
+                        title={t('Remove, Copy Link, etc')}
                        aria-label={t('Note actions')}
                        tabIndex={-1}
                    ></IconButton>
@@ -348,7 +348,7 @@ const SidebarListItem: FC<{
                        <IconButton
                            icon="Plus"
                            onClick={onAddNote}
-                           className="p-1 ml-1 text-slate-600 hover:text-slate-300 rounded transition-colors hidden group-hover:block flex-shrink-0"
+                            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
                            title={t('Add a page inside this folder')}
                            aria-label={t('Add note')}
                            tabIndex={-1}
@@ -358,7 +358,7 @@ const SidebarListItem: FC<{
 
               {isFolder && !hasChildren && isExpanded && (
                   <div
-                      className={`py-1.5 text-slate-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
+                      className={`py-1.5 text-text-tertiary select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
                   >
                       {initLoaded ? t('No notes inside') : <TextSkeleton />}
                   </div>

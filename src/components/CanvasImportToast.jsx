@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Transition } from '@headlessui/react'
-import { CheckCircleIcon, ExclamationIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import { XMarkIcon } from '@heroicons/react/20/solid'
 
 export default function CanvasImportToast({ show, onClose, progress, onViewLogs }) {
@@ -31,7 +31,7 @@ export default function CanvasImportToast({ show, onClose, progress, onViewLogs 
   ) : isComplete ? (
     <CheckCircleIcon aria-hidden="true" className="size-6 text-green-400" />
   ) : (
-    <ExclamationIcon aria-hidden="true" className="size-6 text-yellow-400" />
+    <ExclamationCircleIcon aria-hidden="true" className="size-6 text-yellow-400" />
   )
 
   const title = isProcessing 

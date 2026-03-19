@@ -35,7 +35,7 @@ const FilterModal: FC<FilterModalProps> = ({ open, onClose, onOpen, children }) 
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-black/50 dark:bg-black/70" />
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
                 </Transition.Child>
 
                 <div className="fixed inset-0 overflow-y-auto">
@@ -50,7 +50,7 @@ const FilterModal: FC<FilterModalProps> = ({ open, onClose, onOpen, children }) 
                             leaveTo="opacity-0 scale-95"
                         >
                             <Dialog.Panel
-                                className={`w-full ${isMobile ? '' : 'max-w-xl'} transform overflow-hidden bg-gray-800 dark:bg-neutral-800 text-white shadow-xl transition-all ${isMobile ? '' : 'rounded-lg'}`}
+                                className={`w-full ${isMobile ? '' : 'max-w-xl'} transform overflow-hidden bg-surface border border-border text-text shadow-2xl transition-all ${isMobile ? '' : 'rounded-xl'}`}
                             >
                                 <div className="outline-none overflow-auto">
                                     {children}

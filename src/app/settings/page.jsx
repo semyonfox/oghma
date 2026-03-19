@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -34,9 +34,18 @@ export default function SettingsPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState('account')
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(null)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const avatarInputRef = useRef(null)
   const [clearVaultConfirm, setClearVaultConfirm] = useState(false)
   const [clearVaultInput, setClearVaultInput] = useState('')
   const [isClearingVault, setIsClearingVault] = useState(false)
+  const [deleteAccountModal, setDeleteAccountModal] = useState(false)
+  const [deleteAccountInput, setDeleteAccountInput] = useState('')
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+
+  const DELETE_ACCOUNT_PHRASE = 'delete my account'
 
   const VAULT_CONFIRM_PHRASE = "I solemnly swear on my academic career that I, a person of sound mind and questionable study habits, do hereby voluntarily and irrevocably consent to the total and utter annihilation of every single note, file, and folder in my vault, fully understanding that they are gone forever and that this is entirely my own fault"
 
@@ -81,6 +90,13 @@ export default function SettingsPage() {
             editorWidth: settingsData.editorsize === 'small' ? 'small' : 'large',
             timezone: settingsData.timezone || 'UTC',
           }))
+        }
+
+        // Fetch current avatar
+        const avatarResponse = await fetch('/api/auth/avatar')
+        if (avatarResponse.ok) {
+          const { avatarUrl: url } = await avatarResponse.json()
+          if (url) setAvatarUrl(url)
         }
       } catch (error) {
         console.error('Failed to load user data:', error)
@@ -185,6 +201,27 @@ export default function SettingsPage() {
     }
   }
 
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true)
+    try {
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: DELETE_ACCOUNT_PHRASE }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? t('Failed to delete account'))
+        return
+      }
+      router.push('/login')
+    } catch {
+      toast.error(t('Failed to delete account'))
+    } finally {
+      setIsDeletingAccount(false)
+    }
+  }
+
   const handlePasswordChange = async (e) => {
     e.preventDefault()
     if (formState.newPassword !== formState.confirmPassword) {
@@ -221,6 +258,45 @@ export default function SettingsPage() {
       toast.error(t('Failed to change password'))
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // show local preview immediately
+    const objectUrl = URL.createObjectURL(file)
+    setAvatarPreview(objectUrl)
+
+    setIsUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+
+      const response = await fetch('/api/auth/avatar', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const { avatarUrl: newUrl } = await response.json()
+        setAvatarUrl(newUrl)
+        setAvatarPreview(null)
+        toast.success(t('Avatar updated successfully'))
+      } else {
+        const err = await response.json()
+        setAvatarPreview(null)
+        toast.error(err.error || t('Failed to upload avatar'))
+      }
+    } catch (error) {
+      console.error('Avatar upload failed:', error)
+      setAvatarPreview(null)
+      toast.error(t('Failed to upload avatar'))
+    } finally {
+      setIsUploadingAvatar(false)
+      // reset input so the same file can be re-selected
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
     }
   }
 
@@ -304,25 +380,45 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
                    {/* Profile Avatar */}
                    <div className="col-span-full flex items-center gap-x-8">
-                     <img
-                       alt={t('Profile')}
-                       src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                       className="size-24 flex-none rounded-lg bg-surface object-cover outline -outline-offset-1 outline-white/10"
-                    />
-                    <div>
-                      <button
-                        type="button"
-                        className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20"
-                        onClick={() => {
-                          // TODO: Implement avatar upload functionality
-                          console.log('Avatar upload clicked')
-                        }}
+                     {/* hidden file input */}
+                     <input
+                       ref={avatarInputRef}
+                       type="file"
+                       accept="image/*"
+                       className="hidden"
+                       onChange={handleAvatarFileChange}
+                     />
+                     {avatarPreview || avatarUrl ? (
+                       <img
+                         alt={t('Profile')}
+                         src={avatarPreview || avatarUrl}
+                         className="size-24 flex-none rounded-lg bg-surface object-cover outline -outline-offset-1 outline-white/10"
+                       />
+                     ) : (
+                       <div className="size-24 flex-none rounded-lg bg-surface flex items-center justify-center outline -outline-offset-1 outline-white/10">
+                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-12 text-text-tertiary">
+                           <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+                         </svg>
+                       </div>
+                     )}
+                     <div>
+                       <button
+                         type="button"
+                         disabled={isUploadingAvatar}
+                         className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                         onClick={() => avatarInputRef.current?.click()}
                        >
-                         {t('Change avatar')}
+                         {isUploadingAvatar && (
+                           <svg className="animate-spin size-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                           </svg>
+                         )}
+                         {isUploadingAvatar ? t('Uploading...') : t('Change avatar')}
                        </button>
-                        <p className="mt-2 text-xs/5 text-text-tertiary">{t('JPG, GIF or PNG. 1MB max.')}</p>
-                    </div>
-                  </div>
+                       <p className="mt-2 text-xs/5 text-text-tertiary">{t('JPG, GIF, PNG or WebP. 5 MB max.')}</p>
+                     </div>
+                   </div>
 
                     {/* First Name */}
                     <div className="sm:col-span-3">
@@ -643,19 +739,16 @@ export default function SettingsPage() {
                </div>
 
               <div className="md:col-span-2 space-y-6">
-                 {/* Log out other sessions */}
+                  {/* Log out other sessions */}
                  <div>
                     <h3 className="text-sm/6 font-medium text-text mb-2">{t('Log out other sessions')}</h3>
                     <p className="text-sm text-text-tertiary mb-4">{t('Sign out all other active sessions on your account.')}</p>
                    <button
                      type="button"
-                     className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 hover:bg-yellow-500/20"
-                     onClick={() => {
-                       // TODO: Log out other sessions - call /api/auth/logout-all endpoint
-                       console.log('Log out other sessions')
-                     }}
+                     disabled
+                     className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 opacity-50 cursor-not-allowed"
                    >
-                     {t('Log out other sessions')}
+                     {t('Log out other sessions (coming soon)')}
                    </button>
                  </div>
 
@@ -678,16 +771,17 @@ export default function SettingsPage() {
                          <p className="text-xs text-text-tertiary">
                            {t('To confirm, type the following phrase exactly:')}
                         </p>
-                        <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded p-3 ring-1 ring-red-500/20 leading-relaxed select-all">
-                          {VAULT_CONFIRM_PHRASE}
-                        </p>
-                        <textarea
-                          rows={4}
-                          placeholder={t('Type the phrase above...')}
-                          value={clearVaultInput}
-                          onChange={e => setClearVaultInput(e.target.value)}
-                           className="block w-full rounded-md bg-white/5 px-3 py-2 text-sm text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-red-500 resize-none"
-                        />
+                         <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded p-3 ring-1 ring-red-500/20 leading-relaxed select-none pointer-events-none">
+                           {VAULT_CONFIRM_PHRASE}
+                         </p>
+                         <textarea
+                           rows={4}
+                           placeholder={t('Type the phrase above...')}
+                           value={clearVaultInput}
+                           onChange={e => setClearVaultInput(e.target.value)}
+                           onPaste={(e) => e.preventDefault()}
+                            className="block w-full rounded-md bg-white/5 px-3 py-2 text-sm text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-red-500 resize-none"
+                         />
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
@@ -719,10 +813,7 @@ export default function SettingsPage() {
                    <button
                      type="button"
                      className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400"
-                     onClick={() => {
-                       // TODO: Implement account deletion - show confirmation modal and call /api/auth/delete-account endpoint
-                       console.log('Delete account clicked')
-                     }}
+                     onClick={() => setDeleteAccountModal(true)}
                    >
                      {t('Delete my account')}
                    </button>
@@ -730,6 +821,47 @@ export default function SettingsPage() {
               </div>
             </div>
             </main>
+
+      {/* Delete Account confirmation modal */}
+      {deleteAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-surface border border-border-subtle shadow-2xl p-6 space-y-4">
+            <h2 className="text-base font-semibold text-text">{t('Delete your account?')}</h2>
+            <p className="text-sm text-text-tertiary">
+              {t('Your account will be deactivated immediately and scheduled for permanent deletion after 30 days. To cancel, contact support within that window.')}
+            </p>
+            <p className="text-xs text-text-tertiary">
+              {t('To confirm, type')} <span className="font-mono text-red-400">{DELETE_ACCOUNT_PHRASE}</span> {t('below:')}
+            </p>
+            <input
+              type="text"
+              autoFocus
+              placeholder={DELETE_ACCOUNT_PHRASE}
+              value={deleteAccountInput}
+              onChange={(e) => setDeleteAccountInput(e.target.value)}
+              className="block w-full rounded-md bg-white/5 px-3 py-2 text-sm text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-red-500"
+            />
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={isDeletingAccount || deleteAccountInput !== DELETE_ACCOUNT_PHRASE}
+                className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                onClick={handleDeleteAccount}
+              >
+                {isDeletingAccount ? t('Deleting...') : t('Delete my account')}
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingAccount}
+                className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20"
+                onClick={() => { setDeleteAccountModal(false); setDeleteAccountInput('') }}
+              >
+                {t('Cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

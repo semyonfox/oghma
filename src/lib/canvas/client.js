@@ -118,6 +118,27 @@ export class CanvasClient {
   }
 
   /**
+   * Returns full metadata for a single course.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any|null, forbidden: boolean, error?: string }>}
+   */
+  async getCourse(courseId) {
+    return this.#get(`/courses/${courseId}`);
+  }
+
+  /**
+   * Returns all assignments for a course.
+   * include[]=submission pulls in the student's own submission attachments.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getAssignments(courseId) {
+    return this.#getPaginated(`/courses/${courseId}/assignments?include[]=submission`);
+  }
+
+  /**
    * Returns all modules inside a course.
    * Modules are the folder-like containers Canvas uses to organise content.
    *
