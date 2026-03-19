@@ -4,6 +4,7 @@ import { FC, useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { EllipsisVerticalIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { NoteModel } from '@/lib/notes/types/note';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface EditorHeaderProps {
   note?: NoteModel;
@@ -22,19 +23,20 @@ interface EditorHeaderProps {
  * - Action menu (Share, Export, etc.)
  */
 export const EditorHeader: FC<EditorHeaderProps> = ({
-  note,
-  breadcrumbs = [],
-  tags = [],
-  onTitleChange,
-  onTagsChange,
-  onAction,
-}) => {
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [title, setTitle] = useState(note?.title || 'Untitled Note');
-  const [showTagInput, setShowTagInput] = useState(false);
-  const [tagInput, setTagInput] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+   note,
+   breadcrumbs = [],
+   tags = [],
+   onTitleChange,
+   onTagsChange,
+   onAction,
+ }) => {
+   const { t } = useI18n();
+   const [isEditingTitle, setIsEditingTitle] = useState(false);
+   const [title, setTitle] = useState(note?.title || t('editor_header.untitled_note'));
+   const [showTagInput, setShowTagInput] = useState(false);
+   const [tagInput, setTagInput] = useState('');
+   const [showMenu, setShowMenu] = useState(false);
+   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleTitleBlur = () => {
     setIsEditingTitle(false);
@@ -43,7 +45,7 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
     }
   };
 
-  const displayTitle = isEditingTitle ? title : (note?.title || 'Untitled Note');
+   const displayTitle = isEditingTitle ? title : (note?.title || t('editor_header.untitled_note'));
 
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -92,85 +94,85 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
           )}
           
           {/* Title */}
-          {isEditingTitle ? (
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleTitleBlur();
-              }}
-              className="w-full bg-gray-800 text-gray-100 text-lg font-medium rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          ) : (
-            <h1
-              onClick={() => {
-                setTitle(note?.title || 'Untitled Note');
-                setIsEditingTitle(true);
-              }}
-              className="text-lg font-medium text-gray-100 cursor-text hover:text-gray-200 transition-colors"
-            >
-              {displayTitle}
-            </h1>
-          )}
+           {isEditingTitle ? (
+             <input
+               autoFocus
+               value={title}
+               onChange={(e) => setTitle(e.target.value)}
+               onBlur={handleTitleBlur}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter') handleTitleBlur();
+               }}
+               className="w-full bg-gray-800 text-gray-100 text-lg font-medium rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+             />
+           ) : (
+             <h1
+               onClick={() => {
+                 setTitle(note?.title || t('editor_header.untitled_note'));
+                 setIsEditingTitle(true);
+               }}
+               className="text-lg font-medium text-gray-100 cursor-text hover:text-gray-200 transition-colors"
+             >
+               {displayTitle}
+             </h1>
+           )}
         </div>
 
          {/* Settings Link + Action Menu */}
          <div className="flex items-center gap-2 flex-shrink-0">
            {/* Settings Link */}
-           <Link
-             href="/settings"
-             className="p-2 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-gray-300"
-             title="Editor settings"
-           >
-             <Cog6ToothIcon className="w-5 h-5" />
-           </Link>
+            <Link
+              href="/settings"
+              className="p-2 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-gray-300"
+              title={t('editor_header.editor_settings')}
+            >
+              <Cog6ToothIcon className="w-5 h-5" />
+            </Link>
 
            {/* More Actions Menu */}
            <div className="relative" ref={menuRef}>
-             <button
-               onClick={() => setShowMenu(!showMenu)}
-               className="p-2 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-gray-300"
-               title="More actions"
-             >
-               <EllipsisVerticalIcon className="w-5 h-5" />
-             </button>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="p-2 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-gray-300"
+                title={t('editor_header.more_actions')}
+              >
+                <EllipsisVerticalIcon className="w-5 h-5" />
+              </button>
 
           {showMenu && (
             <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded shadow-lg z-50">
-              <button
-                onClick={() => {
-                  onAction?.('share');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-              >
-                Share Note
-              </button>
-              <button
-                onClick={() => {
-                  onAction?.('export');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-              >
-                Export to PDF
-              </button>
-              <button
-                onClick={() => {
-                  onAction?.('duplicate');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
-              >
-                Duplicate
-              </button>
+               <button
+                 onClick={() => {
+                   onAction?.('share');
+                   setShowMenu(false);
+                 }}
+                 className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
+               >
+                 {t('editor_header.share_note')}
+               </button>
+               <button
+                 onClick={() => {
+                   onAction?.('export');
+                   setShowMenu(false);
+                 }}
+                 className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
+               >
+                 {t('editor_header.export_to_pdf')}
+               </button>
+               <button
+                 onClick={() => {
+                   onAction?.('duplicate');
+                   setShowMenu(false);
+                 }}
+                 className="w-full px-4 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 transition-colors"
+               >
+                 {t('editor_header.duplicate')}
+               </button>
               
-              {/* Tags section in menu */}
-              <hr className="border-gray-700 my-1" />
-              <div className="px-4 py-2">
-                <p className="text-xs uppercase tracking-widest text-gray-600 mb-2">Tags</p>
+               {/* Tags section in menu */}
+               <hr className="border-gray-700 my-1" />
+               <div className="px-4 py-2">
+                 <p className="text-xs uppercase tracking-widest text-gray-600 mb-2">{t('editor_header.tags_section')}</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {tags.map((tag) => (
                     <span
@@ -203,38 +205,38 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
                       setShowTagInput(false);
                       setTagInput('');
                     }}
-                    placeholder="Add tag..."
-                    className="w-full px-2 py-1 bg-gray-700 text-white rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                ) : (
-                  <button
-                    onClick={() => setShowTagInput(true)}
-                    className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-                  >
-                    + Add tag
-                  </button>
-                )}
+                     placeholder={t('editor_header.add_tag_placeholder')}
+                     className="w-full px-2 py-1 bg-gray-700 text-white rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                   />
+                 ) : (
+                   <button
+                     onClick={() => setShowTagInput(true)}
+                     className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+                   >
+                     {t('editor_header.add_tag_button')}
+                   </button>
+                 )}
               </div>
               
-              <hr className="border-gray-700 my-1" />
-              <button
-                onClick={() => {
-                  onAction?.('archive');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-2 text-sm text-left text-yellow-400 hover:bg-gray-700 transition-colors"
-              >
-                Archive
-              </button>
-              <button
-                onClick={() => {
-                  onAction?.('delete');
-                  setShowMenu(false);
-                }}
-                className="w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-gray-700 transition-colors"
-              >
-                Delete
-              </button>
+               <hr className="border-gray-700 my-1" />
+               <button
+                 onClick={() => {
+                   onAction?.('archive');
+                   setShowMenu(false);
+                 }}
+                 className="w-full px-4 py-2 text-sm text-left text-yellow-400 hover:bg-gray-700 transition-colors"
+               >
+                 {t('editor_header.archive')}
+               </button>
+               <button
+                 onClick={() => {
+                   onAction?.('delete');
+                   setShowMenu(false);
+                 }}
+                 className="w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-gray-700 transition-colors"
+               >
+                 {t('editor_header.delete')}
+               </button>
              </div>
            )}
            </div>

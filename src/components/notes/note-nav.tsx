@@ -119,7 +119,7 @@ const NoteNav: FC = () => {
             style={{
                 width: ua?.isMobileOnly ? '100%' : 'inherit',
             }}
-            aria-label="Note actions and navigation"
+            aria-label={t('Note actions and navigation')}
         >
             {ua?.isMobileOnly && <MenuButton />}
 
