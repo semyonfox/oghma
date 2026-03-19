@@ -4,17 +4,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Cog6ToothIcon,
-  BellIcon,
-  CreditCardIcon,
-  PuzzlePieceIcon,
-  PencilIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 import { MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
-import { SidebarLayout } from '@/components/sidebar-layout'
 import LanguageSelector from '@/components/common/LanguageSelector'
 import CanvasIntegration from '@/components/settings/canvas-integration'
+import CanvasImportStatus from '@/components/CanvasImportStatus'
 import useI18n from '@/lib/notes/hooks/use-i18n'
 import { useSettingsStore } from '@/lib/notes/state/ui/settings'
 import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings'
@@ -39,15 +34,11 @@ export default function SettingsPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeSection, setActiveSection] = useState('account')
+  const [clearVaultConfirm, setClearVaultConfirm] = useState(false)
+  const [clearVaultInput, setClearVaultInput] = useState('')
+  const [isClearingVault, setIsClearingVault] = useState(false)
 
-  // Navigation items with translations
-  const navigationItems = [
-    { name: t('Account'), href: '#account', icon: Cog6ToothIcon, current: true },
-    { name: t('Notifications'), href: '#notifications', icon: BellIcon, current: false },
-    { name: t('Billing'), href: '#billing', icon: CreditCardIcon, current: false },
-    { name: t('Canvas Integration'), href: '#canvas', icon: PuzzlePieceIcon, current: false },
-    { name: t('AI Settings'), href: '#ai', icon: Cog6ToothIcon, current: false },
-  ]
+  const VAULT_CONFIRM_PHRASE = "I solemnly swear on my academic career that I, a person of sound mind and questionable study habits, do hereby voluntarily and irrevocably consent to the total and utter annihilation of every single note, file, and folder in my vault, fully understanding that they are gone forever and that this is entirely my own fault"
 
   const secondaryNavigation = [
     { name: t('Account'), href: '#account', current: true },
@@ -173,6 +164,27 @@ export default function SettingsPage() {
     }
   }
 
+  const handleClearVault = async () => {
+    setIsClearingVault(true)
+    try {
+      const res = await fetch('/api/vault', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? t('Failed to clear vault'))
+        return
+      }
+      const { summary } = data
+      toast.success(
+        `${t('Vault cleared')} — ${summary.notesDeleted} ${t('notes')}, ${summary.s3FilesDeleted} ${t('files deleted')}`
+      )
+      setClearVaultConfirm(false)
+    } catch {
+      toast.error(t('Failed to clear vault'))
+    } finally {
+      setIsClearingVault(false)
+    }
+  }
+
   const handlePasswordChange = async (e) => {
     e.preventDefault()
     if (formState.newPassword !== formState.confirmPassword) {
@@ -213,18 +225,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <SidebarLayout
-      navigationItems={navigationItems}
-      logoText="OghmaNotes"
-      pageTitle={t('Settings')}
-      onNavigate={handleNavClick}
-        children={
-          <>
-            {/* Top bar with search and back button */}
-            <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-6 border-b border-white/5 bg-gray-900 -mx-4 -mt-10 px-4 sm:px-6 lg:px-8 sm:hidden">
+    <div className="bg-background min-h-screen">
+      {/* Top bar with search and back button */}
+      <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-6 border-b border-border-subtle bg-background px-4 sm:px-6 lg:px-8 sm:hidden">
               <button
                 onClick={() => router.back()}
-                className="inline-flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5 p-2"
+                className="inline-flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-white/5 p-2"
                 title={t('Back')}
               >
                 <ArrowLeftIcon className="h-6 w-6" />
@@ -235,42 +241,42 @@ export default function SettingsPage() {
                     name="search"
                     placeholder={t('Search settings')}
                     aria-label={t('Search')}
-                    className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-base text-white outline-hidden placeholder:text-gray-500 sm:text-sm/6"
+                    className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-base text-text outline-hidden placeholder:text-text-tertiary sm:text-sm/6"
                   />
                   <MagnifyingGlassIcon
                     aria-hidden="true"
-                    className="pointer-events-none col-start-1 row-start-1 size-5 self-center text-gray-500"
+                    className="pointer-events-none col-start-1 row-start-1 size-5 self-center text-text-tertiary"
                   />
                 </form>
               </div>
             </div>
 
-            {/* Back button for larger screens */}
-            <div className="hidden sm:flex px-4 py-4 sm:px-6 lg:px-8 border-b border-white/5">
+      {/* Back button for larger screens */}
+      <div className="hidden sm:flex px-4 py-4 sm:px-6 lg:px-8 border-b border-border-subtle">
               <button
                 onClick={() => router.back()}
-                className="inline-flex items-center gap-2 text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                className="inline-flex items-center gap-2 text-sm font-medium text-primary-400 hover:text-indigo-300"
               >
                 <ArrowLeftIcon className="h-4 w-4" />
                 {t('Back')}
               </button>
             </div>
 
-          {/* Secondary navigation */}
-          <header className="border-b border-white/5 sticky top-16 z-30 bg-gray-900">
-            <nav className="flex overflow-x-auto py-4">
-              <ul
-                role="list"
-                className="flex min-w-full flex-none gap-x-6 px-4 text-sm/6 font-semibold text-gray-400 sm:px-6 lg:px-8"
-              >
-               {secondaryNavigation.map((item) => {
+      {/* Secondary navigation */}
+      <header className="border-b border-border-subtle sticky top-16 z-30 bg-background">
+        <nav className="flex overflow-x-auto py-4">
+          <ul
+            role="list"
+            className="flex min-w-full flex-none gap-x-6 px-4 text-sm/6 font-semibold text-text-tertiary sm:px-6 lg:px-8"
+          >
+            {secondaryNavigation.map((item) => {
                    const sectionId = item.href.replace('#', '')
                    const isActive = activeSection === sectionId
                    return (
                      <li key={item.name}>
                        <a 
                          href={item.href} 
-                         className={isActive ? 'text-indigo-400 border-b-2 border-indigo-400 pb-4' : 'hover:text-gray-300'}
+                          className={isActive ? 'text-primary-400 border-b-2 border-primary-500 pb-4' : 'hover:text-text-secondary'}
                          onClick={(e) => {
                            e.preventDefault()
                            handleNavClick(item)
@@ -280,18 +286,18 @@ export default function SettingsPage() {
                        </a>
                      </li>
                    )
-                 })}
-              </ul>
-            </nav>
-          </header>
+            })}
+          </ul>
+        </nav>
+      </header>
 
-           {/* Main content */}
-           <main className="divide-y divide-white/10">
-             {/* Account Settings */}
-              <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+      {/* Main content */}
+      <main className="divide-y divide-white/10">
+        {/* Account Settings */}
+        <div id="account" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                <div>
-                 <h2 className="text-base/7 font-semibold text-white">{t('Personal Information')}</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">{t('Update your profile information and avatar.')}</p>
+                 <h2 className="text-base/7 font-semibold text-text">{t('Personal Information')}</h2>
+                 <p className="mt-1 text-sm/6 text-text-tertiary">{t('Update your profile information and avatar.')}</p>
                </div>
 
               <form className="md:col-span-2">
@@ -301,7 +307,7 @@ export default function SettingsPage() {
                      <img
                        alt={t('Profile')}
                        src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                      className="size-24 flex-none rounded-lg bg-gray-800 object-cover outline -outline-offset-1 outline-white/10"
+                       className="size-24 flex-none rounded-lg bg-surface object-cover outline -outline-offset-1 outline-white/10"
                     />
                     <div>
                       <button
@@ -314,15 +320,15 @@ export default function SettingsPage() {
                        >
                          {t('Change avatar')}
                        </button>
-                       <p className="mt-2 text-xs/5 text-gray-400">{t('JPG, GIF or PNG. 1MB max.')}</p>
+                        <p className="mt-2 text-xs/5 text-text-tertiary">{t('JPG, GIF or PNG. 1MB max.')}</p>
                     </div>
                   </div>
 
                     {/* First Name */}
                     <div className="sm:col-span-3">
-                      <label htmlFor="first-name" className="block text-sm/6 font-medium text-white">
-                        {t('First name')}
-                      </label>
+                       <label htmlFor="first-name" className="block text-sm/6 font-medium text-text">
+                         {t('First name')}
+                       </label>
                      <div className="mt-2">
                        <input
                           id="first-name"
@@ -332,16 +338,16 @@ export default function SettingsPage() {
                           placeholder={t('John')}
                           value={formState.firstName}
                          onChange={(e) => setFormState((prev) => ({ ...prev, firstName: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
 
-                    {/* Last Name */}
+                     {/* Last Name */}
                     <div className="sm:col-span-3">
-                      <label htmlFor="last-name" className="block text-sm/6 font-medium text-white">
-                        {t('Last name')}
-                      </label>
+                       <label htmlFor="last-name" className="block text-sm/6 font-medium text-text">
+                         {t('Last name')}
+                       </label>
                      <div className="mt-2">
                        <input
                           id="last-name"
@@ -351,16 +357,16 @@ export default function SettingsPage() {
                           placeholder={t('Doe')}
                           value={formState.lastName}
                          onChange={(e) => setFormState((prev) => ({ ...prev, lastName: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
 
-                    {/* Email */}
+                     {/* Email */}
                     <div className="col-span-full">
-                      <label htmlFor="email" className="block text-sm/6 font-medium text-white">
-                        {t('Email address')}
-                      </label>
+                       <label htmlFor="email" className="block text-sm/6 font-medium text-text">
+                         {t('Email address')}
+                       </label>
                      <div className="mt-2">
                        <input
                           id="email"
@@ -370,23 +376,23 @@ export default function SettingsPage() {
                           placeholder={t('john@example.com')}
                           value={formState.email}
                          onChange={(e) => setFormState((prev) => ({ ...prev, email: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
 
-                    {/* Timezone */}
+                     {/* Timezone */}
                     <div className="col-span-full">
-                      <label htmlFor="timezone" className="block text-sm/6 font-medium text-white">
-                        {t('Timezone')}
-                      </label>
+                       <label htmlFor="timezone" className="block text-sm/6 font-medium text-text">
+                         {t('Timezone')}
+                       </label>
                      <div className="mt-2 grid grid-cols-1">
                         <select
                            id="timezone"
                            name="timezone"
                            value={formState.timezone}
                            onChange={(e) => setFormState((prev) => ({ ...prev, timezone: e.target.value }))}
-                           className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                           className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                            style={{
                              colorScheme: 'dark'
                            }}
@@ -399,7 +405,7 @@ export default function SettingsPage() {
                         </select>
                       <ChevronDownIcon
                         aria-hidden="true"
-                        className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-gray-400 sm:size-4"
+                         className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-text-tertiary sm:size-4"
                       />
                     </div>
                    </div>
@@ -426,15 +432,15 @@ export default function SettingsPage() {
               {/* Editor & Theme Settings (Notifications section) */}
               <div id="notifications" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                 <div>
-                  <h2 className="text-base/7 font-semibold text-white">{t('Editor & Theme')}</h2>
-                  <p className="mt-1 text-sm/6 text-gray-400">{t('Customize your note editor appearance and behavior.')}</p>
+                   <h2 className="text-base/7 font-semibold text-text">{t('Editor & Theme')}</h2>
+                   <p className="mt-1 text-sm/6 text-text-tertiary">{t('Customize your note editor appearance and behavior.')}</p>
                 </div>
 
                <form className="md:col-span-2">
                  <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
                     {/* Theme Selection */}
                     <div>
-                      <label className="block text-sm/6 font-medium text-white mb-3">{t('Theme')}</label>
+                       <label className="block text-sm/6 font-medium text-text mb-3">{t('Theme')}</label>
                       <div className="flex gap-3">
                         {[{ label: t('Light'), value: 'light' }, { label: t('Dark'), value: 'dark' }, { label: t('System'), value: 'system' }].map((theme) => (
                           <label key={theme.value} className="flex items-center cursor-pointer">
@@ -446,7 +452,7 @@ export default function SettingsPage() {
                               onChange={(e) => setFormState((prev) => ({ ...prev, theme: e.target.value }))}
                               className="mr-2"
                             />
-                            <span className="text-sm text-gray-300">{theme.label}</span>
+                             <span className="text-sm text-text-secondary">{theme.label}</span>
                           </label>
                         ))}
                       </div>
@@ -454,7 +460,7 @@ export default function SettingsPage() {
 
                     {/* Editor Width */}
                     <div>
-                      <label className="block text-sm/6 font-medium text-white mb-3">{t('Editor Width')}</label>
+                       <label className="block text-sm/6 font-medium text-text mb-3">{t('Editor Width')}</label>
                       <div className="flex gap-3">
                         {[{ label: t('Small'), value: 'small' }, { label: t('Large'), value: 'large' }].map((size) => (
                           <label key={size.value} className="flex items-center cursor-pointer">
@@ -466,7 +472,7 @@ export default function SettingsPage() {
                               onChange={(e) => setFormState((prev) => ({ ...prev, editorWidth: e.target.value }))}
                               className="mr-2"
                             />
-                            <span className="text-sm text-gray-300">{size.label}</span>
+                             <span className="text-sm text-text-secondary">{size.label}</span>
                           </label>
                         ))}
                       </div>
@@ -489,17 +495,17 @@ export default function SettingsPage() {
               {/* Change Password (Billing section for now) */}
               <div id="billing" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                <div>
-                 <h2 className="text-base/7 font-semibold text-white">{t('Change password')}</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">{t('Update your password associated with your account.')}</p>
+                 <h2 className="text-base/7 font-semibold text-text">{t('Change password')}</h2>
+                 <p className="mt-1 text-sm/6 text-text-tertiary">{t('Update your password associated with your account.')}</p>
                </div>
 
               <form className="md:col-span-2">
                 <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
                    {/* Current Password */}
                    <div className="col-span-full">
-                     <label htmlFor="current-password" className="block text-sm/6 font-medium text-white">
-                       {t('Current password')}
-                     </label>
+                      <label htmlFor="current-password" className="block text-sm/6 font-medium text-text">
+                        {t('Current password')}
+                      </label>
                      <div className="mt-2">
                        <input
                          id="current-password"
@@ -508,16 +514,16 @@ export default function SettingsPage() {
                          autoComplete="current-password"
                          value={formState.currentPassword}
                          onChange={(e) => setFormState((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
 
-                   {/* New Password */}
+                    {/* New Password */}
                    <div className="col-span-full">
-                     <label htmlFor="new-password" className="block text-sm/6 font-medium text-white">
-                       {t('New password')}
-                     </label>
+                      <label htmlFor="new-password" className="block text-sm/6 font-medium text-text">
+                        {t('New password')}
+                      </label>
                      <div className="mt-2">
                        <input
                          id="new-password"
@@ -526,16 +532,16 @@ export default function SettingsPage() {
                          autoComplete="new-password"
                          value={formState.newPassword}
                          onChange={(e) => setFormState((prev) => ({ ...prev, newPassword: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
 
-                   {/* Confirm Password */}
+                    {/* Confirm Password */}
                    <div className="col-span-full">
-                     <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-white">
-                       {t('Confirm password')}
-                     </label>
+                      <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-text">
+                        {t('Confirm password')}
+                      </label>
                      <div className="mt-2">
                        <input
                          id="confirm-password"
@@ -544,18 +550,18 @@ export default function SettingsPage() {
                          autoComplete="new-password"
                          value={formState.confirmPassword}
                          onChange={(e) => setFormState((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                         className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                       />
-                     </div>
-                   </div>
-                 </div>
+                          className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-                 <div className="mt-8 flex">
-                   <button
-                     type="submit"
-                     disabled={isLoading}
-                     className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                     onClick={handlePasswordChange}
+                  <div className="mt-8 flex">
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handlePasswordChange}
                    >
                      {isLoading ? t('Updating...') : t('Change password')}
                    </button>
@@ -566,16 +572,16 @@ export default function SettingsPage() {
               {/* Data & Export */}
               <div id="data" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                <div>
-                 <h2 className="text-base/7 font-semibold text-white">{t('Data & Export')}</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">{t('Import or export your notes in various formats.')}</p>
+                 <h2 className="text-base/7 font-semibold text-text">{t('Data & Export')}</h2>
+                 <p className="mt-1 text-sm/6 text-text-tertiary">{t('Import or export your notes in various formats.')}</p>
                </div>
 
               <div className="md:col-span-2">
                 <div className="space-y-6">
                    {/* Import Section */}
                    <div>
-                     <h3 className="text-sm/6 font-medium text-white mb-3">{t('Import Notes')}</h3>
-                     <p className="text-sm text-gray-400 mb-4">{t('Import a zip file containing markdown files.')}</p>
+                      <h3 className="text-sm/6 font-medium text-text mb-3">{t('Import Notes')}</h3>
+                      <p className="text-sm text-text-tertiary mb-4">{t('Import a zip file containing markdown files.')}</p>
                      <button
                        type="button"
                        className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -591,8 +597,8 @@ export default function SettingsPage() {
 
                    {/* Export Section */}
                    <div className="border-t border-white/10 pt-6">
-                     <h3 className="text-sm/6 font-medium text-white mb-3">{t('Export Notes')}</h3>
-                     <p className="text-sm text-gray-400 mb-4">{t('Download all your notes as a zip file.')}</p>
+                      <h3 className="text-sm/6 font-medium text-text mb-3">{t('Export Notes')}</h3>
+                      <p className="text-sm text-text-tertiary mb-4">{t('Download all your notes as a zip file.')}</p>
                      <button
                        type="button"
                        className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/5 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -610,29 +616,37 @@ export default function SettingsPage() {
             </div>
 
                {/* Canvas Integration */}
-               <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
-                <div>
-                  <h2 className="text-base/7 font-semibold text-white">{t('Canvas Integration')}</h2>
-                  <p className="mt-1 text-sm/6 text-gray-400">{t('Connect your Canvas LMS account to import your courses and lecture materials.')}</p>
-                </div>
+                <div id="canvas" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
+                 <div>
+                    <h2 className="text-base/7 font-semibold text-text">{t('Canvas Integration')}</h2>
+                    <p className="mt-1 text-sm/6 text-text-tertiary">{t('Connect your Canvas LMS account to import your courses and lecture materials.')}</p>
+                 </div>
 
-               <div className="md:col-span-2">
-                 <CanvasIntegration />
-               </div>
-             </div>
+                <div className="md:col-span-2 space-y-8">
+                  <div>
+                    <h3 className="text-sm/6 font-medium text-text mb-4">{t('Connect Canvas Account')}</h3>
+                    <CanvasIntegration />
+                  </div>
+                  
+                  <div className="border-t border-white/10 pt-8">
+                    <h3 className="text-sm/6 font-medium text-text mb-4">{t('Import Status')}</h3>
+                    <CanvasImportStatus />
+                  </div>
+                </div>
+              </div>
 
               {/* Danger Zone */}
               <div id="danger" className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-16 sm:px-6 md:grid-cols-3 lg:px-8">
                <div>
-                 <h2 className="text-base/7 font-semibold text-white">{t('Danger Zone')}</h2>
-                 <p className="mt-1 text-sm/6 text-gray-400">{t('Irreversible and destructive actions.')}</p>
+                 <h2 className="text-base/7 font-semibold text-text">{t('Danger Zone')}</h2>
+                 <p className="mt-1 text-sm/6 text-text-tertiary">{t('Irreversible and destructive actions.')}</p>
                </div>
 
               <div className="md:col-span-2 space-y-6">
                  {/* Log out other sessions */}
                  <div>
-                   <h3 className="text-sm/6 font-medium text-white mb-2">{t('Log out other sessions')}</h3>
-                   <p className="text-sm text-gray-400 mb-4">{t('Sign out all other active sessions on your account.')}</p>
+                    <h3 className="text-sm/6 font-medium text-text mb-2">{t('Log out other sessions')}</h3>
+                    <p className="text-sm text-text-tertiary mb-4">{t('Sign out all other active sessions on your account.')}</p>
                    <button
                      type="button"
                      className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 hover:bg-yellow-500/20"
@@ -645,10 +659,61 @@ export default function SettingsPage() {
                    </button>
                  </div>
 
-                 {/* Delete Account */}
-                 <div className="border-t border-white/10 pt-6">
-                   <h3 className="text-sm/6 font-medium text-white mb-2">{t('Delete account')}</h3>
-                   <p className="text-sm text-gray-400 mb-4">
+                  {/* Clear Vault */}
+                  <div className="border-t border-white/10 pt-6">
+                     <h3 className="text-sm/6 font-medium text-text mb-2">{t('Clear vault')}</h3>
+                     <p className="text-sm text-text-tertiary mb-4">
+                      {t('Permanently delete all notes, folders, and imported files. Your account and Canvas connection will remain intact.')}
+                    </p>
+                    {!clearVaultConfirm ? (
+                      <button
+                        type="button"
+                        className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                        onClick={() => setClearVaultConfirm(true)}
+                      >
+                        {t('Clear vault')}
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                         <p className="text-xs text-text-tertiary">
+                           {t('To confirm, type the following phrase exactly:')}
+                        </p>
+                        <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded p-3 ring-1 ring-red-500/20 leading-relaxed select-all">
+                          {VAULT_CONFIRM_PHRASE}
+                        </p>
+                        <textarea
+                          rows={4}
+                          placeholder={t('Type the phrase above...')}
+                          value={clearVaultInput}
+                          onChange={e => setClearVaultInput(e.target.value)}
+                           className="block w-full rounded-md bg-white/5 px-3 py-2 text-sm text-text outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-red-500 resize-none"
+                        />
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            disabled={isClearingVault || (clearVaultInput !== VAULT_CONFIRM_PHRASE && clearVaultInput !== '0')}
+                            className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                            onClick={handleClearVault}
+                          >
+                            {isClearingVault ? t('Clearing...') : t('Confirm')}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isClearingVault}
+                            className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20"
+                            onClick={() => { setClearVaultConfirm(false); setClearVaultInput('') }}
+                          >
+                            {t('Cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Account */}
+                  <div className="border-t border-white/10 pt-6">
+                    <h3 className="text-sm/6 font-medium text-text mb-2">{t('Delete account')}</h3>
+                    <p className="text-sm text-text-tertiary mb-4">
                      {t('Permanently delete your account and all associated data. This action cannot be undone.')}
                    </p>
                    <button
@@ -664,9 +729,7 @@ export default function SettingsPage() {
                  </div>
               </div>
             </div>
-          </main>
-        </>
-      }
-    />
+            </main>
+    </div>
   )
 }
