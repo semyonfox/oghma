@@ -173,7 +173,7 @@ export default function About() {
   const team = getTeam(t)
   const footerNavigation = getFooterNavigation(t)
   return (
-    <div className="bg-gray-900">
+    <div className="bg-background">
       <Header />
 
       <main className="isolate">
@@ -195,7 +195,7 @@ export default function About() {
                 <path d="M.5 200V.5H200" fill="none" />
               </pattern>
             </defs>
-            <svg x="50%" y={-1} className="overflow-visible fill-gray-800">
+             <svg x="50%" y={-1} className="overflow-visible fill-surface">
               <path
                 d="M-200 0h201v201h-201Z M600 0h201v201h-201Z M-400 600h201v201h-201Z M200 800h201v201h-201Z"
                 strokeWidth={0}
@@ -222,7 +222,7 @@ export default function About() {
                   <h1 className="text-5xl font-semibold tracking-tight text-pretty text-white sm:text-7xl">
                     {t("We're changing the way people learn")}
                   </h1>
-                  <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:max-w-md sm:text-xl/8 lg:max-w-none">
+                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
                     {t("OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.")}
                   </p>
                 </div>
@@ -285,10 +285,10 @@ export default function About() {
             <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Our mission")}</h2>
             <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
               <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
-                <p className="text-xl/8 text-gray-300">
+                 <p className="text-xl/8 text-text-secondary">
                   {t("At OghmaNotes, we believe that better note-taking leads to better learning. That's why we've built a platform designed to help you capture, organize, and understand information more effectively.")}
                 </p>
-                <p className="mt-10 max-w-xl text-base/7 text-gray-400">
+                 <p className="mt-10 max-w-xl text-base/7 text-text-tertiary">
                   {t("Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes is designed to help you learn smarter, faster, and with greater retention.")}
                 </p>
               </div>
@@ -296,7 +296,7 @@ export default function About() {
                 <dl className="w-64 space-y-8 xl:w-80">
                   {stats.map((stat) => (
                     <div key={stat.label} className="flex flex-col-reverse gap-y-4">
-                      <dt className="text-base/7 text-gray-400">{stat.label}</dt>
+                       <dt className="text-base/7 text-text-tertiary">{stat.label}</dt>
                       <dd className="text-5xl font-semibold tracking-tight text-white">{stat.value}</dd>
                     </div>
                   ))}
@@ -319,9 +319,9 @@ export default function About() {
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
             <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Powerful features")}</h2>
-            <p className="mt-6 text-lg/8 text-gray-300">
-              {t("Everything you need to take better notes and learn more effectively.")}
-            </p>
+             <p className="mt-6 text-lg/8 text-text-secondary">
+               {t("Everything you need to take better notes and learn more effectively.")}
+             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
             {/* Feature 1 - AI-Powered Insights */}
@@ -331,9 +331,9 @@ export default function About() {
                 <span className="text-3xl">✨</span>
               </div>
               <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
+               </p>
             </div>
 
             {/* Feature 2 - Canvas Sync */}
@@ -343,9 +343,9 @@ export default function About() {
                 <span className="text-3xl">🔗</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Seamless Canvas Integration</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Auto-sync assignments, deadlines, and course materials directly from Canvas.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Auto-sync assignments, deadlines, and course materials directly from Canvas.
+               </p>
             </div>
 
             {/* Feature 3 - Smart Organization */}
@@ -355,9 +355,9 @@ export default function About() {
                 <span className="text-3xl">📚</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Smart Organization</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Auto-categorize notes, tag content intelligently, and find anything in seconds.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Auto-categorize notes, tag content intelligently, and find anything in seconds.
+               </p>
             </div>
 
             {/* Feature 4 - Work Anywhere */}
@@ -367,9 +367,9 @@ export default function About() {
                 <span className="text-3xl">📱</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Work Anywhere</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Access your notes on desktop, tablet, or phone with full offline support.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Access your notes on desktop, tablet, or phone with full offline support.
+               </p>
             </div>
           </div>
         </div>
@@ -391,7 +391,7 @@ export default function About() {
                   <path d="M.5 200V.5H200" fill="none" />
                 </pattern>
               </defs>
-              <svg x="50%" y="50%" className="overflow-visible fill-gray-800">
+              <svg x="50%" y="50%" className="overflow-visible fill-surface">
                 <path d="M-300 0h201v201h-201Z M300 200h201v201h-201Z" strokeWidth={0} />
               </svg>
               <rect fill="url(#e9033f3e-f665-41a6-84ef-756f6778e6fe)" width="100%" height="100%" strokeWidth={0} />
@@ -419,20 +419,20 @@ export default function About() {
         </div>
 
         {/* Team section */}
-        <div className="bg-gray-900 py-24 sm:py-32">
+         <div className="bg-background py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
               <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("Meet our team")}</h2>
-              <p className="mt-6 text-lg/8 text-gray-400">
-                {t("We're a dynamic group of individuals who are passionate about what we do and dedicated to creating the best learning platform.")}
-              </p>
+               <p className="mt-6 text-lg/8 text-text-tertiary">
+                 {t("We're a dynamic group of individuals who are passionate about what we do and dedicated to creating the best learning platform.")}
+               </p>
             </div>
             <ul
               role="list"
               className="mx-auto mt-20 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-8"
             >
               {team.map((person) => (
-                <li key={person.name} className="rounded-2xl bg-gray-800 px-8 py-10">
+                <li key={person.name} className="rounded-2xl bg-surface px-8 py-10">
                   <a href={person.linkedin} className="inline-block" target="_blank" rel="noopener noreferrer">
                     <img
                       alt={person.name}
@@ -441,15 +441,15 @@ export default function About() {
                     />
                   </a>
                   <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-white">
-                    <a href={person.linkedin} className="hover:text-gray-200" target="_blank" rel="noopener noreferrer">
+                     <a href={person.linkedin} className="hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                       {person.name}
                     </a>
                   </h3>
-                  <p className="text-sm/6 text-gray-400">{person.role}</p>
-                  <p className="mt-2 text-sm/6 text-gray-300">{person.description}</p>
+                   <p className="text-sm/6 text-text-tertiary">{person.role}</p>
+                   <p className="mt-2 text-sm/6 text-text-secondary">{person.description}</p>
                   <ul role="list" className="mt-6 flex justify-center gap-x-6">
                     <li>
-                      <a href={person.github} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
+                       <a href={person.github} className="text-text-tertiary hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">GitHub</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -461,7 +461,7 @@ export default function About() {
                       </a>
                     </li>
                     <li>
-                      <a href={person.linkedin} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
+                       <a href={person.linkedin} className="text-text-tertiary hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">LinkedIn</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -483,19 +483,19 @@ export default function About() {
         <div id="blog" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
             <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("From our blog")}</h2>
-            <p className="mt-2 text-lg/8 text-gray-400">{t("Learn from our experts and community on note-taking, learning, and productivity.")}</p>
+             <p className="mt-2 text-lg/8 text-text-tertiary">{t("Learn from our experts and community on note-taking, learning, and productivity.")}</p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {blogPosts.map((post) => (
               <article
                 key={post.slug}
-                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-gray-800 px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
+                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
               >
                 <img alt="" src={post.imageUrl} className="absolute inset-0 -z-10 size-full object-cover" />
                 <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
                 <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-white/10" />
 
-                <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-gray-300">
+                 <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-text-secondary">
                   <time dateTime={post.datetime} className="mr-8">
                     {post.date}
                   </time>
@@ -505,7 +505,7 @@ export default function About() {
                     </svg>
                     <a
                       href={post.author.linkedin}
-                      className="flex items-center gap-x-2.5 text-gray-300 hover:text-white"
+                       className="flex items-center gap-x-2.5 text-text-secondary hover:text-white"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -531,20 +531,20 @@ export default function About() {
         <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
           <nav aria-label="Footer" className="-mb-6 flex flex-wrap justify-center gap-x-12 gap-y-3 text-sm/6">
             {footerNavigation.main.map((item) => (
-              <a key={item.name} href={item.href} className="text-gray-400 hover:text-white">
+              <a key={item.name} href={item.href} className="text-text-tertiary hover:text-white">
                 {item.name}
               </a>
             ))}
           </nav>
           <div className="mt-16 flex justify-center gap-x-10">
             {footerNavigation.social.map((item) => (
-              <a key={item.name} href={item.href} className="text-gray-400 hover:text-white">
+              <a key={item.name} href={item.href} className="text-text-tertiary hover:text-white">
                 <span className="sr-only">{item.name}</span>
                 <item.icon aria-hidden="true" className="size-6" />
               </a>
             ))}
           </div>
-          <p className="mt-10 text-center text-sm/6 text-gray-400">
+           <p className="mt-10 text-center text-sm/6 text-text-tertiary">
             {t("All rights reserved.")}
           </p>
         </div>

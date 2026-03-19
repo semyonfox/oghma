@@ -21,9 +21,9 @@ interface FileRendererProps {
 const LoadingFallback = () => {
    const { t } = useI18n();
    return (
-     <div className="w-full h-full flex items-center justify-center text-gray-500">
+     <div className="w-full h-full flex items-center justify-center text-text-tertiary">
        <div className="text-center">
-         <div className="w-8 h-8 mx-auto mb-2 border-2 border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
+         <div className="w-8 h-8 mx-auto mb-2 border-2 border-border border-t-primary-500 rounded-full animate-spin" />
          <p className="text-sm">{t('Loading...')}</p>
        </div>
      </div>
@@ -33,7 +33,7 @@ const LoadingFallback = () => {
 const ErrorFallback = ({ message }: { message: string }) => {
    const { t } = useI18n();
    return (
-     <div className="w-full h-full flex items-center justify-center text-gray-500">
+     <div className="w-full h-full flex items-center justify-center text-text-tertiary">
        <div className="text-center">
          <ExclamationTriangleIcon className="w-12 h-12 mb-4 text-red-500 mx-auto" />
          <p className="text-sm font-semibold text-red-400">{t(message)}</p>

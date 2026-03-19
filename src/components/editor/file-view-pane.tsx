@@ -27,8 +27,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
    if (!file || !file.fileId) {
      return (
-       <div className="h-full flex flex-col items-center justify-center text-gray-500">
-         <DocumentIcon className="w-12 h-12 mb-4 text-gray-600" />
+       <div className="h-full flex flex-col items-center justify-center text-text-tertiary">
+         <DocumentIcon className="w-12 h-12 mb-4 text-text-tertiary" />
          <p className="text-sm">{t('file_view_pane.select_file')}</p>
        </div>
      );
@@ -107,8 +107,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   return (
     <div
       ref={paneRef}
-      className={`h-full flex flex-col bg-gray-900 transition-colors ${
-        activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''
+      className={`h-full flex flex-col bg-background transition-colors ${
+        activePane === pane ? 'ring-1 ring-inset ring-primary-500/30' : ''
       } ${isDragging ? 'opacity-60' : ''}`}
       onMouseDown={() => setActivePane(pane)}
       draggable
@@ -118,18 +118,18 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       onDrop={handleDrop}
     >
        {/* Pane Header */}
-       <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between cursor-move">
+       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between cursor-move">
          <div className="flex items-center gap-2 min-w-0">
-           <span className="text-xs font-mono text-gray-500">{t('file_view_pane.pane_label', { pane })}</span>
-          <span className="text-sm text-gray-300 truncate">{file.title || file.fileId}</span>
-          <span className="text-xs text-gray-600">({file.fileType})</span>
+           <span className="text-xs font-mono text-text-tertiary">{t('file_view_pane.pane_label', { pane })}</span>
+          <span className="text-sm text-text-secondary truncate">{file.title || file.fileId}</span>
+          <span className="text-xs text-text-tertiary opacity-60">({file.fileType})</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={toggleRightPanel}
             className={`p-1.5 rounded transition-colors ${
-              rightPanelOpen ? 'bg-white/10 text-gray-200' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'
+              rightPanelOpen ? 'bg-white/8 text-text-secondary' : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
             }`}
             title="Toggle metadata & inspector panel"
           >
@@ -138,7 +138,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
           {pane === 'B' && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors"
+              className="p-1 hover:bg-white/5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
               title="Close this pane"
             >
               <XMarkIcon className="w-4 h-4" />
@@ -148,7 +148,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       </div>
 
        {/* File Renderer */}
-       <div className="flex-1 overflow-auto bg-gray-900">
+       <div className="flex-1 overflow-auto bg-background">
          <FileRenderer key={file.fileId} pane={pane} file={file} />
        </div>
     </div>

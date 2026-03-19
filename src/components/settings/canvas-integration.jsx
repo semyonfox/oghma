@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ExclamationCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import useI18n from '@/lib/notes/hooks/use-i18n'
 
@@ -47,11 +47,19 @@ export default function CanvasIntegration() {
 
   // Startup check
   const [isCheckingConnection, setIsCheckingConnection] = useState(true)
+  // Set to a warning string when a stored token exists but is no longer valid
+  const [connectionWarning, setConnectionWarning] = useState(null)
 
   // Import state
   const [isImporting, setIsImporting]     = useState(false)
-  const [importSummary, setImportSummary] = useState(null)
-  const [importStatus, setImportStatus]   = useState(null)
+  const [importSummary, setImportSummary] = useState(null) // { imported, forbidden, failed, skipped, alreadyImported }
+  const [importStatus, setImportStatus]   = useState(null) // live status from polling
+  const [progress, setProgress]           = useState(null) // { percent, completed, total, downloading, processing }
+  const pollRef                           = useRef(null)
+
+  // Sync state
+  const [isSyncing, setIsSyncing]         = useState(false)
+  const [syncAvailable, setSyncAvailable] = useState(false)
 
   // ── On mount: restore localStorage selections/errors, then check connection ──
   useEffect(() => {
@@ -72,7 +80,16 @@ export default function CanvasIntegration() {
           const savedIds  = JSON.parse(localStorage.getItem(LS_SELECTED) ?? '[]')
           const validIds  = (data.courses ?? []).map(c => c.id)
           setSelectedCourseIds(savedIds.filter(id => validIds.includes(id)))
+
+          // check if a sync is available (has prior imports)
+          fetch('/api/canvas/sync').then(r => r.json()).then(d => {
+            setSyncAvailable(d.available ?? false)
+          }).catch(() => {})
+        } else if (res.ok && !data.connected) {
+          // Server responded but token is invalid or expired — prompt re-auth
+          setConnectionWarning(t('Your Canvas token is invalid or expired. Please reconnect.'))
         }
+        // 401 / network error → just show the form with no warning
       } catch {
         // Network error — just show the form
       } finally {
@@ -149,6 +166,30 @@ export default function CanvasIntegration() {
     }
   }
 
+  /**
+   * Queues a resync job for all previously imported courses.
+   * The worker handles deduplication — only new files will be downloaded.
+   */
+  const handleSync = async () => {
+    setIsSyncing(true)
+    setImportSummary(null)
+    try {
+      const res  = await fetch('/api/canvas/sync', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.queued) {
+        setConnectionError(data.error ?? data.reason ?? t('Sync failed'))
+        return
+      }
+      setIsImporting(true)
+      setProgress({ percent: 0, completed: 0, total: 0, downloading: 0, processing: 0 })
+      startPolling()
+    } catch {
+      setConnectionError(t('Sync failed. Please try again.'))
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   /** Toggles a course in/out of the selected set. */
   const toggleCourse = (courseId) => {
     setSelectedCourseIds(prev =>
@@ -157,6 +198,56 @@ export default function CanvasIntegration() {
         : [...prev, courseId]
     )
   }
+
+  const allSelected = courses.length > 0 && selectedCourseIds.length === courses.length
+  const someSelected = selectedCourseIds.length > 0 && !allSelected
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedCourseIds([])
+    } else {
+      setSelectedCourseIds(courses.map(c => c.id))
+    }
+  }
+
+  /** Poll /api/canvas/status until no active job remains. */
+  const startPolling = () => {
+    if (pollRef.current) return // already polling
+    pollRef.current = setInterval(async () => {
+      try {
+        const res  = await fetch('/api/canvas/status')
+        const data = await res.json()
+        if (!res.ok) return
+        setProgress(data.progress)
+        setImportStatus(data)
+        // stop when job finishes
+        if (!data.activeJob) {
+          stopPolling()
+          setIsImporting(false)
+          if (data.progress) {
+            setImportSummary({
+              imported:  data.progress.completed,
+              forbidden: data.issues?.forbidden ?? 0,
+              failed:    data.issues?.error ?? 0,
+              skipped:   0,
+            })
+          }
+        }
+      } catch {
+        // swallow — keep polling
+      }
+    }, 2500)
+  }
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }
+
+  // clean up on unmount
+  useEffect(() => stopPolling, [])
 
   /**
    * Triggers the import for selected courses, then fetches status.
@@ -169,14 +260,11 @@ export default function CanvasIntegration() {
     setImportSummary(null)
 
     try {
-      const selectedCourses = courses
-        .filter(c => selectedCourseIds.includes(c.id))
-        .map(c => ({ id: c.id, name: c.name, course_code: c.course_code }))
-
+      // The import API expects { courseIds: string[] }
       const res  = await fetch('/api/canvas/import', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ courses: selectedCourses }),
+        body:    JSON.stringify({ courseIds: selectedCourseIds }),
       })
 
       const data = await res.json()
@@ -191,36 +279,16 @@ export default function CanvasIntegration() {
           setCourseErrors(updated)
           localStorage.setItem(LS_ERRORS, JSON.stringify(updated))
         }
-        setConnectionError(data.error ?? 'Import failed')
+        setConnectionError(data.error ?? t('Import failed'))
         return
       }
 
-      setImportSummary(data)
-
-      // Fetch full status to surface forbidden-file details
-      const statusRes  = await fetch('/api/canvas/status')
-      const statusData = await statusRes.json()
-      if (statusRes.ok) {
-        setImportStatus(statusData)
-
-        // Persist any forbidden files as course errors (keyed by first word of filename)
-        if (statusData.recentErrors?.length > 0) {
-          const newErrors = { ...courseErrors }
-          statusData.recentErrors.forEach(e => {
-            if (e.status === 'forbidden') {
-              // We don't have courseId here, but surface the message in the summary
-            }
-          })
-          if (Object.keys(newErrors).length > Object.keys(courseErrors).length) {
-            setCourseErrors(newErrors)
-            localStorage.setItem(LS_ERRORS, JSON.stringify(newErrors))
-          }
-        }
-      }
+      // job queued — start polling for live progress
+      setProgress({ percent: 0, completed: 0, total: 0, downloading: 0, processing: 0 })
+      startPolling()
 
     } catch {
-      setConnectionError('Import failed. Please try again.')
-    } finally {
+      setConnectionError(t('Import failed. Please try again.'))
       setIsImporting(false)
     }
   }
@@ -229,7 +297,7 @@ export default function CanvasIntegration() {
 
   if (isCheckingConnection) {
     return (
-      <div className="text-sm text-gray-400 animate-pulse">
+      <div className="text-sm text-text-tertiary animate-pulse">
         {t('Checking Canvas connection...')}
       </div>
     )
@@ -246,16 +314,24 @@ export default function CanvasIntegration() {
         </div>
       )}
 
+      {/* ── Expired / invalid token warning ────────────────────────── */}
+      {!isConnected && connectionWarning && (
+        <div className="flex items-center gap-2 rounded-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
+          <ExclamationTriangleIcon className="size-4 shrink-0" />
+          {connectionWarning}
+        </div>
+      )}
+
       {/* ── How to get your token ──────────────────────────────────── */}
       {!isConnected && (
         <div className="rounded-md bg-white/5 p-4 ring-1 ring-white/10">
-          <h3 className="text-sm font-semibold text-white mb-2">{t('How to generate your Canvas API token')}</h3>
-          <ol className="list-decimal list-inside space-y-1 text-sm text-gray-400">
+           <h3 className="text-sm font-semibold text-text-secondary mb-2">{t('How to generate your Canvas API token')}</h3>
+           <ol className="list-decimal list-inside space-y-1 text-sm text-text-tertiary">
             <li>{t('Log into your Canvas account')}</li>
-            <li>{t('Click your profile picture →')} <span className="text-gray-300">{t('Settings')}</span></li>
-            <li>{t('Scroll down to')} <span className="text-gray-300">{t('Approved Integrations')}</span></li>
-            <li>{t('Click')} <span className="text-gray-300">{t('+ New Access Token')}</span></li>
-            <li>{t('Give it a name (e.g. "OghmaNotes") and click')} <span className="text-gray-300">{t('Generate Token')}</span></li>
+             <li>{t('Click your profile picture →')} <span className="text-text-secondary">{t('Settings')}</span></li>
+             <li>{t('Scroll down to')} <span className="text-text-secondary">{t('Approved Integrations')}</span></li>
+             <li>{t('Click')} <span className="text-text-secondary">{t('+ New Access Token')}</span></li>
+             <li>{t('Give it a name (e.g. "OghmaNotes") and click')} <span className="text-text-secondary">{t('Generate Token')}</span></li>
             <li>{t('Copy the token and paste it below — Canvas will only show it once')}</li>
           </ol>
         </div>
@@ -265,12 +341,12 @@ export default function CanvasIntegration() {
       {!isConnected && (
         <>
           <div>
-            <label htmlFor="canvas-domain" className="block text-sm/6 font-medium text-white">
+            <label htmlFor="canvas-domain" className="block text-sm/6 font-medium text-text-secondary">
               {t('Canvas Domain')}
             </label>
-            <p className="mt-1 text-xs text-gray-400">
-              {t("Your institution's Canvas URL e.g.")}{' '}
-              <span className="text-gray-300">dcu.instructure.com</span>
+             <p className="mt-1 text-xs text-text-tertiary">
+               {t("Your institution's Canvas URL e.g.")}{' '}
+               <span className="text-text-secondary">dcu.instructure.com</span>
             </p>
             <div className="mt-2">
               <input
@@ -279,23 +355,23 @@ export default function CanvasIntegration() {
                 placeholder="dcu.instructure.com"
                 value={domain}
                 onChange={e => setDomain(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-              />
-            </div>
-          </div>
+               className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+             />
+           </div>
+         </div>
 
-          <div>
-            <label htmlFor="canvas-token" className="block text-sm/6 font-medium text-white">
-              {t('API Token')}
-            </label>
-            <div className="mt-2">
-              <input
-                id="canvas-token"
-                type="password"
-                placeholder={t('Paste your Canvas API token here')}
-                value={token}
-                onChange={e => setToken(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+         <div>
+           <label htmlFor="canvas-token" className="block text-sm/6 font-medium text-text-secondary">
+             {t('API Token')}
+           </label>
+           <div className="mt-2">
+             <input
+               id="canvas-token"
+               type="password"
+               placeholder={t('Paste your Canvas API token here')}
+               value={token}
+               onChange={e => setToken(e.target.value)}
+               className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
               />
             </div>
           </div>
@@ -323,9 +399,20 @@ export default function CanvasIntegration() {
         <>
           {/* Course list */}
           <div>
-            <h3 className="text-sm font-medium text-white mb-3">
-              {t('Select courses to import')}
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-text-secondary">
+                {t('Select courses to import')}
+              </h3>
+              {courses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-xs text-primary-400 hover:text-primary-300 font-medium"
+                >
+                  {allSelected ? t('Deselect all') : someSelected ? t('Select all') : t('Select all')}
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {courses.map(course => {
                 const courseError = courseErrors[course.id]
@@ -339,7 +426,7 @@ export default function CanvasIntegration() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm text-white">{course.name}</p>
+                        <p className="text-sm text-text-secondary">{course.name}</p>
                         {courseError && (
                           <span
                             title={courseError}
@@ -350,9 +437,9 @@ export default function CanvasIntegration() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400">{course.course_code}</p>
-                      {course.modules?.length > 0 && (
-                        <p className="text-xs text-gray-500">
+                       <p className="text-xs text-text-tertiary">{course.course_code}</p>
+                       {course.modules?.length > 0 && (
+                         <p className="text-xs text-text-tertiary">
                           {course.modules.length}{' '}
                           {course.modules.length !== 1 ? t('modules') : t('module')}
                         </p>
@@ -375,14 +462,52 @@ export default function CanvasIntegration() {
             </div>
           )}
 
-          {/* Import result summary */}
-          {importSummary && (
-            <div className="rounded-md bg-white/5 p-4 ring-1 ring-white/10 text-sm text-gray-300 space-y-1">
-              <p className="font-medium text-white">{t('Import queued')}</p>
-              {importSummary.jobId && (
-                <p className="text-xs text-gray-400">{t('Job ID')}: {importSummary.jobId}</p>
+          {/* Live import progress bar */}
+          {isImporting && progress && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-text-tertiary">
+                <span>
+                  {progress.downloading > 0 && `${progress.downloading} ${t('downloading')}${progress.processing > 0 ? ', ' : ''}`}
+                  {progress.processing > 0 && `${progress.processing} ${t('processing')}`}
+                  {progress.downloading === 0 && progress.processing === 0 && t('Starting…')}
+                </span>
+                <span className="tabular-nums font-medium text-text-secondary">{progress.percent ?? 0}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary-500 transition-all duration-500"
+                  style={{ width: `${progress.percent ?? 0}%` }}
+                />
+              </div>
+              {progress.total > 0 && (
+                <p className="text-xs text-text-tertiary tabular-nums">
+                  {progress.completed} / {progress.total} {t('files')}
+                </p>
               )}
-              <p className="text-xs text-gray-400">{t('Status')}: {importSummary.status ?? 'queued'}</p>
+            </div>
+          )}
+
+          {/* Import result summary */}
+          {importSummary && !isImporting && (
+            <div className="rounded-md bg-white/5 p-4 ring-1 ring-white/10 text-sm text-text-secondary space-y-1">
+              <p className="font-medium text-text-secondary">{t('Import complete')}</p>
+              {importSummary.imported != null && (
+                <p className="text-xs text-text-tertiary">
+                  {importSummary.imported} {t('imported')}
+                  {importSummary.alreadyImported > 0 ? `, ${importSummary.alreadyImported} ${t('already up to date')}` : ''}
+                  {importSummary.skipped > 0 ? `, ${importSummary.skipped} ${t('skipped')}` : ''}
+                </p>
+              )}
+              {importSummary.forbidden > 0 && (
+                <p className="text-xs text-yellow-400">
+                  {importSummary.forbidden} {t('file(s) restricted by lecturers — upload manually')}
+                </p>
+              )}
+              {importSummary.failed > 0 && (
+                <p className="text-xs text-red-400">
+                  {importSummary.failed} {t('file(s) failed to process')}
+                </p>
+              )}
             </div>
           )}
 
@@ -394,10 +519,10 @@ export default function CanvasIntegration() {
               </h3>
               <ul className="space-y-1">
                 {importStatus.recentErrors.map((file, i) => (
-                  <li key={i} className="text-xs text-gray-400">
-                    {file.filename}
-                    {file.errorMessage && (
-                      <span className="text-gray-500"> — {file.errorMessage}</span>
+                   <li key={i} className="text-xs text-text-tertiary">
+                     {file.filename}
+                     {file.errorMessage && (
+                       <span className="text-text-tertiary"> — {file.errorMessage}</span>
                     )}
                   </li>
                 ))}
@@ -406,17 +531,28 @@ export default function CanvasIntegration() {
           )}
 
           {/* Action buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={selectedCourseIds.length === 0 || isImporting}
+              disabled={selectedCourseIds.length === 0 || isImporting || isSyncing}
               onClick={handleImport}
               className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isImporting
+              {isImporting && !isSyncing
                 ? t('Importing...')
                 : `${t('Import')}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ''}`}
             </button>
+            {syncAvailable && (
+              <button
+                type="button"
+                disabled={isImporting || isSyncing}
+                onClick={handleSync}
+                className="rounded-md bg-white/5 px-3 py-2 text-sm font-semibold text-text-secondary ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t('Check for new files in previously imported courses')}
+              >
+                {isSyncing ? t('Syncing...') : t('Sync')}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDisconnect}

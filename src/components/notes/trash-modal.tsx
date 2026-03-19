@@ -50,22 +50,22 @@ const TrashItem: FC<{
             ref={ref}
             className={`flex items-center py-2 px-4 cursor-pointer transition-colors ${
                 selected
-                    ? 'bg-indigo-500/10'
+                    ? 'bg-primary-500/10'
                     : 'hover:bg-white/5'
             }`}
         >
             <a
-                className="block text-xs text-gray-400 flex-grow min-w-0"
+                className="block text-xs text-text-tertiary flex-grow min-w-0"
                 onClick={close}
             >
-                <h4 className="text-sm font-bold text-white truncate">
+                <h4 className="text-sm font-bold text-text truncate">
                     <MarkText text={note.title} keyword={keyword} />
                 </h4>
             </a>
 
             <button
                 onClick={onClickRestore}
-                className="p-1.5 rounded text-gray-500 hover:text-success-600 hover:bg-success-50 dark:hover:bg-success-900/20 transition-colors ml-1 flex-shrink-0"
+                className="p-1.5 rounded text-text-tertiary hover:text-success-400 hover:bg-success-900/20 transition-colors ml-1 flex-shrink-0"
                 title={t('Recovery')}
             >
                 <ArrowUturnLeftIcon className="w-4 h-4" />
@@ -73,7 +73,7 @@ const TrashItem: FC<{
 
             <button
                 onClick={onClickDelete}
-                className="p-1.5 rounded text-gray-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors flex-shrink-0"
+                className="p-1.5 rounded text-text-tertiary hover:text-error-400 hover:bg-error-900/20 transition-colors flex-shrink-0"
                 title={t('Delete')}
             >
                 <TrashIcon className="w-4 h-4" />
@@ -116,8 +116,8 @@ const TrashModal: FC = () => {
                 onClose={close}
             />
             {list && list.length === 0 && (
-                <div className="px-4 py-8 text-center text-gray-500">
-                    <TrashIcon className="mx-auto h-12 w-12 text-neutral-300 dark:text-neutral-600" />
+                <div className="px-4 py-8 text-center text-text-tertiary">
+                    <TrashIcon className="mx-auto h-12 w-12 text-text-tertiary opacity-40" />
                     <p className="mt-2">{t('Trash is empty')}</p>
                 </div>
             )}

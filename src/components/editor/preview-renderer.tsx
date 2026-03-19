@@ -11,7 +11,7 @@ interface PreviewRendererProps {
 
 export default function PreviewRenderer({ content }: PreviewRendererProps) {
   return (
-    <div className="w-full prose prose-lg dark:prose-invert max-w-none" dir="ltr">
+    <div className="w-full prose prose-lg prose-invert max-w-none" dir="ltr">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight, rehypeRaw]}
@@ -22,7 +22,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               {...props}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-600 dark:text-primary-400 hover:underline"
+              className="text-primary-400 hover:underline"
             />
           ),
           // custom code block styling
@@ -33,7 +33,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
             if (isInline) {
               return (
 <code
-  className="rounded bg-gray-100 dark:bg-gray-800 text-sm px-1.5 py-0.5 font-mono"
+  className="rounded bg-surface text-sm px-1.5 py-0.5 font-mono"
   {...props}
 >
                   {children}
@@ -65,7 +65,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
           // custom blockquote styling: consistent margins and dark mode support
           blockquote: ({ node, children, ...props }) => (
             <blockquote
-              className="border-l-4 border-primary-500 pl-4 italic my-4 text-neutral-700 dark:text-neutral-300"
+              className="border-l-4 border-primary-500 pl-4 italic my-4 text-text-secondary"
               {...props}
             >
               {children}
@@ -75,7 +75,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
           table: ({ node, children, ...props }) => (
             <div className="overflow-x-auto my-4">
               <table
-                className="min-w-full border border-neutral-300 dark:border-neutral-700"
+                className="min-w-full border border-border"
                 {...props}
               >
                 {children}
@@ -84,7 +84,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
           ),
           th: ({ node, children, ...props }) => (
             <th
-              className="border border-neutral-300 dark:border-neutral-700 px-4 py-2 bg-neutral-100 dark:bg-neutral-800 font-semibold text-left"
+              className="border border-border px-4 py-2 bg-surface font-semibold text-left"
               {...props}
             >
               {children}
@@ -92,7 +92,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
           ),
           td: ({ node, children, ...props }) => (
             <td
-              className="border border-neutral-300 dark:border-neutral-700 px-4 py-2"
+              className="border border-border px-4 py-2"
               {...props}
             >
               {children}
@@ -100,12 +100,12 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
           ),
           // explicit list styles — Tailwind base resets list-style-type by default
           ul: ({ node, children, ...props }) => (
-            <ul className="list-disc list-outside pl-6 my-3 space-y-1 text-gray-200" {...props}>
+            <ul className="list-disc list-outside pl-6 my-3 space-y-1 text-text" {...props}>
               {children}
             </ul>
           ),
           ol: ({ node, children, ...props }) => (
-            <ol className="list-decimal list-outside pl-6 my-3 space-y-1 text-gray-200" {...props}>
+            <ol className="list-decimal list-outside pl-6 my-3 space-y-1 text-text" {...props}>
               {children}
             </ol>
           ),
