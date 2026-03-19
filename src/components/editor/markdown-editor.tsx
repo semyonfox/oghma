@@ -6,6 +6,7 @@ import useNoteStore from '@/lib/notes/state/note';
 import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import PreviewRenderer from './preview-renderer';
 import Link from 'next/link';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 type EditorMode = 'source' | 'read';
 
@@ -26,6 +27,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const { note, fetchNote, mutateNote } = useNoteStore();
   const { markModified, markSynced } = useSyncStatusStore();
   const currentFileId = useRef(file.fileId);
+  const { t } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // load note content when file changes
@@ -222,17 +224,17 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               <div className="w-full max-w-[65ch] mx-auto h-full">
                 {/* Centered editor with max content width */}
                 <textarea
-                  ref={textareaRef}
-                  value={displayContent}
-                  onChange={(e) => {
-                    setLocalContent(e.target.value);
-                    setIsDirty(true);
-                  }}
-                  onKeyDown={handleTextareaKeyDown}
-                  spellCheck={false}
-                  className="w-full h-full bg-gray-900 text-gray-300 font-mono text-sm leading-relaxed px-12 pt-12 pb-48 outline-none resize-none"
-                  placeholder="Start writing..."
-                />
+                   ref={textareaRef}
+                   value={displayContent}
+                   onChange={(e) => {
+                     setLocalContent(e.target.value);
+                     setIsDirty(true);
+                   }}
+                   onKeyDown={handleTextareaKeyDown}
+                   spellCheck={false}
+                   className="w-full h-full bg-gray-900 text-gray-300 font-mono text-sm leading-relaxed px-12 pt-12 pb-48 outline-none resize-none"
+                   placeholder={t('Start writing...')}
+                 />
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500 text-sm">

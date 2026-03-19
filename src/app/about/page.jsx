@@ -28,48 +28,48 @@ const universities = [
   },
 ]
 
-const stats = [
-  { label: 'Notes organized daily', value: '100K+' },
-  { label: 'Learning time saved', value: '500K hrs' },
-  { label: 'Active learners', value: '50K+' },
+const getStats = (t) => [
+  { label: t('Notes organized daily'), value: '100K+' },
+  { label: t('Learning time saved'), value: '500K hrs' },
+  { label: t('Active learners'), value: '50K+' },
 ]
-const values = [
+const getValues = (t) => [
   {
-    name: 'Be world-class',
+    name: t('Be world-class'),
     description:
       'Aut illo quae. Ut et harum ea animi natus. Culpa maiores et sed sint et magnam exercitationem quia. Ullam voluptas nihil vitae dicta molestiae et. Aliquid velit porro vero.',
   },
   {
-    name: 'Share everything you know',
+    name: t('Share everything you know'),
     description:
       'Mollitia delectus a omnis. Quae velit aliquid. Qui nulla maxime adipisci illo id molestiae. Cumque cum ut minus rerum architecto magnam consequatur. Quia quaerat minima.',
   },
   {
-    name: 'Always learning',
+    name: t('Always learning'),
     description:
       'Aut repellendus et officiis dolor possimus. Deserunt velit quasi sunt fuga error labore quia ipsum. Commodi autem voluptatem nam. Quos voluptatem totam.',
   },
   {
-    name: 'Be supportive',
+    name: t('Be supportive'),
     description:
       'Magnam provident veritatis odit. Vitae eligendi repellat non. Eum fugit impedit veritatis ducimus. Non qui aspernatur laudantium modi. Praesentium rerum error deserunt harum.',
   },
   {
-    name: 'Take responsibility',
+    name: t('Take responsibility'),
     description:
       'Sit minus expedita quam in ullam molestiae dignissimos in harum. Tenetur dolorem iure. Non nesciunt dolorem veniam necessitatibus laboriosam voluptas perspiciatis error.',
   },
   {
-    name: 'Enjoy downtime',
+    name: t('Enjoy downtime'),
     description:
       'Ipsa in earum deserunt aut. Quos minus aut animi et soluta. Ipsum dicta ut quia eius. Possimus reprehenderit iste aspernatur ut est velit consequatur distinctio.',
   },
 ]
 const blogPosts = aboutBlogCards
-const team = [
+const getTeam = (t) => [
   {
     name: authors.samuel.name,
-    role: 'Full-Stack Developer',
+    role: t('Full-Stack Developer'),
     description: 'Full-stack engineer building scalable web applications with modern architectures and robust database design.',
     imageUrl: authors.samuel.imageUrl,
     github: 'https://github.com/SamuelRegan-dev',
@@ -77,7 +77,7 @@ const team = [
   },
   {
     name: authors.semyon.name,
-    role: 'Full-Stack Developer & Infrastructure',
+    role: t('Full-Stack Developer & Infrastructure'),
     description: 'Full-stack engineer leading technical strategy, infrastructure management, and performance optimization across the platform.',
     imageUrl: authors.semyon.imageUrl,
     github: 'https://github.com/semyonfox',
@@ -85,25 +85,25 @@ const team = [
   },
   {
     name: authors.shreyansh.name,
-    role: 'Full-Stack Developer',
+    role: t('Full-Stack Developer'),
     description: 'Full-stack engineer contributing across frontend and backend features with focus on code quality and user experience.',
     imageUrl: authors.shreyansh.imageUrl,
     github: 'https://github.com/shreyanshSingh06',
     linkedin: authors.shreyansh.linkedin,
   },
 ]
-const footerNavigation = {
+const getFooterNavigation = (t) => ({
   main: [
-    { name: 'About', href: '/about' },
-    { name: 'Blog', href: '/blog' },
-    { name: 'Jobs', href: '#' },
-    { name: 'Press', href: '#' },
-    { name: 'Accessibility', href: '#' },
-    { name: 'Partners', href: '#' },
+    { name: t('About'), href: '/about' },
+    { name: t('Blog'), href: '/blog' },
+    { name: t('Jobs'), href: '#' },
+    { name: t('Press'), href: '#' },
+    { name: t('Accessibility'), href: '#' },
+    { name: t('Partners'), href: '#' },
   ],
   social: [
     {
-      name: 'Facebook',
+      name: t('Facebook'),
       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -116,7 +116,7 @@ const footerNavigation = {
       ),
     },
     {
-      name: 'Instagram',
+      name: t('Instagram'),
       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -128,18 +128,18 @@ const footerNavigation = {
         </svg>
       ),
     },
-    {
-      name: 'X',
-      href: '#',
+     {
+       name: t('X'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path d="M13.6823 10.6218L20.2391 3H18.6854L12.9921 9.61788L8.44486 3H3.2002L10.0765 13.0074L3.2002 21H4.75404L10.7663 14.0113L15.5685 21H20.8131L13.6819 10.6218H13.6823ZM11.5541 13.0956L10.8574 12.0991L5.31391 4.16971H7.70053L12.1742 10.5689L12.8709 11.5655L18.6861 19.8835H16.2995L11.5541 13.096V13.0956Z" />
         </svg>
       ),
     },
-    {
-      name: 'GitHub',
-      href: '#',
+     {
+       name: t('GitHub'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path
@@ -150,9 +150,9 @@ const footerNavigation = {
         </svg>
       ),
     },
-    {
-      name: 'YouTube',
-      href: '#',
+     {
+       name: t('YouTube'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path
@@ -163,11 +163,15 @@ const footerNavigation = {
         </svg>
       ),
     },
-  ],
-}
+   ],
+})
 
 export default function About() {
   const { t } = useI18n()
+  const stats = getStats(t)
+  const values = getValues(t)
+  const team = getTeam(t)
+  const footerNavigation = getFooterNavigation(t)
   return (
     <div className="bg-gray-900">
       <Header />
