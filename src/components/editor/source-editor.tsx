@@ -58,7 +58,7 @@ export default function SourceEditor({ content, onContentChange }: SourceEditorP
       value={localContent}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
-      className="w-full h-full p-4 font-mono text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-none outline-none resize-none shadow-md rounded-md transition-all"
+      className="w-full h-full p-4 font-mono text-sm bg-background text-text-secondary border-none outline-none resize-none transition-all"
       placeholder={t('Write your markdown here...')}
       spellCheck={false}
       dir="ltr"

@@ -26,24 +26,24 @@ export const Bookmark: FC<EmbedProps> = ({ attrs: { href } }) => {
         decode<{ url: string }>(href.replace(/.*\?/, '')).url;
 
     if (!data) {
-        return <div className="w-full h-32 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />;
+        return <div className="w-full h-32 bg-surface-elevated rounded animate-pulse" />;
     }
 
     return (
         <a
-            className="bookmark overflow-hidden border-neutral-200 dark:border-neutral-700 border rounded flex h-32 !no-underline hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+            className="bookmark overflow-hidden border-border border rounded flex h-32 !no-underline hover:bg-primary-500/10 transition-colors"
             href={url}
             target="_blank"
             rel="noreferrer"
         >
             <div className="flex-1 p-2 overflow-hidden">
-                <div className="mb-2 block text-neutral-800 dark:text-neutral-100 overflow-ellipsis overflow-hidden h-6">
+                <div className="mb-2 block text-text-secondary overflow-ellipsis overflow-hidden h-6">
                     {title}
                 </div>
-                <div className="text-sm overflow-ellipsis overflow-hidden h-10 text-neutral-400 mb-2">
+                <div className="text-sm overflow-ellipsis overflow-hidden h-10 text-text-tertiary mb-2">
                     {description}
                 </div>
-                <div className="text-sm overflow-ellipsis overflow-hidden h-5 text-neutral-500">
+                <div className="text-sm overflow-ellipsis overflow-hidden h-5 text-text-tertiary">
                     {url}
                 </div>
             </div>

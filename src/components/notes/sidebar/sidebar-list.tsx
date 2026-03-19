@@ -416,12 +416,12 @@ const SidebarList = () => {
     return (
         <>
             <section
-                className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto"
+                className="h-full flex text-sm flex-col flex-grow bg-background overflow-y-auto"
                 aria-label={t('Notes list')}
             >
                 {/* Tree Section Header */}
                 <div
-                    className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10"
+                    className="p-2 text-text-tertiary flex items-center sticky top-0 bg-background z-10"
                     role="toolbar"
                     aria-label={t('Notes actions')}
                 >
@@ -429,7 +429,7 @@ const SidebarList = () => {
                         <span id="my-pages-label">{t('My Pages')}</span>
                         {initLoaded ? null : (
                             <svg
-                                className="ml-4 animate-spin h-3.5 w-3.5 text-gray-400"
+                                className="ml-4 animate-spin h-3.5 w-3.5 text-text-tertiary"
                                 xmlns="http://www.w3.org/2000/svg"
                                 fill="none"
                                 viewBox="0 0 24 24"
@@ -454,14 +454,14 @@ const SidebarList = () => {
                     <IconButton
                         icon="ChevronDoubleUp"
                         onClick={handleCollapseAll}
-                        className="text-gray-400 hover:text-white w-5 h-5 md:w-5 md:h-5 transition-colors"
+                        className="text-text-tertiary hover:text-text-secondary w-5 h-5 md:w-5 md:h-5 transition-colors"
                         title={t('Collapse all pages')}
                         aria-label={t('Collapse all pages')}
                     />
                     <IconButton
                         icon="Plus"
                         onClick={() => setIsModalOpen(true)}
-                        className="text-gray-400 hover:text-white transition-colors"
+                        className="text-text-tertiary hover:text-text-secondary transition-colors"
                         title={t('Create page')}
                         aria-label={t('Create page')}
                     />

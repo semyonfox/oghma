@@ -1,20 +1,17 @@
-//TODO: implement correct APIS/URL body types for home server and database layout
-//connect to database, store vector in separate lookup table with indexing & foreign key to link chunks to vectors
-
 // fetches request to embedding server for each chunk, concurrently
-// server converts to vector, returning vector paired with text chunks for mock indexing until db is set up
-//
-const EMBEDDING_URL = process.env.EMBEDDING_API_URL;
+// server converts to vector; failed chunks are filtered out rather than returning null vectors
 
 export async function embedChunks(chunks: string[]): Promise<{ chunk: string, vector: number[] }[]> {
-    // Validate environment setup
+    // read lazily so tests can set the env var before calling
+    const EMBEDDING_URL = process.env.EMBEDDING_API_URL;
+
     if (!EMBEDDING_URL) {
         throw new Error(
             'Embedding API URL not configured. Set EMBEDDING_API_URL environment variable to enable document embedding.'
         );
     }
 
-    // Filter out empty chunks before embedding
+    // filter out empty/whitespace chunks before sending
     const nonEmptyChunks = chunks.filter(chunk => chunk && chunk.trim().length > 0);
 
     if (nonEmptyChunks.length === 0) {
@@ -23,7 +20,7 @@ export async function embedChunks(chunks: string[]): Promise<{ chunk: string, ve
 
     try {
         const results = await Promise.all(
-            nonEmptyChunks.map(async (chunk) => {
+            nonEmptyChunks.map(async (chunk): Promise<{ chunk: string; vector: number[] } | null> => {
                 try {
                     const res = await fetch(`${EMBEDDING_URL}/embed`, {
                         method: 'POST',
@@ -32,26 +29,28 @@ export async function embedChunks(chunks: string[]): Promise<{ chunk: string, ve
                     });
 
                     if (!res.ok) {
-                        console.warn(`Embedding failed for chunk (status ${res.status}), using zero vector`);
-                        return { chunk, vector: null };
+                        console.warn(`Embedding failed for chunk (status ${res.status}), skipping`);
+                        return null;
                     }
 
                     const data = await res.json();
                     const { vector } = data;
 
                     if (!vector || !Array.isArray(vector)) {
-                        console.warn('Invalid embedding response format, using zero vector');
-                        return { chunk, vector: null };
+                        console.warn('Invalid embedding response format, skipping chunk');
+                        return null;
                     }
 
-                    return { chunk, vector };
+                    return { chunk, vector: vector as number[] };
                 } catch (chunkError) {
                     console.warn('Error embedding chunk:', chunkError);
-                    return { chunk, vector: null };
+                    return null;
                 }
             })
         );
-        return results;
+
+        // filter out chunks that failed to embed
+        return results.filter((r): r is { chunk: string; vector: number[] } => r !== null);
     } catch (error) {
         throw new Error(`Failed to embed chunks: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

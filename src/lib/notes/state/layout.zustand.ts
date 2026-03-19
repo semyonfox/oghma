@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type FileType = 'note' | 'pdf' | 'image' | 'video';
-export type NavSection = 'notes' | 'search' | 'calendar' | 'settings';
+export type NavSection = 'notes' | 'search' | 'calendar' | 'chat' | 'settings';
 
 interface PaneState {
   fileId: string;

@@ -41,10 +41,10 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
   };
 
   return (
-    <div className="h-full bg-gray-800 border-l border-gray-700 flex flex-col overflow-hidden">
+    <div className="h-full bg-surface border-l border-border flex flex-col overflow-hidden">
       {/* Header */}
-       <div className="px-4 py-3 border-b border-gray-700">
-         <h3 className="text-sm font-semibold text-gray-300">{t('Properties')}</h3>
+       <div className="px-4 py-3 border-b border-border">
+         <h3 className="text-sm font-semibold text-text-secondary">{t('Properties')}</h3>
        </div>
 
       {/* Content */}
@@ -52,18 +52,18 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
         <div className="space-y-4 p-4">
            {/* Metadata */}
            <section>
-             <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">{t('Metadata')}</h4>
+             <h4 className="text-xs font-semibold text-text-tertiary uppercase mb-2">{t('Metadata')}</h4>
              <div className="space-y-1 text-xs">
                {note?.date && (
                  <div>
-                   <span className="text-gray-600">{t('Last Updated')}:</span>
-                   <div className="text-gray-400 mt-0.5">{formatDate(note.date)}</div>
+                    <span className="text-text-tertiary">{t('Last Updated')}:</span>
+                   <div className="text-text-tertiary mt-0.5">{formatDate(note.date)}</div>
                  </div>
                )}
                {note?.id && (
                  <div>
-                   <span className="text-gray-600">{t('ID')}:</span>
-                   <div className="text-gray-400 mt-0.5 font-mono text-xs">{note.id}</div>
+                    <span className="text-text-tertiary">{t('ID')}:</span>
+                   <div className="text-text-tertiary mt-0.5 font-mono text-xs">{note.id}</div>
                  </div>
                )}
              </div>
@@ -71,7 +71,7 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
 
            {/* Tags */}
            <section>
-             <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">{t('Tags')}</h4>
+             <h4 className="text-xs font-semibold text-text-tertiary uppercase mb-2">{t('Tags')}</h4>
              {tags.length > 0 ? (
                <div className="flex flex-wrap gap-1">
                  {tags.map((tag) => (
@@ -90,15 +90,15 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
                  ))}
                </div>
              ) : (
-               <p className="text-xs text-gray-600">{t('No tags yet')}</p>
+                <p className="text-xs text-text-tertiary">{t('No tags yet')}</p>
              )}
            </section>
 
            {/* Outgoing Links */}
            {outgoingLinks.length > 0 && (
              <section>
-               <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                 {t('Links')} ({outgoingLinks.length})
+               <h4 className="text-xs font-semibold text-text-tertiary uppercase mb-2">
+                  {t('Links')} ({outgoingLinks.length})
                </h4>
               <ul className="space-y-1">
                 {outgoingLinks.map((link) => (
@@ -119,8 +119,8 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
            {/* Backlinks */}
            {backlinks.length > 0 && (
              <section>
-               <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                 {t('Backlinks')} ({backlinks.length})
+               <h4 className="text-xs font-semibold text-text-tertiary uppercase mb-2">
+                  {t('Backlinks')} ({backlinks.length})
                </h4>
               <ul className="space-y-1">
                 {backlinks.map((link) => (
@@ -139,8 +139,8 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
           )}
 
            {/* AI Suggestions */}
-           <section className="pt-2 border-t border-gray-700">
-             <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">{t('AI Suggestions')}</h4>
+           <section className="pt-2 border-t border-border">
+             <h4 className="text-xs font-semibold text-text-tertiary uppercase mb-2">{t('AI Suggestions')}</h4>
              <div className="space-y-2">
                <div className="px-3 py-2 bg-indigo-600/10 border border-indigo-600/20 rounded text-xs text-indigo-300">
                  <p className="mb-2">💡 {t('Consider adding more examples to strengthen understanding')}</p>
