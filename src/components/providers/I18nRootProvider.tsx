@@ -30,7 +30,11 @@ function I18nRootProviderContent({ children }: Props) {
 
 export default function I18nRootProvider({ children }: Props) {
     return (
-        <Suspense fallback={<div>{children}</div>}>
+        <Suspense fallback={
+            <I18nProvider locale={Locale.EN} lngDict={{}}>
+                {children}
+            </I18nProvider>
+        }>
             <I18nRootProviderContent>{children}</I18nRootProviderContent>
         </Suspense>
     );
