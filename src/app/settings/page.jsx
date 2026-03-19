@@ -382,12 +382,15 @@ export default function SettingsPage() {
                       </label>
                      <div className="mt-2 grid grid-cols-1">
                         <select
-                          id="timezone"
-                          name="timezone"
-                          value={formState.timezone}
-                          onChange={(e) => setFormState((prev) => ({ ...prev, timezone: e.target.value }))}
-                          className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 *:bg-gray-800 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                        >
+                           id="timezone"
+                           name="timezone"
+                           value={formState.timezone}
+                           onChange={(e) => setFormState((prev) => ({ ...prev, timezone: e.target.value }))}
+                           className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white/5 py-1.5 pr-8 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                           style={{
+                             colorScheme: 'dark'
+                           }}
+                         >
                           <option>{t('UTC')}</option>
                           <option>{t('Pacific Standard Time')}</option>
                           <option>{t('Eastern Standard Time')}</option>
