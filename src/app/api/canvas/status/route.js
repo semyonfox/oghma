@@ -6,13 +6,14 @@ import sql from '@/database/pgsql.js';
  * GET /api/canvas/status
  *
  * Returns the current state of all Canvas imports for the logged-in user.
- * The frontend polls this endpoint to drive the progress UI and to show which files were forbidden and need to be uploaded manually.
+ * Includes job-level summary and file-level details.
  *
  * Response shape:
  * {
- *   summary: { pending, downloading, processing, complete, forbidden, error },
- *   forbidden: [{ filename, canvas_course_id, canvas_module_id, error_message }],
- *   recent:    [{ filename, status, updated_at, error_message }]
+ *   success: true,
+ *   activeJob: { jobId, status, progress: { total, completed, failed }, estimatedTime },
+ *   fileStats: { total, completed, downloading, processing, forbidden, error },
+ *   recentErrors: [{ filename, error_message, status, updatedAt }]
  * }
  */
 export async function GET() {
@@ -22,50 +23,79 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Count of imports in each status — used to drive the progress bar
-    const summaryCounts = await sql`
-      SELECT status, COUNT(*) as count
-      FROM app.canvas_imports
-      WHERE user_id = ${user.user_id}
-      GROUP BY status
+    // Get active/recent import job
+    const activeJobs = await sql`
+      SELECT id, status, created_at, started_at, completed_at
+      FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      ORDER BY created_at DESC
+      LIMIT 1
     `;
 
-    // Build a flat summary object with zeroed defaults for every possible status
-    const summary = {
-      pending: 0,
-      downloading: 0,
-      processing: 0,
-      complete: 0,
-      forbidden: 0,
-      error: 0,
-    };
+    const activeJob = activeJobs?.[0] ?? null;
 
-    for (const row of summaryCounts) {
-      summary[row.status] = parseInt(row.count, 10);
+    // File-level stats for the active job (or all if none active)
+    const fileStats = await sql`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN status = 'complete' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
+        COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing,
+        COUNT(CASE WHEN status = 'forbidden' THEN 1 END) as forbidden,
+        COUNT(CASE WHEN status = 'error' THEN 1 END) as error
+      FROM app.canvas_imports
+      WHERE user_id = ${user.user_id}
+    `;
+
+    const stats = fileStats[0] || { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
+    
+    // Calculate progress percentage
+    const progressPercent = stats.total > 0 
+      ? Math.round((stats.completed / stats.total) * 100) 
+      : 0;
+
+    // Estimate time remaining (rough: ~5 sec per file, or use actual timing if available)
+    let estimatedSecsRemaining = null;
+    if (activeJob && (stats.downloading > 0 || stats.processing > 0)) {
+      const remaining = stats.downloading + stats.processing;
+      estimatedSecsRemaining = Math.max(5, remaining * 5); // 5 seconds per file
     }
 
-    // Full list of forbidden files so the UI can render a "upload these manually" section
-    const forbiddenFiles = await sql`
-      SELECT filename, canvas_course_id, canvas_module_id, error_message
+    // Recent errors for user awareness
+    const recentErrors = await sql`
+      SELECT filename, error_message, status, updated_at
       FROM app.canvas_imports
-      WHERE user_id = ${user.user_id} AND status = 'forbidden'
-      ORDER BY created_at DESC
-    `;
-
-    // Most recent 20 import events for an activity feed in the UI
-    const recentActivity = await sql`
-      SELECT filename, status, updated_at, error_message
-      FROM app.canvas_imports
-      WHERE user_id = ${user.user_id}
+      WHERE user_id = ${user.user_id} AND status IN ('forbidden', 'error')
       ORDER BY updated_at DESC
-      LIMIT 20
+      LIMIT 10
     `;
 
     return NextResponse.json({
       success: true,
-      summary,
-      forbidden: forbiddenFiles,
-      recent: recentActivity,
+      activeJob: activeJob ? {
+        jobId: activeJob.id,
+        status: activeJob.status,
+        startedAt: activeJob.started_at,
+        createdAt: activeJob.created_at,
+      } : null,
+      progress: {
+        total: parseInt(stats.total, 10),
+        completed: parseInt(stats.completed, 10),
+        downloading: parseInt(stats.downloading, 10),
+        processing: parseInt(stats.processing, 10),
+        percent: progressPercent,
+      },
+      issues: {
+        forbidden: parseInt(stats.forbidden, 10),
+        error: parseInt(stats.error, 10),
+      },
+      estimatedSecsRemaining,
+      recentErrors: recentErrors.map(r => ({
+        filename: r.filename,
+        errorMessage: r.error_message,
+        status: r.status,
+        updatedAt: r.updated_at,
+      })),
     });
 
   } catch (err) {
