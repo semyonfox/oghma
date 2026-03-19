@@ -103,18 +103,21 @@ export default function Footer() {
               <label htmlFor="language-select" className="text-xs font-semibold text-gray-400 uppercase tracking-tighter block mb-2">
                 {t('Language')}
               </label>
-              <select
-                id="language-select"
-                value={activeLocale}
-                onChange={handleLanguageChange}
-                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-              >
-                {Object.entries(configLocale).map(([code, name]) => (
-                  <option key={code} value={code} className="bg-gray-900">
-                    {name}
-                  </option>
-                ))}
-              </select>
+               <select
+                 id="language-select"
+                 value={activeLocale}
+                 onChange={handleLanguageChange}
+                 className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 appearance-none"
+                 style={{
+                   colorScheme: 'dark'
+                 }}
+               >
+                 {Object.entries(configLocale).map(([code, name]) => (
+                   <option key={code} value={code}>
+                     {name}
+                   </option>
+                 ))}
+               </select>
             </div>
           </div>
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
