@@ -74,9 +74,14 @@ const SidebarListItem: FC<{
         }
     }, [isRenaming]);
 
-    // Determine link href based on current page
+    // Determine if this item is a folder (use data field if available, fallback to hasChildren)
+    const isFolder = useMemo(() => {
+        return item.isFolder === true || hasChildren;
+    }, [item.isFolder, hasChildren]);
+
+    // Determine link href based on current page and item type
     const linkHref = useMemo(() => {
-        if (hasChildren) {
+        if (isFolder) {
             return '#';
         }
         // If on /notes page, stay within notes (e.g. /notes/note-id)
@@ -85,7 +90,7 @@ const SidebarListItem: FC<{
             return `/notes/${item.id}`;
         }
         return `/${item.id}`;
-    }, [pathname, item.id, hasChildren]);
+    }, [pathname, item.id, isFolder]);
 
      const onAddNote = useCallback(
          async (e: React.MouseEvent) => {
@@ -145,56 +150,35 @@ const SidebarListItem: FC<{
      );
 
      const handleClickItem = useCallback(
-         (e: React.MouseEvent) => {
-            // only folders can be toggled on single click
-            if (hasChildren) {
-                e.preventDefault();
-                onToggle();
-            }
-            // files require double click - Link handles single click navigation
-        },
-        [hasChildren, onToggle]
-    );
-
-     const handleDoubleClick = useCallback(
-         (e: React.MouseEvent) => {
-             // double click opens files, prevents default expand behavior
-             if (!hasChildren) {
+          (e: React.MouseEvent) => {
+             // only folders can be toggled on single click
+             if (isFolder) {
                  e.preventDefault();
-                 setPaneA(buildFileSpec(item));
-                 setActivePane('A');
-                 router.push(linkHref);
+                 onToggle();
              }
+             // files require double click - Link handles single click navigation
          },
-         [hasChildren, item, linkHref, router, setActivePane, setPaneA]
+         [isFolder, onToggle]
      );
 
-     /**
-      * Handle drag start - store file in zustand for drop handling
-      */
-     const handleDragStart = useCallback(
-         (e: React.DragEvent) => {
-             if (hasChildren) return; // Don't drag folders
-             
-             const spec = buildFileSpec(item);
-             
-             // Store in zustand so split pane can access it
-             useLayoutStore.getState().setDraggedFile(spec);
-             
-             // Also set in dataTransfer for fallback
-             e.dataTransfer.effectAllowed = 'copy';
-             e.dataTransfer.setData('application/json', JSON.stringify(spec));
-             e.dataTransfer.setData('text/plain', item.title || 'Untitled');
-         },
-         [hasChildren, item]
-     );
+      const handleDoubleClick = useCallback(
+          (e: React.MouseEvent) => {
+              // double click opens files, prevents default expand behavior
+              if (!isFolder) {
+                  e.preventDefault();
+                  setPaneA(buildFileSpec(item));
+                  setActivePane('A');
+                  router.push(linkHref);
+              }
+          },
+          [isFolder, item, linkHref, router, setActivePane, setPaneA]
+      );
 
-     /**
-      * Handle drag end - clear stored file
-      */
-     const handleDragEnd = useCallback(() => {
-         useLayoutStore.getState().setDraggedFile(null);
-     }, []);
+      /**
+       * NOTE: Drag handling is managed by react-complex-tree for tree operations.
+       * Custom drag/drop for pane-to-pane transfers is handled by dataTransfer in file-view-pane.
+       * Removed custom drag handlers to avoid conflicts with react-complex-tree.
+       */
 
      const openInPane = useCallback(
          (pane: 'A' | 'B') => (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -233,17 +217,15 @@ const SidebarListItem: FC<{
         return undefined;
     }, [item.title]);
 
-     // Determine if this is a true folder (has folder emoji or is a container)
-     const isActualFolder = useMemo(() => {
-         // Check if title contains folder emoji
-         if (item.title?.includes('📁')) return true;
-         // Check if it's content is a file path (S3 upload) vs regular note
-         if (item.content && (item.content.startsWith('s3://') || item.content.startsWith('http'))) {
-             return false; // File content, not a folder
-         }
-         // Default: items with children are folders
-         return hasChildren;
-     }, [item.title, item.content, hasChildren]);
+     // Determine if this is a true folder (use isFolder flag primarily, with emoji fallback)
+      const isActualFolder = useMemo(() => {
+          // Primary check: use the isFolder flag from database
+          if (item.isFolder === true) return true;
+          // Emoji check: title contains folder emoji
+          if (item.title?.includes('📁')) return true;
+          // Secondary check: if it has children, it's a folder
+          return hasChildren;
+      }, [item.isFolder, item.title, hasChildren]);
 
      return (
          <>
@@ -254,23 +236,23 @@ const SidebarListItem: FC<{
                         innerRef(el);
                     }}
                      className={`flex items-center pr-2 overflow-hidden text-slate-400 hover:text-slate-300 hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
-                        snapshot.isDragging ? 'opacity-60 bg-white/8 shadow-lg ring-1 ring-white/20' : ''
-                    } ${
-                        activeId === item.id ? 'bg-white/10 text-slate-300' : ''
-                    }`}
-                   role="treeitem"
-                   aria-expanded={hasChildren ? isExpanded : undefined}
-                   aria-selected={activeId === item.id}
-                   aria-current={activeId === item.id ? 'page' : undefined}
-                >
+                         snapshot.isDragging ? 'opacity-60 bg-white/8 shadow-lg ring-1 ring-white/20' : ''
+                     } ${
+                         activeId === item.id ? 'bg-white/10 text-slate-300' : ''
+                     }`}
+                     role="treeitem"
+                     aria-expanded={isFolder ? isExpanded : undefined}
+                     aria-selected={activeId === item.id}
+                     aria-current={activeId === item.id ? 'page' : undefined}
+                 >
                   <Link 
-                      href={linkHref}
-                      className="flex flex-1 items-center truncate"
-                      onClick={handleClickItem}
-                      onDoubleClick={handleDoubleClick}
-                      aria-label={item.title || t('Untitled')}
-                  >
-                      {hasChildren ? (
+                       href={linkHref}
+                       className="flex flex-1 items-center truncate"
+                       onClick={handleClickItem}
+                       onDoubleClick={handleDoubleClick}
+                       aria-label={item.title || t('Untitled')}
+                   >
+                       {isFolder ? (
                           // Folders: show expand/collapse icon
                           emoji ? (
                               <span
@@ -343,12 +325,12 @@ const SidebarListItem: FC<{
                                   ? item.title.replace(emoji, '').trimLeft()
                                   : item.title) ||
                                   (initLoaded ? t('Untitled') : <TextSkeleton />)}
-                              {syncStatus === 'modified' && (
-                                  <span className="ml-1 text-amber-400 text-xs" title="Modified">M</span>
-                              )}
-                              {syncStatus === 'new' && (
-                                  <span className="ml-1 text-green-400 text-xs" title="New">U</span>
-                              )}
+                               {syncStatus === 'modified' && (
+                                   <span className="ml-1 text-amber-400 text-xs" title={t('Modified')}>M</span>
+                               )}
+                               {syncStatus === 'new' && (
+                                   <span className="ml-1 text-green-400 text-xs" title={t('New')}>U</span>
+                               )}
                           </span>
                      )}
                  </Link>
@@ -374,13 +356,13 @@ const SidebarListItem: FC<{
                    )}
              </div>
 
-             {!hasChildren && isExpanded && (
-                 <div
-                     className={`py-1.5 text-slate-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
-                 >
-                     {initLoaded ? t('No notes inside') : <TextSkeleton />}
-                 </div>
-             )}
+              {isFolder && !hasChildren && isExpanded && (
+                  <div
+                      className={`py-1.5 text-slate-500 select-none ml-${Math.floor((attrs.style?.paddingLeft || 0) / 10)}`}
+                  >
+                      {initLoaded ? t('No notes inside') : <TextSkeleton />}
+                  </div>
+              )}
         </>
     );
 };

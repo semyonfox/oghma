@@ -5,6 +5,7 @@ import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from '@heroicons/react/24/outline';
 import { useFileUrl } from './use-file-url';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 // Import react-pdf styles for text layer and annotations
 // Must be imported before Page component is rendered
@@ -26,9 +27,10 @@ interface PDFViewerProps {
  * Uses react-pdf (PDF.js wrapper)
  */
 const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const [scale, setScale] = useState(1);
-  const { url: pdfPath, loading } = useFileUrl(file.sourcePath);
+   const { t } = useI18n();
+   const [numPages, setNumPages] = useState<number | null>(null);
+   const [scale, setScale] = useState(1);
+   const { url: pdfPath, loading } = useFileUrl(file.sourcePath);
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -44,11 +46,11 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
 
   return (
     <div className="h-full flex flex-col bg-gray-800">
-      {/* Controls */}
-      <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
-        <div className="text-xs text-gray-400">
-          {numPages ? `${numPages} pages` : 'Loading...'}
-        </div>
+       {/* Controls */}
+       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
+         <div className="text-xs text-gray-400">
+           {numPages ? t('pdf_viewer.page_count', { count: numPages }) : t('Loading...')}
+         </div>
 
         <div className="flex items-center gap-2">
           {/* Zoom Controls */}
@@ -74,12 +76,12 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane }) => {
 
       {/* PDF Canvas - Scrollable */}
       <div className="flex-1 overflow-y-auto flex items-start justify-center bg-gray-800 p-4">
-        <Document
-          file={pdfPath}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={<div className="text-gray-500">{loading ? 'Loading PDF...' : 'Preparing PDF...'}</div>}
-          error={<div className="text-red-500">Failed to load PDF</div>}
-        >
+         <Document
+           file={pdfPath}
+           onLoadSuccess={onDocumentLoadSuccess}
+           loading={<div className="text-gray-500">{loading ? t('pdf_viewer.loading') : t('pdf_viewer.preparing')}</div>}
+           error={<div className="text-red-500">{t('pdf_viewer.error')}</div>}
+         >
           <div className="flex flex-col gap-4">
             {numPages && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
               <div key={pageNum} className="flex justify-center">

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { DocumentIcon, RectangleGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 const FileRenderer = dynamic(() => import('./file-renderer'), { ssr: false });
 
@@ -19,18 +20,19 @@ interface FileViewPaneProps {
  * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
-  const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel, paneA, paneB } = useLayoutStore();
-  const paneRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+   const { t } = useI18n();
+   const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel, paneA, paneB } = useLayoutStore();
+   const paneRef = useRef<HTMLDivElement>(null);
+   const [isDragging, setIsDragging] = useState(false);
 
-  if (!file || !file.fileId) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-500">
-        <DocumentIcon className="w-12 h-12 mb-4 text-gray-600" />
-        <p className="text-sm">Select a file to open</p>
-      </div>
-    );
-  }
+   if (!file || !file.fileId) {
+     return (
+       <div className="h-full flex flex-col items-center justify-center text-gray-500">
+         <DocumentIcon className="w-12 h-12 mb-4 text-gray-600" />
+         <p className="text-sm">{t('file_view_pane.select_file')}</p>
+       </div>
+     );
+   }
 
   const handleClose = () => {
     if (pane === 'A') {
@@ -115,10 +117,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Pane Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between cursor-move">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono text-gray-500">Pane {pane}</span>
+       {/* Pane Header */}
+       <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between cursor-move">
+         <div className="flex items-center gap-2 min-w-0">
+           <span className="text-xs font-mono text-gray-500">{t('file_view_pane.pane_label', { pane })}</span>
           <span className="text-sm text-gray-300 truncate">{file.title || file.fileId}</span>
           <span className="text-xs text-gray-600">({file.fileType})</span>
         </div>

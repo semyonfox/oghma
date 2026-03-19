@@ -417,13 +417,13 @@ const SidebarList = () => {
         <>
             <section
                 className="h-full flex text-sm flex-col flex-grow bg-gray-900 overflow-y-auto"
-                aria-label="Notes list"
+                aria-label={t('Notes list')}
             >
                 {/* Tree Section Header */}
                 <div
                     className="p-2 text-gray-400 flex items-center sticky top-0 bg-gray-900 z-10"
                     role="toolbar"
-                    aria-label="Notes actions"
+                    aria-label={t('Notes actions')}
                 >
                     <div className="flex-auto flex items-center">
                         <span id="my-pages-label">{t('My Pages')}</span>
