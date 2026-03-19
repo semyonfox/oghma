@@ -12,29 +12,40 @@ import sql from '@/database/pgsql.js';
 /**
  * MIME types we can currently process through the RAG pipeline.
  * PDFs are handled via pdf-parse.
- * Extend this set as support for other formats is added (e.g. DOCX).
  */
-const PROCESSABLE_TYPES = new Set([
-  'application/pdf',
-]);
+const PROCESSABLE_TYPES = new Set(['application/pdf']);
+
+function resolveMimeType(filename, canvasMimeType) {
+  if (canvasMimeType && PROCESSABLE_TYPES.has(canvasMimeType)) return canvasMimeType;
+  if (filename?.toLowerCase().endsWith('.pdf')) return 'application/pdf';
+  return canvasMimeType;
+}
+
+/**
+ * Creates a folder note and adds it to the tree under parentId (or root if null).
+ * Returns the new folder's UUID.
+ */
+async function createFolder(userId, title, parentId) {
+  const folderId = uuidv4();
+  await sql`
+    INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
+    VALUES (${folderId}::uuid, ${userId}::uuid, ${title}, '', true, 0, NOW(), NOW())
+  `;
+  await addNoteToTree(userId, folderId, parentId ?? null);
+  return folderId;
+}
 
 /**
  * POST /api/canvas/import
  *
- * Triggers a full Canvas import for the courses the user selected.
- * For each course:
- *   1. Fetches modules and file items from Canvas
- *   2. Downloads each file (skipping any that return 403)
- *   3. Uploads the file to S3 under canvas/{userId}/{courseId}/{moduleId}/{filename}
- *   4. Creates a note in app.notes
- *   5. Adds the note to the root of the user's file tree
- *   6. Runs the file through the RAG pipeline:
- *      pdf-parse → clean text → chunk → embed → store
+ * Imports selected Canvas courses into the note tree with the hierarchy:
  *
- * 403 responses from Canvas (lecturer restricted the file) are recorded in canvas_imports with status 'forbidden' so the UI can show the user exactly which
- * files they need to upload manually.
- *
- * TODO: Move the processing loop to a background queue (e.g. BullMQ) once imports grow large enough to risk hitting Amplify's function timeout.
+ *   Course Name/
+ *     Module Name/
+ *       file.pdf
+ *     Assignments/
+ *       Assignment Name/
+ *         attached-file.pdf
  *
  * Body: { courseIds: string[] }
  */
@@ -51,7 +62,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'courseIds array is required' }, { status: 400 });
     }
 
-    // Retrieve stored Canvas credentials for this user
     const rows = await sql`
       SELECT canvas_token, canvas_domain
       FROM app.login
@@ -67,189 +77,246 @@ export async function POST(request) {
     const client = new CanvasClient(canvas_domain, canvas_token);
     const storage = getStorageProvider();
 
-    // Track counts across all courses to return a summary to the frontend
     let imported = 0;
     let forbidden = 0;
     let failed = 0;
     let skipped = 0;
-
-    // Cache module folder IDs to avoid creating duplicates
-    const moduleFolder = {}; // key: `${courseId}:${module.id}`, value: folderId
+    let alreadyImported = 0;
 
     for (const courseId of courseIds) {
-      // Fetch all modules in this course
-      const { data: modules, forbidden: modulesForbidden } = await client.getModules(courseId);
+      // Fetch course metadata to build the folder title
+      const { data: courseData } = await client.getCourse(courseId);
+      const courseTitle = courseData
+        ? [courseData.course_code, courseData.name].filter(Boolean).join(' — ')
+        : String(courseId);
 
-      if (modulesForbidden || !modules) {
-        // The entire course is restricted — skip and move on
-        console.warn(`Course ${courseId} modules are restricted`);
-        continue;
+      // Top-level course folder
+      let courseFolderId = null;
+      try {
+        courseFolderId = await createFolder(user.user_id, courseTitle, null);
+      } catch (err) {
+        console.warn(`Failed to create course folder (${courseTitle}): ${err.message}`);
       }
 
-      for (const module of modules) {
-        // Fetch individual items inside this module
-        const { data: items } = await client.getModuleItems(courseId, module.id);
-        if (!items) continue;
+      // ── Module folders ──────────────────────────────────────────────────────
 
-        // Canvas module items can be many types (Page, Assignment, Quiz, etc.)
-        // We only want File items for import
-        const fileItems = items.filter(item => item.type === 'File');
+      const { data: modules, forbidden: modulesForbidden } = await client.getModules(courseId);
 
-        // Create a folder for this module if it has files
-        let moduleFolderId = null;
-        if (fileItems.length > 0) {
+      if (!modulesForbidden && modules) {
+        const moduleFolderMap = {};
+
+        for (const module of modules) {
+          const { data: items } = await client.getModuleItems(courseId, module.id);
+          if (!items) continue;
+
+          const fileItems = items.filter(item => item.type === 'File');
+          if (fileItems.length === 0) continue;
+
+          // Create module folder inside the course folder (once per module)
           const moduleKey = `${courseId}:${module.id}`;
-          if (!moduleFolder[moduleKey]) {
+          if (!moduleFolderMap[moduleKey]) {
             try {
-              // Create module folder
-              const folderId = uuidv4();
+              moduleFolderMap[moduleKey] = await createFolder(user.user_id, module.name, courseFolderId);
+            } catch (err) {
+              console.warn(`Failed to create module folder (${module.name}): ${err.message}`);
+              moduleFolderMap[moduleKey] = courseFolderId;
+            }
+          }
+          const moduleFolderId = moduleFolderMap[moduleKey];
 
+          for (const item of fileItems) {
+            const { data: file, forbidden: fileForbidden, error: fileError } = await client.getFile(courseId, item.content_id);
+
+            if (fileForbidden || !file) {
               await sql`
-                INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-                VALUES (${folderId}::uuid, ${user.user_id}::uuid, ${module.name}, '', true, 0, NOW(), NOW())
+                INSERT INTO app.canvas_imports
+                  (user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, status, error_message)
+                VALUES
+                  (${user.user_id}, ${courseId}, ${module.id}, ${item.content_id},
+                   ${item.title}, 'forbidden', ${fileError ?? 'Access restricted by lecturer'})
+              `;
+              forbidden++;
+              continue;
+            }
+
+            const resolvedMimeType = resolveMimeType(file.display_name, file.content_type);
+
+            if (!PROCESSABLE_TYPES.has(resolvedMimeType)) {
+              skipped++;
+              continue;
+            }
+
+            // skip files already successfully imported (dedup)
+            const existing = await sql`
+              SELECT 1 FROM app.canvas_imports
+              WHERE user_id = ${user.user_id}::uuid AND canvas_file_id = ${file.id}::int AND status = 'complete'
+              LIMIT 1
+            `;
+            if (existing.length > 0) {
+              alreadyImported++;
+              continue;
+            }
+
+            const importRecord = await sql`
+              INSERT INTO app.canvas_imports
+                (user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status)
+              VALUES
+                (${user.user_id}, ${courseId}, ${module.id}, ${file.id},
+                 ${file.display_name}, ${resolvedMimeType}, 'downloading')
+              RETURNING id
+            `;
+            const importId = importRecord[0].id;
+
+            const { buffer, forbidden: dlForbidden, error: dlError } = await client.downloadFile(file.url);
+
+            if (dlForbidden || !buffer) {
+              await sql`
+                UPDATE app.canvas_imports
+                SET status = 'forbidden', error_message = ${dlError ?? 'Download restricted'}, updated_at = NOW()
+                WHERE id = ${importId}
+              `;
+              forbidden++;
+              continue;
+            }
+
+            try {
+              await sql`
+                UPDATE app.canvas_imports SET status = 'processing', updated_at = NOW()
+                WHERE id = ${importId}
               `;
 
-              // Add folder to tree at root
-              await addNoteToTree(user.user_id, folderId, null);
-              moduleFolder[moduleKey] = folderId;
-              moduleFolderId = folderId;
-            } catch (folderError) {
-              console.warn(`Failed to create module folder for ${module.name}:`, folderError);
-              // Continue without folder, files go to root
+              const s3Key = `canvas/${user.user_id}/${courseId}/${module.id}/${file.filename}`;
+              await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+
+              const noteId = uuidv4();
+              await sql`
+                INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
+                VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${file.display_name}, '', ${s3Key}, false, 0, NOW(), NOW())
+              `;
+              await addNoteToTree(user.user_id, noteId, moduleFolderId);
+
+              await runRagPipeline(noteId, buffer);
+
+              await sql`
+                UPDATE app.canvas_imports
+                SET status = 'complete', note_id = ${noteId}, updated_at = NOW()
+                WHERE id = ${importId}
+              `;
+              imported++;
+            } catch (err) {
+              console.error(`Failed to process file ${file.display_name}: ${err.message}`);
+              await sql`
+                UPDATE app.canvas_imports
+                SET status = 'error', error_message = ${err.message}, updated_at = NOW()
+                WHERE id = ${importId}
+              `;
+              failed++;
             }
-          } else {
-            moduleFolderId = moduleFolder[moduleKey];
           }
         }
+      } else {
+        console.warn(`Course ${courseId} modules are restricted or unavailable`);
+      }
 
-        for (const item of fileItems) {
-          // Get full file metadata — includes download URL and MIME type
-          const { data: file, forbidden: fileForbidden, error: fileError } = await client.getFile(courseId, item.content_id);
+      // ── Assignments folder ──────────────────────────────────────────────────
 
-          if (fileForbidden || !file) {
-            // Lecturer has restricted this file — log it for manual upload
-            await sql`
-              INSERT INTO app.canvas_imports
-                (user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, status, error_message)
-              VALUES
-                (${user.user_id}, ${courseId}, ${module.id}, ${item.content_id},
-                 ${item.title}, 'forbidden', ${fileError ?? 'Access restricted by lecturer'})
-            `;
-            forbidden++;
-            continue;
-          }
+      const { data: assignments, forbidden: assignmentsForbidden } = await client.getAssignments(courseId);
 
-          // Skip file types we don't yet have a processor for (videos, zips, etc.)
-          if (!PROCESSABLE_TYPES.has(file.content_type)) {
-            skipped++;
-            continue;
-          }
+      if (!assignmentsForbidden && assignments && assignments.length > 0) {
+        const assignmentsWithFiles = assignments.filter(a =>
+          (a.attachments ?? []).some(att => PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type)))
+        );
 
-          // Create the import record immediately so status polling can track it
-          const importRecord = await sql`
-            INSERT INTO app.canvas_imports
-              (user_id, canvas_course_id, canvas_module_id, canvas_file_id,
-               filename, mime_type, status)
-            VALUES
-              (${user.user_id}, ${courseId}, ${module.id}, ${file.id},
-               ${file.display_name}, ${file.content_type}, 'downloading')
-            RETURNING id
-          `;
-
-          const importId = importRecord[0].id;
-
-          // Download the file binary from Canvas
-          const { buffer, forbidden: downloadForbidden, error: downloadError } = await client.downloadFile(file.url);
-
-          if (downloadForbidden || !buffer) {
-            await sql`
-              UPDATE app.canvas_imports
-              SET status = 'forbidden', error_message = ${downloadError ?? 'Download restricted'}, updated_at = NOW()
-              WHERE id = ${importId}
-            `;
-            forbidden++;
-            continue;
-          }
-
+        if (assignmentsWithFiles.length > 0) {
+          let assignmentsFolderId = courseFolderId;
           try {
-            // Update status to show we've moved past download and into processing
-            await sql`
-              UPDATE app.canvas_imports SET status = 'processing', updated_at = NOW()
-              WHERE id = ${importId}
-            `;
+            assignmentsFolderId = await createFolder(user.user_id, 'Assignments', courseFolderId);
+          } catch (err) {
+            console.warn(`Failed to create Assignments folder: ${err.message}`);
+          }
 
-            // Store under a predictable path organised by course and module.
-            // When the file tree supports directories, this path mirrors the
-            // folder structure that should be created.
-            const s3Key = `canvas/${user.user_id}/${courseId}/${module.id}/${file.filename}`;
-            await storage.putObject(s3Key, buffer, {
-              contentType: file.content_type || 'application/octet-stream'
-            });
+          for (const assignment of assignmentsWithFiles) {
+            const attachments = (assignment.attachments ?? []).filter(att =>
+              PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type))
+            );
 
-            // Create the note — title is the Canvas filename, content starts empty
-            // Create a unique note_id
-            const noteId = uuidv4();
-            const noteResult = await sql`
-              INSERT INTO app.notes (note_id, user_id, title, content, s3_key, deleted, created_at, updated_at)
-              VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${file.display_name}, '', ${s3Key}, 0, NOW(), NOW())
-              RETURNING note_id
-            `;
+            let assignmentFolderId = assignmentsFolderId;
+            try {
+              assignmentFolderId = await createFolder(user.user_id, assignment.name, assignmentsFolderId);
+            } catch (err) {
+              console.warn(`Failed to create folder for assignment (${assignment.name}): ${err.message}`);
+            }
 
-            // Add to the module folder in the file tree
-            // If module folder creation failed, files go to root (moduleFolderId is null)
-            await addNoteToTree(user.user_id, noteId, moduleFolderId);
+            for (const attachment of attachments) {
+              const resolvedMimeType = resolveMimeType(attachment.display_name, attachment.content_type);
 
-            // ── RAG Pipeline ──────────────────────────────────────────────
+              // dedup check for assignment attachments
+              const existingAtt = await sql`
+                SELECT 1 FROM app.canvas_imports
+                WHERE user_id = ${user.user_id}::uuid AND canvas_file_id = ${attachment.id ?? 0}::int AND status = 'complete'
+                LIMIT 1
+              `;
+              if (existingAtt.length > 0) {
+                alreadyImported++;
+                continue;
+              }
 
-            // Parse raw text from the PDF buffer
-            const pdfParseModule = await import('pdf-parse');
-            const pdfParse = pdfParseModule.default ?? pdfParseModule;
-            const parsed = await pdfParse(buffer);
+              const importRecord = await sql`
+                INSERT INTO app.canvas_imports
+                  (user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status)
+                VALUES
+                  (${user.user_id}, ${courseId}, 0, ${attachment.id ?? 0},
+                   ${attachment.display_name}, ${resolvedMimeType}, 'downloading')
+                RETURNING id
+              `;
+              const importId = importRecord[0].id;
 
-            // Clean the extracted text (stop words, noise, normalisation)
-            const cleanedText = processExtractedText(parsed.text);
+              const { buffer, forbidden: dlForbidden, error: dlError } = await client.downloadFile(attachment.url);
 
-            // Split into overlapping chunks for the embedding model
-            const chunks = chunkText(cleanedText);
+              if (dlForbidden || !buffer) {
+                await sql`
+                  UPDATE app.canvas_imports
+                  SET status = 'forbidden', error_message = ${dlError ?? 'Download restricted'}, updated_at = NOW()
+                  WHERE id = ${importId}
+                `;
+                forbidden++;
+                continue;
+              }
 
-            // Generate vectors for each chunk via the embedding server
-            const embeddings = await embedChunks(chunks);
+              try {
+                await sql`
+                  UPDATE app.canvas_imports SET status = 'processing', updated_at = NOW()
+                  WHERE id = ${importId}
+                `;
 
-            // Store the first chunk's vector as the document-level embedding on the note.
-            // A dedicated chunks table for full per-chunk RAG retrieval is a
-            // TODO once the schema supports it (see embeddings.js).
-            const documentVector = embeddings[0]?.vector ?? null;
+                const s3Key = `canvas/${user.user_id}/${courseId}/assignments/${assignment.id}/${attachment.filename ?? attachment.display_name}`;
+                await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
 
-            // Persist cleaned text and embedding back onto the note
-            await sql`
-              UPDATE app.notes
-              SET extracted_text = ${cleanedText},
-                  embedding = ${documentVector ? JSON.stringify(documentVector) : null}::vector,
-                  updated_at = NOW()
-              WHERE note_id = ${noteId}
-            `;
+                const noteId = uuidv4();
+                await sql`
+                  INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
+                  VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${attachment.display_name}, '', ${s3Key}, false, 0, NOW(), NOW())
+                `;
+                await addNoteToTree(user.user_id, noteId, assignmentFolderId);
 
-            // ── End RAG Pipeline ──────────────────────────────────────────
+                await runRagPipeline(noteId, buffer);
 
-            // Mark import as complete and link to the created note
-            await sql`
-              UPDATE app.canvas_imports
-              SET status = 'complete', note_id = ${noteId}, updated_at = NOW()
-              WHERE id = ${importId}
-            `;
-
-            imported++;
-
-          } catch (processingError) {
-            console.error(`Failed to process file ${file.display_name}:`, processingError);
-            await sql`
-              UPDATE app.canvas_imports
-              SET status = 'error',
-                  error_message = ${processingError instanceof Error ? processingError.message : 'Processing failed'},
-                  updated_at = NOW()
-              WHERE id = ${importId}
-            `;
-            failed++;
+                await sql`
+                  UPDATE app.canvas_imports
+                  SET status = 'complete', note_id = ${noteId}, updated_at = NOW()
+                  WHERE id = ${importId}
+                `;
+                imported++;
+              } catch (err) {
+                console.error(`Failed to process assignment file ${attachment.display_name}: ${err.message}`);
+                await sql`
+                  UPDATE app.canvas_imports
+                  SET status = 'error', error_message = ${err.message}, updated_at = NOW()
+                  WHERE id = ${importId}
+                `;
+                failed++;
+              }
+            }
           }
         }
       }
@@ -257,11 +324,36 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      summary: { imported, forbidden, failed, skipped },
+      summary: { imported, forbidden, failed, skipped, alreadyImported },
     });
 
   } catch (err) {
     console.error('Canvas import error:', err);
     return NextResponse.json({ error: 'Import failed' }, { status: 500 });
+  }
+}
+
+// ── RAG pipeline ──────────────────────────────────────────────────────────────
+
+async function runRagPipeline(noteId, buffer) {
+  try {
+    const pdfParseModule = await import('pdf-parse');
+    const pdfParse = pdfParseModule.default ?? pdfParseModule;
+    const parsed = await pdfParse(buffer);
+    const cleanedText = processExtractedText(parsed.text);
+    const chunks = chunkText(cleanedText);
+    const embeddings = await embedChunks(chunks);
+    const documentVector = embeddings[0]?.vector ?? null;
+
+    await sql`
+      UPDATE app.notes
+      SET extracted_text = ${cleanedText},
+          embedding = ${documentVector ? JSON.stringify(documentVector) : null}::vector,
+          updated_at = NOW()
+      WHERE note_id = ${noteId}
+    `;
+  } catch (err) {
+    // RAG failure is non-fatal — note is still usable without embeddings
+    console.error(`RAG pipeline error for note ${noteId}: ${err.message}`);
   }
 }

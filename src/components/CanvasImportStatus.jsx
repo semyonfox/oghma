@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, ExclamationIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ExclamationCircleIcon, ClockIcon } from '@heroicons/react/24/outline'
 
 export default function CanvasImportStatus() {
   const [progress, setProgress] = useState(null)
@@ -113,7 +113,7 @@ export default function CanvasImportStatus() {
       {progress.recentErrors && progress.recentErrors.length > 0 && (
         <div className="rounded-lg bg-red-900/20 p-4 border border-red-900/50">
           <h3 className="font-semibold text-red-400 flex items-center gap-2">
-            <ExclamationIcon className="size-5" />
+            <ExclamationCircleIcon className="size-5" />
             {progress.recentErrors.length} Issue{progress.recentErrors.length > 1 ? 's' : ''}
           </h3>
           <div className="mt-2 space-y-1 text-sm">
@@ -152,15 +152,15 @@ export default function CanvasImportStatus() {
           <div className="max-h-96 overflow-y-auto space-y-1 text-xs">
             {logs.map((log, i) => (
               <div key={i} className="flex items-start gap-2 p-2 rounded bg-gray-800">
-                {log.status === 'complete' ? (
-                  <CheckCircleIcon className="size-4 text-green-400 flex-shrink-0 mt-0.5" />
-                ) : log.status === 'forbidden' ? (
-                  <ExclamationIcon className="size-4 text-orange-400 flex-shrink-0 mt-0.5" />
-                ) : log.status === 'error' ? (
-                  <ExclamationIcon className="size-4 text-red-400 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <ClockIcon className="size-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                )}
+                 {log.status === 'complete' ? (
+                   <CheckCircleIcon className="size-4 text-green-400 flex-shrink-0 mt-0.5" />
+                 ) : log.status === 'forbidden' ? (
+                   <ExclamationCircleIcon className="size-4 text-orange-400 flex-shrink-0 mt-0.5" />
+                 ) : log.status === 'error' ? (
+                   <ExclamationCircleIcon className="size-4 text-red-400 flex-shrink-0 mt-0.5" />
+                 ) : (
+                   <ClockIcon className="size-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                 )}
                 <div className="flex-1">
                   <div className="font-medium text-gray-200">{log.filename}</div>
                   {log.errorMessage && (

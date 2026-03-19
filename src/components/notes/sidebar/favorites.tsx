@@ -80,14 +80,14 @@ export const Favorites: FC = () => {
 
     return (
         <>
-            <div className="group p-2 text-neutral-500 flex items-center sticky top-0 bg-neutral-50 dark:bg-neutral-900 z-10">
+            <div className="group p-2 text-text-tertiary flex items-center sticky top-0 bg-background z-10">
                 <div className="flex-auto flex items-center">
                     <span>{t('Favorites')}</span>
                 </div>
                 <IconButton
                     icon="Selector"
                     onClick={() => setFold((prev) => !prev)}
-                    className="text-neutral-600 dark:text-neutral-400 invisible group-hover:visible"
+                    className="text-text-tertiary invisible group-hover:visible"
                     title={t('Fold Favorites')}
                 />
             </div>

@@ -9,6 +9,7 @@ import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
   CalendarIcon,
+  SparklesIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
@@ -17,31 +18,14 @@ interface NavItem {
   labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
-  section: 'notes' | 'search' | 'calendar' | 'settings';
+  section: 'notes' | 'search' | 'calendar' | 'settings' | 'chat';
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    id: 'notes',
-    labelKey: 'Notes',
-    icon: DocumentTextIcon,
-    href: '/notes',
-    section: 'notes',
-  },
-  {
-    id: 'search',
-    labelKey: 'Search',
-    icon: MagnifyingGlassIcon,
-    href: '/notes',
-    section: 'search',
-  },
-  {
-    id: 'calendar',
-    labelKey: 'Calendar',
-    icon: CalendarIcon,
-    href: '/notes',
-    section: 'calendar',
-  },
+  { id: 'notes',    labelKey: 'Notes',    icon: DocumentTextIcon,     href: '/notes',  section: 'notes' },
+  { id: 'search',   labelKey: 'Search',   icon: MagnifyingGlassIcon,  href: '/notes',  section: 'search' },
+  { id: 'calendar', labelKey: 'Calendar', icon: CalendarIcon,         href: '/notes',  section: 'calendar' },
+  { id: 'chat',     labelKey: 'AI Chat',  icon: SparklesIcon,         href: '/chat',   section: 'chat' },
 ];
 
 /**
@@ -82,8 +66,8 @@ const IconNav: FC = () => {
               className={`
                 relative w-10 h-10 flex items-center justify-center rounded transition-colors
                 ${isActive
-                  ? 'bg-white/8 text-gray-300'
-                  : 'text-gray-500 hover:text-gray-400 hover:bg-white/5'
+                  ? 'bg-white/8 text-text-secondary'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-white/5'
                 }
                 group
               `}
@@ -92,7 +76,7 @@ const IconNav: FC = () => {
               <IconComp className="w-5 h-5" />
 
               {/* Hover tooltip */}
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
+              <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
                 {translatedLabel}
               </div>
             </button>
@@ -112,15 +96,15 @@ const IconNav: FC = () => {
           href: '/settings',
           section: 'settings'
         })}
-        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-gray-500 hover:text-gray-400 hover:bg-white/5 group relative ${
-          activeNav === 'settings' ? 'bg-white/8 text-gray-300' : ''
+        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-white/5 group relative ${
+          activeNav === 'settings' ? 'bg-white/8 text-text-secondary' : ''
         }`}
         title={t('Settings')}
       >
         <Cog6ToothIcon className="w-5 h-5" />
 
         {/* Hover tooltip */}
-        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
+        <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
           {t('Settings')}
         </div>
       </button>
