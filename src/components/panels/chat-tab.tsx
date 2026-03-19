@@ -3,6 +3,7 @@
 import { FC, useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface Message {
   id: string;
@@ -16,12 +17,13 @@ interface Message {
  * Currently shows placeholder UI, ready for RAG API integration
  */
 const ChatTab: FC = () => {
+  const { t } = useI18n();
   const { paneA } = useLayoutStore();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Hi! I\'m your AI assistant. Ask me questions about your notes.',
+      content: t('Hi! I\'m your AI assistant. Ask me questions about your notes.'),
       timestamp: Date.now(),
     },
   ]);
@@ -118,30 +120,30 @@ const ChatTab: FC = () => {
         {paneA?.fileId && (
           <div className="mb-3 px-3 py-2 bg-gray-800 rounded text-xs text-gray-400 flex items-center gap-2">
             <SparklesIcon className="w-3 h-3" />
-            <span>Analyzing: {paneA.title || 'Untitled'}</span>
+            <span>{t('Analyzing')}: {paneA.title || t('Untitled')}</span>
           </div>
         )}
 
         {/* Input Field */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about your notes..."
-            disabled={isLoading}
-            className="flex-1 bg-gray-800 border border-white/10 rounded px-3 py-2 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
-          />
-          <button
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-            title="Send message (Enter)"
-          >
-            <PaperAirplaneIcon className="w-4 h-4" />
-          </button>
-        </div>
+         <div className="flex items-center gap-2">
+           <input
+             type="text"
+             value={input}
+             onChange={(e) => setInput(e.target.value)}
+             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+             placeholder={t('Ask about your notes...')}
+             disabled={isLoading}
+             className="flex-1 bg-gray-800 border border-white/10 rounded px-3 py-2 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
+           />
+           <button
+             onClick={handleSend}
+             disabled={isLoading || !input.trim()}
+             className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
+             title={t('Send message (Enter)')}
+           >
+             <PaperAirplaneIcon className="w-4 h-4" />
+           </button>
+         </div>
       </div>
     </div>
   );
