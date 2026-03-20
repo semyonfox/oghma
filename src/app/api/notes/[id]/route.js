@@ -4,6 +4,7 @@ import { isValidUUID } from '@/lib/uuid-validation.js';
 import { removeNoteFromTree } from '@/lib/notes/storage/pg-tree.js';
 import { deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
+import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
 
 export async function GET(request, { params }) {
@@ -42,19 +43,7 @@ export async function GET(request, { params }) {
      }
 
      // Map to NoteModel format
-     const note = {
-       id: dbNote.note_id,
-       title: dbNote.title,
-       content: dbNote.content,
-       isFolder: dbNote.is_folder,
-       s3Key: dbNote.s3_key,
-       deleted: dbNote.deleted,
-       shared: dbNote.shared,
-       pinned: dbNote.pinned,
-       editorsize: null,
-       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
-     };
+     const note = mapNoteFromDB(dbNote);
 
     // Parse fields from query parameters
     const url = new URL(request.url);
@@ -122,19 +111,7 @@ export async function PUT(request, { params }) {
      `;
 
      const dbNote = updatedNote[0];
-     return NextResponse.json({
-       id: dbNote.note_id,
-       title: dbNote.title,
-       content: dbNote.content,
-       isFolder: dbNote.is_folder,
-       s3Key: dbNote.s3_key,
-       deleted: dbNote.deleted,
-       shared: dbNote.shared,
-       pinned: dbNote.pinned,
-       editorsize: null,
-       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
-     });
+     return NextResponse.json(mapNoteFromDB(dbNote));
   } catch (error) {
     console.error('Note PUT error:', error);
     return NextResponse.json(
