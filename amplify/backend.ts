@@ -1,7 +1,5 @@
-import { defineBackend } from '@aws-amplify/backend';
-
-// Amplify Gen 2 backend entry point.
-// VPC configuration (subnets + security groups for Valkey/ElastiCache access)
-// is managed from the Amplify console — no CDK changes needed here for that.
-// Add Amplify-managed resources here as needed (e.g. storage, auth, functions).
-export const backend = defineBackend({});
+// Amplify Gen 2 marker file — signals Gen 2 mode to the Amplify console.
+// VPC configuration (for Valkey/ElastiCache connectivity) is managed via
+// the Amplify console App Settings → Networking, not CDK.
+// Add CDK-managed resources here only if needed in future.
+export {};
