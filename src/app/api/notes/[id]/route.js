@@ -3,24 +3,9 @@ import { validateSession } from '@/lib/auth.js';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import { removeNoteFromTree } from '@/lib/notes/storage/pg-tree.js';
 import { deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
+import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
+import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
-
-/**
- * Helper: Filter note to only include requested fields
- */
-function filterNoteFields(note, fields) {
-  if (!fields || fields.length === 0) {
-    return note;
-  }
-  
-  const filtered = {};
-  for (const field of fields) {
-    if (field in note) {
-      filtered[field] = note[field];
-    }
-  }
-  return filtered;
-}
 
 export async function GET(request, { params }) {
   try {
@@ -45,7 +30,7 @@ export async function GET(request, { params }) {
 
      // Get note from PostgreSQL (verify ownership)
      const result = await sql`
-       SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+       SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
        WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
      `;
 
@@ -58,17 +43,7 @@ export async function GET(request, { params }) {
      }
 
      // Map to NoteModel format
-     const note = {
-       id: dbNote.note_id,
-       title: dbNote.title,
-       content: dbNote.content,
-       deleted: dbNote.deleted,
-       shared: dbNote.shared,
-       pinned: dbNote.pinned,
-       editorsize: null,
-       createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-       updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
-     };
+     const note = mapNoteFromDB(dbNote);
 
     // Parse fields from query parameters
     const url = new URL(request.url);
@@ -125,28 +100,18 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Update note
-    const updatedNote = await sql`
-      UPDATE app.notes
-      SET title = ${body.title || existingNote.title},
-          content = ${body.content || existingNote.content},
-          updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-      RETURNING note_id, title, content, deleted, shared, pinned, created_at, updated_at
-    `;
+     // Update note
+     const updatedNote = await sql`
+       UPDATE app.notes
+       SET title = ${body.title || existingNote.title},
+           content = ${body.content || existingNote.content},
+           updated_at = NOW()
+       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+       RETURNING note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at
+     `;
 
-    const dbNote = updatedNote[0];
-    return NextResponse.json({
-      id: dbNote.note_id,
-      title: dbNote.title,
-      content: dbNote.content,
-      deleted: dbNote.deleted,
-      shared: dbNote.shared,
-      pinned: dbNote.pinned,
-      editorsize: null,
-      createdAt: dbNote.created_at ? new Date(dbNote.created_at).toISOString() : undefined,
-      updatedAt: dbNote.updated_at ? new Date(dbNote.updated_at).toISOString() : undefined,
-    });
+     const dbNote = updatedNote[0];
+     return NextResponse.json(mapNoteFromDB(dbNote));
   } catch (error) {
     console.error('Note PUT error:', error);
     return NextResponse.json(

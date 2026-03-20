@@ -74,6 +74,7 @@ export async function getTreeFromPG(userId) {
 
 /**
  * Add a note to user's tree (sorted A-Z by title)
+ * Idempotent: if note is already in tree, silently succeeds
  */
 export async function addNoteToTree(userId, noteId, parentId) {
   try {
@@ -84,6 +85,7 @@ export async function addNoteToTree(userId, noteId, parentId) {
     await sql`
       INSERT INTO app.tree_items (user_id, note_id, parent_id)
       VALUES (${userId}::uuid, ${noteId}::uuid, ${actualParentId})
+      ON CONFLICT (user_id, note_id) DO NOTHING
     `;
   } catch (error) {
     console.error('Error adding note to tree:', error);

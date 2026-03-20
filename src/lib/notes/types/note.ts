@@ -15,6 +15,7 @@ export interface NoteModel {
     createdAt?: string; // ISO 8601 timestamp
     updatedAt?: string; // ISO 8601 timestamp
     isFolder?: boolean; // true if this note is a folder/directory
+    s3Key?: string; // S3 storage path for attached files/PDFs
     deleted: NOTE_DELETED;
     shared: NOTE_SHARED;
     pinned: NOTE_PINNED;

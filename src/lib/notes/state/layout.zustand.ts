@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type FileType = 'note' | 'pdf' | 'image' | 'video';
-export type NavSection = 'notes' | 'search' | 'calendar' | 'quiz' | 'flashcards' | 'analytics' | 'settings';
+export type NavSection = 'notes' | 'search' | 'calendar' | 'chat' | 'settings';
 
 interface PaneState {
   fileId: string;
@@ -26,6 +26,7 @@ interface LayoutState {
 
   // Right panel
   rightPanelOpen: boolean;
+  rightPanelTab: 'info' | 'ai';
 
   // UI sizes (persist to localStorage)
   treeWidth: number; // 200-600px
@@ -49,6 +50,8 @@ interface LayoutState {
   setPaneEditMode: (pane: 'A' | 'B', editMode: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
+  setRightPanelTab: (tab: 'info' | 'ai') => void;
+  openRightPanelTab: (tab: 'info' | 'ai') => void;
   setSizes: (tree: number, right: number, split: number) => void;
   toggleExpandedNode: (nodeId: string) => void;
   toggleCollapsedSection: (section: string) => void;
@@ -64,9 +67,10 @@ const useLayoutStore = create<LayoutState>()(
       paneA: { fileId: '', fileType: 'note' as FileType },
       paneB: null,
       activePane: 'A',
-      rightPanelOpen: true,
-      treeWidth: 250,
-      rightPanelWidth: 300,
+      rightPanelOpen: false,
+      rightPanelTab: 'info' as const,
+      treeWidth: 220,
+      rightPanelWidth: 280,
       splitPosition: 50,
        expandedNodes: new Set(['root']),
        collapsedSections: new Set(),
@@ -122,6 +126,11 @@ const useLayoutStore = create<LayoutState>()(
       // Right panel
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
       toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
+      setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+      openRightPanelTab: (tab) => set((state) => ({
+        rightPanelOpen: state.rightPanelOpen && state.rightPanelTab === tab ? false : true,
+        rightPanelTab: tab,
+      })),
 
       // Sizes
       setSizes: (tree, right, split) => {

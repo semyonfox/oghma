@@ -6,90 +6,16 @@ import { MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline'
 import { BuildingOffice2Icon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
-import {
-  ArrowPathIcon,
-  CloudArrowUpIcon,
-  Cog6ToothIcon,
-  FingerPrintIcon,
-  LockClosedIcon,
-  ServerIcon,
-} from '@heroicons/react/20/solid'
-
-const features = [
-  {
-    name: 'Rich Markdown Editor',
-    description: 'Write beautiful, formatted notes with live preview, syntax highlighting, and seamless organization.',
-    icon: Cog6ToothIcon,
-  },
-  {
-    name: 'AI-Powered Insights',
-    description: 'Get intelligent summaries, key concepts, and study questions generated automatically from your notes.',
-    icon: CloudArrowUpIcon,
-  },
-  {
-    name: 'Canvas Integration',
-    description: 'Seamlessly sync notes from your Canvas courses and keep all study materials in one place.',
-    icon: ArrowPathIcon,
-  },
-  {
-    name: 'Secure Cloud Storage',
-    description: 'Your notes are safely stored and accessible from any device with enterprise-grade encryption.',
-    icon: LockClosedIcon,
-  },
-  {
-    name: 'Collaborative Learning',
-    description: 'Share notes with classmates, collaborate on study materials, and learn together in real-time.',
-    icon: FingerPrintIcon,
-  },
-  {
-    name: 'Multi-User Support',
-    description: 'Built for university teams with secure authentication, role-based access, and session management.',
-    icon: ServerIcon,
-  },
-]
-
-
-
-const faqs = [
-  {
-    question: 'What is OghmaNotes?',
-    answer:
-      'OghmaNotes is a RAG-powered learning platform that combines Markdown notes with semantic search and AI. Upload PDFs from lectures, ask questions about your materials with cited answers, and get adaptive quizzes and flashcards personalized to your learning pace.',
-  },
-  {
-    question: 'How does the RAG chat work?',
-    answer:
-      'Upload any PDF or document. The system extracts text, chunks it semantically, and stores embeddings in our vector database. When you ask a question, it retrieves relevant material and generates answers with direct citations so you know where information came from.',
-  },
-  {
-    question: 'Can I integrate Canvas deadlines?',
-    answer:
-      'Yes. Connect your Canvas account and OghmaNotes automatically syncs your courses, assignments, and deadlines daily. All your course materials are organized in one place with integrated calendar views.',
-  },
-  {
-    question: 'What are spaced repetition flashcards?',
-    answer:
-      'We use the SM-2 algorithm to schedule flashcard reviews at optimal intervals. The system learns which cards you struggle with and prioritizes them, scientifically proven to improve long-term retention.',
-  },
-  {
-    question: 'Do you generate quizzes automatically?',
-    answer:
-      'Absolutely. OghmaNotes generates adaptive quizzes from your notes and materials. Questions scale in difficulty based on your performance, giving you targeted practice on weak areas.',
-  },
-  {
-    question: 'Can I access my notes offline?',
-    answer:
-      'Yes! OghmaNotes is a Progressive Web App. Write and edit notes offline, and they sync automatically when you reconnect. Perfect for lecture halls and studying anywhere.',
-  },
-]
-
 import TestimonialSection from '@/components/testimonial-section'
 import ContactForm from '@/components/contact-form'
 import useI18n from '@/lib/notes/hooks/use-i18n'
-
+import { useHomeFeatures } from '@/lib/hooks/useHomeFeatures'
+import { useHomeFAQs } from '@/lib/hooks/useHomeFAQs'
 
 export default function Home() {
   const { t } = useI18n()
+  const features = useHomeFeatures()
+  const faqs = useHomeFAQs()
 
   return (
     <div className="bg-gray-900">
@@ -242,14 +168,14 @@ export default function Home() {
           {/* Contact Info */}
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
             <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
-              <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Get in touch</h2>
+              <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t('Get in touch')}</h2>
               <p className="mt-6 text-lg/8 text-gray-400">
-                Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we'll get back to you.
+                {t('Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we\'ll get back to you.')}
               </p>
               <dl className="mt-10 space-y-4 text-base/7 text-gray-300">
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">Address</span>
+                    <span className="sr-only">{t('Address')}</span>
                     <BuildingOffice2Icon aria-hidden="true" className="h-7 w-6 text-gray-400" />
                   </dt>
                   <dd>
@@ -260,7 +186,7 @@ export default function Home() {
                 </div>
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">Telephone</span>
+                    <span className="sr-only">{t('Telephone')}</span>
                     <PhoneIcon aria-hidden="true" className="h-7 w-6 text-gray-400" />
                   </dt>
                   <dd>
@@ -271,7 +197,7 @@ export default function Home() {
                 </div>
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">Email</span>
+                    <span className="sr-only">{t('Email')}</span>
                     <EnvelopeIcon aria-hidden="true" className="h-7 w-6 text-gray-400" />
                   </dt>
                   <dd>
@@ -295,7 +221,7 @@ export default function Home() {
       <div className="bg-gray-900">
         <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40">
           <div className="mx-auto max-w-4xl">
-            <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">Frequently asked questions</h2>
+            <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">{t('Frequently asked questions')}</h2>
             <dl className="mt-16 divide-y divide-white/10">
               {faqs.map((faq) => (
                 <Disclosure key={faq.question} as="div" className="py-6 first:pt-0 last:pb-0">

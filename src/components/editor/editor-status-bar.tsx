@@ -2,6 +2,7 @@
 
 import { FC, useMemo } from 'react';
 import { useEditorStats } from '@/lib/notes/hooks/use-editor-stats';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface EditorStatusBarProps {
   content: string;
@@ -26,79 +27,54 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
   zoom = 100,
   onZoomChange,
 }) => {
+  const { t } = useI18n();
   const stats = useEditorStats(content);
 
   const syncStatusUI = useMemo(() => {
     switch (syncStatus) {
       case 'saved':
         return (
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-            {lastSaved
-              ? `Saved ${formatTimeAgo(lastSaved)}`
-              : 'Saved'}
+          <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-green-500"></span>
+            {lastSaved ? `${t('Saved')} ${formatTimeAgo(lastSaved)}` : t('Saved')}
           </span>
         );
       case 'saving':
         return (
-          <span className="text-xs text-blue-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-            Saving...
+          <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-primary-500 animate-pulse"></span>
+            {t('Saving...')}
           </span>
         );
       case 'offline':
         return (
-          <span className="text-xs text-yellow-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-            Offline
+          <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-yellow-500"></span>
+            {t('Offline')}
           </span>
         );
       case 'error':
         return (
-          <span className="text-xs text-red-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-            Sync Error
+          <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-error-500"></span>
+            {t('Sync Error')}
           </span>
         );
     }
-  }, [syncStatus, lastSaved]);
+  }, [syncStatus, lastSaved, t]);
 
   return (
-    <div className="h-8 bg-gray-900 border-t border-gray-700 px-4 flex items-center justify-between text-xs text-gray-400 select-none">
+    <div className="h-6 bg-background border-t border-border-subtle px-4 flex items-center justify-between text-[11px] text-text-tertiary select-none">
       {/* Left section: Sync status */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {syncStatusUI}
       </div>
 
-      {/* Center section: Stats */}
-      <div className="flex items-center gap-6 text-gray-500">
-        <span title="Word count">{stats.wordCount} words</span>
-        <span className="text-gray-600">•</span>
-        <span title="Reading time">{stats.readingTime} min read</span>
-        <span className="text-gray-600">•</span>
-        <span title="Position">
-          Ln {cursorLine}, Col {cursorColumn}
-        </span>
-      </div>
+      {/* Center section: Word count only */}
+      <span title={t('Word count')} className="text-text-tertiary">{stats.wordCount} {t('words')}</span>
 
-      {/* Right section: Zoom control */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onZoomChange?.(Math.max(80, zoom - 10))}
-          className="px-1.5 py-0.5 hover:bg-gray-700 rounded transition-colors"
-          title="Zoom out (Cmd+-)"
-        >
-          −
-        </button>
-        <span className="w-10 text-center">{zoom}%</span>
-        <button
-          onClick={() => onZoomChange?.(Math.min(200, zoom + 10))}
-          className="px-1.5 py-0.5 hover:bg-gray-700 rounded transition-colors"
-          title="Zoom in (Cmd++)"
-        >
-          +
-        </button>
-      </div>
+      {/* Right: Empty (removed zoom, cursor position, reading time) */}
+      <div />
     </div>
   );
 };

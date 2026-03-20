@@ -4,67 +4,28 @@ import { FC } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
   CalendarIcon,
-  QuestionMarkCircleIcon,
   SparklesIcon,
-  ChartBarIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
-  section: 'notes' | 'search' | 'calendar' | 'quiz' | 'flashcards' | 'analytics' | 'settings';
+  section: 'notes' | 'search' | 'calendar' | 'settings' | 'chat';
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    id: 'notes',
-    label: 'Notes',
-    icon: DocumentTextIcon,
-    href: '/notes',
-    section: 'notes',
-  },
-  {
-    id: 'search',
-    label: 'Search',
-    icon: MagnifyingGlassIcon,
-    href: '/notes',
-    section: 'search',
-  },
-  {
-    id: 'calendar',
-    label: 'Calendar',
-    icon: CalendarIcon,
-    href: '/notes',
-    section: 'calendar',
-  },
-  {
-    id: 'quiz',
-    label: 'Quiz',
-    icon: QuestionMarkCircleIcon,
-    href: '/notes',
-    section: 'quiz',
-  },
-  {
-    id: 'flashcards',
-    label: 'Flashcards',
-    icon: SparklesIcon,
-    href: '/notes',
-    section: 'flashcards',
-  },
-  {
-    id: 'analytics',
-    label: 'Analytics',
-    icon: ChartBarIcon,
-    href: '/notes',
-    section: 'analytics',
-  },
+  { id: 'notes',    labelKey: 'Notes',    icon: DocumentTextIcon,     href: '/notes',  section: 'notes' },
+  { id: 'search',   labelKey: 'Search',   icon: MagnifyingGlassIcon,  href: '/notes',  section: 'search' },
+  { id: 'calendar', labelKey: 'Calendar', icon: CalendarIcon,         href: '/notes',  section: 'calendar' },
+  { id: 'chat',     labelKey: 'AI Chat',  icon: SparklesIcon,         href: '/chat',   section: 'chat' },
 ];
 
 /**
@@ -75,6 +36,7 @@ const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useLayoutStore();
+  const { t } = useI18n();
 
   const handleNavClick = (item: NavItem) => {
     setActiveNav(item.section);
@@ -86,10 +48,8 @@ const IconNav: FC = () => {
   return (
     <div className="h-full flex flex-col items-center py-4 gap-2">
       {/* Logo/Branding */}
-      <Link href="/" className="flex items-center justify-center w-12 h-12 mb-4 hover:opacity-80 transition-opacity">
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-sm" aria-label="OghmaNotes" role="img">
-          <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
-        </div>
+      <Link href="/" className="flex items-center justify-center w-10 h-10 mb-4 hover:opacity-70 transition-opacity">
+        <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-6 h-6" />
       </Link>
 
       {/* Navigation Items */}
@@ -97,32 +57,28 @@ const IconNav: FC = () => {
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
           const isActive = activeNav === item.section;
+          const translatedLabel = t(item.labelKey);
 
           return (
             <button
               key={item.id}
               onClick={() => handleNavClick(item)}
               className={`
-                relative w-12 h-12 flex items-center justify-center rounded transition-all
+                relative w-10 h-10 flex items-center justify-center rounded transition-colors
                 ${isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                  ? 'bg-white/8 text-text-secondary'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-white/5'
                 }
                 group
               `}
-              title={item.label}
+              title={translatedLabel}
             >
-              <IconComp className="w-6 h-6" />
+              <IconComp className="w-5 h-5" />
 
               {/* Hover tooltip */}
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
-                {item.label}
+              <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
+                {translatedLabel}
               </div>
-
-              {/* Active indicator */}
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r" />
-              )}
             </button>
           );
         })}
@@ -135,19 +91,21 @@ const IconNav: FC = () => {
       <button
         onClick={() => handleNavClick({
           id: 'settings',
-          label: 'Settings',
+          labelKey: 'Settings',
           icon: Cog6ToothIcon,
-          href: '/notes',
+          href: '/settings',
           section: 'settings'
         })}
-        className="w-12 h-12 flex items-center justify-center rounded transition-all text-gray-400 hover:text-gray-300 hover:bg-white/5 group relative"
-        title="Settings"
+        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-white/5 group relative ${
+          activeNav === 'settings' ? 'bg-white/8 text-text-secondary' : ''
+        }`}
+        title={t('Settings')}
       >
-        <Cog6ToothIcon className="w-6 h-6" />
+        <Cog6ToothIcon className="w-5 h-5" />
 
         {/* Hover tooltip */}
-        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-950 text-gray-300 text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
-          Settings
+        <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
+          {t('Settings')}
         </div>
       </button>
     </div>

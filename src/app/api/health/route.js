@@ -42,10 +42,11 @@ export async function GET() {
             {status: dbStatus.connected ? 200 : 503}
         );
     } catch (error) {
+        console.error('Health check error:', error);
         return NextResponse.json(
             {
                 status: 'error',
-                message: error.message,
+                message: 'Health check failed',
             },
             {status: 503}
         );
