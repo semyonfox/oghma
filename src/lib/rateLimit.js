@@ -1,85 +1,123 @@
 /**
- * Rate Limiting Utilities
+ * Authentication Rate Limiting & Account Lockout
  *
  * Purpose: Protect authentication endpoints from brute force attacks.
- * Implementation: In-memory store (per-process); scales to multiple servers with Redis.
- * Trade-off: Simple, no external dependencies; resets on server restart.
+ * - Rate limiting: Tracks failed login attempts in a sliding window (15 min)
+ * - Account lockout: Locks account after exceeding max attempts (30 min)
+ *
+ * Implementation: In-memory store (per-process); resets on server restart.
+ * TODO: Scale to multiple servers using Redis for persistent lockout state.
  */
 
-// In-memory storage for login attempts: { "login:email": { count, resetTime } }
-const loginAttempts = new Map();
+// Single in-memory storage for all auth protection: { "email": { count, lockedUntil, ... } }
+const authProtection = new Map();
 
 /**
- * Configuration for rate limiting behavior
+ * Configuration for rate limiting & account lockout behavior
  */
-const RATE_LIMIT_CONFIG = {
-    // Maximum failed attempts before lockout
+const CONFIG = {
     MAX_ATTEMPTS: 5,
-    // Time window in milliseconds (15 minutes)
-    WINDOW_MS: 15 * 60 * 1000,
-    // Lock duration after exceeding attempts (30 minutes)
-    LOCK_DURATION_MS: 30 * 60 * 1000
+    WINDOW_MS: 15 * 60 * 1000,      // 15 min sliding window for rate limiting
+    LOCK_DURATION_MS: 30 * 60 * 1000 // 30 min account lockout duration
 };
 
 /**
- * Checks if an email has exceeded login attempt limits.
- * Tracks failed attempts; locks account after MAX_ATTEMPTS in time window.
+ * Checks if an account is currently locked due to too many failed attempts.
+ * Automatically clears lock if duration has expired.
+ *
+ * @param {string} email - User email address
+ * @returns {boolean} True if account is locked
+ */
+export function isAccountLocked(email) {
+    const state = authProtection.get(email);
+    if (!state) return false;
+
+    const now = Date.now();
+    // Lock period expired - auto-clear
+    if (now >= state.lockedUntil) {
+        authProtection.delete(email);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Checks if an email has exceeded rate limit attempts in the current window.
  *
  * @param {string} email - User email address
  * @returns {boolean} True if account is currently rate-limited
  */
 export function isRateLimited(email) {
-    const key = `login:${email}`;
+    const state = authProtection.get(email);
+    if (!state) return false;
+
     const now = Date.now();
-    const attempts = loginAttempts.get(key);
-
-    // No attempts yet - not rate limited
-    if (!attempts) {
+    // Window expired - reset
+    if (now > state.windowResetTime) {
+        authProtection.delete(email);
         return false;
     }
 
-    // Time window expired - reset and allow login
-    if (now > attempts.resetTime) {
-        loginAttempts.delete(key);
-        return false;
-    }
-
-    // Still in time window and exceeded attempts - rate limited
-    return attempts.count >= RATE_LIMIT_CONFIG.MAX_ATTEMPTS;
+    return state.count >= CONFIG.MAX_ATTEMPTS;
 }
 
 /**
- * Records a failed login attempt for an email.
- * Locks account if MAX_ATTEMPTS exceeded within time window.
+ * Records a failed login attempt for an account.
+ * Locks the account if MAX_ATTEMPTS is exceeded.
  *
  * @param {string} email - User email address
  */
 export function recordFailedAttempt(email) {
-    const key = `login:${email}`;
     const now = Date.now();
-    let attempts = loginAttempts.get(key);
+    let state = authProtection.get(email);
 
     // Initialize or reset if window expired
-    if (!attempts || now > attempts.resetTime) {
-        attempts = {
+    if (!state || now > state.windowResetTime) {
+        state = {
             count: 0,
-            resetTime: now + RATE_LIMIT_CONFIG.WINDOW_MS
+            windowResetTime: now + CONFIG.WINDOW_MS,
+            lockedUntil: 0,
+            lastAttempt: now
         };
     }
 
-    attempts.count++;
-    loginAttempts.set(key, attempts);
+    state.count++;
+    state.lastAttempt = now;
+
+    // Lock account if threshold exceeded
+    if (state.count >= CONFIG.MAX_ATTEMPTS) {
+        state.lockedUntil = now + CONFIG.LOCK_DURATION_MS;
+    }
+
+    authProtection.set(email, state);
 }
 
 /**
  * Clears failed attempt count for an email (called after successful login).
- * Resets the rate limit state.
+ * Resets both rate limit and lockout state.
  *
  * @param {string} email - User email address
  */
 export function clearFailedAttempts(email) {
-    const key = `login:${email}`;
-    loginAttempts.delete(key);
+    authProtection.delete(email);
+}
+
+/**
+ * Gets the remaining time (in minutes) until the account unlock.
+ * Useful for error messages: "Account locked for X more minutes"
+ *
+ * @param {string} email - User email address
+ * @returns {number} Minutes remaining until unlock (0 if not locked)
+ */
+export function getLockoutMinutesRemaining(email) {
+    const state = authProtection.get(email);
+    if (!state || !state.lockedUntil) return 0;
+
+    const now = Date.now();
+    const remainingMs = state.lockedUntil - now;
+
+    return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
 }
 
 /**
@@ -90,15 +128,11 @@ export function clearFailedAttempts(email) {
  * @returns {number} Seconds until rate limit resets (0 if not rate limited)
  */
 export function getRateLimitResetTime(email) {
-    const key = `login:${email}`;
-    const attempts = loginAttempts.get(key);
-
-    if (!attempts) {
-        return 0;
-    }
+    const state = authProtection.get(email);
+    if (!state) return 0;
 
     const now = Date.now();
-    const remainingMs = attempts.resetTime - now;
+    const remainingMs = state.windowResetTime - now;
 
     return Math.max(0, Math.ceil(remainingMs / 1000));
 }

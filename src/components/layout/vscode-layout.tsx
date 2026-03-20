@@ -10,10 +10,10 @@ import NotesInspectorSidebar from '@/components/panels/notes-inspector-sidebar';
 import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 
 /**
- * Main VSCode-style 3-pane layout container
+ * Main VSCode-style 4-pane layout container
  * 
  * Layout:
- * [56px Icon Nav] [250-600px Tree] [Flex Editor] [250-400px Right Panel]
+ * [48px Icon Nav] [220px Tree] [Flex Editor] [0-280px Inspector (hidden by default)]
  * 
  * Uses CSS Grid for precise control and localStorage for persistent sizing
  * 
@@ -108,33 +108,33 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   }, [paneB, rightPanelOpen]);
 
   return (
-    <div className="relative h-screen w-screen flex flex-col bg-gray-900">
+    <div className="relative h-screen w-screen flex flex-col bg-background">
       {/* Main 3-pane container using CSS Grid */}
       <div
         className="flex-1 overflow-hidden grid"
         style={{
-          gridTemplateColumns: `56px ${treeWidth}px 1fr ${rightPanelOpen ? rightPanelWidth : 0}px`,
-          gap: '1px',
+          gridTemplateColumns: `48px ${treeWidth}px 1fr ${rightPanelOpen ? rightPanelWidth : 0}px`,
+          gap: '0',
         }}
       >
-        {/* Pane 1: Icon Navigation (Fixed 56px) */}
-        <div className="bg-gray-900 border-r border-white/10 overflow-y-auto flex flex-col">
+        {/* Pane 1: Icon Navigation (Fixed 48px) */}
+        <div className="bg-background border-r border-border-subtle overflow-y-auto flex flex-col">
           <IconNav />
         </div>
 
-        {/* Pane 2: File Tree (Resizable 200-600px) */}
-        <div className="bg-gray-900 border-r border-white/10 overflow-hidden flex flex-col">
+        {/* Pane 2: File Tree (Resizable, default 220px) */}
+        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
           <FileTreePanel />
         </div>
 
         {/* Pane 3: Main Editor (Flex fill) */}
-        <div className="bg-gray-900 overflow-hidden flex flex-col">
+        <div className="bg-background overflow-hidden flex flex-col">
           <SplitEditorPane />
         </div>
 
-        {/* Pane 4: Right Panel (Collapsible 250-400px) */}
+        {/* Pane 4: Right Panel (Collapsible, default 280px) */}
         {rightPanelOpen && (
-          <div className="bg-gray-800 border-l border-white/10 overflow-hidden flex flex-col">
+          <div className="bg-surface border-l border-border-subtle overflow-hidden flex flex-col">
             <NotesInspectorSidebar />
           </div>
         )}

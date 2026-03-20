@@ -37,8 +37,8 @@ const SplitEditorPane: FC = () => {
         </Panel>
 
         {/* Resize handle */}
-        <PanelResizeHandle className="w-1 bg-gray-700/30 hover:bg-indigo-500/70 active:bg-indigo-500 transition-colors cursor-col-resize group flex items-center justify-center">
-          <div className="w-0.5 h-8 bg-gray-600/50 group-hover:bg-indigo-400 rounded-full transition-colors" />
+        <PanelResizeHandle className="w-1 bg-surface-elevated/30 hover:bg-primary-500/70 active:bg-primary-500 transition-colors cursor-col-resize group flex items-center justify-center">
+          <div className="w-0.5 h-8 bg-surface-elevated/50 group-hover:bg-primary-400 rounded-full transition-colors" />
         </PanelResizeHandle>
 
         {/* Pane B */}

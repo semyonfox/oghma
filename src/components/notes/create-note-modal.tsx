@@ -2,6 +2,7 @@
 
 import { FC, useState, useCallback, useRef } from 'react';
 import { XMarkIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface CreateNoteModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   onCreateFolder,
   onUploadFile,
 }) => {
+  const { t } = useI18n();
   const [mode, setMode] = useState<'upload' | 'new' | 'folder'>('new');
   const [isDragging, setIsDragging] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -125,13 +127,13 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h2
-            id="create-note-title"
-            className="text-lg font-semibold text-white"
-          >
-            Create Note
-          </h2>
+         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+           <h2
+             id="create-note-title"
+             className="text-lg font-semibold text-white"
+           >
+             {t('Create Note')}
+           </h2>
           <button
             onClick={onClose}
             disabled={isCreating}
@@ -148,55 +150,55 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
             <button
               onClick={() => setMode('new')}
               disabled={isCreating}
-              className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
-                mode === 'new'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              } disabled:opacity-50`}
-            >
-              File
-            </button>
-            <button
-              onClick={() => setMode('folder')}
-              disabled={isCreating}
-              className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
-                mode === 'folder'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              } disabled:opacity-50`}
-            >
-              Folder
-            </button>
-            <button
-              onClick={() => setMode('upload')}
-              disabled={isCreating}
-              className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
-                mode === 'upload'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              } disabled:opacity-50`}
-            >
-              Upload
-            </button>
+             className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
+                 mode === 'new'
+                   ? 'bg-indigo-600 text-white'
+                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+               } disabled:opacity-50`}
+             >
+               {t('File')}
+             </button>
+             <button
+               onClick={() => setMode('folder')}
+               disabled={isCreating}
+               className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
+                 mode === 'folder'
+                   ? 'bg-indigo-600 text-white'
+                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+               } disabled:opacity-50`}
+             >
+               {t('Folder')}
+             </button>
+             <button
+               onClick={() => setMode('upload')}
+               disabled={isCreating}
+               className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
+                 mode === 'upload'
+                   ? 'bg-indigo-600 text-white'
+                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+               } disabled:opacity-50`}
+             >
+               {t('Upload')}
+             </button>
           </div>
 
           {/* New File Mode */}
-          {mode === 'new' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-400">
-                Create a new markdown file
-              </p>
-            </div>
-          )}
+           {mode === 'new' && (
+             <div className="space-y-4">
+               <p className="text-sm text-gray-400">
+                 {t('Create a new markdown file')}
+               </p>
+             </div>
+           )}
 
-          {/* New Folder Mode */}
-          {mode === 'folder' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-400">
-                Create a new folder to organize your notes
-              </p>
-            </div>
-          )}
+           {/* New Folder Mode */}
+           {mode === 'folder' && (
+             <div className="space-y-4">
+               <p className="text-sm text-gray-400">
+                 {t('Create a new folder to organize your notes')}
+               </p>
+             </div>
+           )}
 
           {/* Upload Mode */}
           {mode === 'upload' && (
@@ -211,18 +213,18 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                   : 'border-gray-600 hover:border-gray-500'
               }`}
             >
-              <CloudArrowUpIcon className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-              <p className="text-sm font-medium text-gray-300 mb-2">
-                Drag and drop your file
-              </p>
-              <p className="text-xs text-gray-500 mb-4">or</p>
-              <button
-                onClick={handleClickUpload}
-                disabled={isCreating}
-                className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors disabled:opacity-50"
-              >
-                Choose File
-              </button>
+               <CloudArrowUpIcon className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+               <p className="text-sm font-medium text-gray-300 mb-2">
+                 {t('Drag and drop your file')}
+               </p>
+               <p className="text-xs text-gray-500 mb-4">{t('or')}</p>
+               <button
+                 onClick={handleClickUpload}
+                 disabled={isCreating}
+                 className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors disabled:opacity-50"
+               >
+                 {t('Choose File')}
+               </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -233,34 +235,34 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            disabled={isCreating}
-            className="px-4 py-2 text-sm text-gray-300 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-          >
-            Close
-          </button>
-          {mode === 'new' && (
-            <button
-              onClick={handleCreateNew}
-              disabled={isCreating}
-              className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
-            >
-              {isCreating ? 'Creating...' : 'Create'}
-            </button>
-          )}
-          {mode === 'folder' && (
-            <button
-              onClick={handleCreateFolder}
-              disabled={isCreating}
-              className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
-            >
-              {isCreating ? 'Creating...' : 'Create'}
-            </button>
-          )}
-        </div>
+         {/* Footer */}
+         <div className="px-6 py-4 border-t border-white/10 flex justify-end gap-2">
+           <button
+             onClick={onClose}
+             disabled={isCreating}
+             className="px-4 py-2 text-sm text-gray-300 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+           >
+             {t('Close')}
+           </button>
+           {mode === 'new' && (
+             <button
+               onClick={handleCreateNew}
+               disabled={isCreating}
+               className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+             >
+               {isCreating ? t('Creating...') : t('Create')}
+             </button>
+           )}
+           {mode === 'folder' && (
+             <button
+               onClick={handleCreateFolder}
+               disabled={isCreating}
+               className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+             >
+               {isCreating ? t('Creating...') : t('Create')}
+             </button>
+           )}
+         </div>
       </div>
     </div>
   );

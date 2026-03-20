@@ -3,19 +3,26 @@
 // Returns an array of strings — each string is one chunk
 
 export const chunkText = (text: string, chunkSize = 500): string[] => {
+    // Handle empty or whitespace-only text
+    if (!text || text.trim().length === 0) {
+        return [];
+    }
+
     const sentences = text.split(/(?<=[.?!])\s+/);
     const chunks: string[] = [];
     let current = '';
 
     for (const sentence of sentences) {
         if ((current + sentence).length > chunkSize) {
-            if (current) chunks.push(current.trim());
+            const trimmed = current.trim();
+            if (trimmed) chunks.push(trimmed);
             current = sentence;
         } else {
             current += ' ' + sentence;
         }
     }
 
-    if (current) chunks.push(current.trim());
+    const finalTrimmed = current.trim();
+    if (finalTrimmed) chunks.push(finalTrimmed);
     return chunks;
 };

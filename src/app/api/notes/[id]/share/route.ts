@@ -112,7 +112,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     console.error('Share note error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to share note' },
+      { error: 'Failed to share note' },
       { status: 500 }
     );
   }

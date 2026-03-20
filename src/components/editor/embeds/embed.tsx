@@ -20,7 +20,7 @@ export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
     }, [href, request]);
 
     if (!data) {
-        return <div className="w-full h-32 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" />;
+        return <div className="w-full h-32 bg-surface-elevated rounded animate-pulse" />;
     }
 
     const html = (data?.oEmbed as any)?.html;

@@ -4,6 +4,7 @@ import { FC, useState, useCallback } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import { useFileUrl } from './use-file-url';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface ImageViewerProps {
   file: FileSpec;
@@ -14,12 +15,13 @@ interface ImageViewerProps {
  * Supports zoom in/out and reset
  */
 const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
-  const [zoom, setZoom] = useState(1);
-  const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const { url: imageSrc, loading } = useFileUrl(file.sourcePath);
+   const { t } = useI18n();
+   const [zoom, setZoom] = useState(1);
+   const [panX, setPanX] = useState(0);
+   const [panY, setPanY] = useState(0);
+   const [isDragging, setIsDragging] = useState(false);
+   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+   const { url: imageSrc, loading } = useFileUrl(file.sourcePath);
 
   const handleZoomIn = useCallback(() => {
     setZoom((z) => Math.min(z + 0.2, 5));
@@ -90,15 +92,15 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
             <MagnifyingGlassPlusIcon className="w-4 h-4" />
           </button>
 
-          {/* Reset */}
-          <div className="w-px h-4 bg-white/10 mx-1" />
-          <button
-            onClick={handleReset}
-            className="p-2 rounded hover:bg-white/10"
-            title="Reset zoom"
-          >
-            <ArrowUturnLeftIcon className="w-4 h-4" />
-          </button>
+           {/* Reset */}
+           <div className="w-px h-4 bg-white/10 mx-1" />
+           <button
+             onClick={handleReset}
+             className="p-2 rounded hover:bg-white/10"
+             title={t('image_viewer.reset_zoom')}
+           >
+             <ArrowUturnLeftIcon className="w-4 h-4" />
+           </button>
         </div>
       </div>
 
@@ -118,16 +120,16 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
             transition: isDragging ? 'none' : 'transform 0.2s ease-out',
           }}
         >
-          {imageSrc ? (
-            <img
-              src={imageSrc}
-              alt={file.title}
-              className="max-w-2xl max-h-96 select-none"
-              onDragStart={(e) => e.preventDefault()}
-            />
-          ) : (
-            <div className="text-sm text-gray-500">{loading ? 'Loading image...' : 'Image unavailable'}</div>
-          )}
+           {imageSrc ? (
+             <img
+               src={imageSrc}
+               alt={file.title}
+               className="max-w-2xl max-h-96 select-none"
+               onDragStart={(e) => e.preventDefault()}
+             />
+           ) : (
+             <div className="text-sm text-gray-500">{loading ? t('image_viewer.loading') : t('image_viewer.unavailable')}</div>
+           )}
         </div>
       </div>
     </div>
