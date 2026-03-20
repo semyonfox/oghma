@@ -3,6 +3,7 @@ import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
+import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
 
 // Constants
@@ -47,20 +48,8 @@ export async function GET(request) {
       notes = notes.slice(skip, end);
     }
     
-    // Map to NoteModel format (rename note_id to id, convert numbers)
-    const mapped = notes.map(note => ({
-      id: note.note_id,
-      title: note.title,
-      content: note.content,
-      isFolder: note.is_folder,
-      s3Key: note.s3_key,
-      deleted: note.deleted,
-      shared: note.shared,
-      pinned: note.pinned,
-      editorsize: null,
-      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
-      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
-    }));
+    // Map to NoteModel format
+    const mapped = notes.map(mapNoteFromDB);
     
     // Filter fields if requested
     const filtered = mapped.map(note => filterNoteFields(note, fields));
