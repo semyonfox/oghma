@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS app.chunks (
 CREATE TABLE IF NOT EXISTS app.embeddings (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chunk_id   UUID NOT NULL REFERENCES app.chunks(id) ON DELETE CASCADE,
-    embedding  vector(1536) NOT NULL
+    embedding  vector(4096) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_user ON app.chunks(user_id);

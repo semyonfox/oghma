@@ -17,7 +17,11 @@
 - Maintain git reflogs/stash as fallback recovery mechanism
 - For complex operations, create temporary commit first, then amend/squash if needed
 
-### 3. Code Changes
+### 3. Package Manager
+- **Use `npm` only** — do not use `pnpm` or `yarn`
+- All install/run commands must use `npm install`, `npm run`, etc.
+
+### 4. Code Changes
 - Never silently drop uncommitted work
 - Always verify file staging status before operations that affect the working tree
 - If unsure about data safety, create a backup branch or stash first
