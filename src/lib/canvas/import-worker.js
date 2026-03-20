@@ -14,12 +14,14 @@
 
 import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
+import { Worker } from 'bullmq';
 import { CanvasClient } from './client.js';
 import { processExtractedText } from './text-processing.js';
 import { chunkText } from '../chunking.ts';
 import { embedChunks } from '../embeddings.ts';
 import { getStorageProvider } from '../storage/init.ts';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
+import { redis } from '../redis.ts';
 
 const PROCESSABLE_TYPES = new Set(['application/pdf']);
 const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
@@ -278,7 +280,7 @@ export async function processImportJob(jobId) {
   }
 }
 
-// ── Worker loop ───────────────────────────────────────────────────────────────
+// ── Worker ────────────────────────────────────────────────────────────────────
 
 // Resets jobs stuck in 'processing' for longer than STUCK_JOB_THRESHOLD.
 async function failStuckJobs() {
@@ -289,39 +291,37 @@ async function failStuckJobs() {
   `;
 }
 
-let lastStuckCheck = 0;
-
-async function runWorker() {
+if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`[${new Date().toISOString()}] Canvas Import Worker started`);
 
-  while (true) {
-    try {
-      if (Date.now() - lastStuckCheck >= STUCK_JOB_CHECK_INTERVAL_MS) {
-        await failStuckJobs();
-        lastStuckCheck = Date.now();
-      }
+  // run stuck-job cleanup once at startup, then every 5 minutes
+  await failStuckJobs();
+  setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 
-      const jobs = await sql`
-        SELECT id FROM app.canvas_import_jobs
-        WHERE status = 'queued'
-        ORDER BY created_at ASC
-        LIMIT 1
-      `;
-
-      if (jobs && jobs.length > 0) {
-        await processImportJob(jobs[0].id);
-      } else {
-        // ~1 in 6 chance = ~every 30 seconds
-        if (Math.random() < 0.17) console.log(`[${new Date().toISOString()}] Worker idle, waiting for jobs...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Worker error:`, error);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+  const worker = new Worker(
+    'canvas-import',
+    async (job) => {
+      const { jobId } = job.data;
+      console.log(`[${new Date().toISOString()}] Processing job: ${jobId}`);
+      await processImportJob(jobId);
+    },
+    {
+      connection: redis,
+      concurrency: 1,      // one import at a time per worker process
+      lockDuration: 5 * 60 * 1000,   // 5 min lock (refresh before timeout)
+      lockRenewTime: 2 * 60 * 1000,  // renew every 2 min
     }
-  }
-}
+  );
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runWorker().catch(console.error);
+  worker.on('completed', (job) => {
+    console.log(`[${new Date().toISOString()}] Job ${job.data.jobId} completed`);
+  });
+
+  worker.on('failed', (job, err) => {
+    console.error(`[${new Date().toISOString()}] Job ${job?.data.jobId} failed:`, err.message);
+  });
+
+  worker.on('error', (err) => {
+    console.error('[worker] BullMQ error:', err.message);
+  });
 }

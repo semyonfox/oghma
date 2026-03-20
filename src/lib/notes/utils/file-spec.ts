@@ -4,6 +4,7 @@ interface FileSource {
   id?: string;
   title?: string | null;
   content?: string | null;
+  s3Key?: string | null;
 }
 
 const PDF_EXTENSIONS = new Set(['pdf']);
@@ -29,11 +30,17 @@ export function inferFileType(title?: string | null): FileType {
 }
 
 export function buildFileSpec(source: FileSource): FileSpec {
+  const fileType = inferFileType(source.title);
+  // for PDFs/media, prefer s3Key over content (Canvas imports store path in s3Key, not content)
+  const sourcePath = fileType !== 'note'
+    ? (source.s3Key || source.content || undefined)
+    : (source.content || undefined);
+
   return {
     fileId: source.id || '',
-    fileType: inferFileType(source.title),
+    fileType,
     title: source.title || undefined,
-    sourcePath: source.content || undefined,
+    sourcePath,
   };
 }
 
