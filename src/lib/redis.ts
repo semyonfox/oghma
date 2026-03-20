@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import Redis, { Cluster } from 'ioredis';
 
 const host = process.env.REDIS_HOST ?? 'localhost';
 const port = parseInt(process.env.REDIS_PORT ?? '6379', 10);
@@ -12,8 +12,8 @@ const redisOptions = {
 };
 
 // cluster mode for ElastiCache Valkey (REDIS_TLS=true), plain Redis for local dev
-export const redis: Redis.Cluster | Redis = tls
-  ? new Redis.Cluster([{ host, port }], {
+export const redis: Cluster | Redis = tls
+  ? new Cluster([{ host, port }], {
       redisOptions,
       slotsRefreshTimeout: 5000,
       clusterRetryStrategy: (times) => Math.min(times * 200, 5000),
