@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
+import { canvasImportQueue } from '@/lib/canvas/queue';
 
 /**
  * POST /api/canvas/import
@@ -62,6 +63,9 @@ export async function POST(request) {
     });
 
     const jobId = job.id;
+
+    // push to BullMQ so the worker picks it up immediately (no 5s poll lag)
+    await canvasImportQueue.add('import', { jobId, userId: user.user_id }, { jobId });
 
     return NextResponse.json({ success: true, queued: true, jobId });
 

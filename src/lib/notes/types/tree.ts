@@ -59,7 +59,9 @@ function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
     if (parentItem) {
         newItems[pid] = {
             ...parentItem,
-            children: [...parentItem.children, id],
+            children: parentItem.children.includes(id)
+                ? parentItem.children
+                : [...parentItem.children, id],
         };
     } else {
         throw new Error(`Parent ID '${pid}' does not refer to a valid item`);

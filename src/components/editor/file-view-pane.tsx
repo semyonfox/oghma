@@ -3,7 +3,7 @@
 import { FC, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import { DocumentIcon, RectangleGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { DocumentIcon, RectangleGroupIcon, XMarkIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 
@@ -21,15 +21,18 @@ interface FileViewPaneProps {
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
    const { t } = useI18n();
-   const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel, paneA, paneB } = useLayoutStore();
+   const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, rightPanelTab, openRightPanelTab, paneA, paneB } = useLayoutStore();
    const paneRef = useRef<HTMLDivElement>(null);
    const [isDragging, setIsDragging] = useState(false);
 
    if (!file || !file.fileId) {
      return (
-       <div className="h-full flex flex-col items-center justify-center text-text-tertiary">
-         <DocumentIcon className="w-12 h-12 mb-4 text-text-tertiary" />
-         <p className="text-sm">{t('file_view_pane.select_file')}</p>
+       <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-2">
+         <DocumentIcon className="w-10 h-10 opacity-30" />
+         <p className="text-sm font-medium text-text-secondary">{t('file_view_pane.select_file')}</p>
+         <p className="text-xs text-text-tertiary max-w-[18rem] text-center leading-relaxed">
+           {t('file_view_pane.select_file_hint')}
+         </p>
        </div>
      );
    }
@@ -127,13 +130,26 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
         <div className="flex items-center gap-1">
           <button
-            onClick={toggleRightPanel}
+            onClick={() => openRightPanelTab('info')}
             className={`p-1.5 rounded transition-colors ${
-              rightPanelOpen ? 'bg-white/8 text-text-secondary' : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
+              rightPanelOpen && rightPanelTab === 'info'
+                ? 'bg-white/8 text-text-secondary'
+                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
             }`}
-            title="Toggle metadata & inspector panel"
+            title="Toggle metadata panel"
           >
             <RectangleGroupIcon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => openRightPanelTab('ai')}
+            className={`p-1.5 rounded transition-colors ${
+              rightPanelOpen && rightPanelTab === 'ai'
+                ? 'bg-indigo-600/20 text-indigo-300'
+                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
+            }`}
+            title="Toggle AI assistant panel"
+          >
+            <CpuChipIcon className="w-4 h-4" />
           </button>
           {pane === 'B' && (
             <button
