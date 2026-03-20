@@ -74,6 +74,6 @@ export async function POST(request) {
             return createErrorResponse('User already exists', 409);
         }
 
-        return createErrorResponse(`Internal server error: ${error.message}`, 500);
+        return createErrorResponse('Internal server error', 500);
     }
 }

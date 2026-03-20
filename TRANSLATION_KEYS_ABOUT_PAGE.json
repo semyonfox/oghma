@@ -1,0 +1,85 @@
+{
+  "about_page_translation_keys": {
+    "hero_section": {
+      "heading": "We're changing the way people learn",
+      "subheading": "OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge."
+    },
+    "mission_section": {
+      "heading": "Our mission",
+      "paragraph_1": "At OghmaNotes, we believe that better note-taking leads to better learning. Our mission is to provide students and professionals with intelligent tools that make capturing, organizing, and retaining information effortless and effective.",
+      "paragraph_2": "Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes adapts to your workflow. With AI-powered insights, seamless Canvas integration, and intuitive organization, we're transforming how the world takes notes and learns."
+    },
+    "statistics_section": {
+      "stat_1_label": "Notes organized daily",
+      "stat_2_label": "Learning time saved",
+      "stat_3_label": "Active learners"
+    },
+    "features_section": {
+      "heading": "Powerful features",
+      "intro": "Everything you need to take better notes and learn more effectively.",
+      "feature_1_title": "AI-Powered Insights",
+      "feature_1_description": "Get intelligent summaries, key takeaways, and smart suggestions as you take notes.",
+      "feature_2_title": "Seamless Canvas Integration",
+      "feature_2_description": "Auto-sync assignments, deadlines, and course materials directly from Canvas.",
+      "feature_3_title": "Smart Organization",
+      "feature_3_description": "Auto-categorize notes, tag content intelligently, and find anything in seconds.",
+      "feature_4_title": "Work Anywhere",
+      "feature_4_description": "Access your notes on desktop, tablet, or phone with full offline support."
+    },
+    "logo_cloud_section": {
+      "heading": "Trusted by students and educators worldwide"
+    },
+    "universities": {
+      "university_1": "Trinity College Dublin",
+      "university_2": "University College Dublin",
+      "university_3": "University College Cork",
+      "university_4": "NUI Galway",
+      "university_5": "Dublin City University"
+    },
+    "team_section": {
+      "heading": "Meet our team",
+      "intro": "We're a dynamic group of individuals who are passionate about what we do and dedicated to delivering the best results for our clients.",
+      "member_1_role": "Full-Stack Developer",
+      "member_1_description": "Full-stack engineer building scalable web applications with modern architectures and robust database design.",
+      "member_2_role": "Full-Stack Developer & Infrastructure",
+      "member_2_description": "Full-stack engineer leading technical strategy, infrastructure management, and performance optimization across the platform.",
+      "member_3_role": "Full-Stack Developer",
+      "member_3_description": "Full-stack engineer contributing across frontend and backend features with focus on code quality and user experience."
+    },
+    "social_links": {
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "facebook": "Facebook",
+      "instagram": "Instagram",
+      "x": "X",
+      "youtube": "YouTube"
+    },
+    "blog_section": {
+      "heading": "From our blog",
+      "intro": "Learn from our experts and community on note-taking, learning, and productivity."
+    },
+    "footer_section": {
+      "nav_label": "Footer",
+      "nav_about": "About",
+      "nav_blog": "Blog",
+      "nav_jobs": "Jobs",
+      "nav_press": "Press",
+      "nav_accessibility": "Accessibility",
+      "nav_partners": "Partners",
+      "copyright": "All rights reserved."
+    }
+  },
+  "total_keys": 48,
+  "summary": {
+    "hero": 2,
+    "mission": 3,
+    "statistics": 3,
+    "features": 9,
+    "logo_cloud": 1,
+    "universities": 5,
+    "team": 9,
+    "social": 6,
+    "blog": 2,
+    "footer": 8
+  }
+}

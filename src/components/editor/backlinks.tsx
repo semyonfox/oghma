@@ -20,15 +20,15 @@ const Backlinks: FC = () => {
 
     return (
         <div className="mb-40">
-            <h4 className="text-xs px-2 text-neutral-400">
+            <h4 className="text-xs px-2 text-text-tertiary">
                 {t('Linked to this page')}
             </h4>
-            <ul className="bg-gray-100 dark:bg-gray-800 mt-2 rounded-lg overflow-hidden">
+            <ul className="bg-surface mt-2 rounded-lg overflow-hidden">
                 {backlinks?.map((link) => (
                     <li key={link.id}>
                         <Link href={link.id} shallow>
                             <a
-                                className="p-2 flex items-center hover:bg-gray-200 dark:hover:bg-gray-700 truncate transition-transform ease-linear"
+                                className="p-2 flex items-center hover:bg-surface-elevated truncate transition-colors"
                                 onMouseEnter={onHoverLink}
                             >
                                 <IconButton

@@ -1,19 +1,23 @@
+'use client'
+
 import { CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/20/solid'
 import Link from 'next/link'
 import Header from '@/components/header'
 import Footer from '@/components/footer'
 import { blogPostsBySlug } from '@/lib/blog-data'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export default function BlogPost({ params }) {
+  const { t } = useI18n()
   const post = blogPostsBySlug[params.slug]
 
   if (!post) {
     return (
       <div className="bg-gray-900 px-6 py-32 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold text-white">Post not found</h1>
+          <h1 className="text-4xl font-semibold text-white">{t('blog.postNotFound')}</h1>
           <Link href="/blog" className="mt-6 text-indigo-400 hover:text-indigo-300">
-            Back to all posts
+            {t('blog.backToPosts')}
           </Link>
         </div>
       </div>
@@ -27,9 +31,9 @@ export default function BlogPost({ params }) {
         <div className="mx-auto max-w-3xl text-base/7 text-gray-300">
           <div className="mb-8 border-b border-white/10 pb-8">
             <Link href="/blog" className="text-sm text-indigo-400 hover:text-indigo-300 mb-4 inline-block">
-              ← Back to all posts
+              {t('blog.backToPostsArrow')}
             </Link>
-            <p className="text-base/7 font-semibold text-indigo-400">Article</p>
+            <p className="text-base/7 font-semibold text-indigo-400">{t('blog.articleLabel')}</p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{post.title}</h1>
             <div className="mt-6 flex items-center gap-x-4 text-sm text-gray-400">
               <a
@@ -89,19 +93,18 @@ export default function BlogPost({ params }) {
             <img alt="" src={post.imageUrl} className="aspect-video rounded-xl bg-gray-800 object-cover" />
             <figcaption className="mt-4 flex gap-x-2 text-sm/6 text-gray-400">
               <InformationCircleIcon aria-hidden="true" className="mt-0.5 size-5 flex-none text-gray-600" />
-              Featured image for {post.title}
+              {t('blog.featuredImageFor')} {post.title}
             </figcaption>
           </figure>
 
           <div className="mt-16 max-w-2xl text-gray-400 border-t border-white/10 pt-8">
-            <h2 className="text-3xl font-semibold tracking-tight text-pretty text-white">Start using OghmaNotes today</h2>
+            <h2 className="text-3xl font-semibold tracking-tight text-pretty text-white">{t('blog.cta.title')}</h2>
             <p className="mt-6">
-              Ready to transform your learning? Join thousands of students already using OghmaNotes to improve their grades
-              and study more efficiently.
+              {t('blog.cta.description')}
             </p>
             <div className="mt-8">
               <Link href="/register" className="rounded-md bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600">
-                Get Started
+                {t('blog.cta.button')}
               </Link>
             </div>
           </div>

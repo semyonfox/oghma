@@ -83,7 +83,7 @@ const ShareModal: FC = () => {
       
       {/* Popover */}
       <div
-        className="fixed z-50 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-lg shadow-xl border border-neutral-200 dark:border-neutral-700"
+        className="fixed z-50 bg-surface text-text-secondary rounded-lg shadow-xl border border-border"
         style={{ top, left }}
       >
         <section className="p-4 min-w-80">
@@ -97,16 +97,16 @@ const ShareModal: FC = () => {
             />
             <div className="flex-1">
               <h2 className="text-sm font-medium">{t('Share to web')}</h2>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-text-tertiary">
                 {t('Anyone can visit the page via the link')}
               </p>
             </div>
           </div>
 
           {/* Share URL Input */}
-          <div className="flex items-center border border-neutral-300 dark:border-neutral-600 rounded overflow-hidden">
+          <div className="flex items-center border border-border rounded overflow-hidden">
             <input
-              className="flex-1 px-2 py-1 outline-none bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white text-sm"
+              className="flex-1 px-2 py-1 outline-none bg-surface-elevated text-text-secondary text-sm"
               value={shareUrl}
               readOnly
             />
@@ -122,7 +122,7 @@ const ShareModal: FC = () => {
                 onClick={handleCopy}
               />
               {copied && (
-                <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs font-medium text-white bg-neutral-700 rounded whitespace-nowrap pointer-events-none">
+                <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs font-medium text-text-secondary bg-surface rounded whitespace-nowrap pointer-events-none">
                   {t('Copied!')}
                 </div>
               )}

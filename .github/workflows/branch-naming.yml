@@ -1,0 +1,25 @@
+name: Branch Naming Check
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  branch-naming:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch name
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          VALID_PATTERNS="^(feature|bugfix|hotfix|chore|docs|refactor|test)\/[a-z0-9\-]+$"
+          
+          if ! [[ $BRANCH_NAME =~ $VALID_PATTERNS ]]; then
+            echo "❌ Invalid branch name: $BRANCH_NAME"
+            echo "Expected format: {feature|bugfix|hotfix|chore|docs|refactor|test}/name-with-dashes"
+            echo "Examples:"
+            echo "  - feature/add-canvas-integration"
+            echo "  - bugfix/fix-pdf-viewer"
+            echo "  - hotfix/critical-auth-issue"
+            exit 1
+          fi
+          echo "✅ Branch name follows convention: $BRANCH_NAME"

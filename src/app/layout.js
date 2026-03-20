@@ -1,4 +1,5 @@
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
+import CanvasIntegration from "@/components/CanvasIntegration";
 import "./globals.css";
 // Import react-pdf styles globally so they're available for all PDF viewers
 import "react-pdf/dist/Page/TextLayer.css";
@@ -19,6 +20,7 @@ export default function RootLayout({ children }) {
             </head>
             <body className="font-sans antialiased bg-background text-text">
                 <I18nRootProvider>
+                    <CanvasIntegration />
                     {children}
                 </I18nRootProvider>
             </body>

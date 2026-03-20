@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 export default function ForgotPasswordPage() {
+    const { t } = useI18n();
     const [email, setEmail] = useState('');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function ForgotPasswordPage() {
             const data = await res.json();
             setMessage(data.message);
         } catch (err) {
-            setMessage('An error occurred. Please try again.');
+            setMessage(t('An error occurred. Please try again.'));
         }
 
         setLoading(false);
@@ -29,22 +31,22 @@ export default function ForgotPasswordPage() {
 
     return (
         <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
-            <h1>Forgot Password</h1>
+            <h1>{t('Forgot Password')}</h1>
             <p style={{ marginBottom: '20px', color: '#666' }}>
-                Enter your email address and we'll send you a link to reset your password.
+                {t('Enter your email address and we\'ll send you a link to reset your password.')}
             </p>
 
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '15px' }}>
                     <label htmlFor="email" style={{ display: 'block', marginBottom: '5px' }}>
-                        Email Address
+                        {t('Email Address')}
                     </label>
                     <input
                         id="email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Enter your email"
+                        placeholder={t('Enter your email')}
                         required
                         style={{ width: '100%', padding: '10px', fontSize: '16px' }}
                     />
@@ -64,7 +66,7 @@ export default function ForgotPasswordPage() {
                         cursor: loading ? 'not-allowed' : 'pointer'
                     }}
                 >
-                    {loading ? 'Sending...' : 'Send Reset Link'}
+                    {loading ? t('Sending...') : t('Send Reset Link')}
                 </button>
             </form>
 
@@ -75,7 +77,7 @@ export default function ForgotPasswordPage() {
             )}
 
             <p style={{ marginTop: '20px', textAlign: 'center' }}>
-                <a href="/login" style={{ color: '#0070f3' }}>Back to Login</a>
+                <a href="/login" style={{ color: '#0070f3' }}>{t('Back to Login')}</a>
             </p>
         </div>
     );
