@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { embedChunks } from '@/lib/embeddings';
+import { getOpenWebUIToken, invalidateToken } from '@/lib/openwebuiAuth';
 import sql from '@/database/pgsql.js';
 
 interface ChatMessage {
@@ -97,27 +98,26 @@ async function callLLM(
     userMessage: string
 ): Promise<string> {
     const apiUrl = process.env.LLM_API_URL;
-    const apiKey = process.env.LLM_API_KEY;
-    const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+    const model = process.env.LLM_MODEL || 'qwen3:8b';
 
     if (!apiUrl) {
         throw new Error('LLM_API_URL not configured');
     }
 
+    const token = await getOpenWebUIToken();
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
-        ...history.slice(-8), // keep last 8 turns to avoid token overflow
+        ...history.slice(-8),
         { role: 'user', content: userMessage },
     ];
 
     const res = await fetch(`${apiUrl}/api/chat/completions`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ model, messages, temperature: 0.4, max_tokens: 1024 }),
     });
+
+    if (res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
 
     if (!res.ok) {
         const text = await res.text();
