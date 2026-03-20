@@ -7,7 +7,7 @@ const tls = process.env.REDIS_TLS === 'true';
 const redisOptions = {
   tls: tls ? {} : undefined,
   enableReadyCheck: false,
-  maxRetriesPerRequest: null as null, // required by BullMQ
+  maxRetriesPerRequest: null as null,
   keepAlive: 30000,
 };
 

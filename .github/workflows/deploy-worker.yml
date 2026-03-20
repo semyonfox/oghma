@@ -1,0 +1,52 @@
+name: Deploy Canvas Import Worker
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'src/lib/canvas/**'
+      - 'src/lib/chunking.ts'
+      - 'src/lib/embeddings.ts'
+      - 'src/lib/storage/**'
+      - 'src/lib/sqs.ts'
+      - 'src/database/**'
+      - 'Dockerfile.worker'
+      - 'package.json'
+      - 'package-lock.json'
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REPO: 949642303654.dkr.ecr.eu-north-1.amazonaws.com/oghmanotes-worker
+  COMMIT_SHA: ${{ github.sha }}
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::949642303654:role/github-actions-oghma
+          aws-region: eu-north-1
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        run: |
+          docker build -f Dockerfile.worker -t oghmanotes-worker .
+          docker tag oghmanotes-worker:latest "$ECR_REPO:latest"
+          docker tag oghmanotes-worker:latest "$ECR_REPO:$COMMIT_SHA"
+          docker push "$ECR_REPO:latest"
+          docker push "$ECR_REPO:$COMMIT_SHA"
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster oghmanotes \
+            --service canvas-import-worker \
+            --force-new-deployment \
+            --region eu-north-1
