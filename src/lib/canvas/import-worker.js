@@ -14,14 +14,13 @@
 
 import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
-import { Worker } from 'bullmq';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { CanvasClient } from './client.js';
 import { processExtractedText } from './text-processing.js';
 import { chunkText } from '../chunking.ts';
 import { embedChunks } from '../embeddings.ts';
 import { getStorageProvider } from '../storage/init.ts';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
-import { redis } from '../redis.ts';
 
 const PROCESSABLE_TYPES = new Set(['application/pdf']);
 const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
@@ -291,37 +290,56 @@ async function failStuckJobs() {
   `;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log(`[${new Date().toISOString()}] Canvas Import Worker started`);
+// ── SQS polling ──────────────────────────────────────────────────────────────
 
-  // run stuck-job cleanup once at startup, then every 5 minutes
+const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+const QUEUE_URL = process.env.SQS_QUEUE_URL;
+
+const MAX_CONCURRENT_JOBS = 3;
+
+async function processAndDelete(message) {
+  const { jobId } = JSON.parse(message.Body);
+  console.log(`[${new Date().toISOString()}] Received job: ${jobId}`);
+  await processImportJob(jobId);
+  await sqsClient.send(new DeleteMessageCommand({
+    QueueUrl: QUEUE_URL,
+    ReceiptHandle: message.ReceiptHandle,
+  }));
+  console.log(`[${new Date().toISOString()}] Job done, message deleted: ${jobId}`);
+}
+
+async function pollQueue() {
+  const res = await sqsClient.send(new ReceiveMessageCommand({
+    QueueUrl: QUEUE_URL,
+    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+    WaitTimeSeconds: 20,
+    VisibilityTimeout: 3600,
+  }));
+
+  const messages = res.Messages ?? [];
+  if (messages.length === 0) return;
+
+  // process up to 3 jobs concurrently — SQS visibility timeout prevents duplicates
+  const results = await Promise.allSettled(messages.map(processAndDelete));
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(`[${new Date().toISOString()}] Job processing error:`, result.reason?.message);
+    }
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  console.log(`[${new Date().toISOString()}] Canvas Import Worker started (SQS mode)`);
+
   await failStuckJobs();
   setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 
-  const worker = new Worker(
-    'canvas-import',
-    async (job) => {
-      const { jobId } = job.data;
-      console.log(`[${new Date().toISOString()}] Processing job: ${jobId}`);
-      await processImportJob(jobId);
-    },
-    {
-      connection: redis,
-      concurrency: 1,      // one import at a time per worker process
-      lockDuration: 5 * 60 * 1000,   // 5 min lock (refresh before timeout)
-      lockRenewTime: 2 * 60 * 1000,  // renew every 2 min
+  while (true) {
+    try {
+      await pollQueue();
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
+      await new Promise(r => setTimeout(r, 5000));
     }
-  );
-
-  worker.on('completed', (job) => {
-    console.log(`[${new Date().toISOString()}] Job ${job.data.jobId} completed`);
-  });
-
-  worker.on('failed', (job, err) => {
-    console.error(`[${new Date().toISOString()}] Job ${job?.data.jobId} failed:`, err.message);
-  });
-
-  worker.on('error', (err) => {
-    console.error('[worker] BullMQ error:', err.message);
-  });
+  }
 }
