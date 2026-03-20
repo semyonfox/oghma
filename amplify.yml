@@ -18,6 +18,7 @@ env:
     LLM_MODEL: $LLM_MODEL
     EMBEDDING_API_URL: $EMBEDDING_API_URL
     EMBEDDING_MODEL: $EMBEDDING_MODEL
+    SQS_QUEUE_URL: $SQS_QUEUE_URL
 frontend:
   phases:
     preBuild:
@@ -41,6 +42,7 @@ frontend:
         - echo "LLM_MODEL=$LLM_MODEL" >> .env.production
         - echo "EMBEDDING_API_URL=$EMBEDDING_API_URL" >> .env.production
         - echo "EMBEDDING_MODEL=$EMBEDDING_MODEL" >> .env.production
+        - echo "SQS_QUEUE_URL=$SQS_QUEUE_URL" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
