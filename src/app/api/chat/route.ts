@@ -110,7 +110,7 @@ async function callLLM(
         { role: 'user', content: userMessage },
     ];
 
-    const res = await fetch(`${apiUrl}/chat/completions`, {
+    const res = await fetch(`${apiUrl}/api/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
