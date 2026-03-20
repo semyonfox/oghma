@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
-import { canvasImportQueue } from '@/lib/canvas/queue';
+import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
 /**
  * POST /api/canvas/import
@@ -64,8 +65,17 @@ export async function POST(request) {
 
     const jobId = job.id;
 
-    // push to BullMQ so the worker picks it up immediately (no 5s poll lag)
-    await canvasImportQueue.add('import', { jobId, userId: user.user_id }, { jobId });
+    // send to SQS so the worker picks it up (long-poll latency ~0-20s)
+    try {
+      await sqsClient.send(new SendMessageCommand({
+        QueueUrl: CANVAS_IMPORT_QUEUE_URL,
+        MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+      }));
+    } catch (sqsErr) {
+      // SQS send failed but the Postgres job record exists —
+      // worker safety-net poll will pick it up, so don't fail the request
+      console.error('SQS send failed (job still queued in DB):', sqsErr.message);
+    }
 
     return NextResponse.json({ success: true, queued: true, jobId });
 
