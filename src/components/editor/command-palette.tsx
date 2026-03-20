@@ -3,6 +3,7 @@
 import { FC, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useShortcut } from '@/lib/notes/hooks/use-keyboard-shortcut';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface CommandItem {
   id: string;
@@ -25,14 +26,15 @@ interface CommandPaletteProps {
  * Provides fuzzy search over commands, notes, and recent items
  */
 export const CommandPalette: FC<CommandPaletteProps> = ({
-  isOpen: controlledIsOpen = false,
-  onClose,
-  notes = [],
-  onNoteSelect,
-}) => {
-  const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+   isOpen: controlledIsOpen = false,
+   onClose,
+   notes = [],
+   onNoteSelect,
+ }) => {
+   const { t } = useI18n();
+   const [query, setQuery] = useState('');
+   const [selectedIndex, setSelectedIndex] = useState(0);
+   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClose = useCallback(() => {
     setQuery('');
@@ -41,77 +43,77 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   }, [onClose]);
 
   // Built-in commands
-  const commands: CommandItem[] = useMemo(
-    () => [
-      {
-        id: 'new-note',
-        title: 'Create New Note',
-        description: 'Start a fresh note',
-        category: 'command',
-        icon: '📝',
-        action: () => {
-          console.log('Create new note');
-          onClose?.();
-        },
-      },
-      {
-        id: 'new-folder',
-        title: 'Create New Folder',
-        description: 'Organize your notes',
-        category: 'command',
-        icon: '📁',
-        action: () => {
-          console.log('Create new folder');
-          onClose?.();
-        },
-      },
-      {
-        id: 'search-notes',
-        title: 'Search Notes',
-        description: 'Find notes by content',
-        category: 'command',
-        icon: '🔍',
-        action: () => {
-          console.log('Search notes');
-          onClose?.();
-        },
-      },
-      {
-        id: 'generate-quiz',
-        title: 'Generate Quiz',
-        description: 'Create practice questions',
-        category: 'command',
-        icon: '📋',
-        action: () => {
-          console.log('Generate quiz');
-          onClose?.();
-        },
-      },
-      {
-        id: 'export-note',
-        title: 'Export Note',
-        description: 'Save as PDF or HTML',
-        category: 'command',
-        icon: '📤',
-        action: () => {
-          console.log('Export note');
-          onClose?.();
-        },
-      },
-      {
-        id: 'settings',
-        title: 'Settings',
-        description: 'Open preferences',
-        category: 'command',
-        icon: '⚙️',
-        action: () => {
-          console.log('Open settings');
-          onClose?.();
-        },
-      },
-    ],
-    [onClose]
-  );
+   const commands: CommandItem[] = useMemo(
+     () => [
+       {
+         id: 'new-note',
+         title: t('command_palette.create_new_note.title'),
+         description: t('command_palette.create_new_note.description'),
+         category: 'command',
+         icon: '📝',
+         action: () => {
+           console.log('Create new note');
+           onClose?.();
+         },
+       },
+       {
+         id: 'new-folder',
+         title: t('command_palette.create_new_folder.title'),
+         description: t('command_palette.create_new_folder.description'),
+         category: 'command',
+         icon: '📁',
+         action: () => {
+           console.log('Create new folder');
+           onClose?.();
+         },
+       },
+       {
+         id: 'search-notes',
+         title: t('command_palette.search_notes.title'),
+         description: t('command_palette.search_notes.description'),
+         category: 'command',
+         icon: '🔍',
+         action: () => {
+           console.log('Search notes');
+           onClose?.();
+         },
+       },
+       {
+         id: 'generate-quiz',
+         title: t('command_palette.generate_quiz.title'),
+         description: t('command_palette.generate_quiz.description'),
+         category: 'command',
+         icon: '📋',
+         action: () => {
+           console.log('Generate quiz');
+           onClose?.();
+         },
+       },
+       {
+         id: 'export-note',
+         title: t('command_palette.export_note.title'),
+         description: t('command_palette.export_note.description'),
+         category: 'command',
+         icon: '📤',
+         action: () => {
+           console.log('Export note');
+           onClose?.();
+         },
+       },
+       {
+         id: 'settings',
+         title: t('command_palette.settings.title'),
+         description: t('command_palette.settings.description'),
+         category: 'command',
+         icon: '⚙️',
+         action: () => {
+           console.log('Open settings');
+           onClose?.();
+         },
+       },
+     ],
+     [onClose, t]
+   );
 
   // Convert notes to command items
   const noteItems: CommandItem[] = useMemo(
@@ -233,9 +235,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                 setQuery(e.target.value);
                 setSelectedIndex(0);
               }}
-              placeholder="Search commands, notes, or actions..."
-              className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
-            />
+              placeholder={t('command_palette.search_placeholder')}
+               className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
+             />
             <button
               onClick={handleClose}
               className="text-gray-500 hover:text-gray-400 transition-colors"
@@ -276,19 +278,19 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                 </button>
               ))}
             </div>
-          ) : query.trim() ? (
-            <div className="px-4 py-8 text-center text-gray-500">
-              <p>No commands or notes found for "{query}"</p>
-              <p className="text-xs mt-2">Try a different search term</p>
-            </div>
-          ) : null}
+           ) : query.trim() ? (
+             <div className="px-4 py-8 text-center text-gray-500">
+               <p>{t('command_palette.no_results', { query })}</p>
+               <p className="text-xs mt-2">{t('command_palette.try_different_search')}</p>
+             </div>
+           ) : null}
 
-          {/* Help text */}
-          <div className="border-t border-gray-700 px-4 py-2 bg-gray-900/50 text-xs text-gray-600">
-            <span>↑ ↓ to navigate</span>
-            <span className="ml-4">Enter to select</span>
-            <span className="ml-4">Esc to close</span>
-          </div>
+           {/* Help text */}
+           <div className="border-t border-gray-700 px-4 py-2 bg-gray-900/50 text-xs text-gray-600">
+             <span>{t('command_palette.help_navigate')}</span>
+             <span className="ml-4">{t('command_palette.help_select')}</span>
+             <span className="ml-4">{t('command_palette.help_close')}</span>
+           </div>
         </div>
       </div>
     </div>

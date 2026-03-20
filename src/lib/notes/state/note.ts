@@ -163,21 +163,21 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     },
 
     createNote: async (body: Partial<NoteModel>) => {
-        const state = get();
-        const { noteAPI, treeStore, toast } = state;
-        
-        // Guard: dependencies must be initialized
-        if (!noteAPI || !treeStore) {
-            console.warn('noteAPI or treeStore not initialized yet');
-            return;
-        }
-        
-        const result = await noteAPI.create(body);
+         const state = get();
+         const { noteAPI, treeStore, toast } = state;
+         
+         // Guard: dependencies must be initialized
+         if (!noteAPI || !treeStore) {
+             console.warn('noteAPI or treeStore not initialized yet');
+             return;
+         }
+         
+         const result = await noteAPI.create(body);
 
-        if (!result) {
-            toast(noteAPI.error, 'error');
-            return;
-        }
+         if (!result) {
+             toast(noteAPI.error || 'Failed to create note', 'error');
+             return;
+         }
 
         result.content = result.content || '\n';
         await noteCache.setItem(result.id, result);
@@ -223,25 +223,26 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
         return result;
     },
 
-    createNoteWithTitle: async (title: NoteModel['title']) => {
-        const state = get();
-        const { noteAPI, treeStore } = state;
-        
-        // Guard: dependencies must be initialized
-        if (!noteAPI || !treeStore) {
-            console.warn('noteAPI or treeStore not initialized yet');
-            return;
-        }
-        
-        const id = treeStore.getState().genNewId();
-        const result = await noteAPI.create({
-            id,
-            title,
-        });
+     createNoteWithTitle: async (title: NoteModel['title']) => {
+         const state = get();
+         const { noteAPI, treeStore, toast } = state;
+         
+         // Guard: dependencies must be initialized
+         if (!noteAPI || !treeStore) {
+             console.warn('noteAPI or treeStore not initialized yet');
+             return;
+         }
+         
+         const id = treeStore.getState().genNewId();
+         const result = await noteAPI.create({
+             id,
+             title,
+         });
 
-        if (!result) {
-            return;
-        }
+         if (!result) {
+             toast(noteAPI.error || 'Failed to create note', 'error');
+             return;
+         }
 
         result.content = result.content || '\n';
         await noteCache.setItem(result.id, result);
@@ -251,36 +252,23 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     },
 
     /**
-     * TODO: merge with mutateNote
+     * Convenience wrapper around mutateNote for updating the currently active note
+     * Prevents accidental content overwrites by filtering out content field
      */
     updateNote: async (data: Partial<NoteModel>) => {
         const state = get();
-        const { noteAPI, treeStore, toast } = state;
-        const currentNote = get().note;
-
-        // Guard: noteAPI must be initialized
-        if (!noteAPI) {
-            console.warn('noteAPI not initialized yet');
-            return;
-        }
-
-        noteAPI.abort();
+        const currentNote = state.note;
 
         if (!currentNote?.id) {
-            toast('Not found id', 'error');
+            console.warn('No active note to update');
             return;
         }
-        const newNote = {
-            ...currentNote,
-            ...data,
-        };
-        delete newNote.content;
-        set({ note: newNote });
-        await treeStore.getState().mutateItem(newNote.id, {
-            data: newNote,
-        });
-        await noteAPI.mutate(currentNote.id, data);
-        await noteCache.mutateItem(currentNote.id, data);
+
+        // Remove content field to prevent accidental overwrites (e.g., in share-modal)
+        const { content, ...safeData } = data;
+
+        // Delegate to the main mutateNote function
+        await get().mutateNote(currentNote.id, safeData);
     },
 
     initNote: (note: Partial<NoteModel>) => {

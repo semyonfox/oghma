@@ -44,7 +44,8 @@ export async function GET(request: Request) {
             ti.note_id as id,
             n.title,
             n.is_folder as "isFolder",
-            ti.is_expanded as "isExpanded"
+            ti.is_expanded as "isExpanded",
+            n.s3_key as "s3Key"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
             ti.note_id as id,
             n.title,
             n.is_folder as "isFolder",
-            ti.is_expanded as "isExpanded"
+            ti.is_expanded as "isExpanded",
+            n.s3_key as "s3Key"
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -75,6 +77,7 @@ export async function GET(request: Request) {
         title: row.title,
         isFolder: row.isFolder,
         isExpanded: row.isExpanded,
+        s3Key: row.s3Key || null,
       })),
     });
   } catch (error) {

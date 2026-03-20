@@ -30,16 +30,17 @@ const MenuButton: FC = () => {
         [sidebar]
     );
 
+    const { t } = useI18n();
     return (
-        <button
-            onClick={onToggle}
-            className="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 active:bg-neutral-300 dark:active:bg-neutral-600 transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Toggle sidebar"
-            title="Toggle sidebar"
-        >
-            <Bars3Icon className="w-5 h-5" aria-hidden="true" />
-        </button>
-    );
+         <button
+             onClick={onToggle}
+             className="p-2 rounded hover:bg-surface-elevated active:bg-surface-elevated transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+             aria-label={t('Toggle sidebar')}
+             title={t('Toggle sidebar')}
+         >
+             <Bars3Icon className="w-5 h-5" aria-hidden="true" />
+         </button>
+     );
 };
 
 const NoteNav: FC = () => {
@@ -118,7 +119,7 @@ const NoteNav: FC = () => {
             style={{
                 width: ua?.isMobileOnly ? '100%' : 'inherit',
             }}
-            aria-label="Note actions and navigation"
+            aria-label={t('Note actions and navigation')}
         >
             {ua?.isMobileOnly && <MenuButton />}
 
@@ -130,16 +131,16 @@ const NoteNav: FC = () => {
                              homeHref="/"
                              pages={breadcrumbPages}
                          />
-                        {!isShown && (
-                            <button
-                                onClick={handleClickOpenInTree}
-                                className="inline-flex ml-2 p-0.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                title={t('Show note in tree')}
-                                aria-label={t('Show note in tree')}
-                            >
-                                 <EyeIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
-                            </button>
-                        )}
+                         {!isShown && (
+                             <button
+                                 onClick={handleClickOpenInTree}
+                                 className="inline-flex ml-2 p-0.5 rounded hover:bg-surface-elevated transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                 title={t('Reveal in sidebar')}
+                                 aria-label={t('Reveal in sidebar')}
+                             >
+                                   <EyeIcon className="w-4 h-4 text-text-tertiary" aria-hidden="true" />
+                             </button>
+                         )}
                     </>
                 )}
             </div>
@@ -150,14 +151,14 @@ const NoteNav: FC = () => {
                     loading ? 'opacity-100' : 'opacity-0'
                 }`}
             >
-                <div className="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
             </div>
 
             {/* action buttons */}
             <button
                 onClick={handleClickShare}
                 disabled={!note}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="p-1 rounded hover:bg-surface-elevated transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Share page')}
                 aria-label={t('Share page')}
             >
@@ -165,7 +166,7 @@ const NoteNav: FC = () => {
                     className={`w-4 h-4 ${
                         note?.shared === NOTE_SHARED.PUBLIC
                             ? 'text-indigo-500'
-                            : 'text-gray-400'
+                            : 'text-text-tertiary'
                     }`}
                     aria-hidden="true"
                 />
@@ -173,21 +174,21 @@ const NoteNav: FC = () => {
 
             <button
                 onClick={handleClickEditorWidth}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="p-1 rounded hover:bg-surface-elevated transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Editor width')}
                 aria-label={t('Editor width')}
             >
-                <ArrowsPointingOutIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                <ArrowsPointingOutIcon className="w-4 h-4 text-text-tertiary" aria-hidden="true" />
             </button>
 
             <button
                 disabled={!note}
                 onClick={handleClickMenu}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="p-1 rounded hover:bg-surface-elevated transition-colors shrink-0 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 title={t('Settings')}
                 aria-label={t('Settings')}
             >
-                <EllipsisHorizontalIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                <EllipsisHorizontalIcon className="w-4 h-4 text-text-tertiary" aria-hidden="true" />
             </button>
         </nav>
     );
