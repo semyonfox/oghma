@@ -9,7 +9,6 @@ import {
 import { MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
 import LanguageSelector from '@/components/common/LanguageSelector'
 import CanvasIntegration from '@/components/settings/canvas-integration'
-import CanvasImportStatus from '@/components/CanvasImportStatus'
 import useI18n from '@/lib/notes/hooks/use-i18n'
 import { useSettingsStore } from '@/lib/notes/state/ui/settings'
 import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings'
@@ -722,11 +721,6 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="text-sm/6 font-medium text-text mb-4">{t('Connect Canvas Account')}</h3>
                     <CanvasIntegration />
-                  </div>
-                  
-                  <div className="border-t border-white/10 pt-8">
-                    <h3 className="text-sm/6 font-medium text-text mb-4">{t('Import Status')}</h3>
-                    <CanvasImportStatus />
                   </div>
                 </div>
               </div>
