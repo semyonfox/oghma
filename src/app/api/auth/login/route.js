@@ -14,8 +14,7 @@ import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
-import {isRateLimited, recordFailedAttempt, clearFailedAttempts} from "@/lib/rateLimit.js";
-import {isAccountLocked, recordFailedLogin, clearFailedLogins, getLockoutMinutesRemaining} from "@/lib/accountLockout.js";
+import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/rateLimit.js";
 
 export async function POST(request) {
     try {
@@ -60,7 +59,6 @@ export async function POST(request) {
         if (!user) {
             // Record failed attempt for security tracking
             recordFailedAttempt(email);
-            recordFailedLogin(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
@@ -85,13 +83,11 @@ export async function POST(request) {
         if (!matchingPassword) {
             // Record failed attempt for security tracking
             recordFailedAttempt(email);
-            recordFailedLogin(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
         // 7. Successful login - clear failed attempt counters
         clearFailedAttempts(email);
-        clearFailedLogins(email);
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
         const sessionResponse = await createAuthSession(user, 1);
@@ -111,7 +107,7 @@ export async function POST(request) {
             detail: error.detail,
             stack: error.stack
         });
-        return createErrorResponse(`Internal server error: ${error.message}`, 500);
+        return createErrorResponse('Internal server error', 500);
     }
 }
 
