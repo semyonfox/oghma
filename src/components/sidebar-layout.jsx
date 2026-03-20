@@ -3,9 +3,70 @@
 import { useState } from 'react'
 import { Dialog, DialogBackdrop, DialogPanel, TransitionChild } from '@headlessui/react'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
+}
+
+function TeamsSection({ teams, onNavigateItem }) {
+  const { t } = useI18n()
+  return (
+    <>
+      <div className="text-xs/6 font-semibold text-gray-400">{t('Your teams')}</div>
+      <ul role="list" className="-mx-2 mt-2 space-y-1">
+        {teams.map((team) => (
+          <li key={team.name}>
+            <a
+              href={team.href}
+              onClick={(e) => {
+                e.preventDefault()
+                onNavigateItem(team)
+              }}
+              className={classNames(
+                team.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
+                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+              )}
+            >
+              <span
+                className={classNames(
+                  team.current
+                    ? 'border-white/20 text-white'
+                    : 'border-white/10 text-gray-400 group-hover:border-white/20 group-hover:text-white',
+                  'flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium',
+                )}
+              >
+                {team.initial}
+              </span>
+              <span className="truncate">{team.name}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function ProfileSection({ userProfile, onProfileClick }) {
+  const { t } = useI18n()
+  return (
+    <li className="-mx-6 mt-auto">
+      <button
+        onClick={onProfileClick}
+        className="w-full flex items-center gap-x-4 px-6 py-3 text-sm/6 font-semibold text-white hover:bg-white/5 transition-colors"
+      >
+        {userProfile.avatar && (
+          <img
+            alt={userProfile.name}
+            src={userProfile.avatar}
+            className="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10"
+          />
+        )}
+        <span className="sr-only">{t('Your profile')}</span>
+        <span aria-hidden="true">{userProfile.name}</span>
+      </button>
+    </li>
+  )
 }
 
 function SidebarContent({
@@ -73,57 +134,13 @@ function SidebarContent({
           {/* Teams Section */}
           {teams.length > 0 && (
             <li>
-              <div className="text-xs/6 font-semibold text-gray-400">Your teams</div>
-              <ul role="list" className="-mx-2 mt-2 space-y-1">
-                {teams.map((team) => (
-                  <li key={team.name}>
-                    <a
-                      href={team.href}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        onNavigateItem(team)
-                      }}
-                      className={classNames(
-                        team.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
-                        'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
-                      )}
-                    >
-                      <span
-                        className={classNames(
-                          team.current
-                            ? 'border-white/20 text-white'
-                            : 'border-white/10 text-gray-400 group-hover:border-white/20 group-hover:text-white',
-                          'flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium',
-                        )}
-                      >
-                        {team.initial}
-                      </span>
-                      <span className="truncate">{team.name}</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+              <TeamsSection teams={teams} onNavigateItem={onNavigateItem} />
             </li>
           )}
 
           {/* User Profile */}
           {userProfile && (
-            <li className="-mx-6 mt-auto">
-              <button
-                onClick={onProfileClick}
-                className="w-full flex items-center gap-x-4 px-6 py-3 text-sm/6 font-semibold text-white hover:bg-white/5 transition-colors"
-              >
-                {userProfile.avatar && (
-                  <img
-                    alt={userProfile.name}
-                    src={userProfile.avatar}
-                    className="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10"
-                  />
-                )}
-                <span className="sr-only">Your profile</span>
-                <span aria-hidden="true">{userProfile.name}</span>
-              </button>
-            </li>
+            <ProfileSection userProfile={userProfile} onProfileClick={onProfileClick} />
           )}
         </ul>
       </nav>
@@ -142,6 +159,7 @@ export function SidebarLayout({
   onNavigate = null,
   onProfileClick = null,
 }) {
+  const { t } = useI18n()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleNavClick = (item) => {
@@ -175,7 +193,7 @@ export function SidebarLayout({
             <TransitionChild>
               <div className="absolute top-0 left-full flex w-16 justify-center pt-5 duration-300 ease-in-out data-closed:opacity-0">
                 <button type="button" onClick={() => setSidebarOpen(false)} className="-m-2.5 p-2.5">
-                  <span className="sr-only">Close sidebar</span>
+                  <span className="sr-only">{t('Close sidebar')}</span>
                   <XMarkIcon aria-hidden="true" className="size-6 text-white" />
                 </button>
               </div>
@@ -216,13 +234,13 @@ export function SidebarLayout({
           onClick={() => setSidebarOpen(true)}
           className="-m-2.5 p-2.5 text-gray-400 hover:text-white"
         >
-          <span className="sr-only">Open sidebar</span>
+          <span className="sr-only">{t('Open sidebar')}</span>
           <Bars3Icon aria-hidden="true" className="size-6" />
         </button>
         <div className="flex-1 text-sm/6 font-semibold text-white">{pageTitle}</div>
         {userProfile && (
           <button onClick={onProfileClick} className="hover:opacity-80 transition-opacity">
-            <span className="sr-only">Your profile</span>
+            <span className="sr-only">{t('Your profile')}</span>
             {userProfile.avatar && (
               <img
                 alt={userProfile.name}

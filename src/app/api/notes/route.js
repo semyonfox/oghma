@@ -2,29 +2,14 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
+import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
+import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
 
 // Constants
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const NOTE_PINNED = { UNPINNED: 0, PINNED: 1 };
 const NOTE_SHARED = { PRIVATE: 0, SHARED: 1 };
-
-/**
- * Helper: Filter note to only include requested fields
- */
-function filterNoteFields(note, fields) {
-  if (!fields || fields.length === 0) {
-    return note;
-  }
-  
-  const filtered = {};
-  for (const field of fields) {
-    if (field in note) {
-      filtered[field] = note[field];
-    }
-  }
-  return filtered;
-}
 
 export async function GET(request) {
   try {
@@ -52,7 +37,7 @@ export async function GET(request) {
     
     // Get user's notes from PostgreSQL
     let notes = await sql`
-      SELECT note_id, title, content, deleted, shared, pinned, created_at, updated_at FROM app.notes
+      SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
@@ -63,18 +48,8 @@ export async function GET(request) {
       notes = notes.slice(skip, end);
     }
     
-    // Map to NoteModel format (rename note_id to id, convert numbers)
-    const mapped = notes.map(note => ({
-      id: note.note_id,
-      title: note.title,
-      content: note.content,
-      deleted: note.deleted,
-      shared: note.shared,
-      pinned: note.pinned,
-      editorsize: null,
-      createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
-      updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
-    }));
+    // Map to NoteModel format
+    const mapped = notes.map(mapNoteFromDB);
     
     // Filter fields if requested
     const filtered = mapped.map(note => filterNoteFields(note, fields));

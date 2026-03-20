@@ -1,11 +1,8 @@
-// trash API route - restore and permanently delete notes
+// trash API route - restore and permanently delete soft-deleted notes
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    getNoteFromS3,
-    restoreNoteFromTrash,
-    permanentlyDeleteNote,
-    getTrashFromS3,
-} from '@/lib/notes/storage/s3-storage';
+import { validateSession } from '@/lib/auth';
+import { isValidUUID } from '@/lib/uuid-validation';
+import sql from '@/database/pgsql';
 
 interface TrashAction {
     action: 'restore' | 'delete' | 'list';
@@ -17,8 +14,34 @@ interface TrashAction {
 
 export async function GET() {
     try {
-        const trash = await getTrashFromS3();
-        return NextResponse.json({ items: trash });
+        const user = await validateSession();
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        // Fetch soft-deleted notes for this user from PostgreSQL
+        const trash = await sql`
+            SELECT note_id, title, content, is_folder, deleted_at, created_at, updated_at
+            FROM app.notes
+            WHERE user_id = ${user.user_id}::uuid AND deleted = 1
+            ORDER BY deleted_at DESC
+        `;
+
+        // Map to response format
+        const items = trash.map(note => ({
+            id: note.note_id,
+            title: note.title,
+            content: note.content,
+            isFolder: note.is_folder,
+            deletedAt: note.deleted_at ? new Date(note.deleted_at).toISOString() : null,
+            createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
+            updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
+        }));
+
+        return NextResponse.json({ items });
     } catch (error) {
         console.error('[trash] GET error:', error);
         return NextResponse.json(
@@ -30,6 +53,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
     try {
+        const user = await validateSession();
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
         const body: TrashAction = await request.json();
 
         if (!body.action || (body.action !== 'list' && !body.data?.id)) {
@@ -39,47 +70,99 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { id, parentId } = body.data || {};
+        const { id } = body.data || {};
 
         switch (body.action) {
             case 'list': {
-                const trash = await getTrashFromS3();
-                return NextResponse.json({ items: trash });
+                // Fetch soft-deleted notes for this user
+                const trash = await sql`
+                    SELECT note_id, title, content, is_folder, deleted_at, created_at, updated_at
+                    FROM app.notes
+                    WHERE user_id = ${user.user_id}::uuid AND deleted = 1
+                    ORDER BY deleted_at DESC
+                `;
+
+                const items = trash.map(note => ({
+                    id: note.note_id,
+                    title: note.title,
+                    content: note.content,
+                    isFolder: note.is_folder,
+                    deletedAt: note.deleted_at ? new Date(note.deleted_at).toISOString() : null,
+                    createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
+                    updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
+                }));
+
+                return NextResponse.json({ items });
             }
 
             case 'restore': {
-                if (!id) {
+                if (!id || !isValidUUID(id)) {
                     return NextResponse.json(
-                        { error: 'Missing note id' },
+                        { error: 'Missing or invalid note id' },
                         { status: 400 }
                     );
                 }
-                const note = await getNoteFromS3(id);
-                if (!note) {
+
+                // Verify note exists and belongs to user
+                const note = await sql`
+                    SELECT note_id FROM app.notes
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 1
+                `;
+
+                if (note.length === 0) {
                     return NextResponse.json(
-                        { error: 'Note not found' },
+                        { error: 'Note not found in trash' },
                         { status: 404 }
                     );
                 }
-                await restoreNoteFromTrash(id);
+
+                // Restore note (unset deleted flag)
+                await sql`
+                    UPDATE app.notes
+                    SET deleted = 0, deleted_at = NULL, updated_at = NOW()
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+                `;
+
                 return NextResponse.json({ success: true });
             }
 
             case 'delete': {
-                if (!id) {
+                if (!id || !isValidUUID(id)) {
                     return NextResponse.json(
-                        { error: 'Missing note id' },
+                        { error: 'Missing or invalid note id' },
                         { status: 400 }
                     );
                 }
-                const note = await getNoteFromS3(id);
-                if (!note) {
+
+                // Verify note exists and belongs to user
+                const note = await sql`
+                    SELECT note_id FROM app.notes
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 1
+                `;
+
+                if (note.length === 0) {
                     return NextResponse.json(
-                        { error: 'Note not found' },
+                        { error: 'Note not found in trash' },
                         { status: 404 }
                     );
                 }
-                await permanentlyDeleteNote(id);
+
+                // Permanently delete note and all related data
+                await sql`
+                    DELETE FROM app.pdf_annotations
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+                `;
+
+                await sql`
+                    DELETE FROM app.attachments
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+                `;
+
+                await sql`
+                    DELETE FROM app.notes
+                    WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+                `;
+
                 return NextResponse.json({ success: true });
             }
 

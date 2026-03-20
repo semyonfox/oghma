@@ -3,6 +3,7 @@
 import { FC, useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface Message {
   id: string;
@@ -16,12 +17,13 @@ interface Message {
  * Currently shows placeholder UI, ready for RAG API integration
  */
 const ChatTab: FC = () => {
+  const { t } = useI18n();
   const { paneA } = useLayoutStore();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Hi! I\'m your AI assistant. Ask me questions about your notes.',
+      content: t('Hi! I\'m your AI assistant. Ask me questions about your notes.'),
       timestamp: Date.now(),
     },
   ]);
@@ -70,7 +72,7 @@ const ChatTab: FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-800">
+    <div className="h-full flex flex-col bg-surface">
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
@@ -81,14 +83,14 @@ const ChatTab: FC = () => {
             <div
               className={`max-w-xs px-4 py-2 rounded-lg ${
                 message.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-br-none'
-                  : 'bg-gray-700 text-gray-100 rounded-bl-none'
+                  ? 'bg-primary-600 text-text rounded-br-none'
+                  : 'bg-surface-elevated text-text rounded-bl-none'
               }`}
             >
               <p className="text-sm">{message.content}</p>
               <p
                 className={`text-xs mt-1 ${
-                  message.role === 'user' ? 'text-indigo-200' : 'text-gray-400'
+                  message.role === 'user' ? 'text-primary-200' : 'text-text-tertiary'
                 }`}
               >
                 {new Date(message.timestamp).toLocaleTimeString()}
@@ -99,11 +101,11 @@ const ChatTab: FC = () => {
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-700 text-gray-100 px-4 py-2 rounded-lg rounded-bl-none">
+            <div className="bg-surface-elevated text-text px-4 py-2 rounded-lg rounded-bl-none">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-100" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-200" />
+                <div className="w-2 h-2 bg-text-tertiary rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-text-tertiary rounded-full animate-pulse delay-100" />
+                <div className="w-2 h-2 bg-text-tertiary rounded-full animate-pulse delay-200" />
               </div>
             </div>
           </div>
@@ -113,35 +115,35 @@ const ChatTab: FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="flex-shrink-0 border-t border-white/10 bg-gray-900 p-3">
+      <div className="flex-shrink-0 border-t border-border-subtle bg-background p-3">
         {/* Context Info */}
         {paneA?.fileId && (
-          <div className="mb-3 px-3 py-2 bg-gray-800 rounded text-xs text-gray-400 flex items-center gap-2">
+          <div className="mb-3 px-3 py-2 bg-surface rounded text-xs text-text-tertiary flex items-center gap-2">
             <SparklesIcon className="w-3 h-3" />
-            <span>Analyzing: {paneA.title || 'Untitled'}</span>
+            <span>{t('Analyzing')}: {paneA.title || t('Untitled')}</span>
           </div>
         )}
 
         {/* Input Field */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about your notes..."
-            disabled={isLoading}
-            className="flex-1 bg-gray-800 border border-white/10 rounded px-3 py-2 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
-          />
-          <button
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-            title="Send message (Enter)"
-          >
-            <PaperAirplaneIcon className="w-4 h-4" />
-          </button>
-        </div>
+         <div className="flex items-center gap-2">
+           <input
+             type="text"
+             value={input}
+             onChange={(e) => setInput(e.target.value)}
+             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+             placeholder={t('Ask about your notes...')}
+             disabled={isLoading}
+             className="flex-1 bg-surface border border-border-subtle rounded px-3 py-2 text-sm text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 disabled:opacity-50"
+           />
+           <button
+             onClick={handleSend}
+             disabled={isLoading || !input.trim()}
+             className="p-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-text rounded transition-colors"
+             title={t('Send message (Enter)')}
+           >
+             <PaperAirplaneIcon className="w-4 h-4" />
+           </button>
+         </div>
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import Header from '@/components/header'
 import { aboutBlogCards, authors } from '@/lib/blog-data'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 const universities = [
   {
@@ -25,48 +28,48 @@ const universities = [
   },
 ]
 
-const stats = [
-  { label: 'Notes organized daily', value: '100K+' },
-  { label: 'Learning time saved', value: '500K hrs' },
-  { label: 'Active learners', value: '50K+' },
+const getStats = (t) => [
+  { label: t('Notes organized daily'), value: '100K+' },
+  { label: t('Learning time saved'), value: '500K hrs' },
+  { label: t('Active learners'), value: '50K+' },
 ]
-const values = [
+const getValues = (t) => [
   {
-    name: 'Be world-class',
+    name: t('Be world-class'),
     description:
       'Aut illo quae. Ut et harum ea animi natus. Culpa maiores et sed sint et magnam exercitationem quia. Ullam voluptas nihil vitae dicta molestiae et. Aliquid velit porro vero.',
   },
   {
-    name: 'Share everything you know',
+    name: t('Share everything you know'),
     description:
       'Mollitia delectus a omnis. Quae velit aliquid. Qui nulla maxime adipisci illo id molestiae. Cumque cum ut minus rerum architecto magnam consequatur. Quia quaerat minima.',
   },
   {
-    name: 'Always learning',
+    name: t('Always learning'),
     description:
       'Aut repellendus et officiis dolor possimus. Deserunt velit quasi sunt fuga error labore quia ipsum. Commodi autem voluptatem nam. Quos voluptatem totam.',
   },
   {
-    name: 'Be supportive',
+    name: t('Be supportive'),
     description:
       'Magnam provident veritatis odit. Vitae eligendi repellat non. Eum fugit impedit veritatis ducimus. Non qui aspernatur laudantium modi. Praesentium rerum error deserunt harum.',
   },
   {
-    name: 'Take responsibility',
+    name: t('Take responsibility'),
     description:
       'Sit minus expedita quam in ullam molestiae dignissimos in harum. Tenetur dolorem iure. Non nesciunt dolorem veniam necessitatibus laboriosam voluptas perspiciatis error.',
   },
   {
-    name: 'Enjoy downtime',
+    name: t('Enjoy downtime'),
     description:
       'Ipsa in earum deserunt aut. Quos minus aut animi et soluta. Ipsum dicta ut quia eius. Possimus reprehenderit iste aspernatur ut est velit consequatur distinctio.',
   },
 ]
 const blogPosts = aboutBlogCards
-const team = [
+const getTeam = (t) => [
   {
     name: authors.samuel.name,
-    role: 'Full-Stack Developer',
+    role: t('Full-Stack Developer'),
     description: 'Full-stack engineer building scalable web applications with modern architectures and robust database design.',
     imageUrl: authors.samuel.imageUrl,
     github: 'https://github.com/SamuelRegan-dev',
@@ -74,7 +77,7 @@ const team = [
   },
   {
     name: authors.semyon.name,
-    role: 'Full-Stack Developer & Infrastructure',
+    role: t('Full-Stack Developer & Infrastructure'),
     description: 'Full-stack engineer leading technical strategy, infrastructure management, and performance optimization across the platform.',
     imageUrl: authors.semyon.imageUrl,
     github: 'https://github.com/semyonfox',
@@ -82,25 +85,25 @@ const team = [
   },
   {
     name: authors.shreyansh.name,
-    role: 'Full-Stack Developer',
+    role: t('Full-Stack Developer'),
     description: 'Full-stack engineer contributing across frontend and backend features with focus on code quality and user experience.',
     imageUrl: authors.shreyansh.imageUrl,
     github: 'https://github.com/shreyanshSingh06',
     linkedin: authors.shreyansh.linkedin,
   },
 ]
-const footerNavigation = {
+const getFooterNavigation = (t) => ({
   main: [
-    { name: 'About', href: '/about' },
-    { name: 'Blog', href: '/blog' },
-    { name: 'Jobs', href: '#' },
-    { name: 'Press', href: '#' },
-    { name: 'Accessibility', href: '#' },
-    { name: 'Partners', href: '#' },
+    { name: t('About'), href: '/about' },
+    { name: t('Blog'), href: '/blog' },
+    { name: t('Jobs'), href: '#' },
+    { name: t('Press'), href: '#' },
+    { name: t('Accessibility'), href: '#' },
+    { name: t('Partners'), href: '#' },
   ],
   social: [
     {
-      name: 'Facebook',
+      name: t('Facebook'),
       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -113,7 +116,7 @@ const footerNavigation = {
       ),
     },
     {
-      name: 'Instagram',
+      name: t('Instagram'),
       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -125,18 +128,18 @@ const footerNavigation = {
         </svg>
       ),
     },
-    {
-      name: 'X',
-      href: '#',
+     {
+       name: t('X'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path d="M13.6823 10.6218L20.2391 3H18.6854L12.9921 9.61788L8.44486 3H3.2002L10.0765 13.0074L3.2002 21H4.75404L10.7663 14.0113L15.5685 21H20.8131L13.6819 10.6218H13.6823ZM11.5541 13.0956L10.8574 12.0991L5.31391 4.16971H7.70053L12.1742 10.5689L12.8709 11.5655L18.6861 19.8835H16.2995L11.5541 13.096V13.0956Z" />
         </svg>
       ),
     },
-    {
-      name: 'GitHub',
-      href: '#',
+     {
+       name: t('GitHub'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path
@@ -147,9 +150,9 @@ const footerNavigation = {
         </svg>
       ),
     },
-    {
-      name: 'YouTube',
-      href: '#',
+     {
+       name: t('YouTube'),
+       href: '#',
       icon: (props) => (
         <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
           <path
@@ -160,12 +163,17 @@ const footerNavigation = {
         </svg>
       ),
     },
-  ],
-}
+   ],
+})
 
 export default function About() {
+  const { t } = useI18n()
+  const stats = getStats(t)
+  const values = getValues(t)
+  const team = getTeam(t)
+  const footerNavigation = getFooterNavigation(t)
   return (
-    <div className="bg-gray-900">
+    <div className="bg-background">
       <Header />
 
       <main className="isolate">
@@ -187,7 +195,7 @@ export default function About() {
                 <path d="M.5 200V.5H200" fill="none" />
               </pattern>
             </defs>
-            <svg x="50%" y={-1} className="overflow-visible fill-gray-800">
+             <svg x="50%" y={-1} className="overflow-visible fill-surface">
               <path
                 d="M-200 0h201v201h-201Z M600 0h201v201h-201Z M-400 600h201v201h-201Z M200 800h201v201h-201Z"
                 strokeWidth={0}
@@ -212,10 +220,10 @@ export default function About() {
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
                   <h1 className="text-5xl font-semibold tracking-tight text-pretty text-white sm:text-7xl">
-                    We're changing the way people learn
+                    {t("We're changing the way people learn")}
                   </h1>
-                  <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:max-w-md sm:text-xl/8 lg:max-w-none">
-                    OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.
+                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
+                    {t("OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.")}
                   </p>
                 </div>
                 <div className="mt-14 flex justify-end gap-8 sm:-mt-44 sm:justify-start sm:pl-20 lg:mt-0 lg:pl-0">
@@ -274,21 +282,21 @@ export default function About() {
         {/* Content section */}
         <div className="mx-auto -mt-12 max-w-7xl px-6 sm:mt-0 lg:px-8 xl:-mt-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Our mission</h2>
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Our mission")}</h2>
             <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
               <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
-                <p className="text-xl/8 text-gray-300">
-                  At OghmaNotes, we believe that better note-taking leads to better learning. Our mission is to provide students and professionals with intelligent tools that make capturing, organizing, and retaining information effortless and effective.
+                 <p className="text-xl/8 text-text-secondary">
+                  {t("At OghmaNotes, we believe that better note-taking leads to better learning. That's why we've built a platform designed to help you capture, organize, and understand information more effectively.")}
                 </p>
-                <p className="mt-10 max-w-xl text-base/7 text-gray-400">
-                  Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes adapts to your workflow. With AI-powered insights, seamless Canvas integration, and intuitive organization, we're transforming how the world takes notes and learns.
+                 <p className="mt-10 max-w-xl text-base/7 text-text-tertiary">
+                  {t("Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes is designed to help you learn smarter, faster, and with greater retention.")}
                 </p>
               </div>
               <div className="lg:flex lg:flex-auto lg:justify-center">
                 <dl className="w-64 space-y-8 xl:w-80">
                   {stats.map((stat) => (
                     <div key={stat.label} className="flex flex-col-reverse gap-y-4">
-                      <dt className="text-base/7 text-gray-400">{stat.label}</dt>
+                       <dt className="text-base/7 text-text-tertiary">{stat.label}</dt>
                       <dd className="text-5xl font-semibold tracking-tight text-white">{stat.value}</dd>
                     </div>
                   ))}
@@ -310,10 +318,10 @@ export default function About() {
         {/* Features section */}
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">Powerful features</h2>
-            <p className="mt-6 text-lg/8 text-gray-300">
-              Everything you need to take better notes and learn more effectively.
-            </p>
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t("Powerful features")}</h2>
+             <p className="mt-6 text-lg/8 text-text-secondary">
+               {t("Everything you need to take better notes and learn more effectively.")}
+             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
             {/* Feature 1 - AI-Powered Insights */}
@@ -323,9 +331,9 @@ export default function About() {
                 <span className="text-3xl">✨</span>
               </div>
               <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
+               </p>
             </div>
 
             {/* Feature 2 - Canvas Sync */}
@@ -335,9 +343,9 @@ export default function About() {
                 <span className="text-3xl">🔗</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Seamless Canvas Integration</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Auto-sync assignments, deadlines, and course materials directly from Canvas.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Auto-sync assignments, deadlines, and course materials directly from Canvas.
+               </p>
             </div>
 
             {/* Feature 3 - Smart Organization */}
@@ -347,9 +355,9 @@ export default function About() {
                 <span className="text-3xl">📚</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Smart Organization</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Auto-categorize notes, tag content intelligently, and find anything in seconds.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Auto-categorize notes, tag content intelligently, and find anything in seconds.
+               </p>
             </div>
 
             {/* Feature 4 - Work Anywhere */}
@@ -359,9 +367,9 @@ export default function About() {
                 <span className="text-3xl">📱</span>
               </div>
               <h3 className="text-lg font-semibold text-white">Work Anywhere</h3>
-              <p className="mt-3 text-sm text-gray-400 leading-relaxed">
-                Access your notes on desktop, tablet, or phone with full offline support.
-              </p>
+               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
+                 Access your notes on desktop, tablet, or phone with full offline support.
+               </p>
             </div>
           </div>
         </div>
@@ -383,16 +391,16 @@ export default function About() {
                   <path d="M.5 200V.5H200" fill="none" />
                 </pattern>
               </defs>
-              <svg x="50%" y="50%" className="overflow-visible fill-gray-800">
+              <svg x="50%" y="50%" className="overflow-visible fill-surface">
                 <path d="M-300 0h201v201h-201Z M300 200h201v201h-201Z" strokeWidth={0} />
               </svg>
               <rect fill="url(#e9033f3e-f665-41a6-84ef-756f6778e6fe)" width="100%" height="100%" strokeWidth={0} />
             </svg>
           </div>
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <h2 className="text-center text-lg/8 font-semibold text-white">
-              Trusted by students and educators worldwide
-            </h2>
+             <h2 className="text-center text-lg/8 font-semibold text-white">
+               {t("Trusted by students and educators worldwide")}
+             </h2>
             <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-8 gap-y-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-10 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-12 lg:gap-y-16">
               {universities.map((uni) => (
                 <div
@@ -411,21 +419,20 @@ export default function About() {
         </div>
 
         {/* Team section */}
-        <div className="bg-gray-900 py-24 sm:py-32">
+         <div className="bg-background py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
-              <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">Meet our team</h2>
-              <p className="mt-6 text-lg/8 text-gray-400">
-                We're a dynamic group of individuals who are passionate about what we do and dedicated to delivering the
-                best results for our clients.
-              </p>
+              <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("Meet our team")}</h2>
+               <p className="mt-6 text-lg/8 text-text-tertiary">
+                 {t("We're a dynamic group of individuals who are passionate about what we do and dedicated to creating the best learning platform.")}
+               </p>
             </div>
             <ul
               role="list"
               className="mx-auto mt-20 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-8"
             >
               {team.map((person) => (
-                <li key={person.name} className="rounded-2xl bg-gray-800 px-8 py-10">
+                <li key={person.name} className="rounded-2xl bg-surface px-8 py-10">
                   <a href={person.linkedin} className="inline-block" target="_blank" rel="noopener noreferrer">
                     <img
                       alt={person.name}
@@ -434,15 +441,15 @@ export default function About() {
                     />
                   </a>
                   <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-white">
-                    <a href={person.linkedin} className="hover:text-gray-200" target="_blank" rel="noopener noreferrer">
+                     <a href={person.linkedin} className="hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                       {person.name}
                     </a>
                   </h3>
-                  <p className="text-sm/6 text-gray-400">{person.role}</p>
-                  <p className="mt-2 text-sm/6 text-gray-300">{person.description}</p>
+                   <p className="text-sm/6 text-text-tertiary">{person.role}</p>
+                   <p className="mt-2 text-sm/6 text-text-secondary">{person.description}</p>
                   <ul role="list" className="mt-6 flex justify-center gap-x-6">
                     <li>
-                      <a href={person.github} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
+                       <a href={person.github} className="text-text-tertiary hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">GitHub</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -454,7 +461,7 @@ export default function About() {
                       </a>
                     </li>
                     <li>
-                      <a href={person.linkedin} className="text-gray-400 hover:text-gray-300" target="_blank" rel="noopener noreferrer">
+                       <a href={person.linkedin} className="text-text-tertiary hover:text-text-secondary" target="_blank" rel="noopener noreferrer">
                         <span className="sr-only">LinkedIn</span>
                         <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="size-5">
                           <path
@@ -475,20 +482,20 @@ export default function About() {
         {/* Blog section */}
         <div id="blog" className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">From our blog</h2>
-            <p className="mt-2 text-lg/8 text-gray-400">Learn from our experts and community on note-taking, learning, and productivity.</p>
+            <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">{t("From our blog")}</h2>
+             <p className="mt-2 text-lg/8 text-text-tertiary">{t("Learn from our experts and community on note-taking, learning, and productivity.")}</p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {blogPosts.map((post) => (
               <article
                 key={post.slug}
-                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-gray-800 px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
+                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
               >
                 <img alt="" src={post.imageUrl} className="absolute inset-0 -z-10 size-full object-cover" />
                 <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
                 <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-white/10" />
 
-                <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-gray-300">
+                 <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-text-secondary">
                   <time dateTime={post.datetime} className="mr-8">
                     {post.date}
                   </time>
@@ -498,7 +505,7 @@ export default function About() {
                     </svg>
                     <a
                       href={post.author.linkedin}
-                      className="flex items-center gap-x-2.5 text-gray-300 hover:text-white"
+                       className="flex items-center gap-x-2.5 text-text-secondary hover:text-white"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -524,21 +531,21 @@ export default function About() {
         <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
           <nav aria-label="Footer" className="-mb-6 flex flex-wrap justify-center gap-x-12 gap-y-3 text-sm/6">
             {footerNavigation.main.map((item) => (
-              <a key={item.name} href={item.href} className="text-gray-400 hover:text-white">
+              <a key={item.name} href={item.href} className="text-text-tertiary hover:text-white">
                 {item.name}
               </a>
             ))}
           </nav>
           <div className="mt-16 flex justify-center gap-x-10">
             {footerNavigation.social.map((item) => (
-              <a key={item.name} href={item.href} className="text-gray-400 hover:text-white">
+              <a key={item.name} href={item.href} className="text-text-tertiary hover:text-white">
                 <span className="sr-only">{item.name}</span>
                 <item.icon aria-hidden="true" className="size-6" />
               </a>
             ))}
           </div>
-          <p className="mt-10 text-center text-sm/6 text-gray-400">
-            &copy; 2024 OghmaNotes, Inc. All rights reserved.
+           <p className="mt-10 text-center text-sm/6 text-text-tertiary">
+            {t("All rights reserved.")}
           </p>
         </div>
       </footer>

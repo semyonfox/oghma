@@ -8,6 +8,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/20/solid'
 import { useState } from 'react'
+import useI18n from '@/lib/notes/hooks/use-i18n'
 
 const alertVariants = {
   warning: {
@@ -53,6 +54,7 @@ export function Alert({
   onDismiss,
   className = '',
 }) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(true)
 
   const styles = alertVariants[variant] || alertVariants.info
@@ -83,15 +85,15 @@ export function Alert({
         {dismissible && (
           <div className="ml-auto pl-3">
             <div className="-mx-1.5 -my-1.5">
-              <button
-                type="button"
-                onClick={handleDismiss}
-                className={`inline-flex rounded-md p-1.5 ${styles.iconColor} hover:bg-${variant}-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-${variant}-500/50`}
-                aria-label="Dismiss alert"
-              >
-                <span className="sr-only">Dismiss</span>
-                <XMarkIcon aria-hidden="true" className="size-5" />
-              </button>
+               <button
+                 type="button"
+                 onClick={handleDismiss}
+                 className={`inline-flex rounded-md p-1.5 ${styles.iconColor} hover:bg-${variant}-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-${variant}-500/50`}
+                 aria-label={t('Dismiss alert')}
+               >
+                 <span className="sr-only">{t('Dismiss')}</span>
+                 <XMarkIcon aria-hidden="true" className="size-5" />
+               </button>
             </div>
           </div>
         )}

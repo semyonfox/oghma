@@ -15,13 +15,16 @@ export const defaultLanguage = 'en';
 // supported locales - update this when adding new locale files
 export const languages = [
   'en',
+  'ga',
+  'hi',
   'zh-CN',
+  'fr-FR',
+  'es-ES',
+  'it-IT',
   'de-DE',
   'ru-RU',
   'ar',
-  'it-IT',
   'nl-NL',
-  'fr-FR',
   'sv-SE',
 ];
 

@@ -11,11 +11,19 @@ env:
     STORAGE_ENDPOINT: $STORAGE_ENDPOINT
     STORAGE_PREFIX: $STORAGE_PREFIX
     NEXT_PUBLIC_API_URL: $NEXT_PUBLIC_API_URL
+    REDIS_HOST: $REDIS_HOST
+    REDIS_PORT: $REDIS_PORT
+    REDIS_TLS: $REDIS_TLS
+    LLM_API_URL: $LLM_API_URL
+    LLM_MODEL: $LLM_MODEL
+    EMBEDDING_API_URL: $EMBEDDING_API_URL
+    EMBEDDING_MODEL: $EMBEDDING_MODEL
+    SQS_QUEUE_URL: $SQS_QUEUE_URL
 frontend:
   phases:
     preBuild:
       commands:
-        - npm ci --include=dev
+        - npm ci --include=dev --legacy-peer-deps
     build:
       commands:
         - echo "DATABASE_URL=$DATABASE_URL" >> .env.production
@@ -27,6 +35,14 @@ frontend:
         - echo "STORAGE_ENDPOINT=$STORAGE_ENDPOINT" >> .env.production
         - echo "STORAGE_PREFIX=$STORAGE_PREFIX" >> .env.production
         - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
+        - echo "REDIS_HOST=$REDIS_HOST" >> .env.production
+        - echo "REDIS_PORT=$REDIS_PORT" >> .env.production
+        - echo "REDIS_TLS=$REDIS_TLS" >> .env.production
+        - echo "LLM_API_URL=$LLM_API_URL" >> .env.production
+        - echo "LLM_MODEL=$LLM_MODEL" >> .env.production
+        - echo "EMBEDDING_API_URL=$EMBEDDING_API_URL" >> .env.production
+        - echo "EMBEDDING_MODEL=$EMBEDDING_MODEL" >> .env.production
+        - echo "SQS_QUEUE_URL=$SQS_QUEUE_URL" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next

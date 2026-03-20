@@ -14,8 +14,10 @@ function getSQL() {
             );
         }
         const requiresSSL = url.includes('sslmode=require');
+        // Allow self-signed certs in dev, enforce validation in production
+        const rejectUnauthorized = process.env.NODE_ENV === 'production' || process.env.DB_SSL_REJECT === 'true';
         sql = postgres(url, {
-            ssl: requiresSSL ? { rejectUnauthorized: false } : false,
+            ssl: requiresSSL ? { rejectUnauthorized } : false,
             // Connection timeout settings (in milliseconds)
             idle_in_transaction_session_timeout: 30000, // 30s - max time for transaction
             statement_timeout: 30000, // 30s - max time for a single query

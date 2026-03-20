@@ -3,8 +3,9 @@
 import { FC, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import { DocumentIcon, RectangleGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { DocumentIcon, RectangleGroupIcon, XMarkIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 const FileRenderer = dynamic(() => import('./file-renderer'), { ssr: false });
 
@@ -19,18 +20,22 @@ interface FileViewPaneProps {
  * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
-  const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, toggleRightPanel, paneA, paneB } = useLayoutStore();
-  const paneRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+   const { t } = useI18n();
+   const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, rightPanelTab, openRightPanelTab, paneA, paneB } = useLayoutStore();
+   const paneRef = useRef<HTMLDivElement>(null);
+   const [isDragging, setIsDragging] = useState(false);
 
-  if (!file || !file.fileId) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-500">
-        <DocumentIcon className="w-12 h-12 mb-4 text-gray-600" />
-        <p className="text-sm">Select a file to open</p>
-      </div>
-    );
-  }
+   if (!file || !file.fileId) {
+     return (
+       <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-2">
+         <DocumentIcon className="w-10 h-10 opacity-30" />
+         <p className="text-sm font-medium text-text-secondary">{t('file_view_pane.select_file')}</p>
+         <p className="text-xs text-text-tertiary max-w-[18rem] text-center leading-relaxed">
+           {t('file_view_pane.select_file_hint')}
+         </p>
+       </div>
+     );
+   }
 
   const handleClose = () => {
     if (pane === 'A') {
@@ -105,8 +110,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   return (
     <div
       ref={paneRef}
-      className={`h-full flex flex-col bg-gray-900 transition-colors ${
-        activePane === pane ? 'ring-1 ring-inset ring-sky-500/40' : ''
+      className={`h-full flex flex-col bg-background transition-colors ${
+        activePane === pane ? 'ring-1 ring-inset ring-primary-500/30' : ''
       } ${isDragging ? 'opacity-60' : ''}`}
       onMouseDown={() => setActivePane(pane)}
       draggable
@@ -115,28 +120,41 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Pane Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 flex items-center justify-between cursor-move">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono text-gray-500">Pane {pane}</span>
-          <span className="text-sm text-gray-300 truncate">{file.title || file.fileId}</span>
-          <span className="text-xs text-gray-600">({file.fileType})</span>
+       {/* Pane Header */}
+       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between cursor-move">
+         <div className="flex items-center gap-2 min-w-0">
+           <span className="text-xs font-mono text-text-tertiary">{t('file_view_pane.pane_label', { pane })}</span>
+          <span className="text-sm text-text-secondary truncate">{file.title || file.fileId}</span>
+          <span className="text-xs text-text-tertiary opacity-60">({file.fileType})</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
-            onClick={toggleRightPanel}
+            onClick={() => openRightPanelTab('info')}
             className={`p-1.5 rounded transition-colors ${
-              rightPanelOpen ? 'bg-white/10 text-gray-200' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'
+              rightPanelOpen && rightPanelTab === 'info'
+                ? 'bg-white/8 text-text-secondary'
+                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
             }`}
-            title="Toggle metadata & inspector panel"
+            title="Toggle metadata panel"
           >
             <RectangleGroupIcon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => openRightPanelTab('ai')}
+            className={`p-1.5 rounded transition-colors ${
+              rightPanelOpen && rightPanelTab === 'ai'
+                ? 'bg-indigo-600/20 text-indigo-300'
+                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
+            }`}
+            title="Toggle AI assistant panel"
+          >
+            <CpuChipIcon className="w-4 h-4" />
           </button>
           {pane === 'B' && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors"
+              className="p-1 hover:bg-white/5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
               title="Close this pane"
             >
               <XMarkIcon className="w-4 h-4" />
@@ -146,7 +164,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       </div>
 
        {/* File Renderer */}
-       <div className="flex-1 overflow-auto bg-gray-900">
+       <div className="flex-1 overflow-auto bg-background">
          <FileRenderer key={file.fileId} pane={pane} file={file} />
        </div>
     </div>
