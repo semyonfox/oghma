@@ -36,6 +36,7 @@ const SidebarList = () => {
         genNewId,
         addItem,
         loadChildren,
+        loadingChildren,
         expandedIds,
         setExpandedIds,
         selectedIds,
@@ -58,13 +59,16 @@ const SidebarList = () => {
     const treeData = useMemo(() => {
         const result: Record<string, any> = {};
 
+        // deduplicate children arrays to prevent React key collisions
+        const dedup = (arr: string[]) => [...new Set(arr)];
+
         const root = tree.items['root'];
         if (root) {
             result['root'] = {
                 index: 'root',
                 canMove: false,
                 canRename: false,
-                children: root.children,
+                children: dedup(root.children),
                 isFolder: true,
                 data: { title: 'Root', isFolder: true },
             };
@@ -81,7 +85,7 @@ const SidebarList = () => {
                 index: id,
                 canMove: true,
                 canRename: true,
-                children: item.children || [],
+                children: dedup(item.children || []),
                 data: item.data,
                 isFolder,
                 canDropOn: isFolder,
@@ -111,9 +115,14 @@ const SidebarList = () => {
             const itemId = item.index;
             if (typeof itemId === 'string') {
                 mutateItem(itemId, { isExpanded: true });
+                // lazy-load children if not yet loaded
+                const treeItem = useNoteTreeStore.getState().tree.items[itemId];
+                if (treeItem?.isFolder && !treeItem.childrenLoaded) {
+                    loadChildren(itemId);
+                }
             }
         },
-        [mutateItem]
+        [mutateItem, loadChildren]
     );
 
     const handleCollapseItem = useCallback(
@@ -349,6 +358,12 @@ const SidebarList = () => {
         setActivePane('B');
     }, [tree.items]);
 
+    const handleOpenInAIChat = useCallback((id: string, nodeData: NoteModel | undefined, isFolder: boolean) => {
+        const title = encodeURIComponent(nodeData?.title || (isFolder ? 'Folder' : 'Untitled'));
+        const param = isFolder ? `folderId=${id}&folderTitle=${title}` : `noteId=${id}&noteTitle=${title}`;
+        router.push(`/chat?${param}`);
+    }, [router]);
+
     const handleItemContextMenu = useCallback((e: React.MouseEvent, itemId: string, isFolder: boolean, isPinned: boolean) => {
         e.preventDefault();
         const vw = window.innerWidth;
@@ -441,7 +456,7 @@ const SidebarList = () => {
                 </div>
 
                 {/* Tree */}
-                <div className="flex-1 overflow-hidden pb-4">
+                <div className="flex-1 overflow-y-auto pb-4">
                     <ControlledTreeEnvironment
                         items={treeData}
                         getItemTitle={(item) => item.data?.title ?? 'Untitled'}
@@ -481,6 +496,7 @@ const SidebarList = () => {
                                         isActive={!!isActive}
                                         isDragging={isDragging}
                                         isPinned={isPinned}
+                                        isLoading={loadingChildren.has(itemId)}
                                         hasChildren={hasChildren}
                                         depth={depth}
                                         isRenaming={isItemRenaming}
@@ -489,16 +505,27 @@ const SidebarList = () => {
                                         onToggle={() => {
                                             if (isFolder) {
                                                 const next = new Set(expandedIds);
-                                                if (isExpanded) next.delete(itemId);
-                                                else next.add(itemId);
+                                                if (isExpanded) {
+                                                    next.delete(itemId);
+                                                } else {
+                                                    next.add(itemId);
+                                                    // lazy-load children on expand
+                                                    const ti = useNoteTreeStore.getState().tree.items[itemId];
+                                                    if (ti && !ti.childrenLoaded) loadChildren(itemId);
+                                                }
                                                 setExpandedIds(next);
                                             }
                                         }}
                                         onClick={() => {
                                             if (isFolder) {
                                                 const next = new Set(expandedIds);
-                                                if (isExpanded) next.delete(itemId);
-                                                else next.add(itemId);
+                                                if (isExpanded) {
+                                                    next.delete(itemId);
+                                                } else {
+                                                    next.add(itemId);
+                                                    const ti = useNoteTreeStore.getState().tree.items[itemId];
+                                                    if (ti && !ti.childrenLoaded) loadChildren(itemId);
+                                                }
                                                 setExpandedIds(next);
                                             } else if (nodeData) {
                                                 const { setPaneA, setActivePane } = useLayoutStore.getState();
@@ -527,6 +554,11 @@ const SidebarList = () => {
                                                 itemId, rect.left, rect.bottom + 4,
                                                 !!isFolder, isPinned
                                             );
+                                        }}
+                                        onOpenInAIChat={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleOpenInAIChat(itemId, nodeData, !!isFolder);
                                         }}
                                         initLoaded={initLoaded}
                                     >
@@ -569,6 +601,7 @@ interface TreeItemProps {
     isActive: boolean;
     isDragging: boolean;
     isPinned: boolean;
+    isLoading: boolean;
     hasChildren: boolean;
     depth: number;
     isRenaming: boolean;
@@ -581,6 +614,7 @@ interface TreeItemProps {
     onRenameComplete: (newTitle: string) => void;
     onAddNote: (e: React.MouseEvent) => void;
     onDotsClick: (e: React.MouseEvent) => void;
+    onOpenInAIChat: (e: React.MouseEvent) => void;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -591,6 +625,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
     isActive,
     isDragging,
     isPinned,
+    isLoading,
     hasChildren,
     depth,
     isRenaming,
@@ -603,6 +638,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
     onRenameComplete,
     onAddNote,
     onDotsClick,
+    onOpenInAIChat,
 }) => {
     const { t } = useI18n();
     const syncStatus = useSyncStatusStore((s) => s.status[itemId]);
@@ -626,10 +662,15 @@ const TreeItem: React.FC<TreeItemProps> = ({
         onRenameComplete(trimmed || nodeData?.title || 'Untitled');
     };
 
+    // merge our handlers with react-complex-tree's handlers so DnD works
+    const rctProps = context.itemContainerWithoutChildrenProps ?? {};
+    const interactiveProps = context.interactiveElementProps ?? {};
+
     return (
         <div className="flex flex-col w-full">
             <div
-                {...context.itemContainerWithoutChildrenProps}
+                {...rctProps}
+                {...interactiveProps}
                 className={`
                     group/item flex items-center h-[26px] pr-1 cursor-pointer select-none
                     transition-colors duration-75 rounded-[3px] mx-0.5
@@ -640,10 +681,17 @@ const TreeItem: React.FC<TreeItemProps> = ({
                     ${isDragging ? 'opacity-40' : ''}
                 `}
                 style={{ paddingLeft: `${pl + 4}px` }}
+                draggable={true}
                 onContextMenu={onContextMenu}
                 onClick={(e) => {
-                    e.preventDefault();
+                    // let react-complex-tree handle selection/focus first
+                    interactiveProps.onClick?.(e);
                     onClick();
+                }}
+                onDragStart={(e: React.DragEvent) => {
+                    // let react-complex-tree initiate the drag
+                    rctProps.onDragStart?.(e);
+                    interactiveProps.onDragStart?.(e);
                 }}
             >
                 {/* Chevron for folders / dot for files */}
@@ -657,7 +705,12 @@ const TreeItem: React.FC<TreeItemProps> = ({
                         }
                     }}
                 >
-                    {isFolder ? (
+                    {isLoading ? (
+                        <svg className="w-3 h-3 animate-spin text-text-tertiary" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                    ) : isFolder ? (
                         <svg
                             className={`w-[10px] h-[10px] text-text-tertiary transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
                             viewBox="0 0 20 20"
@@ -728,6 +781,18 @@ const TreeItem: React.FC<TreeItemProps> = ({
                         >
                             <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+                            </svg>
+                        </button>
+                        <button
+                            className="p-0.5 rounded hover:bg-indigo-600/20 text-text-tertiary hover:text-indigo-300 transition-colors"
+                            onClick={onOpenInAIChat}
+                            title={isFolder ? t('Chat with folder') : t('Chat with note')}
+                            tabIndex={-1}
+                        >
+                            {/* chip/cpu icon */}
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="7" y="7" width="10" height="10" rx="1" />
+                                <path d="M9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3" />
                             </svg>
                         </button>
                         {isFolder && (
