@@ -1,0 +1,7 @@
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps --omit=dev && npm install --legacy-peer-deps tsx
+COPY src/ ./src/
+ENV NODE_ENV=production
+CMD ["npx", "tsx", "src/lib/canvas/import-worker.js"]
