@@ -9,7 +9,7 @@
 import { embedText } from './embedText';
 import { rerankChunks } from './rerank';
 import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
-import sql from './database/pgsql.js';
+import sql from '@/database/pgsql.js';
 
 const LLM_URL = process.env.LLM_API_URL;
 const LLM_MODEL = process.env.LLM_MODEL;
