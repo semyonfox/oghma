@@ -18,12 +18,6 @@ env:
     LLM_MODEL: $LLM_MODEL
     EMBEDDING_API_URL: $EMBEDDING_API_URL
     EMBEDDING_MODEL: $EMBEDDING_MODEL
-backend:
-  phases:
-    build:
-      commands:
-        - npm ci --include=dev --legacy-peer-deps
-        - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:
     preBuild:
