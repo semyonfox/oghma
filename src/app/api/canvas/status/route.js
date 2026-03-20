@@ -5,15 +5,16 @@ import sql from '@/database/pgsql.js';
 /**
  * GET /api/canvas/status
  *
- * Returns the current state of all Canvas imports for the logged-in user.
- * Includes job-level summary and file-level details.
+ * Returns the current state of the active Canvas import job plus live file logs.
  *
  * Response shape:
  * {
  *   success: true,
- *   activeJob: { jobId, status, progress: { total, completed, failed }, estimatedTime },
- *   fileStats: { total, completed, downloading, processing, forbidden, error },
- *   recentErrors: [{ filename, error_message, status, updatedAt }]
+ *   activeJob: { jobId, status, createdAt, startedAt } | null,
+ *   progress: { total, completed, downloading, processing, percent },
+ *   issues: { forbidden, error },
+ *   estimatedSecsRemaining: number | null,
+ *   recentLogs: [{ filename, status, errorMessage, updatedAt }],
  * }
  */
 export async function GET() {
@@ -23,78 +24,84 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get active/recent import job
+    // Active or most-recently-completed job
     const activeJobs = await sql`
       SELECT id, status, created_at, started_at, completed_at
       FROM app.canvas_import_jobs
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      WHERE user_id = ${user.user_id}
       ORDER BY created_at DESC
       LIMIT 1
     `;
 
-    const activeJob = activeJobs?.[0] ?? null;
+    const job = activeJobs?.[0] ?? null;
+    const isActive = job && ['queued', 'processing'].includes(job.status);
+    const activeJob = isActive ? {
+      jobId: job.id,
+      status: job.status,
+      startedAt: job.started_at,
+      createdAt: job.created_at,
+    } : null;
 
-    // File-level stats for the active job (or all if none active)
-    const fileStats = await sql`
-      SELECT 
+    // File stats — scoped to files created since the job started (or all if no job)
+    const since = job?.created_at ?? null;
+
+    const [fileStats] = await sql`
+      SELECT
         COUNT(*) as total,
-        COUNT(CASE WHEN status = 'complete' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'complete'    THEN 1 END) as completed,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
-        COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing,
-        COUNT(CASE WHEN status = 'forbidden' THEN 1 END) as forbidden,
-        COUNT(CASE WHEN status = 'error' THEN 1 END) as error
+        COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+        COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
+        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}
+        AND (${since}::timestamptz IS NULL OR created_at >= ${since})
     `;
 
-    const stats = fileStats[0] || { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
-    
-    // Calculate progress percentage
-    const progressPercent = stats.total > 0 
-      ? Math.round((stats.completed / stats.total) * 100) 
-      : 0;
-
-    // Estimate time remaining (rough: ~5 sec per file, or use actual timing if available)
-    let estimatedSecsRemaining = null;
-    if (activeJob && (stats.downloading > 0 || stats.processing > 0)) {
-      const remaining = stats.downloading + stats.processing;
-      estimatedSecsRemaining = Math.max(5, remaining * 5); // 5 seconds per file
-    }
-
-    // Recent errors for user awareness
-    const recentErrors = await sql`
-      SELECT filename, error_message, status, updated_at
+    const recentLogs = await sql`
+      SELECT filename, status, error_message, updated_at, canvas_course_id
       FROM app.canvas_imports
-      WHERE user_id = ${user.user_id} AND status IN ('forbidden', 'error')
+      WHERE user_id = ${user.user_id}
+        AND (${since}::timestamptz IS NULL OR created_at >= ${since})
       ORDER BY updated_at DESC
-      LIMIT 10
+      LIMIT 50
     `;
+
+    const stats = fileStats ?? { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
+    const [total, completed, downloading, processing, forbidden, errorCount] =
+      ['total', 'completed', 'downloading', 'processing', 'forbidden', 'error']
+        .map(k => parseInt(stats[k], 10));
+
+    // percent is only meaningful once the job is done — while active, total keeps growing
+    // as the worker discovers new files, so completed/total is misleading
+    const settled = completed + forbidden + errorCount;
+    // null = no files discovered yet (job just started), 100 = done
+    const progressPercent = !isActive && total > 0
+      ? 100
+      : total > 0
+        ? Math.min(99, Math.round((settled / total) * 100))
+        : null;
 
     return NextResponse.json({
       success: true,
-      activeJob: activeJob ? {
-        jobId: activeJob.id,
-        status: activeJob.status,
-        startedAt: activeJob.started_at,
-        createdAt: activeJob.created_at,
-      } : null,
+      activeJob,
       progress: {
-        total: parseInt(stats.total, 10),
-        completed: parseInt(stats.completed, 10),
-        downloading: parseInt(stats.downloading, 10),
-        processing: parseInt(stats.processing, 10),
+        total,
+        completed,
+        downloading,
+        processing,
         percent: progressPercent,
       },
       issues: {
-        forbidden: parseInt(stats.forbidden, 10),
-        error: parseInt(stats.error, 10),
+        forbidden,
+        error: errorCount,
       },
-      estimatedSecsRemaining,
-      recentErrors: recentErrors.map(r => ({
+      recentLogs: (recentLogs ?? []).map(r => ({
         filename: r.filename,
-        errorMessage: r.error_message,
         status: r.status,
+        errorMessage: r.error_message,
         updatedAt: r.updated_at,
+        courseId: r.canvas_course_id,
       })),
     });
 
