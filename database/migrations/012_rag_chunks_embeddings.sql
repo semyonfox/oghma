@@ -20,4 +20,5 @@ CREATE TABLE IF NOT EXISTS app.embeddings (
 CREATE INDEX IF NOT EXISTS idx_chunks_user ON app.chunks(user_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON app.chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_embeddings_chunk ON app.embeddings(chunk_id);
-CREATE INDEX IF NOT EXISTS idx_embeddings_hnsw ON app.embeddings USING hnsw(embedding vector_cosine_ops);
+-- note: HNSW max is 2000 dims; qwen3-embedding:8b is 4096 so exact scan is used
+-- add an IVFFlat index later once the table has data: CREATE INDEX CONCURRENTLY ...
