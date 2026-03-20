@@ -11,10 +11,11 @@ export async function embedText(text: string): Promise<number[]> {
         },
         body: JSON.stringify({
             model: EMBEDDING_MODEL,
-            prompt: text
+            input: text
         }),
     });
 
-    const { embedding } = await res.json();
-    return embedding;
+    // OpenWebUI returns OpenAI-compatible format: { data: [{ embedding: [...] }] }
+    const data = await res.json();
+    return data.data?.[0]?.embedding ?? data.embedding;
 }
