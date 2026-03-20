@@ -1,27 +1,12 @@
 /*
- * Cross-encoder Reranker
- * Takes the user query and a list of candidate chunks from vector search
- * Sends them to Cohere Rerank for precise relevance scoring
- * Returns the top 3 most relevant chunks
+ * Reranker — passthrough
+ * Local Qwen3-Reranker-4B times out behind Cloudflare (524).
+ * pgvector cosine similarity is good enough for this scale.
+ * Swap this for Cohere rerank-v3.5 if you need precision at scale.
  */
 
-const COHERE_API_KEY = process.env.COHERE_API_KEY;
+const TOP_N = 3;
 
 export async function rerankChunks(query: string, chunks: string[]): Promise<string[]> {
-    const res = await fetch('https://api.cohere.com/v2/rerank', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${COHERE_API_KEY}`
-        },
-        body: JSON.stringify({
-            model: 'rerank-v3.5',
-            query: query,
-            documents: chunks,
-            top_n: 3
-        })
-    });
-
-    const data = await res.json();
-    return data.results.map((result: any) => chunks[result.index]);
+    return chunks.slice(0, TOP_N);
 }
