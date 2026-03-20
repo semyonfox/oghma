@@ -10,6 +10,7 @@ export interface TreeItem {
     isExpanded?: boolean;
     isChildrenLoading?: boolean;
     isFolder?: boolean; // Whether this item is a folder (can contain children)
+    childrenLoaded?: boolean; // Whether children have been loaded from server (even if empty)
 }
 
 export interface TreeData {
@@ -58,7 +59,9 @@ function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
     if (parentItem) {
         newItems[pid] = {
             ...parentItem,
-            children: [...parentItem.children, id],
+            children: parentItem.children.includes(id)
+                ? parentItem.children
+                : [...parentItem.children, id],
         };
     } else {
         throw new Error(`Parent ID '${pid}' does not refer to a valid item`);

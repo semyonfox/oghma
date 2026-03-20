@@ -218,7 +218,104 @@ html, body {
   }
 }
 
-/* Accessibility: Reduced Motion Support */
+/* react-complex-tree - obsidian-style overrides */
+:root {
+  --rct-color-tree-bg: transparent;
+  --rct-color-tree-focus-outline: transparent;
+  --rct-color-focustree-item-selected-bg: transparent;
+  --rct-color-focustree-item-selected-text: inherit;
+  --rct-color-focustree-item-focused-border: transparent;
+  --rct-color-focustree-item-draggingover-bg: rgba(59, 130, 246, 0.08);
+  --rct-color-focustree-item-draggingover-color: inherit;
+  --rct-color-nonfocustree-item-selected-bg: transparent;
+  --rct-color-nonfocustree-item-selected-text: inherit;
+  --rct-color-nonfocustree-item-focused-border: transparent;
+  --rct-color-search-highlight-bg: rgba(59, 130, 246, 0.3);
+  --rct-color-drag-between-line-bg: rgb(59, 130, 246);
+  --rct-color-arrow: transparent; /* we render our own arrows */
+  --rct-color-renaming-input-submitbutton-bg: transparent;
+  --rct-color-renaming-input-submitbutton-bg-hover: transparent;
+  --rct-color-renaming-input-submitbutton-bg-active: transparent;
+  --rct-color-renaming-input-submitbutton-text: transparent;
+  --rct-color-renaming-input-submitbutton-text-hover: transparent;
+  --rct-color-renaming-input-submitbutton-text-active: transparent;
+}
+
+/* strip all library chrome - we do our own rendering */
+.rct-tree-root {
+  background-color: transparent !important;
+  padding: 0 !important;
+  outline: none !important;
+}
+
+.rct-tree-item-button,
+.rct-tree-item-title-container,
+.rct-tree-item-title-container-selected {
+  background-color: transparent !important;
+  color: inherit !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* hide library arrows - we render our own chevrons */
+.rct-tree-item-arrow,
+.rct-tree-item-arrow-isFolder,
+.rct-tree-item-arrow-isFolder-open {
+  display: none !important;
+  width: 0 !important;
+}
+
+.rct-tree-item-li {
+  padding: 0 !important;
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.rct-tree-items-container {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* drop target: subtle blue highlight on the folder row */
+.rct-tree-item-title-container-draggingover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 3px !important;
+  border: none !important;
+}
+
+/* drag-between line indicator */
+.rct-tree-drag-between-line {
+  height: 2px !important;
+  background: rgb(59, 130, 246) !important;
+  border-radius: 1px;
+  opacity: 0.6;
+}
+
+/* obsidian-style scrollbar */
+.obsidian-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+.obsidian-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

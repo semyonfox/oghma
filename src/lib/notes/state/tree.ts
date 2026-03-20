@@ -209,9 +209,9 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             return;
         }
 
-        // Skip if already loaded
+        // Skip if children have already been loaded (even if empty)
         const currentTree = get().tree;
-        if (currentTree.items[parentKey]?.children.length > 0) {
+        if (currentTree.items[parentKey]?.childrenLoaded) {
             return;
         }
 
@@ -240,11 +240,12 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
                     childIds.push(item.id);
                 }
 
-                // Update parent's children list
+                // Update parent's children list and mark as loaded
                 if (newTree.items[parentKey]) {
                     newTree.items[parentKey] = {
                         ...newTree.items[parentKey],
                         children: childIds,
+                        childrenLoaded: true,
                     };
                 }
 

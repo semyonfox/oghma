@@ -14,8 +14,8 @@ export default function Footer() {
       { name: t('Canvas Integration'), href: '#' },
     ],
     support: [
-      { name: t('Documentation'), href: '#' },
-      { name: t('Guides'), href: '#' },
+      { name: t('Documentation'), href: '/syntax-guide' },
+      { name: t('Guides'), href: '/syntax-guide' },
       { name: t('Contact'), href: '/#contact' },
     ],
     company: [
@@ -30,7 +30,7 @@ export default function Footer() {
     ],
     social: [
       {
-        name: 'GitHub',
+        name: t('GitHub'),
         href: 'https://github.com',
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -43,7 +43,7 @@ export default function Footer() {
         ),
       },
       {
-        name: 'X',
+        name: t('X'),
         href: 'https://x.com',
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
@@ -56,8 +56,20 @@ export default function Footer() {
 
   const handleLanguageChange = async (e) => {
     const nextLocale = e.target.value;
-    const module = await import(`@/locales/${nextLocale}.json`);
-    locale(nextLocale, module.default);
+    try {
+      // Load the new locale file
+      const module = await import(`@/locales/${nextLocale}.json`);
+      locale(nextLocale, module.default);
+
+      // Persist the language preference to user settings
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: nextLocale }),
+      });
+    } catch (error) {
+      console.error('Failed to change language:', error);
+    }
   };
 
   return (
@@ -67,10 +79,10 @@ export default function Footer() {
           <div className="space-y-8">
             <div className="text-2xl font-bold text-white flex items-center gap-2">
               <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
-              OghmaNotes
+              {t('OghmaNotes')}
             </div>
             <p className="text-sm/6 text-balance text-gray-400">
-              RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.
+              {t('RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.')}
             </p>
             <div className="flex gap-x-6">
               {navigation.social.map((item) => (
@@ -91,18 +103,21 @@ export default function Footer() {
               <label htmlFor="language-select" className="text-xs font-semibold text-gray-400 uppercase tracking-tighter block mb-2">
                 {t('Language')}
               </label>
-              <select
-                id="language-select"
-                value={activeLocale}
-                onChange={handleLanguageChange}
-                className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-              >
-                {Object.entries(configLocale).map(([code, name]) => (
-                  <option key={code} value={code} className="bg-gray-900">
-                    {name}
-                  </option>
-                ))}
-              </select>
+               <select
+                 id="language-select"
+                 value={activeLocale}
+                 onChange={handleLanguageChange}
+                 className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 appearance-none"
+                 style={{
+                   colorScheme: 'dark'
+                 }}
+               >
+                 {Object.entries(configLocale).map(([code, name]) => (
+                   <option key={code} value={code}>
+                     {name}
+                   </option>
+                 ))}
+               </select>
             </div>
           </div>
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
@@ -161,7 +176,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-xs/5 text-gray-400">&copy; {new Date().getFullYear()} OghmaNotes. All rights reserved.</p>
+          <p className="text-xs/5 text-gray-400">{t(`© ${new Date().getFullYear()} OghmaNotes. All rights reserved.`)}</p>
         </div>
       </div>
     </footer>

@@ -3,6 +3,7 @@
 import { FC, useRef } from 'react';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import { useFileUrl } from './use-file-url';
+import useI18n from '@/lib/notes/hooks/use-i18n';
 
 interface VideoViewerProps {
   file: FileSpec;
@@ -13,28 +14,29 @@ interface VideoViewerProps {
  * Supports play, pause, volume, progress, speed, and fullscreen
  */
 const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const { url: videoSrc } = useFileUrl(file.sourcePath);
+   const { t } = useI18n();
+   const videoRef = useRef<HTMLVideoElement>(null);
+   const { url: videoSrc } = useFileUrl(file.sourcePath);
 
   return (
     <div className="h-full flex flex-col bg-gray-800">
-      {/* Header */}
-      <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
-        <span className="text-xs text-gray-400">{file.title}</span>
-        <span className="text-xs text-gray-600">Video</span>
-      </div>
+       {/* Header */}
+       <div className="flex-shrink-0 px-4 py-3 bg-gray-900 border-b border-white/10 flex items-center justify-between">
+         <span className="text-xs text-gray-400">{file.title}</span>
+         <span className="text-xs text-gray-600">{t('video_viewer.label')}</span>
+       </div>
 
       {/* Video Player */}
       <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
-        <video
-          ref={videoRef}
-          src={videoSrc}
-          controls
-          crossOrigin="anonymous"
-          className="w-full h-full object-contain bg-black"
-        >
-          Your browser does not support the video tag.
-        </video>
+         <video
+           ref={videoRef}
+           src={videoSrc}
+           controls
+           crossOrigin="anonymous"
+           className="w-full h-full object-contain bg-black"
+         >
+           {t('video_viewer.no_support')}
+         </video>
       </div>
     </div>
   );

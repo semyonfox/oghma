@@ -3,57 +3,6 @@ import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { isValidUUID } from '@/lib/uuid-validation.js';
-import sql from '@/database/pgsql.js';
-
-/**
- * GET /api/tree
- * 
- * Lazy-loading root endpoint. Returns root items only (not full tree).
- * Delegates to /api/tree/children internally for consistency.
- */
-export async function GET(request: Request) {
-    try {
-      const user = await validateSession();
-      if (!user) {
-        return NextResponse.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-
-      // Fetch root items (parent_id IS NULL), sorted A-Z by title
-      const rows = await sql`
-        SELECT 
-          ti.note_id,
-          n.title,
-          n.is_folder,
-          ti.is_expanded
-        FROM app.tree_items ti
-        JOIN app.notes n ON ti.note_id = n.note_id
-        WHERE ti.user_id = ${user.user_id}::uuid
-          AND ti.parent_id IS NULL
-          AND n.deleted = 0 
-          AND n.deleted_at IS NULL
-        ORDER BY n.title ASC
-      `;
-
-      return NextResponse.json({
-        parentId: 'root',
-        items: rows.map(row => ({
-          id: row.note_id,
-          title: row.title,
-          isFolder: row.is_folder,
-          isExpanded: row.is_expanded,
-        })),
-      });
-    } catch (error) {
-      console.error('Tree GET error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch tree' },
-        { status: 500 }
-      );
-    }
-}
 
 interface TreeMutateAction {
     action: 'move' | 'mutate';
