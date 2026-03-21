@@ -1,4 +1,5 @@
 import Redis, { Cluster } from 'ioredis';
+import logger from '@/lib/logger';
 
 const host = process.env.REDIS_HOST ?? 'localhost';
 const port = parseInt(process.env.REDIS_PORT ?? '6379', 10);
@@ -20,6 +21,19 @@ export const redis: Cluster | Redis = tls
     })
   : new Redis({ host, port, ...redisOptions, retryStrategy: (times) => Math.min(times * 100, 3000) });
 
+// track connection state for consumers that need to know if redis is available
+export let redisReady = false;
+
+redis.on('ready', () => {
+  redisReady = true;
+  logger.info('redis connection established');
+});
+
 redis.on('error', (err) => {
-  console.error('[redis] connection error:', err.message);
+  redisReady = false;
+  logger.error('redis connection error', { message: err.message });
+});
+
+redis.on('close', () => {
+  redisReady = false;
 });

@@ -8,6 +8,9 @@ import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
+const MAX_TITLE_LENGTH = 500;
+const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
+
 export async function GET(request, { params }) {
   try {
     // Get authenticated user
@@ -86,6 +89,22 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
+
+    // validate input lengths
+    if (body.title && body.title.length > MAX_TITLE_LENGTH) {
+      logger.warn('note title exceeds max length', { length: body.title.length, noteId });
+      return NextResponse.json(
+        { error: `Title must be ${MAX_TITLE_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+    if (body.content && body.content.length > MAX_CONTENT_LENGTH) {
+      logger.warn('note content exceeds max length', { length: body.content.length, noteId });
+      return NextResponse.json(
+        { error: `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer` },
+        { status: 400 }
+      );
+    }
 
     // Get existing note (verify ownership)
     const result = await sql`
