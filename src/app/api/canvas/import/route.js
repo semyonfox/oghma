@@ -66,13 +66,11 @@ export async function POST(request) {
 
     const jobId = job.id;
 
-    // send to SQS and ensure the ECS worker is running
     try {
       await sqsClient.send(new SendMessageCommand({
         QueueUrl: CANVAS_IMPORT_QUEUE_URL,
         MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
       }));
-      // scale up the Fargate worker instantly — no CloudWatch delay
       await ensureWorkerRunning();
     } catch (sqsErr) {
       // SQS send failed but the Postgres job record exists —
