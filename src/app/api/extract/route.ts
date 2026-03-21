@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
         const response = await fetch(url);
         const buffer = await response.arrayBuffer();
 
-        const pdfParseModule = await import('pdf-parse');
-        const pdfParse = (pdfParseModule as unknown as { default?: (data: Buffer) => Promise<{ text: string }> }).default
-            ?? (pdfParseModule as unknown as (data: Buffer) => Promise<{ text: string }>);
-        const parsed = await pdfParse(Buffer.from(buffer));
+        const { PDFParse } = await import('pdf-parse');
+        const parser = new PDFParse({});
+        await parser.load(Buffer.from(buffer));
+        const parsed = { text: await parser.getText() };
 
         const chunks = chunkText(parsed.text);
         const embeddings = await embedChunks(chunks);
