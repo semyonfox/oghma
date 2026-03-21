@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * GET /api/canvas/courses
@@ -61,7 +62,7 @@ export async function GET() {
     });
 
   } catch (err) {
-    console.error('Canvas courses error:', err);
+    logger.error('canvas courses error', { error: err });
     return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 });
   }
 }

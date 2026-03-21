@@ -5,6 +5,7 @@ import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ensureWorkerRunning } from '@/lib/ecs';
+import logger from '@/lib/logger';
 
 /**
  * POST /api/canvas/import
@@ -75,13 +76,13 @@ export async function POST(request) {
     } catch (sqsErr) {
       // SQS send failed but the Postgres job record exists —
       // worker safety-net poll will pick it up, so don't fail the request
-      console.error('SQS send failed (job still queued in DB):', sqsErr.message);
+      logger.warn('SQS send failed (job still queued in DB)', { error: sqsErr.message });
     }
 
     return NextResponse.json({ success: true, queued: true, jobId });
 
   } catch (err) {
-    console.error('Canvas import queue error:', err);
+    logger.error('canvas import queue error', { error: err });
     return NextResponse.json({ error: 'Failed to queue import' }, { status: 500 });
   }
 }

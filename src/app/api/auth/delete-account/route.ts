@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { getStorageProvider } from '@/lib/storage/init';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 const CONFIRM_PHRASE = 'delete my account';
 
@@ -70,7 +71,7 @@ export async function DELETE(request: NextRequest) {
 
     return response;
   } catch (err) {
-    console.error('Delete account error:', err);
+    logger.error('delete account error', { error: err });
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
   }
 }

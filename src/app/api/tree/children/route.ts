@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 const database = sql as any;
 
 /**
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
-    console.error('Tree children fetch error:', error);
+    logger.error('tree children fetch error', { error });
     return NextResponse.json(
       { error: 'Failed to fetch children' },
       { status: 500 }
