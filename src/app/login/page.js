@@ -39,21 +39,16 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      console.log('Login: Calling login API...')
       const response = await login(email, pwd)
-      console.log('Login: API returned:', response)
-      
+
       // Login successful - redirect to /notes
-      console.log('Login: Redirecting to /notes...')
       router.replace('/notes')
-      
+
       // Fallback redirect in case router.replace doesn't work
       setTimeout(() => {
-        console.log('Login: Fallback redirect triggered')
         window.location.href = '/notes'
       }, 1000)
     } catch (err) {
-      console.error('Login: Error occurred:', err)
       setErrMsg(getErrorMessage(err))
       setPwd('')
       errRef.current?.focus()
