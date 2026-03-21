@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* === SEMANTIC SURFACES & TEXT === */
   --color-background: #0f172a;
@@ -85,6 +87,38 @@
   --color-neutral-700: #404040;
   --color-neutral-800: #262626;
   --color-neutral-900: #171717;
+
+  /* === INTERACTIVE ELEMENTS === */
+  --color-input: rgba(255, 255, 255, 0.05);
+  --color-subtle: rgba(255, 255, 255, 0.1);
+  --color-subtle-hover: rgba(255, 255, 255, 0.15);
+}
+
+/* light mode overrides */
+html.light {
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f1f5f9;
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+  --color-input: #ffffff;
+  --color-subtle: rgba(0, 0, 0, 0.04);
+  --color-subtle-hover: rgba(0, 0, 0, 0.08);
+}
+
+html.light .obsidian-scrollbar {
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+html.light .obsidian-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+html.light .obsidian-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.18);
 }
 
 html, body {
