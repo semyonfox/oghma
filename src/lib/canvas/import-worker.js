@@ -92,25 +92,39 @@ async function setImportStatus(importRecordId, status, extra = {}) {
   }
 }
 
-async function processRagPipeline(noteId, buffer) {
+async function processRagPipeline(noteId, userId, buffer) {
   try {
-    const pdfParseModule = await import('pdf-parse');
-    const pdfParse = pdfParseModule.default;
-    if (typeof pdfParse !== 'function') throw new Error('pdf-parse not found');
+    const { PDFParse } = await import('pdf-parse');
+    const parser = new PDFParse({});
+    await parser.load(buffer);
+    const rawText = await parser.getText();
 
-    const parsed = await pdfParse(buffer);
-    const cleanedText = processExtractedText(parsed.text);
+    const cleanedText = processExtractedText(rawText);
     const chunks = chunkText(cleanedText);
     const embeddings = await embedChunks(chunks);
-    const documentVector = embeddings[0]?.vector ?? null;
 
+    // store extracted text on the note for full-text display/search
     await sql`
       UPDATE app.notes
-      SET extracted_text = ${cleanedText},
-          embedding = ${documentVector ? JSON.stringify(documentVector) : null}::vector,
-          updated_at = NOW()
+      SET extracted_text = ${cleanedText}, updated_at = NOW()
       WHERE note_id = ${noteId}
     `;
+
+    // store chunks + embeddings in the dedicated RAG tables
+    // (rag.ts searches app.embeddings joined with app.chunks)
+    for (const { chunk, vector } of embeddings) {
+      const [row] = await sql`
+        INSERT INTO app.chunks (document_id, user_id, text)
+        VALUES (${noteId}::uuid, ${userId}::uuid, ${chunk})
+        RETURNING id
+      `;
+      await sql`
+        INSERT INTO app.embeddings (chunk_id, embedding)
+        VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
+      `;
+    }
+
+    console.log(`RAG: ${embeddings.length} chunks embedded for note ${noteId}`);
   } catch (error) {
     // RAG failure is non-fatal — note is still usable without embeddings
     console.error(`RAG pipeline error for note ${noteId}:`, error);
@@ -157,7 +171,7 @@ async function _runFileImport(importRecordId, file, opts) {
   await setImportStatus(importRecordId, 'processing');
 
   const noteId = await createNote(userId, file.display_name, parentFolderId, { s3Key });
-  await processRagPipeline(noteId, buffer);
+  await processRagPipeline(noteId, userId, buffer);
   await setImportStatus(importRecordId, 'complete', { noteId });
   console.log(`Processed: ${file.display_name}`);
 }
@@ -314,15 +328,35 @@ const QUEUE_URL = process.env.SQS_QUEUE_URL;
 
 const MAX_CONCURRENT_JOBS = 3;
 
+// route messages by type — defaults to canvas-import for backwards compat
 async function processAndDelete(message) {
-  const { jobId } = JSON.parse(message.Body);
-  console.log(`[${new Date().toISOString()}] Received job: ${jobId}`);
-  await processImportJob(jobId);
+  const body = JSON.parse(message.Body);
+  const type = body.type ?? 'canvas-import';
+  const ts = () => new Date().toISOString();
+
+  console.log(`[${ts()}] Received ${type}: ${body.jobId ?? body.userId ?? 'unknown'}`);
+
+  switch (type) {
+    case 'canvas-import':
+      await processImportJob(body.jobId);
+      break;
+    case 'vault-export':
+      // TODO: enable — export user's vault as zip to S3, update job row
+      console.log(`[${ts()}] vault-export not yet enabled, skipping`);
+      break;
+    case 'vault-import':
+      // TODO: enable — extract uploaded zip, create notes + RAG pipeline
+      console.log(`[${ts()}] vault-import not yet enabled, skipping`);
+      break;
+    default:
+      console.warn(`[${ts()}] Unknown job type: ${type}`);
+  }
+
   await sqsClient.send(new DeleteMessageCommand({
     QueueUrl: QUEUE_URL,
     ReceiptHandle: message.ReceiptHandle,
   }));
-  console.log(`[${new Date().toISOString()}] Job done, message deleted: ${jobId}`);
+  console.log(`[${ts()}] Done, message deleted`);
 }
 
 async function pollQueue() {
