@@ -56,6 +56,13 @@ env.old/
 # generated manifests that may contain secrets
 STORAGE_FINDINGS_MANIFEST.txt
 
+# logs and debug output
+logs/
+firebase-debug.log
 
+# backup files
+*.bak
+
+# claude code
 CLAUDE.md
 .claude/
