@@ -24,8 +24,22 @@ import { addNoteToTree } from '../notes/storage/pg-tree.js';
 
 const PROCESSABLE_TYPES = new Set(['application/pdf']);
 const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
+const FILE_CONCURRENCY = 5; // process up to 5 files at once per module/assignment
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+// runs an array of async fns with at most `limit` in flight at a time
+async function pooled(tasks, limit) {
+  const results = [];
+  const executing = new Set();
+  for (const task of tasks) {
+    const p = task().then(r => { executing.delete(p); return r; });
+    executing.add(p);
+    results.push(p);
+    if (executing.size >= limit) await Promise.race(executing);
+  }
+  return Promise.allSettled(results);
+}
 
 function resolveMimeType(filename, canvasMimeType) {
   if (canvasMimeType && PROCESSABLE_TYPES.has(canvasMimeType)) return canvasMimeType;
@@ -192,14 +206,18 @@ async function processModules(courseId, userId, courseTitle, courseFolderId, ctx
     if (fileItems.length === 0) continue;
     const moduleKey = `${courseId}:${module.id}`;
     moduleFolderMap[moduleKey] ??= await tryCreateFolder(userId, module.name, courseFolderId, courseFolderId);
+    // resolve file metadata first, then download/process concurrently
+    const resolved = [];
     for (const item of fileItems) {
       const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
       if (fileForbidden || !file) { console.log(`File forbidden: ${item.title}`); continue; }
-      await downloadAndStoreFile(file, {
-        userId, courseId, moduleId: module.id, parentFolderId: moduleFolderMap[moduleKey],
-        client, storage, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
-      });
+      resolved.push(file);
     }
+    const opts = {
+      userId, courseId, moduleId: module.id, parentFolderId: moduleFolderMap[moduleKey],
+      client, storage, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
+    };
+    await pooled(resolved.map(file => () => downloadAndStoreFile(file, opts)), FILE_CONCURRENCY);
   }
 }
 
@@ -220,12 +238,11 @@ async function processAssignments(courseId, userId, courseTitle, courseFolderId,
       PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type))
     );
     const assignmentFolderId = await tryCreateFolder(userId, assignment.name, assignmentsFolderId, assignmentsFolderId);
-    for (const attachment of attachments) {
-      await downloadAndStoreFile(attachment, {
-        userId, courseId, moduleId: null, parentFolderId: assignmentFolderId,
-        client, storage, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
-      });
-    }
+    const opts = {
+      userId, courseId, moduleId: null, parentFolderId: assignmentFolderId,
+      client, storage, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
+    };
+    await pooled(attachments.map(att => () => downloadAndStoreFile(att, opts)), FILE_CONCURRENCY);
   }
 }
 
