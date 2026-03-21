@@ -88,16 +88,16 @@ Tracks overall import jobs. Columns:
 - `user_id`: Owner of import
 - `course_ids`: JSON array of courses being imported
 
-## Integration (Already Complete)
+## Integration (already wired up)
 
-✅ `src/app/layout.js` - Added `<CanvasIntegration />` in root  
-✅ `src/app/settings/page.jsx` - Added `<CanvasImportStatus />` in Canvas section  
+- `src/app/layout.js` — `<CanvasIntegration />` in root
+- `src/app/settings/page.jsx` — `<CanvasImportStatus />` in canvas section
 
 No additional integration needed unless customizing behavior.
 
-## Multi-User Safety
+## Multi-user safety
 
-✅ All components are scoped by authenticated user:
+All components are scoped by authenticated user:
 - API endpoints check `validateSession()`
 - Database queries filtered by `user_id`
 - S3 file paths include `userId` prefix
@@ -108,4 +108,4 @@ No additional integration needed unless customizing behavior.
 **Progress bar stuck:** Check worker logs (`pm2 logs canvas-worker`)  
 **Settings panel slow:** Verify database connectivity  
 
-See `PRODUCTION_SETUP_CHECKLIST.md` for deployment and Canvas worker setup.
+See PRODUCTION_SETUP_CHECKLIST.md for deployment and canvas worker setup.
