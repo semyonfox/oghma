@@ -11,8 +11,6 @@ import TrashModal from '@/components/notes/trash-modal';
 import PreviewModal from '@/components/notes/preview-modal';
 import LinkToolbar from '@/components/notes/link-toolbar';
 import EditorWidthSelect from '@/components/notes/editor-width-select';
-import CanvasImportToast from '@/components/CanvasImportToast';
-import { useCanvasImportStatus } from '@/hooks/useCanvasImportStatus';
 
 interface NotesProvidersProps {
     children: ReactNode;
@@ -20,7 +18,6 @@ interface NotesProvidersProps {
 
 function NotesProvidersContent({ children }: NotesProvidersProps) {
     const [localeData, isLoading] = useLocaleLoader(Locale.EN);
-    const { progress, showToast, isImporting, onToastClose } = useCanvasImportStatus();
 
     const sharedUI = (
         <>
@@ -30,14 +27,6 @@ function NotesProvidersContent({ children }: NotesProvidersProps) {
             <LinkToolbar />
             <EditorWidthSelect />
             <Toaster position="bottom-center" />
-            <CanvasImportToast
-                show={showToast}
-                onClose={onToastClose}
-                progress={progress}
-                onViewLogs={() => {
-                    window.location.href = '/settings';
-                }}
-            />
         </>
     );
 
