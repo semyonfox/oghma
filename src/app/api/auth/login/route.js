@@ -33,8 +33,8 @@ export async function POST(request) {
         }
 
         // 3. Check if account is locked due to too many failed attempts
-        if (isAccountLocked(email)) {
-            const minutesRemaining = getLockoutMinutesRemaining(email);
+        if (await isAccountLocked(email)) {
+            const minutesRemaining = await getLockoutMinutesRemaining(email);
             return createErrorResponse(
                 `Account temporarily locked. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}.`,
                 429
@@ -42,7 +42,7 @@ export async function POST(request) {
         }
 
         // 4. Check rate limit (prevents brute force even with multiple accounts)
-        if (isRateLimited(email)) {
+        if (await isRateLimited(email)) {
             return createErrorResponse(
                 'Too many login attempts. Please try again later.',
                 429
@@ -60,7 +60,7 @@ export async function POST(request) {
 
         if (!user) {
             // Record failed attempt for security tracking
-            recordFailedAttempt(email);
+            await recordFailedAttempt(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
@@ -84,12 +84,12 @@ export async function POST(request) {
 
         if (!matchingPassword) {
             // Record failed attempt for security tracking
-            recordFailedAttempt(email);
+            await recordFailedAttempt(email);
             return createErrorResponse('Invalid email or password', 401);
         }
 
         // 7. Successful login - clear failed attempt counters
-        clearFailedAttempts(email);
+        await clearFailedAttempts(email);
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
         const sessionResponse = await createAuthSession(user, 1);
