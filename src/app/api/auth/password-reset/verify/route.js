@@ -1,9 +1,9 @@
-// src/app/api/auth/password-reset/verify/route.js
-
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import sql from '@/database/pgsql.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
+import logger from '@/lib/logger';
 
 export async function POST(request) {
     try {
@@ -11,12 +11,8 @@ export async function POST(request) {
         if (parseError) return parseError;
 
         const { token, password } = body;
+        if (!token || !password) return createErrorResponse('Token and password are required', 400);
 
-        if (!token || !password) {
-            return createErrorResponse('Token and password are required', 400);
-        }
-
-        // Validate new password strength
         const validation = validateAuthCredentials('dummy@email.com', password, true);
         if (!validation.isValid) {
             return new Response(
@@ -25,39 +21,29 @@ export async function POST(request) {
             );
         }
 
-        // Find user with valid token
+        // hash the incoming token to compare against the stored hash
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
         const users = await sql`
-      SELECT user_id, email 
-      FROM app.login 
-      WHERE reset_token = ${token}
-        AND reset_token_expires > NOW()
-    `;
+            SELECT user_id, email FROM app.login
+            WHERE reset_token = ${tokenHash} AND reset_token_expires > NOW()
+        `;
 
-        if (users.length === 0) {
-            return createErrorResponse('Invalid or expired reset token', 400);
-        }
+        if (users.length === 0) return createErrorResponse('Invalid or expired reset token', 400);
 
-        const user = users[0];
-
-        // Hash new password
         const hashedPassword = await bcrypt.hash(password, 10);
-
-         // Update password and clear reset token
-         await sql`
-      UPDATE app.login 
-      SET hashed_password = ${hashedPassword},
-           reset_token = NULL,
-           reset_token_expires = NULL
-       WHERE user_id = ${user.user_id}
-     `;
+        await sql`
+            UPDATE app.login
+            SET hashed_password = ${hashedPassword}, reset_token = NULL, reset_token_expires = NULL
+            WHERE user_id = ${users[0].user_id}
+        `;
 
         return new Response(
             JSON.stringify({ message: 'Password reset successful' }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
-
     } catch (error) {
-        console.error('Password reset error:', error);
+        logger.error('password reset error', { error });
         return createErrorResponse('Failed to reset password', 500);
     }
 }
