@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
         const buffer = await response.arrayBuffer();
 
         const { PDFParse } = await import('pdf-parse');
-        const parser = new PDFParse({});
-        await parser.load(Buffer.from(buffer));
-        const parsed = { text: await parser.getText() };
+        const parser = new PDFParse({ data: Buffer.from(buffer) });
+        const textResult = await parser.getText();
+        const parsed = { text: textResult.text };
 
         const chunks = chunkText(parsed.text);
         const embeddings = await embedChunks(chunks);
