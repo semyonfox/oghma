@@ -95,9 +95,9 @@ async function setImportStatus(importRecordId, status, extra = {}) {
 async function processRagPipeline(noteId, userId, buffer) {
   try {
     const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse({});
-    await parser.load(buffer);
-    const rawText = await parser.getText();
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    const rawText = result.text;
 
     const cleanedText = processExtractedText(rawText);
     const chunks = chunkText(cleanedText);
