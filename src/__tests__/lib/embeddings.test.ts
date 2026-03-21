@@ -31,7 +31,12 @@ describe('embedChunks', () => {
         const mockVector = [0.1, 0.2, 0.3];
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
-            json: async () => ({ vector: mockVector }),
+            json: async () => ({
+                data: [
+                    { embedding: mockVector, index: 0 },
+                    { embedding: mockVector, index: 1 },
+                ],
+            }),
         }));
 
         const result = await embedChunks(['hello world', 'another chunk']);
@@ -41,35 +46,33 @@ describe('embedChunks', () => {
         expect(result[1].chunk).toBe('another chunk');
     });
 
-    it('filters out chunks where the API call fails', async () => {
+    it('filters out batches where the API call fails', async () => {
+        // both chunks go in the same batch (batch size 50), so a 500 drops the whole batch
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
-            .mockResolvedValueOnce({ ok: true, json: async () => ({ vector: [0.5, 0.6] }) })
         );
 
         const result = await embedChunks(['bad chunk', 'good chunk']);
-        expect(result).toHaveLength(1);
-        expect(result[0].chunk).toBe('good chunk');
+        expect(result).toHaveLength(0);
     });
 
-    it('filters out chunks where the response has no vector field', async () => {
+    it('filters out batches where the response has no data array', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
-            json: async () => ({ notAVector: 'oops' }),
+            json: async () => ({ notData: 'oops' }),
         }));
 
         const result = await embedChunks(['chunk one']);
         expect(result).toHaveLength(0);
     });
 
-    it('filters out chunks that throw during fetch', async () => {
+    it('filters out batches that throw during fetch', async () => {
+        // both chunks are in one batch, so a network error drops everything
         vi.stubGlobal('fetch', vi.fn()
             .mockRejectedValueOnce(new Error('network error'))
-            .mockResolvedValueOnce({ ok: true, json: async () => ({ vector: [1, 2, 3] }) })
         );
 
         const result = await embedChunks(['failing chunk', 'working chunk']);
-        expect(result).toHaveLength(1);
-        expect(result[0].chunk).toBe('working chunk');
+        expect(result).toHaveLength(0);
     });
 });
