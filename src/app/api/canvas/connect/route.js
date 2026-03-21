@@ -33,7 +33,7 @@ export async function GET() {
       return NextResponse.json({ connected: false });
     }
 
-    // Validate the stored token is still live by fetching courses
+    // validate the stored token is still live by fetching courses
     const client = new CanvasClient(canvas_domain, canvas_token);
     const { data: courses, error } = await client.getCourses();
 
@@ -41,10 +41,22 @@ export async function GET() {
       return NextResponse.json({ connected: false });
     }
 
+    // courses where both modules AND assignments returned forbidden
+    // (canvas_file_id = 0 is the sentinel used by the worker for course-level forbidden markers)
+    const forbiddenRows = await sql`
+      SELECT DISTINCT canvas_course_id
+      FROM app.canvas_imports
+      WHERE user_id = ${user.user_id}
+        AND status = 'forbidden'
+        AND canvas_file_id = 0
+    `;
+    const forbiddenCourseIds = forbiddenRows.map(r => r.canvas_course_id);
+
     return NextResponse.json({
       connected: true,
       domain: canvas_domain,
       courses: courses ?? [],
+      forbiddenCourseIds,
     });
 
   } catch (err) {
