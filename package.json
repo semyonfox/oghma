@@ -11,7 +11,8 @@
     "start:next": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:ci": "vitest run"
+    "test:ci": "vitest run",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-ecs": "^3.1014.0",
@@ -98,6 +99,7 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "16.1.6",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "husky": "^9.1.7",
     "jsdom": "^24.0.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
