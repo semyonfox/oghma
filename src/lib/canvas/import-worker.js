@@ -101,15 +101,13 @@ async function processRagPipeline(noteId, userId, buffer) {
     const chunks = chunkText(cleanedText);
     const embeddings = await embedChunks(chunks);
 
-    // store extracted text on the note for full-text display/search
     await sql`
       UPDATE app.notes
       SET extracted_text = ${cleanedText}, updated_at = NOW()
       WHERE note_id = ${noteId}
     `;
 
-    // store chunks + embeddings in the dedicated RAG tables
-    // (rag.ts searches app.embeddings joined with app.chunks)
+    // rag.ts searches app.embeddings joined with app.chunks
     for (const { chunk, vector } of embeddings) {
       const [row] = await sql`
         INSERT INTO app.chunks (document_id, user_id, text)
@@ -124,13 +122,10 @@ async function processRagPipeline(noteId, userId, buffer) {
 
     console.log(`RAG: ${embeddings.length} chunks embedded for note ${noteId}`);
   } catch (error) {
-    // RAG failure is non-fatal — note is still usable without embeddings
     console.error(`RAG pipeline error for note ${noteId}:`, error);
   }
 }
 
-// No outer try/catch — errors propagate to the timeout race in downloadAndStoreFile.
-// opts: { userId, courseId, moduleId, parentFolderId, client, storage, s3Prefix }
 async function _runFileImport(importRecordId, file, opts) {
   const { userId, courseId, moduleId, parentFolderId, client, storage, s3Prefix } = opts;
   const resolvedMimeType = resolveMimeType(file.display_name, file.content_type);
@@ -174,13 +169,6 @@ async function _runFileImport(importRecordId, file, opts) {
   console.log(`Processed: ${file.display_name}`);
 }
 
-/**
- * Downloads a Canvas file, uploads to S3, creates a note, and runs the RAG pipeline.
- * Enforces a 2-minute per-file timeout. Tracks progress in app.canvas_imports.
- *
- * @param {object} file - Canvas file metadata (display_name, id, url, filename, content_type)
- * @param {object} opts - { userId, courseId, moduleId, parentFolderId, client, storage, s3Prefix }
- */
 async function downloadAndStoreFile(file, opts) {
   const importRecordId = uuidv4();
   const timer = new Promise((_, reject) =>
@@ -210,14 +198,12 @@ async function processModules(courseId, userId, courseTitle, courseFolderId, ctx
     console.warn(`No modules (or restricted) for course ${courseId}`);
     return;
   }
-  // process modules concurrently (up to 5 at a time)
   await pooled(modules.map(module => async () => {
     const { data: items } = await client.getModuleItems(courseId, module.id);
     if (!items) return;
     const fileItems = items.filter(item => item.type === 'File');
     if (fileItems.length === 0) return;
     const folderId = await tryCreateFolder(userId, module.name, courseFolderId, courseFolderId);
-    // resolve file metadata concurrently, then download/process concurrently
     const metaResults = await pooled(
       fileItems.map(item => async () => {
         const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
@@ -272,7 +258,6 @@ async function processCourse(course, userId, ctx) {
   await processAssignments(courseId, userId, courseTitle, courseFolderId, { client, storage });
 }
 
-// Normalises the raw course_ids field (legacy ID array or new object array) into objects.
 function parseJobCourses(job) {
   const raw = typeof job.course_ids === 'string' ? JSON.parse(job.course_ids) : job.course_ids;
   return raw.map(c =>
@@ -282,14 +267,12 @@ function parseJobCourses(job) {
   );
 }
 
-// Marks job as processing, fetches Canvas credentials, and runs the import pipeline.
 async function runJobPipeline(jobId, userId, courses) {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
   const [creds] = await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
   if (!creds) throw new Error('User or Canvas credentials not found');
   const client = new CanvasClient(creds.canvas_domain, creds.canvas_token);
   const storage = getStorageProvider();
-  // process all courses concurrently — pooled limits to 3 at a time
   await pooled(courses.map(course => () => processCourse(course, userId, { client, storage })), 3);
 }
 
@@ -313,7 +296,6 @@ export async function processImportJob(jobId) {
 
 // ── Worker ────────────────────────────────────────────────────────────────────
 
-// Resets jobs stuck in 'processing' for longer than STUCK_JOB_THRESHOLD.
 async function failStuckJobs() {
   await sql`
     UPDATE app.canvas_import_jobs
@@ -329,7 +311,7 @@ const QUEUE_URL = process.env.SQS_QUEUE_URL;
 
 const MAX_CONCURRENT_JOBS = 3;
 
-// route messages by type — defaults to canvas-import for backwards compat
+// defaults to canvas-import for backwards compat
 async function processAndDelete(message) {
   const body = JSON.parse(message.Body);
   const type = body.type ?? 'canvas-import';
@@ -360,6 +342,7 @@ async function processAndDelete(message) {
   console.log(`[${ts()}] Done, message deleted`);
 }
 
+// returns true if messages were processed, false if queue was empty
 async function pollQueue() {
   const res = await sqsClient.send(new ReceiveMessageCommand({
     QueueUrl: QUEUE_URL,
@@ -369,15 +352,15 @@ async function pollQueue() {
   }));
 
   const messages = res.Messages ?? [];
-  if (messages.length === 0) return;
+  if (messages.length === 0) return false;
 
-  // process up to 3 jobs concurrently — SQS visibility timeout prevents duplicates
   const results = await Promise.allSettled(messages.map(processAndDelete));
   for (const result of results) {
     if (result.status === 'rejected') {
       console.error(`[${new Date().toISOString()}] Job processing error:`, result.reason?.message);
     }
   }
+  return true;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -390,13 +373,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   while (true) {
     try {
-      const before = Date.now();
-      await pollQueue();
-      // pollQueue returns immediately if messages were found (processed them),
-      // or after ~20s long-poll timeout if queue was empty
-      const elapsed = Date.now() - before;
-      // if the poll returned in < 2s, messages were processed — reset idle counter
-      if (elapsed < 2000) {
+      const hadWork = await pollQueue();
+      if (hadWork) {
         idlePolls = 0;
       } else {
         idlePolls++;
