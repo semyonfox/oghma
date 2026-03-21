@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { DEFAULT_SETTINGS } from '@/lib/notes/types/settings';
 import { getSettingsFromS3, saveSettingsToS3 } from '@/lib/notes/storage/s3-storage';
 import { validateSession } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -19,7 +20,7 @@ export async function GET() {
     
     return NextResponse.json(mergedSettings);
   } catch (error) {
-    console.error('Error fetching settings:', error);
+    logger.error('error fetching settings', { error });
     return NextResponse.json(
       { error: 'Failed to fetch settings' },
       { status: 500 }
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     
     return NextResponse.json(updatedSettings);
   } catch (error) {
-    console.error('Error saving settings:', error);
+    logger.error('error saving settings', { error });
     return NextResponse.json(
       { error: 'Failed to save settings' },
       { status: 500 }

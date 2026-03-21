@@ -3,6 +3,7 @@ import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { isValidUUID } from '@/lib/uuid-validation.js';
+import logger from '@/lib/logger';
 
 interface TreeMutateAction {
     action: 'move' | 'mutate';
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
               return NextResponse.json({ success: true });
       }
     } catch (error) {
-      console.error('Tree POST error:', error);
+      logger.error('tree POST error', { error });
       return NextResponse.json(
         { error: 'Failed to update tree' },
         { status: 500 }
