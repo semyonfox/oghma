@@ -1,7 +1,7 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* .npmrc* ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Stage 2: Builder
@@ -9,7 +9,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 # Install build tools for native modules (e.g., bcrypt)
 RUN apk add --no-cache python3 make g++
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* .npmrc* ./
 RUN npm ci
 COPY . .
 ENV NODE_ENV=production
