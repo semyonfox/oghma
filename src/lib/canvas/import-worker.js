@@ -304,6 +304,20 @@ async function failStuckJobs() {
   `;
 }
 
+// pick up jobs where SQS send failed but the DB record exists
+async function processOrphanedJobs() {
+  const orphaned = await sql`
+    SELECT id FROM app.canvas_import_jobs
+    WHERE status = 'queued' AND created_at < NOW() - INTERVAL '2 minutes'
+    ORDER BY created_at ASC LIMIT 3
+  `;
+  for (const job of orphaned) {
+    console.log(`[${new Date().toISOString()}] Processing orphaned job: ${job.id}`);
+    await processImportJob(job.id);
+  }
+  return orphaned.length > 0;
+}
+
 // ── SQS polling ──────────────────────────────────────────────────────────────
 
 const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
@@ -367,7 +381,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`[${new Date().toISOString()}] Canvas Import Worker started (SQS mode)`);
 
   await failStuckJobs();
+  await processOrphanedJobs();
   setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
+  setInterval(processOrphanedJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 
   let idlePolls = 0;
 
