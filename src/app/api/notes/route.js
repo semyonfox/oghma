@@ -11,6 +11,8 @@ import logger from '@/lib/logger';
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const NOTE_PINNED = { UNPINNED: 0, PINNED: 1 };
 const NOTE_SHARED = { PRIVATE: 0, SHARED: 1 };
+const MAX_TITLE_LENGTH = 500;
+const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
 
 export async function GET(request) {
   try {
@@ -77,7 +79,23 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    
+
+    // validate input lengths
+    if (body.title && body.title.length > MAX_TITLE_LENGTH) {
+      logger.warn('note title exceeds max length', { length: body.title.length });
+      return NextResponse.json(
+        { error: `Title must be ${MAX_TITLE_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+    if (body.content && body.content.length > MAX_CONTENT_LENGTH) {
+      logger.warn('note content exceeds max length', { length: body.content.length });
+      return NextResponse.json(
+        { error: `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer` },
+        { status: 400 }
+      );
+    }
+
     // Generate UUID v7 for note
     const noteId = generateUUID();
     
