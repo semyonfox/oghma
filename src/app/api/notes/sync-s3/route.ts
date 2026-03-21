@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { syncS3ToPG, checkSyncStatus } from '@/lib/notes/migrations/sync-s3-to-pg.js';
+import logger from '@/lib/logger';
 
 /**
  * GET /api/notes/sync-s3
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     const status = await checkSyncStatus(user.user_id);
     return NextResponse.json(status);
   } catch (error) {
-    console.error('Sync status check error:', error);
+    logger.error('sync status check error', { error });
     return NextResponse.json(
       { error: 'Failed to check sync status' },
       { status: 500 }
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
-    console.error('Sync error:', error);
+    logger.error('sync error', { error });
     return NextResponse.json(
       { error: 'Failed to sync notes' },
       { status: 500 }

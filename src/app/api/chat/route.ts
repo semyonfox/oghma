@@ -3,6 +3,7 @@ import { validateSession } from '@/lib/auth';
 import { embedChunks } from '@/lib/embeddings';
 import { getOpenWebUIToken, invalidateToken } from '@/lib/openwebuiAuth';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
             llmAvailable: true,
         });
     } catch (error) {
-        console.error('LLM error:', error);
+        logger.error('LLM error', { error });
         return NextResponse.json(
             { error: 'Failed to generate response' },
             { status: 502 }
