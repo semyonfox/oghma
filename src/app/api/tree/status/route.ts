@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * GET /api/tree/status
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
       message: isHealthy ? 'Tree structure is intact' : `${orphanedCount} orphaned note(s) found`,
     });
   } catch (error) {
-    console.error('Tree status check error:', error);
+    logger.error('tree status check error', { error });
     return NextResponse.json(
       { error: 'Failed to check tree status' },
       { status: 500 }

@@ -6,6 +6,7 @@ import { deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 export async function GET(request, { params }) {
   try {
@@ -55,7 +56,7 @@ export async function GET(request, { params }) {
 
     return NextResponse.json(filtered);
   } catch (error) {
-    console.error('Note GET error:', error);
+    logger.error('note GET error', { error });
     return NextResponse.json(
       { error: 'Failed to fetch note' },
       { status: 500 }
@@ -113,7 +114,7 @@ export async function PUT(request, { params }) {
      const dbNote = updatedNote[0];
      return NextResponse.json(mapNoteFromDB(dbNote));
   } catch (error) {
-    console.error('Note PUT error:', error);
+    logger.error('note PUT error', { error });
     return NextResponse.json(
       { error: 'Failed to update note' },
       { status: 500 }
@@ -170,7 +171,7 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Note DELETE error:', error);
+    logger.error('note DELETE error', { error });
     return NextResponse.json(
       { error: 'Failed to delete note' },
       { status: 500 }

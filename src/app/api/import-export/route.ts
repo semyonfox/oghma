@@ -7,6 +7,7 @@ import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ensureWorkerRunning } from '@/lib/ecs';
+import logger from '@/lib/logger';
 
 const ENABLED = process.env.VAULT_JOBS_ENABLED === 'true';
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
             }));
             await ensureWorkerRunning();
         } catch (err) {
-            console.error('SQS send failed for vault-export:', err);
+            logger.warn('SQS send failed for vault-export', { error: err });
         }
         return NextResponse.json({ success: true, queued: true });
     }

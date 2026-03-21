@@ -1,5 +1,6 @@
 import {NextResponse} from 'next/server';
 import sql from "@/database/pgsql.js";
+import logger from '@/lib/logger';
 
 /**
  * Health check endpoint for Docker and monitoring
@@ -42,7 +43,7 @@ export async function GET() {
             {status: dbStatus.connected ? 200 : 503}
         );
     } catch (error) {
-        console.error('Health check error:', error);
+        logger.error('health check error', { error });
         return NextResponse.json(
             {
                 status: 'error',

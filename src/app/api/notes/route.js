@@ -5,6 +5,7 @@ import { generateUUID } from '@/lib/utils/uuid';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 // Constants
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
@@ -56,7 +57,7 @@ export async function GET(request) {
     
     return NextResponse.json(filtered);
   } catch (error) {
-    console.error('Notes GET error:', error);
+    logger.error('notes GET error', { error });
     return NextResponse.json(
       { error: 'Failed to fetch notes' },
       { status: 500 }
@@ -108,7 +109,7 @@ export async function POST(request) {
       updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
     }, { status: 201 });
   } catch (error) {
-    console.error('Notes POST error:', error);
+    logger.error('notes POST error', { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create note' },
       { status: 500 }

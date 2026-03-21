@@ -5,6 +5,7 @@ import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ensureWorkerRunning } from '@/lib/ecs';
+import logger from '@/lib/logger';
 
 /**
  * POST /api/canvas/sync
@@ -90,13 +91,13 @@ export async function POST(request) {
       }));
       await ensureWorkerRunning();
     } catch (sqsErr) {
-      console.error('SQS send failed for sync (job still queued in DB):', sqsErr.message);
+      logger.warn('SQS send failed for sync (job still queued in DB)', { error: sqsErr.message });
     }
 
     return NextResponse.json({ queued: true, jobId });
 
   } catch (err) {
-    console.error('Canvas sync error:', err);
+    logger.error('canvas sync error', { error: err });
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
   }
 }
@@ -134,7 +135,7 @@ export async function GET(request) {
     });
 
   } catch (err) {
-    console.error('Canvas sync status error:', err);
+    logger.error('canvas sync status error', { error: err });
     return NextResponse.json({ error: 'Failed to check sync status' }, { status: 500 });
   }
 }
