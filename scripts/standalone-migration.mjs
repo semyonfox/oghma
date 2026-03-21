@@ -1,21 +1,8 @@
 #!/usr/bin/env node
 
-/**
- * Standalone Database Migration Script
- * 
- * Usage:
- *   DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require" node standalone-migration.mjs
- * 
- * This script:
- * 1. Connects to PostgreSQL
- * 2. Backs up existing data
- * 3. Drops old schema
- * 4. Creates new UUID v7 schema
- * 5. Reports results
- * 
- * IMPORTANT: Requires postgres npm package
- * Install with: npm install postgres
- */
+// standalone migration — backs up old data, drops schema, creates UUID v7 schema
+// usage: DATABASE_URL="postgresql://..." node standalone-migration.mjs
+// requires: npm install postgres
 
 import postgres from 'postgres';
 
@@ -183,23 +170,18 @@ COMMENT ON COLUMN app.notes.is_folder IS 'true if folder, false if note.';
 `;
 
 // ============================================================================
-// MAIN
-// ============================================================================
-
 async function main() {
-  console.log('\n════════════════════════════════════════════════════');
-  console.log('  OghmaNotes Standalone Database Migration');
-  console.log('════════════════════════════════════════════════════\n');
+  console.log('\nOghmaNotes standalone database migration\n');
 
   // Validate environment
   if (!DB_URL) {
-    console.error('❌ Error: DATABASE_URL environment variable not set');
+    console.error('error: DATABASE_URL environment variable not set');
     console.error('\nUsage:');
     console.error('  DATABASE_URL="postgresql://user:pass@host:5432/db" node standalone-migration.mjs');
     process.exit(1);
   }
 
-  console.log('📍 Database URL:', DB_URL.replace(/:[^@]*@/, ':***@'));
+  console.log('database URL:', DB_URL.replace(/:[^@]*@/, ':***@'));
   console.log('');
 
   // Connect to database
@@ -213,9 +195,9 @@ async function main() {
 
     // Test connection
     await sql`SELECT 1`;
-    console.log('✅ Connected to database');
+    console.log('connected to database');
   } catch (err) {
-    console.error('❌ Connection failed:', err.message);
+    console.error('connection failed:', err.message);
     console.error('\nMake sure:');
     console.error('  1. Tailscale is connected (if on eduroam)');
     console.error('  2. DATABASE_URL is correct');
@@ -224,34 +206,32 @@ async function main() {
   }
 
   // Run migration
-  console.log('\n⏳ Running migration (this may take a minute)...\n');
+  console.log('\nrunning migration (this may take a minute)...\n');
 
   try {
     // Execute the entire migration
     await sql.unsafe(MIGRATION_SQL);
 
-    console.log('\n✅ Migration completed successfully!\n');
-    console.log('📋 Tables created:');
-    console.log('   ✓ app.login        (users)');
-    console.log('   ✓ app.notes        (notes & folders)');
-    console.log('   ✓ app.tree_items   (file tree)');
-    console.log('   ✓ app.attachments  (file uploads)');
-    console.log('   ✓ app.pdf_annotations (PDF markups)\n');
+    console.log('\nmigration completed successfully\n');
+    console.log('tables created:');
+    console.log('   - app.login        (users)');
+    console.log('   - app.notes        (notes & folders)');
+    console.log('   - app.tree_items   (file tree)');
+    console.log('   - app.attachments  (file uploads)');
+    console.log('   - app.pdf_annotations (PDF markups)\n');
 
-    console.log('🔐 Features:');
-    console.log('   ✓ All primary keys are UUID v7');
-    console.log('   ✓ Folder support (is_folder column)');
-    console.log('   ✓ Soft delete (deleted_at column)');
-    console.log('   ✓ Per-user file tree (tree_items table)');
-    console.log('   ✓ Ready for Phase 2: semantic search\n');
+    console.log('features:');
+    console.log('   - all primary keys are UUID v7');
+    console.log('   - folder support (is_folder column)');
+    console.log('   - soft delete (deleted_at column)');
+    console.log('   - per-user file tree (tree_items table)');
+    console.log('   - ready for semantic search\n');
 
-    console.log('════════════════════════════════════════════════════');
-    console.log('  ✅ Database ready for react-complex-tree!');
-    console.log('════════════════════════════════════════════════════\n');
+    console.log('database ready for react-complex-tree\n');
 
     process.exit(0);
   } catch (error) {
-    console.error('\n❌ Migration failed!');
+    console.error('\nmigration failed');
     console.error('\nError:', error.message);
 
     if (error.detail) {
@@ -262,7 +242,7 @@ async function main() {
       console.error('Hint:', error.hint);
     }
 
-    console.error('\n⚠️  Database may be in an inconsistent state.');
+    console.error('\ndatabase may be in an inconsistent state.');
     console.error('Check the error above and try again.\n');
 
     process.exit(1);

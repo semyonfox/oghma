@@ -1,16 +1,5 @@
-// extracted from Notea (MIT License)
-// original: components/portal/share-modal.tsx
-// 
-// ⚠️ ARCHIVED FOR PHASE 2+ ⚠️
-// This component is part of the sharing feature infrastructure.
-// It is NOT active in Phase 1. Activate in Phase 2+ when ready to enable
-// public note sharing functionality.
-//
-// To activate:
-// 1. Ensure 'shared' field in notes table is properly indexed
-// 2. Create public share page at /share/[id]
-// 3. Wire up ShareModal in portal state
-// 4. Test with both public and private shares
+// archived — activate in phase 2 for public note sharing
+// from Notea (MIT), original: components/portal/share-modal.tsx
 
 import React, { FC, useCallback, useEffect, useState } from 'react';
 import usePortalStore from '@/lib/notes/state/portal';
