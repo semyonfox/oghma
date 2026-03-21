@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
+import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
+import { ensureWorkerRunning } from '@/lib/ecs';
 
 /**
  * POST /api/canvas/sync
@@ -69,6 +72,16 @@ export async function POST(request) {
       INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status)
       VALUES (${jobId}::uuid, ${user.user_id}::uuid, ${JSON.stringify(courses)}, 'queued')
     `;
+
+    try {
+      await sqsClient.send(new SendMessageCommand({
+        QueueUrl: CANVAS_IMPORT_QUEUE_URL,
+        MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+      }));
+      await ensureWorkerRunning();
+    } catch (sqsErr) {
+      console.error('SQS send failed for sync (job still queued in DB):', sqsErr.message);
+    }
 
     return NextResponse.json({ queued: true, jobId });
 
