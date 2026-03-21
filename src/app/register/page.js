@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { register, getErrorMessage } from '@/lib/apiClient'
 import { Alert } from '@/components/alert'
 import Link from 'next/link'
@@ -50,7 +51,7 @@ export default function RegisterPage() {
 
   // TODO: Implement social registration handlers (Google, Microsoft, GitHub, Apple)
   const handleSocialSignUp = (provider) => {
-    // TODO: redirect to OAuth endpoint or backend authentication
+    signIn(provider, { redirect: true, redirectTo: '/notes' })
   }
 
   return (
@@ -173,7 +174,7 @@ export default function RegisterPage() {
               {/* Microsoft */}
               <button
                 type="button"
-                onClick={() => handleSocialSignUp('microsoft')}
+                onClick={() => handleSocialSignUp('azure-ad')}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
                 <svg viewBox="0 0 2499.6 2500" aria-hidden="true" className="h-5 w-5">
