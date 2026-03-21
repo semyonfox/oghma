@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
@@ -67,11 +66,22 @@ export async function POST(request) {
       return NextResponse.json({ queued: false, reason: 'No matching active courses found' });
     }
 
-    const jobId = uuidv4();
-    await sql`
-      INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status)
-      VALUES (${jobId}::uuid, ${user.user_id}::uuid, ${JSON.stringify(courses)}, 'queued')
-    `;
+    // cancel any in-flight job and insert the sync atomically
+    const job = await sql.begin(async sql => {
+      await sql`
+        UPDATE app.canvas_import_jobs
+        SET status = 'cancelled', completed_at = NOW()
+        WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      `;
+      const [inserted] = await sql`
+        INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
+        VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
+        RETURNING id
+      `;
+      return inserted;
+    });
+
+    const jobId = job.id;
 
     try {
       await sqsClient.send(new SendMessageCommand({
