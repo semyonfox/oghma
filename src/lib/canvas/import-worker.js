@@ -4,37 +4,35 @@
  * Run as a separate process: node -r ./instrumentation.ts src/lib/canvas/import-worker.js
  *
  * Folder hierarchy created per import:
- *   CT101 - Introduction to Computing/
+ *   Course Name/
  *     Module Name/
  *       file.pdf
  *     Assignments/
  *       Assignment Name/
- *         Instructions (markdown note)
  *         attached-file.pdf
  */
 
 import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { CanvasClient } from './client.js';
 import { processExtractedText } from './text-processing.js';
 import { chunkText } from '../chunking.ts';
 import { embedChunks } from '../embeddings.ts';
 import { getStorageProvider } from '../storage/init.ts';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
+import { decrypt } from '../crypto.ts';
 
-// types that get text extracted + embedded for RAG
-const RAG_TYPES = new Set(['application/pdf']);
-// types that get a visible note in the tree (expand as viewers are added)
-const VIEWABLE_TYPES = new Set(['application/pdf']);
-
-const FILE_TIMEOUT_MS = 2 * 60 * 1000;
+const PROCESSABLE_TYPES = new Set(['application/pdf']);
+const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
 const FILE_CONCURRENCY = 5;
+const STUCK_JOB_THRESHOLD = "1 hour";
+const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// 30 empty polls × 20s long-poll = ~10 min idle before self-scale-down
+const IDLE_POLLS_BEFORE_SHUTDOWN = 30;
 
-// sentinel IDs for special Canvas structures
-const ASSIGNMENTS_PARENT_MODULE_ID = -1;
-const FORBIDDEN_SENTINEL_ID = 0;
-
-export async function pooled(tasks, limit) {
+async function pooled(tasks, limit) {
   const results = [];
   const executing = new Set();
   for (const task of tasks) {
@@ -47,138 +45,37 @@ export async function pooled(tasks, limit) {
 }
 
 function resolveMimeType(filename, canvasMimeType) {
-  if (canvasMimeType && canvasMimeType !== 'application/octet-stream') return canvasMimeType;
+  if (canvasMimeType && PROCESSABLE_TYPES.has(canvasMimeType)) return canvasMimeType;
   if (filename?.toLowerCase().endsWith('.pdf')) return 'application/pdf';
-  return canvasMimeType || 'application/octet-stream';
+  return canvasMimeType;
 }
 
-// ── Folder naming ───────────────────────────────────────────────────────────
-
-function cleanCourseName(courseCode, courseName) {
-  const codeMatch = courseCode?.match(/^(\d{4})-?(.*)/);
-  const cleanCode = codeMatch?.[2] || courseCode || '';
-  const academicYear = codeMatch?.[1] || null;
-
-  let cleanName = courseName ?? '';
-  if (courseCode && cleanName.startsWith(courseCode)) {
-    cleanName = cleanName.slice(courseCode.length).trim();
-  }
-  if (cleanCode && cleanName.startsWith(cleanCode)) {
-    cleanName = cleanName.slice(cleanCode.length).trim();
-  }
-  cleanName = cleanName.replace(/^[-—–:\s]+/, '').trim();
-
-  const title = cleanCode && cleanName
-    ? `${cleanCode} - ${cleanName}`
-    : cleanCode || cleanName || 'Untitled Course';
-
-  return { title, academicYear };
-}
-
-// ── Folder deduplication ────────────────────────────────────────────────────
-
-// builds the WHERE clause dynamically based on which canvas IDs are present
-function findCanvasFolder(userId, canvas) {
-  const { canvasCourseId, canvasModuleId, canvasAssignmentId } = canvas;
-  if (canvasAssignmentId != null) {
-    return sql`
-      SELECT note_id FROM app.notes
-      WHERE user_id = ${userId}::uuid
-        AND canvas_course_id = ${canvasCourseId}::int
-        AND canvas_assignment_id = ${canvasAssignmentId}::int
-        AND is_folder = true AND deleted = 0
-      LIMIT 1
-    `;
-  }
-  if (canvasModuleId != null) {
-    return sql`
-      SELECT note_id FROM app.notes
-      WHERE user_id = ${userId}::uuid
-        AND canvas_course_id = ${canvasCourseId}::int
-        AND canvas_module_id = ${canvasModuleId}::int
-        AND is_folder = true AND deleted = 0
-      LIMIT 1
-    `;
-  }
-  return sql`
-    SELECT note_id FROM app.notes
-    WHERE user_id = ${userId}::uuid
-      AND canvas_course_id = ${canvasCourseId}::int
-      AND canvas_module_id IS NULL AND canvas_assignment_id IS NULL
-      AND is_folder = true AND deleted = 0
-    LIMIT 1
-  `;
-}
-
-async function findOrCreateFolder(userId, title, parentId, canvas = {}) {
-  const { canvasCourseId, canvasAcademicYear } = canvas;
-
-  // try to find existing folder by canvas IDs
-  if (canvasCourseId != null) {
-    const existing = await findCanvasFolder(userId, canvas);
-    if (existing.length > 0) {
-      await addNoteToTree(userId, existing[0].note_id, parentId ?? null);
-      return existing[0].note_id;
-    }
-  }
-
+async function createNote(userId, title, parentId, { s3Key = null, isFolder = false } = {}) {
   const noteId = uuidv4();
+  await sql`
+    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
+    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, '', ${s3Key}, ${isFolder}, 0, NOW(), NOW())
+  `;
+  await addNoteToTree(userId, noteId, parentId ?? null);
+  return noteId;
+}
+
+async function tryCreateFolder(userId, title, parentId, fallback = null) {
   try {
-    await sql`
-      INSERT INTO app.notes (
-        note_id, user_id, title, content, is_folder, deleted,
-        canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
-        created_at, updated_at
-      ) VALUES (
-        ${noteId}::uuid, ${userId}::uuid, ${title}, '', true, 0,
-        ${canvasCourseId ?? null}, ${canvas.canvasModuleId ?? null},
-        ${canvas.canvasAssignmentId ?? null}, ${canvasAcademicYear ?? null},
-        NOW(), NOW()
-      )
-    `;
-    await addNoteToTree(userId, noteId, parentId ?? null);
-    return noteId;
+    return await createNote(userId, title, parentId, { isFolder: true });
   } catch (err) {
-    // unique index conflict — concurrent worker created it first
-    if (err.code === '23505' && canvasCourseId != null) {
-      const winner = await findCanvasFolder(userId, canvas);
-      if (winner.length > 0) {
-        await addNoteToTree(userId, winner[0].note_id, parentId ?? null);
-        return winner[0].note_id;
-      }
-    }
     console.warn(`Failed to create folder "${title}": ${err.message}`);
-    return parentId;
+    return fallback;
   }
 }
 
-// ── Job cancellation ────────────────────────────────────────────────────────
-
-async function isJobCancelled(jobId) {
-  if (!jobId) return false;
-  const [row] = await sql`
-    SELECT status FROM app.canvas_import_jobs WHERE id = ${jobId}
-  `;
-  return row?.status === 'cancelled';
-}
-
-// ── Canvas resource fetching ────────────────────────────────────────────────
-
-async function fetchResource(fetchFn, courseId, ctx) {
-  const { userId, courseTitle, jobId } = ctx;
-  const kind = ctx.kind;
+async function fetchResource(fetchFn, courseId, userId, courseTitle, kind) {
   const { data, forbidden } = await fetchFn(courseId);
   if (forbidden) {
     console.log(`Course ${kind} restricted: ${courseTitle}`);
     await sql`
-      INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, error_message, job_id)
-      VALUES (
-        ${uuidv4()}::uuid, ${userId}::uuid, ${courseId}::int,
-        ${FORBIDDEN_SENTINEL_ID}, ${FORBIDDEN_SENTINEL_ID},
-        ${courseTitle + ' (' + kind + ')'}, 'text/plain', 'forbidden',
-        ${'Course ' + kind + ' restricted by lecturer'},
-        ${jobId ?? null}
-      )
+      INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, error_message)
+      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${courseId}::int, 0, 0, ${courseTitle + ' (' + kind + ')'}, 'text/plain', 'forbidden', ${'Course ' + kind + ' restricted by lecturer'})
     `;
   }
   return { data, forbidden };
@@ -194,23 +91,24 @@ async function setImportStatus(importRecordId, status, extra = {}) {
   }
 }
 
-// ── RAG pipeline ────────────────────────────────────────────────────────────
-
 async function processRagPipeline(noteId, userId, buffer) {
   try {
     const { PDFParse } = await import('pdf-parse');
     const parser = new PDFParse({ data: buffer });
     const result = await parser.getText();
+    const rawText = result.text;
 
-    const cleanedText = processExtractedText(result.text);
+    const cleanedText = processExtractedText(rawText);
     const chunks = chunkText(cleanedText);
     const embeddings = await embedChunks(chunks);
 
     await sql`
-      UPDATE app.notes SET extracted_text = ${cleanedText}, updated_at = NOW()
+      UPDATE app.notes
+      SET extracted_text = ${cleanedText}, updated_at = NOW()
       WHERE note_id = ${noteId}
     `;
 
+    // rag.ts searches app.embeddings joined with app.chunks
     for (const { chunk, vector } of embeddings) {
       const [row] = await sql`
         INSERT INTO app.chunks (document_id, user_id, text)
@@ -222,30 +120,22 @@ async function processRagPipeline(noteId, userId, buffer) {
         VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
       `;
     }
+
     console.log(`RAG: ${embeddings.length} chunks embedded for note ${noteId}`);
   } catch (error) {
     console.error(`RAG pipeline error for note ${noteId}:`, error);
   }
 }
 
-// ── File import ─────────────────────────────────────────────────────────────
-
-async function createFileNote(userId, title, parentId, s3Key) {
-  const noteId = uuidv4();
-  await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, '', ${s3Key}, false, 0, NOW(), NOW())
-  `;
-  await addNoteToTree(userId, noteId, parentId ?? null);
-  return noteId;
-}
-
-async function _runFileImport(importRecordId, file, ctx) {
-  const { userId, courseId, parentFolderId, client, storage, s3Prefix, jobId } = ctx;
-  const moduleId = ctx.moduleId ?? ASSIGNMENTS_PARENT_MODULE_ID;
+async function _runFileImport(importRecordId, file, opts) {
+  const { userId, courseId, moduleId, parentFolderId, client, storage, s3Prefix } = opts;
   const resolvedMimeType = resolveMimeType(file.display_name, file.content_type);
 
-  // dedup check
+  if (!PROCESSABLE_TYPES.has(resolvedMimeType)) {
+    console.log(`Skipped (non-processable): ${file.display_name}`);
+    return { skipped: true };
+  }
+
   const existing = await sql`
     SELECT 1 FROM app.canvas_imports
     WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int AND status = 'complete'
@@ -256,9 +146,11 @@ async function _runFileImport(importRecordId, file, ctx) {
     return { skipped: true };
   }
 
+  // moduleId = -1 means "assignment file" (Canvas never issues negative module IDs)
+  const moduleIdVal = moduleId ?? -1;
   await sql`
-    INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, job_id)
-    VALUES (${importRecordId}::uuid, ${userId}::uuid, ${courseId}::int, ${moduleId}::int, ${file.id}::int, ${file.display_name}, ${resolvedMimeType}, 'downloading', ${jobId ?? null})
+    INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status)
+    VALUES (${importRecordId}::uuid, ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int, ${file.id}::int, ${file.display_name}, ${resolvedMimeType}, 'downloading')
   `;
 
   const { buffer, forbidden: dlForbidden } = await client.downloadFile(file.url);
@@ -268,32 +160,23 @@ async function _runFileImport(importRecordId, file, ctx) {
     return;
   }
 
-  // always store to S3
   const s3Key = `${s3Prefix}/${file.filename}`;
   await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
   await setImportStatus(importRecordId, 'processing');
 
-  // only create a tree note for viewable types
-  if (VIEWABLE_TYPES.has(resolvedMimeType)) {
-    const noteId = await createFileNote(userId, file.display_name, parentFolderId, s3Key);
-    if (RAG_TYPES.has(resolvedMimeType)) {
-      await processRagPipeline(noteId, userId, buffer);
-    }
-    await setImportStatus(importRecordId, 'complete', { noteId });
-  } else {
-    await setImportStatus(importRecordId, 'complete');
-  }
-
-  console.log(`Processed: ${file.display_name} (${resolvedMimeType})`);
+  const noteId = await createNote(userId, file.display_name, parentFolderId, { s3Key });
+  await processRagPipeline(noteId, userId, buffer);
+  await setImportStatus(importRecordId, 'complete', { noteId });
+  console.log(`Processed: ${file.display_name}`);
 }
 
-async function downloadAndStoreFile(file, ctx) {
+async function downloadAndStoreFile(file, opts) {
   const importRecordId = uuidv4();
   const timer = new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`File timed out after 2 minutes: ${file.display_name}`)), FILE_TIMEOUT_MS)
   );
   try {
-    await Promise.race([_runFileImport(importRecordId, file, ctx), timer]);
+    await Promise.race([_runFileImport(importRecordId, file, opts), timer]);
   } catch (error) {
     console.error(`File processing error (${file.display_name}):`, error);
     try {
@@ -308,198 +191,72 @@ async function downloadAndStoreFile(file, ctx) {
   }
 }
 
-// ── Discovery phase ─────────────────────────────────────────────────────────
-
-async function discoverFileCount(courses, client) {
-  let total = 0;
-  for (const course of courses) {
-    const courseId = String(course.id);
-
-    const { data: modules } = await client.getModules(courseId);
-    if (modules) {
-      for (const mod of modules) {
-        const { data: items } = await client.getModuleItems(courseId, mod.id);
-        if (items) total += items.filter(item => item.type === 'File').length;
-      }
-    }
-
-    const { data: assignments } = await client.getAssignments(courseId);
-    if (assignments) {
-      for (const a of assignments) {
-        const seen = new Set();
-        for (const att of [...(a.attachments ?? []), ...(a.submission?.attachments ?? [])]) {
-          if (!seen.has(att.id)) { seen.add(att.id); total++; }
-        }
-        if (a.description?.trim()) total++;
-      }
-    }
+async function processModules(courseId, userId, courseTitle, courseFolderId, ctx) {
+  const { client, storage } = ctx;
+  const { data: modules } =
+    await fetchResource(id => client.getModules(id), courseId, userId, courseTitle, 'modules');
+  if (!modules) {
+    console.warn(`No modules (or restricted) for course ${courseId}`);
+    return;
   }
-  return total;
-}
-
-// ── Course processing ───────────────────────────────────────────────────────
-
-function stripHtmlToText(html) {
-  if (!html) return '';
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<\/h[1-6]>/gi, '\n\n')
-    .replace(/<h[1-6][^>]*>/gi, '## ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-async function processModules(courseId, courseFolderId, ctx) {
-  const { client, storage, userId, courseTitle, jobId } = ctx;
-  if (await isJobCancelled(jobId)) return;
-
-  const { data: modules } = await fetchResource(
-    id => client.getModules(id), courseId,
-    { userId, courseTitle, jobId, kind: 'modules' },
-  );
-  if (!modules) return;
-
   await pooled(modules.map(module => async () => {
-    if (await isJobCancelled(jobId)) return;
-
     const { data: items } = await client.getModuleItems(courseId, module.id);
     if (!items) return;
     const fileItems = items.filter(item => item.type === 'File');
     if (fileItems.length === 0) return;
-
-    const folderId = await findOrCreateFolder(userId, module.name, courseFolderId, {
-      canvasCourseId: Number(courseId), canvasModuleId: module.id,
-    });
-
+    const folderId = await tryCreateFolder(userId, module.name, courseFolderId, courseFolderId);
     const metaResults = await pooled(
       fileItems.map(item => async () => {
-        const { data: file, forbidden } = await client.getFile(courseId, item.content_id);
-        if (forbidden || !file) { console.log(`File forbidden: ${item.title}`); return null; }
+        const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
+        if (fileForbidden || !file) { console.log(`File forbidden: ${item.title}`); return null; }
         return file;
       }),
       FILE_CONCURRENCY,
     );
-    const resolved = metaResults.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
-
-    const fileCtx = {
+    const resolved = metaResults
+      .filter(r => r.status === 'fulfilled' && r.value)
+      .map(r => r.value);
+    const opts = {
       userId, courseId, moduleId: module.id, parentFolderId: folderId,
-      client, storage, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`, jobId,
+      client, storage, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
     };
-    await pooled(resolved.map(file => () => downloadAndStoreFile(file, fileCtx)), FILE_CONCURRENCY);
+    await pooled(resolved.map(file => () => downloadAndStoreFile(file, opts)), FILE_CONCURRENCY);
   }), FILE_CONCURRENCY);
 }
 
-async function importAssignmentInstructions(assignment, assignmentFolderId, ctx) {
-  const { userId, courseId, jobId } = ctx;
-  if (!assignment.description?.trim()) return;
+async function processAssignments(courseId, userId, courseTitle, courseFolderId, ctx) {
+  const { client, storage } = ctx;
+  const { data: assignments, forbidden } =
+    await fetchResource(id => client.getAssignments(id), courseId, userId, courseTitle, 'assignments');
+  if (forbidden || !assignments || assignments.length === 0) return;
 
-  const instrSentinel = -(assignment.id);
-  const instrExisting = await sql`
-    SELECT 1 FROM app.canvas_imports
-    WHERE user_id = ${userId}::uuid AND canvas_file_id = ${instrSentinel}::int AND status = 'complete'
-    LIMIT 1
-  `;
-  if (instrExisting.length > 0) return;
-
-  try {
-    const instrText = stripHtmlToText(assignment.description);
-    const noteId = await createFileNote(userId, 'Instructions', assignmentFolderId, null);
-    await sql`UPDATE app.notes SET content = ${instrText}, updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
-    await sql`
-      INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, note_id, job_id)
-      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${courseId}::int, ${ASSIGNMENTS_PARENT_MODULE_ID}, ${instrSentinel}::int, ${assignment.name + ' (Instructions)'}, 'text/markdown', 'complete', ${noteId}::uuid, ${jobId ?? null})
-    `;
-    console.log(`Created instructions note for: ${assignment.name}`);
-  } catch (err) {
-    console.warn(`Failed to create instructions for "${assignment.name}": ${err.message}`);
-  }
-}
-
-async function processAssignments(courseId, courseFolderId, ctx) {
-  const { client, storage, userId, courseTitle, jobId } = ctx;
-  if (await isJobCancelled(jobId)) return;
-
-  const { data: assignments, forbidden } = await fetchResource(
-    id => client.getAssignments(id), courseId,
-    { userId, courseTitle, jobId, kind: 'assignments' },
+  const assignmentsWithFiles = assignments.filter(a =>
+    (a.attachments ?? []).some(att => PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type)))
   );
-  if (forbidden || !assignments?.length) return;
+  if (assignmentsWithFiles.length === 0) return;
 
-  const relevant = assignments.filter(a => {
-    const hasFiles = (a.attachments ?? []).length > 0 || (a.submission?.attachments ?? []).length > 0;
-    return hasFiles || a.description?.trim();
-  });
-  if (relevant.length === 0) return;
-
-  const assignmentsFolderId = await findOrCreateFolder(userId, 'Assignments', courseFolderId, {
-    canvasCourseId: Number(courseId), canvasModuleId: ASSIGNMENTS_PARENT_MODULE_ID,
-  });
-
-  await pooled(relevant.map(assignment => async () => {
-    if (await isJobCancelled(jobId)) return;
-
-    const assignmentFolderId = await findOrCreateFolder(userId, assignment.name, assignmentsFolderId, {
-      canvasCourseId: Number(courseId), canvasAssignmentId: assignment.id,
-    });
-
-    await importAssignmentInstructions(assignment, assignmentFolderId, { userId, courseId, jobId });
-
-    // merge instructor + submission attachments, dedup by file ID
-    const allAtts = [];
-    const seen = new Set();
-    for (const att of [...(assignment.attachments ?? []), ...(assignment.submission?.attachments ?? [])]) {
-      if (!seen.has(att.id)) { seen.add(att.id); allAtts.push(att); }
-    }
-
-    if (allAtts.length > 0) {
-      const fileCtx = {
-        userId, courseId, parentFolderId: assignmentFolderId,
-        client, storage, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`, jobId,
-      };
-      await pooled(allAtts.map(att => () => downloadAndStoreFile(att, fileCtx)), FILE_CONCURRENCY);
-    }
+  const assignmentsFolderId = await tryCreateFolder(userId, 'Assignments', courseFolderId, courseFolderId);
+  await pooled(assignmentsWithFiles.map(assignment => async () => {
+    const attachments = (assignment.attachments ?? []).filter(att =>
+      PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type))
+    );
+    const assignmentFolderId = await tryCreateFolder(userId, assignment.name, assignmentsFolderId, assignmentsFolderId);
+    const opts = {
+      userId, courseId, moduleId: null, parentFolderId: assignmentFolderId,
+      client, storage, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
+    };
+    await pooled(attachments.map(att => () => downloadAndStoreFile(att, opts)), FILE_CONCURRENCY);
   }), FILE_CONCURRENCY);
 }
 
 async function processCourse(course, userId, ctx) {
-  const { client, storage, jobId, jobType } = ctx;
+  const { client, storage } = ctx;
   const courseId = String(course.id);
-
-  // skip fully-restricted courses on sync
-  if (jobType === 'sync') {
-    const [restricted] = await sql`
-      SELECT COUNT(DISTINCT CASE
-        WHEN filename LIKE '% (modules)' THEN 'modules'
-        WHEN filename LIKE '% (assignments)' THEN 'assignments'
-      END) AS restricted_kinds
-      FROM app.canvas_imports
-      WHERE user_id = ${userId}::uuid
-        AND canvas_course_id = ${courseId}::int
-        AND status = 'forbidden'
-        AND canvas_file_id = ${FORBIDDEN_SENTINEL_ID}
-    `;
-    if (restricted?.restricted_kinds >= 2) {
-      console.log(`Skipping fully restricted course: ${course.name}`);
-      return;
-    }
-  }
-
-  const { title: courseTitle, academicYear } = cleanCourseName(course.course_code, course.name);
+  const courseTitle = [course.course_code, course.name].filter(Boolean).join(' — ') || courseId;
   console.log(`Processing course: ${courseTitle}`);
-
-  const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
-    canvasCourseId: Number(courseId), canvasAcademicYear: academicYear,
-  });
-
-  const courseCtx = { client, storage, userId, courseTitle, jobId };
-  await processModules(courseId, courseFolderId, courseCtx);
-  await processAssignments(courseId, courseFolderId, courseCtx);
+  const courseFolderId = await tryCreateFolder(userId, courseTitle, null);
+  await processModules(courseId, userId, courseTitle, courseFolderId, { client, storage });
+  await processAssignments(courseId, userId, courseTitle, courseFolderId, { client, storage });
 }
 
 function parseJobCourses(job) {
@@ -511,30 +268,14 @@ function parseJobCourses(job) {
   );
 }
 
-async function runJobPipeline(jobId, userId, courses, jobType) {
+async function runJobPipeline(jobId, userId, courses) {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
   const [creds] = await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
   if (!creds) throw new Error('User or Canvas credentials not found');
-
-  const client = new CanvasClient(creds.canvas_domain, creds.canvas_token);
+  const plainToken = decrypt(creds.canvas_token, userId);
+  const client = new CanvasClient(creds.canvas_domain, plainToken);
   const storage = getStorageProvider();
-
-  // discovery phase: count expected files for accurate progress
-  try {
-    const expectedTotal = await discoverFileCount(courses, client);
-    await sql`UPDATE app.canvas_import_jobs SET expected_total = ${expectedTotal} WHERE id = ${jobId}`;
-    console.log(`Discovery complete: ${expectedTotal} files expected across ${courses.length} courses`);
-  } catch (err) {
-    console.warn(`Discovery phase failed (progress will use fallback): ${err.message}`);
-  }
-
-  await pooled(courses.map(course => () =>
-    processCourse(course, userId, { client, storage, jobId, jobType })
-  ), 3);
-
-  if (jobType === 'sync') {
-    await sql`UPDATE app.login SET canvas_last_sync_at = NOW() WHERE user_id = ${userId}`;
-  }
+  await pooled(courses.map(course => () => processCourse(course, userId, { client, storage })), 3);
 }
 
 // ── Job processing ────────────────────────────────────────────────────────────
@@ -544,13 +285,7 @@ export async function processImportJob(jobId) {
   try {
     const [job] = await sql`SELECT * FROM app.canvas_import_jobs WHERE id = ${jobId}`;
     if (!job) { console.error(`Job not found: ${jobId}`); return false; }
-
-    if (job.status === 'cancelled') {
-      console.log(`Job ${jobId} was cancelled, skipping`);
-      return false;
-    }
-
-    await runJobPipeline(jobId, job.user_id, parseJobCourses(job), job.job_type ?? 'import');
+    await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
     console.log(`Job completed: ${jobId}`);
     return true;
@@ -558,5 +293,112 @@ export async function processImportJob(jobId) {
     console.error(`Job failed: ${jobId}`, error);
     await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW() WHERE id = ${jobId}`;
     return false;
+  }
+}
+
+// ── Worker ────────────────────────────────────────────────────────────────────
+
+async function failStuckJobs() {
+  await sql`
+    UPDATE app.canvas_import_jobs
+    SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
+    WHERE status = 'processing' AND started_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
+  `;
+}
+
+// ── SQS polling ──────────────────────────────────────────────────────────────
+
+const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+const QUEUE_URL = process.env.SQS_QUEUE_URL;
+
+const MAX_CONCURRENT_JOBS = 3;
+
+// defaults to canvas-import for backwards compat
+async function processAndDelete(message) {
+  const body = JSON.parse(message.Body);
+  const type = body.type ?? 'canvas-import';
+  const ts = () => new Date().toISOString();
+
+  console.log(`[${ts()}] Received ${type}: ${body.jobId ?? body.userId ?? 'unknown'}`);
+
+  switch (type) {
+    case 'canvas-import':
+      await processImportJob(body.jobId);
+      break;
+    case 'vault-export':
+      // TODO: enable — export user's vault as zip to S3, update job row
+      console.log(`[${ts()}] vault-export not yet enabled, skipping`);
+      break;
+    case 'vault-import':
+      // TODO: enable — extract uploaded zip, create notes + RAG pipeline
+      console.log(`[${ts()}] vault-import not yet enabled, skipping`);
+      break;
+    default:
+      console.warn(`[${ts()}] Unknown job type: ${type}`);
+  }
+
+  await sqsClient.send(new DeleteMessageCommand({
+    QueueUrl: QUEUE_URL,
+    ReceiptHandle: message.ReceiptHandle,
+  }));
+  console.log(`[${ts()}] Done, message deleted`);
+}
+
+// returns true if messages were processed, false if queue was empty
+async function pollQueue() {
+  const res = await sqsClient.send(new ReceiveMessageCommand({
+    QueueUrl: QUEUE_URL,
+    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+    WaitTimeSeconds: 20,
+    VisibilityTimeout: 3600,
+  }));
+
+  const messages = res.Messages ?? [];
+  if (messages.length === 0) return false;
+
+  const results = await Promise.allSettled(messages.map(processAndDelete));
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(`[${new Date().toISOString()}] Job processing error:`, result.reason?.message);
+    }
+  }
+  return true;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  console.log(`[${new Date().toISOString()}] Canvas Import Worker started (SQS mode)`);
+
+  await failStuckJobs();
+  setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
+
+  let idlePolls = 0;
+
+  while (true) {
+    try {
+      const hadWork = await pollQueue();
+      if (hadWork) {
+        idlePolls = 0;
+      } else {
+        idlePolls++;
+      }
+
+      if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
+        console.log(`[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`);
+        try {
+          const ecsClient = new ECSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+          await ecsClient.send(new UpdateServiceCommand({
+            cluster: process.env.ECS_CLUSTER ?? 'oghmanotes',
+            service: process.env.ECS_SERVICE ?? 'canvas-import-worker',
+            desiredCount: 0,
+          }));
+        } catch (scaleErr) {
+          console.error(`[${new Date().toISOString()}] Self scale-down failed:`, scaleErr.message);
+        }
+        process.exit(0);
+      }
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
+      await new Promise(r => setTimeout(r, 5000));
+    }
   }
 }

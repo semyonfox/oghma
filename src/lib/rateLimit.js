@@ -29,6 +29,7 @@ const CONFIG = {
  * @returns {boolean} True if account is locked
  */
 export function isAccountLocked(email) {
+    email = email.toLowerCase().trim();
     const state = authProtection.get(email);
     if (!state) return false;
 
@@ -49,6 +50,7 @@ export function isAccountLocked(email) {
  * @returns {boolean} True if account is currently rate-limited
  */
 export function isRateLimited(email) {
+    email = email.toLowerCase().trim();
     const state = authProtection.get(email);
     if (!state) return false;
 
@@ -69,6 +71,7 @@ export function isRateLimited(email) {
  * @param {string} email - User email address
  */
 export function recordFailedAttempt(email) {
+    email = email.toLowerCase().trim();
     const now = Date.now();
     let state = authProtection.get(email);
 
@@ -100,6 +103,7 @@ export function recordFailedAttempt(email) {
  * @param {string} email - User email address
  */
 export function clearFailedAttempts(email) {
+    email = email.toLowerCase().trim();
     authProtection.delete(email);
 }
 
@@ -111,6 +115,7 @@ export function clearFailedAttempts(email) {
  * @returns {number} Minutes remaining until unlock (0 if not locked)
  */
 export function getLockoutMinutesRemaining(email) {
+    email = email.toLowerCase().trim();
     const state = authProtection.get(email);
     if (!state || !state.lockedUntil) return 0;
 
@@ -128,6 +133,7 @@ export function getLockoutMinutesRemaining(email) {
  * @returns {number} Seconds until rate limit resets (0 if not rate limited)
  */
 export function getRateLimitResetTime(email) {
+    email = email.toLowerCase().trim();
     const state = authProtection.get(email);
     if (!state) return 0;
 

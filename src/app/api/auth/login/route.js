@@ -15,6 +15,8 @@ import { CanvasClient } from "@/lib/canvas/client.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/rateLimit.js";
+import { decrypt } from '@/lib/crypto';
+import logger from '@/lib/logger';
 
 export async function POST(request) {
     try {
@@ -69,7 +71,7 @@ export async function POST(request) {
 
         // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
         if (data.length > 1) {
-            console.error('Security alert: Multiple accounts with same email detected', {
+            logger.error('multiple accounts with same email detected', {
                 email: email.trim(),
                 count: data.length,
                 user_ids: data.map(u => u.user_id)
@@ -95,17 +97,16 @@ export async function POST(request) {
         // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
         //    We don't await this — login speed is unaffected.
         queueCanvasSync(user.user_id).catch(err =>
-          console.warn('Canvas auto-sync queue failed:', err.message)
+          logger.warn('canvas auto-sync queue failed', { error: err.message })
         );
 
         return sessionResponse;
 
     } catch (error) {
-        console.error('Login error:', {
+        logger.error('login error', {
             message: error.message,
             code: error.code,
             detail: error.detail,
-            stack: error.stack
         });
         return createErrorResponse('Internal server error', 500);
     }
@@ -127,6 +128,9 @@ async function queueCanvasSync(userId) {
   const { canvas_token, canvas_domain } = credRows[0] ?? {};
   if (!canvas_token || !canvas_domain) return;
 
+  // decrypt the BYOK-encrypted token before using it
+  const plainToken = decrypt(canvas_token, userId);
+
   const prevCourseRows = await sql`
     SELECT DISTINCT canvas_course_id FROM app.canvas_imports WHERE user_id = ${userId}
   `;
@@ -134,7 +138,7 @@ async function queueCanvasSync(userId) {
 
   const prevCourseIds = new Set(prevCourseRows.map(r => String(r.canvas_course_id)));
 
-  const client = new CanvasClient(canvas_domain, canvas_token);
+  const client = new CanvasClient(canvas_domain, plainToken);
   const { data: allCourses } = await client.getCourses();
 
   const courses = (allCourses ?? [])
@@ -155,5 +159,5 @@ async function queueCanvasSync(userId) {
     INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status)
     VALUES (${jobId}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}, 'queued')
   `;
-  console.log(`[canvas] Auto-sync job queued on login: ${jobId} (${courses.length} courses)`);
+  logger.info('canvas auto-sync job queued on login', { jobId, courseCount: courses.length });
 }
