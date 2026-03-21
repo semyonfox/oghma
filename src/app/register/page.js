@@ -35,19 +35,11 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      console.log('Register: Calling register API...')
       await register(email, pwd)
-      console.log('Register: Redirecting to /notes...')
-      // Redirect to /notes (auto-logged in after registration)
       router.replace('/notes')
-      
-      // Fallback redirect in case router.replace doesn't work
-      setTimeout(() => {
-        console.log('Register: Fallback redirect triggered')
-        window.location.href = '/notes'
-      }, 1000)
+      // fallback redirect in case router.replace doesn't work
+      setTimeout(() => { window.location.href = '/notes' }, 1000)
     } catch (err) {
-      console.error('Register: Error occurred:', err)
       setErrMsg(getErrorMessage(err))
       setPwd('')
       setConfirmPwd('')
@@ -58,8 +50,7 @@ export default function RegisterPage() {
 
   // TODO: Implement social registration handlers (Google, Microsoft, GitHub, Apple)
   const handleSocialSignUp = (provider) => {
-    console.log(`Social signup with ${provider}`)
-    // TODO: Redirect to OAuth endpoint or backend authentication
+    // TODO: redirect to OAuth endpoint or backend authentication
   }
 
   return (

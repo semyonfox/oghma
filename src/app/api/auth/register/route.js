@@ -13,6 +13,7 @@ import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {generateUUID} from "@/lib/utils/uuid";
 import bcrypt from "bcryptjs";
+import logger from '@/lib/logger';
 
 export async function POST(request) {
     try {
@@ -61,11 +62,10 @@ export async function POST(request) {
         return await createAuthSession(user, 1);
 
     } catch (error) {
-        console.error('Registration error:', {
+        logger.error('registration error', {
             message: error.message,
             code: error.code,
             detail: error.detail,
-            stack: error.stack
         });
 
         // Handle UNIQUE constraint violation on email (race condition fallback)

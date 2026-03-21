@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { getStorageProvider } from '@/lib/storage/init';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * DELETE /api/vault
@@ -45,7 +46,7 @@ export async function DELETE() {
           await storage.deleteObject(key);
           s3Deleted++;
         } catch (err) {
-          console.error(`Failed to delete S3 object ${key}:`, err);
+          logger.error('failed to delete S3 object', { key, error: err });
           s3Failed++;
         }
       })
@@ -105,7 +106,7 @@ export async function DELETE() {
     });
 
   } catch (err) {
-    console.error('Vault delete error:', err);
+    logger.error('vault delete error', { error: err });
     return NextResponse.json({ error: 'Failed to delete vault' }, { status: 500 });
   }
 }

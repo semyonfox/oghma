@@ -5,6 +5,7 @@ import { validateSession } from '@/lib/auth.js';
 import { saveAnnotations, getAnnotations, deleteAnnotations, deleteNoteAnnotations } from '@/lib/notes/storage/pdf-annotations.js';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * GET /api/pdf/annotations?noteId=123&attachmentId=456
@@ -64,7 +65,7 @@ export async function GET(request) {
       annotations,
     });
   } catch (error) {
-    console.error('Get annotations error:', error);
+    logger.error('get annotations error', { error });
     return NextResponse.json(
       { error: 'Failed to retrieve annotations' },
       { status: 500 }
@@ -136,7 +137,7 @@ export async function POST(request) {
       annotation: result,
     });
   } catch (error) {
-    console.error('Save annotations error:', error);
+    logger.error('save annotations error', { error });
     return NextResponse.json(
       { error: 'Failed to save annotations' },
       { status: 500 }
@@ -178,7 +179,7 @@ export async function DELETE(request) {
       message: 'Annotation deleted',
     });
   } catch (error) {
-    console.error('Delete annotations error:', error);
+    logger.error('delete annotations error', { error });
     return NextResponse.json(
       { error: 'Failed to delete annotation' },
       { status: 500 }
