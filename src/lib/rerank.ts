@@ -10,19 +10,52 @@
  */
 
 import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
+import logger from '@/lib/logger';
 
 const LLM_URL = process.env.LLM_API_URL;
 const LLM_MODEL = process.env.LLM_MODEL ?? 'qwen3:8b';
 const TOP_N = 3;
+const MAX_QUERY_LENGTH = 500;
+
+// patterns that look like prompt injection attempts
+const INJECTION_PATTERNS = /^(ignore|system:|assistant:|human:|user:|<\|.*?\|>|###)/im;
+
+/**
+ * sanitize user query before embedding in the reranker prompt.
+ * strips control chars, truncates, and removes instruction-like lines.
+ */
+function sanitizeQuery(raw: string): string {
+    // strip control characters (keep spaces 0x20, newlines 0x0a, tabs 0x09)
+    let cleaned = raw.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+
+    // truncate to max length
+    if (cleaned.length > MAX_QUERY_LENGTH) {
+        cleaned = cleaned.slice(0, MAX_QUERY_LENGTH);
+        logger.warn('reranker: query truncated to %d chars', MAX_QUERY_LENGTH);
+    }
+
+    // remove lines that look like injection attempts
+    const lines = cleaned.split('\n');
+    const safe = lines.filter(line => !INJECTION_PATTERNS.test(line.trim()));
+    if (safe.length < lines.length) {
+        logger.warn('reranker: stripped %d injection-like lines from query', lines.length - safe.length);
+    }
+    cleaned = safe.join('\n').trim();
+
+    return cleaned || 'empty query';
+}
 
 export async function rerankChunks(query: string, chunks: string[]): Promise<string[]> {
     if (chunks.length <= TOP_N) return chunks;
 
+    const safeQuery = sanitizeQuery(query);
     const numbered = chunks.map((c, i) => `[${i + 1}] ${c.slice(0, 300)}`).join('\n\n');
 
     const prompt = `You are a relevance ranker. Given a query and a list of passages, return only the indices of the ${TOP_N} most relevant passages in order of relevance, as a comma-separated list like: 3,1,7
 
-Query: ${query}
+<user_query>
+${safeQuery}
+</user_query>
 
 Passages:
 ${numbered}
