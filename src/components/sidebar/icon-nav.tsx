@@ -1,6 +1,6 @@
 'use client';
 
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
@@ -11,6 +11,7 @@ import {
   CalendarIcon,
   SparklesIcon,
   Cog6ToothIcon,
+  ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -37,11 +38,23 @@ const IconNav: FC = () => {
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useLayoutStore();
   const { t } = useI18n();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleNavClick = (item: NavItem) => {
     setActiveNav(item.section);
     if (pathname !== item.href) {
       router.push(item.href);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('ogma-theme');
+      window.location.href = '/login';
+    } catch {
+      setIsSigningOut(false);
     }
   };
 
@@ -66,8 +79,8 @@ const IconNav: FC = () => {
               className={`
                 relative w-10 h-10 flex items-center justify-center rounded transition-colors
                 ${isActive
-                  ? 'bg-white/8 text-text-secondary'
-                  : 'text-text-tertiary hover:text-text-secondary hover:bg-white/5'
+                  ? 'bg-subtle text-text-secondary'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-subtle'
                 }
                 group
               `}
@@ -85,9 +98,9 @@ const IconNav: FC = () => {
       </div>
 
       {/* Divider */}
-      <div className="w-8 h-px bg-white/10 my-2" />
+      <div className="w-8 h-px bg-border my-2" />
 
-      {/* Settings (Bottom) */}
+      {/* Settings */}
       <button
         onClick={() => handleNavClick({
           id: 'settings',
@@ -96,16 +109,27 @@ const IconNav: FC = () => {
           href: '/settings',
           section: 'settings'
         })}
-        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-white/5 group relative ${
-          activeNav === 'settings' ? 'bg-white/8 text-text-secondary' : ''
+        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
+          activeNav === 'settings' ? 'bg-subtle text-text-secondary' : ''
         }`}
         title={t('Settings')}
       >
         <Cog6ToothIcon className="w-5 h-5" />
-
-        {/* Hover tooltip */}
         <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
           {t('Settings')}
+        </div>
+      </button>
+
+      {/* Sign Out */}
+      <button
+        onClick={handleSignOut}
+        disabled={isSigningOut}
+        className="w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-error-400 hover:bg-error-500/10 group relative disabled:opacity-50"
+        title={t('Sign out')}
+      >
+        <ArrowRightStartOnRectangleIcon className="w-5 h-5" />
+        <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
+          {t('Sign out')}
         </div>
       </button>
     </div>
