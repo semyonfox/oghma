@@ -25,18 +25,17 @@ import { addNoteToTree } from '../notes/storage/pg-tree.js';
 
 const PROCESSABLE_TYPES = new Set(['application/pdf']);
 const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
-const FILE_CONCURRENCY = 5; // process up to 5 files at once per module/assignment
+const FILE_CONCURRENCY = 5;
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-// after this many consecutive empty polls (~10 min), scale down and exit
+// 30 empty polls × 20s long-poll = ~10 min idle before self-scale-down
 const IDLE_POLLS_BEFORE_SHUTDOWN = 30;
 
-// runs an array of async fns with at most `limit` in flight at a time
 async function pooled(tasks, limit) {
   const results = [];
   const executing = new Set();
   for (const task of tasks) {
-    const p = task().then(r => { executing.delete(p); return r; });
+    const p = task().finally(() => executing.delete(p));
     executing.add(p);
     results.push(p);
     if (executing.size >= limit) await Promise.race(executing);
@@ -50,7 +49,6 @@ function resolveMimeType(filename, canvasMimeType) {
   return canvasMimeType;
 }
 
-// Single note/folder creator — s3Key=null and isFolder=true for folders.
 async function createNote(userId, title, parentId, { s3Key = null, isFolder = false } = {}) {
   const noteId = uuidv4();
   await sql`
@@ -61,7 +59,6 @@ async function createNote(userId, title, parentId, { s3Key = null, isFolder = fa
   return noteId;
 }
 
-// Creates a folder; on failure logs a warning and returns fallback (default null).
 async function tryCreateFolder(userId, title, parentId, fallback = null) {
   try {
     return await createNote(userId, title, parentId, { isFolder: true });
@@ -71,7 +68,6 @@ async function tryCreateFolder(userId, title, parentId, fallback = null) {
   }
 }
 
-// Calls fetchFn(courseId), records a forbidden sentinel if access is denied, returns { data, forbidden }.
 async function fetchResource(fetchFn, courseId, userId, courseTitle, kind) {
   const { data, forbidden } = await fetchFn(courseId);
   if (forbidden) {
@@ -84,7 +80,6 @@ async function fetchResource(fetchFn, courseId, userId, courseTitle, kind) {
   return { data, forbidden };
 }
 
-// Updates a canvas_imports row status; pass { message } for errors or { noteId } for completion.
 async function setImportStatus(importRecordId, status, extra = {}) {
   if (extra.noteId) {
     await sql`UPDATE app.canvas_imports SET status = ${status}, note_id = ${extra.noteId}::uuid, updated_at = NOW() WHERE id = ${importRecordId}::uuid`;
