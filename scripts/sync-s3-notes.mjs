@@ -146,7 +146,7 @@ async function main() {
   });
 
   try {
-    console.log('🔄 Starting S3 to PostgreSQL sync...\n');
+    console.log('starting S3 to PostgreSQL sync...\n');
 
     // Get all users
     const users = await sql`
@@ -155,7 +155,7 @@ async function main() {
     `;
 
     if (users.length === 0) {
-      console.log('ℹ️  No users found to migrate');
+      console.log('no users found to migrate');
       await sql.end();
       return;
     }
@@ -206,7 +206,7 @@ async function main() {
       console.log(`  ${status} ${r.email}: synced=${r.synced}, already=${r.alreadyInPG}, failed=${r.failed}`);
     });
 
-    console.log('\n✅ Sync complete!\n');
+    console.log('\nsync complete\n');
 
     await sql.end();
   } catch (error) {

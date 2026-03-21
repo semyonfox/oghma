@@ -5,7 +5,7 @@ import postgres from 'postgres';
 const ENV = process.env;
 
 if (!ENV.DATABASE_URL) {
-    console.error('❌ DATABASE_URL not set');
+    console.error('error: DATABASE_URL not set');
     process.exit(1);
 }
 
@@ -13,7 +13,7 @@ const sql = postgres(ENV.DATABASE_URL, { ssl: 'require', debug: false });
 
 async function verify() {
     try {
-        console.log('🔍 Verifying schema...\n');
+        console.log('verifying schema...\n');
 
         // Check tables exist
         const tables = await sql`
@@ -22,7 +22,7 @@ async function verify() {
             ORDER BY tablename
         `;
 
-        console.log('📋 Tables created:');
+        console.log('tables created:');
         tables.forEach(t => console.log(`   ✓ ${t.tablename}`));
 
         // Check columns in app.notes
@@ -33,7 +33,7 @@ async function verify() {
             ORDER BY ordinal_position
         `;
 
-        console.log('\n📊 app.notes columns:');
+        console.log('\napp.notes columns:');
         noteColumns.forEach(c => console.log(`   ✓ ${c.column_name} (${c.data_type})`));
 
         // Check tree_items exists
@@ -44,7 +44,7 @@ async function verify() {
             ORDER BY ordinal_position
         `;
 
-        console.log('\n🌳 app.tree_items columns:');
+        console.log('\napp.tree_items columns:');
         treeColumns.forEach(c => console.log(`   ✓ ${c.column_name} (${c.data_type})`));
 
         // Check row counts
@@ -60,7 +60,7 @@ async function verify() {
             SELECT 'app.pdf_annotations', COUNT(*) FROM app.pdf_annotations
         `;
 
-        console.log('\n📈 Row counts:');
+        console.log('\nrow counts:');
         counts.forEach(c => console.log(`   ${c.table_name}: ${c.count} rows`));
 
         // Check if backup tables exist
@@ -71,16 +71,16 @@ async function verify() {
         `;
 
         if (backup.length > 0) {
-            console.log('\n💾 Backup schema found:');
+            console.log('\nbackup schema found:');
             backup.forEach(b => console.log(`   ✓ backup.${b.tablename}`));
         }
 
-        console.log('\n✅ Schema verification successful!');
-        console.log('\n🎉 Database is ready for use with react-complex-tree migration.\n');
+        console.log('\nschema verification successful');
+        console.log('database is ready for use with react-complex-tree migration.\n');
 
         process.exit(0);
     } catch (error) {
-        console.error('\n❌ Verification failed:', error.message);
+        console.error('\nverification failed:', error.message);
         process.exit(1);
     } finally {
         await sql.end();
