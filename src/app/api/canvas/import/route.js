@@ -4,6 +4,7 @@ import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
+import { ensureWorkerRunning } from '@/lib/ecs';
 
 /**
  * POST /api/canvas/import
@@ -65,12 +66,14 @@ export async function POST(request) {
 
     const jobId = job.id;
 
-    // send to SQS so the worker picks it up (long-poll latency ~0-20s)
+    // send to SQS and ensure the ECS worker is running
     try {
       await sqsClient.send(new SendMessageCommand({
         QueueUrl: CANVAS_IMPORT_QUEUE_URL,
         MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
       }));
+      // scale up the Fargate worker instantly — no CloudWatch delay
+      await ensureWorkerRunning();
     } catch (sqsErr) {
       // SQS send failed but the Postgres job record exists —
       // worker safety-net poll will pick it up, so don't fail the request
