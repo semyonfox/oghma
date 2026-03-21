@@ -1,59 +1,57 @@
-/*
- * Extract API Route — POST /api/extract
- * Ingestion pipeline for PDF documents
- * 1. Fetch PDF from S3 URL
- * 2. Parse text from PDF
- * 3. Split text into chunks
- * 4. Embed each chunk
- * 5. Store chunks and embeddings into postgres
- */
-
+// extract API route — PDF ingestion pipeline
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { chunkText } from '@/lib/chunking';
 import { embedChunks } from '@/lib/embeddings';
 import sql from '@/database/pgsql.js';
+import { withErrorHandler } from '@/lib/api-error';
+import { ApiError } from '@/lib/api-error';
 
-export async function POST(request: NextRequest) {
+function isAllowedUrl(raw: string): boolean {
+    let parsed: URL;
+    try { parsed = new URL(raw); } catch { return false; }
+    if (parsed.protocol !== 'https:') return false;
+    const h = parsed.hostname.toLowerCase();
+    if (h === '169.254.169.254' || h === 'metadata.google.internal') return false;
+    return !/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|localhost|::1|\[::1\])/.test(h);
+}
+
+async function storeChunkWithEmbedding(documentId: string, userId: string, chunk: string, vector: number[]) {
+    const [row] = await sql`
+        INSERT INTO app.chunks (document_id, user_id, text)
+        VALUES (${documentId}, ${userId}, ${chunk})
+        RETURNING id
+    `;
+    await sql`
+        INSERT INTO app.embeddings (chunk_id, embedding)
+        VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
+    `;
+}
+
+export const POST = withErrorHandler(async (request: NextRequest) => {
     const session = await validateSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session) throw new ApiError(401, 'Unauthorized');
 
     const { url, documentId } = await request.json();
+    if (!url || !documentId) throw new ApiError(400, 'url and documentId are required');
+    if (!isAllowedUrl(url)) throw new ApiError(400, 'Invalid or disallowed URL');
 
-    if (!url || !documentId) {
-        return NextResponse.json({ error: 'url and documentId are required' }, { status: 400 });
-    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
 
-    try {
-        const response = await fetch(url);
-        const buffer = await response.arrayBuffer();
+    const { PDFParse } = await import('pdf-parse');
+    const parser = new PDFParse({ data: Buffer.from(await response.arrayBuffer()) });
+    const { text } = await parser.getText();
 
-        const { PDFParse } = await import('pdf-parse');
-        const parser = new PDFParse({ data: Buffer.from(buffer) });
-        const textResult = await parser.getText();
-        const parsed = { text: textResult.text };
+    const chunks = chunkText(text);
+    const embeddings = await embedChunks(chunks);
+    const userId = (session as { user_id: string }).user_id;
 
-        const chunks = chunkText(parsed.text);
-        const embeddings = await embedChunks(chunks);
+    await Promise.all(
+        embeddings.map(({ chunk, vector }) => storeChunkWithEmbedding(documentId, userId, chunk, vector))
+    );
 
-        await Promise.all(
-            embeddings.map(async ({ chunk, vector }) => {
-                const [row] = await sql`
-                    INSERT INTO app.chunks (document_id, user_id, text)
-                    VALUES (${documentId}, ${(session as { user_id: string }).user_id}, ${chunk})
-                    RETURNING id
-                `;
-
-                await sql`
-                    INSERT INTO app.embeddings (chunk_id, embedding)
-                    VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
-                `;
-            })
-        );
-
-        return NextResponse.json({ success: true, chunksStored: chunks.length });
-    } catch (error) {
-        console.error('Error extracting PDF:', error);
-        return NextResponse.json({ error: 'Failed to extract PDF' }, { status: 500 });
-    }
-}
+    return NextResponse.json({ success: true, chunksStored: chunks.length });
+});

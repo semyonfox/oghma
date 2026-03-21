@@ -1,13 +1,13 @@
 // validation utilities for forms, inputs, and auth
+import validatorPkg from 'validator';
+const { isEmail } = validatorPkg;
 
-// email
-
+// email — uses validator.isEmail for thorough RFC validation
 export function isValidEmail(email) {
     if (!email || typeof email !== 'string') {
         return false;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
+    return isEmail(email.trim(), { allow_ip_domain: false, require_tld: true });
 }
 
 export function validateEmail(email) {
