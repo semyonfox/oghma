@@ -81,6 +81,11 @@ export default {
           800: 'var(--color-error-800)',
           900: 'var(--color-error-900)',
         },
+        input: 'var(--color-input)',
+        subtle: {
+          DEFAULT: 'var(--color-subtle)',
+          hover: 'var(--color-subtle-hover)',
+        },
         neutral: {
           50: 'var(--color-neutral-50)',
           100: 'var(--color-neutral-100)',

@@ -280,6 +280,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                                 ? 'text-amber-400'
                                 : syncStatus === 'new'
                                 ? 'text-green-400'
+                                : syncStatus === 'canvas_new'
+                                ? 'text-blue-400'
                                 : ''
                         }`}
                         onClick={(e) => {
@@ -292,10 +294,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 )}
 
                 {/* Sync indicator dot */}
-                {!isRenaming && (syncStatus === 'modified' || syncStatus === 'new') && (
+                {!isRenaming && (syncStatus === 'modified' || syncStatus === 'new' || syncStatus === 'canvas_new') && (
                     <span
                         className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ml-1 ${
-                            syncStatus === 'modified' ? 'bg-amber-400' : 'bg-green-400'
+                            syncStatus === 'modified' ? 'bg-amber-400'
+                            : syncStatus === 'canvas_new' ? 'bg-blue-400'
+                            : 'bg-green-400'
                         }`}
                     />
                 )}
