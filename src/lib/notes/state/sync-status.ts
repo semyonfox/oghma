@@ -2,13 +2,14 @@
 // used to show accent colors on file tree items
 import { create } from 'zustand';
 
-export type SyncState = 'synced' | 'modified' | 'new';
+export type SyncState = 'synced' | 'modified' | 'new' | 'canvas_new';
 
 interface SyncStatusState {
     // map of noteId -> sync state
     status: Record<string, SyncState>;
     markModified: (id: string) => void;
     markNew: (id: string) => void;
+    markCanvasNew: (ids: string[]) => void;
     markSynced: (id: string) => void;
     getStatus: (id: string) => SyncState;
 }
@@ -26,6 +27,15 @@ const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
         set((state) => ({
             status: { ...state.status, [id]: 'new' },
         }));
+    },
+
+    // batch-mark notes imported from Canvas during a sync
+    markCanvasNew: (ids: string[]) => {
+        set((state) => {
+            const next = { ...state.status };
+            for (const id of ids) next[id] = 'canvas_new';
+            return { status: next };
+        });
     },
 
     markSynced: (id: string) => {

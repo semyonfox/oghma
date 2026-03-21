@@ -24,9 +24,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Active or most-recently-completed job
+    // active or most-recently-completed job
     const activeJobs = await sql`
-      SELECT id, status, created_at, started_at, completed_at
+      SELECT id, status, job_type, created_at, started_at, completed_at, expected_total
       FROM app.canvas_import_jobs
       WHERE user_id = ${user.user_id}
       ORDER BY created_at DESC
@@ -38,55 +38,65 @@ export async function GET() {
     const activeJob = isActive ? {
       jobId: job.id,
       status: job.status,
+      jobType: job.job_type,
       startedAt: job.started_at,
       createdAt: job.created_at,
     } : null;
 
-    // File stats — scoped to files created since the job started (or all if no job)
+    // scope file stats to the current job via job_id FK when available,
+    // fall back to time-based scoping for legacy jobs without job_id
+    const jobId = job?.id ?? null;
     const since = job?.created_at ?? null;
 
-    const [fileStats] = await sql`
-      SELECT
-        COUNT(*) as total,
-        COUNT(CASE WHEN status = 'complete'    THEN 1 END) as completed,
-        COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
-        COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
-        COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
-        COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
-      FROM app.canvas_imports
-      WHERE user_id = ${user.user_id}
-        AND (${since}::timestamptz IS NULL OR created_at >= ${since})
-    `;
+    const [fileStats, recentLogs] = await Promise.all([
+      sql`
+        SELECT
+          COUNT(*) as total,
+          COUNT(CASE WHEN status = 'complete'    THEN 1 END) as completed,
+          COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
+          COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+          COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
+          COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
+        FROM app.canvas_imports
+        WHERE user_id = ${user.user_id}
+          AND CASE
+            WHEN ${jobId}::uuid IS NOT NULL THEN job_id = ${jobId}::uuid
+            ELSE ${since}::timestamptz IS NULL OR created_at >= ${since}
+          END
+      `,
+      sql`
+        SELECT filename, status, error_message, updated_at, canvas_course_id, note_id
+        FROM app.canvas_imports
+        WHERE user_id = ${user.user_id}
+          AND CASE
+            WHEN ${jobId}::uuid IS NOT NULL THEN job_id = ${jobId}::uuid
+            ELSE ${since}::timestamptz IS NULL OR created_at >= ${since}
+          END
+        ORDER BY updated_at DESC
+        LIMIT 50
+      `,
+    ]);
 
-    const recentLogs = await sql`
-      SELECT filename, status, error_message, updated_at, canvas_course_id
-      FROM app.canvas_imports
-      WHERE user_id = ${user.user_id}
-        AND (${since}::timestamptz IS NULL OR created_at >= ${since})
-      ORDER BY updated_at DESC
-      LIMIT 50
-    `;
-
-    const stats = fileStats ?? { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
+    const stats = fileStats[0] ?? { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
     const [total, completed, downloading, processing, forbidden, errorCount] =
       ['total', 'completed', 'downloading', 'processing', 'forbidden', 'error']
         .map(k => parseInt(stats[k], 10));
 
-    // percent is only meaningful once the job is done — while active, total keeps growing
-    // as the worker discovers new files, so completed/total is misleading
+    // use expected_total from the discovery phase as denominator when available —
+    // this prevents the progress bar from jumping backwards as new files are found
+    const denominator = job?.expected_total ?? total;
     const settled = completed + forbidden + errorCount;
-    // null = no files discovered yet (job just started), 100 = done
-    const progressPercent = !isActive && total > 0
+    const progressPercent = !isActive && denominator > 0
       ? 100
-      : total > 0
-        ? Math.min(99, Math.round((settled / total) * 100))
+      : denominator > 0
+        ? Math.min(99, Math.round((settled / denominator) * 100))
         : null;
 
     return NextResponse.json({
       success: true,
       activeJob,
       progress: {
-        total,
+        total: denominator,
         completed,
         downloading,
         processing,
@@ -102,6 +112,7 @@ export async function GET() {
         errorMessage: r.error_message,
         updatedAt: r.updated_at,
         courseId: r.canvas_course_id,
+        noteId: r.note_id,
       })),
     });
 

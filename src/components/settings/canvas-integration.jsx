@@ -117,10 +117,8 @@ export default function CanvasIntegration() {
   // ── On mount: restore state + check connection ────────────────────────────
   useEffect(() => {
     const savedErrors    = JSON.parse(localStorage.getItem(LS_ERRORS)    ?? '{}')
-    const savedForbidden = JSON.parse(localStorage.getItem(LS_FORBIDDEN) ?? '{}')
     const savedSynced    = JSON.parse(localStorage.getItem(LS_SYNCED)    ?? '{}')
     setCourseErrors(savedErrors)
-    setForbiddenCourses(savedForbidden)
     setSyncedCourses(savedSynced)
 
     const checkConnection = async () => {
@@ -132,6 +130,18 @@ export default function CanvasIntegration() {
           setIsConnected(true)
           setConnectedDomain(data.domain)
           setCourses(data.courses ?? [])
+
+          // use server-side forbidden courses as source of truth
+          if (data.forbiddenCourseIds?.length > 0) {
+            const serverForbidden = {}
+            for (const id of data.forbiddenCourseIds) serverForbidden[String(id)] = true
+            setForbiddenCourses(serverForbidden)
+            localStorage.setItem(LS_FORBIDDEN, JSON.stringify(serverForbidden))
+          } else {
+            // clear stale localStorage forbidden data
+            const cached = JSON.parse(localStorage.getItem(LS_FORBIDDEN) ?? '{}')
+            setForbiddenCourses(cached)
+          }
 
           const savedIds = JSON.parse(localStorage.getItem(LS_SELECTED) ?? '[]')
           const validIds = (data.courses ?? []).map(c => c.id)
@@ -629,7 +639,7 @@ export default function CanvasIntegration() {
                   )}
                   <span className="text-sm font-medium text-text-secondary">
                     {isImporting
-                      ? `${t('Importing...')} (${progress.completed}/${progress.total || '?'})`
+                      ? `${isSyncing ? t('Checking for updates...') : t('Importing...')} (${progress.completed}/${progress.total || '?'})`
                       : t('Import complete')}
                   </span>
                 </div>
@@ -755,16 +765,16 @@ export default function CanvasIntegration() {
             >
               {isImporting
                 ? `${t('Importing...')} (${progress?.completed ?? 0}/${progress?.total || '?'})`
-                : `${t('Import')}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ''}`}
+                : `${t('Import selected courses')}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ''}`}
             </button>
             <button
               type="button"
-              disabled={isImporting || isSyncing}
+              disabled={isImporting || isSyncing || !syncAvailable}
               onClick={handleSync}
               className="rounded-md bg-white/5 px-3 py-2 text-sm font-semibold text-text-secondary ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
               title={t('Check for new files in previously imported courses')}
             >
-              {isSyncing ? t('Syncing...') : t('Sync now')}
+              {isSyncing ? t('Checking...') : t('Check for updates')}
             </button>
             <button
               type="button"
