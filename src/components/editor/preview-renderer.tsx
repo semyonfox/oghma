@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 
 interface PreviewRendererProps {
   content: string;
@@ -14,7 +15,7 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
     <div className="w-full prose prose-lg prose-invert max-w-none" dir="ltr">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight, rehypeRaw]}
+        rehypePlugins={[rehypeHighlight, rehypeRaw, rehypeSanitize]}
         components={{
           // Links rendered to open in new tabs for safety, styled with hover effects
           a: ({ node, ...props }) => (

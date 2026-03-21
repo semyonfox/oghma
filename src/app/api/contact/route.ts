@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isValidEmail } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 /**
  * Contact form submission endpoint
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!email?.trim() || !email.includes('@')) {
+    if (!email?.trim() || !isValidEmail(email)) {
       return NextResponse.json(
         { error: 'Valid email is required' },
         { status: 400 }
@@ -42,8 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log submission (in production, store in database or send email)
-    console.log('Contact form submission:', {
+    logger.info('contact form submission', {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Contact form error:', error);
+    logger.error('contact form error', { error });
 
     if (error instanceof SyntaxError) {
       return NextResponse.json(
