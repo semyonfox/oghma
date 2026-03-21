@@ -15,6 +15,7 @@
 import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { CanvasClient } from './client.js';
 import { processExtractedText } from './text-processing.js';
 import { chunkText } from '../chunking.ts';
@@ -27,6 +28,8 @@ const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
 const FILE_CONCURRENCY = 5; // process up to 5 files at once per module/assignment
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// after this many consecutive empty polls (~10 min), scale down and exit
+const IDLE_POLLS_BEFORE_SHUTDOWN = 30;
 
 // runs an array of async fns with at most `limit` in flight at a time
 async function pooled(tasks, limit) {
@@ -385,9 +388,36 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await failStuckJobs();
   setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 
+  let idlePolls = 0;
+
   while (true) {
     try {
+      const before = Date.now();
       await pollQueue();
+      // pollQueue returns immediately if messages were found (processed them),
+      // or after ~20s long-poll timeout if queue was empty
+      const elapsed = Date.now() - before;
+      // if the poll returned in < 2s, messages were processed — reset idle counter
+      if (elapsed < 2000) {
+        idlePolls = 0;
+      } else {
+        idlePolls++;
+      }
+
+      if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
+        console.log(`[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`);
+        try {
+          const ecsClient = new ECSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+          await ecsClient.send(new UpdateServiceCommand({
+            cluster: process.env.ECS_CLUSTER ?? 'oghmanotes',
+            service: process.env.ECS_SERVICE ?? 'canvas-import-worker',
+            desiredCount: 0,
+          }));
+        } catch (scaleErr) {
+          console.error(`[${new Date().toISOString()}] Self scale-down failed:`, scaleErr.message);
+        }
+        process.exit(0);
+      }
     } catch (err) {
       console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
       await new Promise(r => setTimeout(r, 5000));
