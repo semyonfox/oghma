@@ -9,6 +9,7 @@ on:
       - 'src/lib/embeddings.ts'
       - 'src/lib/storage/**'
       - 'src/lib/sqs.ts'
+      - 'src/lib/ecs.ts'
       - 'src/database/**'
       - 'Dockerfile.worker'
       - 'package.json'
