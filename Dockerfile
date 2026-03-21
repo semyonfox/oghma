@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* .npmrc* ./
-RUN HUSKY=0 npm ci --only=production && npm cache clean --force
+RUN npm pkg delete scripts.prepare && npm ci --only=production && npm cache clean --force
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
@@ -10,7 +10,7 @@ WORKDIR /app
 # Install build tools for native modules (e.g., bcrypt)
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* .npmrc* ./
-RUN HUSKY=0 npm ci
+RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
