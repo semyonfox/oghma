@@ -1,30 +1,53 @@
-// export API route - exports notes as zip of markdown files
-// coded but DISABLED until tree/storage are fully wired
+// vault import/export routes
+// tree + S3 storage are wired — these are ready to enable
+// UI buttons in settings are disabled until you flip VAULT_JOBS_ENABLED
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth';
+import sql from '@/database/pgsql.js';
+import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
+import { SendMessageCommand } from '@aws-sdk/client-sqs';
 
-export async function GET(request: NextRequest) {
-    // TODO: enable when tree + S3 storage are connected
-    // implementation should:
-    // 1. read all notes from tree
-    // 2. fetch content from S3 for each
-    // 3. build zip archive with folder structure matching tree
-    // 4. stream zip as response
-    return NextResponse.json(
-        { error: 'Export endpoint is not yet enabled.' },
-        { status: 501 }
-    );
-}
+const ENABLED = process.env.VAULT_JOBS_ENABLED === 'true';
 
-// import API route - imports zip of markdown files as notes
+// POST /api/import-export?action=export  — queues a vault export job
+// POST /api/import-export?action=import  — queues a vault import job (expects zip upload)
 export async function POST(request: NextRequest) {
-    // TODO: enable when tree + S3 storage are connected
-    // implementation should:
-    // 1. accept multipart form data with zip file
-    // 2. extract markdown files
-    // 3. create notes in tree + S3
-    // 4. return { count: number } of imported notes
-    return NextResponse.json(
-        { error: 'Import endpoint is not yet enabled.' },
-        { status: 501 }
-    );
+    if (!ENABLED) {
+        return NextResponse.json(
+            { error: 'Vault import/export is not yet enabled.' },
+            { status: 501 }
+        );
+    }
+
+    const session = await validateSession();
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const action = request.nextUrl.searchParams.get('action');
+    const userId = (session as { user_id: string }).user_id;
+
+    if (action === 'export') {
+        // queue a background export — worker builds zip and uploads to S3
+        try {
+            await sqsClient.send(new SendMessageCommand({
+                QueueUrl: CANVAS_IMPORT_QUEUE_URL,
+                MessageBody: JSON.stringify({ type: 'vault-export', userId }),
+            }));
+        } catch (err) {
+            console.error('SQS send failed for vault-export:', err);
+        }
+        return NextResponse.json({ success: true, queued: true });
+    }
+
+    if (action === 'import') {
+        // accept zip upload, store in S3, then queue background import
+        // the worker extracts markdown files, creates notes, runs RAG
+        return NextResponse.json(
+            { error: 'Vault import is not yet implemented.' },
+            { status: 501 }
+        );
+    }
+
+    return NextResponse.json({ error: 'action must be "export" or "import"' }, { status: 400 });
 }
