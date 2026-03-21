@@ -4,6 +4,7 @@ import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
+import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -38,25 +39,34 @@ export async function GET(request) {
     const skip = skipParam ? parseInt(skipParam, 10) : 0;
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     
+    // check cache for this page (before field filtering)
+    const listKey = cacheKeys.notesList(user.user_id, skip, limit);
+    const cachedList = await cacheGet(listKey);
+    if (cachedList) {
+      const filtered = cachedList.map(note => filterNoteFields(note, fields));
+      return NextResponse.json(filtered);
+    }
+
     // Get user's notes from PostgreSQL
     let notes = await sql`
       SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
-    
+
     // Apply skip/limit for pagination
     if (skip > 0 || limit) {
       const end = limit ? skip + limit : undefined;
       notes = notes.slice(skip, end);
     }
-    
-    // Map to NoteModel format
+
+    // Map to NoteModel format and cache full list (pre-field-filter)
     const mapped = notes.map(mapNoteFromDB);
-    
+    await cacheSet(listKey, mapped, 120);
+
     // Filter fields if requested
     const filtered = mapped.map(note => filterNoteFields(note, fields));
-    
+
     return NextResponse.json(filtered);
   } catch (error) {
     logger.error('notes GET error', { error });
@@ -113,6 +123,13 @@ export async function POST(request) {
     // If pid is provided, use it; otherwise add to root (parent_id = null)
     const parentId = body.pid || null;
     await addNoteToTree(user.user_id, note.note_id, parentId);
+
+    // invalidate tree + note list caches
+    await cacheInvalidate(
+      cacheKeys.treeChildren(user.user_id, parentId),
+      cacheKeys.treeFull(user.user_id),
+      cacheKeys.notesList(user.user_id, 0, undefined),
+    );
 
     return NextResponse.json({
       id: note.note_id,

@@ -1,6 +1,7 @@
 // PostgreSQL-backed tree storage
 // Each user has an isolated tree structure stored in the database
 import sql from '@/database/pgsql.js';
+import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 
 const ROOT_ID = 'root';
 
@@ -9,6 +10,9 @@ const ROOT_ID = 'root';
  */
 export async function getTreeFromPG(userId) {
   try {
+    const cached = await cacheGet(cacheKeys.treeFull(userId));
+    if (cached) return cached;
+
     const rows = await sql`
       SELECT 
         ti.id,
@@ -54,10 +58,9 @@ export async function getTreeFromPG(userId) {
       items[parentId].children.push(noteId);
     }
 
-    return {
-      rootId: ROOT_ID,
-      items,
-    };
+    const tree = { rootId: ROOT_ID, items };
+    await cacheSet(cacheKeys.treeFull(userId), tree, 300);
+    return tree;
   } catch (error) {
     console.error('Error reading tree from PG:', error);
     return {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
+import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 const database = sql as any;
@@ -33,6 +34,10 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
+
+    const key = cacheKeys.treeChildren(user.user_id, parentId);
+    const cached = await cacheGet(key);
+    if (cached) return NextResponse.json(cached);
 
     // Fetch children, sorted A-Z by title.
     // Uses app.tree_items for hierarchy and app.notes for metadata.
@@ -71,7 +76,7 @@ export async function GET(request: Request) {
           ORDER BY n.title ASC
         `;
 
-    return NextResponse.json({
+    const body = {
       parentId: parentId || 'root',
       items: rows.map(row => ({
         id: row.id,
@@ -80,7 +85,10 @@ export async function GET(request: Request) {
         isExpanded: row.isExpanded,
         s3Key: row.s3Key || null,
       })),
-    });
+    };
+
+    await cacheSet(key, body, 300);
+    return NextResponse.json(body);
   } catch (error) {
     logger.error('tree children fetch error', { error });
     return NextResponse.json(
