@@ -215,27 +215,31 @@ async function processModules(courseId, userId, courseTitle, courseFolderId, ctx
     console.warn(`No modules (or restricted) for course ${courseId}`);
     return;
   }
-  const moduleFolderMap = {};
-  for (const module of modules) {
+  // process modules concurrently (up to 5 at a time)
+  await pooled(modules.map(module => async () => {
     const { data: items } = await client.getModuleItems(courseId, module.id);
-    if (!items) continue;
+    if (!items) return;
     const fileItems = items.filter(item => item.type === 'File');
-    if (fileItems.length === 0) continue;
-    const moduleKey = `${courseId}:${module.id}`;
-    moduleFolderMap[moduleKey] ??= await tryCreateFolder(userId, module.name, courseFolderId, courseFolderId);
-    // resolve file metadata first, then download/process concurrently
-    const resolved = [];
-    for (const item of fileItems) {
-      const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
-      if (fileForbidden || !file) { console.log(`File forbidden: ${item.title}`); continue; }
-      resolved.push(file);
-    }
+    if (fileItems.length === 0) return;
+    const folderId = await tryCreateFolder(userId, module.name, courseFolderId, courseFolderId);
+    // resolve file metadata concurrently, then download/process concurrently
+    const metaResults = await pooled(
+      fileItems.map(item => async () => {
+        const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
+        if (fileForbidden || !file) { console.log(`File forbidden: ${item.title}`); return null; }
+        return file;
+      }),
+      FILE_CONCURRENCY,
+    );
+    const resolved = metaResults
+      .filter(r => r.status === 'fulfilled' && r.value)
+      .map(r => r.value);
     const opts = {
-      userId, courseId, moduleId: module.id, parentFolderId: moduleFolderMap[moduleKey],
+      userId, courseId, moduleId: module.id, parentFolderId: folderId,
       client, storage, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
     };
     await pooled(resolved.map(file => () => downloadAndStoreFile(file, opts)), FILE_CONCURRENCY);
-  }
+  }), FILE_CONCURRENCY);
 }
 
 async function processAssignments(courseId, userId, courseTitle, courseFolderId, ctx) {
@@ -250,7 +254,7 @@ async function processAssignments(courseId, userId, courseTitle, courseFolderId,
   if (assignmentsWithFiles.length === 0) return;
 
   const assignmentsFolderId = await tryCreateFolder(userId, 'Assignments', courseFolderId, courseFolderId);
-  for (const assignment of assignmentsWithFiles) {
+  await pooled(assignmentsWithFiles.map(assignment => async () => {
     const attachments = (assignment.attachments ?? []).filter(att =>
       PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type))
     );
@@ -260,7 +264,7 @@ async function processAssignments(courseId, userId, courseTitle, courseFolderId,
       client, storage, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
     };
     await pooled(attachments.map(att => () => downloadAndStoreFile(att, opts)), FILE_CONCURRENCY);
-  }
+  }), FILE_CONCURRENCY);
 }
 
 async function processCourse(course, userId, ctx) {
@@ -290,9 +294,8 @@ async function runJobPipeline(jobId, userId, courses) {
   if (!creds) throw new Error('User or Canvas credentials not found');
   const client = new CanvasClient(creds.canvas_domain, creds.canvas_token);
   const storage = getStorageProvider();
-  for (const course of courses) {
-    await processCourse(course, userId, { client, storage });
-  }
+  // process all courses concurrently — pooled limits to 3 at a time
+  await pooled(courses.map(course => () => processCourse(course, userId, { client, storage })), 3);
 }
 
 // ── Job processing ────────────────────────────────────────────────────────────
