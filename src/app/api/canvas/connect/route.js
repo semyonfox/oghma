@@ -41,18 +41,10 @@ export async function GET() {
       return NextResponse.json({ connected: false });
     }
 
-    // Fetch modules for each course so the UI has the full folder preview
-    const coursesWithModules = await Promise.all(
-      (courses ?? []).map(async (course) => {
-        const { data: modules } = await client.getModules(course.id);
-        return { ...course, modules: modules ?? [] };
-      })
-    );
-
     return NextResponse.json({
       connected: true,
       domain: canvas_domain,
-      courses: coursesWithModules,
+      courses: courses ?? [],
     });
 
   } catch (err) {

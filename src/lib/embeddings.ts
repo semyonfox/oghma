@@ -1,8 +1,12 @@
-// fetches request to embedding server for each chunk, concurrently
-// server converts to vector; failed chunks are filtered out rather than returning null vectors
+// batch-embeds chunks via OpenAI-compatible /api/v1/embeddings endpoint
+// authenticates via shared OpenWebUI credentials (same as LLM)
+
+import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
+
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL ?? 'qwen3-embedding:8b';
+const BATCH_SIZE = 50;
 
 export async function embedChunks(chunks: string[]): Promise<{ chunk: string, vector: number[] }[]> {
-    // read lazily so tests can set the env var before calling
     const EMBEDDING_URL = process.env.EMBEDDING_API_URL;
 
     if (!EMBEDDING_URL) {
@@ -11,47 +15,73 @@ export async function embedChunks(chunks: string[]): Promise<{ chunk: string, ve
         );
     }
 
-    // filter out empty/whitespace chunks before sending
     const nonEmptyChunks = chunks.filter(chunk => chunk && chunk.trim().length > 0);
+    if (nonEmptyChunks.length === 0) return [];
 
-    if (nonEmptyChunks.length === 0) {
-        return [];
+    const results: { chunk: string; vector: number[] }[] = [];
+
+    for (let i = 0; i < nonEmptyChunks.length; i += BATCH_SIZE) {
+        const batch = nonEmptyChunks.slice(i, i + BATCH_SIZE);
+
+        try {
+            const token = await getOpenWebUIToken();
+            const res = await fetch(`${EMBEDDING_URL}/api/v1/embeddings`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL }),
+            });
+
+            // re-auth on 401 and retry once
+            if (res.status === 401) {
+                invalidateToken();
+                const freshToken = await getOpenWebUIToken();
+                const retry = await fetch(`${EMBEDDING_URL}/api/v1/embeddings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${freshToken}`,
+                    },
+                    body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL }),
+                });
+                if (!retry.ok) {
+                    console.warn(`Embedding batch failed after re-auth (status ${retry.status}), skipping ${batch.length} chunks`);
+                    continue;
+                }
+                const json = await retry.json();
+                appendEmbeddings(json.data, batch, results);
+                continue;
+            }
+
+            if (!res.ok) {
+                console.warn(`Embedding batch failed (status ${res.status}), skipping ${batch.length} chunks`);
+                continue;
+            }
+
+            const json = await res.json();
+            appendEmbeddings(json.data, batch, results);
+        } catch (err) {
+            console.warn(`Embedding batch error: ${err instanceof Error ? err.message : err}`);
+        }
     }
 
-    try {
-        const results = await Promise.all(
-            nonEmptyChunks.map(async (chunk): Promise<{ chunk: string; vector: number[] } | null> => {
-                try {
-                    const res = await fetch(`${EMBEDDING_URL}/embed`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: chunk }),
-                    });
+    return results;
+}
 
-                    if (!res.ok) {
-                        console.warn(`Embedding failed for chunk (status ${res.status}), skipping`);
-                        return null;
-                    }
-
-                    const data = await res.json();
-                    const { vector } = data;
-
-                    if (!vector || !Array.isArray(vector)) {
-                        console.warn('Invalid embedding response format, skipping chunk');
-                        return null;
-                    }
-
-                    return { chunk, vector: vector as number[] };
-                } catch (chunkError) {
-                    console.warn('Error embedding chunk:', chunkError);
-                    return null;
-                }
-            })
-        );
-
-        // filter out chunks that failed to embed
-        return results.filter((r): r is { chunk: string; vector: number[] } => r !== null);
-    } catch (error) {
-        throw new Error(`Failed to embed chunks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+function appendEmbeddings(
+    data: { embedding: number[]; index: number }[] | undefined,
+    batch: string[],
+    results: { chunk: string; vector: number[] }[],
+) {
+    if (!Array.isArray(data)) {
+        console.warn('Unexpected embedding response format, skipping batch');
+        return;
+    }
+    for (const item of data) {
+        if (Array.isArray(item.embedding) && item.index < batch.length) {
+            results.push({ chunk: batch[item.index], vector: item.embedding });
+        }
     }
 }
