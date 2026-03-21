@@ -5,6 +5,7 @@ import { authConfig } from '@/auth.config';
 import { validateSession } from '@/lib/auth';
 import { getStorageProvider } from '@/lib/storage/init';
 import { getSettingsFromS3, saveSettingsToS3 } from '@/lib/notes/storage/s3-storage';
+import logger from '@/lib/logger';
 
 /** resolve user_id from either Auth.js (OAuth) or custom JWT session */
 async function resolveUserId(): Promise<string | number | null> {
@@ -50,7 +51,7 @@ export async function GET() {
     const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
     return NextResponse.json({ avatarUrl });
   } catch (error) {
-    console.error('Error fetching avatar:', error);
+    logger.error('error fetching avatar', { error });
     return NextResponse.json({ error: 'Failed to fetch avatar' }, { status: 500 });
   }
 }
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, avatarUrl, avatarKey });
   } catch (error) {
-    console.error('Error uploading avatar:', error);
+    logger.error('error uploading avatar', { error });
     return NextResponse.json(
       { error: 'Upload failed' },
       { status: 500 }

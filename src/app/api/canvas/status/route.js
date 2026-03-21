@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * GET /api/canvas/status
@@ -117,7 +118,7 @@ export async function GET() {
     });
 
   } catch (err) {
-    console.error('Canvas status error:', err);
+    logger.error('canvas status error', { error: err });
     return NextResponse.json({ error: 'Failed to fetch import status' }, { status: 500 });
   }
 }
