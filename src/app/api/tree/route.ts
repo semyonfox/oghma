@@ -3,6 +3,8 @@ import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { isValidUUID } from '@/lib/uuid-validation.js';
+import { cacheInvalidate, cacheKeys } from '@/lib/cache';
+import logger from '@/lib/logger';
 
 interface TreeMutateAction {
     action: 'move' | 'mutate';
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
 
               // Update tree item in PostgreSQL
               await updateTreeItem(user.user_id, id, rest);
+              await cacheInvalidate(cacheKeys.treeFull(user.user_id));
               return NextResponse.json({ success: true });
           }
 
@@ -92,7 +95,13 @@ export async function POST(request: Request) {
               
               // Move the note in the tree (position stored separately if needed)
               await moveNoteInTree(user.user_id, noteId, newParentId);
-              
+
+              await cacheInvalidate(
+                cacheKeys.treeChildren(user.user_id, source.parentId === ROOT_ID ? null : source.parentId),
+                cacheKeys.treeChildren(user.user_id, newParentId),
+                cacheKeys.treeFull(user.user_id),
+              );
+
               return NextResponse.json({ success: true });
           }
 
@@ -100,7 +109,7 @@ export async function POST(request: Request) {
               return NextResponse.json({ success: true });
       }
     } catch (error) {
-      console.error('Tree POST error:', error);
+      logger.error('tree POST error', { error });
       return NextResponse.json(
         { error: 'Failed to update tree' },
         { status: 500 }

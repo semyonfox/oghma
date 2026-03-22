@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { isValidUUID } from '@/lib/uuid-validation';
 import sql from '@/database/pgsql';
+import logger from '@/lib/logger';
 
 interface TrashAction {
     action: 'restore' | 'delete' | 'list';
@@ -43,7 +44,7 @@ export async function GET() {
 
         return NextResponse.json({ items });
     } catch (error) {
-        console.error('[trash] GET error:', error);
+        logger.error('trash GET error', { error });
         return NextResponse.json(
             { error: 'Failed to fetch trash' },
             { status: 500 }
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
                 );
         }
     } catch (error) {
-        console.error('[trash] POST error:', error);
+        logger.error('trash POST error', { error });
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }

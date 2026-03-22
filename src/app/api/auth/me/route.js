@@ -1,59 +1,59 @@
-/**
- * Current User Profile Route Handler
- *
- * Purpose: Retrieve the authenticated user's profile information.
- * Security: Validates both Auth.js sessions (OAuth) and JWT tokens (email/password).
- * Used by: Frontend to display user info, verify active session, guard protected routes.
- */
-
 import { getServerSession } from 'next-auth';
 import { authConfig } from '@/auth.config';
 import { validateSession } from '@/lib/auth.js';
+import { getLinkedProviders } from '@/lib/auth-oauth';
+import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
-/**
- * GET /api/auth/me
- *
- * Returns the current user's profile information from either Auth.js (OAuth) or JWT (email/password).
- *
- * @param {Request} request - The HTTP request object (includes cookies)
- * @returns {Response} User data (user_id, email) or 401 if unauthorized
- */
+async function fetchProfile(userId) {
+    const [profileRows, providers] = await Promise.all([
+        sql`SELECT display_name, avatar_url, locale FROM app.login WHERE user_id = ${userId}::uuid`,
+        getLinkedProviders(userId),
+    ]);
+    const profile = profileRows[0] || {};
+    return {
+        displayName: profile.display_name,
+        avatarUrl: profile.avatar_url,
+        locale: profile.locale,
+        linkedProviders: providers,
+    };
+}
+
 export async function GET(request) {
     try {
-        // Try Auth.js session first (OAuth users)
+        // try Auth.js session first (OAuth users)
         const authJsSession = await getServerSession(authConfig);
-        if (authJsSession && authJsSession.user) {
+        if (authJsSession?.user?.id) {
+            const userId = authJsSession.user.id;
+            const profile = await fetchProfile(userId);
             return Response.json({
                 success: true,
                 user: {
-                    user_id: authJsSession.user.id,
+                    user_id: userId,
                     email: authJsSession.user.email,
-                    name: authJsSession.user.name
-                }
+                    name: authJsSession.user.name,
+                    ...profile,
+                },
             });
         }
 
-        // Fall back to custom JWT (email/password users)
+        // fall back to custom JWT (email/password users)
         const jwtUser = await validateSession();
         if (jwtUser) {
+            const profile = await fetchProfile(jwtUser.user_id);
             return Response.json({
                 success: true,
                 user: {
                     user_id: jwtUser.user_id,
-                    email: jwtUser.email
-                }
+                    email: jwtUser.email,
+                    ...profile,
+                },
             });
         }
 
-        // No valid session found
-        return Response.json(
-            { error: 'Unauthorized' },
-            { status: 401 }
-        );
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
     } catch (error) {
-        return Response.json(
-            { error: 'Invalid token' },
-            { status: 401 }
-        );
+        logger.error('auth me error', { error });
+        return Response.json({ error: 'Invalid token' }, { status: 401 });
     }
 }

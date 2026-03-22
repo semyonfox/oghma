@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { ca as rdsCaCerts } from 'aws-ssl-profiles';
 
 // lazy connection - only created on first use, not at module load
 // this ensures runtime env vars are available (not build-time values)
@@ -14,11 +15,9 @@ function getSQL() {
             );
         }
         const requiresSSL = url.includes('sslmode=require');
-        // RDS uses Amazon's own CA which isn't in Node's default trust store.
-        // rejectUnauthorized: false is safe here — we connect to a known RDS
-        // endpoint over AWS networking, not an arbitrary server.
+        // use the bundled AWS RDS CA certificates for proper TLS verification
         sql = postgres(url, {
-            ssl: requiresSSL ? { rejectUnauthorized: false } : false,
+            ssl: requiresSSL ? { ca: rdsCaCerts } : false,
             // Connection timeout settings (in milliseconds)
             idle_in_transaction_session_timeout: 30000, // 30s - max time for transaction
             statement_timeout: 30000, // 30s - max time for a single query

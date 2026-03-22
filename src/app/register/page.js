@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { register, getErrorMessage } from '@/lib/apiClient'
 import { Alert } from '@/components/alert'
 import Link from 'next/link'
@@ -35,19 +36,11 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      console.log('Register: Calling register API...')
       await register(email, pwd)
-      console.log('Register: Redirecting to /notes...')
-      // Redirect to /notes (auto-logged in after registration)
       router.replace('/notes')
-      
-      // Fallback redirect in case router.replace doesn't work
-      setTimeout(() => {
-        console.log('Register: Fallback redirect triggered')
-        window.location.href = '/notes'
-      }, 1000)
+      // fallback redirect in case router.replace doesn't work
+      setTimeout(() => { window.location.href = '/notes' }, 1000)
     } catch (err) {
-      console.error('Register: Error occurred:', err)
       setErrMsg(getErrorMessage(err))
       setPwd('')
       setConfirmPwd('')
@@ -58,8 +51,7 @@ export default function RegisterPage() {
 
   // TODO: Implement social registration handlers (Google, Microsoft, GitHub, Apple)
   const handleSocialSignUp = (provider) => {
-    console.log(`Social signup with ${provider}`)
-    // TODO: Redirect to OAuth endpoint or backend authentication
+    signIn(provider, { redirect: true, redirectTo: '/notes' })
   }
 
   return (
@@ -182,7 +174,7 @@ export default function RegisterPage() {
               {/* Microsoft */}
               <button
                 type="button"
-                onClick={() => handleSocialSignUp('microsoft')}
+                onClick={() => handleSocialSignUp('azure-ad')}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
                 <svg viewBox="0 0 2499.6 2500" aria-hidden="true" className="h-5 w-5">

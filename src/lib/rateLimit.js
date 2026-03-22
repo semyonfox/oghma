@@ -5,11 +5,15 @@
  * - Rate limiting: Tracks failed login attempts in a sliding window (15 min)
  * - Account lockout: Locks account after exceeding max attempts (30 min)
  *
- * Implementation: In-memory store (per-process); resets on server restart.
- * TODO: Scale to multiple servers using Redis for persistent lockout state.
+ * Implementation: Redis-backed (shared across instances) with in-memory
+ * fallback when Redis is unavailable (local dev, connection failure).
+ * Email keys are normalized with toLowerCase().trim() to prevent bypass.
  */
 
-// Single in-memory storage for all auth protection: { "email": { count, lockedUntil, ... } }
+import { redis, redisReady } from '@/lib/redis';
+import logger from '@/lib/logger';
+
+// in-memory fallback for when redis is unavailable
 const authProtection = new Map();
 
 /**
@@ -18,74 +22,151 @@ const authProtection = new Map();
 const CONFIG = {
     MAX_ATTEMPTS: 5,
     WINDOW_MS: 15 * 60 * 1000,      // 15 min sliding window for rate limiting
-    LOCK_DURATION_MS: 30 * 60 * 1000 // 30 min account lockout duration
+    LOCK_DURATION_MS: 30 * 60 * 1000, // 30 min account lockout duration
+    WINDOW_SECS: 15 * 60,            // 15 min in seconds (for redis TTL)
+    LOCK_SECS: 30 * 60,              // 30 min in seconds (for redis TTL)
 };
 
-/**
- * Checks if an account is currently locked due to too many failed attempts.
- * Automatically clears lock if duration has expired.
- *
- * @param {string} email - User email address
- * @returns {boolean} True if account is locked
- */
-export function isAccountLocked(email) {
+// redis key prefixes
+const KEY = {
+    attempts: (email) => `ratelimit:attempts:${email}`,
+    window:   (email) => `ratelimit:window:${email}`,
+    lockout:  (email) => `ratelimit:lockout:${email}`,
+};
+
+function normalize(email) {
+    return email.toLowerCase().trim();
+}
+
+function useRedis() {
+    return redisReady;
+}
+
+// ── Redis-backed implementations ────────────────────────────────────────────
+
+async function redisIsAccountLocked(email) {
+    const lockUntil = await redis.get(KEY.lockout(email));
+    if (!lockUntil) return false;
+
+    const now = Date.now();
+    if (now >= parseInt(lockUntil, 10)) {
+        // lock expired, clean up
+        await redis.del(KEY.lockout(email));
+        return false;
+    }
+    return true;
+}
+
+async function redisIsRateLimited(email) {
+    const [countStr, windowResetStr] = await redis.mget(
+        KEY.attempts(email),
+        KEY.window(email),
+    );
+    if (!countStr) return false;
+
+    const now = Date.now();
+    if (windowResetStr && now > parseInt(windowResetStr, 10)) {
+        // window expired, clean up
+        await redis.del(KEY.attempts(email), KEY.window(email));
+        return false;
+    }
+
+    return parseInt(countStr, 10) >= CONFIG.MAX_ATTEMPTS;
+}
+
+async function redisRecordFailedAttempt(email) {
+    const now = Date.now();
+    const windowResetStr = await redis.get(KEY.window(email));
+
+    // reset if window expired or no window exists
+    if (!windowResetStr || now > parseInt(windowResetStr, 10)) {
+        const windowReset = now + CONFIG.WINDOW_MS;
+        // set count to 1 and window reset time atomically with pipeline
+        const pipeline = redis.pipeline();
+        pipeline.set(KEY.attempts(email), '1', 'EX', CONFIG.WINDOW_SECS);
+        pipeline.set(KEY.window(email), String(windowReset), 'EX', CONFIG.WINDOW_SECS);
+        await pipeline.exec();
+
+        // first attempt can never trigger lockout (need MAX_ATTEMPTS)
+        return;
+    }
+
+    // increment within existing window
+    const newCount = await redis.incr(KEY.attempts(email));
+
+    // lock account if threshold exceeded
+    if (newCount >= CONFIG.MAX_ATTEMPTS) {
+        const lockUntil = now + CONFIG.LOCK_DURATION_MS;
+        await redis.set(KEY.lockout(email), String(lockUntil), 'EX', CONFIG.LOCK_SECS);
+    }
+}
+
+async function redisClearFailedAttempts(email) {
+    await redis.del(
+        KEY.attempts(email),
+        KEY.window(email),
+        KEY.lockout(email),
+    );
+}
+
+async function redisGetLockoutMinutesRemaining(email) {
+    const lockUntil = await redis.get(KEY.lockout(email));
+    if (!lockUntil) return 0;
+
+    const remainingMs = parseInt(lockUntil, 10) - Date.now();
+    return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
+}
+
+async function redisGetRateLimitResetTime(email) {
+    const windowReset = await redis.get(KEY.window(email));
+    if (!windowReset) return 0;
+
+    const remainingMs = parseInt(windowReset, 10) - Date.now();
+    return Math.max(0, Math.ceil(remainingMs / 1000));
+}
+
+// ── In-memory fallback implementations ──────────────────────────────────────
+
+function memIsAccountLocked(email) {
     const state = authProtection.get(email);
     if (!state) return false;
 
     const now = Date.now();
-    // Lock period expired - auto-clear
     if (now >= state.lockedUntil) {
         authProtection.delete(email);
         return false;
     }
-
     return true;
 }
 
-/**
- * Checks if an email has exceeded rate limit attempts in the current window.
- *
- * @param {string} email - User email address
- * @returns {boolean} True if account is currently rate-limited
- */
-export function isRateLimited(email) {
+function memIsRateLimited(email) {
     const state = authProtection.get(email);
     if (!state) return false;
 
     const now = Date.now();
-    // Window expired - reset
     if (now > state.windowResetTime) {
         authProtection.delete(email);
         return false;
     }
-
     return state.count >= CONFIG.MAX_ATTEMPTS;
 }
 
-/**
- * Records a failed login attempt for an account.
- * Locks the account if MAX_ATTEMPTS is exceeded.
- *
- * @param {string} email - User email address
- */
-export function recordFailedAttempt(email) {
+function memRecordFailedAttempt(email) {
     const now = Date.now();
     let state = authProtection.get(email);
 
-    // Initialize or reset if window expired
     if (!state || now > state.windowResetTime) {
         state = {
             count: 0,
             windowResetTime: now + CONFIG.WINDOW_MS,
             lockedUntil: 0,
-            lastAttempt: now
+            lastAttempt: now,
         };
     }
 
     state.count++;
     state.lastAttempt = now;
 
-    // Lock account if threshold exceeded
     if (state.count >= CONFIG.MAX_ATTEMPTS) {
         state.lockedUntil = now + CONFIG.LOCK_DURATION_MS;
     }
@@ -93,46 +174,129 @@ export function recordFailedAttempt(email) {
     authProtection.set(email, state);
 }
 
+function memClearFailedAttempts(email) {
+    authProtection.delete(email);
+}
+
+function memGetLockoutMinutesRemaining(email) {
+    const state = authProtection.get(email);
+    if (!state || !state.lockedUntil) return 0;
+
+    const remainingMs = state.lockedUntil - Date.now();
+    return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
+}
+
+function memGetRateLimitResetTime(email) {
+    const state = authProtection.get(email);
+    if (!state) return 0;
+
+    const remainingMs = state.windowResetTime - Date.now();
+    return Math.max(0, Math.ceil(remainingMs / 1000));
+}
+
+// ── Public API (async, redis-first with fallback) ───────────────────────────
+
+/**
+ * Checks if an account is currently locked due to too many failed attempts.
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+export async function isAccountLocked(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            return await redisIsAccountLocked(email);
+        } catch (err) {
+            logger.warn('redis rate-limit read failed, falling back to memory', { fn: 'isAccountLocked', message: err.message });
+        }
+    }
+    return memIsAccountLocked(email);
+}
+
+/**
+ * Checks if an email has exceeded rate limit attempts in the current window.
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+export async function isRateLimited(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            return await redisIsRateLimited(email);
+        } catch (err) {
+            logger.warn('redis rate-limit read failed, falling back to memory', { fn: 'isRateLimited', message: err.message });
+        }
+    }
+    return memIsRateLimited(email);
+}
+
+/**
+ * Records a failed login attempt for an account.
+ * Locks the account if MAX_ATTEMPTS is exceeded.
+ * @param {string} email
+ * @returns {Promise<void>}
+ */
+export async function recordFailedAttempt(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            await redisRecordFailedAttempt(email);
+            return;
+        } catch (err) {
+            logger.warn('redis rate-limit write failed, falling back to memory', { fn: 'recordFailedAttempt', message: err.message });
+        }
+    }
+    memRecordFailedAttempt(email);
+}
+
 /**
  * Clears failed attempt count for an email (called after successful login).
- * Resets both rate limit and lockout state.
- *
- * @param {string} email - User email address
+ * @param {string} email
+ * @returns {Promise<void>}
  */
-export function clearFailedAttempts(email) {
-    authProtection.delete(email);
+export async function clearFailedAttempts(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            await redisClearFailedAttempts(email);
+            return;
+        } catch (err) {
+            logger.warn('redis rate-limit write failed, falling back to memory', { fn: 'clearFailedAttempts', message: err.message });
+        }
+    }
+    memClearFailedAttempts(email);
 }
 
 /**
  * Gets the remaining time (in minutes) until the account unlock.
- * Useful for error messages: "Account locked for X more minutes"
- *
- * @param {string} email - User email address
- * @returns {number} Minutes remaining until unlock (0 if not locked)
+ * @param {string} email
+ * @returns {Promise<number>} Minutes remaining until unlock (0 if not locked)
  */
-export function getLockoutMinutesRemaining(email) {
-    const state = authProtection.get(email);
-    if (!state || !state.lockedUntil) return 0;
-
-    const now = Date.now();
-    const remainingMs = state.lockedUntil - now;
-
-    return Math.max(0, Math.ceil(remainingMs / 1000 / 60));
+export async function getLockoutMinutesRemaining(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            return await redisGetLockoutMinutesRemaining(email);
+        } catch (err) {
+            logger.warn('redis rate-limit read failed, falling back to memory', { fn: 'getLockoutMinutesRemaining', message: err.message });
+        }
+    }
+    return memGetLockoutMinutesRemaining(email);
 }
 
 /**
  * Gets the remaining time (in seconds) until the rate limit resets.
- * Useful for error messages: "Try again in X minutes"
- *
- * @param {string} email - User email address
- * @returns {number} Seconds until rate limit resets (0 if not rate limited)
+ * @param {string} email
+ * @returns {Promise<number>} Seconds until rate limit resets (0 if not rate limited)
  */
-export function getRateLimitResetTime(email) {
-    const state = authProtection.get(email);
-    if (!state) return 0;
-
-    const now = Date.now();
-    const remainingMs = state.windowResetTime - now;
-
-    return Math.max(0, Math.ceil(remainingMs / 1000));
+export async function getRateLimitResetTime(email) {
+    email = normalize(email);
+    if (useRedis()) {
+        try {
+            return await redisGetRateLimitResetTime(email);
+        } catch (err) {
+            logger.warn('redis rate-limit read failed, falling back to memory', { fn: 'getRateLimitResetTime', message: err.message });
+        }
+    }
+    return memGetRateLimitResetTime(email);
 }

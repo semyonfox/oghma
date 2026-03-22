@@ -4,6 +4,7 @@ import { isValidUUID } from '@/lib/uuid-validation.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * POST /api/notes/:id/share
@@ -52,12 +53,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    // Verify source note exists and user owns it (or it's shared)
+    // only the owner can share their own note
     const sourceNote = await sql`
       SELECT note_id, title, content, s3_key, is_folder
       FROM app.notes
       WHERE note_id = ${sourceNoteId}::uuid
-        AND (user_id = ${user.user_id}::uuid OR shared = 1)
+        AND user_id = ${user.user_id}::uuid
         AND deleted = 0 AND deleted_at IS NULL
     `;
 
@@ -110,7 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       message: 'Note cloned to target user',
     }, { status: 201 });
   } catch (error) {
-    console.error('Share note error:', error);
+    logger.error('share note error', { error });
     return NextResponse.json(
       { error: 'Failed to share note' },
       { status: 500 }

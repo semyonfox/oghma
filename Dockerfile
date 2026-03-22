@@ -1,16 +1,16 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+COPY package.json package-lock.json* .npmrc* ./
+RUN npm pkg delete scripts.prepare && npm ci --only=production && npm cache clean --force
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
 # Install build tools for native modules (e.g., bcrypt)
 RUN apk add --no-cache python3 make g++
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json package-lock.json* .npmrc* ./
+RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -33,6 +33,8 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# aws-ssl-profiles is not traced by Next.js standalone output, copy it manually
+COPY --from=deps /app/node_modules/aws-ssl-profiles ./node_modules/aws-ssl-profiles
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 

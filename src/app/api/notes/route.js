@@ -4,12 +4,16 @@ import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { filterNoteFields } from '@/lib/notes/utils/filter-fields';
 import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
+import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 // Constants
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const NOTE_PINNED = { UNPINNED: 0, PINNED: 1 };
 const NOTE_SHARED = { PRIVATE: 0, SHARED: 1 };
+const MAX_TITLE_LENGTH = 500;
+const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
 
 export async function GET(request) {
   try {
@@ -35,28 +39,37 @@ export async function GET(request) {
     const skip = skipParam ? parseInt(skipParam, 10) : 0;
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     
+    // check cache for this page (before field filtering)
+    const listKey = cacheKeys.notesList(user.user_id, skip, limit);
+    const cachedList = await cacheGet(listKey);
+    if (cachedList) {
+      const filtered = cachedList.map(note => filterNoteFields(note, fields));
+      return NextResponse.json(filtered);
+    }
+
     // Get user's notes from PostgreSQL
     let notes = await sql`
       SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
     `;
-    
+
     // Apply skip/limit for pagination
     if (skip > 0 || limit) {
       const end = limit ? skip + limit : undefined;
       notes = notes.slice(skip, end);
     }
-    
-    // Map to NoteModel format
+
+    // Map to NoteModel format and cache full list (pre-field-filter)
     const mapped = notes.map(mapNoteFromDB);
-    
+    await cacheSet(listKey, mapped, 120);
+
     // Filter fields if requested
     const filtered = mapped.map(note => filterNoteFields(note, fields));
-    
+
     return NextResponse.json(filtered);
   } catch (error) {
-    console.error('Notes GET error:', error);
+    logger.error('notes GET error', { error });
     return NextResponse.json(
       { error: 'Failed to fetch notes' },
       { status: 500 }
@@ -76,7 +89,23 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    
+
+    // validate input lengths
+    if (body.title && body.title.length > MAX_TITLE_LENGTH) {
+      logger.warn('note title exceeds max length', { length: body.title.length });
+      return NextResponse.json(
+        { error: `Title must be ${MAX_TITLE_LENGTH} characters or fewer` },
+        { status: 400 }
+      );
+    }
+    if (body.content && body.content.length > MAX_CONTENT_LENGTH) {
+      logger.warn('note content exceeds max length', { length: body.content.length });
+      return NextResponse.json(
+        { error: `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer` },
+        { status: 400 }
+      );
+    }
+
     // Generate UUID v7 for note
     const noteId = generateUUID();
     
@@ -95,6 +124,13 @@ export async function POST(request) {
     const parentId = body.pid || null;
     await addNoteToTree(user.user_id, note.note_id, parentId);
 
+    // invalidate tree + note list caches
+    await cacheInvalidate(
+      cacheKeys.treeChildren(user.user_id, parentId),
+      cacheKeys.treeFull(user.user_id),
+      cacheKeys.notesList(user.user_id, 0, undefined),
+    );
+
     return NextResponse.json({
       id: note.note_id,
       title: note.title,
@@ -108,7 +144,7 @@ export async function POST(request) {
       updatedAt: note.updated_at ? new Date(note.updated_at).toISOString() : undefined,
     }, { status: 201 });
   } catch (error) {
-    console.error('Notes POST error:', error);
+    logger.error('notes POST error', { error });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create note' },
       { status: 500 }
