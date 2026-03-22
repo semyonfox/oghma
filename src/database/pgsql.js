@@ -1,5 +1,6 @@
 import postgres from 'postgres';
-import { ca as rdsCaCerts } from 'aws-ssl-profiles';
+import awsSslProfiles from 'aws-ssl-profiles';
+const { ca: rdsCaCerts } = awsSslProfiles;
 
 // lazy connection - only created on first use, not at module load
 // this ensures runtime env vars are available (not build-time values)
