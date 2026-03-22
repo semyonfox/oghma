@@ -33,6 +33,8 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# aws-ssl-profiles is not traced by Next.js standalone output, copy it manually
+COPY --from=deps /app/node_modules/aws-ssl-profiles ./node_modules/aws-ssl-profiles
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 
