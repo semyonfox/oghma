@@ -97,6 +97,7 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== 'false') {
 }
 
 export const authConfig: NextAuthConfig = {
+    secret: process.env.NEXTAUTH_SECRET,
     providers,
     session: { strategy: 'jwt' },
     pages: {
