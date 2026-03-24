@@ -108,13 +108,16 @@ export class CanvasClient {
   }
 
   /**
-   * Returns all active courses the user is enrolled in as a student.
-   * enrollment_type=student excludes any teacher/observer ghost enrolments.
+   * Returns all active courses the user is enrolled in.
+   * include[]=term pulls in the enrollment term so we can extract the academic year.
+   *
+   * NOTE: enrollment_type=student is intentionally omitted — the parameter is
+   * deprecated and some Canvas instances (including UoG) reject it with a 400.
    *
    * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
    */
   async getCourses() {
-    return this.#getPaginated('/courses?enrollment_state=active&enrollment_type=student');
+    return this.#getPaginated('/courses?enrollment_state=active&include[]=term');
   }
 
   /**
