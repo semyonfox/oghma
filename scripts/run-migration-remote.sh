@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Remote migration runner - execute on server with Tailscale access
-# Usage: ./run-migration-remote.sh
+# Remote migration runner
+# Usage: ./run-migration-remote.sh [migration-file]
+# Credentials: reads DATABASE_URL from env, or fetches from AWS Secrets Manager
 
 set -e
 
@@ -10,57 +11,39 @@ echo "  OghmaNotes Database Migration"
 echo "════════════════════════════════════════════════════"
 echo ""
 
-# Database credentials — source from environment or .env file
-DB_HOST="${DB_HOST:?Set DB_HOST (e.g. your-rds-endpoint.region.rds.amazonaws.com)}"
-DB_PORT="${DB_PORT:-5432}"
-DB_USER="${DB_USER:?Set DB_USER}"
-DB_PASSWORD="${DB_PASSWORD:?Set DB_PASSWORD}"
-DB_NAME="${DB_NAME:-oghma}"
+# build connection string from Secrets Manager if DATABASE_URL not set
+if [ -z "$DATABASE_URL" ] && command -v aws &> /dev/null; then
+    echo "Fetching credentials from Secrets Manager..."
+    DATABASE_URL=$(aws secretsmanager get-secret-value --region eu-north-1 \
+        --secret-id oghmanotes/database --query SecretString --output text 2>/dev/null \
+        | python3 -c "import sys,json; print(json.load(sys.stdin)['database_url'])" 2>/dev/null || true)
+fi
 
-echo "📍 Connecting to: $DB_HOST:$DB_PORT/$DB_NAME"
-echo "🔐 User: $DB_USER"
+DATABASE_URL="${DATABASE_URL:?Set DATABASE_URL or configure oghmanotes/database in Secrets Manager}"
+
+# mask credentials in output
+MASKED=$(echo "$DATABASE_URL" | sed 's|://[^@]*@|://***@|')
+echo "📍 Connecting to: $MASKED"
 echo ""
 
-# Check if psql is installed
 if ! command -v psql &> /dev/null; then
-    echo "❌ psql not found. Install PostgreSQL client:"
-    echo "   sudo apt-get install postgresql-client"
+    echo "psql not found. Install: sudo apt-get install postgresql-client"
     exit 1
 fi
 
-echo "⏳ Running migration (this may take a minute)..."
+MIGRATION="${1:-database/migrations/006_consolidated_safe_migration.sql}"
+echo "Running: $MIGRATION"
 echo ""
 
-# Run the migration SQL file
-PGPASSWORD="$DB_PASSWORD" psql \
-    -h "$DB_HOST" \
-    -p "$DB_PORT" \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
-    -f "database/migrations/006_consolidated_safe_migration.sql"
+psql "$DATABASE_URL" -f "$MIGRATION"
 
-MIGRATION_EXIT=$?
-
-if [ $MIGRATION_EXIT -eq 0 ]; then
+if [ $? -eq 0 ]; then
     echo ""
     echo "════════════════════════════════════════════════════"
-    echo "  ✅ Migration completed successfully!"
+    echo "  Migration completed successfully!"
     echo "════════════════════════════════════════════════════"
-    echo ""
-    echo "📋 Tables created:"
-    echo "   ✓ app.login"
-    echo "   ✓ app.notes"
-    echo "   ✓ app.tree_items"
-    echo "   ✓ app.attachments"
-    echo "   ✓ app.pdf_annotations"
-    echo ""
-    echo "🔐 All primary keys are now UUID v7"
-    echo "📁 Folder support enabled (is_folder column)"
-    echo "🗑️  Soft delete enabled (deleted_at column)"
-    echo ""
-    exit 0
 else
     echo ""
-    echo "❌ Migration failed!"
+    echo "Migration failed!"
     exit 1
 fi
