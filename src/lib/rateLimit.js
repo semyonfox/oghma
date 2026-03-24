@@ -1,24 +1,11 @@
-/**
- * Authentication Rate Limiting & Account Lockout
- *
- * Purpose: Protect authentication endpoints from brute force attacks.
- * - Rate limiting: Tracks failed login attempts in a sliding window (15 min)
- * - Account lockout: Locks account after exceeding max attempts (30 min)
- *
- * Implementation: Redis-backed (shared across instances) with in-memory
- * fallback when Redis is unavailable (local dev, connection failure).
- * Email keys are normalized with toLowerCase().trim() to prevent bypass.
- */
+// auth rate limiting — redis-backed with in-memory fallback
+// 5 attempts per 15 min window, 30 min lockout on exceed
 
 import { redis, redisReady } from '@/lib/redis';
 import logger from '@/lib/logger';
 
-// in-memory fallback for when redis is unavailable
 const authProtection = new Map();
 
-/**
- * Configuration for rate limiting & account lockout behavior
- */
 const CONFIG = {
     MAX_ATTEMPTS: 5,
     WINDOW_MS: 15 * 60 * 1000,      // 15 min sliding window for rate limiting
@@ -41,8 +28,6 @@ function normalize(email) {
 function useRedis() {
     return redisReady;
 }
-
-// ── Redis-backed implementations ────────────────────────────────────────────
 
 async function redisIsAccountLocked(email) {
     const lockUntil = await redis.get(KEY.lockout(email));
@@ -125,8 +110,6 @@ async function redisGetRateLimitResetTime(email) {
     return Math.max(0, Math.ceil(remainingMs / 1000));
 }
 
-// ── In-memory fallback implementations ──────────────────────────────────────
-
 function memIsAccountLocked(email) {
     const state = authProtection.get(email);
     if (!state) return false;
@@ -194,13 +177,6 @@ function memGetRateLimitResetTime(email) {
     return Math.max(0, Math.ceil(remainingMs / 1000));
 }
 
-// ── Public API (async, redis-first with fallback) ───────────────────────────
-
-/**
- * Checks if an account is currently locked due to too many failed attempts.
- * @param {string} email
- * @returns {Promise<boolean>}
- */
 export async function isAccountLocked(email) {
     email = normalize(email);
     if (useRedis()) {
@@ -213,11 +189,6 @@ export async function isAccountLocked(email) {
     return memIsAccountLocked(email);
 }
 
-/**
- * Checks if an email has exceeded rate limit attempts in the current window.
- * @param {string} email
- * @returns {Promise<boolean>}
- */
 export async function isRateLimited(email) {
     email = normalize(email);
     if (useRedis()) {
@@ -230,12 +201,6 @@ export async function isRateLimited(email) {
     return memIsRateLimited(email);
 }
 
-/**
- * Records a failed login attempt for an account.
- * Locks the account if MAX_ATTEMPTS is exceeded.
- * @param {string} email
- * @returns {Promise<void>}
- */
 export async function recordFailedAttempt(email) {
     email = normalize(email);
     if (useRedis()) {
@@ -249,11 +214,6 @@ export async function recordFailedAttempt(email) {
     memRecordFailedAttempt(email);
 }
 
-/**
- * Clears failed attempt count for an email (called after successful login).
- * @param {string} email
- * @returns {Promise<void>}
- */
 export async function clearFailedAttempts(email) {
     email = normalize(email);
     if (useRedis()) {
@@ -267,11 +227,6 @@ export async function clearFailedAttempts(email) {
     memClearFailedAttempts(email);
 }
 
-/**
- * Gets the remaining time (in minutes) until the account unlock.
- * @param {string} email
- * @returns {Promise<number>} Minutes remaining until unlock (0 if not locked)
- */
 export async function getLockoutMinutesRemaining(email) {
     email = normalize(email);
     if (useRedis()) {
@@ -284,11 +239,6 @@ export async function getLockoutMinutesRemaining(email) {
     return memGetLockoutMinutesRemaining(email);
 }
 
-/**
- * Gets the remaining time (in seconds) until the rate limit resets.
- * @param {string} email
- * @returns {Promise<number>} Seconds until rate limit resets (0 if not rate limited)
- */
 export async function getRateLimitResetTime(email) {
     email = normalize(email);
     if (useRedis()) {
