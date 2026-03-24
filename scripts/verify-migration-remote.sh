@@ -8,12 +8,12 @@ set -e
 echo "🔍 Verifying migration..."
 echo ""
 
-# Database credentials
-DB_HOST="oghma.c5uicousc1yo.eu-north-1.rds.amazonaws.com"
-DB_PORT="5432"
-DB_USER="oghma_app"
-DB_PASSWORD="oghmainthedb"
-DB_NAME="oghma"
+# Database credentials — source from environment or .env file
+DB_HOST="${DB_HOST:?Set DB_HOST (e.g. your-rds-endpoint.region.rds.amazonaws.com)}"
+DB_PORT="${DB_PORT:-5432}"
+DB_USER="${DB_USER:?Set DB_USER}"
+DB_PASSWORD="${DB_PASSWORD:?Set DB_PASSWORD}"
+DB_NAME="${DB_NAME:-oghma}"
 
 # Check if psql is installed
 if ! command -v psql &> /dev/null; then

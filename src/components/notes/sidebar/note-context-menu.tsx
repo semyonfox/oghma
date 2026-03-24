@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import useContextMenuStore from '@/lib/notes/state/context-menu';
@@ -62,6 +62,25 @@ export default function NoteContextMenuPortal({
     const { t } = useI18n();
     const { openMenuId, position, isFolder, isPinned, closeMenu } = useContextMenuStore();
     const menuRef = useRef<HTMLDivElement>(null);
+    const [adjusted, setAdjusted] = useState<{ x: number; y: number } | null>(null);
+
+    // clamp menu position to viewport after it renders and we know its actual size
+    useEffect(() => {
+        if (!openMenuId) { setAdjusted(null); return; }
+        // wait one frame for the menu to render and have dimensions
+        const frame = requestAnimationFrame(() => {
+            const el = menuRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const pad = 8;
+            let x = position.x;
+            let y = position.y;
+            if (x + rect.width > window.innerWidth - pad) x = Math.max(pad, window.innerWidth - rect.width - pad);
+            if (y + rect.height > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - rect.height - pad);
+            if (x !== position.x || y !== position.y) setAdjusted({ x, y });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [openMenuId, position]);
 
     // close on click outside or scroll
     useEffect(() => {
@@ -140,8 +159,8 @@ export default function NoteContextMenuPortal({
             ref={menuRef}
             className="fixed z-[9999] min-w-[180px] rounded-md bg-surface/95 backdrop-blur-md py-1 shadow-2xl ring-1 ring-white/[0.08]"
             style={{
-                top: `${position.y}px`,
-                left: `${position.x}px`,
+                top: `${(adjusted ?? position).y}px`,
+                left: `${(adjusted ?? position).x}px`,
             }}
             onClick={(e) => e.stopPropagation()}
         >
