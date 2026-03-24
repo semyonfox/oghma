@@ -57,7 +57,7 @@ export async function POST(request) {
 
     const courses = (allCourses ?? [])
       .filter(c => prevCourseIds.has(String(c.id)))
-      .map(c => ({ id: c.id, name: c.name ?? String(c.id), course_code: c.course_code ?? '' }));
+      .map(c => ({ id: c.id, name: c.name ?? String(c.id), course_code: c.course_code ?? '', term: c.term ?? null }));
 
     // Fall back to bare ID objects for any course no longer visible in Canvas
     for (const id of prevCourseIds) {
