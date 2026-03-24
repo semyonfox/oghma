@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { redis, redisReady } from '@/lib/redis';
 import { RATE_LIMITS, type RateLimitRule } from '@/lib/rateLimitConfig';
+import { Metrics } from '@/lib/metrics';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -135,6 +136,7 @@ export async function checkRateLimit(
   if (!result.allowed) {
     logger.info('rate limit exceeded', { category, identifier: hashPii(identifier) });
     logViolation(category, identifier, rule.limit, rule.limit);
+    void Metrics.rateLimitViolation(category);
 
     return NextResponse.json(
       { error: 'Too many requests. Please try again later.', retryAfter: result.retryAfter },
