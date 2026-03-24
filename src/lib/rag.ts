@@ -13,12 +13,13 @@ import sql from '@/database/pgsql.js';
 
 const LLM_URL = process.env.LLM_API_URL;
 const LLM_MODEL = process.env.LLM_MODEL;
+const LLM_API_KEY = process.env.LLM_API_KEY;
 
 export async function runRAGPipeline(userPrompt: string, userId: string): Promise<string> {
     const vector = await embedText(userPrompt);
     const candidates = await searchChunks(vector, userId);
     const ranked = await rerankChunks(userPrompt, candidates);
-    return callLLM(buildPrompt(userPrompt, ranked.map(r => r.text)));
+    return callLLM(buildMessages(userPrompt, ranked.map(r => r.text)));
 }
 
 async function searchChunks(vector: number[], userId: string): Promise<string[]> {
@@ -33,24 +34,31 @@ async function searchChunks(vector: number[], userId: string): Promise<string[]>
     return results.map((row: any) => row.text);
 }
 
-function buildPrompt(userPrompt: string, chunks: string[]): string {
-    return `You are a helpful assistant. Use the context below to answer the question.
-
-Context:
-${chunks.join('\n\n')}
-
-Question: ${userPrompt}`;
+function buildMessages(userPrompt: string, chunks: string[]): Array<{ role: string; content: string }> {
+    return [
+        {
+            role: 'system',
+            content: `You are a helpful assistant. Use the context below to answer the question. If the context does not contain enough information, say so.\n\nContext:\n${chunks.join('\n\n')}`,
+        },
+        { role: 'user', content: userPrompt },
+    ];
 }
 
-async function callLLM(prompt: string): Promise<string> {
-    const token = await getOpenWebUIToken();
-    const res = await fetch(`${LLM_URL}/api/chat/completions`, {
+async function callLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
+    // direct API key (Kimi K2.5, OpenAI-compatible) or fall back to OpenWebUI session token
+    const token = LLM_API_KEY || await getOpenWebUIToken();
+    const endpoint = LLM_API_KEY
+        ? `${LLM_URL}/chat/completions`
+        : `${LLM_URL}/api/chat/completions`;
+
+    const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ model: LLM_MODEL, messages: [{ role: 'user', content: prompt }] }),
+        body: JSON.stringify({ model: LLM_MODEL, messages }),
     });
 
-    if (res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
+    if (!LLM_API_KEY && res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
+    if (!res.ok) throw new Error(`LLM error (${res.status})`);
     const data = await res.json();
     return data.choices?.[0]?.message?.content ?? '';
 }
