@@ -36,33 +36,27 @@ const getStats = (t) => [
 const getValues = (t) => [
   {
     name: t('Be world-class'),
-    description:
-      'Aut illo quae. Ut et harum ea animi natus. Culpa maiores et sed sint et magnam exercitationem quia. Ullam voluptas nihil vitae dicta molestiae et. Aliquid velit porro vero.',
+    description: t('We strive for excellence in every feature we build, ensuring students get the best possible learning tools.'),
   },
   {
     name: t('Share everything you know'),
-    description:
-      'Mollitia delectus a omnis. Quae velit aliquid. Qui nulla maxime adipisci illo id molestiae. Cumque cum ut minus rerum architecto magnam consequatur. Quia quaerat minima.',
+    description: t('Knowledge grows when shared. We build tools that make collaboration and knowledge-sharing effortless.'),
   },
   {
     name: t('Always learning'),
-    description:
-      'Aut repellendus et officiis dolor possimus. Deserunt velit quasi sunt fuga error labore quia ipsum. Commodi autem voluptatem nam. Quos voluptatem totam.',
+    description: t('We practice what we preach — constantly learning, iterating, and improving our platform based on feedback.'),
   },
   {
     name: t('Be supportive'),
-    description:
-      'Magnam provident veritatis odit. Vitae eligendi repellat non. Eum fugit impedit veritatis ducimus. Non qui aspernatur laudantium modi. Praesentium rerum error deserunt harum.',
+    description: t('Every student learns differently. We design inclusive tools that support diverse learning styles and needs.'),
   },
   {
     name: t('Take responsibility'),
-    description:
-      'Sit minus expedita quam in ullam molestiae dignissimos in harum. Tenetur dolorem iure. Non nesciunt dolorem veniam necessitatibus laboriosam voluptas perspiciatis error.',
+    description: t('We own our work end-to-end, from code quality to user experience, ensuring reliability you can count on.'),
   },
   {
     name: t('Enjoy downtime'),
-    description:
-      'Ipsa in earum deserunt aut. Quos minus aut animi et soluta. Ipsum dicta ut quia eius. Possimus reprehenderit iste aspernatur ut est velit consequatur distinctio.',
+    description: t('Balanced teams build better products. We value rest and creativity alongside focused development.'),
   },
 ]
 const blogPosts = aboutBlogCards
@@ -70,7 +64,7 @@ const getTeam = (t) => [
   {
     name: authors.samuel.name,
     role: t('Full-Stack Developer'),
-    description: 'Full-stack engineer building scalable web applications with modern architectures and robust database design.',
+    description: t('Full-stack engineer building scalable web applications with modern technologies.'),
     imageUrl: authors.samuel.imageUrl,
     github: 'https://github.com/SamuelRegan-dev',
     linkedin: authors.samuel.linkedin,
@@ -78,7 +72,7 @@ const getTeam = (t) => [
   {
     name: authors.semyon.name,
     role: t('Full-Stack Developer & Infrastructure'),
-    description: 'Full-stack engineer leading technical strategy, infrastructure management, and performance optimization across the platform.',
+    description: t('Full-stack engineer leading technical strategy and infrastructure initiatives.'),
     imageUrl: authors.semyon.imageUrl,
     github: 'https://github.com/semyonfox',
     linkedin: authors.semyon.linkedin,
@@ -86,7 +80,7 @@ const getTeam = (t) => [
   {
     name: authors.shreyansh.name,
     role: t('Full-Stack Developer'),
-    description: 'Full-stack engineer contributing across frontend and backend features with focus on code quality and user experience.',
+    description: t('Full-stack engineer contributing across frontend and backend features.'),
     imageUrl: authors.shreyansh.imageUrl,
     github: 'https://github.com/shreyanshSingh06',
     linkedin: authors.shreyansh.linkedin,
@@ -330,9 +324,9 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-indigo-500/10 p-3">
                 <span className="text-3xl">✨</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">AI-Powered Insights</h3>
+              <h3 className="text-lg font-semibold text-white">{t('AI-Powered Insights')}</h3>
                <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                 Get intelligent summaries, key takeaways, and smart suggestions as you take notes.
+                 {t('Get intelligent summaries, key takeaways, and smart suggestions as you take notes.')}
                </p>
             </div>
 
@@ -342,9 +336,9 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-blue-500/10 p-3">
                 <span className="text-3xl">🔗</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">Seamless Canvas Integration</h3>
+              <h3 className="text-lg font-semibold text-white">{t('Seamless Canvas Integration')}</h3>
                <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                 Auto-sync assignments, deadlines, and course materials directly from Canvas.
+                 {t('Auto-sync assignments, deadlines, and course materials directly from Canvas.')}
                </p>
             </div>
 
@@ -354,9 +348,9 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-purple-500/10 p-3">
                 <span className="text-3xl">📚</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">Smart Organization</h3>
+              <h3 className="text-lg font-semibold text-white">{t('Smart Organization')}</h3>
                <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                 Auto-categorize notes, tag content intelligently, and find anything in seconds.
+                 {t('Auto-categorize notes, tag content intelligently, and find anything in seconds.')}
                </p>
             </div>
 
@@ -366,9 +360,9 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-pink-500/10 p-3">
                 <span className="text-3xl">📱</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">Work Anywhere</h3>
+              <h3 className="text-lg font-semibold text-white">{t('Work Anywhere')}</h3>
                <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                 Access your notes on desktop, tablet, or phone with full offline support.
+                 {t('Access your notes on desktop, tablet, or phone with full offline support.')}
                </p>
             </div>
           </div>

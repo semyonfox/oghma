@@ -13,11 +13,16 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function sendPasswordResetEmail(email, resetToken) {
+    const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+    if (!fromEmail) {
+        throw new Error('SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)');
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-        from: process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL,
+        from: fromEmail,
         to: email,
         subject: 'Password Reset Request',
         html: `

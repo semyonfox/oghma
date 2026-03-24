@@ -1,87 +1,51 @@
-// batch-embeds chunks via OpenAI-compatible /api/v1/embeddings endpoint
-// authenticates via shared OpenWebUI credentials (same as LLM)
+// batch-embeds chunks via Cohere embed API v2
+// uses embed-multilingual-v3.0 (1024 dims) with asymmetric input_type for better retrieval
 
-import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
+const COHERE_URL = 'https://api.cohere.com/v2/embed';
+const COHERE_MODEL = 'embed-multilingual-v3.0';
+const BATCH_SIZE = 96; // Cohere allows up to 96 texts per request
 
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL ?? 'qwen3-embedding:8b';
-const BATCH_SIZE = 50;
+function buildRequest(apiKey: string, batch: string[]) {
+    return {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+            texts: batch,
+            model: COHERE_MODEL,
+            input_type: 'search_document',
+            embedding_types: ['float'],
+        }),
+    };
+}
 
-export async function embedChunks(chunks: string[]): Promise<{ chunk: string, vector: number[] }[]> {
-    const EMBEDDING_URL = process.env.EMBEDDING_API_URL;
+export async function embedChunks(
+    chunks: string[],
+): Promise<{ chunk: string; vector: number[] }[]> {
+    const apiKey = process.env.COHERE_API_KEY;
+    if (!apiKey) throw new Error('COHERE_API_KEY not configured');
 
-    if (!EMBEDDING_URL) {
-        throw new Error(
-            'Embedding API URL not configured. Set EMBEDDING_API_URL environment variable to enable document embedding.'
-        );
-    }
-
-    const nonEmptyChunks = chunks.filter(chunk => chunk && chunk.trim().length > 0);
-    if (nonEmptyChunks.length === 0) return [];
+    const nonEmpty = chunks.filter(c => c?.trim());
+    if (nonEmpty.length === 0) return [];
 
     const results: { chunk: string; vector: number[] }[] = [];
 
-    for (let i = 0; i < nonEmptyChunks.length; i += BATCH_SIZE) {
-        const batch = nonEmptyChunks.slice(i, i + BATCH_SIZE);
-
+    for (let i = 0; i < nonEmpty.length; i += BATCH_SIZE) {
+        const batch = nonEmpty.slice(i, i + BATCH_SIZE);
         try {
-            const token = await getOpenWebUIToken();
-            const res = await fetch(`${EMBEDDING_URL}/api/v1/embeddings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL }),
-            });
-
-            // re-auth on 401 and retry once
-            if (res.status === 401) {
-                invalidateToken();
-                const freshToken = await getOpenWebUIToken();
-                const retry = await fetch(`${EMBEDDING_URL}/api/v1/embeddings`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${freshToken}`,
-                    },
-                    body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL }),
-                });
-                if (!retry.ok) {
-                    console.warn(`Embedding batch failed after re-auth (status ${retry.status}), skipping ${batch.length} chunks`);
-                    continue;
-                }
-                const json = await retry.json();
-                appendEmbeddings(json.data, batch, results);
-                continue;
-            }
-
+            const res = await fetch(COHERE_URL, buildRequest(apiKey, batch));
             if (!res.ok) {
-                console.warn(`Embedding batch failed (status ${res.status}), skipping ${batch.length} chunks`);
+                console.warn(`Cohere embed failed (${res.status}), skipping ${batch.length} chunks`);
                 continue;
             }
-
             const json = await res.json();
-            appendEmbeddings(json.data, batch, results);
+            const vectors: number[][] = json.embeddings?.float ?? [];
+            for (let j = 0; j < vectors.length && j < batch.length; j++) {
+                results.push({ chunk: batch[j], vector: vectors[j] });
+            }
         } catch (err) {
-            console.warn(`Embedding batch error: ${err instanceof Error ? err.message : err}`);
+            console.warn(`Cohere embed error: ${err instanceof Error ? err.message : err}`);
         }
     }
 
     return results;
-}
-
-function appendEmbeddings(
-    data: { embedding: number[]; index: number }[] | undefined,
-    batch: string[],
-    results: { chunk: string; vector: number[] }[],
-) {
-    if (!Array.isArray(data)) {
-        console.warn('Unexpected embedding response format, skipping batch');
-        return;
-    }
-    for (const item of data) {
-        if (Array.isArray(item.embedding) && item.index < batch.length) {
-            results.push({ chunk: batch[item.index], vector: item.embedding });
-        }
-    }
 }

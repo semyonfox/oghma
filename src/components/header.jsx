@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogPanel } from '@headlessui/react'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -8,8 +8,15 @@ import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const { t } = useI18n()
-  
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   const navigation = [
     { name: t('Features'), href: '/#features' },
     { name: t('About'), href: '/about' },
@@ -18,12 +25,15 @@ export default function Header() {
   ]
 
   return (
-    <header className="absolute inset-x-0 top-0 z-50">
+    <header className={`fixed inset-x-0 top-0 z-50 transition-colors duration-200 ${scrolled ? 'bg-gray-900/80 backdrop-blur-lg border-b border-white/5' : ''}`}>
       <nav aria-label={t('Global')} className="flex items-center justify-between p-6 lg:px-8">
         <div className="flex lg:flex-1">
           <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
             <span className="sr-only">{t('OghmaNotes')}</span>
-            <img src="/oghmanotes.svg" alt={t('OghmaNotes')} className="w-10 h-10" />
+            <img src="/oghmanotes.svg" alt={t('OghmaNotes')} className="w-8 h-8" />
+            <span className="font-serif text-lg font-semibold text-white hidden sm:block">
+              {t('OghmaNotes')}
+            </span>
           </Link>
         </div>
         <div className="flex lg:hidden">
@@ -55,7 +65,10 @@ export default function Header() {
           <div className="flex items-center justify-between">
             <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
               <span className="sr-only">{t('OghmaNotes')}</span>
-              <img src="/oghmanotes.svg" alt={t('OghmaNotes')} className="w-10 h-10" />
+              <img src="/oghmanotes.svg" alt={t('OghmaNotes')} className="w-8 h-8" />
+              <span className="font-serif text-lg font-semibold text-white">
+                {t('OghmaNotes')}
+              </span>
             </Link>
             <button
               type="button"
