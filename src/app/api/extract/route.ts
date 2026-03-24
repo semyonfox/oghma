@@ -10,6 +10,7 @@ import sql from '@/database/pgsql.js';
 import { withErrorHandler } from '@/lib/api-error';
 import { ApiError } from '@/lib/api-error';
 import { checkRateLimit } from '@/lib/rateLimiter';
+import { xraySubsegment } from '@/lib/xray';
 
 function isAllowedUrl(raw: string): boolean {
     let parsed: URL;
@@ -57,36 +58,38 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     let rawText: string;
     let chunks: string[];
 
-    if (isText) {
-        // text/markdown: decode directly, no OCR needed
-        rawText = buffer.toString('utf-8');
-        chunks = chunkText(rawText);
-    } else {
-        // binary docs (PDF, DOCX, PPTX): Marker handles all of these
-        try {
-            const marker = await extractWithMarker(buffer, filename);
-            rawText = marker.text;
-            chunks = marker.chunks;
-        } catch {
-            // pdf-parse as last resort (PDFs only, no OCR)
-            const isPdf = ext === 'pdf';
-            if (isPdf) {
-                const { PDFParse } = await import('pdf-parse');
-                const parser = new PDFParse({ data: buffer });
-                const { text } = await parser.getText();
-                rawText = text;
-                chunks = chunkText(text);
-            } else {
-                throw new ApiError(502, `Document extraction unavailable for .${ext} files`);
+    await xraySubsegment('document-extract', async () => {
+        if (isText) {
+            // text/markdown: decode directly, no OCR needed
+            rawText = buffer.toString('utf-8');
+            chunks = chunkText(rawText);
+        } else {
+            // binary docs (PDF, DOCX, PPTX): Marker handles all of these
+            try {
+                const marker = await extractWithMarker(buffer, filename);
+                rawText = marker.text;
+                chunks = marker.chunks;
+            } catch {
+                // pdf-parse as last resort (PDFs only, no OCR)
+                const isPdf = ext === 'pdf';
+                if (isPdf) {
+                    const { PDFParse } = await import('pdf-parse');
+                    const parser = new PDFParse({ data: buffer });
+                    const { text } = await parser.getText();
+                    rawText = text;
+                    chunks = chunkText(text);
+                } else {
+                    throw new ApiError(502, `Document extraction unavailable for .${ext} files`);
+                }
             }
         }
-    }
+    });
 
     // cleaned text for PG search
-    const cleanedText = processExtractedText(rawText);
+    const cleanedText = processExtractedText(rawText!);
     await sql`UPDATE app.notes SET extracted_text = ${cleanedText}, updated_at = NOW() WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid`;
 
-    const embeddings = await embedChunks(chunks);
+    const embeddings = await xraySubsegment('embed-chunks', () => embedChunks(chunks!));
 
     await Promise.all(
         embeddings.map(({ chunk, vector }) => storeChunkWithEmbedding(documentId, userId, chunk, vector))
