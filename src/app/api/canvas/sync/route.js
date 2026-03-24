@@ -100,7 +100,7 @@ export async function POST(request) {
     return NextResponse.json({ queued: true, jobId });
 
   } catch (err) {
-    logger.error('canvas sync error', { error: err });
+    logger.error('canvas sync error', { error: err?.message ?? err, stack: err?.stack });
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
   }
 }
