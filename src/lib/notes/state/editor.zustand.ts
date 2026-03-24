@@ -32,8 +32,18 @@ const useEditorStore = create<EditorState>()(
             editorEl: { current: null } as React.MutableRefObject<LexicalEditorRef | null>,
             // Note creation
             onCreateLink: async (title) => {
-                // Placeholder logic for creating links
-                throw new Error('Not implemented yet.');
+                try {
+                    const res = await fetch('/api/notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title }),
+                    });
+                    if (!res.ok) return '';
+                    const note = await res.json();
+                    return `/${note.note_id}`;
+                } catch {
+                    return '';
+                }
             },
             onSearchLink: async (keyword) => {
                 const list = await searchNote(keyword, NOTE_DELETED.NORMAL);

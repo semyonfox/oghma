@@ -340,15 +340,34 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             data.source,
             data.destination
         );
+
+        // update the moved item's pid so data stays consistent with tree structure
+        const movedId = currentTree.items[data.source.parentId]?.children[data.source.index];
+        if (movedId && newTree.items[movedId]?.data) {
+            const newPid = data.destination.parentId === ROOT_ID ? undefined : data.destination.parentId;
+            newTree.items[movedId] = {
+                ...newTree.items[movedId],
+                data: { ...newTree.items[movedId].data!, pid: newPid },
+            };
+        }
+
         set({ tree: newTree });
 
         // update cache with new tree state
         await uiCache.setItem(TREE_CACHE_KEY, newTree);
 
-        await treeAPI.mutate({
-            action: 'move',
-            data,
-        });
+        try {
+            await treeAPI.mutate({
+                action: 'move',
+                data,
+            });
+        } catch {
+            // revert on failure
+            set({ tree: currentTree });
+            await uiCache.setItem(TREE_CACHE_KEY, currentTree);
+            const { toast: toastFn } = get();
+            toastFn?.('Failed to move item', 'error');
+        }
     },
 
     mutateItem: async (id: string, data: Partial<TreeItemModel>) => {

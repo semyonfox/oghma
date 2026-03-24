@@ -1,20 +1,18 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { embedChunks } from '@/lib/embeddings';
 
-// EMBEDDING_API_URL is set to http://localhost:11434 in setup.ts
-
 describe('embedChunks', () => {
-    afterEach(() => {
-        vi.restoreAllMocks();
-        // restore in case a test deleted it
-        process.env.EMBEDDING_API_URL = 'http://localhost:11434';
+    beforeEach(() => {
+        process.env.COHERE_API_KEY = 'test-key';
     });
 
-    it('throws when EMBEDDING_API_URL is not set', async () => {
-        const original = process.env.EMBEDDING_API_URL;
-        delete process.env.EMBEDDING_API_URL;
-        await expect(embedChunks(['hello'])).rejects.toThrow('Embedding API URL not configured');
-        process.env.EMBEDDING_API_URL = original;
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('throws when COHERE_API_KEY is not set', async () => {
+        delete process.env.COHERE_API_KEY;
+        await expect(embedChunks(['hello'])).rejects.toThrow('COHERE_API_KEY not configured');
     });
 
     it('returns empty array for empty input', async () => {
@@ -32,10 +30,7 @@ describe('embedChunks', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                data: [
-                    { embedding: mockVector, index: 0 },
-                    { embedding: mockVector, index: 1 },
-                ],
+                embeddings: { float: [mockVector, mockVector] },
             }),
         }));
 
@@ -47,7 +42,6 @@ describe('embedChunks', () => {
     });
 
     it('filters out batches where the API call fails', async () => {
-        // both chunks go in the same batch (batch size 50), so a 500 drops the whole batch
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
         );
@@ -56,10 +50,10 @@ describe('embedChunks', () => {
         expect(result).toHaveLength(0);
     });
 
-    it('filters out batches where the response has no data array', async () => {
+    it('filters out batches where the response has no embeddings', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
-            json: async () => ({ notData: 'oops' }),
+            json: async () => ({ notEmbeddings: 'oops' }),
         }));
 
         const result = await embedChunks(['chunk one']);
@@ -67,7 +61,6 @@ describe('embedChunks', () => {
     });
 
     it('filters out batches that throw during fetch', async () => {
-        // both chunks are in one batch, so a network error drops everything
         vi.stubGlobal('fetch', vi.fn()
             .mockRejectedValueOnce(new Error('network error'))
         );

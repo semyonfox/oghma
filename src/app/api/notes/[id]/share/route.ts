@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
+import { checkRateLimit } from '@/lib/rateLimiter';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
@@ -26,6 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { status: 401 }
       );
     }
+
+    const limited = await checkRateLimit('share', user.user_id);
+    if (limited) return limited;
 
     const { id } = await params;
     const sourceNoteId = id;

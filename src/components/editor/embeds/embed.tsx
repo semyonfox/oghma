@@ -33,5 +33,5 @@ export const Embed: FC<EmbedProps> = ({ attrs: { href } }) => {
         data?.open_graph?.url ??
         decode<{ url: string }>(href.replace(/.*\?/, '')).url;
 
-    return <iframe className="w-full h-96" src={url} allowFullScreen />;
+    return <iframe className="w-full h-96" src={url} sandbox="allow-scripts allow-same-origin" />;
 };

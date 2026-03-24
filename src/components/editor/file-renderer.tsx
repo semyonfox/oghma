@@ -1,13 +1,17 @@
 'use client';
 
 import { FC, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { FileSpec } from '@/lib/notes/state/layout.zustand';
 import MarkdownEditor from './markdown-editor';
-import PDFViewer from './pdf-viewer';
 import ImageViewer from './image-viewer';
 import VideoViewer from './video-viewer';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import useI18n from '@/lib/notes/hooks/use-i18n';
+
+// pdfjs-dist uses browser-only APIs (DOMMatrix) at module scope,
+// so it must be excluded from SSR to avoid crashing in Node.js
+const PDFViewer = dynamic(() => import('./pdf-viewer'), { ssr: false });
 
 interface FileRendererProps {
   pane: 'A' | 'B';
