@@ -13,11 +13,24 @@ export const FORBIDDEN_SENTINEL_ID = 0;
 
 // ── Folder naming ───────────────────────────────────────────────────────────
 
-export function cleanCourseName(courseCode, courseName) {
+export function cleanCourseName(courseCode, courseName, term) {
+  // extract year prefix from course code: "2526-CT2109" → year="2526", code="CT2109"
   const codeMatch = courseCode?.match(/^(\d{4})-?(.*)/);
   const cleanCode = codeMatch?.[2] || courseCode || '';
-  const academicYear = codeMatch?.[1] || null;
+  let academicYear = codeMatch?.[1] || null;
 
+  // fall back to enrollment term for year (e.g. "2025/2026" → "2526")
+  if (!academicYear && term?.name) {
+    const fullYears = term.name.match(/(\d{4})\D+(\d{4})/);
+    if (fullYears) {
+      academicYear = fullYears[1].slice(2) + fullYears[2].slice(2);
+    } else {
+      const shortYears = term.name.match(/(\d{4})\D+(\d{2})\b/);
+      if (shortYears) academicYear = shortYears[1].slice(2) + shortYears[2];
+    }
+  }
+
+  // strip duplicate code/prefix from course name
   let cleanName = courseName ?? '';
   if (courseCode && cleanName.startsWith(courseCode)) {
     cleanName = cleanName.slice(courseCode.length).trim();
@@ -27,9 +40,16 @@ export function cleanCourseName(courseCode, courseName) {
   }
   cleanName = cleanName.replace(/^[-—–:\s]+/, '').trim();
 
-  const title = cleanCode && cleanName
-    ? `${cleanCode} - ${cleanName}`
-    : cleanCode || cleanName || 'Untitled Course';
+  // slugify: "Software Engineering 1" → "Software-Engineering-1"
+  const slugged = cleanName
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const title = cleanCode && slugged
+    ? `${cleanCode}-${slugged}`
+    : cleanCode || slugged || 'Untitled-Course';
 
   return { title, academicYear };
 }

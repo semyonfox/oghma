@@ -314,7 +314,7 @@ async function processAssignments(courseId, userId, courseTitle, courseFolderId,
 
 async function processCourse(course, userId, ctx) {
   const courseId = String(course.id);
-  const { title: courseTitle, academicYear } = cleanCourseName(course.course_code, course.name);
+  const { title: courseTitle, academicYear } = cleanCourseName(course.course_code, course.name, course.term);
   console.log(`Processing course: ${courseTitle}`);
   const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
     canvasCourseId: course.id,
@@ -328,8 +328,8 @@ function parseJobCourses(job) {
   const raw = typeof job.course_ids === 'string' ? JSON.parse(job.course_ids) : job.course_ids;
   return raw.map(c =>
     typeof c === 'object' && c !== null
-      ? { id: c.id, name: c.name ?? String(c.id), course_code: c.course_code ?? '' }
-      : { id: c, name: String(c), course_code: '' }
+      ? { id: c.id, name: c.name ?? String(c.id), course_code: c.course_code ?? '', term: c.term ?? null }
+      : { id: c, name: String(c), course_code: '', term: null }
   );
 }
 
