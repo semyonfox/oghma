@@ -15,8 +15,11 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.1015.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.1015.0",
     "@aws-sdk/client-ecs": "^3.1014.0",
     "@aws-sdk/client-s3": "^3.1009.0",
+    "@aws-sdk/client-secrets-manager": "^3.1015.0",
     "@aws-sdk/client-ses": "^3.1009.0",
     "@aws-sdk/client-sqs": "^3.1009.0",
     "@aws-sdk/s3-request-presigner": "^3.1009.0",
@@ -36,6 +39,7 @@
     "@radix-ui/react-context-menu": "2.2.16",
     "allotment": "^1.20.5",
     "aws-ssl-profiles": "^1.1.2",
+    "aws-xray-sdk-core": "^3.12.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
@@ -85,6 +89,7 @@
     "uuid": "^13.0.0",
     "validator": "^13.15.26",
     "winston": "^3.19.0",
+    "winston-cloudwatch": "^6.3.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"
