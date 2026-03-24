@@ -33,30 +33,17 @@ frontend:
         - npm ci --include=dev --legacy-peer-deps
     build:
       commands:
-        - echo "DATABASE_URL=$DATABASE_URL" >> .env.production
-        - echo "JWT_SECRET=$JWT_SECRET" >> .env.production
-        - echo "STORAGE_BUCKET=$STORAGE_BUCKET" >> .env.production
-        - echo "STORAGE_ACCESS_KEY=$STORAGE_ACCESS_KEY" >> .env.production
-        - echo "STORAGE_SECRET_KEY=$STORAGE_SECRET_KEY" >> .env.production
-        - echo "STORAGE_REGION=$STORAGE_REGION" >> .env.production
-        - echo "STORAGE_ENDPOINT=$STORAGE_ENDPOINT" >> .env.production
-        - echo "STORAGE_PREFIX=$STORAGE_PREFIX" >> .env.production
-        - echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" >> .env.production
-        - echo "REDIS_HOST=$REDIS_HOST" >> .env.production
-        - echo "REDIS_PORT=$REDIS_PORT" >> .env.production
-        - echo "REDIS_TLS=$REDIS_TLS" >> .env.production
-        - echo "LLM_API_URL=$LLM_API_URL" >> .env.production
-        - echo "LLM_MODEL=$LLM_MODEL" >> .env.production
-        - echo "EMBEDDING_API_URL=$EMBEDDING_API_URL" >> .env.production
-        - echo "EMBEDDING_MODEL=$EMBEDDING_MODEL" >> .env.production
-        - echo "SQS_QUEUE_URL=$SQS_QUEUE_URL" >> .env.production
-        - echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET" >> .env.production
-        - echo "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" >> .env.production
-        - echo "GOOGLE_ID=$GOOGLE_ID" >> .env.production
-        - echo "GOOGLE_SECRET=$GOOGLE_SECRET" >> .env.production
-        - echo "GITHUB_ID=$GITHUB_ID" >> .env.production
-        - echo "GITHUB_SECRET=$GITHUB_SECRET" >> .env.production
-        - echo "ENABLE_CREDENTIALS_AUTH=$ENABLE_CREDENTIALS_AUTH" >> .env.production
+        # write runtime env vars without exposing values in build logs
+        - |
+          for var in DATABASE_URL JWT_SECRET STORAGE_BUCKET STORAGE_ACCESS_KEY \
+            STORAGE_SECRET_KEY STORAGE_REGION STORAGE_ENDPOINT STORAGE_PREFIX \
+            NEXT_PUBLIC_API_URL REDIS_HOST REDIS_PORT REDIS_TLS \
+            LLM_API_URL LLM_MODEL EMBEDDING_API_URL EMBEDDING_MODEL \
+            SQS_QUEUE_URL NEXTAUTH_SECRET NEXT_PUBLIC_APP_URL \
+            GOOGLE_ID GOOGLE_SECRET GITHUB_ID GITHUB_SECRET \
+            ENABLE_CREDENTIALS_AUTH SERVER_ENCRYPTION_SECRET COHERE_API_KEY; do
+            [ -n "${!var}" ] && printf '%s=%s\n' "$var" "${!var}" >> .env.production
+          done
         - npm run build
   artifacts:
     baseDirectory: .next
