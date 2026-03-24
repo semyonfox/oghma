@@ -8,6 +8,9 @@ import { mapNoteFromDB } from '@/lib/notes/utils/map-note';
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
+import { chunkText } from '@/lib/chunking';
+import { embedChunks } from '@/lib/embeddings';
+import { processExtractedText } from '@/lib/canvas/text-processing.js';
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
@@ -48,7 +51,7 @@ export async function GET(request, { params }) {
      // Get note from PostgreSQL (verify ownership)
      const result = await sql`
        SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
-       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
+       WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
      `;
 
      const dbNote = result[0];
@@ -112,10 +115,10 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Get existing note (verify ownership)
+    // Get existing note (verify ownership, fetch only fields needed for comparison)
     const result = await sql`
-      SELECT * FROM app.notes
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
+      SELECT note_id, title, content, extracted_text FROM app.notes
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
     `;
 
     const existingNote = result[0];
@@ -145,6 +148,41 @@ export async function PUT(request, { params }) {
        );
      }
      await cacheInvalidate(...keysToInvalidate);
+
+     // re-embed when meaningful content changes (keeps RAG index fresh)
+     if (body.content && body.content !== existingNote.content) {
+       const cleanedText = processExtractedText(body.content);
+       // only hit Cohere when the semantic content actually changed
+       if (cleanedText !== (existingNote.extracted_text ?? '')) {
+         try {
+           await sql`DELETE FROM app.chunks WHERE document_id = ${noteId}::uuid`;
+           await sql`UPDATE app.notes SET extracted_text = ${cleanedText} WHERE note_id = ${noteId}::uuid`;
+
+           const chunks = chunkText(body.content);
+           const embeddings = await embedChunks(chunks);
+           if (embeddings.length > 0) {
+             const chunkRows = await sql`
+               INSERT INTO app.chunks (document_id, user_id, text)
+               SELECT * FROM UNNEST(
+                 ${embeddings.map(() => noteId)}::uuid[],
+                 ${embeddings.map(() => user.user_id)}::uuid[],
+                 ${embeddings.map(e => e.chunk)}::text[]
+               ) RETURNING id
+             `;
+             await sql`
+               INSERT INTO app.embeddings (chunk_id, embedding)
+               SELECT * FROM UNNEST(
+                 ${chunkRows.map(r => r.id)}::uuid[],
+                 ${embeddings.map(e => JSON.stringify(e.vector))}::vector[]
+               )
+             `;
+           }
+         } catch (embedErr) {
+           logger.error('note embed error', { noteId, error: embedErr });
+           // save still succeeded — don't fail the PUT over a RAG issue
+         }
+       }
+     }
 
      const dbNote = updatedNote[0];
      return NextResponse.json(mapNoteFromDB(dbNote));
@@ -180,8 +218,8 @@ export async function DELETE(request, { params }) {
 
     // Verify ownership and note exists
     const result = await sql`
-      SELECT * FROM app.notes
-      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0
+      SELECT note_id FROM app.notes
+      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
     `;
 
     if (result.length === 0) {

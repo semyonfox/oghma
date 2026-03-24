@@ -3,10 +3,14 @@ import bcrypt from 'bcryptjs';
 import sql from '@/database/pgsql.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
 import { validateAuthCredentials } from '@/lib/validation.js';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimiter';
 import logger from '@/lib/logger';
 
 export async function POST(request) {
     try {
+        const limited = await checkRateLimit('password-verify', getClientIp(request));
+        if (limited) return limited;
+
         const { data: body, error: parseError } = await parseJsonBody(request);
         if (parseError) return parseError;
 

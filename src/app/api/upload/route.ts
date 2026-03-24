@@ -1,6 +1,7 @@
 // upload API route - handles file uploads for note attachments
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rateLimiter';
 import { getStorageProvider } from '@/lib/storage/init';
 import { isValidUUID } from '@/lib/uuid-validation';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
@@ -24,11 +25,19 @@ export async function POST(request: NextRequest) {
         const session = await requireSession();
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+        const limited = await checkRateLimit('upload', session.user_id);
+        if (limited) return limited;
+
         const formData = await request.formData();
         const file = formData.get('file') as File;
         let noteId = formData.get('noteId') as string;
 
         if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        if (file.size > MAX_FILE_SIZE) {
+            return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 });
+        }
 
         let createdNewNote = false;
         if (!noteId) {
