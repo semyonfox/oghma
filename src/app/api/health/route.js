@@ -6,7 +6,7 @@ import logger from '@/lib/logger';
  * Health check endpoint for Docker and monitoring
  * GET /api/health
  */
-export async function GET() {
+export async function GET(request) {
     try {
         const start = Date.now();
         const dbUrl = process.env.DATABASE_URL || null;
@@ -33,15 +33,20 @@ export async function GET() {
             dbStatus.error = dbErr.message;
             dbStatus.errorCode = dbErr.code || null;
         }
-        return NextResponse.json(
-            {
-                status: dbStatus.connected ? 'ok' : 'degraded',
-                timestamp: new Date().toISOString(),
-                service: 'ct216-project',
-                database: dbStatus
-            },
-            {status: dbStatus.connected ? 200 : 503}
-        );
+        const healthy = dbStatus.connected;
+        const response = {
+            status: healthy ? 'ok' : 'degraded',
+            timestamp: new Date().toISOString(),
+        };
+
+        // only expose internals if caller provides the monitoring secret
+        const monitorSecret = process.env.HEALTH_CHECK_SECRET;
+        if (monitorSecret && request?.headers?.get('x-health-secret') === monitorSecret) {
+            response.service = 'ct216-project';
+            response.database = dbStatus;
+        }
+
+        return NextResponse.json(response, { status: healthy ? 200 : 503 });
     } catch (error) {
         logger.error('health check error', { error });
         return NextResponse.json(

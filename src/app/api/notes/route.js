@@ -47,18 +47,16 @@ export async function GET(request) {
       return NextResponse.json(filtered);
     }
 
-    // Get user's notes from PostgreSQL
-    let notes = await sql`
-      SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
+    // Get user's notes from PostgreSQL with SQL-level pagination
+    // content is excluded from the list query — fetch individual notes for full content
+    const sqlLimit = limit ?? 200;
+    const notes = await sql`
+      SELECT note_id, title, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at
+      FROM app.notes
       WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
       ORDER BY created_at DESC
+      LIMIT ${sqlLimit} OFFSET ${skip}
     `;
-
-    // Apply skip/limit for pagination
-    if (skip > 0 || limit) {
-      const end = limit ? skip + limit : undefined;
-      notes = notes.slice(skip, end);
-    }
 
     // Map to NoteModel format and cache full list (pre-field-filter)
     const mapped = notes.map(mapNoteFromDB);
