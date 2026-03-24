@@ -2,6 +2,8 @@
 // purpose-built relevance scoring — faster and more accurate than LLM-based reranking
 // uses rerank-multilingual-v3.0 to match the multilingual embedding model
 
+import { Metrics } from '@/lib/metrics';
+
 const COHERE_RERANK_URL = 'https://api.cohere.com/v2/rerank';
 const COHERE_RERANK_MODEL = 'rerank-multilingual-v3.0';
 const TOP_N = 5;
@@ -42,7 +44,7 @@ export async function rerankChunks(
         });
 
         if (!res.ok) {
-            console.warn(`Cohere rerank failed (${res.status}), falling back to vector order`);
+            void Metrics.cohereError('rerank');
             return chunks.slice(0, topN).map(text => ({ text, score: 1 }));
         }
 
@@ -53,8 +55,8 @@ export async function rerankChunks(
             text: chunks[r.index],
             score: r.relevance_score,
         }));
-    } catch (err) {
-        console.warn(`Cohere rerank error: ${err instanceof Error ? err.message : err}`);
+    } catch {
+        void Metrics.cohereError('rerank');
         return chunks.slice(0, topN).map(text => ({ text, score: 1 }));
     }
 }

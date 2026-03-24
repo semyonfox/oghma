@@ -4,6 +4,9 @@ import { checkRateLimit } from '@/lib/rateLimiter';
 import { embedText } from '@/lib/embedText';
 import { rerankChunks } from '@/lib/rerank';
 import { getOpenWebUIToken, invalidateToken } from '@/lib/openwebuiAuth';
+import { isValidUUID } from '@/lib/uuid-validation';
+import { xraySubsegment } from '@/lib/xray';
+import { Metrics } from '@/lib/metrics';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -101,22 +104,29 @@ async function callLLM(
 ): Promise<string> {
     const apiUrl = process.env.LLM_API_URL;
     const model = process.env.LLM_MODEL || 'qwen3:8b';
+    const apiKey = process.env.LLM_API_KEY;
     if (!apiUrl) throw new Error('LLM_API_URL not configured');
 
-    const token = await getOpenWebUIToken();
+    // direct API key → standard OpenAI-compatible path (/chat/completions)
+    // no API key → Open WebUI session token + its own path (/api/chat/completions)
+    const token = apiKey || await getOpenWebUIToken();
+    const endpoint = apiKey
+        ? `${apiUrl}/chat/completions`
+        : `${apiUrl}/api/chat/completions`;
+
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
         ...history.slice(-8),
         { role: 'user', content: userMessage },
     ];
 
-    const res = await fetch(`${apiUrl}/api/chat/completions`, {
+    const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ model, messages, temperature: 0.4, max_tokens: 1024 }),
     });
 
-    if (res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
+    if (!apiKey && res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
@@ -124,6 +134,47 @@ async function callLLM(
 
     const data = await res.json();
     return data.choices?.[0]?.message?.content || '';
+}
+
+async function persistMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    sources?: { id: string; title: string }[],
+): Promise<void> {
+    await sql`
+        INSERT INTO app.chat_messages(session_id, role, content, sources)
+        VALUES(${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
+    `;
+}
+
+// create a new session or verify an existing one belongs to the user
+async function resolveSession(
+    userId: string,
+    requestedSessionId: string | undefined,
+    noteId: string | undefined,
+    messageTitle: string,
+): Promise<string> {
+    if (requestedSessionId && isValidUUID(requestedSessionId)) {
+        const rows = await sql`
+            SELECT id FROM app.chat_sessions
+            WHERE id = ${requestedSessionId}::uuid AND user_id = ${userId}::uuid
+        `;
+        if (rows.length > 0) {
+            await sql`UPDATE app.chat_sessions SET updated_at = NOW() WHERE id = ${requestedSessionId}::uuid`;
+            return requestedSessionId;
+        }
+    }
+
+    const noteIdValue = noteId && isValidUUID(noteId) ? noteId : null;
+    const title = messageTitle.slice(0, 60);
+    const [row] = await sql`
+        INSERT INTO app.chat_sessions(user_id, note_id, title)
+        VALUES(${userId}::uuid, ${noteIdValue}, ${title})
+        RETURNING id
+    `;
+    void Metrics.chatSessionCreated();
+    return row.id as string;
 }
 
 export async function POST(request: NextRequest) {
@@ -140,8 +191,9 @@ export async function POST(request: NextRequest) {
     const {
         message,
         noteId,
-        history = [],
-    }: { message: string; noteId?: string; history?: ChatMessage[] } = body;
+        sessionId: requestedSessionId,
+        history: requestHistory = [],
+    }: { message: string; noteId?: string; sessionId?: string; history?: ChatMessage[] } = body;
 
     if (!message?.trim()) {
         return NextResponse.json({ error: 'message is required' }, { status: 400 });
@@ -149,14 +201,31 @@ export async function POST(request: NextRequest) {
     if (message.length > 2000) {
         return NextResponse.json({ error: 'message too long (max 2000 characters)' }, { status: 400 });
     }
-    if (history.length > 20) {
-        return NextResponse.json({ error: 'history too long (max 20 messages)' }, { status: 400 });
+
+    const sessionId = await resolveSession(userId, requestedSessionId, noteId, message);
+
+    // load history from DB when continuing a session; fall back to request history
+    let history: ChatMessage[] = requestHistory;
+    if (requestedSessionId && isValidUUID(requestedSessionId)) {
+        const dbMessages = await sql`
+            SELECT role, content FROM app.chat_messages
+            WHERE session_id = ${sessionId}::uuid
+            ORDER BY created_at
+            LIMIT 20
+        `;
+        history = dbMessages.map((m: { role: string; content: string }) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+        }));
     }
+
+    // persist user message immediately
+    await persistMessage(sessionId, 'user', message);
 
     let searchResults: SearchResult[] = [];
     let embeddingAvailable = false;
 
-    try {
+    await xraySubsegment('rag-pipeline', async () => {
         const queryVector = await embedText(message);
         embeddingAvailable = true;
         // fetch 20 candidates, rerank to top 5
@@ -168,38 +237,36 @@ export async function POST(request: NextRequest) {
         // map reranked text back to full SearchResult objects
         const rerankedTexts = new Set(reranked.map(r => r.text));
         searchResults = candidates.filter(r => rerankedTexts.has(r.chunk_text));
-    } catch {
+    }).catch(() => {
         // embedding/rerank unavailable — fall through to LLM without context
-    }
+    });
 
     const systemPrompt = buildSystemPrompt(searchResults);
+    const uniqueSources = [...new Set(searchResults.map(r => r.note_id))].map(id => {
+        const r = searchResults.find(s => s.note_id === id)!;
+        return { id: r.note_id, title: r.title };
+    });
 
     if (!process.env.LLM_API_URL) {
-        const contextSummary = searchResults.length > 0
+        const reply = searchResults.length > 0
             ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map(r => `"${r.title || 'Untitled'}"`))].join(', ')}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
             : embeddingAvailable
                 ? 'No relevant notes found. Try uploading a PDF to build your knowledge base.'
                 : 'Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.';
 
-        return NextResponse.json({
-            reply: contextSummary,
-            sources: [...new Set(searchResults.map(r => r.note_id))].map(id => {
-                const r = searchResults.find(s => s.note_id === id)!;
-                return { id: r.note_id, title: r.title };
-            }),
-            llmAvailable: false,
-        });
+        await persistMessage(sessionId, 'assistant', reply, uniqueSources);
+        return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: false, sessionId });
     }
 
     try {
-        const reply = await callLLM(systemPrompt, history, message);
-        const uniqueSources = [...new Set(searchResults.map(r => r.note_id))].map(id => {
-            const r = searchResults.find(s => s.note_id === id)!;
-            return { id: r.note_id, title: r.title };
-        });
+        const t0 = Date.now();
+        const reply = await xraySubsegment('llm-call', () => callLLM(systemPrompt, history, message));
+        void Metrics.llmLatency(Date.now() - t0);
 
-        return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: true });
+        await persistMessage(sessionId, 'assistant', reply, uniqueSources);
+        return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: true, sessionId });
     } catch (error) {
+        void Metrics.llmError();
         logger.error('LLM error', { error });
         return NextResponse.json({ error: 'Failed to generate response' }, { status: 502 });
     }
