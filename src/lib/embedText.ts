@@ -1,6 +1,8 @@
 // embeds a single query via Cohere for semantic search
 // uses input_type=search_query (asymmetric to search_document used at index time)
 
+import { Metrics } from '@/lib/metrics';
+
 const COHERE_URL = 'https://api.cohere.com/v2/embed';
 const COHERE_MODEL = 'embed-multilingual-v3.0';
 
@@ -21,6 +23,7 @@ export async function embedText(text: string): Promise<number[]> {
 
     if (!res.ok) {
         const body = await res.text();
+        void Metrics.cohereError('embed');
         throw new Error(`Cohere embed failed (${res.status}): ${body.slice(0, 200)}`);
     }
 
