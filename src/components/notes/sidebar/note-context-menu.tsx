@@ -49,7 +49,6 @@ const MenuItem = ({
 );
 
 const Separator = () => <div className="my-1 mx-2 border-t border-white/[0.06]" />;
-
 export default function NoteContextMenuPortal({
     onRename,
     onDelete,
