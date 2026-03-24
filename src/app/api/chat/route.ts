@@ -3,7 +3,6 @@ import { validateSession } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rateLimiter';
 import { embedText } from '@/lib/embedText';
 import { rerankChunks } from '@/lib/rerank';
-import { getOpenWebUIToken, invalidateToken } from '@/lib/openwebuiAuth';
 import { isValidUUID } from '@/lib/uuid-validation';
 import { xraySubsegment } from '@/lib/xray';
 import { Metrics } from '@/lib/metrics';
@@ -106,13 +105,7 @@ async function callLLM(
     const model = process.env.LLM_MODEL || 'qwen3:8b';
     const apiKey = process.env.LLM_API_KEY;
     if (!apiUrl) throw new Error('LLM_API_URL not configured');
-
-    // direct API key → standard OpenAI-compatible path (/chat/completions)
-    // no API key → Open WebUI session token + its own path (/api/chat/completions)
-    const token = apiKey || await getOpenWebUIToken();
-    const endpoint = apiKey
-        ? `${apiUrl}/chat/completions`
-        : `${apiUrl}/api/chat/completions`;
+    if (!apiKey) throw new Error('LLM_API_KEY not configured');
 
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
@@ -120,13 +113,12 @@ async function callLLM(
         { role: 'user', content: userMessage },
     ];
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(`${apiUrl}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages, temperature: 0.4, max_tokens: 1024 }),
     });
 
-    if (!apiKey && res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);

@@ -19,8 +19,6 @@ interface RateLimitResult {
   retryAfter: number; // seconds until window slides enough to allow next request
 }
 
-// ── Redis sliding window ─────────────────────────────────────────────────────
-
 async function redisCheck(key: string, rule: RateLimitRule, now: number): Promise<RateLimitResult> {
   const windowStart = now - rule.windowSeconds * 1000;
 
@@ -55,8 +53,6 @@ async function redisCheck(key: string, rule: RateLimitRule, now: number): Promis
   return { allowed: true, remaining: rule.limit - count - 1, retryAfter: 0 };
 }
 
-// ── In-memory fallback ───────────────────────────────────────────────────────
-
 function memCheck(key: string, rule: RateLimitRule, now: number): RateLimitResult {
   const windowStart = now - rule.windowSeconds * 1000;
   let timestamps = memWindows.get(key) ?? [];
@@ -86,8 +82,6 @@ setInterval(() => {
   }
 }, 60_000).unref();
 
-// ── PG audit logging (fire-and-forget) ───────────────────────────────────────
-
 function hashPii(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
@@ -101,8 +95,6 @@ function logViolation(category: string, identifier: string, count: number, limit
     logger.warn('rate limit audit log failed', { category, error: (err as Error).message });
   });
 }
-
-// ── Public API ───────────────────────────────────────────────────────────────
 
 export async function checkRateLimit(
   category: string,
