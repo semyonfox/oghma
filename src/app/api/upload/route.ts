@@ -8,6 +8,7 @@ import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import sql from '@/database/pgsql';
 import { v4 as uuidv4 } from 'uuid';
+import { xraySubsegment } from '@/lib/xray';
 import logger from '@/lib/logger';
 
 function sanitizeFileName(raw: string): string {
@@ -64,11 +65,15 @@ export async function POST(request: NextRequest) {
         const storagePath = `notes/${noteId}/${fileName}`;
 
         const storage = getStorageProvider();
-        await storage.putObject(storagePath, Buffer.from(buffer), {
-            contentType: file.type || 'application/octet-stream'
-        });
+        await xraySubsegment('s3-put', () =>
+            storage.putObject(storagePath, Buffer.from(buffer), {
+                contentType: file.type || 'application/octet-stream',
+            })
+        );
 
-        const signedUrl = await storage.getSignUrl(storagePath, 3600);
+        const signedUrl = await xraySubsegment('s3-sign-url', () =>
+            storage.getSignUrl(storagePath, 3600)
+        );
 
         const attachmentId = uuidv4();
         try {
