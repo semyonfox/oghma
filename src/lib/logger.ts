@@ -1,5 +1,6 @@
 import winston from 'winston';
 import 'winston-daily-rotate-file';
+import CloudWatchTransport from 'winston-cloudwatch';
 import { traceFormat } from './trace';
 
 const SENSITIVE_KEYS = new Set([
@@ -60,6 +61,17 @@ if (isProduction) {
       maxSize: '100m',
       maxFiles: '14d',
       format: winston.format.json(),
+    }),
+  );
+
+  transports.push(
+    new CloudWatchTransport({
+      logGroupName: '/oghmanotes/app/production',
+      logStreamName: `ecs-${process.env.HOSTNAME ?? 'unknown'}`,
+      awsRegion: process.env.AWS_REGION ?? 'eu-north-1',
+      jsonMessage: true,
+      retentionInDays: 30,
+      uploadRate: 2000,
     }),
   );
 }
