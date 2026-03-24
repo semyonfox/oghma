@@ -12,11 +12,15 @@ import sql from "@/database/pgsql.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {generateUUID} from "@/lib/utils/uuid";
+import {checkRateLimit, getClientIp} from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from '@/lib/logger';
 
 export async function POST(request) {
     try {
+        const limited = await checkRateLimit('register', getClientIp(request));
+        if (limited) return limited;
+
         // 1. Parse and validate request body
         const {data: body, error: parseError} = await parseJsonBody(request);
         if (parseError) return parseError;

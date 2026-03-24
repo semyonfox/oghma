@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { isValidUUID } from '@/lib/uuid-validation';
 import sql from '@/database/pgsql';
+import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import logger from '@/lib/logger';
 
 interface TrashAction {
@@ -117,12 +118,14 @@ export async function POST(request: NextRequest) {
                     );
                 }
 
-                // Restore note (unset deleted flag)
+                // Restore note (unset deleted flag) and re-add to tree root
                 await sql`
                     UPDATE app.notes
                     SET deleted = 0, deleted_at = NULL, updated_at = NOW()
                     WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
                 `;
+
+                await addNoteToTree(user.user_id, id, null);
 
                 return NextResponse.json({ success: true });
             }

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import sql from '@/database/pgsql.js';
 import { sendPasswordResetEmail } from '@/lib/email.js';
 import { createErrorResponse, parseJsonBody } from '@/lib/auth.js';
+import { checkRateLimit } from '@/lib/rateLimiter';
 import logger from '@/lib/logger';
 
 function resetAckResponse() {
@@ -18,6 +19,9 @@ export async function POST(request) {
 
         const { email } = body;
         if (!email) return createErrorResponse('Email is required', 400);
+
+        const limited = await checkRateLimit('password-reset', email.trim().toLowerCase());
+        if (limited) return limited;
 
         const users = await sql`
             SELECT user_id, email FROM app.login WHERE email = ${email.trim()}
