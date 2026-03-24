@@ -53,6 +53,7 @@ const CACHE_CONFIG = {
 
 // Initialize cleanup interval
 let cleanupIntervalId: NodeJS.Timeout | null = null;
+let activeHookCount = 0;
 
 /**
  * Start automatic cache cleanup
@@ -244,6 +245,7 @@ export function useSWR<T>(
    */
   useEffect(() => {
     // Start automatic cache cleanup on first hook usage
+    activeHookCount++;
     startCacheCleanup();
 
     const cached = getCachedData();
@@ -254,11 +256,19 @@ export function useSWR<T>(
       setIsLoading(false);
       // Still revalidate in background
       fetchData(true).catch(console.error);
-      return;
+      return () => {
+        activeHookCount--;
+        if (activeHookCount === 0) stopCacheCleanup();
+      };
     }
 
     // No fresh cache, fetch now
     fetchData(false).catch(console.error);
+
+    return () => {
+      activeHookCount--;
+      if (activeHookCount === 0) stopCacheCleanup();
+    };
   }, [key, fetchData, getCachedData, isCacheFresh]);
 
   /**

@@ -1,3 +1,4 @@
+import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import CanvasIntegration from "@/components/CanvasIntegration";
@@ -5,6 +6,20 @@ import "./globals.css";
 // Import react-pdf styles globally so they're available for all PDF viewers
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
+
+const dmSans = DM_Sans({
+    subsets: ["latin"],
+    weight: ["400", "500", "600", "700"],
+    display: "swap",
+    variable: "--font-dm-sans",
+});
+
+const sourceSerif = Source_Serif_4({
+    subsets: ["latin"],
+    weight: ["400", "600", "700"],
+    display: "swap",
+    variable: "--font-source-serif",
+});
 
 export const metadata = {
     title: "OghmaNotes",
@@ -17,11 +32,10 @@ const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('ogma-them
 
 export default function RootLayout({ children }) {
     return (
-        <html lang="en" suppressHydrationWarning>
+        <html lang="en" className={`${dmSans.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
             <head>
+                {/* theme init script uses hardcoded string only, no user input - safe */}
                 <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
             </head>
             <body className="font-sans antialiased bg-background text-text">
                 <I18nRootProvider>

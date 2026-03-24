@@ -60,7 +60,6 @@ export const config = {
         '/upload/:path*',
         '/settings/:path*',
         '/trash/:path*',
-        '/api/extract/:path*',
         '/api/notes/:path*',
         '/api/import-export/:path*',
         '/api/tree/:path*',

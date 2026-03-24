@@ -17,7 +17,7 @@ export default function ResetPasswordPage() {
   const [errMsg, setErrMsg] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  const errRef = useRef()
+  const errRef = useRef(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -58,7 +58,7 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
+      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Alert 
             variant="success" 
@@ -71,16 +71,16 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900">
+    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-white">{t('Reset your password')}</h2>
-        <p className="mt-2 text-center text-sm text-gray-400">
+        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-text-secondary">{t('Reset your password')}</h2>
+        <p className="mt-2 text-center text-sm text-text-tertiary">
           {t('Enter your new password below.')}
         </p>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-gray-800/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
+        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef}>
@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
             )}
 
             <div>
-              <label htmlFor="password" className="block text-sm/6 font-medium text-white">
+              <label htmlFor="password" className="block text-sm/6 font-medium text-text-secondary">
                 {t('New password')}
               </label>
               <div className="mt-2">
@@ -101,14 +101,14 @@ export default function ResetPasswordPage() {
                   autoComplete="new-password"
                   value={pwd}
                   onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-400">{t('Minimum 8 characters')}</p>
+              <p className="mt-1 text-xs text-text-tertiary">{t('Minimum 8 characters')}</p>
             </div>
 
             <div>
-              <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-white">
+              <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-text-secondary">
                 {t('Confirm password')}
               </label>
               <div className="mt-2">
@@ -120,7 +120,7 @@ export default function ResetPasswordPage() {
                   autoComplete="new-password"
                   value={confirmPwd}
                   onChange={(e) => setConfirmPwd(e.target.value)}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>
@@ -129,7 +129,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-md bg-indigo-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? t('Resetting...') : t('Reset password')}
               </button>
@@ -137,8 +137,8 @@ export default function ResetPasswordPage() {
           </form>
         </div>
 
-        <p className="mt-10 text-center text-sm/6 text-gray-400">
-          <Link href="/login" className="font-semibold text-indigo-400 hover:text-indigo-300">
+        <p className="mt-10 text-center text-sm/6 text-text-tertiary">
+          <Link href="/login" className="font-semibold text-primary-400 hover:text-primary-300">
             {t('Back to sign in')}
           </Link>
         </p>
