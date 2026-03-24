@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: true, sessionId });
     } catch (error) {
         void Metrics.llmError();
-        logger.error('LLM error', { error });
+        logger.error('LLM error', { error: error instanceof Error ? error.message : error });
         return NextResponse.json({ error: 'Failed to generate response' }, { status: 502 });
     }
 }
