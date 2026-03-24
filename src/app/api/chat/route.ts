@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
-import { embedChunks } from '@/lib/embeddings';
+import { checkRateLimit } from '@/lib/rateLimiter';
+import { embedText } from '@/lib/embedText';
+import { rerankChunks } from '@/lib/rerank';
 import { getOpenWebUIToken, invalidateToken } from '@/lib/openwebuiAuth';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
@@ -13,75 +15,75 @@ interface ChatMessage {
 interface SearchResult {
     note_id: string;
     title: string;
-    extracted_text: string | null;
-    content: string;
+    chunk_text: string;
     distance: number;
 }
 
-// retrieve the top-k most semantically similar notes for the user
+// search chunks+embeddings tables, joining back to notes for metadata
 async function semanticSearch(
     userId: string,
     queryVector: number[],
     noteId?: string,
-    limit = 4
+    limit = 8
 ): Promise<SearchResult[]> {
     const vectorStr = `[${queryVector.join(',')}]`;
 
     if (noteId) {
-        // pinned note first, then fill remaining slots from semantic search
+        // pinned note chunks first, then fill from global search
         const [pinned, similar] = await Promise.all([
             sql`
-                SELECT note_id, title, extracted_text, content
-                FROM app.notes
-                WHERE note_id = ${noteId}::uuid
-                  AND user_id = ${userId}::uuid
-                  AND deleted = 0
-                LIMIT 1
+                SELECT n.note_id, n.title, c.text AS chunk_text, 0::float AS distance
+                FROM app.chunks c
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND c.document_id = ${noteId}::uuid
+                ORDER BY c.created_at
+                LIMIT 4
             `,
             sql`
-                SELECT note_id, title, extracted_text, content,
-                       (embedding <=> ${vectorStr}::vector) AS distance
-                FROM app.notes
-                WHERE user_id = ${userId}::uuid
-                  AND deleted = 0
-                  AND embedding IS NOT NULL
-                  AND note_id != ${noteId}::uuid
-                ORDER BY embedding <=> ${vectorStr}::vector
-                LIMIT ${limit - 1}
+                SELECT n.note_id, n.title, c.text AS chunk_text,
+                       (e.embedding <=> ${vectorStr}::vector) AS distance
+                FROM app.embeddings e
+                JOIN app.chunks c ON c.id = e.chunk_id
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND c.document_id != ${noteId}::uuid
+                ORDER BY e.embedding <=> ${vectorStr}::vector
+                LIMIT ${limit - 4}
             `,
         ]);
-
-        const pinnedWithDist = pinned.map((r: { note_id: string; title: string; extracted_text: string | null; content: string }) => ({
-            ...r,
-            distance: 0,
-        }));
-        return [...pinnedWithDist, ...similar] as SearchResult[];
+        return [...pinned, ...similar] as SearchResult[];
     }
 
     const rows = await sql`
-        SELECT note_id, title, extracted_text, content,
-               (embedding <=> ${vectorStr}::vector) AS distance
-        FROM app.notes
-        WHERE user_id = ${userId}::uuid
-          AND deleted = 0
-          AND embedding IS NOT NULL
-        ORDER BY embedding <=> ${vectorStr}::vector
+        SELECT n.note_id, n.title, c.text AS chunk_text,
+               (e.embedding <=> ${vectorStr}::vector) AS distance
+        FROM app.embeddings e
+        JOIN app.chunks c ON c.id = e.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id
+        WHERE c.user_id = ${userId}::uuid
+        ORDER BY e.embedding <=> ${vectorStr}::vector
         LIMIT ${limit}
     `;
-
     return rows as SearchResult[];
 }
 
-// build the system prompt with retrieved context
 function buildSystemPrompt(results: SearchResult[]): string {
     if (results.length === 0) {
-        return `You are a helpful study assistant. The user has no notes with embeddings yet — let them know they can upload PDFs to start building a searchable knowledge base. Be friendly and concise.`;
+        return 'You are a helpful study assistant. The user has no notes with embeddings yet — let them know they can upload PDFs to start building a searchable knowledge base. Be friendly and concise.';
     }
 
-    const contextBlocks = results.map((r, i) => {
-        const body = r.extracted_text || r.content || '';
-        const snippet = body.slice(0, 800).replace(/\s+/g, ' ').trim();
-        return `--- Note ${i + 1}: "${r.title || 'Untitled'}" ---\n${snippet}`;
+    // group chunks by note for cleaner context
+    const byNote = new Map<string, { title: string; chunks: string[] }>();
+    for (const r of results) {
+        const key = r.note_id;
+        if (!byNote.has(key)) byNote.set(key, { title: r.title || 'Untitled', chunks: [] });
+        byNote.get(key)!.chunks.push(r.chunk_text);
+    }
+
+    const blocks = [...byNote.entries()].map(([, { title, chunks }], i) => {
+        const body = chunks.join('\n').slice(0, 1200).replace(/\s+/g, ' ').trim();
+        return `--- Note ${i + 1}: "${title}" ---\n${body}`;
     });
 
     return `You are a helpful study assistant with access to the user's notes.
@@ -89,10 +91,9 @@ Use ONLY the context below to answer questions. If the answer isn't in the conte
 Cite which note your answer comes from when relevant.
 
 CONTEXT:
-${contextBlocks.join('\n\n')}`;
+${blocks.join('\n\n')}`;
 }
 
-// call an OpenAI-compatible LLM endpoint
 async function callLLM(
     systemPrompt: string,
     history: ChatMessage[],
@@ -100,10 +101,7 @@ async function callLLM(
 ): Promise<string> {
     const apiUrl = process.env.LLM_API_URL;
     const model = process.env.LLM_MODEL || 'qwen3:8b';
-
-    if (!apiUrl) {
-        throw new Error('LLM_API_URL not configured');
-    }
+    if (!apiUrl) throw new Error('LLM_API_URL not configured');
 
     const token = await getOpenWebUIToken();
     const messages: ChatMessage[] = [
@@ -119,7 +117,6 @@ async function callLLM(
     });
 
     if (res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
-
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
@@ -135,6 +132,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const userId = (user as { user_id: string }).user_id;
+    const limited = await checkRateLimit('chat', userId);
+    if (limited) return limited;
+
     const body = await request.json();
     const {
         message,
@@ -145,54 +146,61 @@ export async function POST(request: NextRequest) {
     if (!message?.trim()) {
         return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
+    if (message.length > 2000) {
+        return NextResponse.json({ error: 'message too long (max 2000 characters)' }, { status: 400 });
+    }
+    if (history.length > 20) {
+        return NextResponse.json({ error: 'history too long (max 20 messages)' }, { status: 400 });
+    }
 
-    const userId = (user as { user_id: string }).user_id;
-
-    // embed the user query so we can do semantic search
     let searchResults: SearchResult[] = [];
     let embeddingAvailable = false;
 
     try {
-        const embeddings = await embedChunks([message]);
-        if (embeddings.length > 0) {
-            embeddingAvailable = true;
-            searchResults = await semanticSearch(userId, embeddings[0].vector, noteId);
-        }
+        const queryVector = await embedText(message);
+        embeddingAvailable = true;
+        // fetch 20 candidates, rerank to top 5
+        const candidates = await semanticSearch(userId, queryVector, noteId, 20);
+        const reranked = await rerankChunks(
+            message,
+            candidates.map(r => r.chunk_text),
+        );
+        // map reranked text back to full SearchResult objects
+        const rerankedTexts = new Set(reranked.map(r => r.text));
+        searchResults = candidates.filter(r => rerankedTexts.has(r.chunk_text));
     } catch {
-        // embedding server down — fall through to LLM without context
+        // embedding/rerank unavailable — fall through to LLM without context
     }
 
     const systemPrompt = buildSystemPrompt(searchResults);
 
-    // if no LLM is configured, return the retrieved context so the frontend
-    // can show something useful even without an AI backend
     if (!process.env.LLM_API_URL) {
         const contextSummary = searchResults.length > 0
-            ? `Found ${searchResults.length} relevant note(s): ${searchResults.map(r => `"${r.title || 'Untitled'}"`).join(', ')}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
+            ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map(r => `"${r.title || 'Untitled'}"`))].join(', ')}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
             : embeddingAvailable
                 ? 'No relevant notes found. Try uploading a PDF to build your knowledge base.'
-                : 'Embedding service unavailable. Set EMBEDDING_API_URL to enable semantic search.';
+                : 'Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.';
 
         return NextResponse.json({
             reply: contextSummary,
-            sources: searchResults.map(r => ({ id: r.note_id, title: r.title })),
+            sources: [...new Set(searchResults.map(r => r.note_id))].map(id => {
+                const r = searchResults.find(s => s.note_id === id)!;
+                return { id: r.note_id, title: r.title };
+            }),
             llmAvailable: false,
         });
     }
 
     try {
         const reply = await callLLM(systemPrompt, history, message);
-
-        return NextResponse.json({
-            reply,
-            sources: searchResults.map(r => ({ id: r.note_id, title: r.title })),
-            llmAvailable: true,
+        const uniqueSources = [...new Set(searchResults.map(r => r.note_id))].map(id => {
+            const r = searchResults.find(s => s.note_id === id)!;
+            return { id: r.note_id, title: r.title };
         });
+
+        return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: true });
     } catch (error) {
         logger.error('LLM error', { error });
-        return NextResponse.json(
-            { error: 'Failed to generate response' },
-            { status: 502 }
-        );
+        return NextResponse.json({ error: 'Failed to generate response' }, { status: 502 });
     }
 }

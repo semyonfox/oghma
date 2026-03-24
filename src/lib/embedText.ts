@@ -1,23 +1,31 @@
-// Embeds text via OpenWebUI — auto-refreshes token on 401
-import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
+// embeds a single query via Cohere for semantic search
+// uses input_type=search_query (asymmetric to search_document used at index time)
 
-const EMBEDDING_URL = process.env.EMBEDDING_API_URL;
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL;
+const COHERE_URL = 'https://api.cohere.com/v2/embed';
+const COHERE_MODEL = 'embed-multilingual-v3.0';
 
 export async function embedText(text: string): Promise<number[]> {
-    const token = await getOpenWebUIToken();
-    const res = await fetch(`${EMBEDDING_URL}/api/embeddings`, {
+    const apiKey = process.env.COHERE_API_KEY;
+    if (!apiKey) throw new Error('COHERE_API_KEY not configured');
+
+    const res = await fetch(COHERE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+            texts: [text],
+            model: COHERE_MODEL,
+            input_type: 'search_query',
+            embedding_types: ['float'],
+        }),
     });
 
-    if (res.status === 401) {
-        invalidateToken();
-        throw new Error('OpenWebUI token expired — will retry on next request');
+    if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Cohere embed failed (${res.status}): ${body.slice(0, 200)}`);
     }
 
-    // OpenWebUI returns OpenAI-compatible format: { data: [{ embedding: [...] }] }
-    const data = await res.json();
-    return data.data?.[0]?.embedding ?? data.embedding;
+    const json = await res.json();
+    const vectors: number[][] = json.embeddings?.float ?? [];
+    if (vectors.length === 0) throw new Error('Cohere returned no embeddings');
+    return vectors[0];
 }

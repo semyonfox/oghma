@@ -8,6 +8,7 @@ import useSyncStatusStore from '@/lib/notes/state/sync-status';
 import { buildFileSpec } from '@/lib/notes/utils/file-spec';
 import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { toast } from 'sonner';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { Favorites } from './favorites';
 import {
@@ -47,6 +48,7 @@ const SidebarList = () => {
     const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     // active note from URL
     const activeId = useMemo(() => {
@@ -225,38 +227,45 @@ const SidebarList = () => {
     }, [createFolder]);
 
     const handleUploadFile = useCallback(async (file: File) => {
-        const newId = genNewId();
-        const fileName = file.name || 'Untitled';
-        const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+        try {
+            const newId = genNewId();
+            const fileName = file.name || 'Untitled';
+            const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
 
-        let fileType: 'note' | 'pdf' | 'image' | 'video' = 'note';
-        if (ext === 'pdf') fileType = 'pdf';
-        else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) fileType = 'image';
-        else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) fileType = 'video';
+            let fileType: 'note' | 'pdf' | 'image' | 'video' = 'note';
+            if (ext === 'pdf') fileType = 'pdf';
+            else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext)) fileType = 'image';
+            else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) fileType = 'video';
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('noteId', newId);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('noteId', newId);
 
-        const uploadRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-        });
+            const uploadRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
 
-        if (!uploadRes.ok) return;
-        const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) {
+                toast.error('Failed to upload file');
+                return;
+            }
+            const uploadData = await uploadRes.json();
 
-        const content = fileType === 'note'
-            ? (await file.text())
-            : uploadData.path;
+            const content = fileType === 'note'
+                ? (await file.text())
+                : uploadData.path;
 
-        const newNote = await createNote({
-            id: newId,
-            title: fileName,
-            content,
-        });
+            const newNote = await createNote({
+                id: newId,
+                title: fileName,
+                content,
+            });
 
-        if (newNote) router.push(`/notes/${newId}`);
+            if (newNote) router.push(`/notes/${newId}`);
+        } catch {
+            toast.error('Failed to upload file');
+        }
     }, [genNewId, createNote, router]);
 
     const handleCollapseAll = useCallback(() => {
@@ -269,31 +278,44 @@ const SidebarList = () => {
         setRenamingId(id);
     }, []);
 
-    const handleDelete = useCallback(
-        async (id: string) => {
+    const handleDeleteRequest = useCallback(
+        (id: string) => {
             if (!initLoaded) {
-                alert('Please wait for notes to load before deleting.');
+                toast.error('Please wait for notes to load');
                 return;
             }
-            if (confirm(`Are you sure you want to delete this ${tree.items[id]?.children.length > 0 ? 'folder and all its contents' : 'note'}?`)) {
-                await removeNote(id);
-            }
+            setDeleteConfirmId(id);
         },
-        [removeNote, tree.items, initLoaded]
+        [initLoaded]
     );
+
+    const handleDeleteConfirm = useCallback(async () => {
+        if (!deleteConfirmId) return;
+        const id = deleteConfirmId;
+        setDeleteConfirmId(null);
+        try {
+            await removeNote(id);
+        } catch {
+            toast.error('Failed to delete');
+        }
+    }, [deleteConfirmId, removeNote]);
 
     const handleDuplicate = useCallback(
         async (id: string) => {
-            const original = tree.items[id];
-            if (!original?.data) return;
-            const newId = genNewId();
-            const newNote = await createNote({
-                id: newId,
-                title: `${original.data.title} (Copy)`,
-                content: original.data.content || '\n',
-                pid: original.data.pid,
-            });
-            if (newNote) router.push(`/notes/${newId}`);
+            try {
+                const original = tree.items[id];
+                if (!original?.data) return;
+                const newId = genNewId();
+                const newNote = await createNote({
+                    id: newId,
+                    title: `${original.data.title} (Copy)`,
+                    content: original.data.content || '\n',
+                    pid: original.data.pid,
+                });
+                if (newNote) router.push(`/notes/${newId}`);
+            } catch {
+                toast.error('Failed to duplicate');
+            }
         },
         [tree.items, genNewId, createNote, router]
     );
@@ -366,14 +388,7 @@ const SidebarList = () => {
 
     const handleItemContextMenu = useCallback((e: React.MouseEvent, itemId: string, isFolder: boolean, isPinned: boolean) => {
         e.preventDefault();
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const mw = 200, mh = 320, pad = 8;
-        let x = e.clientX;
-        let y = e.clientY;
-        if (x + mw > vw - pad) x = Math.max(pad, x - mw);
-        if (y + mh > vh - pad) y = Math.max(pad, y - mh - 4);
-        useContextMenuStore.getState().setOpenMenu(itemId, x, y, isFolder, isPinned);
+        useContextMenuStore.getState().setOpenMenu(itemId, e.clientX, e.clientY, isFolder, isPinned);
     }, []);
 
     // view state for react-complex-tree
@@ -581,13 +596,41 @@ const SidebarList = () => {
 
             <NoteContextMenu
                 onRename={handleRename}
-                onDelete={handleDelete}
+                onDelete={handleDeleteRequest}
                 onDuplicate={handleDuplicate}
                 onTogglePin={handleTogglePin}
                 onCreateNote={handleContextCreateNote}
                 onCreateFolder={handleCreateFolder}
                 onOpenInSplit={handleOpenInSplit}
             />
+
+            {/* delete confirmation overlay */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50" onClick={() => setDeleteConfirmId(null)}>
+                    <div className="bg-surface rounded-lg shadow-2xl ring-1 ring-white/[0.08] p-5 w-[320px] space-y-4" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-sm text-text-secondary">
+                            {t('Delete')} <span className="font-medium text-text">{tree.items[deleteConfirmId]?.data?.title || t('Untitled')}</span>?
+                            {(tree.items[deleteConfirmId]?.children?.length ?? 0) > 0 && (
+                                <span className="block mt-1 text-text-tertiary text-xs">{t('This folder and all its contents will be deleted.')}</span>
+                            )}
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-white/[0.06] transition-colors"
+                            >
+                                {t('Cancel')}
+                            </button>
+                            <button
+                                onClick={handleDeleteConfirm}
+                                className="px-3 py-1.5 text-xs font-medium rounded bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
+                            >
+                                {t('Delete')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
@@ -644,12 +687,14 @@ const TreeItem: React.FC<TreeItemProps> = ({
     const syncStatus = useSyncStatusStore((s) => s.status[itemId]);
     const [renameValue, setRenameValue] = useState(nodeData?.title ?? '');
     const renameInputRef = useRef<HTMLInputElement>(null);
+    const escapedRef = useRef(false);
     const pl = depth * INDENT_PX;
 
     useEffect(() => {
-        if (isRenaming && renameInputRef.current) {
-            renameInputRef.current.focus();
-            renameInputRef.current.select();
+        if (isRenaming) {
+            escapedRef.current = false;
+            renameInputRef.current?.focus();
+            renameInputRef.current?.select();
         }
     }, [isRenaming]);
 
@@ -660,6 +705,26 @@ const TreeItem: React.FC<TreeItemProps> = ({
     const handleRenameSubmit = () => {
         const trimmed = renameValue.trim();
         onRenameComplete(trimmed || nodeData?.title || 'Untitled');
+    };
+
+    const handleRenameCancel = () => {
+        escapedRef.current = true;
+        setRenameValue(nodeData?.title ?? '');
+        onRenameComplete(nodeData?.title ?? 'Untitled');
+    };
+
+    const handleRenameBlur = () => {
+        // skip if Escape was just pressed (it already cancelled)
+        if (escapedRef.current) return;
+        // only commit if value actually changed
+        const trimmed = renameValue.trim();
+        const original = nodeData?.title ?? '';
+        if (trimmed && trimmed !== original) {
+            handleRenameSubmit();
+        } else {
+            // no change or empty — just cancel
+            onRenameComplete(original || 'Untitled');
+        }
     };
 
     // merge our handlers with react-complex-tree's handlers so DnD works
@@ -736,15 +801,14 @@ const TreeItem: React.FC<TreeItemProps> = ({
                         type="text"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={handleRenameSubmit}
+                        onBlur={handleRenameBlur}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 e.preventDefault();
                                 handleRenameSubmit();
                             } else if (e.key === 'Escape') {
                                 e.preventDefault();
-                                setRenameValue(nodeData?.title ?? '');
-                                onRenameComplete(nodeData?.title ?? '');
+                                handleRenameCancel();
                             }
                         }}
                         onClick={(e) => e.stopPropagation()}

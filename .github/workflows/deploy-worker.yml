@@ -7,6 +7,8 @@ on:
       - 'src/lib/canvas/**'
       - 'src/lib/chunking.ts'
       - 'src/lib/embeddings.ts'
+      - 'src/lib/embedText.ts'
+      - 'src/lib/ocr.ts'
       - 'src/lib/storage/**'
       - 'src/lib/sqs.ts'
       - 'src/lib/ecs.ts'
@@ -17,7 +19,7 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  ECR_REPO: 949642303654.dkr.ecr.eu-north-1.amazonaws.com/oghmanotes-worker
+  ECR_REPO: 723920043097.dkr.ecr.eu-north-1.amazonaws.com/oghmanotes-worker
   COMMIT_SHA: ${{ github.sha }}
 
 jobs:
@@ -31,7 +33,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::949642303654:role/github-actions-oghma
+          role-to-assume: arn:aws:iam::723920043097:role/github-actions-oghma
           aws-region: eu-north-1
 
       - uses: aws-actions/amazon-ecr-login@v2

@@ -9,10 +9,10 @@
  */
 
 import bcrypt from "bcryptjs";
-import { v4 as uuidv4 } from 'uuid';
 import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
+import {generateUUID} from "@/lib/utils/uuid";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/rateLimit.js";
 import { decrypt } from '@/lib/crypto';
@@ -154,10 +154,10 @@ async function queueCanvasSync(userId) {
 
   if (courses.length === 0) return;
 
-  const jobId = uuidv4();
+  const jobId = generateUUID();
   await sql`
-    INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status)
-    VALUES (${jobId}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}, 'queued')
+    INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status, job_type)
+    VALUES (${jobId}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}, 'queued', 'sync')
   `;
   logger.info('canvas auto-sync job queued on login', { jobId, courseCount: courses.length });
 }

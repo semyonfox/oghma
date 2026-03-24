@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
+import { motion } from 'motion/react'
 import useI18n from '@/lib/notes/hooks/use-i18n'
 
 export default function TestimonialSection() {
   const { t } = useI18n()
-  
-  const STUDENT_TESTIMONIALS = useMemo(() => [
+
+  const testimonials = useMemo(() => [
     {
       quote: t("The Canvas integration is a game-changer. My notes are automatically synced, and the AI insights help me actually understand the material."),
       author: t("Marcus Johnson"),
@@ -29,32 +30,48 @@ export default function TestimonialSection() {
     }
   ], [t])
 
-  const testimonial = useMemo(() => {
-    const seed = new Date().toDateString()
-    let hash = 0
-    for (let i = 0; i < seed.length; i += 1) {
-      hash = (hash + seed.charCodeAt(i)) % STUDENT_TESTIMONIALS.length
-    }
-    return STUDENT_TESTIMONIALS[hash]
-  }, [])
-
   return (
     <div className="bg-gray-900 py-16 sm:py-24">
-      <div className="mx-auto max-w-4xl px-6 lg:px-8">
-        <h2 className="text-3xl font-semibold tracking-tight text-white text-center mb-12">{t('What students say')}</h2>
+      <div className="mx-auto max-w-5xl px-6 lg:px-8">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-50px' }}
+          transition={{ duration: 0.5 }}
+          className="font-serif text-3xl font-semibold tracking-tight text-white text-center mb-12"
+        >
+          {t('What students say')}
+        </motion.h2>
 
-        {/* Single Rotating Testimonial */}
-        <div className="p-8 rounded-lg border border-white/10 bg-gray-900/50 backdrop-blur">
-          <div className="flex gap-1 mb-4">
-            {[...Array(5)].map((_, i) => (
-              <span key={i} className="text-yellow-400">★</span>
-            ))}
-          </div>
-          <p className="text-lg text-gray-100 mb-6 italic">"{testimonial.quote}"</p>
-          <div>
-            <p className="font-semibold text-white">{testimonial.author}</p>
-            <p className="text-sm text-gray-400">{testimonial.role}</p>
-          </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {testimonials.map((item, i) => (
+            <motion.div
+              key={item.author}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-50px' }}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="rounded-xl bg-white/5 ring-1 ring-white/10 p-8"
+            >
+              <div className="flex gap-1 mb-4">
+                {[...Array(5)].map((_, j) => (
+                  <span key={j} className="text-yellow-400 text-sm">&#9733;</span>
+                ))}
+              </div>
+              <p className="font-serif text-base/7 text-gray-100 italic mb-6">
+                &ldquo;{item.quote}&rdquo;
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400 font-semibold text-sm">
+                  {item.author.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-semibold text-white text-sm">{item.author}</p>
+                  <p className="text-xs text-text-tertiary">{item.role}</p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>

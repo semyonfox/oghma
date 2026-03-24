@@ -44,6 +44,10 @@ export function validatePassword(password, options = {}) {
         errors.push(`Password must be at least ${minLength} characters long`);
     }
 
+    if (password.length > 128) {
+        errors.push('Password must be 128 characters or fewer');
+    }
+
     if (requireUppercase && !/[A-Z]/.test(password)) {
         errors.push('Password must contain at least one uppercase letter');
     }
