@@ -102,7 +102,7 @@ async function callLLM(
     userMessage: string
 ): Promise<string> {
     const apiUrl = process.env.LLM_API_URL;
-    const model = process.env.LLM_MODEL || 'qwen3:8b';
+    const model = process.env.LLM_MODEL || 'kimi-k2.5';
     const apiKey = process.env.LLM_API_KEY;
     if (!apiUrl) throw new Error('LLM_API_URL not configured');
     if (!apiKey) throw new Error('LLM_API_KEY not configured');
@@ -113,10 +113,18 @@ async function callLLM(
         { role: 'user', content: userMessage },
     ];
 
+    // LLM_THINKING=off disables Kimi K2.5 chain-of-thought (saves tokens during dev)
+    const thinking = process.env.LLM_THINKING === 'off'
+        ? { type: 'disabled' as const }
+        : undefined;
+
+    const body: Record<string, unknown> = { model, messages, max_tokens: 16384 };
+    if (thinking) body.thinking = thinking;
+
     const res = await fetch(`${apiUrl}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, temperature: 0.4, max_tokens: 1024 }),
+        body: JSON.stringify(body),
     });
 
     if (!res.ok) {
