@@ -5,6 +5,7 @@ import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ensureWorkerRunning } from '@/lib/ecs';
+import { decrypt } from '@/lib/crypto';
 import logger from '@/lib/logger';
 
 /**
@@ -35,6 +36,8 @@ export async function POST(request) {
       return NextResponse.json({ queued: false, reason: 'No Canvas account connected' });
     }
 
+    const plainToken = decrypt(canvas_token, user.user_id);
+
     // Derive the set of course IDs previously imported by this user
     const prevCourseRows = await sql`
       SELECT DISTINCT canvas_course_id
@@ -49,7 +52,7 @@ export async function POST(request) {
     const prevCourseIds = new Set(prevCourseRows.map(r => String(r.canvas_course_id)));
 
     // Fetch current course list from Canvas to get up-to-date name / course_code
-    const client = new CanvasClient(canvas_domain, canvas_token);
+    const client = new CanvasClient(canvas_domain, plainToken);
     const { data: allCourses } = await client.getCourses();
 
     const courses = (allCourses ?? [])

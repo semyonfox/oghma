@@ -3,6 +3,7 @@
 import jwt from 'jsonwebtoken';
 import {cookies} from 'next/headers';
 import {NextResponse} from 'next/server';
+import sql from '@/database/pgsql.js';
 
 // jwt
 
@@ -52,7 +53,18 @@ export async function clearSessionCookie() {
 export async function validateSession() {
     const token = await getSessionCookie();
     if (!token) return null;
-    return verifyJWTToken(token);
+    const payload = verifyJWTToken(token);
+    if (!payload?.user_id) return null;
+
+    // verify user is still active in the database
+    const [user] = await sql`
+        SELECT user_id, email FROM app.login
+        WHERE user_id = ${payload.user_id}::uuid
+          AND is_active = true
+          AND deleted_at IS NULL
+        LIMIT 1
+    `;
+    return user ?? null;
 }
 
 // response formatting

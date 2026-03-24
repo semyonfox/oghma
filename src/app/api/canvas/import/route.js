@@ -5,6 +5,7 @@ import sql from '@/database/pgsql.js';
 import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
 import { SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ensureWorkerRunning } from '@/lib/ecs';
+import { decrypt } from '@/lib/crypto';
 import logger from '@/lib/logger';
 
 /**
@@ -42,8 +43,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No Canvas account connected' }, { status: 400 });
     }
 
+    // decrypt the stored token before using it
+    const plainToken = decrypt(canvas_token, user.user_id);
+
     // Validate the token is still live before queuing
-    const client = new CanvasClient(canvas_domain, canvas_token);
+    const client = new CanvasClient(canvas_domain, plainToken);
     const { data: courses, error: coursesError } = await client.getCourses();
     if (!courses && coursesError) {
       return NextResponse.json({ error: 'Canvas token is invalid or expired' }, { status: 401 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import sql from '@/database/pgsql.js';
+import { decrypt } from '@/lib/crypto';
 import logger from '@/lib/logger';
 
 /**
@@ -35,7 +36,8 @@ export async function GET() {
       );
     }
 
-    const client = new CanvasClient(canvas_domain, canvas_token);
+    const plainToken = decrypt(canvas_token, user.user_id);
+    const client = new CanvasClient(canvas_domain, plainToken);
 
     // Fetch all active courses the user is enrolled in as a student
     const { data: courses, error: coursesError } = await client.getCourses();

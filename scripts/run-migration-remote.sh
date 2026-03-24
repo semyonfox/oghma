@@ -10,12 +10,12 @@ echo "  OghmaNotes Database Migration"
 echo "════════════════════════════════════════════════════"
 echo ""
 
-# Database credentials
-DB_HOST="<old-rds-endpoint>"
-DB_PORT="5432"
-DB_USER="oghma_app"
-DB_PASSWORD="REDACTED_DB_PASSWORD"
-DB_NAME="oghma"
+# Database credentials — source from environment or .env file
+DB_HOST="${DB_HOST:?Set DB_HOST (e.g. your-rds-endpoint.region.rds.amazonaws.com)}"
+DB_PORT="${DB_PORT:-5432}"
+DB_USER="${DB_USER:?Set DB_USER}"
+DB_PASSWORD="${DB_PASSWORD:?Set DB_PASSWORD}"
+DB_NAME="${DB_NAME:-oghma}"
 
 echo "📍 Connecting to: $DB_HOST:$DB_PORT/$DB_NAME"
 echo "🔐 User: $DB_USER"

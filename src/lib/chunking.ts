@@ -1,6 +1,5 @@
-//Receives the parsed text as a string (output from pdf-parse)
-// Splits it into chunks — every 500 characters with some overlap so context isn't lost at the edges
-// Returns an array of strings — each string is one chunk
+// splits text into sentence-aligned chunks of ~500 characters for embedding
+// no overlap — chunks split at sentence boundaries to preserve coherence
 
 export const chunkText = (text: string, chunkSize = 500): string[] => {
     // Handle empty or whitespace-only text

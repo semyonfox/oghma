@@ -26,7 +26,7 @@ async function searchChunks(vector: number[], userId: string): Promise<string[]>
         SELECT c.text
         FROM app.embeddings e
         JOIN app.chunks c ON c.id = e.chunk_id
-        WHERE c.user_id = ${userId}
+        WHERE c.user_id = ${userId}::uuid
         ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
         LIMIT 20
     `;

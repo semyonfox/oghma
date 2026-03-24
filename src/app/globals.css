@@ -3,6 +3,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* === TYPOGRAPHY === */
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+
   /* === SEMANTIC SURFACES & TEXT === */
   --color-background: #0f172a;
   --color-surface: #1e293b;
@@ -347,6 +351,11 @@ html, body {
 
 .obsidian-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* landing page gradient background */
+.bg-landing {
+  background: radial-gradient(ellipse at top, rgb(30 41 59 / 0.5), var(--color-background) 50%);
 }
 
 /* reduced motion */
