@@ -57,6 +57,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
+    // cannot share to yourself
+    if (targetUserId === user.user_id) {
+      return NextResponse.json(
+        { error: 'Cannot share a note with yourself. Use duplicate instead.' },
+        { status: 400 }
+      );
+    }
+
+    // verify target user exists and is active
+    const targetUser = await sql`
+      SELECT user_id FROM app.login
+      WHERE user_id = ${targetUserId}::uuid
+        AND is_active = true AND deleted_at IS NULL
+    `;
+    if (!targetUser.length) {
+      return NextResponse.json(
+        { error: 'Target user not found' },
+        { status: 404 }
+      );
+    }
+
     // only the owner can share their own note
     const sourceNote = await sql`
       SELECT note_id, title, content, s3_key, is_folder
