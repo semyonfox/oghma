@@ -20,7 +20,13 @@ export async function xraySubsegment<T>(name: string, fn: SubsegmentFn<T>): Prom
     return fn(null);
   }
 
-  const segment = AWSXRay.resolveSegment();
+  let segment;
+  try {
+    segment = AWSXRay.resolveSegment();
+  } catch {
+    // active tracing not enabled in this environment (e.g. Amplify compute)
+    return fn(null);
+  }
   if (!segment) return fn(null);
 
   const sub = segment.addNewSubsegment(name);
