@@ -1,13 +1,14 @@
 import nodemailer from 'nodemailer';
 
-// Configure the email transporter (this connects to AWS SES)
+// Amplify blocks AWS_ prefixed env vars, so fall back to SES_ prefix
+const sesRegion = process.env.AWS_SES_REGION || process.env.SES_REGION || 'eu-north-1';
 const transporter = nodemailer.createTransport({
-    host: 'email-smtp.eu-north-1.amazonaws.com',
+    host: `email-smtp.${sesRegion}.amazonaws.com`,
     port: 587,
     secure: false,
     auth: {
-        user: process.env.AWS_SES_ACCESS_KEY_ID,
-        pass: process.env.AWS_SES_SECRET_ACCESS_KEY,
+        user: process.env.AWS_SES_ACCESS_KEY_ID || process.env.SES_ACCESS_KEY_ID,
+        pass: process.env.AWS_SES_SECRET_ACCESS_KEY || process.env.SES_SECRET_ACCESS_KEY,
     },
 });
 
@@ -16,7 +17,7 @@ export async function sendPasswordResetEmail(email, resetToken) {
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-        from: process.env.AWS_SES_FROM_EMAIL,
+        from: process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL,
         to: email,
         subject: 'Password Reset Request',
         html: `
@@ -35,7 +36,12 @@ export async function sendPasswordResetEmail(email, resetToken) {
         text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour.`,
     };
 
-    await transporter.sendMail(mailOptions);
+    try {
+        await transporter.sendMail(mailOptions);
+    } catch (err) {
+        console.error('[email] failed to send password reset:', err.message);
+        throw new Error('Failed to send password reset email');
+    }
 }
 
 /* permissions policy (group name: AWSSESSendingGroupDoNotRename)
