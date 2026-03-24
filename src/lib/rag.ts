@@ -8,7 +8,6 @@
 
 import { embedText } from './embedText';
 import { rerankChunks } from './rerank';
-import { getOpenWebUIToken, invalidateToken } from './openwebuiAuth';
 import sql from '@/database/pgsql.js';
 
 const LLM_URL = process.env.LLM_API_URL;
@@ -45,19 +44,14 @@ function buildMessages(userPrompt: string, chunks: string[]): Array<{ role: stri
 }
 
 async function callLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
-    // direct API key (Kimi K2.5, OpenAI-compatible) or fall back to OpenWebUI session token
-    const token = LLM_API_KEY || await getOpenWebUIToken();
-    const endpoint = LLM_API_KEY
-        ? `${LLM_URL}/chat/completions`
-        : `${LLM_URL}/api/chat/completions`;
+    if (!LLM_API_KEY) throw new Error('LLM_API_KEY not configured');
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(`${LLM_URL}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LLM_API_KEY}` },
         body: JSON.stringify({ model: LLM_MODEL, messages }),
     });
 
-    if (!LLM_API_KEY && res.status === 401) { invalidateToken(); throw new Error('Token expired'); }
     if (!res.ok) throw new Error(`LLM error (${res.status})`);
     const data = await res.json();
     return data.choices?.[0]?.message?.content ?? '';
