@@ -17,8 +17,8 @@ const LLM_MODEL = process.env.LLM_MODEL;
 export async function runRAGPipeline(userPrompt: string, userId: string): Promise<string> {
     const vector = await embedText(userPrompt);
     const candidates = await searchChunks(vector, userId);
-    const chunks = await rerankChunks(userPrompt, candidates);
-    return callLLM(buildPrompt(userPrompt, chunks));
+    const ranked = await rerankChunks(userPrompt, candidates);
+    return callLLM(buildPrompt(userPrompt, ranked.map(r => r.text)));
 }
 
 async function searchChunks(vector: number[], userId: string): Promise<string[]> {
