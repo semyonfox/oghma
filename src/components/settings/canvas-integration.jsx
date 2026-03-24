@@ -395,10 +395,10 @@ export default function CanvasIntegration() {
     setRecentLogs([])
 
     try {
-      // send full course objects so the worker can use name/course_code for folder titles
+      // send full course objects so the worker can use name/course_code/term for folder titles
       const selectedCourses = courses
         .filter(c => selectedCourseIds.includes(c.id))
-        .map(c => ({ id: c.id, name: c.name, course_code: c.course_code }))
+        .map(c => ({ id: c.id, name: c.name, course_code: c.course_code, term: c.term ?? null }))
 
       const res  = await fetch('/api/canvas/import', {
         method:  'POST',

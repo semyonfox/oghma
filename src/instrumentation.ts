@@ -17,7 +17,7 @@ export async function register() {
     }
   }
 
-  // enable X-Ray auto-tracing of all outbound HTTPS calls (Cohere, OpenWebUI, etc.)
+  // enable X-Ray auto-tracing of all outbound HTTPS calls (Cohere, Kimi, etc.)
   if (process.env.NODE_ENV === 'production') {
     try {
       const AWSXRay = await import('aws-xray-sdk-core');
