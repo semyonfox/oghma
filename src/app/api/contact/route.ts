@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isValidEmail } from '@/lib/validation';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimiter';
 import logger from '@/lib/logger';
 
 /**
@@ -12,6 +13,9 @@ import logger from '@/lib/logger';
  */
 export async function POST(request: NextRequest) {
   try {
+    const limited = await checkRateLimit('contact', getClientIp(request));
+    if (limited) return limited;
+
     const body = await request.json();
     const { firstName, lastName, email, phoneNumber, message } = body;
 
@@ -40,6 +44,13 @@ export async function POST(request: NextRequest) {
     if (!message?.trim()) {
       return NextResponse.json(
         { error: 'Message is required' },
+        { status: 400 }
+      );
+    }
+
+    if (message.length > 1000) {
+      return NextResponse.json(
+        { error: 'Message too long (max 1000 characters)' },
         { status: 400 }
       );
     }

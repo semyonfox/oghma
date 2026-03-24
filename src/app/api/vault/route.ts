@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
+import { checkRateLimit } from '@/lib/rateLimiter';
 import { getStorageProvider } from '@/lib/storage/init';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
@@ -23,6 +24,9 @@ export async function DELETE() {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const limited = await checkRateLimit('vault-delete', user.user_id);
+    if (limited) return limited;
 
     const userId = user.user_id;
     const storage = getStorageProvider();

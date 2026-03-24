@@ -73,15 +73,15 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-gray-900 border-t border-white/10">
+    <footer className="bg-background border-t border-white/10">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-8 sm:pt-24 lg:px-8 lg:pt-32">
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
-            <div className="text-2xl font-bold text-white flex items-center gap-2">
+            <div className="font-serif text-2xl font-bold text-white flex items-center gap-2">
               <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
               {t('OghmaNotes')}
             </div>
-            <p className="text-sm/6 text-balance text-gray-400">
+            <p className="text-sm/6 text-balance text-text-tertiary">
               {t('RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.')}
             </p>
             <div className="flex gap-x-6">
@@ -91,7 +91,7 @@ export default function Footer() {
                   href={item.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-gray-400 hover:text-gray-300"
+                  className="text-text-tertiary hover:text-text-secondary"
                 >
                   <span className="sr-only">{item.name}</span>
                   <item.icon aria-hidden="true" className="size-6" />
@@ -100,14 +100,14 @@ export default function Footer() {
             </div>
             {/* Language Switcher */}
             <div className="pt-4">
-              <label htmlFor="language-select" className="text-xs font-semibold text-gray-400 uppercase tracking-tighter block mb-2">
+              <label htmlFor="language-select" className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-2">
                 {t('Language')}
               </label>
                <select
                  id="language-select"
                  value={activeLocale}
                  onChange={handleLanguageChange}
-                 className="bg-white/5 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 appearance-none"
+                 className="bg-white/5 border border-white/10 text-text-secondary text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
                  style={{
                    colorScheme: 'dark'
                  }}
@@ -127,7 +127,7 @@ export default function Footer() {
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.features.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-gray-400 hover:text-gray-300">
+                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
                         {item.name}
                       </a>
                     </li>
@@ -139,7 +139,7 @@ export default function Footer() {
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-gray-400 hover:text-gray-300">
+                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
                         {item.name}
                       </a>
                     </li>
@@ -153,7 +153,7 @@ export default function Footer() {
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-gray-400 hover:text-gray-300">
+                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
                         {item.name}
                       </a>
                     </li>
@@ -165,7 +165,7 @@ export default function Footer() {
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.legal.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-gray-400 hover:text-gray-300">
+                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
                         {item.name}
                       </a>
                     </li>
@@ -176,7 +176,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-xs/5 text-gray-400">{t(`© ${new Date().getFullYear()} OghmaNotes. All rights reserved.`)}</p>
+          <p className="text-xs/5 text-text-tertiary">{t('© {year} OghmaNotes. All rights reserved.', { year: new Date().getFullYear() })}</p>
         </div>
       </div>
     </footer>
