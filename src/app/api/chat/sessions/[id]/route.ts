@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { isValidUUID } from '@/lib/uuid-validation';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -10,14 +11,14 @@ type AuthResult =
 
 async function authenticate(params: Promise<{ id: string }>): Promise<AuthResult> {
     const user = await validateSession();
-    if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    if (!user) return { error: tracedError('Unauthorized', 401) };
     const { id } = await params;
-    if (!isValidUUID(id)) return { error: NextResponse.json({ error: 'Invalid session id' }, { status: 400 }) };
+    if (!isValidUUID(id)) return { error: tracedError('Invalid session id', 400) };
     return { user: user as { user_id: string }, id };
 }
 
 // GET /api/chat/sessions/:id — fetch all messages for a session
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withErrorHandler(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
         const auth = await authenticate(params);
         if ('error' in auth) return auth.error;
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
             WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
         `;
         if (sessions.length === 0) {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+            return tracedError('Session not found', 404);
         }
 
         const messages = await sql`
@@ -42,12 +43,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ session: sessions[0], messages });
     } catch (error) {
         logger.error('chat session GET error', { error });
-        return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
+        return tracedError('Failed to fetch session', 500);
     }
-}
+});
 
 // DELETE /api/chat/sessions/:id — delete a session and all its messages
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = withErrorHandler(async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
         const auth = await authenticate(params);
         if ('error' in auth) return auth.error;
@@ -60,12 +61,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         `;
 
         if (deleted.length === 0) {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+            return tracedError('Session not found', 404);
         }
 
         return NextResponse.json({ success: true });
     } catch (error) {
         logger.error('chat session DELETE error', { error });
-        return NextResponse.json({ error: 'Failed to delete session' }, { status: 500 });
+        return tracedError('Failed to delete session', 500);
     }
-}
+});
