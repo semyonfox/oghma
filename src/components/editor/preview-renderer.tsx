@@ -1,11 +1,41 @@
 'use client';
 
+import { useEffect, useState, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
+import { codeToHtml } from 'shiki';
+
+// shiki-powered code block — uses the same oneDark palette as the CodeMirror editor
+const ShikiCode = memo(function ShikiCode({ code, lang }: { code: string; lang: string }) {
+  const [html, setHtml] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    codeToHtml(code, { lang, theme: 'one-dark-pro' })
+      .then((result) => { if (!cancelled) setHtml(result); })
+      .catch(() => {}); // unsupported language — stays in fallback
+    return () => { cancelled = true; };
+  }, [code, lang]);
+
+  if (!html) {
+    // fallback while shiki loads — matches one-dark-pro background
+    return (
+      <pre className="rounded-lg bg-[#282c34] p-4 overflow-x-auto">
+        <code className="text-sm font-mono text-[#abb2bf]">{code}</code>
+      </pre>
+    );
+  }
+
+  return (
+    <div
+      className="[&_pre]:rounded-lg [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:text-sm [&_code]:font-mono"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+});
 
 interface PreviewRendererProps {
   content: string;
@@ -13,12 +43,11 @@ interface PreviewRendererProps {
 
 export default function PreviewRenderer({ content }: PreviewRendererProps) {
   return (
-    <div className="w-full prose prose-lg prose-invert max-w-none" dir="ltr">
+    <div className="w-full prose prose-lg prose-invert max-w-none bg-background" dir="ltr">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
-        rehypePlugins={[rehypeHighlight, rehypeRaw, rehypeSanitize]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
         components={{
-          // Links rendered to open in new tabs for safety, styled with hover effects
           a: ({ node, ...props }) => (
             <a
               {...props}
@@ -27,28 +56,38 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               className="text-primary-400 hover:underline"
             />
           ),
-          // custom code block styling
+          // replace pre with a plain wrapper — ShikiCode renders its own <pre>
+          pre: ({ children }: any) => (
+            <div className="my-4">{children}</div>
+          ),
           code: ({ node, className, children, ...props }: any) => {
-            const match = /language-(\w+)/.exec(className || '');
-            const isInline = !match;
-            
-            if (isInline) {
+            const lang = /language-(\w+)/.exec(className || '')?.[1];
+            const codeString = String(children).replace(/\n$/, '');
+
+            // fenced code block with language — shiki highlighting
+            if (lang) {
+              return <ShikiCode code={codeString} lang={lang} />;
+            }
+
+            // unlanguaged block code (multiline)
+            if (codeString.includes('\n')) {
               return (
-<code
-  className="rounded bg-surface text-sm px-1.5 py-0.5 font-mono"
-  {...props}
->
-                  {children}
-                </code>
+                <pre className="rounded-lg bg-[#282c34] p-4 overflow-x-auto">
+                  <code className="text-sm font-mono text-[#abb2bf]">{codeString}</code>
+                </pre>
               );
             }
+
+            // inline code
             return (
-              <code className={className} {...props}>
+              <code
+                className="rounded bg-surface text-sm px-1.5 py-0.5 font-mono"
+                {...props}
+              >
                 {children}
               </code>
             );
           },
-          // custom heading anchors
           h1: ({ node, children, ...props }) => (
             <h1 className="text-4xl font-bold mt-8 mb-4" {...props}>
               {children}
@@ -64,7 +103,6 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               {children}
             </h3>
           ),
-          // custom blockquote styling: consistent margins and dark mode support
           blockquote: ({ node, children, ...props }) => (
             <blockquote
               className="border-l-4 border-primary-500 pl-4 italic my-4 text-text-secondary"
@@ -73,7 +111,6 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               {children}
             </blockquote>
           ),
-          // custom table styling
           table: ({ node, children, ...props }) => (
             <div className="overflow-x-auto my-4">
               <table
@@ -100,7 +137,6 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               {children}
             </td>
           ),
-          // explicit list styles — Tailwind base resets list-style-type by default
           ul: ({ node, children, ...props }) => (
             <ul className="list-disc list-outside pl-6 my-3 space-y-1 text-text" {...props}>
               {children}
