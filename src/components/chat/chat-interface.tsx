@@ -90,6 +90,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -117,7 +118,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, noteId, history }),
+                body: JSON.stringify({ message: text, noteId, sessionId, history }),
             });
 
             if (!res.ok) {
@@ -126,6 +127,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             }
 
             const data = await res.json();
+            if (data.sessionId) setSessionId(data.sessionId);
             const assistantMsg: Message = {
                 id: makeId(),
                 role: 'assistant',
@@ -155,6 +157,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             content: compact ? WELCOME_COMPACT : WELCOME_FULL,
             timestamp: Date.now(),
         }]);
+        setSessionId(null);
         setError(null);
     };
 
