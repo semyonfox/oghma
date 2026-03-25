@@ -91,48 +91,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const [restored, setRestored] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-
-    // restore existing session from DB so the chat is resumable
-    useEffect(() => {
-        if (restored) return;
-        const restore = async () => {
-            try {
-                const params = new URLSearchParams();
-                if (noteId) params.set('noteId', noteId);
-                else params.set('resume', '1');
-                const res = await fetch(`/api/chat/sessions?${params}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data.sessionId && data.messages?.length) {
-                    setSessionId(data.sessionId);
-                    const restored: Message[] = data.messages.map((m: { role: string; content: string; sources?: { id: string; title: string }[]; created_at?: string }, i: number) => ({
-                        id: `restored-${i}`,
-                        role: m.role as 'user' | 'assistant',
-                        content: m.content,
-                        sources: m.sources || [],
-                        timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-                    }));
-                    setMessages([
-                        {
-                            id: 'welcome',
-                            role: 'assistant',
-                            content: compact ? WELCOME_COMPACT : WELCOME_FULL,
-                            timestamp: Date.now(),
-                        },
-                        ...restored,
-                    ]);
-                }
-            } catch {
-                // silently fail — fresh session is fine
-            } finally {
-                setRestored(true);
-            }
-        };
-        void restore();
-    }, [noteId, compact, restored]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -198,7 +158,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             timestamp: Date.now(),
         }]);
         setSessionId(null);
-        setRestored(false);
         setError(null);
     };
 

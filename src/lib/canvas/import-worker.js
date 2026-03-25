@@ -1,7 +1,7 @@
 /**
- * Canvas Import Pipeline
- * Core file processing logic for Canvas LMS imports.
- * Exports processImportJob() for use by the worker entry point and the API route fallback.
+ * Canvas Import Worker
+ * Processes Canvas file imports in the background.
+ * Run as a separate process: node -r ./instrumentation.ts src/lib/canvas/import-worker.js
  *
  * Folder hierarchy created per import:
  *   Course Name/
@@ -14,6 +14,8 @@
 
 import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
 import { CanvasClient } from './client.js';
 import { processExtractedText } from './text-processing.js';
 import { chunkText } from '../chunking.ts';
@@ -34,8 +36,12 @@ const PROCESSABLE_TYPES = new Set([
     'text/x-markdown',
     'text/plain',
 ]);
-const FILE_TIMEOUT_MS = 2 * 60 * 1000;
+const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
 const FILE_CONCURRENCY = 5;
+const STUCK_JOB_THRESHOLD = "1 hour";
+const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// 30 empty polls × 20s long-poll = ~10 min idle before self-scale-down
+const IDLE_POLLS_BEFORE_SHUTDOWN = 30;
 
 async function pooled(tasks, limit) {
   const results = [];
@@ -77,13 +83,14 @@ async function createNote(userId, title, parentId, { s3Key = null, isFolder = fa
   return noteId;
 }
 
-async function fetchResource(fetchFn, courseId, opts) {
+
+async function fetchResource(fetchFn, courseId, userId, courseTitle, kind, jobId) {
   const { data, forbidden } = await fetchFn(courseId);
   if (forbidden) {
-    console.log(`Course ${opts.kind} restricted: ${opts.courseTitle}`);
+    console.log(`Course ${kind} restricted: ${courseTitle}`);
     await sql`
       INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, error_message, job_id)
-      VALUES (${uuidv4()}::uuid, ${opts.userId}::uuid, ${courseId}::int, 0, 0, ${opts.courseTitle + ' (' + opts.kind + ')'}, 'text/plain', 'forbidden', ${'Course ' + opts.kind + ' restricted by lecturer'}, ${opts.jobId}::uuid)
+      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${courseId}::int, 0, 0, ${courseTitle + ' (' + kind + ')'}, 'text/plain', 'forbidden', ${'Course ' + kind + ' restricted by lecturer'}, ${jobId}::uuid)
     `;
   }
   return { data, forbidden };
@@ -105,16 +112,19 @@ async function processRagPipeline(noteId, userId, buffer, filename, mimeType) {
     let chunks;
 
     if (mimeType?.startsWith('text/')) {
+      // text/markdown/plain: decode UTF-8 directly, no OCR needed
       rawText = buffer.toString('utf-8');
       chunks = chunkText(rawText);
       console.log(`Text extract (${mimeType}): ${chunks.length} chunks for note ${noteId}`);
     } else {
+      // binary docs (PDF, DOCX, PPTX): Marker handles all of these
       try {
         const marker = await extractWithMarker(buffer, filename ?? 'document.pdf');
         rawText = marker.text;
         chunks = marker.chunks;
         console.log(`Marker (${marker.source}): extracted ${chunks.length} chunks for note ${noteId}`);
       } catch {
+        // Marker unavailable — pdf-parse as last resort (PDFs only, no OCR)
         if (mimeType === 'application/pdf') {
           console.log(`Marker unavailable for note ${noteId}, falling back to pdf-parse`);
           const { PDFParse } = await import('pdf-parse');
@@ -128,6 +138,7 @@ async function processRagPipeline(noteId, userId, buffer, filename, mimeType) {
       }
     }
 
+    // cleaned text for PG full-text search (stop words stripped)
     const cleanedText = processExtractedText(rawText);
     const embeddings = await embedChunks(chunks);
 
@@ -137,6 +148,7 @@ async function processRagPipeline(noteId, userId, buffer, filename, mimeType) {
       WHERE note_id = ${noteId}
     `;
 
+    // batch insert: one query for all chunks, one for all embeddings
     if (embeddings.length > 0) {
       const chunkValues = embeddings.map(({ chunk }) => [noteId, userId, chunk]);
       const chunkRows = await sql`
@@ -183,6 +195,7 @@ async function _runFileImport(importRecordId, file, opts) {
     return { skipped: true };
   }
 
+  // moduleId = -1 means "assignment file" (Canvas never issues negative module IDs)
   const moduleIdVal = moduleId ?? -1;
   await sql`
     INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, job_id)
@@ -202,6 +215,7 @@ async function _runFileImport(importRecordId, file, opts) {
 
   const noteId = await createNote(userId, file.display_name, parentFolderId, { s3Key });
 
+  // create attachment record so the upload GET handler can verify ownership
   await sql`
     INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
     VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
@@ -235,9 +249,9 @@ async function downloadAndStoreFile(file, opts) {
 }
 
 async function processModules(courseId, userId, courseTitle, courseFolderId, ctx) {
-  const { client, jobId } = ctx;
+  const { client, storage, jobId } = ctx;
   const { data: modules } =
-    await fetchResource(id => client.getModules(id), courseId, { userId, courseTitle, kind: 'modules', jobId });
+    await fetchResource(id => client.getModules(id), courseId, userId, courseTitle, 'modules', jobId);
   if (!modules) {
     console.warn(`No modules (or restricted) for course ${courseId}`);
     return;
@@ -263,16 +277,16 @@ async function processModules(courseId, userId, courseTitle, courseFolderId, ctx
       .map(r => r.value);
     const opts = {
       userId, courseId, moduleId: module.id, parentFolderId: folderId,
-      client, storage: ctx.storage, jobId, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
+      client, storage, jobId, s3Prefix: `canvas/${userId}/${courseId}/${module.id}`,
     };
     await pooled(resolved.map(file => () => downloadAndStoreFile(file, opts)), FILE_CONCURRENCY);
   }), FILE_CONCURRENCY);
 }
 
 async function processAssignments(courseId, userId, courseTitle, courseFolderId, ctx) {
-  const { client, jobId } = ctx;
+  const { client, storage, jobId } = ctx;
   const { data: assignments, forbidden } =
-    await fetchResource(id => client.getAssignments(id), courseId, { userId, courseTitle, kind: 'assignments', jobId });
+    await fetchResource(id => client.getAssignments(id), courseId, userId, courseTitle, 'assignments', jobId);
   if (forbidden || !assignments || assignments.length === 0) return;
 
   const assignmentsWithFiles = assignments.filter(a =>
@@ -292,7 +306,7 @@ async function processAssignments(courseId, userId, courseTitle, courseFolderId,
     });
     const opts = {
       userId, courseId, moduleId: null, parentFolderId: assignmentFolderId,
-      client, storage: ctx.storage, jobId, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
+      client, storage, jobId, s3Prefix: `canvas/${userId}/${courseId}/assignments/${assignment.id}`,
     };
     await pooled(attachments.map(att => () => downloadAndStoreFile(att, opts)), FILE_CONCURRENCY);
   }), FILE_CONCURRENCY);
@@ -330,15 +344,13 @@ async function runJobPipeline(jobId, userId, courses) {
   await pooled(courses.map(course => () => processCourse(course, userId, ctx)), 3);
 }
 
+// ── Job processing ────────────────────────────────────────────────────────────
+
 export async function processImportJob(jobId) {
   console.log(`[${new Date().toISOString()}] Processing import job: ${jobId}`);
   try {
     const [job] = await sql`SELECT * FROM app.canvas_import_jobs WHERE id = ${jobId}`;
     if (!job) { console.error(`Job not found: ${jobId}`); return false; }
-    if (job.status !== 'queued' && job.status !== 'processing') {
-      console.log(`Job ${jobId} already in terminal state: ${job.status}`);
-      return false;
-    }
     await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
     console.log(`Job completed: ${jobId}`);
@@ -347,5 +359,122 @@ export async function processImportJob(jobId) {
     console.error(`Job failed: ${jobId}`, error);
     await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW() WHERE id = ${jobId}`;
     return false;
+  }
+}
+
+// ── Worker ────────────────────────────────────────────────────────────────────
+
+async function failStuckJobs() {
+  await sql`
+    UPDATE app.canvas_import_jobs
+    SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
+    WHERE status = 'processing' AND started_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
+  `;
+}
+
+// ── SQS polling ──────────────────────────────────────────────────────────────
+
+const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+const QUEUE_URL = process.env.SQS_QUEUE_URL;
+
+const MAX_CONCURRENT_JOBS = 3;
+
+// defaults to canvas-import for backwards compat
+async function processAndDelete(message) {
+  const ts = () => new Date().toISOString();
+  let body;
+  try {
+    body = JSON.parse(message.Body);
+  } catch (err) {
+    console.error(`[${ts()}] Malformed SQS message, deleting:`, err.message);
+    await sqsClient.send(new DeleteMessageCommand({
+      QueueUrl: QUEUE_URL,
+      ReceiptHandle: message.ReceiptHandle,
+    }));
+    return;
+  }
+  const type = body.type ?? 'canvas-import';
+
+  console.log(`[${ts()}] Received ${type}: ${body.jobId ?? body.userId ?? 'unknown'}`);
+
+  switch (type) {
+    case 'canvas-import':
+      await processImportJob(body.jobId);
+      break;
+    case 'vault-export':
+      // TODO: enable — export user's vault as zip to S3, update job row
+      console.log(`[${ts()}] vault-export not yet enabled, skipping`);
+      break;
+    case 'vault-import':
+      // TODO: enable — extract uploaded zip, create notes + RAG pipeline
+      console.log(`[${ts()}] vault-import not yet enabled, skipping`);
+      break;
+    default:
+      console.warn(`[${ts()}] Unknown job type: ${type}`);
+  }
+
+  await sqsClient.send(new DeleteMessageCommand({
+    QueueUrl: QUEUE_URL,
+    ReceiptHandle: message.ReceiptHandle,
+  }));
+  console.log(`[${ts()}] Done, message deleted`);
+}
+
+// returns true if messages were processed, false if queue was empty
+async function pollQueue() {
+  const res = await sqsClient.send(new ReceiveMessageCommand({
+    QueueUrl: QUEUE_URL,
+    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+    WaitTimeSeconds: 20,
+    VisibilityTimeout: 3600,
+  }));
+
+  const messages = res.Messages ?? [];
+  if (messages.length === 0) return false;
+
+  const results = await Promise.allSettled(messages.map(processAndDelete));
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(`[${new Date().toISOString()}] Job processing error:`, result.reason?.message);
+    }
+  }
+  return true;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  console.log(`[${new Date().toISOString()}] Canvas Import Worker started (SQS mode)`);
+
+  await failStuckJobs();
+  setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
+
+  let idlePolls = 0;
+
+  while (true) {
+    try {
+      const hadWork = await pollQueue();
+      if (hadWork) {
+        idlePolls = 0;
+      } else {
+        idlePolls++;
+      }
+
+      if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
+        console.log(`[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`);
+        try {
+          const ecsClient = new ECSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+          await ecsClient.send(new UpdateServiceCommand({
+            cluster: process.env.ECS_CLUSTER ?? 'oghmanotes',
+            service: process.env.ECS_SERVICE ?? 'canvas-import-worker',
+            desiredCount: 0,
+          }));
+        } catch (scaleErr) {
+          console.error(`[${new Date().toISOString()}] Self scale-down failed:`, scaleErr.message);
+        }
+        process.exit(0);
+      }
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
+      await new Promise(r => setTimeout(r, 5000));
+    }
   }
 }
