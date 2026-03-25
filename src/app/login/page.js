@@ -58,7 +58,7 @@ export default function LoginPage() {
 
   // OAuth login handler - delegates to Auth.js
   const handleSocialLogin = (provider) => {
-    signIn(provider, { redirect: true, redirectTo: '/notes' })
+    signIn(provider, { callbackUrl: '/notes' })
   }
 
   return (

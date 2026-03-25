@@ -73,10 +73,7 @@ async function semanticSearch(
 
 function buildSystemPrompt(results: SearchResult[]): string {
     if (results.length === 0) {
-        return `You are a knowledgeable study assistant helping a university student learn.
-Answer questions using your full knowledge. Explain concepts clearly, give examples, and go deeper when asked.
-The user may also upload PDFs to build a searchable knowledge base — mention this if relevant.
-Be friendly, thorough, and concise.`;
+        return 'You are a helpful study assistant. The user has no notes with embeddings yet — let them know they can upload PDFs to start building a searchable knowledge base. Be friendly and concise.';
     }
 
     // group chunks by note for cleaner context
@@ -92,12 +89,11 @@ Be friendly, thorough, and concise.`;
         return `--- Note ${i + 1}: "${title}" ---\n${body}`;
     });
 
-    return `You are a knowledgeable study assistant helping a university student learn.
-You have access to some of the user's notes below as additional context. Use them to ground your answers when relevant, but also draw on your full knowledge to explain, elaborate, correct misconceptions, and teach beyond what the notes cover.
-If the notes contain relevant info, reference which note it came from. If the user asks about something not in the notes, answer anyway using your knowledge — the goal is learning.
-Be friendly, thorough, and concise.
+    return `You are a helpful study assistant with access to the user's notes.
+Use ONLY the context below to answer questions. If the answer isn't in the context, say so clearly rather than making something up.
+Cite which note your answer comes from when relevant.
 
-USER'S NOTES:
+CONTEXT:
 ${blocks.join('\n\n')}`;
 }
 
@@ -126,27 +122,15 @@ async function callLLM(
     const body: Record<string, unknown> = { model, messages, max_tokens: 16384 };
     if (thinking) body.thinking = thinking;
 
-    let res: Response;
-    try {
-        res = await fetch(`${apiUrl}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(45_000),
-        });
-    } catch (fetchErr) {
-        // distinguish timeout from network errors so the frontend can show a useful message
-        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        if (msg.includes('abort') || msg.includes('timeout')) {
-            throw new Error('LLM_TIMEOUT');
-        }
-        throw new Error(`LLM_NETWORK: ${msg}`);
-    }
+    const res = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+    });
 
     if (!res.ok) {
         const text = await res.text();
-        if (res.status === 401) throw new Error('LLM_AUTH');
-        if (res.status === 429) throw new Error('LLM_RATE_LIMIT');
         throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
     }
 
@@ -287,20 +271,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         void Metrics.llmError();
         const detail = error instanceof Error ? error.message : String(error);
         logger.error('LLM call failed', { error: detail, model: process.env.LLM_MODEL });
-
-        // return actionable error messages so the user knows what to do
-        if (detail === 'LLM_TIMEOUT') {
-            return tracedError('The AI took too long to respond. Try a shorter question or try again.', 504);
-        }
-        if (detail === 'LLM_AUTH') {
-            return tracedError('AI service authentication failed. The API key may be expired.', 502);
-        }
-        if (detail === 'LLM_RATE_LIMIT') {
-            return tracedError('AI service rate limit reached. Please wait a moment and try again.', 429);
-        }
-        if (detail.startsWith('LLM_NETWORK')) {
-            return tracedError('Could not reach the AI service. Check your network connection.', 502);
-        }
         return tracedError('Failed to generate response', 502);
     }
 });
