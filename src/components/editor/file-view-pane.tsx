@@ -147,7 +147,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
                 ? 'bg-indigo-600/20 text-indigo-300'
                 : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
             }`}
-            title="Toggle AI assistant panel"
+            title="Toggle AI chat"
           >
             <CpuChipIcon className="w-4 h-4" />
           </button>
