@@ -1,9 +1,10 @@
 'use client';
 
-import { FC, useState } from 'react';
+import { FC } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
+import usePortalStore from '@/lib/notes/state/portal';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import {
   DocumentTextIcon,
@@ -11,7 +12,6 @@ import {
   CalendarIcon,
   SparklesIcon,
   Cog6ToothIcon,
-  ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -37,24 +37,16 @@ const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { activeNav, setActiveNav } = useLayoutStore();
+  const { search } = usePortalStore();
   const { t } = useI18n();
-  const [isSigningOut, setIsSigningOut] = useState(false);
-
   const handleNavClick = (item: NavItem) => {
+    if (item.section === 'search') {
+      search.open();
+      return;
+    }
     setActiveNav(item.section);
     if (pathname !== item.href) {
       router.push(item.href);
-    }
-  };
-
-  const handleSignOut = async () => {
-    setIsSigningOut(true);
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      localStorage.removeItem('ogma-theme');
-      window.location.href = '/login';
-    } catch {
-      setIsSigningOut(false);
     }
   };
 
@@ -109,27 +101,19 @@ const IconNav: FC = () => {
           href: '/settings',
           section: 'settings'
         })}
-        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
-          activeNav === 'settings' ? 'bg-subtle text-text-secondary' : ''
-        }`}
+        className={`
+          relative w-10 h-10 flex items-center justify-center rounded transition-colors
+          ${activeNav === 'settings'
+            ? 'bg-subtle text-text-secondary'
+            : 'text-text-tertiary hover:text-text-secondary hover:bg-subtle'
+          }
+          group
+        `}
         title={t('Settings')}
       >
         <Cog6ToothIcon className="w-5 h-5" />
         <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
           {t('Settings')}
-        </div>
-      </button>
-
-      {/* Sign Out */}
-      <button
-        onClick={handleSignOut}
-        disabled={isSigningOut}
-        className="w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-error-400 hover:bg-error-500/10 group relative disabled:opacity-50"
-        title={t('Sign out')}
-      >
-        <ArrowRightStartOnRectangleIcon className="w-5 h-5" />
-        <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
-          {t('Sign out')}
         </div>
       </button>
     </div>
