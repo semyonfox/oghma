@@ -11,18 +11,24 @@ export default function ContactForm() {
   const onSubmit = async (event) => {
     event.preventDefault()
     setIsLoading(true)
-    
+
     const formData = new FormData(event.target)
-    formData.append("access_key", "08fc9081-9062-4df6-a658-b6a8c9a9baa6")
 
     try {
-      const response = await fetch("https://api.web3forms.com/submit", {
+      const response = await fetch("/api/contact", {
         method: "POST",
-        body: formData
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: formData.get("first_name"),
+          lastName: formData.get("last_name"),
+          email: formData.get("email"),
+          phoneNumber: formData.get("phone"),
+          message: formData.get("message"),
+        }),
       })
 
       const data = await response.json()
-      
+
       if (data.success) {
         setResult(t("Message sent successfully!"))
         event.target.reset()
