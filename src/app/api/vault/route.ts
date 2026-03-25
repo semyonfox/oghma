@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { checkRateLimit } from '@/lib/rateLimiter';
 import { getStorageProvider } from '@/lib/storage/init';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -18,11 +19,11 @@ import logger from '@/lib/logger';
  *
  * Returns a summary of what was deleted.
  */
-export async function DELETE() {
+export const DELETE = withErrorHandler(async () => {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return tracedError('Unauthorized', 401);
     }
 
     const limited = await checkRateLimit('vault-delete', user.user_id);
@@ -111,6 +112,6 @@ export async function DELETE() {
 
   } catch (err) {
     logger.error('vault delete error', { error: err });
-    return NextResponse.json({ error: 'Failed to delete vault' }, { status: 500 });
+    return tracedError('Failed to delete vault', 500);
   }
-}
+});
