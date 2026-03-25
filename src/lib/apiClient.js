@@ -103,8 +103,8 @@ export async function apiDelete(url, options = {}) {
 
 // auth-specific calls
 
-export async function login(email, password) {
-    return apiPost('/api/auth/login', {email, password});
+export async function login(email, password, rememberMe = false) {
+    return apiPost('/api/auth/login', {email, password, rememberMe});
 }
 
 export async function register(email, password) {
