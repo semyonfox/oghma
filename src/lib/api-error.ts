@@ -35,6 +35,11 @@ export function apiErrorResponse(error: unknown): NextResponse {
   return NextResponse.json({ error: userMessage, traceId: getTraceId() }, { status: statusCode });
 }
 
+// traced error response for manual returns within a withErrorHandler route
+export function tracedError(message: string, status: number): NextResponse {
+  return NextResponse.json({ error: message, traceId: getTraceId() }, { status });
+}
+
 type RouteHandler = (request: NextRequest, context?: any) => Promise<NextResponse>;
 
 export function withErrorHandler(handler: RouteHandler): RouteHandler {
