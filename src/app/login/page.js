@@ -20,6 +20,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
+  // redirect to /notes if already logged in
+  useEffect(() => {
+    fetch('/api/auth/me').then(res => {
+      if (res.ok) router.replace('/notes')
+    }).catch(() => {})
+  }, [router])
+
   useEffect(() => {
     userRef.current?.focus()
   }, [])
@@ -39,7 +46,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const response = await login(email, pwd)
+      const response = await login(email, pwd, rememberMe)
 
       // Login successful - redirect to /notes
       router.replace('/notes')

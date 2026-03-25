@@ -3,7 +3,7 @@ import { embedChunks } from '@/lib/embeddings';
 
 describe('embedChunks', () => {
     beforeEach(() => {
-        process.env.COHERE_API_KEY = 'test-key';
+        process.env.COHERE_API_KEY = 'fake';
     });
 
     afterEach(() => {
@@ -41,31 +41,31 @@ describe('embedChunks', () => {
         expect(result[1].chunk).toBe('another chunk');
     });
 
-    it('filters out batches where the API call fails', async () => {
+    it('throws when a batch API call fails', async () => {
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
         );
 
-        const result = await embedChunks(['bad chunk', 'good chunk']);
-        expect(result).toHaveLength(0);
+        await expect(embedChunks(['bad chunk', 'good chunk'])).rejects.toThrow('Cohere embedding incomplete');
     });
 
-    it('filters out batches where the response has no embeddings', async () => {
+    it('throws when the response has no embeddings', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({ notEmbeddings: 'oops' }),
         }));
 
+        // empty embeddings.float means 0 results for 1 chunk — but no batch failure
+        // the batch "succeeded" with 0 vectors, so results = 0 but failures = 0
         const result = await embedChunks(['chunk one']);
         expect(result).toHaveLength(0);
     });
 
-    it('filters out batches that throw during fetch', async () => {
+    it('throws when fetch rejects with a network error', async () => {
         vi.stubGlobal('fetch', vi.fn()
             .mockRejectedValueOnce(new Error('network error'))
         );
 
-        const result = await embedChunks(['failing chunk', 'working chunk']);
-        expect(result).toHaveLength(0);
+        await expect(embedChunks(['failing chunk', 'working chunk'])).rejects.toThrow('Cohere embedding incomplete');
     });
 });
