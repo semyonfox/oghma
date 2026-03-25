@@ -6,6 +6,7 @@ import { getStorageProvider } from '@/lib/storage/init';
 import { isValidUUID } from '@/lib/uuid-validation';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { generateUUID } from '@/lib/utils/uuid';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 import { v4 as uuidv4 } from 'uuid';
 import { xraySubsegment } from '@/lib/xray';
@@ -21,10 +22,10 @@ async function requireSession() {
     return session;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler(async (request: NextRequest) => {
     try {
         const session = await requireSession();
-        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (!session) return tracedError('Unauthorized', 401);
 
         const limited = await checkRateLimit('upload', session.user_id);
         if (limited) return limited;
@@ -33,11 +34,11 @@ export async function POST(request: NextRequest) {
         const file = formData.get('file') as File;
         let noteId = formData.get('noteId') as string;
 
-        if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+        if (!file) return tracedError('No file provided', 400);
 
         const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
         if (file.size > MAX_FILE_SIZE) {
-            return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 });
+            return tracedError('File too large (max 50MB)', 400);
         }
 
         let createdNewNote = false;
@@ -54,10 +55,10 @@ export async function POST(request: NextRequest) {
                 await addNoteToTree(session.user_id, noteId, null);
             } catch (dbError) {
                 logger.error('failed to create note for uploaded file', { error: dbError });
-                return NextResponse.json({ error: 'Failed to create note for file' }, { status: 500 });
+                return tracedError('Failed to create note for file', 500);
             }
         } else if (!isValidUUID(noteId)) {
-            return NextResponse.json({ error: 'Invalid noteId format' }, { status: 400 });
+            return tracedError('Invalid noteId format', 400);
         }
 
         const buffer = await file.arrayBuffer();
@@ -103,17 +104,17 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         logger.error('upload error', { error });
-        return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+        return tracedError('Upload failed', 500);
     }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler(async (request: NextRequest) => {
     try {
         const session = await requireSession();
-        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (!session) return tracedError('Unauthorized', 401);
 
         const path = request.nextUrl.searchParams.get('path');
-        if (!path) return NextResponse.json({ error: 'path query parameter required' }, { status: 400 });
+        if (!path) return tracedError('path query parameter required', 400);
 
         // verify the requested path belongs to this user via the attachments table
         const owned = await sql`
@@ -121,13 +122,13 @@ export async function GET(request: NextRequest) {
             WHERE s3_key = ${path} AND user_id = ${session.user_id}::uuid
             LIMIT 1
         `;
-        if (!owned.length) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        if (!owned.length) return tracedError('File not found', 404);
 
         const storage = getStorageProvider();
         const url = await storage.getSignUrl(path, 3600);
         return NextResponse.json({ success: true, path, url });
     } catch (error) {
         logger.error('retrieve error', { error });
-        return NextResponse.json({ error: 'Retrieve failed' }, { status: 500 });
+        return tracedError('Retrieve failed', 500);
     }
-}
+});

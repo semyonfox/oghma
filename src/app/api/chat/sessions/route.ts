@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
 // GET /api/chat/sessions — list the current user's chat sessions
-export async function GET() {
+export const GET = withErrorHandler(async () => {
     try {
         const user = await validateSession();
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return tracedError('Unauthorized', 401);
         }
 
         const sessions = await sql`
@@ -25,6 +26,6 @@ export async function GET() {
         return NextResponse.json({ sessions });
     } catch (error) {
         logger.error('chat sessions GET error', { error });
-        return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
+        return tracedError('Failed to fetch sessions', 500);
     }
-}
+});
