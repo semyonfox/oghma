@@ -47,12 +47,6 @@ export interface MovePosition {
 }
 
 function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
-    // prevent self-referencing cycle
-    if (id === pid) {
-        console.warn(`[tree] addItem: skipping self-referencing parent (id === pid === ${id})`);
-        pid = ROOT_ID;
-    }
-
     const newItems = { ...tree.items };
 
     newItems[id] = newItems[id] || {
@@ -172,31 +166,22 @@ function deleteItem(tree: TreeModel, id: string) {
 
 const flattenTree = (
     tree: TreeModel,
-    rootId = tree.rootId,
-    visited?: Set<string>
+    rootId = tree.rootId
 ): TreeItemModel[] => {
     if (!tree.items[rootId]) {
         return [];
     }
 
-    const seen = visited ?? new Set<string>();
-    if (seen.has(rootId)) {
-        // cycle detected — break it
-        return [];
-    }
-    seen.add(rootId);
-
     const result: TreeItemModel[] = [];
-
+    
     for (const itemId of tree.items[rootId].children) {
-        if (seen.has(itemId)) continue; // skip cycles
         const item = tree.items[itemId];
         if (item) {
             result.push(item);
             const children = flattenTree({
                 rootId: item.id,
                 items: tree.items,
-            }, item.id, seen);
+            });
             result.push(...children);
         }
     }
@@ -210,23 +195,18 @@ export type HierarchicalTreeItemModel = Omit<TreeItemModel, 'children'> & {
 
 export function makeHierarchy(
     tree: TreeModel,
-    rootId = tree.rootId,
-    visited?: Set<string>
+    rootId = tree.rootId
 ): HierarchicalTreeItemModel | false {
     if (!tree.items[rootId]) {
         return false;
     }
-
-    const seen = visited ?? new Set<string>();
-    if (seen.has(rootId)) return false; // cycle
-    seen.add(rootId);
 
     const root = tree.items[rootId];
 
     return {
         ...root,
         children: root.children
-            .map((v) => makeHierarchy(tree, v, seen))
+            .map((v) => makeHierarchy(tree, v))
             .filter((v) => !!v) as HierarchicalTreeItemModel[],
     };
 }

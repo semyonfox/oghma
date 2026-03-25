@@ -61,24 +61,8 @@ const SidebarList = () => {
     const treeData = useMemo(() => {
         const result: Record<string, any> = {};
 
-        // deduplicate and strip self-references to prevent cycles
-        const safeChildren = (parentId: string, arr: string[]) =>
-            [...new Set(arr)].filter((childId) => childId !== parentId);
-
-        // build an ancestor lookup to detect multi-level cycles
-        // (e.g. A→B→A). Walk each item's parent chain via pid.
-        const ancestorsOf = (id: string): Set<string> => {
-            const anc = new Set<string>();
-            let cur = tree.items[id]?.data?.pid;
-            let depth = 0;
-            while (cur && cur !== 'root' && depth < 100) {
-                if (anc.has(cur)) break; // cycle in pid chain
-                anc.add(cur);
-                cur = tree.items[cur]?.data?.pid;
-                depth++;
-            }
-            return anc;
-        };
+        // deduplicate children arrays to prevent React key collisions
+        const dedup = (arr: string[]) => [...new Set(arr)];
 
         const root = tree.items['root'];
         if (root) {
@@ -86,7 +70,7 @@ const SidebarList = () => {
                 index: 'root',
                 canMove: false,
                 canRename: false,
-                children: safeChildren('root', root.children),
+                children: dedup(root.children),
                 isFolder: true,
                 data: { title: 'Root', isFolder: true },
             };
@@ -97,18 +81,13 @@ const SidebarList = () => {
             const item = tree.items[id];
             if (!item) continue;
 
-            // strip children that are ancestors of this node (breaks cycles)
-            const ancestors = ancestorsOf(id);
-            const children = safeChildren(id, item.children || [])
-                .filter((childId) => !ancestors.has(childId));
-
-            const isFolder = item.data?.isFolder === true || item.isFolder === true || (children.length > 0);
+            const isFolder = item.data?.isFolder === true || item.isFolder === true || (item.children && item.children.length > 0);
 
             result[id] = {
                 index: id,
                 canMove: true,
                 canRename: true,
-                children,
+                children: dedup(item.children || []),
                 data: item.data,
                 isFolder,
                 canDropOn: isFolder,
@@ -179,14 +158,6 @@ const SidebarList = () => {
             }
             if (sourceIndex === -1) return;
 
-            // cycle guard: check if destination is the dragged item or one of its descendants
-            const isDescendant = (parentId: string, checkId: string): boolean => {
-                if (parentId === checkId) return true;
-                const item = currentItems[parentId];
-                if (!item?.children) return false;
-                return item.children.some((childId) => isDescendant(childId, checkId));
-            };
-
             let destParentId: string;
             let destIndex: number;
 
@@ -202,12 +173,6 @@ const SidebarList = () => {
             }
 
             if (typeof destParentId !== 'string') return;
-
-            // reject drops that would create a cycle
-            if (isDescendant(dragId, destParentId)) {
-                toast.error('Cannot move a folder into itself');
-                return;
-            }
 
             moveItem({
                 source: { parentId: sourceParentId, index: sourceIndex },
@@ -586,7 +551,7 @@ const SidebarList = () => {
                                             }
                                         }}
                                         onRenameComplete={async (newTitle) => {
-                                            if (nodeData && newTitle !== nodeData.title) {
+                                            if (nodeData) {
                                                 await mutateNote(itemId, { title: newTitle });
                                             }
                                             setRenamingId(null);
@@ -722,18 +687,14 @@ const TreeItem: React.FC<TreeItemProps> = ({
     const syncStatus = useSyncStatusStore((s) => s.status[itemId]);
     const [renameValue, setRenameValue] = useState(nodeData?.title ?? '');
     const renameInputRef = useRef<HTMLInputElement>(null);
-    // guards against double-fire (Enter removes input → blur fires again)
-    const submittedRef = useRef(false);
+    const escapedRef = useRef(false);
     const pl = depth * INDENT_PX;
 
     useEffect(() => {
         if (isRenaming) {
-            submittedRef.current = false;
-            // wait a frame so the input is in the DOM before focusing
-            requestAnimationFrame(() => {
-                renameInputRef.current?.focus();
-                renameInputRef.current?.select();
-            });
+            escapedRef.current = false;
+            renameInputRef.current?.focus();
+            renameInputRef.current?.select();
         }
     }, [isRenaming]);
 
@@ -742,27 +703,26 @@ const TreeItem: React.FC<TreeItemProps> = ({
     }, [nodeData?.title, isRenaming]);
 
     const handleRenameSubmit = () => {
-        if (submittedRef.current) return;
-        submittedRef.current = true;
         const trimmed = renameValue.trim();
         onRenameComplete(trimmed || nodeData?.title || 'Untitled');
     };
 
     const handleRenameCancel = () => {
-        if (submittedRef.current) return;
-        submittedRef.current = true;
+        escapedRef.current = true;
         setRenameValue(nodeData?.title ?? '');
         onRenameComplete(nodeData?.title ?? 'Untitled');
     };
 
     const handleRenameBlur = () => {
-        if (submittedRef.current) return;
-        submittedRef.current = true;
+        // skip if Escape was just pressed (it already cancelled)
+        if (escapedRef.current) return;
+        // only commit if value actually changed
         const trimmed = renameValue.trim();
         const original = nodeData?.title ?? '';
         if (trimmed && trimmed !== original) {
-            onRenameComplete(trimmed);
+            handleRenameSubmit();
         } else {
+            // no change or empty — just cancel
             onRenameComplete(original || 'Untitled');
         }
     };
