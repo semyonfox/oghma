@@ -6,6 +6,7 @@ import { rerankChunks } from '@/lib/rerank';
 import { isValidUUID } from '@/lib/uuid-validation';
 import { xraySubsegment } from '@/lib/xray';
 import { Metrics } from '@/lib/metrics';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -177,10 +178,10 @@ async function resolveSession(
     return row.id as string;
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler(async (request: NextRequest) => {
     const user = await validateSession();
     if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return tracedError('Unauthorized', 401);
     }
 
     const userId = (user as { user_id: string }).user_id;
@@ -196,10 +197,10 @@ export async function POST(request: NextRequest) {
     }: { message: string; noteId?: string; sessionId?: string; history?: ChatMessage[] } = body;
 
     if (!message?.trim()) {
-        return NextResponse.json({ error: 'message is required' }, { status: 400 });
+        return tracedError('message is required', 400);
     }
     if (message.length > 2000) {
-        return NextResponse.json({ error: 'message too long (max 2000 characters)' }, { status: 400 });
+        return tracedError('message too long (max 2000 characters)', 400);
     }
 
     const sessionId = await resolveSession(userId, requestedSessionId, noteId, message);
@@ -267,7 +268,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ reply, sources: uniqueSources, llmAvailable: true, sessionId });
     } catch (error) {
         void Metrics.llmError();
-        logger.error('LLM error', { error: error instanceof Error ? error.message : error });
-        return NextResponse.json({ error: 'Failed to generate response' }, { status: 502 });
+        const detail = error instanceof Error ? error.message : String(error);
+        logger.error('LLM call failed', { error: detail, model: process.env.LLM_MODEL });
+        return tracedError('Failed to generate response', 502);
     }
-}
+});
