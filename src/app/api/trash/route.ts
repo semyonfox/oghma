@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { isValidUUID } from '@/lib/uuid-validation';
 import { getStorageProvider } from '@/lib/storage/init';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import logger from '@/lib/logger';
@@ -33,26 +34,26 @@ async function requireNoteInTrash(userId: string, id: string): Promise<boolean> 
     return rows.length > 0;
 }
 
-export async function GET() {
+export const GET = withErrorHandler(async () => {
     try {
         const user = await validateSession();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (!user) return tracedError('Unauthorized', 401);
         const items = await fetchTrashItems(user.user_id);
         return NextResponse.json({ items });
     } catch (error) {
         logger.error('trash GET error', { error });
-        return NextResponse.json({ error: 'Failed to fetch trash' }, { status: 500 });
+        return tracedError('Failed to fetch trash', 500);
     }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler(async (request: NextRequest) => {
     try {
         const user = await validateSession();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (!user) return tracedError('Unauthorized', 401);
 
         const body: { action: string; data?: { id?: string } } = await request.json();
         if (!body.action) {
-            return NextResponse.json({ error: 'Missing action' }, { status: 400 });
+            return tracedError('Missing action', 400);
         }
 
         const id = body.data?.id;
@@ -63,11 +64,11 @@ export async function POST(request: NextRequest) {
         }
 
         if (!id || !isValidUUID(id)) {
-            return NextResponse.json({ error: 'Missing or invalid note id' }, { status: 400 });
+            return tracedError('Missing or invalid note id', 400);
         }
 
         const exists = await requireNoteInTrash(user.user_id, id);
-        if (!exists) return NextResponse.json({ error: 'Note not found in trash' }, { status: 404 });
+        if (!exists) return tracedError('Note not found in trash', 404);
 
         if (body.action === 'restore') {
             await sql`
@@ -98,9 +99,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-        return NextResponse.json({ error: `Unknown action: ${body.action}` }, { status: 400 });
+        return tracedError(`Unknown action: ${body.action}`, 400);
     } catch (error) {
         logger.error('trash POST error', { error });
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return tracedError('Internal server error', 500);
     }
-}
+});
