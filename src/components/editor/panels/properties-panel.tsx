@@ -80,97 +80,101 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
         </div>
       )}
 
-      {/* Info tab — tags then metadata, single scrollable area */}
+      {/* Info tab — meta (top half) + tags (bottom half), each independently scrollable */}
       {rightPanelTab === 'info' && (
-        <div className="flex-1 overflow-y-auto p-3 min-h-0">
-          {/* Tags */}
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
-            {t('Tags')}
-          </p>
-          {tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1 mb-4">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-600/15 text-indigo-300 rounded text-xs"
-                >
-                  #{tag}
-                  <button
-                    onClick={() => onTagsChange?.(tags.filter((t) => t !== tag))}
-                    className="hover:text-indigo-200 transition-colors ml-0.5 leading-none"
-                  >
-                    ✕
-                  </button>
-                </span>
-              ))}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Metadata — top 50% */}
+          <div className="flex-1 overflow-y-auto p-3 border-b border-border min-h-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+              {t('Metadata')}
+            </p>
+            <div className="space-y-2 text-xs">
+              {note?.date && (
+                <div>
+                  <span className="text-text-tertiary block">{t('Last Updated')}</span>
+                  <span className="text-text-secondary font-mono text-[11px]">
+                    {formatDate(note.date)}
+                  </span>
+                </div>
+              )}
+              {note?.id && (
+                <div>
+                  <span className="text-text-tertiary block">{t('ID')}</span>
+                  <span className="text-text-tertiary font-mono text-[11px] break-all">
+                    {note.id}
+                  </span>
+                </div>
+              )}
+              {outgoingLinks.length > 0 && (
+                <div>
+                  <span className="text-text-tertiary block mb-1">
+                    {t('Links')} ({outgoingLinks.length})
+                  </span>
+                  <ul className="space-y-0.5">
+                    {outgoingLinks.map((link) => (
+                      <li key={link.id}>
+                        <a
+                          href={`#${link.id}`}
+                          className="text-blue-400 hover:text-blue-300 transition-colors truncate block"
+                          title={link.title}
+                        >
+                          → {link.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {backlinks.length > 0 && (
+                <div>
+                  <span className="text-text-tertiary block mb-1">
+                    {t('Backlinks')} ({backlinks.length})
+                  </span>
+                  <ul className="space-y-0.5">
+                    {backlinks.map((link) => (
+                      <li key={link.id}>
+                        <a
+                          href={`#${link.id}`}
+                          className="text-green-400 hover:text-green-300 transition-colors truncate block"
+                          title={link.title}
+                        >
+                          ← {link.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!note?.date && !note?.id && outgoingLinks.length === 0 && backlinks.length === 0 && (
+                <p className="text-text-tertiary italic">{t('No metadata')}</p>
+              )}
             </div>
-          ) : (
-            <p className="text-xs text-text-tertiary italic mb-4">{t('No tags yet')}</p>
-          )}
+          </div>
 
-          {/* Metadata */}
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
-            {t('Metadata')}
-          </p>
-          <div className="space-y-2 text-xs">
-            {note?.date && (
-              <div>
-                <span className="text-text-tertiary block">{t('Last Updated')}</span>
-                <span className="text-text-secondary font-mono text-[11px]">
-                  {formatDate(note.date)}
-                </span>
+          {/* Tags — bottom 50% */}
+          <div className="flex-1 overflow-y-auto p-3 min-h-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+              {t('Tags')}
+            </p>
+            {tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-600/15 text-indigo-300 rounded text-xs"
+                  >
+                    #{tag}
+                    <button
+                      onClick={() => onTagsChange?.(tags.filter((t) => t !== tag))}
+                      className="hover:text-indigo-200 transition-colors ml-0.5 leading-none"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
               </div>
-            )}
-            {note?.id && (
-              <div>
-                <span className="text-text-tertiary block">{t('ID')}</span>
-                <span className="text-text-tertiary font-mono text-[11px] break-all">
-                  {note.id}
-                </span>
-              </div>
-            )}
-            {outgoingLinks.length > 0 && (
-              <div>
-                <span className="text-text-tertiary block mb-1">
-                  {t('Links')} ({outgoingLinks.length})
-                </span>
-                <ul className="space-y-0.5">
-                  {outgoingLinks.map((link) => (
-                    <li key={link.id}>
-                      <a
-                        href={`#${link.id}`}
-                        className="text-blue-400 hover:text-blue-300 transition-colors truncate block"
-                        title={link.title}
-                      >
-                        → {link.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {backlinks.length > 0 && (
-              <div>
-                <span className="text-text-tertiary block mb-1">
-                  {t('Backlinks')} ({backlinks.length})
-                </span>
-                <ul className="space-y-0.5">
-                  {backlinks.map((link) => (
-                    <li key={link.id}>
-                      <a
-                        href={`#${link.id}`}
-                        className="text-green-400 hover:text-green-300 transition-colors truncate block"
-                        title={link.title}
-                      >
-                        ← {link.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {!note?.date && !note?.id && outgoingLinks.length === 0 && backlinks.length === 0 && (
-              <p className="text-text-tertiary italic">{t('No metadata')}</p>
+            ) : (
+              <p className="text-xs text-text-tertiary italic">{t('No tags yet')}</p>
             )}
           </div>
         </div>
