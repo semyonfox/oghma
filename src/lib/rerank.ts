@@ -7,6 +7,8 @@ import { Metrics } from '@/lib/metrics';
 const COHERE_RERANK_URL = 'https://api.cohere.com/v2/rerank';
 const COHERE_RERANK_MODEL = 'rerank-multilingual-v3.0';
 const TOP_N = 5;
+// minimum relevance score from the reranker — below this the chunk is noise
+const MIN_RELEVANCE = 0.15;
 
 interface RerankResult {
     text: string;
@@ -51,10 +53,12 @@ export async function rerankChunks(
         const json = await res.json();
         const results: { index: number; relevance_score: number }[] = json.results ?? [];
 
-        return results.map(r => ({
-            text: chunks[r.index],
-            score: r.relevance_score,
-        }));
+        return results
+            .filter(r => r.relevance_score >= MIN_RELEVANCE)
+            .map(r => ({
+                text: chunks[r.index],
+                score: r.relevance_score,
+            }));
     } catch {
         void Metrics.cohereError('rerank');
         return chunks.slice(0, topN).map(text => ({ text, score: 1 }));

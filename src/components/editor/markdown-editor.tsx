@@ -222,7 +222,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           ) : (
             loaded ? (
               <div className="w-full max-w-[65ch] mx-auto h-full">
-                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary bg-background">
+                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
                   <PreviewRenderer content={displayContent} />
                 </div>
               </div>

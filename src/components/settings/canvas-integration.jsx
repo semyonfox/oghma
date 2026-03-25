@@ -386,6 +386,21 @@ export default function CanvasIntegration() {
 
   useEffect(() => stopPolling, [])
 
+  const handleCancel = async () => {
+    try {
+      const res = await fetch('/api/canvas/import', { method: 'DELETE' })
+      const data = await res.json()
+      if (res.ok && data.cancelled) {
+        stopPolling()
+        setIsImporting(false)
+        localStorage.removeItem(LS_ACTIVE_JOB)
+        setImportSummary(null)
+      }
+    } catch {
+      // polling will eventually detect the cancelled state
+    }
+  }
+
   const handleImport = async () => {
     if (selectedCourseIds.length === 0) return
 
@@ -757,16 +772,24 @@ export default function CanvasIntegration() {
 
           {/* Action buttons */}
           <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={selectedCourseIds.length === 0 || isImporting || isSyncing}
-              onClick={handleImport}
-              className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isImporting
-                ? `${t('Importing...')} (${progress?.completed ?? 0}/${progress?.total || '?'})`
-                : `${t('Import selected courses')}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ''}`}
-            </button>
+            {isImporting ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+              >
+                {t('Cancel import')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={selectedCourseIds.length === 0 || isSyncing}
+                onClick={handleImport}
+                className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {`${t('Import selected courses')}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ''}`}
+              </button>
+            )}
             <button
               type="button"
               disabled={isImporting || isSyncing || !syncAvailable}
