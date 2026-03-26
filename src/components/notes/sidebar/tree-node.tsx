@@ -373,4 +373,4 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     );
 };
 
-export default TreeNode;
+export default React.memo(TreeNode);
