@@ -65,7 +65,7 @@ export default function NoteContextMenuPortal({
 
     // clamp menu position to viewport after it renders and we know its actual size
     useEffect(() => {
-        if (!openMenuId) { setAdjusted(null); return; }
+        if (!openMenuId) { requestAnimationFrame(() => setAdjusted(null)); return; }
         // wait one frame for the menu to render and have dimensions
         const frame = requestAnimationFrame(() => {
             const el = menuRef.current;

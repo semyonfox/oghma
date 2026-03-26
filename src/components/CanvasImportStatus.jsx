@@ -33,8 +33,9 @@ export default function CanvasImportStatus() {
   }
 
   useEffect(() => {
-    fetchStatus()
-    setLoading(false)
+    fetchStatus().then(() => {
+      setLoading(false)
+    })
 
     // Poll for updates every 3 seconds if processing
     const interval = setInterval(fetchStatus, 3000)
