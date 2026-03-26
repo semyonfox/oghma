@@ -34,3 +34,7 @@ jobs:
           SERVER_ENCRYPTION_SECRET: ${{ secrets.SERVER_ENCRYPTION_SECRET || 'ci-build-placeholder' }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-build-placeholder' }}
           NEXTAUTH_URL: http://localhost:3000
+          SQS_QUEUE_URL: https://sqs.eu-north-1.amazonaws.com/000000000000/ci-placeholder
+          SQS_EXTRACT_RETRY_QUEUE_URL: https://sqs.eu-north-1.amazonaws.com/000000000000/ci-placeholder-retry
+          REDIS_URL: redis://localhost:6379
+          DATABASE_URL: postgresql://localhost:5432/ci
