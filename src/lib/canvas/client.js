@@ -36,12 +36,19 @@ export class CanvasClient {
         },
       });
 
+      // respect Canvas rate limit headers — back off when close to limit
+      await this.#respectRateLimit(response);
+
       if (response.status === 403) {
         return { data: null, forbidden: true, error: 'Access restricted by lecturer' };
       }
 
       if (response.status === 401) {
         return { data: null, forbidden: false, error: 'Invalid or expired Canvas token' };
+      }
+
+      if (response.status === 429) {
+        return { data: null, forbidden: false, error: 'Canvas API rate limited — try again later' };
       }
 
       if (!response.ok) {
@@ -53,6 +60,14 @@ export class CanvasClient {
 
     } catch (err) {
       return { data: null, forbidden: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+  }
+
+  // pauses if Canvas X-Rate-Limit-Remaining header indicates we're close to the limit
+  async #respectRateLimit(response) {
+    const remaining = response.headers.get('x-rate-limit-remaining');
+    if (remaining !== null && parseFloat(remaining) < 10) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
 
@@ -79,12 +94,18 @@ export class CanvasClient {
           },
         });
 
+        await this.#respectRateLimit(response);
+
         if (response.status === 403) {
           return { data: results, forbidden: true, error: 'Access restricted by lecturer' };
         }
 
         if (response.status === 401) {
           return { data: results, forbidden: false, error: 'Invalid or expired Canvas token' };
+        }
+
+        if (response.status === 429) {
+          return { data: results, forbidden: false, error: 'Canvas API rate limited — try again later' };
         }
 
         if (!response.ok) {
