@@ -37,10 +37,19 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    
+
+    // only allow known settings keys to prevent arbitrary data injection
+    const ALLOWED_KEYS = new Set<string>([
+      'sidebar_is_fold', 'split_sizes', 'editorsize', 'locale', 'theme', 'daily_root_id',
+    ]);
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (ALLOWED_KEYS.has(key)) sanitized[key] = value;
+    }
+
     // Fetch current settings and merge
     const currentSettings = await getSettingsFromS3(user.user_id);
-    const updatedSettings = { ...currentSettings, ...body };
+    const updatedSettings = { ...currentSettings, ...sanitized };
     
     // Save to S3
     await saveSettingsToS3(user.user_id, updatedSettings);

@@ -14,7 +14,7 @@ import { CanvasClient } from "@/lib/canvas/client.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {generateUUID} from "@/lib/utils/uuid";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
-import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/rateLimit.js";
+import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/loginLockout.js";
 import { decrypt } from '@/lib/crypto';
 import logger from '@/lib/logger';
 
@@ -72,7 +72,7 @@ export async function POST(request) {
         // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
         if (data.length > 1) {
             logger.error('multiple accounts with same email detected', {
-                email: email.trim(),
+                emailHash: require('crypto').createHash('sha256').update(email.trim()).digest('hex').slice(0, 16),
                 count: data.length,
                 user_ids: data.map(u => u.user_id)
             });
