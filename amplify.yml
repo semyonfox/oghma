@@ -58,7 +58,7 @@ frontend:
             ENABLE_CREDENTIALS_AUTH SERVER_ENCRYPTION_SECRET COHERE_API_KEY \
             NEXTAUTH_URL \
             SES_REGION SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_FROM_EMAIL; do
-            [ -n "${!var}" ] && printf '%s=%s\n' "$var" "${!var}" >> .env.production
+            [ -n "${!var}" ] && echo "${var}=${!var}" >> .env.production
           done
         - npm run build
   artifacts:
