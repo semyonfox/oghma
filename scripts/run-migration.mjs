@@ -14,6 +14,7 @@ import postgres from 'postgres';
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const showStatus = args.includes('--status');
+const runAll = args.includes('--all');
 const help = args.includes('--help') || args.includes('-h');
 const target = args.find(a => !a.startsWith('--'));
 
@@ -33,6 +34,7 @@ options:
 
 examples:
   node scripts/run-migration.mjs                           # run 017 consolidation
+  node scripts/run-migration.mjs --all                     # run all pending migrations
   node scripts/run-migration.mjs --status                  # check migration state
   node scripts/run-migration.mjs --dry-run                 # preview 017 SQL
   node scripts/run-migration.mjs 015-oauth-accounts.sql    # run a specific migration`);
@@ -127,9 +129,24 @@ async function run(filename) {
     // (sql.unsafe() rejects explicit BEGIN/COMMIT — use sql.begin() instead)
     await sql.begin(async (tx) => {
       await tx.unsafe(migrationSQL);
+
+      // record migration in tracking table (create table if needed)
+      await tx.unsafe(`
+        CREATE TABLE IF NOT EXISTS app.schema_migrations (
+          version  TEXT PRIMARY KEY,
+          name     TEXT NOT NULL,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      const version = filename.match(/^(\d+)/)?.[1] ?? filename;
+      await tx`
+        INSERT INTO app.schema_migrations (version, name)
+        VALUES (${version}, ${filename})
+        ON CONFLICT (version) DO NOTHING
+      `;
     });
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    console.log(`\nmigration completed in ${elapsed}s`);
+    console.log(`\nmigration completed and recorded in ${elapsed}s`);
 
     // show post-migration state
     const tables = await sql`
@@ -147,10 +164,41 @@ async function run(filename) {
   }
 }
 
+async function runAllPending() {
+  let files;
+  try {
+    files = readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+  } catch {
+    console.error('no migrations directory found at', migrationsDir);
+    process.exit(1);
+  }
+
+  const applied = await getApplied();
+  const appliedSet = new Set(applied.map(m => m.version));
+
+  const pending = files.filter(f => {
+    const ver = f.match(/^(\d+)/)?.[1];
+    return ver && !appliedSet.has(ver);
+  });
+
+  if (pending.length === 0) {
+    console.log('all migrations already applied');
+    return;
+  }
+
+  console.log(`running ${pending.length} pending migration(s)...\n`);
+  for (const f of pending) {
+    await run(f);
+    console.log('');
+  }
+}
+
 async function main() {
   try {
     if (showStatus) {
       await status();
+    } else if (runAll) {
+      await runAllPending();
     } else {
       await run(target || defaultMigration);
     }
