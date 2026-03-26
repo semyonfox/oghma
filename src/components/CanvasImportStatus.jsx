@@ -33,12 +33,17 @@ export default function CanvasImportStatus() {
   }
 
   useEffect(() => {
-    fetchStatus()
-    setLoading(false)
+    let cancelled = false
+    const init = async () => {
+      await fetchStatus()
+      if (!cancelled) setLoading(false)
+    }
+    // defer to avoid synchronous setState in effect body
+    const timer = setTimeout(init, 0)
 
-    // Poll for updates every 3 seconds if processing
+    // poll for updates every 3 seconds if processing
     const interval = setInterval(fetchStatus, 3000)
-    return () => clearInterval(interval)
+    return () => { cancelled = true; clearTimeout(timer); clearInterval(interval) }
   }, [])
 
   if (loading || !progress) {

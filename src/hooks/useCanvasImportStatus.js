@@ -81,17 +81,21 @@ export function useCanvasImportStatus(options = {}) {
   }, [])
 
   // on mount: check active job and maybe trigger auto-sync
+  /* eslint-disable react-hooks/set-state-in-effect -- restoring persisted state on mount */
   useEffect(() => {
     if (!autoCheckOnMount) return
 
     const savedJob = JSON.parse(localStorage.getItem(LS_ACTIVE_JOB) ?? 'null')
     if (savedJob?.jobId) {
-      setIsImporting(true)
-      setShowToast(true)
+      queueMicrotask(() => {
+        setIsImporting(true)
+        setShowToast(true)
+      })
     }
-    checkStatus()
-    maybeAutoSync()
+    // defer to avoid synchronous setState in effect body
+    setTimeout(() => { checkStatus(); maybeAutoSync() }, 0)
   }, [autoCheckOnMount, checkStatus, maybeAutoSync])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // poll every 3s while importing
   useEffect(() => {
