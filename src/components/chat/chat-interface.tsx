@@ -29,9 +29,13 @@ export interface Message {
 interface ChatInterfaceProps {
     /** Compact mode for the inspector sidebar mini-chat */
     compact?: boolean;
+    /** Resume an existing chat session by ID */
+    sessionId?: string;
     /** Pre-select a note as the chat context */
     noteId?: string;
     noteTitle?: string;
+    /** Called when a new session is created server-side (id, title) */
+    onSessionCreated?: (sessionId: string, title: string) => void;
     /** Optional extra class on the wrapper */
     className?: string;
 }
@@ -75,8 +79,10 @@ const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({ sources
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
     compact = false,
+    sessionId: controlledSessionId,
     noteId,
     noteTitle,
+    onSessionCreated,
     className = '',
 }) => {
     const [messages, setMessages] = useState<Message[]>([
@@ -90,26 +96,25 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(controlledSessionId ?? null);
     const [restored, setRestored] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
-    // restore existing session from DB so the chat is resumable
+    // restore messages for an existing session
     useEffect(() => {
         if (restored) return;
+        if (!controlledSessionId) { setRestored(true); return; }
+
         const restore = async () => {
             try {
-                const params = new URLSearchParams();
-                if (noteId) params.set('noteId', noteId);
-                else params.set('resume', '1');
-                const res = await fetch(`/api/chat/sessions?${params}`);
+                const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.sessionId && data.messages?.length) {
-                    setSessionId(data.sessionId);
-                    const restored: Message[] = data.messages.map((m: { role: string; content: string; sources?: { id: string; title: string }[]; created_at?: string }, i: number) => ({
-                        id: `restored-${i}`,
+                if (data.messages?.length) {
+                    setSessionId(controlledSessionId);
+                    const restored: Message[] = data.messages.map((m: { id: string; role: string; content: string; sources?: { id: string; title: string }[]; created_at?: string }) => ({
+                        id: m.id,
                         role: m.role as 'user' | 'assistant',
                         content: m.content,
                         sources: m.sources || [],
@@ -132,7 +137,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             }
         };
         void restore();
-    }, [noteId, compact, restored]);
+    }, [controlledSessionId, compact, restored]);
+
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -167,7 +173,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             }
 
             const data = await res.json();
-            if (data.sessionId) setSessionId(data.sessionId);
+            if (data.sessionId && data.sessionId !== sessionId) {
+                setSessionId(data.sessionId);
+                onSessionCreated?.(data.sessionId, text.slice(0, 60));
+            }
             const assistantMsg: Message = {
                 id: makeId(),
                 role: 'assistant',
@@ -198,7 +207,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             timestamp: Date.now(),
         }]);
         setSessionId(null);
-        setRestored(false);
         setError(null);
     };
 
@@ -238,7 +246,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                     ))}
 
                     {loading && (
-                        <div className="flex justify-start">
+                        <div className="flex justify-start" role="status" aria-label="AI is thinking">
                             <div className="bg-white/6 border border-white/8 rounded-lg rounded-bl-none px-2.5 py-1.5">
                                 <TypingDots />
                             </div>
@@ -359,7 +367,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 ))}
 
                 {loading && (
-                    <div className="flex gap-3 justify-start">
+                    <div className="flex gap-3 justify-start" role="status" aria-label="AI is thinking">
                         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
                             <SparklesIcon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
                         </div>

@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/lib/rateLimiter';
 import { isValidUUID } from '@/lib/uuid-validation.js';
 import { generateUUID } from '@/lib/utils/uuid';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
+import { getStorageProvider } from '@/lib/storage/init';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
@@ -99,15 +100,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Generate UUID v7 for clone
     const cloneId = generateUUID();
 
+    // copy S3 object so the clone is independent of the original
+    // if the owner later deletes their note, the shared copy survives
+    let clonedS3Key: string | null = null;
+    if (note.s3_key) {
+      try {
+        const storage = getStorageProvider();
+        const originalContent = await storage.getObject(note.s3_key);
+        if (originalContent) {
+          const filename = note.s3_key.split('/').pop() ?? 'file';
+          clonedS3Key = `notes/${cloneId}/${filename}`;
+          await storage.putObject(clonedS3Key, originalContent, {
+            contentType: 'application/octet-stream',
+          });
+        }
+      } catch (err) {
+        logger.warn('failed to copy S3 object for share, clone will have no file', {
+          sourceKey: note.s3_key, error: err,
+        });
+      }
+    }
+
     // Create clone in target user's notes
     const cloned = await sql`
       INSERT INTO app.notes (
-        note_id, 
-        user_id, 
-        title, 
-        content, 
-        s3_key, 
-        is_folder, 
+        note_id,
+        user_id,
+        title,
+        content,
+        s3_key,
+        is_folder,
         cloned_from,
         deleted,
         created_at,
@@ -117,7 +139,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ${targetUserId}::uuid,
         ${note.title + ' (shared)'},
         ${note.content},
-        ${note.s3_key},
+        ${clonedS3Key},
         ${note.is_folder},
         ${sourceNoteId}::uuid,
         0,

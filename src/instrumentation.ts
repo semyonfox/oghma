@@ -5,6 +5,10 @@ export async function register() {
   // only runs in the Node.js server runtime, not during build or in the browser
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  // validate required env vars early so missing config surfaces at boot, not request time
+  const { validateEnv } = await import('@/lib/validateEnv');
+  validateEnv();
+
   // load secrets from AWS Secrets Manager before any route handler runs
   // no-op locally (AWS_SECRETS_ID not set), pulls from Secrets Manager in prod
   if (process.env.NODE_ENV === 'production') {

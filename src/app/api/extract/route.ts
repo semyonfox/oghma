@@ -5,7 +5,7 @@ import { validateSession } from '@/lib/auth';
 import { chunkText } from '@/lib/chunking';
 import { embedChunks } from '@/lib/embeddings';
 import { extractWithMarker } from '@/lib/ocr';
-import { processExtractedText } from '@/lib/canvas/text-processing.js';
+import { stripMarkdown } from '@/lib/strip-markdown';
 import sql from '@/database/pgsql.js';
 import { withErrorHandler } from '@/lib/api-error';
 import { ApiError } from '@/lib/api-error';
@@ -50,7 +50,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
+    // reject files over 50MB before buffering into memory
+    const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
+    if (contentLength > 50 * 1024 * 1024) {
+        throw new ApiError(413, 'File too large (max 50MB)');
+    }
+
     const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > 50 * 1024 * 1024) {
+        throw new ApiError(413, 'File too large (max 50MB)');
+    }
     const filename = new URL(url).pathname.split('/').pop() ?? 'document.pdf';
     const ext = filename.toLowerCase().split('.').pop();
     const isText = ext && ['md', 'markdown', 'txt'].includes(ext);
@@ -64,29 +73,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             rawText = buffer.toString('utf-8');
             chunks = chunkText(rawText);
         } else {
-            // binary docs (PDF, DOCX, PPTX): Marker handles all of these
-            try {
-                const marker = await extractWithMarker(buffer, filename);
-                rawText = marker.text;
-                chunks = marker.chunks;
-            } catch {
-                // pdf-parse as last resort (PDFs only, no OCR)
-                const isPdf = ext === 'pdf';
-                if (isPdf) {
-                    const { PDFParse } = await import('pdf-parse');
-                    const parser = new PDFParse({ data: buffer });
-                    const { text } = await parser.getText();
-                    rawText = text;
-                    chunks = chunkText(text);
-                } else {
-                    throw new ApiError(502, `Document extraction unavailable for .${ext} files`);
-                }
-            }
+            // binary docs (PDF, DOCX, PPTX): EC2 Marker (primary) → Datalab (fallback)
+            const marker = await extractWithMarker(buffer, filename);
+            rawText = marker.text;
+            chunks = marker.chunks;
         }
     });
 
-    // cleaned text for PG search
-    const cleanedText = processExtractedText(rawText!);
+    // stripped text for PG full-text search (no markdown syntax noise)
+    const cleanedText = stripMarkdown(rawText!);
     await sql`UPDATE app.notes SET extracted_text = ${cleanedText}, updated_at = NOW() WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid`;
 
     const embeddings = await xraySubsegment('embed-chunks', () => embedChunks(chunks!));

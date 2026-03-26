@@ -14,7 +14,7 @@ import { CanvasClient } from "@/lib/canvas/client.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
 import {generateUUID} from "@/lib/utils/uuid";
 import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
-import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/rateLimit.js";
+import {isRateLimited, recordFailedAttempt, clearFailedAttempts, isAccountLocked, getLockoutMinutesRemaining} from "@/lib/loginLockout.js";
 import { decrypt } from '@/lib/crypto';
 import logger from '@/lib/logger';
 
@@ -24,7 +24,7 @@ export async function POST(request) {
         const {data: body, error: parseError} = await parseJsonBody(request);
         if (parseError) return parseError;
 
-        const {email, password} = body;
+        const {email, password, rememberMe} = body;
 
         // 2. Validate credentials format
         const validation = validateAuthCredentials(email, password, false);
@@ -72,7 +72,7 @@ export async function POST(request) {
         // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
         if (data.length > 1) {
             logger.error('multiple accounts with same email detected', {
-                email: email.trim(),
+                emailHash: require('crypto').createHash('sha256').update(email.trim()).digest('hex').slice(0, 16),
                 count: data.length,
                 user_ids: data.map(u => u.user_id)
             });
@@ -92,7 +92,7 @@ export async function POST(request) {
         await clearFailedAttempts(email);
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
-        const sessionResponse = await createAuthSession(user, 1);
+        const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
 
         // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
         //    We don't await this — login speed is unaffected.
