@@ -28,6 +28,36 @@ const ALLOWED_MIME: Record<string, string> = {
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// magic byte signatures for allowed image formats
+const MAGIC_BYTES: [string, number[]][] = [
+  ['image/jpeg', [0xFF, 0xD8, 0xFF]],
+  ['image/png', [0x89, 0x50, 0x4E, 0x47]],
+  ['image/gif', [0x47, 0x49, 0x46]],
+  ['image/webp', [0x52, 0x49, 0x46, 0x46]], // RIFF header
+  ['image/avif', [0x00, 0x00, 0x00]], // ftyp box (checked with 'avif' at offset 8)
+];
+
+function detectMimeFromBytes(bytes: Uint8Array): string | null {
+  for (const [mime, sig] of MAGIC_BYTES) {
+    if (sig.every((b, i) => bytes[i] === b)) {
+      // WebP needs extra check: bytes 8-11 should be 'WEBP'
+      if (mime === 'image/webp') {
+        const tag = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+        if (tag !== 'WEBP') continue;
+      }
+      // AVIF needs ftyp box check
+      if (mime === 'image/avif') {
+        const ftyp = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+        if (ftyp !== 'ftyp') continue;
+        const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+        if (!brand.startsWith('avif') && !brand.startsWith('avis')) continue;
+      }
+      return mime;
+    }
+  }
+  return null;
+}
+
 export async function GET() {
   try {
     const userId = await resolveUserId();
@@ -74,7 +104,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File exceeds 5 MB limit' }, { status: 413 });
     }
 
-    const ext = ALLOWED_MIME[file.type];
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // validate actual file content, not client-controlled MIME type
+    const detectedMime = detectMimeFromBytes(new Uint8Array(buffer));
+    const ext = detectedMime ? ALLOWED_MIME[detectedMime] : null;
     if (!ext) {
       return NextResponse.json(
         { error: 'Unsupported file type. Use JPG, PNG, GIF, WebP, or AVIF.' },
@@ -84,10 +118,8 @@ export async function POST(request: NextRequest) {
 
     const timestamp = Date.now();
     const avatarKey = `avatars/${userId}/${timestamp}.${ext}`;
-
-    const buffer = Buffer.from(await file.arrayBuffer());
     const storage = getStorageProvider();
-    await storage.putObject(avatarKey, buffer, { contentType: file.type });
+    await storage.putObject(avatarKey, buffer, { contentType: detectedMime! });
 
     // persist key in settings JSON (merge with existing settings)
     const currentSettings = await getSettingsFromS3(userId as number);

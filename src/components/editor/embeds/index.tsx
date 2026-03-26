@@ -1,5 +1,4 @@
 // extracted from Notea (MIT License)
-import useCsrfTokenStore from '@/lib/notes/state/csrf-token';
 import { useCallback, ComponentType } from 'react';
 import { Bookmark } from './bookmark';
 import { Embed } from './embed';
