@@ -93,6 +93,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 catch (err) { logger.warn('S3 delete failed', { key: r.s3_key, err }); }
             }));
 
+            // clean up embeddings and chunks for this note
+            await sql`DELETE FROM app.embeddings WHERE chunk_id IN (SELECT id FROM app.chunks WHERE document_id = ${id}::uuid)`;
+            await sql`DELETE FROM app.chunks WHERE document_id = ${id}::uuid`;
+
             await sql`DELETE FROM app.pdf_annotations WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;
             await sql`DELETE FROM app.attachments WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;
             await sql`DELETE FROM app.notes WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;
