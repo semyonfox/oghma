@@ -60,7 +60,7 @@ const TypingDots: FC = () => (
 );
 
 const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({ sources }) => {
-    if (!sources.length) return null;
+    if (!Array.isArray(sources) || !sources.length) return null;
     return (
         <div className="flex flex-wrap gap-1 mt-2">
             {sources.map((s) => (
@@ -111,13 +111,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.messages?.length) {
+                if (Array.isArray(data.messages) && data.messages.length) {
                     setSessionId(controlledSessionId);
                     const restored: Message[] = data.messages.map((m: { id: string; role: string; content: string; sources?: { id: string; title: string }[]; created_at?: string }) => ({
                         id: m.id,
                         role: m.role as 'user' | 'assistant',
                         content: m.content,
-                        sources: m.sources || [],
+                        sources: Array.isArray(m.sources) ? m.sources : [],
                         timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
                     }));
                     setMessages([
@@ -181,7 +181,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 id: makeId(),
                 role: 'assistant',
                 content: data.reply,
-                sources: data.sources || [],
+                sources: Array.isArray(data.sources) ? data.sources : [],
                 timestamp: Date.now(),
             };
             setMessages((prev) => [...prev, assistantMsg]);

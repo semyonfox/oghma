@@ -11,6 +11,7 @@ import {
   CalendarIcon,
   SparklesIcon,
   Cog6ToothIcon,
+  AcademicCapIcon,
   ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
@@ -19,14 +20,15 @@ interface NavItem {
   labelKey: string;
   icon: FC<{ className?: string }>;
   href: string;
-  section: 'notes' | 'search' | 'calendar' | 'settings' | 'chat';
+  section: 'notes' | 'search' | 'calendar' | 'settings' | 'chat' | 'quiz';
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'notes',    labelKey: 'Notes',    icon: DocumentTextIcon,     href: '/notes',  section: 'notes' },
   { id: 'search',   labelKey: 'Search',   icon: MagnifyingGlassIcon,  href: '/notes',  section: 'search' },
-  { id: 'calendar', labelKey: 'Calendar', icon: CalendarIcon,         href: '/notes',  section: 'calendar' },
+  { id: 'calendar', labelKey: 'Calendar', icon: CalendarIcon,         href: '/calendar',  section: 'calendar' },
   { id: 'chat',     labelKey: 'AI Chat',  icon: SparklesIcon,         href: '/chat',   section: 'chat' },
+  { id: 'quiz',     labelKey: 'Quiz',     icon: AcademicCapIcon,      href: '/quiz',   section: 'quiz' },
 ];
 
 /**
