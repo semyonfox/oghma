@@ -52,7 +52,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '📝',
          action: () => {
-           console.log('Create new note');
            onClose?.();
          },
        },
@@ -63,7 +62,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '📁',
          action: () => {
-           console.log('Create new folder');
            onClose?.();
          },
        },
@@ -74,7 +72,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '🔍',
          action: () => {
-           console.log('Search notes');
            onClose?.();
          },
        },
@@ -85,7 +82,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '📋',
          action: () => {
-           console.log('Generate quiz');
            onClose?.();
          },
        },
@@ -96,7 +92,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '📤',
          action: () => {
-           console.log('Export note');
            onClose?.();
          },
        },
@@ -107,7 +102,6 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
          category: 'command',
          icon: '⚙️',
          action: () => {
-           console.log('Open settings');
            onClose?.();
          },
        },

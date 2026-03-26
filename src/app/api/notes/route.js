@@ -12,8 +12,8 @@ import logger from '@/lib/logger';
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const NOTE_PINNED = { UNPINNED: 0, PINNED: 1 };
 const NOTE_SHARED = { PRIVATE: 0, SHARED: 1 };
-const MAX_TITLE_LENGTH = 500;
-const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
+const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? '500', 10);
+const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH ?? String(5 * 1024 * 1024), 10);
 
 export async function GET(request) {
   try {

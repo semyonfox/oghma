@@ -12,23 +12,24 @@ export default function ContactForm() {
     event.preventDefault()
     setIsLoading(true)
 
+    const accessKey = process.env.NEXT_PUBLIC_WEB3FORMS_KEY;
+    if (!accessKey) {
+      setResult("Contact form is not configured");
+      setIsLoading(false);
+      return;
+    }
+
     const formData = new FormData(event.target)
+    formData.append("access_key", accessKey)
 
     try {
-      const response = await fetch("/api/contact", {
+      const response = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: formData.get("first_name"),
-          lastName: formData.get("last_name"),
-          email: formData.get("email"),
-          phoneNumber: formData.get("phone"),
-          message: formData.get("message"),
-        }),
+        body: formData
       })
 
       const data = await response.json()
-
+      
       if (data.success) {
         setResult(t("Message sent successfully!"))
         event.target.reset()
