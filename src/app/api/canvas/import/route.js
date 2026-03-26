@@ -90,3 +90,42 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to queue import' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/canvas/import
+ *
+ * Cancels the active import job for the current user.
+ * Marks the job and all its in-flight file records as cancelled.
+ */
+export async function DELETE() {
+  try {
+    const user = await validateSession();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const cancelled = await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'cancelled', completed_at = NOW()
+      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      RETURNING id
+    `;
+
+    if (cancelled.length === 0) {
+      return NextResponse.json({ success: true, cancelled: false, reason: 'No active job' });
+    }
+
+    // mark in-flight file records so the worker skips them
+    const jobId = cancelled[0].id;
+    await sql`
+      UPDATE app.canvas_imports
+      SET status = 'cancelled', error_message = 'Cancelled by user', updated_at = NOW()
+      WHERE job_id = ${jobId}::uuid AND status IN ('downloading', 'processing')
+    `;
+
+    return NextResponse.json({ success: true, cancelled: true, jobId });
+  } catch (err) {
+    logger.error('canvas import cancel error', { error: err });
+    return NextResponse.json({ error: 'Failed to cancel import' }, { status: 500 });
+  }
+}

@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/lib/rateLimiter';
 import { embedText } from '@/lib/embedText';
 import { rerankChunks } from '@/lib/rerank';
 import { isValidUUID } from '@/lib/uuid-validation';
+import { generateUUID } from '@/lib/utils/uuid';
 import { xraySubsegment } from '@/lib/xray';
 import { Metrics } from '@/lib/metrics';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
@@ -22,6 +23,10 @@ interface SearchResult {
     distance: number;
 }
 
+// cosine distance threshold — chunks further than this are considered irrelevant
+// Cohere multilingual-v3.0 distances: 0 = identical, ~0.3 = very similar, ~0.7 = weakly related
+const MAX_DISTANCE = 0.75;
+
 // search chunks+embeddings tables, joining back to notes for metadata
 async function semanticSearch(
     userId: string,
@@ -31,17 +36,22 @@ async function semanticSearch(
 ): Promise<SearchResult[]> {
     const vectorStr = `[${queryVector.join(',')}]`;
 
+    const globalSlots = noteId ? Math.max(limit - 6, 2) : limit;
+
     if (noteId) {
-        // pinned note chunks first, then fill from global search
-        const [pinned, similar] = await Promise.all([
+        // semantic search within pinned note + global search for cross-note context
+        const [pinned, global] = await Promise.all([
             sql`
-                SELECT n.note_id, n.title, c.text AS chunk_text, 0::float AS distance
-                FROM app.chunks c
+                SELECT n.note_id, n.title, c.text AS chunk_text,
+                       (e.embedding <=> ${vectorStr}::vector) AS distance
+                FROM app.embeddings e
+                JOIN app.chunks c ON c.id = e.chunk_id
                 JOIN app.notes n ON n.note_id = c.document_id
                 WHERE c.user_id = ${userId}::uuid
                   AND c.document_id = ${noteId}::uuid
-                ORDER BY c.created_at
-                LIMIT 4
+                  AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
+                ORDER BY e.embedding <=> ${vectorStr}::vector
+                LIMIT 6
             `,
             sql`
                 SELECT n.note_id, n.title, c.text AS chunk_text,
@@ -51,11 +61,12 @@ async function semanticSearch(
                 JOIN app.notes n ON n.note_id = c.document_id
                 WHERE c.user_id = ${userId}::uuid
                   AND c.document_id != ${noteId}::uuid
+                  AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
                 ORDER BY e.embedding <=> ${vectorStr}::vector
-                LIMIT ${limit - 4}
+                LIMIT ${globalSlots}
             `,
         ]);
-        return [...pinned, ...similar] as SearchResult[];
+        return [...pinned, ...global] as SearchResult[];
     }
 
     const rows = await sql`
@@ -65,6 +76,7 @@ async function semanticSearch(
         JOIN app.chunks c ON c.id = e.chunk_id
         JOIN app.notes n ON n.note_id = c.document_id
         WHERE c.user_id = ${userId}::uuid
+          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
         ORDER BY e.embedding <=> ${vectorStr}::vector
         LIMIT ${limit}
     `;
@@ -73,7 +85,7 @@ async function semanticSearch(
 
 function buildSystemPrompt(results: SearchResult[]): string {
     if (results.length === 0) {
-        return 'You are a helpful study assistant. The user has no notes with embeddings yet — let them know they can upload PDFs to start building a searchable knowledge base. Be friendly and concise.';
+        return 'You are a helpful study assistant. No relevant notes were found for this question — let the user know, and suggest they try rephrasing or uploading more material. Be friendly and concise.';
     }
 
     // group chunks by note for cleaner context
@@ -144,9 +156,10 @@ async function persistMessage(
     content: string,
     sources?: { id: string; title: string }[],
 ): Promise<void> {
+    const messageId = generateUUID();
     await sql`
-        INSERT INTO app.chat_messages(session_id, role, content, sources)
-        VALUES(${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
+        INSERT INTO app.chat_messages(id, session_id, role, content, sources)
+        VALUES(${messageId}::uuid, ${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
     `;
 }
 
@@ -170,13 +183,13 @@ async function resolveSession(
 
     const noteIdValue = noteId && isValidUUID(noteId) ? noteId : null;
     const title = messageTitle.slice(0, 60);
-    const [row] = await sql`
-        INSERT INTO app.chat_sessions(user_id, note_id, title)
-        VALUES(${userId}::uuid, ${noteIdValue}, ${title})
-        RETURNING id
+    const sessionId = generateUUID();
+    await sql`
+        INSERT INTO app.chat_sessions(id, user_id, note_id, title)
+        VALUES(${sessionId}::uuid, ${userId}::uuid, ${noteIdValue}, ${title})
     `;
     void Metrics.chatSessionCreated();
-    return row.id as string;
+    return sessionId;
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -204,7 +217,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         return tracedError('message too long (max 2000 characters)', 400);
     }
 
-    const sessionId = await resolveSession(userId, requestedSessionId, noteId, message);
+    // sanitize noteId before it reaches any SQL queries
+    const validNoteId = noteId && isValidUUID(noteId) ? noteId : undefined;
+
+    const sessionId = await resolveSession(userId, requestedSessionId, validNoteId, message);
 
     // load history from DB when continuing a session; fall back to request history
     let history: ChatMessage[] = requestHistory;
@@ -231,16 +247,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         const queryVector = await embedText(message);
         embeddingAvailable = true;
         // fetch 20 candidates, rerank to top 5
-        const candidates = await semanticSearch(userId, queryVector, noteId, 20);
-        const reranked = await rerankChunks(
-            message,
-            candidates.map(r => r.chunk_text),
+        const candidates = await semanticSearch(userId, queryVector, validNoteId, 20);
+        const chunkTexts = candidates.map(r => r.chunk_text);
+        const reranked = await rerankChunks(message, chunkTexts);
+        // map reranked results back using text index to avoid duplicate-text collisions
+        const keptIndices = new Set(
+            reranked.map(r => chunkTexts.indexOf(r.text)).filter(i => i !== -1),
         );
-        // map reranked text back to full SearchResult objects
-        const rerankedTexts = new Set(reranked.map(r => r.text));
-        searchResults = candidates.filter(r => rerankedTexts.has(r.chunk_text));
-    }).catch(() => {
-        // embedding/rerank unavailable — fall through to LLM without context
+        searchResults = candidates.filter((_, i) => keptIndices.has(i));
+    }).catch((err) => {
+        const detail = err instanceof Error ? err.message : String(err);
+        logger.warn('RAG pipeline failed, proceeding without context', { error: detail });
     });
 
     const systemPrompt = buildSystemPrompt(searchResults);
