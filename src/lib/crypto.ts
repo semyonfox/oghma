@@ -1,12 +1,18 @@
 import crypto from 'node:crypto';
 
-const SERVER_SECRET = process.env.SERVER_ENCRYPTION_SECRET
-  || (process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('SERVER_ENCRYPTION_SECRET must be set in production'); })()
-    : 'dev-secret-do-not-use-in-prod');
+// lazy — defer the check to first use so next build can collect page data
+// without requiring the secret at module evaluation time
+function getServerSecret(): string {
+  const secret = process.env.SERVER_ENCRYPTION_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
+    throw new Error('SERVER_ENCRYPTION_SECRET must be set in production');
+  }
+  return 'dev-secret-do-not-use-in-prod';
+}
 
 function deriveKey(userId: string): Buffer {
-  return crypto.pbkdf2Sync(SERVER_SECRET, userId, 100_000, 32, 'sha256');
+  return crypto.pbkdf2Sync(getServerSecret(), userId, 100_000, 32, 'sha256');
 }
 
 export function encrypt(plaintext: string, userId: string): string {
