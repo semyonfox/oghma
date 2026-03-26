@@ -43,7 +43,7 @@ function ChatPageInner() {
             const res = await fetch('/api/chat/sessions');
             if (!res.ok) return;
             const data = await res.json();
-            if (data.sessions?.length) {
+            if (Array.isArray(data.sessions) && data.sessions.length) {
                 const mapped: Conversation[] = data.sessions.map((s: any) => ({
                     id: s.id,
                     title: s.title,

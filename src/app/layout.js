@@ -2,6 +2,7 @@ import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import CanvasIntegration from "@/components/CanvasIntegration";
+import PomodoroIntegration from "@/components/PomodoroIntegration";
 import "./globals.css";
 // Import react-pdf styles globally so they're available for all PDF viewers
 import "react-pdf/dist/Page/TextLayer.css";
@@ -41,6 +42,7 @@ export default function RootLayout({ children }) {
                 <I18nRootProvider>
                     <ThemeProvider>
                         <CanvasIntegration />
+                        <PomodoroIntegration />
                         {children}
                     </ThemeProvider>
                 </I18nRootProvider>

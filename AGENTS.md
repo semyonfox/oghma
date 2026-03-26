@@ -21,7 +21,13 @@
 - **Use `npm` only** — do not use `pnpm` or `yarn`
 - All install/run commands must use `npm install`, `npm run`, etc.
 
-### 4. Code Changes
+### 4. Branch & Deploy Strategy
+- **`main`** is the production branch — deployed to oghmanotes.ie via AWS Amplify
+- **`dev`** is the development branch — deployed to dev.oghmanotes.ie
+- deploy flow: `dev` → `main` (via PR)
+- never push directly to `main` — always go through PR with required status checks
+
+### 5. Code Changes
 - Never silently drop uncommitted work
 - Always verify file staging status before operations that affect the working tree
 - If unsure about data safety, create a backup branch or stash first
