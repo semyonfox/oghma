@@ -10,7 +10,7 @@
 import sql from '../../database/pgsql.js';
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
-import { processImportJob } from './import-worker.js';
+import { processImportJob, processExtractionRetry } from './import-worker.js';
 
 const STUCK_JOB_THRESHOLD = '1 hour';
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -20,6 +20,7 @@ const MAX_CONCURRENT_JOBS = 3;
 
 const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
+const RETRY_QUEUE_URL = process.env.SQS_EXTRACT_RETRY_QUEUE_URL;
 
 async function failStuckJobs() {
   const stuck = await sql`
@@ -58,14 +59,14 @@ async function claimOrphanedJobs() {
   return true;
 }
 
-async function processAndDelete(message) {
+async function processAndDelete(message, queueUrl) {
   const ts = () => new Date().toISOString();
   let body;
   try {
     body = JSON.parse(message.Body);
   } catch (err) {
     console.error(`[${ts()}] Malformed SQS message, deleting:`, err.message);
-    await sqsClient.send(new DeleteMessageCommand({ QueueUrl: QUEUE_URL, ReceiptHandle: message.ReceiptHandle }));
+    await sqsClient.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle }));
     return;
   }
   const type = body.type ?? 'canvas-import';
@@ -74,6 +75,9 @@ async function processAndDelete(message) {
   switch (type) {
     case 'canvas-import':
       await processImportJob(body.jobId);
+      break;
+    case 'extract-retry':
+      await processExtractionRetry(body);
       break;
     case 'vault-export':
       console.log(`[${ts()}] vault-export not yet enabled, skipping`);
@@ -85,7 +89,7 @@ async function processAndDelete(message) {
       console.warn(`[${ts()}] Unknown job type: ${type}`);
   }
 
-  await sqsClient.send(new DeleteMessageCommand({ QueueUrl: QUEUE_URL, ReceiptHandle: message.ReceiptHandle }));
+  await sqsClient.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle }));
   console.log(`[${ts()}] Done, message deleted`);
 }
 
@@ -100,10 +104,33 @@ async function pollQueue() {
   const messages = res.Messages ?? [];
   if (messages.length === 0) return false;
 
-  const results = await Promise.allSettled(messages.map(processAndDelete));
+  const results = await Promise.allSettled(messages.map(m => processAndDelete(m, QUEUE_URL)));
   for (const r of results) {
     if (r.status === 'rejected') {
       console.error(`[${new Date().toISOString()}] Job processing error:`, r.reason?.message);
+    }
+  }
+  return true;
+}
+
+// drains the extraction retry queue (non-blocking, short poll)
+async function pollRetryQueue() {
+  if (!RETRY_QUEUE_URL) return false;
+
+  const res = await sqsClient.send(new ReceiveMessageCommand({
+    QueueUrl: RETRY_QUEUE_URL,
+    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+    WaitTimeSeconds: 0, // short poll — don't block the main loop
+    VisibilityTimeout: 300,
+  }));
+
+  const messages = res.Messages ?? [];
+  if (messages.length === 0) return false;
+
+  const results = await Promise.allSettled(messages.map(m => processAndDelete(m, RETRY_QUEUE_URL)));
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      console.error(`[${new Date().toISOString()}] Retry processing error:`, r.reason?.message);
     }
   }
   return true;
@@ -125,7 +152,8 @@ let idlePolls = 0;
 while (true) {
   try {
     const hadWork = await pollQueue();
-    idlePolls = hadWork ? 0 : idlePolls + 1;
+    const hadRetries = await pollRetryQueue();
+    idlePolls = (hadWork || hadRetries) ? 0 : idlePolls + 1;
 
     if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
       // final DB check before scaling down
