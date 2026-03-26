@@ -38,6 +38,7 @@ env:
     SES_ACCESS_KEY_ID: $SES_ACCESS_KEY_ID
     SES_SECRET_ACCESS_KEY: $SES_SECRET_ACCESS_KEY
     SES_FROM_EMAIL: $SES_FROM_EMAIL
+    SECRETS_ID: $SECRETS_ID
 frontend:
   phases:
     preBuild:
@@ -59,7 +60,7 @@ frontend:
             GOOGLE_ID GOOGLE_SECRET GITHUB_ID GITHUB_SECRET \
             ENABLE_CREDENTIALS_AUTH SERVER_ENCRYPTION_SECRET COHERE_API_KEY \
             SES_REGION SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_FROM_EMAIL"
-          ALL_VARS="$RUNTIME_VARS NEXT_PUBLIC_API_URL NEXT_PUBLIC_APP_URL"
+          ALL_VARS="$RUNTIME_VARS NEXT_PUBLIC_API_URL NEXT_PUBLIC_APP_URL SECRETS_ID"
           for var in $ALL_VARS; do
             [ -n "${!var}" ] && echo "${var}=${!var}" >> .env.production || true
           done
