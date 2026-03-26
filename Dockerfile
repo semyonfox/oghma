@@ -1,11 +1,11 @@
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* .npmrc* ./
 RUN npm pkg delete scripts.prepare && npm ci --only=production && npm cache clean --force
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 # Install build tools for native modules (e.g., bcrypt)
 RUN apk add --no-cache python3 make g++
@@ -20,7 +20,7 @@ ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 RUN npx next build
 
 # Stage 3: Runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
