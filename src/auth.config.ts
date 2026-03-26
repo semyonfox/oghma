@@ -135,15 +135,19 @@ export const authConfig: NextAuthConfig = {
                 token.user_id = user.id;
                 token.email = user.email;
                 // fetch profile fields for the session
-                const dbConnection = sql as any;
-                const rows = await dbConnection`
-                    SELECT display_name, avatar_url, locale
-                    FROM app.login WHERE user_id = ${user.id}::uuid
-                `;
-                if (rows.length > 0) {
-                    token.displayName = rows[0].display_name;
-                    token.avatarUrl = rows[0].avatar_url;
-                    token.locale = rows[0].locale;
+                try {
+                    const dbConnection = sql as any;
+                    const rows = await dbConnection`
+                        SELECT display_name, avatar_url, locale
+                        FROM app.login WHERE user_id = ${user.id}::uuid
+                    `;
+                    if (rows.length > 0) {
+                        token.displayName = rows[0].display_name;
+                        token.avatarUrl = rows[0].avatar_url;
+                        token.locale = rows[0].locale;
+                    }
+                } catch (error) {
+                    logger.error('jwt callback db query failed', { error, userId: user.id });
                 }
             }
             return token;

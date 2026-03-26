@@ -55,8 +55,6 @@ const SidebarListItem: FC<{
      const [renameValue, setRenameValue] = useState(item.title || '');
      const renameInputRef = useRef<HTMLInputElement>(null);
      const itemElementRef = useRef<HTMLDivElement>(null);
-     // guards against double-fire (Enter removes input → blur fires again)
-     const submittedRef = useRef(false);
 
     // derive active note id from pathname (e.g. "/abc123" -> "abc123")
     const activeId: string | null = useMemo(() => {
@@ -70,12 +68,9 @@ const SidebarListItem: FC<{
 
     // focus input when entering rename mode
     useEffect(() => {
-        if (isRenaming) {
-            submittedRef.current = false;
-            requestAnimationFrame(() => {
-                renameInputRef.current?.focus();
-                renameInputRef.current?.select();
-            });
+        if (isRenaming && renameInputRef.current) {
+            renameInputRef.current.focus();
+            renameInputRef.current.select();
         }
     }, [isRenaming]);
 
@@ -204,16 +199,17 @@ const SidebarListItem: FC<{
         [item, linkHref, router, setActivePane, setPaneA, setPaneB]
     );
 
-    const commitRename = useCallback(() => {
-        if (submittedRef.current) return;
-        submittedRef.current = true;
-        const trimmed = renameValue.trim();
-        if (trimmed && trimmed !== item.title) {
-            onRenameComplete?.(trimmed);
-        } else {
-            onRenameComplete?.(item.title || '');
-        }
-    }, [renameValue, onRenameComplete, item.title]);
+    // Memoize rename completion handler
+    const handleRenameCompleteMemoized = useCallback(
+        (newTitle: string) => {
+            if (newTitle.trim() && newTitle !== item.title) {
+                onRenameComplete?.(newTitle);
+            } else {
+                onRenameComplete?.(item.title || '');
+            }
+        },
+        [onRenameComplete, item.title]
+    );
 
     const emoji = useMemo(() => {
         const emoji = item.title?.match(/\p{Emoji}/u);
@@ -299,15 +295,17 @@ const SidebarListItem: FC<{
                              type="text"
                              value={renameValue}
                              onChange={(e) => setRenameValue(e.target.value)}
-                             onBlur={commitRename}
+                             onBlur={() => handleRenameCompleteMemoized(renameValue)}
                              onKeyDown={(e) => {
                                  if (e.key === 'Enter') {
                                      e.preventDefault();
-                                     commitRename();
+                                     if (renameValue.trim()) {
+                                         handleRenameCompleteMemoized(renameValue);
+                                     }
                                  } else if (e.key === 'Escape') {
                                      e.preventDefault();
                                      setRenameValue(item.title || '');
-                                     commitRename();
+                                     handleRenameCompleteMemoized(item.title || '');
                                  }
                              }}
                               className="flex-1 truncate bg-white/10 border border-border rounded px-1 py-0.5 outline-none text-text-secondary focus:bg-white/20 focus:border-primary-500 transition-colors text-sm"
@@ -340,7 +338,7 @@ const SidebarListItem: FC<{
                     <IconButton
                        icon="DotsHorizontal"
                        onClick={handleClickMenu}
-                        className="p-1 text-text-tertiary hover:text-text-secondary rounded transition-colors flex-shrink-0"
+                        className="p-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
                         title={t('Remove, Copy Link, etc')}
                        aria-label={t('Note actions')}
                        tabIndex={-1}
@@ -350,7 +348,7 @@ const SidebarListItem: FC<{
                        <IconButton
                            icon="Plus"
                            onClick={onAddNote}
-                            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded transition-colors flex-shrink-0"
+                            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
                            title={t('Add a page inside this folder')}
                            aria-label={t('Add note')}
                            tabIndex={-1}
