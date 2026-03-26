@@ -21,10 +21,9 @@ export default function QuizSessionPage() {
     const [answered, setAnswered] = useState(false);
     const [lastAnswer, setLastAnswer] = useState<{ answer: string; wasCorrect: boolean } | null>(null);
     const [streak, setStreak] = useState(0);
-    const startTimeRef = useRef(Date.now());
-    const prevQuestionRef = useRef(currentQuestion);
+    const startTimeRef = useRef(0);
 
-    // compute intervals from current question (pure derivation, no effect)
+    // compute intervals from current question (pure derivation)
     const intervals = useMemo<Record<1 | 2 | 3 | 4, number>>(() => {
         if (!currentQuestion) return { 1: 0, 2: 0, 3: 0, 4: 0 };
         try {
@@ -36,15 +35,17 @@ export default function QuizSessionPage() {
         }
     }, [currentQuestion]);
 
-    // reset answer state when question changes
-    if (currentQuestion !== prevQuestionRef.current) {
-        prevQuestionRef.current = currentQuestion;
-        if (currentQuestion) {
+    // reset answer state and start timer when question changes
+    const prevQuestionId = useRef<string | null>(null);
+    const questionId = currentQuestion?.card_id ?? null;
+    useEffect(() => {
+        if (questionId && questionId !== prevQuestionId.current) {
+            prevQuestionId.current = questionId;
             setAnswered(false);
             setLastAnswer(null);
             startTimeRef.current = Date.now();
         }
-    }
+    }, [questionId]);
 
     // load session on mount
     useEffect(() => {
