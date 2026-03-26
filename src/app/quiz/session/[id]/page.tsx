@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import useQuizStore from '@/lib/notes/state/quiz';
 import ProgressBar from '@/components/quiz/progress-bar';
@@ -20,9 +20,31 @@ export default function QuizSessionPage() {
 
     const [answered, setAnswered] = useState(false);
     const [lastAnswer, setLastAnswer] = useState<{ answer: string; wasCorrect: boolean } | null>(null);
-    const [intervals, setIntervals] = useState<Record<1 | 2 | 3 | 4, number>>({ 1: 0, 2: 0, 3: 0, 4: 0 });
     const [streak, setStreak] = useState(0);
-    const [startTime, setStartTime] = useState(() => Date.now());
+    const startTimeRef = useRef(Date.now());
+    const prevQuestionRef = useRef(currentQuestion);
+
+    // compute intervals from current question (pure derivation, no effect)
+    const intervals = useMemo<Record<1 | 2 | 3 | 4, number>>(() => {
+        if (!currentQuestion) return { 1: 0, 2: 0, 3: 0, 4: 0 };
+        try {
+            if (currentQuestion.intervals) return currentQuestion.intervals;
+            const card = cardFromDB(currentQuestion);
+            return getNextIntervals(card);
+        } catch {
+            return { 1: 0, 2: 1, 3: 3, 4: 7 };
+        }
+    }, [currentQuestion]);
+
+    // reset answer state when question changes
+    if (currentQuestion !== prevQuestionRef.current) {
+        prevQuestionRef.current = currentQuestion;
+        if (currentQuestion) {
+            setAnswered(false);
+            setLastAnswer(null);
+            startTimeRef.current = Date.now();
+        }
+    }
 
     // load session on mount
     useEffect(() => {
@@ -36,25 +58,6 @@ export default function QuizSessionPage() {
                 });
         }
     }, [sessionId, cardIds.length, startSession]);
-
-    // compute intervals when question changes
-    useEffect(() => {
-        if (currentQuestion) {
-            try {
-                if (currentQuestion.intervals) {
-                    setIntervals(currentQuestion.intervals);
-                } else {
-                    const card = cardFromDB(currentQuestion);
-                    setIntervals(getNextIntervals(card));
-                }
-            } catch {
-                setIntervals({ 1: 0, 2: 1, 3: 3, 4: 7 });
-            }
-            setAnswered(false);
-            setLastAnswer(null);
-            setStartTime(Date.now());
-        }
-    }, [currentQuestion]);
 
     // fetch streak
     useEffect(() => {
@@ -70,7 +73,7 @@ export default function QuizSessionPage() {
         if (!lastAnswer || !currentQuestion) return;
 
         const nextCardId = currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
-        const responseTimeMs = Date.now() - startTime;
+        const responseTimeMs = Date.now() - startTimeRef.current;
 
         const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
             method: 'POST',
@@ -96,7 +99,7 @@ export default function QuizSessionPage() {
             endSession();
             router.push('/quiz');
         }
-    }, [lastAnswer, currentQuestion, currentIndex, cardIds, sessionId, startTime, advanceQuestion, setFatigueWarning, endSession, router]);
+    }, [lastAnswer, currentQuestion, currentIndex, cardIds, sessionId, advanceQuestion, setFatigueWarning, endSession, router]);
 
     if (!currentQuestion) {
         return (
