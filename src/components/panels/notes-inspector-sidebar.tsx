@@ -95,14 +95,14 @@ export default function NotesInspectorSidebar() {
       </div>
 
        {/* Tabs */}
-       <div className="flex border-b border-border-subtle px-3 gap-0">
-         <button onClick={() => setActiveTab('meta')} className={tabClasses('meta')}>
+       <div className="flex border-b border-border-subtle px-3 gap-0" role="tablist" aria-label="Inspector tabs">
+         <button role="tab" aria-selected={activeTab === 'meta'} aria-controls="panel-meta" onClick={() => setActiveTab('meta')} className={tabClasses('meta')}>
            {t('Meta')}
          </button>
-         <button onClick={() => setActiveTab('tags')} className={tabClasses('tags')}>
+         <button role="tab" aria-selected={activeTab === 'tags'} aria-controls="panel-tags" onClick={() => setActiveTab('tags')} className={tabClasses('tags')}>
            {t('Tags')}
          </button>
-         <button onClick={() => setActiveTab('ai')} className={tabClasses('ai')}>
+         <button role="tab" aria-selected={activeTab === 'ai'} aria-controls="panel-ai" onClick={() => setActiveTab('ai')} className={tabClasses('ai')}>
            {t('AI')}
          </button>
        </div>
