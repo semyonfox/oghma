@@ -41,7 +41,7 @@ export default function CanvasImportStatus() {
     // defer to avoid synchronous setState in effect body
     const timer = setTimeout(init, 0)
 
-    // Poll for updates every 3 seconds if processing
+    // poll for updates every 3 seconds if processing
     const interval = setInterval(fetchStatus, 3000)
     return () => { cancelled = true; clearTimeout(timer); clearInterval(interval) }
   }, [])
