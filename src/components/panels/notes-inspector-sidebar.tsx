@@ -8,11 +8,13 @@ import {
   TagIcon,
   DocumentTextIcon,
   ArrowTopRightOnSquareIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import useLayoutStore from '@/lib/notes/state/layout.zustand';
 import useI18n from '@/lib/notes/hooks/use-i18n';
 import { extractTags } from '@/lib/notes/utils/file-spec';
 import ChatInterface from '@/components/chat/chat-interface';
+import AssignmentTracker from '@/components/panels/assignment-tracker';
 
 interface InspectorNote {
   id: string;
@@ -23,7 +25,7 @@ interface InspectorNote {
   note_id?: string;
 }
 
-type InspectorTab = 'ai' | 'meta' | 'tags';
+type InspectorTab = 'ai' | 'meta' | 'tags' | 'tasks';
 
 export default function NotesInspectorSidebar() {
   const { t } = useI18n();
@@ -104,6 +106,9 @@ export default function NotesInspectorSidebar() {
          </button>
          <button role="tab" aria-selected={activeTab === 'ai'} aria-controls="panel-ai" onClick={() => setActiveTab('ai')} className={tabClasses('ai')}>
            {t('AI')}
+         </button>
+         <button role="tab" aria-selected={activeTab === 'tasks'} aria-controls="panel-tasks" onClick={() => setActiveTab('tasks')} className={tabClasses('tasks')}>
+           {t('Tasks')}
          </button>
        </div>
 
@@ -205,6 +210,13 @@ export default function NotesInspectorSidebar() {
                 </a>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tasks Tab */}
+        {activeTab === 'tasks' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <AssignmentTracker />
           </div>
         )}
       </div>
