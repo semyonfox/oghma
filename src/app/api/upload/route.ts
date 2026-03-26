@@ -84,7 +84,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                         ${fileName}, ${storagePath}, ${file.type || 'application/octet-stream'}, ${file.size})
             `;
         } catch (dbError) {
-            logger.warn('failed to record attachment in database', { error: dbError });
+            logger.warn('failed to record attachment in database, cleaning up S3 object', { error: dbError });
+            // clean up the orphaned S3 object since the DB record failed
+            // if this also fails, the object will be caught by S3 lifecycle policy
+            try { await storage.deleteObject(storagePath); }
+            catch (s3Err) { logger.warn('failed to clean up orphaned S3 object', { key: storagePath, error: s3Err }); }
+            return tracedError('Failed to save file metadata', 500);
         }
 
         if (createdNewNote) {

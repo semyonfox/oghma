@@ -60,6 +60,22 @@ export const DELETE = withErrorHandler(async () => {
     // ── 3. Wipe Postgres rows ────────────────────────────────────────────────
     // Order matters: delete children before parents to avoid FK violations
 
+    // Embeddings + chunks (RAG pipeline data)
+    await sql`
+      DELETE FROM app.embeddings
+      WHERE chunk_id IN (
+        SELECT c.id FROM app.chunks c
+        JOIN app.notes n ON c.document_id = n.note_id
+        WHERE n.user_id = ${userId}::uuid
+      )
+    `;
+    await sql`
+      DELETE FROM app.chunks
+      WHERE document_id IN (
+        SELECT note_id FROM app.notes WHERE user_id = ${userId}::uuid
+      )
+    `;
+
     // PDF annotations reference notes
     const annotationsResult = await sql`
       DELETE FROM app.pdf_annotations
