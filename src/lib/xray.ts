@@ -10,6 +10,14 @@ import type { Subsegment } from 'aws-xray-sdk-core';
 
 type SubsegmentFn<T> = (sub: Subsegment | null) => Promise<T>;
 
+// initialize AWS X-Ray to auto-trace all outbound HTTPS calls
+export function setupXRay() {
+  const AWSXRay = require('aws-xray-sdk-core');
+  const https = require('https');
+  AWSXRay.captureHTTPsGlobal(https);
+  AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+}
+
 export async function xraySubsegment<T>(name: string, fn: SubsegmentFn<T>): Promise<T> {
   if (process.env.NODE_ENV !== 'production') return fn(null);
 
