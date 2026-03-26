@@ -12,8 +12,8 @@ import { chunkText } from '@/lib/chunking';
 import { embedChunks } from '@/lib/embeddings';
 import { processExtractedText } from '@/lib/canvas/text-processing.js';
 
-const MAX_TITLE_LENGTH = 500;
-const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5MB
+const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? '500', 10);
+const MAX_CONTENT_LENGTH = parseInt(process.env.MAX_CONTENT_LENGTH ?? String(5 * 1024 * 1024), 10);
 
 export async function GET(request, { params }) {
   try {
