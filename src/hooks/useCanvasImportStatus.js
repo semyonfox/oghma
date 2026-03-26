@@ -91,8 +91,8 @@ export function useCanvasImportStatus(options = {}) {
         setShowToast(true)
       })
     }
-    checkStatus()
-    maybeAutoSync()
+    // defer to avoid synchronous setState in effect body
+    setTimeout(() => { checkStatus(); maybeAutoSync() }, 0)
   }, [autoCheckOnMount, checkStatus, maybeAutoSync])
 
   // poll every 3s while importing
