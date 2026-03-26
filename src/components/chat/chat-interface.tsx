@@ -246,7 +246,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                     ))}
 
                     {loading && (
-                        <div className="flex justify-start">
+                        <div className="flex justify-start" role="status" aria-label="AI is thinking">
                             <div className="bg-white/6 border border-white/8 rounded-lg rounded-bl-none px-2.5 py-1.5">
                                 <TypingDots />
                             </div>
@@ -367,7 +367,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 ))}
 
                 {loading && (
-                    <div className="flex gap-3 justify-start">
+                    <div className="flex gap-3 justify-start" role="status" aria-label="AI is thinking">
                         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
                             <SparklesIcon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
                         </div>
