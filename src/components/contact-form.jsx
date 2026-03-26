@@ -11,9 +11,16 @@ export default function ContactForm() {
   const onSubmit = async (event) => {
     event.preventDefault()
     setIsLoading(true)
-    
+
+    const accessKey = process.env.NEXT_PUBLIC_WEB3FORMS_KEY;
+    if (!accessKey) {
+      setResult("Contact form is not configured");
+      setIsLoading(false);
+      return;
+    }
+
     const formData = new FormData(event.target)
-    formData.append("access_key", "08fc9081-9062-4df6-a658-b6a8c9a9baa6")
+    formData.append("access_key", accessKey)
 
     try {
       const response = await fetch("https://api.web3forms.com/submit", {
