@@ -45,27 +45,35 @@ frontend:
         - npm ci --include=dev --legacy-peer-deps
     build:
       commands:
-        # write runtime env vars without exposing values in build logs
+        # write runtime env vars to .env.production for SSR runtime,
+        # then UNSET them so empty-string values don't break the build.
+        # next-auth crashes with new URL("") if NEXTAUTH_URL is "" at import time.
         - |
-          for var in DATABASE_URL JWT_SECRET STORAGE_BUCKET STORAGE_ACCESS_KEY \
+          RUNTIME_VARS="DATABASE_URL JWT_SECRET STORAGE_BUCKET STORAGE_ACCESS_KEY \
             STORAGE_SECRET_KEY STORAGE_REGION STORAGE_ENDPOINT STORAGE_PREFIX \
-            NEXT_PUBLIC_API_URL REDIS_HOST REDIS_PORT REDIS_TLS \
+            REDIS_HOST REDIS_PORT REDIS_TLS \
             LLM_API_URL LLM_API_KEY LLM_MODEL EMBEDDING_API_URL EMBEDDING_MODEL \
             SQS_QUEUE_URL SQS_EXTRACT_RETRY_QUEUE_URL \
             MARKER_EC2_INSTANCE_ID MARKER_API_URL DATALAB_API_KEY \
-            NEXTAUTH_SECRET NEXT_PUBLIC_APP_URL \
+            NEXTAUTH_SECRET NEXTAUTH_URL \
             GOOGLE_ID GOOGLE_SECRET GITHUB_ID GITHUB_SECRET \
             ENABLE_CREDENTIALS_AUTH SERVER_ENCRYPTION_SECRET COHERE_API_KEY \
-            NEXTAUTH_URL \
-            SES_REGION SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_FROM_EMAIL; do
+            SES_REGION SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_FROM_EMAIL"
+          ALL_VARS="$RUNTIME_VARS NEXT_PUBLIC_API_URL NEXT_PUBLIC_APP_URL"
+          for var in $ALL_VARS; do
             [ -n "${!var}" ] && echo "${var}=${!var}" >> .env.production || true
+          done
+          # unset runtime-only vars so next build doesn't see "" as the value
+          # (NEXT_PUBLIC_* must stay — they're inlined into the client bundle)
+          for var in $RUNTIME_VARS; do
+            unset "$var"
           done
         - npm run build
   artifacts:
     baseDirectory: .next
     files:
-      - '**/*'
-      - '../.env.production'
+      - "**/*"
+      - "../.env.production"
   cache:
     paths:
       - node_modules/**/*
