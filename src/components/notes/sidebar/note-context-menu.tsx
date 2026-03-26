@@ -64,6 +64,7 @@ export default function NoteContextMenuPortal({
     const [adjusted, setAdjusted] = useState<{ x: number; y: number } | null>(null);
 
     // clamp menu position to viewport after it renders and we know its actual size
+    /* eslint-disable react-hooks/set-state-in-effect -- rAF layout measurement */
     useEffect(() => {
         if (!openMenuId) { requestAnimationFrame(() => setAdjusted(null)); return; }
         // wait one frame for the menu to render and have dimensions
@@ -80,6 +81,7 @@ export default function NoteContextMenuPortal({
         });
         return () => cancelAnimationFrame(frame);
     }, [openMenuId, position]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // close on click outside or scroll
     useEffect(() => {
