@@ -78,7 +78,7 @@ const FileUpload: FC<FileUploadProps> = ({ noteId, onUploadComplete, onError }) 
          setIsUploading(false);
        }
     },
-    [noteId, onUploadComplete, onError]
+    [noteId, onUploadComplete, onError, t]
   );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
