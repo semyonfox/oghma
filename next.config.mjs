@@ -4,6 +4,10 @@ const nextConfig = {
     serverExternalPackages: ['postgres', 'winston-cloudwatch'],
     // standalone output generates NFT trace files required by Amplify SSR
     output: 'standalone',
+    // Use webpack bundler instead of Turbopack for builds
+    experimental: {
+        turbo: undefined,
+    },
     async headers() {
         return [
             {

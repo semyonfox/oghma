@@ -22,12 +22,12 @@ export async function register() {
   }
 
   // enable X-Ray auto-tracing of all outbound HTTPS calls (Cohere, Kimi, etc.)
+  // import delegated to xray.ts so instrumentation.ts never directly references
+  // the Node.js 'https' built-in, which silences the Edge Runtime static-analysis warning
   if (process.env.NODE_ENV === 'production') {
     try {
-      const AWSXRay = await import('aws-xray-sdk-core');
-      const https = await import('https');
-      AWSXRay.captureHTTPsGlobal(https as unknown as Parameters<typeof AWSXRay.captureHTTPsGlobal>[0], true);
-      AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+      const { setupXRay } = await import('@/lib/xray');
+      setupXRay();
     } catch {
       // X-Ray daemon not available — subsegments become no-ops via the xray helper
     }
