@@ -16,13 +16,15 @@ export default function CanvasImportToast({ show, onClose, progress, onViewLogs 
   const hasIssues = forbidden > 0 || error > 0
 
   // animate in
+  /* eslint-disable react-hooks/set-state-in-effect -- rAF-driven animation toggle */
   useEffect(() => {
     if (show) {
       requestAnimationFrame(() => setVisible(true))
     } else {
-      setVisible(false)
+      requestAnimationFrame(() => setVisible(false))
     }
   }, [show])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // auto-hide 6s after completion
   useEffect(() => {
