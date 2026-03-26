@@ -20,7 +20,7 @@ export default function CanvasImportToast({ show, onClose, progress, onViewLogs 
     if (show) {
       requestAnimationFrame(() => setVisible(true))
     } else {
-      setVisible(false)
+      requestAnimationFrame(() => setVisible(false))
     }
   }, [show])
 
