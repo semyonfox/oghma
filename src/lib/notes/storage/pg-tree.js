@@ -45,17 +45,10 @@ export async function getTreeFromPG(userId) {
       };
     }
 
-    // Second pass: build parent-child relationships (skip self-references)
+    // Second pass: build parent-child relationships
     for (const row of rows) {
       const noteId = String(row.note_id);
-      let parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
-
-      // prevent self-referencing cycle
-      if (parentId === noteId) {
-        console.warn(`[pg-tree] getTreeFromPG: fixing self-referencing note ${noteId}`);
-        parentId = ROOT_ID;
-      }
-
+      const parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
       if (!items[parentId]) {
         items[parentId] = {
           id: parentId,
@@ -88,13 +81,9 @@ export async function getTreeFromPG(userId) {
  */
 export async function addNoteToTree(userId, noteId, parentId) {
   try {
+    // tree_items.parent_id is UUID and references the parent note's UUID
+    // If no parentId provided, note is added to root (parent_id = NULL)
     const actualParentId = parentId || null;
-
-    // reject self-referencing parent
-    if (actualParentId && actualParentId === noteId) {
-      console.warn(`[pg-tree] addNoteToTree: rejecting self-referencing parent (${noteId})`);
-      return addNoteToTree(userId, noteId, null); // fall back to root
-    }
 
     await sql`
       INSERT INTO app.tree_items (user_id, note_id, parent_id)
@@ -152,35 +141,11 @@ export async function updateTreeItem(userId, noteId, updates) {
 
 /**
  * Move a note in the tree (change parent, will sort A-Z)
- * Rejects moves that would create cycles (self-reference or ancestor loop)
  */
 export async function moveNoteInTree(userId, noteId, newParentId) {
   try {
+    // tree_items.parent_id is UUID and references the parent note's UUID
     const actualParentId = newParentId || null;
-
-    // reject self-referencing parent
-    if (actualParentId && actualParentId === noteId) {
-      throw new Error('Cannot move a note into itself');
-    }
-
-    // walk the ancestor chain of the destination to detect cycles
-    if (actualParentId) {
-      const ancestors = await sql`
-        WITH RECURSIVE chain AS (
-          SELECT parent_id FROM app.tree_items
-          WHERE user_id = ${userId}::uuid AND note_id = ${actualParentId}::uuid
-          UNION ALL
-          SELECT ti.parent_id FROM app.tree_items ti
-          JOIN chain c ON ti.note_id = c.parent_id
-          WHERE ti.user_id = ${userId}::uuid AND ti.parent_id IS NOT NULL
-        )
-        SELECT parent_id FROM chain
-      `;
-      const ancestorIds = new Set(ancestors.map(r => String(r.parent_id)));
-      if (ancestorIds.has(noteId)) {
-        throw new Error('Cannot move a folder into its own descendant');
-      }
-    }
 
     await sql`
       UPDATE app.tree_items

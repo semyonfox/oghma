@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/lib/rateLimiter';
 import { embedText } from '@/lib/embedText';
 import { rerankChunks } from '@/lib/rerank';
 import { isValidUUID } from '@/lib/uuid-validation';
+import { generateUUID } from '@/lib/utils/uuid';
 import { xraySubsegment } from '@/lib/xray';
 import { Metrics } from '@/lib/metrics';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
@@ -22,6 +23,10 @@ interface SearchResult {
     distance: number;
 }
 
+// cosine distance threshold — chunks further than this are considered irrelevant
+// Cohere multilingual-v3.0 distances: 0 = identical, ~0.3 = very similar, ~0.7 = weakly related
+const MAX_DISTANCE = 0.75;
+
 // search chunks+embeddings tables, joining back to notes for metadata
 async function semanticSearch(
     userId: string,
@@ -31,17 +36,22 @@ async function semanticSearch(
 ): Promise<SearchResult[]> {
     const vectorStr = `[${queryVector.join(',')}]`;
 
+    const globalSlots = noteId ? Math.max(limit - 6, 2) : limit;
+
     if (noteId) {
-        // pinned note chunks first, then fill from global search
-        const [pinned, similar] = await Promise.all([
+        // semantic search within pinned note + global search for cross-note context
+        const [pinned, global] = await Promise.all([
             sql`
-                SELECT n.note_id, n.title, c.text AS chunk_text, 0::float AS distance
-                FROM app.chunks c
+                SELECT n.note_id, n.title, c.text AS chunk_text,
+                       (e.embedding <=> ${vectorStr}::vector) AS distance
+                FROM app.embeddings e
+                JOIN app.chunks c ON c.id = e.chunk_id
                 JOIN app.notes n ON n.note_id = c.document_id
                 WHERE c.user_id = ${userId}::uuid
                   AND c.document_id = ${noteId}::uuid
-                ORDER BY c.created_at
-                LIMIT 4
+                  AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
+                ORDER BY e.embedding <=> ${vectorStr}::vector
+                LIMIT 6
             `,
             sql`
                 SELECT n.note_id, n.title, c.text AS chunk_text,
@@ -51,11 +61,12 @@ async function semanticSearch(
                 JOIN app.notes n ON n.note_id = c.document_id
                 WHERE c.user_id = ${userId}::uuid
                   AND c.document_id != ${noteId}::uuid
+                  AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
                 ORDER BY e.embedding <=> ${vectorStr}::vector
-                LIMIT ${limit - 4}
+                LIMIT ${globalSlots}
             `,
         ]);
-        return [...pinned, ...similar] as SearchResult[];
+        return [...pinned, ...global] as SearchResult[];
     }
 
     const rows = await sql`
@@ -65,6 +76,7 @@ async function semanticSearch(
         JOIN app.chunks c ON c.id = e.chunk_id
         JOIN app.notes n ON n.note_id = c.document_id
         WHERE c.user_id = ${userId}::uuid
+          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
         ORDER BY e.embedding <=> ${vectorStr}::vector
         LIMIT ${limit}
     `;
@@ -73,10 +85,7 @@ async function semanticSearch(
 
 function buildSystemPrompt(results: SearchResult[]): string {
     if (results.length === 0) {
-        return `You are a knowledgeable study assistant helping a university student learn.
-Answer questions using your full knowledge. Explain concepts clearly, give examples, and go deeper when asked.
-The user may also upload PDFs to build a searchable knowledge base — mention this if relevant.
-Be friendly, thorough, and concise.`;
+        return 'You are a helpful study assistant. No relevant notes were found for this question — let the user know, and suggest they try rephrasing or uploading more material. Be friendly and concise.';
     }
 
     // group chunks by note for cleaner context
@@ -92,12 +101,11 @@ Be friendly, thorough, and concise.`;
         return `--- Note ${i + 1}: "${title}" ---\n${body}`;
     });
 
-    return `You are a knowledgeable study assistant helping a university student learn.
-You have access to some of the user's notes below as additional context. Use them to ground your answers when relevant, but also draw on your full knowledge to explain, elaborate, correct misconceptions, and teach beyond what the notes cover.
-If the notes contain relevant info, reference which note it came from. If the user asks about something not in the notes, answer anyway using your knowledge — the goal is learning.
-Be friendly, thorough, and concise.
+    return `You are a helpful study assistant with access to the user's notes.
+Use ONLY the context below to answer questions. If the answer isn't in the context, say so clearly rather than making something up.
+Cite which note your answer comes from when relevant.
 
-USER'S NOTES:
+CONTEXT:
 ${blocks.join('\n\n')}`;
 }
 
@@ -126,27 +134,15 @@ async function callLLM(
     const body: Record<string, unknown> = { model, messages, max_tokens: 16384 };
     if (thinking) body.thinking = thinking;
 
-    let res: Response;
-    try {
-        res = await fetch(`${apiUrl}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(45_000),
-        });
-    } catch (fetchErr) {
-        // distinguish timeout from network errors so the frontend can show a useful message
-        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        if (msg.includes('abort') || msg.includes('timeout')) {
-            throw new Error('LLM_TIMEOUT');
-        }
-        throw new Error(`LLM_NETWORK: ${msg}`);
-    }
+    const res = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+    });
 
     if (!res.ok) {
         const text = await res.text();
-        if (res.status === 401) throw new Error('LLM_AUTH');
-        if (res.status === 429) throw new Error('LLM_RATE_LIMIT');
         throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
     }
 
@@ -160,9 +156,10 @@ async function persistMessage(
     content: string,
     sources?: { id: string; title: string }[],
 ): Promise<void> {
+    const messageId = generateUUID();
     await sql`
-        INSERT INTO app.chat_messages(session_id, role, content, sources)
-        VALUES(${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
+        INSERT INTO app.chat_messages(id, session_id, role, content, sources)
+        VALUES(${messageId}::uuid, ${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
     `;
 }
 
@@ -186,13 +183,13 @@ async function resolveSession(
 
     const noteIdValue = noteId && isValidUUID(noteId) ? noteId : null;
     const title = messageTitle.slice(0, 60);
-    const [row] = await sql`
-        INSERT INTO app.chat_sessions(user_id, note_id, title)
-        VALUES(${userId}::uuid, ${noteIdValue}, ${title})
-        RETURNING id
+    const sessionId = generateUUID();
+    await sql`
+        INSERT INTO app.chat_sessions(id, user_id, note_id, title)
+        VALUES(${sessionId}::uuid, ${userId}::uuid, ${noteIdValue}, ${title})
     `;
     void Metrics.chatSessionCreated();
-    return row.id as string;
+    return sessionId;
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -220,7 +217,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         return tracedError('message too long (max 2000 characters)', 400);
     }
 
-    const sessionId = await resolveSession(userId, requestedSessionId, noteId, message);
+    // sanitize noteId before it reaches any SQL queries
+    const validNoteId = noteId && isValidUUID(noteId) ? noteId : undefined;
+
+    const sessionId = await resolveSession(userId, requestedSessionId, validNoteId, message);
 
     // load history from DB when continuing a session; fall back to request history
     let history: ChatMessage[] = requestHistory;
@@ -247,16 +247,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         const queryVector = await embedText(message);
         embeddingAvailable = true;
         // fetch 20 candidates, rerank to top 5
-        const candidates = await semanticSearch(userId, queryVector, noteId, 20);
-        const reranked = await rerankChunks(
-            message,
-            candidates.map(r => r.chunk_text),
+        const candidates = await semanticSearch(userId, queryVector, validNoteId, 20);
+        const chunkTexts = candidates.map(r => r.chunk_text);
+        const reranked = await rerankChunks(message, chunkTexts);
+        // map reranked results back using text index to avoid duplicate-text collisions
+        const keptIndices = new Set(
+            reranked.map(r => chunkTexts.indexOf(r.text)).filter(i => i !== -1),
         );
-        // map reranked text back to full SearchResult objects
-        const rerankedTexts = new Set(reranked.map(r => r.text));
-        searchResults = candidates.filter(r => rerankedTexts.has(r.chunk_text));
-    }).catch(() => {
-        // embedding/rerank unavailable — fall through to LLM without context
+        searchResults = candidates.filter((_, i) => keptIndices.has(i));
+    }).catch((err) => {
+        const detail = err instanceof Error ? err.message : String(err);
+        logger.warn('RAG pipeline failed, proceeding without context', { error: detail });
     });
 
     const systemPrompt = buildSystemPrompt(searchResults);
@@ -287,20 +288,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         void Metrics.llmError();
         const detail = error instanceof Error ? error.message : String(error);
         logger.error('LLM call failed', { error: detail, model: process.env.LLM_MODEL });
-
-        // return actionable error messages so the user knows what to do
-        if (detail === 'LLM_TIMEOUT') {
-            return tracedError('The AI took too long to respond. Try a shorter question or try again.', 504);
-        }
-        if (detail === 'LLM_AUTH') {
-            return tracedError('AI service authentication failed. The API key may be expired.', 502);
-        }
-        if (detail === 'LLM_RATE_LIMIT') {
-            return tracedError('AI service rate limit reached. Please wait a moment and try again.', 429);
-        }
-        if (detail.startsWith('LLM_NETWORK')) {
-            return tracedError('Could not reach the AI service. Check your network connection.', 502);
-        }
         return tracedError('Failed to generate response', 502);
     }
 });
