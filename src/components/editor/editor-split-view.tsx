@@ -86,8 +86,7 @@ export const EditorSplitView: FC<EditorSplitViewProps> = ({
     const clickedElement = e.target as HTMLElement;
     if (clickedElement.closest('a[data-link-source]')) {
       // Handle internal links
-      const source = clickedElement.getAttribute('data-link-source');
-      console.log('Jump to link:', source);
+      clickedElement.getAttribute('data-link-source');
     }
   }, []);
 
