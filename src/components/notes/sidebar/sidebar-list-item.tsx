@@ -341,7 +341,6 @@ const SidebarListItem: FC<{
                         className="p-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
                         title={t('Remove, Copy Link, etc')}
                        aria-label={t('Note actions')}
-                       tabIndex={-1}
                    ></IconButton>
 
                    {isActualFolder && (
@@ -351,7 +350,6 @@ const SidebarListItem: FC<{
                             className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
                            title={t('Add a page inside this folder')}
                            aria-label={t('Add note')}
-                           tabIndex={-1}
                        ></IconButton>
                    )}
              </div>
