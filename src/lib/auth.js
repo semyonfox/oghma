@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import {cookies} from 'next/headers';
 import {NextResponse} from 'next/server';
 import sql from '@/database/pgsql.js';
+import { getToken } from 'next-auth/jwt';
 
 // jwt
 
@@ -50,21 +51,47 @@ export async function clearSessionCookie() {
     (await cookies()).delete('session');
 }
 
-export async function validateSession() {
+export async function validateSession(request) {
+    // 1. try Sam's custom session cookie (email/password login)
     const token = await getSessionCookie();
-    if (!token) return null;
-    const payload = verifyJWTToken(token);
-    if (!payload?.user_id) return null;
+    if (token) {
+        const payload = verifyJWTToken(token);
+        if (payload?.user_id) {
+            const [user] = await sql`
+                SELECT user_id, email FROM app.login
+                WHERE user_id = ${payload.user_id}::uuid
+                  AND is_active = true
+                  AND deleted_at IS NULL
+                LIMIT 1
+            `;
+            if (user) return user;
+        }
+    }
 
-    // verify user is still active in the database
-    const [user] = await sql`
-        SELECT user_id, email FROM app.login
-        WHERE user_id = ${payload.user_id}::uuid
-          AND is_active = true
-          AND deleted_at IS NULL
-        LIMIT 1
-    `;
-    return user ?? null;
+    // 2. try NextAuth session (OAuth login)
+    try {
+        const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
+        const cookieStore = await cookies();
+        const sessionToken = cookieStore.get('next-auth.session-token')?.value
+            ?? cookieStore.get('__Secure-next-auth.session-token')?.value;
+        if (sessionToken && secret) {
+            const decoded = jwt.verify(sessionToken, secret);
+            if (decoded?.user_id) {
+                const [user] = await sql`
+                    SELECT user_id, email FROM app.login
+                    WHERE user_id = ${decoded.user_id}::uuid
+                      AND is_active = true
+                      AND deleted_at IS NULL
+                    LIMIT 1
+                `;
+                if (user) return user;
+            }
+        }
+    } catch {
+        // NextAuth token invalid or expired — fall through
+    }
+
+    return null;
 }
 
 // response formatting

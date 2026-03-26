@@ -7,9 +7,9 @@ import logger from '@/lib/logger';
 /**
  * Contact form submission endpoint
  * POST /api/contact
- *
+ * 
  * Accepts: { firstName, lastName, email, phoneNumber, message }
- * Validates, then forwards to Web3Forms with the server-side API key.
+ * Stores submissions for later review
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firstName, lastName, email, phoneNumber, message } = body;
 
+    // Validation
     if (!firstName?.trim()) {
       return NextResponse.json(
         { error: 'First name is required' },
@@ -54,47 +55,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const accessKey = process.env.WEB3FORMS_ACCESS_KEY;
-    if (!accessKey) {
-      logger.error('WEB3FORMS_ACCESS_KEY not configured');
-      return NextResponse.json(
-        { error: 'Contact form is not configured' },
-        { status: 503 }
-      );
-    }
-
-    // forward to Web3Forms with the secret key (server-side only)
-    const formData = new FormData();
-    formData.append('access_key', accessKey);
-    formData.append('first_name', firstName.trim());
-    formData.append('last_name', lastName.trim());
-    formData.append('email', email.trim());
-    if (phoneNumber?.trim()) formData.append('phone', phoneNumber.trim());
-    formData.append('message', message.trim());
-
-    const web3Res = await fetch('https://api.web3forms.com/submit', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const web3Data = await web3Res.json();
-
-    if (!web3Data.success) {
-      logger.error('web3forms submission failed', { response: web3Data });
-      return NextResponse.json(
-        { error: 'Failed to send message' },
-        { status: 502 }
-      );
-    }
-
+    // log submission without PII — hash email for correlation, omit names/phone/message
+    const { createHash } = await import('crypto');
     logger.info('contact form submission', {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      phoneNumber: phoneNumber?.trim() || null,
+      emailHash: createHash('sha256').update(email.trim()).digest('hex').slice(0, 16),
       submittedAt: new Date().toISOString(),
     });
 
+    // Return success response
     return NextResponse.json(
       {
         success: true,

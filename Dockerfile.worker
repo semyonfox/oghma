@@ -5,4 +5,4 @@ RUN npm pkg delete scripts.prepare && npm ci --legacy-peer-deps --omit=dev && np
 COPY tsconfig.json ./
 COPY src/ ./src/
 ENV NODE_ENV=production
-CMD ["npx", "tsx", "src/lib/canvas/worker-entry.js"]
+CMD ["npx", "tsx", "src/lib/canvas/import-worker.js"]
