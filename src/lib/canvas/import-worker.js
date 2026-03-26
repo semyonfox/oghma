@@ -23,6 +23,7 @@ import { stripMarkdown } from '../strip-markdown.ts';
 import { getStorageProvider } from '../storage/init.ts';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
 import { findOrCreateFolder, cleanCourseName, ASSIGNMENTS_PARENT_MODULE_ID } from './canvas-folders.js';
+import { syncAssignmentMetadata } from './sync-assignments.js';
 import { decrypt } from '../crypto.ts';
 import { extractWithMarker } from '../ocr.ts';
 import { sqsClient, EXTRACT_RETRY_QUEUE_URL } from '../sqs.ts';
@@ -463,6 +464,16 @@ async function processCourse(course, userId, ctx) {
   });
   await processModules(courseId, userId, courseTitle, courseFolderId, ctx);
   await processAssignments(courseId, userId, courseTitle, courseFolderId, ctx);
+
+  // sync assignment metadata (titles, due dates, scores) for the tracker
+  try {
+    const { synced, errors } = await syncAssignmentMetadata(courseId, userId, courseTitle, ctx.client);
+    if (synced > 0 || errors > 0) {
+      console.log(`[sync-assignments] course ${courseTitle}: ${synced} synced, ${errors} errors`);
+    }
+  } catch (err) {
+    console.warn(`[sync-assignments] skipped for course ${courseTitle}: ${err.message}`);
+  }
 }
 
 function parseJobCourses(job) {

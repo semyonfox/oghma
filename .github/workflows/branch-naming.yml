@@ -11,8 +11,15 @@ jobs:
       - name: Check branch name
         run: |
           BRANCH_NAME="${{ github.head_ref }}"
-          VALID_PATTERNS="^(feature|bugfix|hotfix|chore|docs|refactor|test)\/[a-z0-9\-]+$"
-          
+
+          # exempt integration branches
+          if [[ "$BRANCH_NAME" == "dev" || "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "production" ]]; then
+            echo "✅ Integration branch: $BRANCH_NAME (exempt from naming convention)"
+            exit 0
+          fi
+
+          VALID_PATTERNS="^(feature|bugfix|hotfix|chore|docs|refactor|test|release|feat|fix)\/[a-z0-9\-]+$"
+
           if ! [[ $BRANCH_NAME =~ $VALID_PATTERNS ]]; then
             echo "❌ Invalid branch name: $BRANCH_NAME"
             echo "Expected format: {feature|bugfix|hotfix|chore|docs|refactor|test}/name-with-dashes"
