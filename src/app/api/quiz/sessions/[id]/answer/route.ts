@@ -76,15 +76,16 @@ export const POST = withErrorHandler(async (
     }).catch(() => {});
 
     // get next question if nextCardId provided
-    let nextQuestion = null;
+    let nextQuestion: any = null;
     if (nextCardId) {
-        [nextQuestion] = await sql`
+        const rows = await sql`
             SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
                    qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
             FROM app.quiz_cards qc
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${nextCardId}::uuid
         `;
+        nextQuestion = rows[0] ?? null;
         if (nextQuestion) {
             const nextFsrs = cardFromDB(nextQuestion);
             nextQuestion.intervals = getNextIntervals(nextFsrs);
