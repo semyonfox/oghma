@@ -1,7 +1,5 @@
 // extracted from Notea (MIT License)
-import { CSRF_HEADER_KEY } from '@/lib/notes/types/const';
 import { useCallback, useRef, useState } from 'react';
-import useCsrfTokenStore from '@/lib/notes/state/csrf-token';
 import { deduplicatedFetch, recordRequest } from './request-deduplicator';
 
 interface Params {
@@ -14,8 +12,6 @@ export default function useFetcher() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>();
     const abortRef = useRef<AbortController | undefined>(undefined);
-    const csrfToken = useCsrfTokenStore((state) => state.token);
-
     const request = useCallback(
         async function request<Payload, ReponseData>(
             params: Params,
@@ -32,9 +28,7 @@ export default function useFetcher() {
                 method: params.method,
             };
 
-            init.headers = {
-                ...(csrfToken && { [CSRF_HEADER_KEY]: csrfToken }),
-            };
+            init.headers = {};
 
             if (payload instanceof FormData) {
                 init.body = payload;
@@ -80,7 +74,7 @@ export default function useFetcher() {
                 setLoading(false);
             }
         },
-        [csrfToken]
+        []
     );
 
     const abort = useCallback(() => {
