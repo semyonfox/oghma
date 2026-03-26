@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth';
+import { withErrorHandler, tracedError } from '@/lib/api-error';
+import { generateUUID } from '@/lib/utils/uuid';
+import { resolveChunkIds, getSessionCandidates, selectCards } from '@/lib/quiz/select';
+import { generateQuestion } from '@/lib/quiz/generate';
+import { getCurrentBloomLevel, pickQuestionType } from '@/lib/quiz/bloom';
+import { cardFromDB, getNextIntervals } from '@/lib/quiz/fsrs';
+import { SESSION_DEFAULTS } from '@/lib/quiz/types';
+import type { FilterType } from '@/lib/quiz/types';
+import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
+
+export const POST = withErrorHandler(async (request: NextRequest) => {
+    const user = await validateSession();
+    if (!user) return tracedError('Unauthorized', 401);
+
+    const body = await request.json();
+    const filterType = body.filterType as FilterType;
+    const filterValue = body.filterValue;
+
+    if (!filterType) return tracedError('filterType is required', 400);
+
+    const userId = user.user_id;
+
+    // resolve filter to chunk IDs
+    const chunkIds = await resolveChunkIds(userId, filterType, filterValue);
+    if (chunkIds.length === 0) {
+        return tracedError('No content found for this filter. Import some notes first.', 404);
+    }
+
+    // get candidates
+    const { dueCards, uncoveredChunkIds, masteredCards } = await getSessionCandidates(userId, chunkIds);
+
+    // select cards for this session
+    const maxQuestions = body.maxQuestions || SESSION_DEFAULTS.maxQuestions;
+    const selection = selectCards(dueCards, uncoveredChunkIds, maxQuestions, masteredCards);
+
+    // generate questions for uncovered chunks (on-demand)
+    const generatedQuestionIds: string[] = [];
+    for (const chunkId of selection.newChunks) {
+        const [chunk] = await sql`
+            SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+            FROM app.chunks c
+            JOIN app.notes n ON c.document_id = n.note_id
+            WHERE c.id = ${chunkId}::uuid
+        `;
+        if (!chunk) continue;
+
+        const reviews = await sql`
+            SELECT qq.bloom_level, qr.was_correct
+            FROM app.quiz_reviews qr
+            JOIN app.quiz_questions qq ON qr.question_id = qq.id
+            WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+        `;
+        const bloomLevel = getCurrentBloomLevel(reviews);
+        const questionType = pickQuestionType(bloomLevel);
+
+        const question = await generateQuestion(
+            userId, chunk.document_id, chunkId, chunk.text,
+            chunk.title || 'Unknown Module', bloomLevel, questionType,
+        );
+        if (question) generatedQuestionIds.push(question.id);
+    }
+
+    // collect all card IDs for this session
+    const allCardIds = [
+        ...selection.due.map(c => c.id),
+        ...selection.retention.map(c => c.id),
+    ];
+
+    if (generatedQuestionIds.length > 0) {
+        const newCards = await sql`
+            SELECT id FROM app.quiz_cards
+            WHERE question_id = ANY(${generatedQuestionIds}::uuid[])
+        `;
+        allCardIds.push(...newCards.map((c: any) => c.id));
+    }
+
+    // create session
+    const sessionId = generateUUID();
+    await sql`
+        INSERT INTO app.quiz_sessions (id, user_id, filter_type, filter_value, total_questions)
+        VALUES (
+            ${sessionId}::uuid,
+            ${userId}::uuid,
+            ${filterType},
+            ${filterValue ? JSON.stringify(filterValue) : null}::jsonb,
+            ${allCardIds.length}
+        )
+    `;
+
+    // get first question
+    let firstQuestion = null;
+    if (allCardIds.length > 0) {
+        [firstQuestion] = await sql`
+            SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
+                   qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
+            FROM app.quiz_cards qc
+            JOIN app.quiz_questions qq ON qc.question_id = qq.id
+            WHERE qc.id = ${allCardIds[0]}::uuid
+        `;
+        if (firstQuestion) {
+            const fsrsCard = cardFromDB(firstQuestion);
+            firstQuestion.intervals = getNextIntervals(fsrsCard);
+        }
+    }
+
+    return NextResponse.json({
+        sessionId,
+        totalQuestions: allCardIds.length,
+        cardIds: allCardIds,
+        currentIndex: 0,
+        question: firstQuestion,
+    }, { status: 201 });
+});
