@@ -50,7 +50,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
+    // reject files over 50MB before buffering into memory
+    const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
+    if (contentLength > 50 * 1024 * 1024) {
+        throw new ApiError(413, 'File too large (max 50MB)');
+    }
+
     const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > 50 * 1024 * 1024) {
+        throw new ApiError(413, 'File too large (max 50MB)');
+    }
     const filename = new URL(url).pathname.split('/').pop() ?? 'document.pdf';
     const ext = filename.toLowerCase().split('.').pop();
     const isText = ext && ['md', 'markdown', 'txt'].includes(ext);
