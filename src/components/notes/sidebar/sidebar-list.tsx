@@ -699,7 +699,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
     }, [isRenaming]);
 
     useEffect(() => {
-        if (!isRenaming) setRenameValue(nodeData?.title ?? '');
+        if (!isRenaming) requestAnimationFrame(() => setRenameValue(nodeData?.title ?? ''));
     }, [nodeData?.title, isRenaming]);
 
     const handleRenameSubmit = () => {

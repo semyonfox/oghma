@@ -86,8 +86,10 @@ export function useCanvasImportStatus(options = {}) {
 
     const savedJob = JSON.parse(localStorage.getItem(LS_ACTIVE_JOB) ?? 'null')
     if (savedJob?.jobId) {
-      setIsImporting(true)
-      setShowToast(true)
+      queueMicrotask(() => {
+        setIsImporting(true)
+        setShowToast(true)
+      })
     }
     checkStatus()
     maybeAutoSync()
