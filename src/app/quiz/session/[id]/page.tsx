@@ -22,7 +22,7 @@ export default function QuizSessionPage() {
     const [lastAnswer, setLastAnswer] = useState<{ answer: string; wasCorrect: boolean } | null>(null);
     const [intervals, setIntervals] = useState<Record<1 | 2 | 3 | 4, number>>({ 1: 0, 2: 0, 3: 0, 4: 0 });
     const [streak, setStreak] = useState(0);
-    const [startTime, setStartTime] = useState(Date.now());
+    const [startTime, setStartTime] = useState(() => Date.now());
 
     // load session on mount
     useEffect(() => {
