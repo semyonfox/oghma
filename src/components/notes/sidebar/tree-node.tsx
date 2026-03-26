@@ -79,7 +79,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     const renameInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (!isRenaming) setRenameValue(data?.title ?? '');
+        if (!isRenaming) requestAnimationFrame(() => setRenameValue(data?.title ?? ''));
     }, [data?.title, isRenaming]);
 
     useEffect(() => {
