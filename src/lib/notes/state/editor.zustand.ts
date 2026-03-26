@@ -59,7 +59,7 @@ const useEditorStore = create<EditorState>()(
             },
             onClickLink: (href) => {
                 if (isNoteLink(href.replace(location.origin, ''))) {
-                    console.log('Navigate'); // Assume Zustand handles router use
+                    // internal note navigation handled by editor click handler
                 } else {
                     window.open(href, '_blank');
                 }
@@ -77,11 +77,8 @@ const useEditorStore = create<EditorState>()(
                 const result = await response.json();
                 return result.url as string;
             },
-            onHoverLink: () => {
-                console.log('Handle hover logic');
-            },
+            onHoverLink: () => {},
             getBackLinks: async () => {
-                console.log('Retrieve backlinks');
                 return [];
             },
             onEditorChange: (getValue) => {

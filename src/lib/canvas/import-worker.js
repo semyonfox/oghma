@@ -367,9 +367,10 @@ async function _runFileImport(importRecordId, file, opts) {
 
 async function downloadAndStoreFile(file, opts) {
   const importRecordId = uuidv4();
-  const timer = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`File timed out after 2 minutes: ${file.display_name}`)), FILE_TIMEOUT_MS)
-  );
+  let timerId;
+  const timer = new Promise((_, reject) => {
+    timerId = setTimeout(() => reject(new Error(`File timed out after 2 minutes: ${file.display_name}`)), FILE_TIMEOUT_MS);
+  });
   try {
     await Promise.race([_runFileImport(importRecordId, file, opts), timer]);
   } catch (error) {
@@ -383,6 +384,8 @@ async function downloadAndStoreFile(file, opts) {
     } catch (dbErr) {
       console.error('Failed to update import record:', dbErr);
     }
+  } finally {
+    clearTimeout(timerId);
   }
 }
 
