@@ -30,3 +30,7 @@ jobs:
       - name: Build
         run: npm run build
         continue-on-error: false
+        env:
+          SERVER_ENCRYPTION_SECRET: ${{ secrets.SERVER_ENCRYPTION_SECRET || 'ci-build-placeholder' }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-build-placeholder' }}
+          NEXTAUTH_URL: http://localhost:3000
