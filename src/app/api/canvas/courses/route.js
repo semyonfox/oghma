@@ -48,7 +48,7 @@ export async function GET() {
 
     // For each course, fetch its modules concurrently so the UI can show
     // the folder structure the import will create
-    const coursesWithModules = await Promise.all(
+    const moduleResults = await Promise.allSettled(
       (courses ?? []).map(async (course) => {
         const { data: modules } = await client.getModules(course.id);
         return {
@@ -56,6 +56,12 @@ export async function GET() {
           modules: modules ?? [],
         };
       })
+    );
+
+    const coursesWithModules = moduleResults.map((result, i) =>
+      result.status === 'fulfilled'
+        ? result.value
+        : { ...(courses ?? [])[i], modules: [] }
     );
 
     return NextResponse.json({
