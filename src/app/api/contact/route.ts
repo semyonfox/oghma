@@ -55,12 +55,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // log submission without PII — hash email for correlation, omit names/phone/message
+    const { createHash } = await import('crypto');
     logger.info('contact form submission', {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      phoneNumber: phoneNumber?.trim() || null,
-      message: message.trim(),
+      emailHash: createHash('sha256').update(email.trim()).digest('hex').slice(0, 16),
       submittedAt: new Date().toISOString(),
     });
 

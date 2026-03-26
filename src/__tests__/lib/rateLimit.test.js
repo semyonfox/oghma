@@ -19,7 +19,7 @@ import {
     clearFailedAttempts,
     getLockoutMinutesRemaining,
     getRateLimitResetTime,
-} from '@/lib/rateLimit.js';
+} from '@/lib/loginLockout.js';
 
 const EMAIL = 'test@example.com';
 
