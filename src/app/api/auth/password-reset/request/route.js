@@ -27,9 +27,18 @@ export async function POST(request) {
             SELECT user_id, email FROM app.login WHERE email = ${email.trim()}
         `;
 
-        // constant-time response whether or not the email exists (prevents enumeration)
+        // constant-time: perform the same work regardless of whether email exists
+        // this prevents timing-based account enumeration
+        const start = Date.now();
+        const MIN_RESPONSE_MS = 500;
+
         if (users.length === 0) {
-            await new Promise(r => setTimeout(r, 150 + Math.random() * 100));
+            // burn time equivalent to the real path (hash + dummy work)
+            crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex');
+            const elapsed = Date.now() - start;
+            if (elapsed < MIN_RESPONSE_MS) {
+                await new Promise(r => setTimeout(r, MIN_RESPONSE_MS - elapsed + Math.random() * 100));
+            }
             return resetAckResponse();
         }
 
@@ -47,6 +56,12 @@ export async function POST(request) {
         `;
 
         await sendPasswordResetEmail(email, resetToken);
+
+        // pad real path too so both branches take similar time
+        const elapsed = Date.now() - start;
+        if (elapsed < MIN_RESPONSE_MS) {
+            await new Promise(r => setTimeout(r, MIN_RESPONSE_MS - elapsed));
+        }
         return resetAckResponse();
     } catch (error) {
         logger.error('password reset request error', { error });
