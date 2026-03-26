@@ -1,18 +1,20 @@
-// document text extraction via Marker (supports PDF, DOCX, PPTX, images, etc.)
-// tries Datalab hosted API first (free tier), falls back to self-hosted homelab on 429
-// both use the same marker_server API contract: POST /marker/upload (multipart)
+// document text extraction via self-hosted Marker on EC2 (primary)
+// falls back to Datalab Convert API if EC2 is unavailable
 //
-// returns structured output: full text + pre-split chunks that respect document structure
-// (headings, tables, equations) — much better than naive sentence splitting
+// EC2 Marker: synchronous POST /marker/upload (g4dn.xlarge GPU, auto-starts)
+// Datalab: async submit+poll POST /api/v1/convert
+
+import { ensureMarkerRunning } from './marker-ec2';
 
 export interface MarkerResult {
     text: string;
     chunks: string[];
-    source: 'datalab' | 'homelab' | 'pdf-parse';
+    source: 'ec2' | 'datalab' | 'pdf-parse';
 }
 
-const DATALAB_URL = 'https://api.datalab.to/api/v1/marker';
-const REQUEST_TIMEOUT_MS = 120_000; // 2 min — large documents can take a while
+const DATALAB_URL = 'https://www.datalab.to/api/v1/convert';
+const POLL_INTERVAL_MS = 2_000;
+const TOTAL_TIMEOUT_MS = 120_000;
 
 const MIME_MAP: Record<string, string> = {
     pdf: 'application/pdf',
@@ -34,114 +36,138 @@ export async function extractWithMarker(
     buffer: Buffer,
     filename: string,
 ): Promise<MarkerResult> {
-    const datalabKey = process.env.DATALAB_API_KEY;
-    const homelabUrl = process.env.MARKER_API_URL;
-
-    // try datalab hosted API first
-    if (datalabKey) {
+    // primary: self-hosted Marker on EC2 (GPU)
+    if (process.env.MARKER_EC2_INSTANCE_ID) {
         try {
-            const result = await callMarker(DATALAB_URL, buffer, filename, {
-                'X-Api-Key': datalabKey,
-            });
-            if (result) return { ...result, source: 'datalab' };
-        } catch (err: any) {
-            if (err?.status === 429) {
-                console.log('Datalab rate-limited, falling back to homelab');
-            } else {
-                console.warn(`Datalab error: ${err?.message ?? err}`);
-            }
-        }
-    }
-
-    // fall back to self-hosted homelab via Cloudflare Tunnel
-    if (homelabUrl) {
-        const headers: Record<string, string> = {};
-        const cfId = process.env.MARKER_CF_CLIENT_ID;
-        const cfSecret = process.env.MARKER_CF_CLIENT_SECRET;
-        if (cfId && cfSecret) {
-            headers['CF-Access-Client-Id'] = cfId;
-            headers['CF-Access-Client-Secret'] = cfSecret;
-        }
-
-        try {
-            const result = await callMarker(
-                `${homelabUrl}/marker/upload`,
+            const markerUrl = await ensureMarkerRunning();
+            const result = await callEc2Marker(
+                `${markerUrl}/marker/upload`,
                 buffer,
                 filename,
-                headers,
             );
-            if (result) return { ...result, source: 'homelab' };
+            if (result) return { ...result, source: 'ec2' };
         } catch (err: any) {
-            console.warn(`Homelab Marker error: ${err?.message ?? err}`);
+            console.warn(`EC2 Marker error: ${err?.message ?? err}`);
         }
     }
 
-    // both unavailable — caller should fall back to pdf-parse
-    throw new Error('Marker unavailable (both Datalab and homelab failed)');
+    // fallback: Datalab hosted API
+    const datalabKey = process.env.DATALAB_API_KEY;
+    if (datalabKey) {
+        try {
+            const result = await callDatalab(buffer, filename, datalabKey);
+            if (result) return { ...result, source: 'datalab' };
+        } catch (err: any) {
+            console.warn(`Datalab error: ${err?.message ?? err}`);
+        }
+    }
+
+    throw new Error('Marker unavailable (both EC2 and Datalab failed)');
 }
 
-async function callMarker(
+// self-hosted marker_server on EC2 — synchronous single-request
+async function callEc2Marker(
     url: string,
     buffer: Buffer,
     filename: string,
-    extraHeaders: Record<string, string>,
 ): Promise<{ text: string; chunks: string[] } | null> {
     const form = new FormData();
     const mime = mimeFromFilename(filename);
     form.append('file', new Blob([new Uint8Array(buffer)], { type: mime }), filename);
     form.append('output_format', 'markdown');
-    form.append('force_ocr', 'false');
     form.append('paginate_output', 'true');
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS);
 
     try {
         const res = await fetch(url, {
             method: 'POST',
-            headers: extraHeaders,
             body: form,
             signal: controller.signal,
         });
 
-        if (res.status === 429) {
-            const err = new Error('Rate limited');
-            (err as any).status = 429;
-            throw err;
-        }
-
         if (!res.ok) {
-            throw new Error(`Marker API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+            throw new Error(`EC2 Marker ${res.status}: ${(await res.text()).slice(0, 200)}`);
         }
 
         const json = await res.json();
-        if (!json.success) throw new Error(json.error ?? 'Marker returned success=false');
+        if (!json.success) throw new Error(json.error ?? 'EC2 Marker returned success=false');
 
         const text = typeof json.output === 'string' ? json.output : '';
-
-        // split markdown on horizontal rules (page boundaries from paginate_output)
-        // then further split on headings for chunk boundaries
         const chunks = splitMarkdownToChunks(text);
-
         return { text, chunks };
     } finally {
         clearTimeout(timeout);
     }
 }
 
-// splits marker's paginated markdown into semantic chunks
-// respects page breaks (---) and headings (## / ###) as natural boundaries
+// Datalab Convert API — async submit + poll
+async function callDatalab(
+    buffer: Buffer,
+    filename: string,
+    apiKey: string,
+): Promise<{ text: string; chunks: string[] } | null> {
+    const form = new FormData();
+    const mime = mimeFromFilename(filename);
+    form.append('file', new Blob([new Uint8Array(buffer)], { type: mime }), filename);
+    form.append('output_format', 'markdown');
+    form.append('paginate', 'true');
+
+    const submitRes = await fetch(DATALAB_URL, {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey },
+        body: form,
+    });
+
+    if (submitRes.status === 429) {
+        throw new Error('Datalab rate limited');
+    }
+
+    if (!submitRes.ok) {
+        throw new Error(`Datalab submit ${submitRes.status}: ${(await submitRes.text()).slice(0, 200)}`);
+    }
+
+    const submitJson = await submitRes.json();
+    if (!submitJson.success) throw new Error(submitJson.error ?? 'Datalab submit failed');
+
+    const checkUrl = submitJson.request_check_url;
+    if (!checkUrl) throw new Error('Datalab did not return request_check_url');
+
+    const deadline = Date.now() + TOTAL_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+        const pollRes = await fetch(checkUrl, {
+            headers: { 'X-API-Key': apiKey },
+        });
+
+        if (!pollRes.ok) {
+            throw new Error(`Datalab poll ${pollRes.status}: ${(await pollRes.text()).slice(0, 200)}`);
+        }
+
+        const result = await pollRes.json();
+        if (result.status === 'processing') continue;
+        if (result.status === 'failed') throw new Error(result.error ?? 'Datalab conversion failed');
+
+        if (result.status === 'complete') {
+            const text = typeof result.markdown === 'string' ? result.markdown : '';
+            return { text, chunks: splitMarkdownToChunks(text) };
+        }
+    }
+
+    throw new Error('Datalab conversion timed out');
+}
+
 function splitMarkdownToChunks(markdown: string, targetSize = 500): string[] {
     if (!markdown?.trim()) return [];
 
-    // split on page boundaries first (Marker's paginate_output adds ---)
     const pages = markdown.split(/\n-{3,}\n/);
     const chunks: string[] = [];
 
     for (const page of pages) {
-        // split each page on headings
         const sections = page.split(/(?=^#{1,3}\s)/m).filter(s => s.trim());
-
         let current = '';
         for (const section of sections) {
             if ((current + section).length > targetSize && current.trim()) {

@@ -24,7 +24,7 @@ export async function POST(request) {
         const {data: body, error: parseError} = await parseJsonBody(request);
         if (parseError) return parseError;
 
-        const {email, password} = body;
+        const {email, password, rememberMe} = body;
 
         // 2. Validate credentials format
         const validation = validateAuthCredentials(email, password, false);
@@ -92,7 +92,7 @@ export async function POST(request) {
         await clearFailedAttempts(email);
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
-        const sessionResponse = await createAuthSession(user, 1);
+        const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
 
         // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
         //    We don't await this — login speed is unaffected.
