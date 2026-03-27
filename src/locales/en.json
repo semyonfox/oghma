@@ -316,6 +316,7 @@
   "error.page_not_found": "Page not found",
   "error.reload_editor": "Reload editor",
   "error.page_not_found_description": "Sorry, we couldn't find the page you're looking for.",
+  "error.ai_unavailable": "AI is temporarily unavailable. Please try again in a moment.",
   "error.something_went_wrong": "Something went wrong",
   "error.try_again": "Try again",
   "Esc to close": "Esc to close",
