@@ -23,9 +23,9 @@ export async function register() {
   validateEnv();
 
   // enable X-Ray auto-tracing of all outbound HTTPS calls (Cohere, Kimi, etc.)
-  // import delegated to xray.ts so instrumentation.ts never directly references
-  // the Node.js 'https' built-in, which silences the Edge Runtime static-analysis warning
-  if (process.env.NODE_ENV === "production") {
+  // only when active tracing is enabled (_X_AMZN_TRACE_ID is set by Lambda
+  // when active tracing is on — without it captureHTTPsGlobal causes errors)
+  if (process.env.NODE_ENV === "production" && process.env._X_AMZN_TRACE_ID) {
     try {
       const { setupXRay } = await import("@/lib/xray");
       setupXRay();
