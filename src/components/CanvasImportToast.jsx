@@ -14,6 +14,7 @@ export default function CanvasImportToast({
   progress,
   onViewLogs,
 }) {
+  const { t } = useI18n();
   const {
     total = 0,
     completed = 0,
