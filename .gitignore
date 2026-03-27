@@ -69,3 +69,6 @@ CLAUDE.md
 .claude/
 database/schema-current.json
 .superpowers/
+
+# worktrees
+.worktrees/

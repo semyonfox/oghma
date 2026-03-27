@@ -1,8 +1,15 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export type FileType = 'note' | 'pdf' | 'image' | 'video';
-export type NavSection = 'notes' | 'search' | 'calendar' | 'chat' | 'quiz' | 'settings';
+export type FileType = "note" | "pdf" | "image" | "video";
+export type NavSection =
+  | "notes"
+  | "search"
+  | "calendar"
+  | "chat"
+  | "quiz"
+  | "settings";
+export type RightPanelTab = "meta" | "tags" | "ai" | "tasks";
 
 interface PaneState {
   fileId: string;
@@ -22,11 +29,11 @@ interface LayoutState {
   // Pane state (A is required, B is optional)
   paneA: PaneState;
   paneB: PaneState | null;
-  activePane: 'A' | 'B'; // Track which pane has focus for keyboard shortcuts
+  activePane: "A" | "B"; // Track which pane has focus for keyboard shortcuts
 
   // Right panel
   rightPanelOpen: boolean;
-  rightPanelTab: 'info' | 'ai';
+  rightPanelTab: RightPanelTab;
 
   // UI sizes (persist to localStorage)
   treeWidth: number; // 200-600px
@@ -45,13 +52,13 @@ interface LayoutState {
   setActiveNav: (nav: NavSection) => void;
   setPaneA: (file: FileSpec | undefined) => void;
   setPaneB: (file: FileSpec | undefined) => void;
-  setActivePane: (pane: 'A' | 'B') => void;
+  setActivePane: (pane: "A" | "B") => void;
   swapPanes: () => void;
-  setPaneEditMode: (pane: 'A' | 'B', editMode: boolean) => void;
+  setPaneEditMode: (pane: "A" | "B", editMode: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   toggleRightPanel: () => void;
-  setRightPanelTab: (tab: 'info' | 'ai') => void;
-  openRightPanelTab: (tab: 'info' | 'ai') => void;
+  setRightPanelTab: (tab: RightPanelTab) => void;
+  openRightPanelTab: (tab: RightPanelTab) => void;
   setSizes: (tree: number, right: number, split: number) => void;
   toggleExpandedNode: (nodeId: string) => void;
   toggleCollapsedSection: (section: string) => void;
@@ -63,19 +70,19 @@ const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
       // Initial state
-      activeNav: 'notes',
-      paneA: { fileId: '', fileType: 'note' as FileType },
+      activeNav: "notes",
+      paneA: { fileId: "", fileType: "note" as FileType },
       paneB: null,
-      activePane: 'A',
+      activePane: "A",
       rightPanelOpen: false,
-      rightPanelTab: 'info' as const,
+      rightPanelTab: "meta" as RightPanelTab,
       treeWidth: 220,
       rightPanelWidth: 280,
       splitPosition: 50,
-       expandedNodes: new Set(['root']),
-       collapsedSections: new Set(),
-       selectedNode: null,
-       draggedFile: null,
+      expandedNodes: new Set(["root"]),
+      collapsedSections: new Set(),
+      selectedNode: null,
+      draggedFile: null,
 
       // Navigation
       setActiveNav: (nav) => set({ activeNav: nav }),
@@ -83,7 +90,7 @@ const useLayoutStore = create<LayoutState>()(
       // Pane A (required)
       setPaneA: (file) => {
         set(() => ({
-          paneA: file || { fileId: '', fileType: 'note' as FileType },
+          paneA: file || { fileId: "", fileType: "note" as FileType },
           selectedNode: file?.fileId || null,
         }));
       },
@@ -111,7 +118,7 @@ const useLayoutStore = create<LayoutState>()(
       // Edit mode (for notes)
       setPaneEditMode: (pane, editMode) => {
         set((state) => {
-          if (pane === 'A') {
+          if (pane === "A") {
             return {
               paneA: { ...state.paneA, editMode },
             };
@@ -125,12 +132,15 @@ const useLayoutStore = create<LayoutState>()(
 
       // Right panel
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
-      toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
+      toggleRightPanel: () =>
+        set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
       setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
-      openRightPanelTab: (tab) => set((state) => ({
-        rightPanelOpen: state.rightPanelOpen && state.rightPanelTab === tab ? false : true,
-        rightPanelTab: tab,
-      })),
+      openRightPanelTab: (tab) =>
+        set((state) => ({
+          rightPanelOpen:
+            state.rightPanelOpen && state.rightPanelTab === tab ? false : true,
+          rightPanelTab: tab,
+        })),
 
       // Sizes
       setSizes: (tree, right, split) => {
@@ -171,7 +181,7 @@ const useLayoutStore = create<LayoutState>()(
       setDraggedFile: (file) => set({ draggedFile: file }),
     }),
     {
-      name: 'oghmaNotes-layout-store',
+      name: "oghmaNotes-layout-store",
       partialize: (state) => ({
         treeWidth: state.treeWidth,
         rightPanelWidth: state.rightPanelWidth,
@@ -183,10 +193,10 @@ const useLayoutStore = create<LayoutState>()(
         ...currentState,
         ...(persistedState as any),
         collapsedSections: new Set(persistedState?.collapsedSections || []),
-        expandedNodes: new Set(persistedState?.expandedNodes || ['root']),
+        expandedNodes: new Set(persistedState?.expandedNodes || ["root"]),
       }),
-    }
-  )
+    },
+  ),
 );
 
 export default useLayoutStore;
