@@ -1,36 +1,36 @@
-'use client'
+"use client";
 
 // adapted from notea: https://github.com/QingWei-Li/notea
 // original file: libs/web/utils/i18n-provider.tsx
 
-import { createContext, useState, useRef, useEffect, ReactNode } from 'react';
-import rosetta, { Rosetta } from 'rosetta';
-import pupa from 'pupa';
+import { createContext, useState, useRef, useEffect, ReactNode } from "react";
+import rosetta, { Rosetta } from "rosetta";
+import pupa from "pupa";
 
 const i18n = rosetta<Record<string, string>>();
 
 // default to English locale
-export const defaultLanguage = 'en';
+export const defaultLanguage = "en";
 
 // supported locales - update this when adding new locale files
 export const languages = [
-  'en',
-  'ga',
-  'hi',
-  'zh-CN',
-  'fr-FR',
-  'es-ES',
-  'it-IT',
-  'de-DE',
-  'ru-RU',
-  'ar',
-  'nl-NL',
-  'sv-SE',
+  "en",
+  "ga",
+  "hi",
+  "zh-CN",
+  "fr-FR",
+  "es-ES",
+  "it-IT",
+  "de-DE",
+  "ru-RU",
+  "ar",
+  "nl-NL",
+  "sv-SE",
 ];
 
 export interface ContextProps {
   activeLocale: string;
-  t: Rosetta<Record<string, string>>['t'];
+  t: Rosetta<Record<string, string>>["t"];
   locale: (l: string, dict: Record<string, string>) => void;
 }
 
@@ -53,15 +53,13 @@ export default function I18nProvider({ children, locale, lngDict }: Props) {
   const i18nWrapper: ContextProps = {
     activeLocale: activeLocaleRef.current,
     t: (key, ...args) => {
-      if (activeLocaleRef.current === defaultLanguage) {
-        return pupa(
-          Array.isArray(key) ? key.join('') : key,
-          args[0] ?? {}
-        );
-      }
-      return i18n.t(Array.isArray(key) ? key : [key], ...args);
+      // always try rosetta lookup first (handles dotted keys like "chat.title")
+      const result = i18n.t(Array.isArray(key) ? key : [key], ...args);
+      if (result) return result;
+      // fallback: treat the key itself as the English text (with pupa interpolation)
+      return pupa(Array.isArray(key) ? key.join("") : key, args[0] ?? {});
     },
-    locale: (l: Props['locale'], dict: Props['lngDict']) => {
+    locale: (l: Props["locale"], dict: Props["lngDict"]) => {
       i18n.locale(l);
       activeLocaleRef.current = l;
       if (dict) {
@@ -87,8 +85,6 @@ export default function I18nProvider({ children, locale, lngDict }: Props) {
   }, [lngDict, locale]);
 
   return (
-    <I18nContext.Provider value={i18nWrapper}>
-      {children}
-    </I18nContext.Provider>
+    <I18nContext.Provider value={i18nWrapper}>{children}</I18nContext.Provider>
   );
 }
