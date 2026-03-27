@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
   SparklesIcon,
@@ -9,12 +9,12 @@ import {
   DocumentTextIcon,
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentListIcon,
-} from '@heroicons/react/24/outline';
-import useLayoutStore from '@/lib/notes/state/layout.zustand';
-import useI18n from '@/lib/notes/hooks/use-i18n';
-import { extractTags } from '@/lib/notes/utils/file-spec';
-import ChatInterface from '@/components/chat/chat-interface';
-import AssignmentTracker from '@/components/panels/assignment-tracker';
+} from "@heroicons/react/24/outline";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { extractTags } from "@/lib/notes/utils/file-spec";
+import ChatInterface from "@/components/chat/chat-interface";
+import AssignmentTracker from "@/components/panels/assignment-tracker";
 
 interface InspectorNote {
   id: string;
@@ -25,15 +25,16 @@ interface InspectorNote {
   note_id?: string;
 }
 
-type InspectorTab = 'ai' | 'meta' | 'tags' | 'tasks';
+type InspectorTab = "ai" | "meta" | "tags" | "tasks";
 
 export default function NotesInspectorSidebar() {
   const { t } = useI18n();
-  const { activePane, paneA, paneB, rightPanelOpen, toggleRightPanel } = useLayoutStore();
-  const activeFile = activePane === 'B' && paneB ? paneB : paneA;
+  const { activePane, paneA, paneB, rightPanelOpen, toggleRightPanel } =
+    useLayoutStore();
+  const activeFile = activePane === "B" && paneB ? paneB : paneA;
   const [note, setNote] = useState<InspectorNote | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<InspectorTab>('meta');
+  const [activeTab, setActiveTab] = useState<InspectorTab>("meta");
 
   useEffect(() => {
     if (!activeFile?.fileId) {
@@ -74,119 +75,174 @@ export default function NotesInspectorSidebar() {
 
   const tabClasses = (tab: InspectorTab) => `
     px-3 py-2 text-xs font-medium transition-colors border-b-2
-    ${activeTab === tab
-      ? 'border-primary-500 text-text-secondary'
-      : 'border-transparent text-text-tertiary hover:text-text-secondary'
+    ${
+      activeTab === tab
+        ? "border-primary-500 text-text-secondary"
+        : "border-transparent text-text-tertiary hover:text-text-secondary"
     }
   `;
 
   return (
     <div className="h-full flex flex-col bg-surface text-text">
-       {/* Header */}
-       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-         <h3 className="text-sm font-medium text-text-secondary truncate">{activeFile?.title || t('No file')}</h3>
-         {rightPanelOpen && (
-           <button
-             onClick={toggleRightPanel}
-             className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-white/5 hover:text-text-secondary flex-shrink-0"
-             title={t('Collapse panel')}
-           >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
+        <h3 className="text-sm font-medium text-text-secondary truncate">
+          {activeFile?.title || t("No file")}
+        </h3>
+        {rightPanelOpen && (
+          <button
+            onClick={toggleRightPanel}
+            className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-white/5 hover:text-text-secondary flex-shrink-0"
+            title={t("Collapse panel")}
+          >
             <ChevronRightIcon className="h-4 w-4" />
           </button>
         )}
       </div>
 
-       {/* Tabs */}
-       <div className="flex border-b border-border-subtle px-3 gap-0" role="tablist" aria-label="Inspector tabs">
-         <button role="tab" aria-selected={activeTab === 'meta'} aria-controls="panel-meta" onClick={() => setActiveTab('meta')} className={tabClasses('meta')}>
-           {t('Meta')}
-         </button>
-         <button role="tab" aria-selected={activeTab === 'tags'} aria-controls="panel-tags" onClick={() => setActiveTab('tags')} className={tabClasses('tags')}>
-           {t('Tags')}
-         </button>
-         <button role="tab" aria-selected={activeTab === 'ai'} aria-controls="panel-ai" onClick={() => setActiveTab('ai')} className={tabClasses('ai')}>
-           {t('AI')}
-         </button>
-         <button role="tab" aria-selected={activeTab === 'tasks'} aria-controls="panel-tasks" onClick={() => setActiveTab('tasks')} className={tabClasses('tasks')}>
-           {t('Tasks')}
-         </button>
-       </div>
+      {/* Tabs */}
+      <div
+        className="flex border-b border-border-subtle px-3 gap-0"
+        role="tablist"
+        aria-label="Inspector tabs"
+      >
+        <button
+          role="tab"
+          aria-selected={activeTab === "meta"}
+          aria-controls="panel-meta"
+          onClick={() => setActiveTab("meta")}
+          className={tabClasses("meta")}
+        >
+          {t("Meta")}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "tags"}
+          aria-controls="panel-tags"
+          onClick={() => setActiveTab("tags")}
+          className={tabClasses("tags")}
+        >
+          {t("Tags")}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "ai"}
+          aria-controls="panel-ai"
+          onClick={() => setActiveTab("ai")}
+          className={tabClasses("ai")}
+        >
+          {t("AI")}
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "tasks"}
+          aria-controls="panel-tasks"
+          onClick={() => setActiveTab("tasks")}
+          className={tabClasses("tasks")}
+        >
+          {t("Tasks")}
+        </button>
+      </div>
 
       {/* Content */}
-       <div className="flex-1 flex flex-col overflow-hidden">
-         {/* Metadata Tab */}
-         {activeTab === 'meta' && (
-           <div className="flex-1 overflow-y-auto p-4">
-             {loading ? (
-               <p className="text-xs text-text-tertiary">{t('Loading...')}</p>
-             ) : note ? (
-               <dl className="space-y-3 text-sm">
-                 <div>
-                   <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">{t('Title')}</dt>
-                   <dd className="mt-1 text-text-secondary text-sm">{note.title || activeFile?.title || t('Untitled')}</dd>
-                 </div>
-                 <div>
-                   <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">{t('Type')}</dt>
-                   <dd className="mt-1 text-text-secondary text-sm">{activeFile.fileType}</dd>
-                 </div>
-                 <div>
-                   <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">{t('Created')}</dt>
-                   <dd className="mt-1 text-text-tertiary text-sm">
-                     {note.created_at ? new Date(note.created_at).toLocaleDateString() : t('Unknown')}
-                   </dd>
-                 </div>
-                 <div>
-                   <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">{t('Updated')}</dt>
-                   <dd className="mt-1 text-text-tertiary text-sm">
-                     {note.updated_at ? new Date(note.updated_at).toLocaleDateString() : t('Unknown')}
-                   </dd>
-                 </div>
-                 <div>
-                   <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">{t('ID')}</dt>
-                   <dd className="mt-1 break-all font-mono text-[10px] text-text-tertiary opacity-60">
-                     {note.note_id || note.id || activeFile.fileId}
-                   </dd>
-                 </div>
-               </dl>
-             ) : (
-               <p className="text-xs text-text-tertiary">{t('Select a note to view metadata.')}</p>
-             )}
-           </div>
-         )}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Metadata Tab */}
+        {activeTab === "meta" && (
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
+            ) : note ? (
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                    {t("Title")}
+                  </dt>
+                  <dd className="mt-1 text-text-secondary text-sm">
+                    {note.title || activeFile?.title || t("Untitled")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                    {t("Type")}
+                  </dt>
+                  <dd className="mt-1 text-text-secondary text-sm">
+                    {activeFile.fileType}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                    {t("Created")}
+                  </dt>
+                  <dd className="mt-1 text-text-tertiary text-sm">
+                    {note.created_at
+                      ? new Date(note.created_at).toLocaleDateString()
+                      : t("Unknown")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                    {t("Updated")}
+                  </dt>
+                  <dd className="mt-1 text-text-tertiary text-sm">
+                    {note.updated_at
+                      ? new Date(note.updated_at).toLocaleDateString()
+                      : t("Unknown")}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                    {t("ID")}
+                  </dt>
+                  <dd className="mt-1 break-all font-mono text-[10px] text-text-tertiary opacity-60">
+                    {note.note_id || note.id || activeFile.fileId}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-xs text-text-tertiary">
+                {t("Select a note to view metadata.")}
+              </p>
+            )}
+          </div>
+        )}
 
-         {/* Tags Tab */}
-         {activeTab === 'tags' && (
-           <div className="flex-1 overflow-y-auto p-4">
-             {tags.length > 0 ? (
-               <div className="flex flex-wrap gap-1.5">
-                 {tags.map((tag) => (
-                   <span
-                     key={tag}
-                     className="rounded-full border border-border-subtle bg-white/5 px-2 py-0.5 text-xs text-text-tertiary"
-                   >
-                     #{tag}
-                   </span>
-                 ))}
-               </div>
-             ) : (
-               <p className="text-xs text-text-tertiary">{t('No tags found in this note.')}</p>
-             )}
-           </div>
-         )}
+        {/* Tags Tab */}
+        {activeTab === "tags" && (
+          <div className="flex-1 overflow-y-auto p-4">
+            {tags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-border-subtle bg-white/5 px-2 py-0.5 text-xs text-text-tertiary"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-tertiary">
+                {t("No tags found in this note.")}
+              </p>
+            )}
+          </div>
+        )}
 
-         {/* AI Tab */}
-        {activeTab === 'ai' && (
+        {/* AI Tab */}
+        {activeTab === "ai" && (
           <div className="flex-1 flex flex-col min-h-0">
             {/* open full chat link */}
             {activeFile?.fileId && (
               <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-border-subtle">
-                <p className="text-[11px] text-text-tertiary">{t('Quick AI chat')}</p>
+                <p className="text-[11px] text-text-tertiary">
+                  {t("Quick AI chat")}
+                </p>
                 <a
-                  href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || '')}`}
+                  href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
                   className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors"
-                  title={t('Open full chat')}
+                  title={t("Open full chat")}
                 >
-                  {t('Full chat')}
+                  {t("Full chat")}
                   <ArrowTopRightOnSquareIcon className="w-3 h-3" />
                 </a>
               </div>
@@ -201,12 +257,14 @@ export default function NotesInspectorSidebar() {
             ) : (
               <div className="p-4 flex flex-col items-center gap-3 text-center">
                 <SparklesIcon className="w-8 h-8 text-text-tertiary opacity-40" />
-                <p className="text-xs text-text-tertiary">{t('Select a note to start chatting with AI.')}</p>
+                <p className="text-xs text-text-tertiary">
+                  {t("Select a note to start chatting with AI.")}
+                </p>
                 <a
                   href="/chat"
                   className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
                 >
-                  {t('Open AI chat')} →
+                  {t("Open AI chat")} →
                 </a>
               </div>
             )}
@@ -214,8 +272,8 @@ export default function NotesInspectorSidebar() {
         )}
 
         {/* Tasks Tab */}
-        {activeTab === 'tasks' && (
-          <div className="flex-1 flex flex-col min-h-0">
+        {activeTab === "tasks" && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <AssignmentTracker />
           </div>
         )}
