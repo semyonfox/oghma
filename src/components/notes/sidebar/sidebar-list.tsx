@@ -396,6 +396,19 @@ const SidebarList = () => {
     [tree.items],
   );
 
+  const handleOpenInAIChat = useCallback(
+    (id: string, nodeData: NoteModel | undefined, isFolder: boolean) => {
+      const title = encodeURIComponent(
+        nodeData?.title || (isFolder ? "Folder" : "Untitled"),
+      );
+      const param = isFolder
+        ? `folderId=${id}&folderTitle=${title}`
+        : `noteId=${id}&noteTitle=${title}`;
+      router.push(`/chat?${param}`);
+    },
+    [router],
+  );
+
   const handleItemContextMenu = useCallback(
     (
       e: React.MouseEvent,
@@ -462,8 +475,8 @@ const SidebarList = () => {
               />
             </svg>
           )}
-          {/* action buttons - visible on hover */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* action buttons - always visible */}
+          <div className="flex items-center gap-0.5">
             <button
               onClick={handleQuickNewNote}
               className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
@@ -625,6 +638,32 @@ const SidebarList = () => {
                       }
                       setRenamingId(null);
                     }}
+                    onAddNote={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      await handleContextCreateNote(itemId);
+                    }}
+                    onDotsClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const rect = (
+                        e.currentTarget as HTMLElement
+                      ).getBoundingClientRect();
+                      useContextMenuStore
+                        .getState()
+                        .setOpenMenu(
+                          itemId,
+                          rect.left,
+                          rect.bottom + 4,
+                          !!isFolder,
+                          isPinned,
+                        );
+                    }}
+                    onOpenInAIChat={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleOpenInAIChat(itemId, nodeData, !!isFolder);
+                    }}
                     initLoaded={initLoaded}
                   >
                     {children}
@@ -717,6 +756,9 @@ interface TreeItemProps {
   onToggle: () => void;
   onClick: () => void;
   onRenameComplete: (newTitle: string) => void;
+  onAddNote: (e: React.MouseEvent) => void;
+  onDotsClick: (e: React.MouseEvent) => void;
+  onOpenInAIChat: (e: React.MouseEvent) => void;
 }
 
 const TreeItem: React.FC<TreeItemProps> = ({
@@ -738,6 +780,9 @@ const TreeItem: React.FC<TreeItemProps> = ({
   onToggle,
   onClick,
   onRenameComplete,
+  onAddNote,
+  onDotsClick,
+  onOpenInAIChat,
 }) => {
   const { t } = useI18n();
   const syncStatus = useSyncStatusStore((s) => s.status[itemId]);
@@ -914,6 +959,66 @@ const TreeItem: React.FC<TreeItemProps> = ({
               syncStatus === "modified" ? "bg-amber-400" : "bg-green-400"
             }`}
           />
+        )}
+
+        {/* Hover actions */}
+        {!isRenaming && (
+          <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
+            <button
+              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              onClick={onDotsClick}
+              title={t("More actions")}
+              tabIndex={-1}
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+              </svg>
+            </button>
+            <button
+              className="p-0.5 rounded hover:bg-indigo-600/20 text-text-tertiary hover:text-indigo-300 transition-colors"
+              onClick={onOpenInAIChat}
+              title={isFolder ? t("Chat with folder") : t("Chat with note")}
+              tabIndex={-1}
+            >
+              {/* chip/cpu icon */}
+              <svg
+                className="w-3.5 h-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="7" y="7" width="10" height="10" rx="1" />
+                <path d="M9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3" />
+              </svg>
+            </button>
+            {isFolder && (
+              <button
+                className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+                onClick={onAddNote}
+                title={t("New note inside")}
+                tabIndex={-1}
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            )}
+          </span>
         )}
       </div>
 
