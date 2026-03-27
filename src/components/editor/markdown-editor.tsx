@@ -1,22 +1,24 @@
-'use client';
+"use client";
 
-import { FC, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import dynamic from 'next/dynamic';
-import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import useNoteStore from '@/lib/notes/state/note';
-import useSyncStatusStore from '@/lib/notes/state/sync-status';
-import PreviewRenderer from './preview-renderer';
-import Link from 'next/link';
-import useI18n from '@/lib/notes/hooks/use-i18n';
-import { toast } from 'sonner';
+import { FC, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
+import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import useNoteStore from "@/lib/notes/state/note";
+import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import PreviewRenderer from "./preview-renderer";
+import Link from "next/link";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { toast } from "sonner";
 
 // CodeMirror accesses browser APIs on import, so lazy-load it client-side only
-const CodeMirrorEditor = dynamic(() => import('./codemirror-editor'), { ssr: false });
+const CodeMirrorEditor = dynamic(() => import("./codemirror-editor"), {
+  ssr: false,
+});
 
-type EditorMode = 'source' | 'read';
+type EditorMode = "source" | "read";
 
 interface MarkdownEditorProps {
-  pane: 'A' | 'B';
+  pane: "A" | "B";
   file: FileSpec;
 }
 
@@ -24,8 +26,8 @@ interface MarkdownEditorProps {
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
-  const [mode, setMode] = useState<EditorMode>('source');
-  const [localContent, setLocalContent] = useState('');
+  const [mode, setMode] = useState<EditorMode>("source");
+  const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -35,7 +37,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
   // stable identity for this editor instance (cross-pane sync)
-  const editorId = useRef(Symbol('editor'));
+  const editorId = useRef(Symbol("editor"));
   const isDirtyRef = useRef(false);
 
   // keep isDirtyRef in sync so the event listener always reads current value
@@ -53,7 +55,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     fetchNote(file.fileId)
       .then((result) => {
         if (result && currentFileId.current === file.fileId) {
-          setLocalContent(result.content ?? '');
+          setLocalContent(result.content ?? "");
           setLoaded(true);
         }
       })
@@ -63,7 +65,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // pick up content from store when note loads from cache
   useEffect(() => {
     if (note && note.id === file.fileId && !isDirty && !loaded) {
-      setLocalContent(note.content ?? '');
+      setLocalContent(note.content ?? "");
       setLoaded(true);
     }
   }, [note, file.fileId, isDirty, loaded]);
@@ -72,17 +74,21 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   useEffect(() => {
     const handler = (e: Event) => {
       const { fileId, content, sourceId } = (e as CustomEvent).detail;
-      if (fileId === file.fileId && sourceId !== editorId.current && !isDirtyRef.current) {
+      if (
+        fileId === file.fileId &&
+        sourceId !== editorId.current &&
+        !isDirtyRef.current
+      ) {
         setLocalContent(content);
       }
     };
-    window.addEventListener('note-content-sync', handler);
-    return () => window.removeEventListener('note-content-sync', handler);
+    window.addEventListener("note-content-sync", handler);
+    return () => window.removeEventListener("note-content-sync", handler);
   }, [file.fileId]);
 
   const displayContent = useMemo(
-    () => (loaded ? localContent : ''),
-    [localContent, loaded]
+    () => (loaded ? localContent : ""),
+    [localContent, loaded],
   );
 
   // track dirty state in sync status store
@@ -103,13 +109,19 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
       setIsDirty(false);
       markSynced(file.fileId);
       // broadcast to other panes showing this file
-      window.dispatchEvent(new CustomEvent('note-content-sync', {
-        detail: { fileId: file.fileId, content: localContent, sourceId: editorId.current },
-      }));
+      window.dispatchEvent(
+        new CustomEvent("note-content-sync", {
+          detail: {
+            fileId: file.fileId,
+            content: localContent,
+            sourceId: editorId.current,
+          },
+        }),
+      );
     } catch (error) {
-      console.error('Save failed:', error);
+      console.error("Save failed:", error);
       setSaveError(true);
-      toast.error('Failed to save note');
+      toast.error("Failed to save note");
     } finally {
       setIsSaving(false);
     }
@@ -118,46 +130,52 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   // Ctrl+S handler (for read mode — CodeMirror handles it in source mode)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         handleSave();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave]);
 
   // save on blur — when user clicks away from the editor
-  const handleEditorBlur = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
-    // only save if focus is leaving the editor entirely (not moving within it)
-    if (!e.currentTarget.contains(e.relatedTarget as Node) && isDirty) {
-      handleSave();
-    }
-  }, [isDirty, handleSave]);
+  const handleEditorBlur = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      // only save if focus is leaving the editor entirely (not moving within it)
+      if (!e.currentTarget.contains(e.relatedTarget as Node) && isDirty) {
+        handleSave();
+      }
+    },
+    [isDirty, handleSave],
+  );
 
   return (
-    <div className="h-full flex flex-col bg-background" onBlur={handleEditorBlur}>
+    <div
+      className="h-full flex flex-col bg-background"
+      onBlur={handleEditorBlur}
+    >
       {/* Toolbar */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
         {/* Source / Read toggle */}
         <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded">
           <button
-            onClick={() => setMode('source')}
+            onClick={() => setMode("source")}
             className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
-              mode === 'source'
-                ? 'bg-primary-500 text-text'
-                : 'text-text-tertiary hover:text-text-secondary'
+              mode === "source"
+                ? "bg-primary-500 text-text"
+                : "text-text-tertiary hover:text-text-secondary"
             }`}
           >
             Source
           </button>
           <button
-            onClick={() => setMode('read')}
+            onClick={() => setMode("read")}
             className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
-              mode === 'read'
-                ? 'bg-primary-500 text-text'
-                : 'text-text-tertiary hover:text-text-secondary'
+              mode === "read"
+                ? "bg-primary-500 text-text"
+                : "text-text-tertiary hover:text-text-secondary"
             }`}
           >
             Read
@@ -179,7 +197,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               className="flex items-center gap-1.5 text-[11px] font-mono text-yellow-500 hover:text-yellow-400 transition-colors"
               title="Save (Ctrl+S)"
             >
-              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="w-3 h-3"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M5 3h8l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
                 <path d="M7 3v4h6V3M7 13h6" />
               </svg>
@@ -188,51 +212,51 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
           ) : (
             <span
               className={`text-[11px] font-mono ${
-                isSaving ? 'text-yellow-500' :
-                saveError ? 'text-error-400' :
-                'text-success-500'
+                isSaving
+                  ? "text-yellow-500"
+                  : saveError
+                    ? "text-error-400"
+                    : "text-success-500"
               }`}
             >
-              {isSaving ? 'Saving...' : saveError ? 'Save failed' : 'Saved'}
+              {isSaving ? "Saving..." : saveError ? "Save failed" : "Saved"}
             </span>
           )}
         </div>
       </div>
 
-       {/* Content Area */}
-       <div className="flex-1 overflow-auto flex flex-col items-center bg-background">
-          {mode === 'source' ? (
-            loaded ? (
-              <div className="w-full h-full">
-                <CodeMirrorEditor
-                  value={displayContent}
-                  onChange={(val) => {
-                    setLocalContent(val);
-                    setIsDirty(true);
-                  }}
-                  onSave={handleSave}
-                  placeholder={t('Start writing...')}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-                Loading...
-              </div>
-            )
+      {/* Content Area */}
+      <div className="flex-1 overflow-auto flex flex-col items-center bg-editor">
+        {mode === "source" ? (
+          loaded ? (
+            <div className="w-full h-full">
+              <CodeMirrorEditor
+                value={displayContent}
+                onChange={(val) => {
+                  setLocalContent(val);
+                  setIsDirty(true);
+                }}
+                onSave={handleSave}
+                placeholder={t("Start writing...")}
+              />
+            </div>
           ) : (
-            loaded ? (
-              <div className="w-full max-w-[65ch] mx-auto h-full">
-                <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
-                  <PreviewRenderer content={displayContent} />
-                </div>
-              </div>
-           ) : (
-             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-               Loading...
-             </div>
-           )
-         )}
-       </div>
+            <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+              Loading...
+            </div>
+          )
+        ) : loaded ? (
+          <div className="w-full max-w-[65ch] mx-auto h-full">
+            <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
+              <PreviewRenderer content={displayContent} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+            Loading...
+          </div>
+        )}
+      </div>
     </div>
   );
 };
