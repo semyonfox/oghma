@@ -49,6 +49,43 @@ export async function sendPasswordResetEmail(email, resetToken) {
     }
 }
 
+export async function sendVerificationEmail(email, verificationToken) {
+    const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+    if (!fromEmail) {
+        throw new Error('SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)');
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+    const mailOptions = {
+        from: fromEmail,
+        to: email,
+        subject: 'Verify your email address',
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Verify Your Email</h2>
+        <p>Thanks for signing up! Click the button below to verify your email address:</p>
+        <a href="${verifyUrl}"
+           style="background-color: #4299e1; color: white; padding: 12px 24px;
+                  text-decoration: none; border-radius: 5px; display: inline-block;">
+          Verify Email
+        </a>
+        <p style="margin-top: 20px; color: #666;">This link expires in 24 hours.</p>
+        <p style="color: #999; font-size: 12px;">If you didn't create an account, ignore this email.</p>
+      </div>
+    `,
+        text: `Verify your email: ${verifyUrl}\n\nThis link expires in 24 hours.`,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+    } catch (err) {
+        console.error('[email] failed to send verification email:', err.message);
+        throw new Error('Failed to send verification email');
+    }
+}
+
 /* permissions policy (group name: AWSSESSendingGroupDoNotRename)
 {
     "Version": "2012-10-17",
