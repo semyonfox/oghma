@@ -188,17 +188,16 @@ export default function MonthView() {
               </time>
 
               {/* events */}
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-1 space-y-px">
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="truncate rounded px-1 py-0.5 text-[10px] font-medium leading-tight"
+                    className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 bg-white/5"
                     style={{
-                      backgroundColor: (a.courseColor ?? "#7c3aed") + "20",
-                      color: a.courseColor ?? "#c4b5fd",
+                      borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
                   >
-                    {a.title}
+                    <span className="text-text-secondary">{a.title}</span>
                   </div>
                 ))}
                 {day.timeBlocks
@@ -206,7 +205,7 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="truncate rounded px-1 py-0.5 text-[10px] leading-tight bg-primary-500/10 text-primary-300"
+                      className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 border-primary-500/40 bg-white/5 text-text-tertiary"
                     >
                       {tb.title || "Study block"}
                     </div>
