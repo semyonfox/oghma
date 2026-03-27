@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // keep postgres.js out of the webpack bundle so it runs natively at runtime
-    serverExternalPackages: ['postgres', 'winston-cloudwatch'],
+    // keep native/credential-dependent packages out of the Turbopack bundle
+    // AWS SDK must not be bundled — Turbopack tree-shakes credential providers
+    serverExternalPackages: ['postgres', 'winston-cloudwatch', 'aws-xray-sdk-core',
+        '@aws-sdk/client-secrets-manager', '@aws-sdk/credential-provider-node'],
     // standalone output generates NFT trace files required by Amplify SSR
     output: 'standalone',
 
