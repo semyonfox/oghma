@@ -90,7 +90,7 @@ function CompletionRing({
         y={center - 2}
         textAnchor="middle"
         fill="white"
-        fontSize={12}
+        fontSize={14}
         fontWeight="bold"
       >
         {total > 0 ? `${Math.round(pct * 100)}%` : "—"}
@@ -100,7 +100,7 @@ function CompletionRing({
         y={center + 12}
         textAnchor="middle"
         fill="#888"
-        fontSize={8}
+        fontSize={9}
       >
         {done}/{total}
       </text>
@@ -198,7 +198,7 @@ export default function AssignmentTracker() {
   `;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col">
       {/* course filter + sync */}
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
@@ -241,8 +241,8 @@ export default function AssignmentTracker() {
       </div>
 
       {/* completion ring */}
-      <div className="flex justify-center py-1">
-        <CompletionRing done={doneCount} total={assignments.length} size={56} />
+      <div className="flex justify-center py-2">
+        <CompletionRing done={doneCount} total={assignments.length} />
       </div>
 
       {/* sub-tabs */}
@@ -268,7 +268,7 @@ export default function AssignmentTracker() {
       </div>
 
       {/* assignment list */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-1.5">
+      <div className="flex-1 overflow-y-auto px-3 space-y-2">
         {loading ? (
           <p className="text-xs text-text-tertiary py-4 text-center">
             {t("Loading...")}
@@ -283,7 +283,7 @@ export default function AssignmentTracker() {
           filtered.map((a) => (
             <div
               key={a.id}
-              className={`rounded border border-border-subtle border-l-[3px] bg-background p-2 ${urgencyClass(a.due_at)}`}
+              className={`rounded border border-border-subtle border-l-[3px] bg-background p-2.5 ${urgencyClass(a.due_at)}`}
             >
               <div className="flex items-center justify-between gap-1.5">
                 {a.course_name && (

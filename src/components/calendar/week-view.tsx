@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
@@ -172,24 +172,20 @@ export default function WeekView() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* day headers */}
       <div
-        className="grid shrink-0 border-b border-border-subtle bg-surface/50"
+        className="grid shrink-0 border-b border-border-subtle"
         style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
       >
         <div className="border-r border-border-subtle" />
         {weekDays.map((d) => (
           <div
             key={d.date}
-            className={`flex flex-col items-center py-2.5 border-r border-border-subtle ${d.isToday ? "bg-primary-500/[0.04]" : ""}`}
+            className="flex flex-col items-center py-2 text-xs text-text-tertiary"
           >
-            <span
-              className={`text-[11px] font-medium uppercase tracking-wider ${d.isToday ? "text-primary-400" : "text-text-tertiary"}`}
-            >
-              {d.label}
-            </span>
+            <span>{d.label}</span>
             <span
               className={`
-              mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-colors
-              ${d.isToday ? "bg-primary-500 text-white shadow-sm shadow-primary-500/30" : "text-text-secondary"}
+              mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold
+              ${d.isToday ? "bg-primary-500 text-white" : "text-text-secondary"}
             `}
             >
               {d.dayNum}
@@ -208,14 +204,10 @@ export default function WeekView() {
           }}
         >
           {/* hour labels */}
-          <div className="sticky left-0 z-10 bg-background border-r border-border-subtle">
+          <div className="sticky left-0 z-10 bg-surface border-r border-border-subtle">
             {HOURS.map((h) => (
-              <div
-                key={h}
-                style={{ height: HOUR_HEIGHT }}
-                className="relative border-b border-border-subtle"
-              >
-                <span className="absolute -top-2.5 right-2.5 text-[10px] font-medium text-text-tertiary/70 tabular-nums select-none">
+              <div key={h} style={{ height: HOUR_HEIGHT }} className="relative">
+                <span className="absolute -top-2.5 right-2 text-[10px] text-text-tertiary tabular-nums">
                   {formatHour(h)}
                 </span>
               </div>
@@ -226,7 +218,7 @@ export default function WeekView() {
           {weekDays.map((d, colIdx) => (
             <div
               key={d.date}
-              className={`relative border-r border-border-subtle cursor-pointer ${d.isToday ? "bg-primary-500/[0.02]" : ""}`}
+              className="relative border-r border-border-subtle cursor-pointer"
               onClick={(e) => handleGridClick(colIdx, e)}
             >
               {/* hour grid lines */}
@@ -234,7 +226,7 @@ export default function WeekView() {
                 <div
                   key={h}
                   style={{ height: HOUR_HEIGHT }}
-                  className="border-b border-border-subtle hover:bg-surface/50 transition-colors"
+                  className="border-b border-white/5"
                 />
               ))}
 
@@ -244,17 +236,17 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="absolute left-1 right-1 rounded-lg overflow-hidden text-[10px] leading-tight px-2 py-1.5 shadow-sm transition-shadow hover:shadow-md cursor-default"
+                    className="absolute left-0.5 right-0.5 rounded-md overflow-hidden text-[10px] leading-tight px-1.5 py-1"
                     style={{
                       top: b.top,
                       height: b.height,
-                      backgroundColor: (b.courseColor ?? "#7c3aed") + "18",
+                      backgroundColor: (b.courseColor ?? "#7c3aed") + "20",
                       borderLeft: `3px solid ${b.courseColor ?? "#7c3aed"}`,
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <p
-                      className="font-semibold truncate"
+                      className="font-medium truncate"
                       style={{ color: b.courseColor ?? "#c4b5fd" }}
                     >
                       {b.title}
@@ -268,34 +260,22 @@ export default function WeekView() {
                 .map((m, i) => (
                   <div
                     key={`due-${i}`}
-                    className="absolute left-0 right-0 pointer-events-none"
-                    style={{ top: m.top }}
+                    className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none"
+                    style={{
+                      top: m.top,
+                      borderColor: m.color,
+                    }}
                     title={`Due: ${m.title}`}
-                  >
-                    <div
-                      className="border-t-2 border-dashed"
-                      style={{ borderColor: m.color + "80" }}
-                    />
-                    <div
-                      className="absolute right-1 -top-2.5 rounded px-1 py-0 text-[9px] font-semibold"
-                      style={{
-                        backgroundColor: m.color + "20",
-                        color: m.color,
-                      }}
-                    >
-                      due
-                    </div>
-                  </div>
+                  />
                 ))}
 
               {/* current time line */}
               {colIdx === todayCol && nowTop >= 0 && (
                 <div
-                  className="absolute left-0 right-0 pointer-events-none z-10"
+                  className="absolute left-0 right-0 border-t-2 border-red-500 pointer-events-none z-10"
                   style={{ top: nowTop }}
                 >
-                  <div className="border-t-2 border-primary-500" />
-                  <div className="absolute -left-1.5 -top-[5px] h-[10px] w-[10px] rounded-full bg-primary-500 shadow-sm shadow-primary-500/40" />
+                  <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-red-500" />
                 </div>
               )}
             </div>

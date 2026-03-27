@@ -49,30 +49,28 @@ export default function CalendarPage() {
         {/* main calendar area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* header */}
-          <header className="flex items-center justify-between border-b border-border-subtle bg-surface/50 backdrop-blur-sm px-6 py-3.5 shrink-0">
-            <h1 className="text-sm font-semibold tracking-tight text-text">
+          <header className="flex items-center justify-between border-b border-border-subtle px-6 py-3 shrink-0">
+            <h1 className="text-base font-semibold text-text-secondary">
               <time>{weekLabel}</time>
             </h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {/* prev/today/next */}
-              <div className="relative flex items-center rounded-lg border border-border-subtle overflow-hidden">
+              <div className="relative flex items-center rounded-md bg-white/5 border border-border-subtle">
                 <button
                   onClick={navigateBack}
-                  className="flex h-8 w-8 items-center justify-center text-text-tertiary hover:text-text-secondary hover:bg-surface transition-colors"
+                  className="flex h-8 w-9 items-center justify-center rounded-l-md text-text-tertiary hover:text-text-secondary hover:bg-white/5"
                 >
                   <ChevronLeftIcon className="h-4 w-4" />
                 </button>
-                <span className="w-px h-4 bg-border-subtle" />
                 <button
                   onClick={goToToday}
-                  className="hidden md:block px-3 h-8 text-xs font-medium text-text-secondary hover:bg-surface transition-colors"
+                  className="hidden md:block px-3 text-xs font-medium text-text-secondary hover:bg-white/5"
                 >
                   {t("Today")}
                 </button>
-                <span className="hidden md:block w-px h-4 bg-border-subtle" />
                 <button
                   onClick={navigateForward}
-                  className="flex h-8 w-8 items-center justify-center text-text-tertiary hover:text-text-secondary hover:bg-surface transition-colors"
+                  className="flex h-8 w-9 items-center justify-center rounded-r-md text-text-tertiary hover:text-text-secondary hover:bg-white/5"
                 >
                   <ChevronRightIcon className="h-4 w-4" />
                 </button>
@@ -80,15 +78,15 @@ export default function CalendarPage() {
 
               {/* view switcher */}
               <Menu as="div" className="relative">
-                <MenuButton className="flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface hover:text-text transition-colors">
+                <MenuButton className="flex items-center gap-1.5 rounded-md bg-white/5 border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-white/8">
                   {view === "month" ? t("Month") : t("Week")}
-                  <ChevronDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
+                  <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
                 </MenuButton>
-                <MenuItems className="absolute right-0 z-10 mt-1.5 w-36 rounded-lg border border-border-subtle bg-surface shadow-xl shadow-black/20 py-1">
+                <MenuItems className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-border-subtle bg-surface shadow-lg py-1">
                   <MenuItem>
                     <button
                       onClick={() => setView("month")}
-                      className="block w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-primary-500/10 hover:text-text data-[focus]:bg-primary-500/10 data-[focus]:text-text transition-colors"
+                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-white/5 data-[focus]:bg-white/5"
                     >
                       {t("Month view")}
                     </button>
@@ -96,7 +94,7 @@ export default function CalendarPage() {
                   <MenuItem>
                     <button
                       onClick={() => setView("week")}
-                      className="block w-full px-3 py-2 text-left text-xs text-text-secondary hover:bg-primary-500/10 hover:text-text data-[focus]:bg-primary-500/10 data-[focus]:text-text transition-colors"
+                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-white/5 data-[focus]:bg-white/5"
                     >
                       {t("Week view")}
                     </button>
@@ -112,8 +110,8 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* right sidebar — assignment tracker */}
-        <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border-subtle bg-background">
+        {/* right sidebar -- assignment tracker */}
+        <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border-subtle bg-surface">
           <AssignmentTracker />
         </div>
       </div>
