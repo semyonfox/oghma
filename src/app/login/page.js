@@ -56,6 +56,11 @@ export default function LoginPage() {
         window.location.href = '/notes'
       }, 1000)
     } catch (err) {
+      // check if the error is a verification-required response
+      if (err.status === 403 && err.data?.requiresVerification) {
+        router.replace(`/verify-email?email=${encodeURIComponent(err.data.email || email)}`)
+        return
+      }
       setErrMsg(getErrorMessage(err))
       setPwd('')
       errRef.current?.focus()

@@ -51,7 +51,7 @@ export async function POST(request) {
 
         // 5. Query database for user
         const data = await sql`
-            SELECT user_id, email, hashed_password, is_active, deleted_at
+            SELECT user_id, email, hashed_password, is_active, deleted_at, email_verified
             FROM app.login
             WHERE email = ${email.trim()};
         `;
@@ -90,6 +90,18 @@ export async function POST(request) {
 
         // 7. Successful login - clear failed attempt counters
         await clearFailedAttempts(email);
+
+        // 7b. Check email verification status
+        if (user.email_verified === false) {
+            return new Response(
+                JSON.stringify({
+                    requiresVerification: true,
+                    email: user.email,
+                    message: 'Please verify your email address before signing in.',
+                }),
+                { status: 403, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
 
         // 8. Create auth session (generates JWT, sets cookie, returns response)
         const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
