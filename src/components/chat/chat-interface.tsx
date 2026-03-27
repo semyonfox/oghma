@@ -215,11 +215,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("error.something_went_wrong");
-      const friendlyMsg =
-        errMsg.includes("Failed to generate") || errMsg.includes("502")
-          ? "AI is temporarily unavailable. Please try again in a moment."
-          : errMsg;
-      setError(friendlyMsg);
+      const isTimeout =
+        errMsg.includes("Failed to generate") ||
+        errMsg.includes("502") ||
+        errMsg.includes("aborted");
+      setError(isTimeout ? t("error.ai_unavailable") : errMsg);
     } finally {
       setLoading(false);
     }

@@ -236,19 +236,15 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="absolute left-0.5 right-0.5 rounded-md overflow-hidden text-[10px] leading-tight px-1.5 py-1"
+                    className="absolute left-0.5 right-0.5 rounded-sm overflow-hidden text-[10px] leading-tight px-1.5 py-1 bg-white/5 border-l-2"
                     style={{
                       top: b.top,
                       height: b.height,
-                      backgroundColor: (b.courseColor ?? "#7c3aed") + "20",
-                      borderLeft: `3px solid ${b.courseColor ?? "#7c3aed"}`,
+                      borderColor: b.courseColor ?? "var(--color-primary-500)",
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p
-                      className="font-medium truncate"
-                      style={{ color: b.courseColor ?? "#c4b5fd" }}
-                    >
+                    <p className="font-medium truncate text-text-secondary">
                       {b.title}
                     </p>
                   </div>

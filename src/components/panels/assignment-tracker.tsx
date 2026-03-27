@@ -27,79 +27,54 @@ import NewTaskModal from "./new-task-modal";
 function CompletionRing({
   done,
   total,
-  size = 72,
+  size = 64,
 }: {
   done: number;
   total: number;
   size?: number;
 }) {
   const center = size / 2;
-  const outerR = center - 6;
-  const innerR = center - 13;
-  const outerCirc = 2 * Math.PI * outerR;
-  const innerCirc = 2 * Math.PI * innerR;
+  const r = center - 5;
+  const circ = 2 * Math.PI * r;
   const pct = total > 0 ? done / total : 0;
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {/* outer ring: completed */}
       <circle
         cx={center}
         cy={center}
-        r={outerR}
+        r={r}
         fill="none"
-        stroke="currentColor"
-        strokeWidth={5}
-        className="text-white/10"
-      />
-      <circle
-        cx={center}
-        cy={center}
-        r={outerR}
-        fill="none"
-        stroke="#22c55e"
-        strokeWidth={5}
-        strokeDasharray={`${outerCirc * pct} ${outerCirc * (1 - pct)}`}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-      />
-      {/* inner ring: in-progress */}
-      <circle
-        cx={center}
-        cy={center}
-        r={innerR}
-        fill="none"
-        stroke="currentColor"
         strokeWidth={4}
-        className="text-white/10"
+        className="stroke-border-subtle"
       />
-      <circle
-        cx={center}
-        cy={center}
-        r={innerR}
-        fill="none"
-        stroke="#7c3aed"
-        strokeWidth={4}
-        strokeDasharray={`${innerCirc * pct} ${innerCirc * (1 - pct)}`}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${center} ${center})`}
-      />
-      {/* center text */}
+      {pct > 0 && (
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          strokeWidth={4}
+          strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+          className="stroke-primary-500"
+        />
+      )}
       <text
         x={center}
-        y={center - 2}
+        y={center - 1}
         textAnchor="middle"
-        fill="white"
-        fontSize={14}
-        fontWeight="bold"
+        className="fill-text-secondary text-xs font-semibold"
+        fontSize={13}
       >
         {total > 0 ? `${Math.round(pct * 100)}%` : "—"}
       </text>
       <text
         x={center}
-        y={center + 12}
+        y={center + 11}
         textAnchor="middle"
-        fill="#888"
+        className="fill-text-tertiary"
         fontSize={9}
       >
         {done}/{total}
@@ -288,13 +263,12 @@ export default function AssignmentTracker() {
               <div className="flex items-center justify-between gap-1.5">
                 {a.course_name && (
                   <span
-                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-white/5 border-l-2"
                     style={{
-                      backgroundColor: (a.course_color ?? "#7c3aed") + "22",
-                      color: a.course_color ?? "#7c3aed",
+                      borderColor: a.course_color ?? "var(--color-primary-500)",
                     }}
                   >
-                    {a.course_name}
+                    <span className="text-text-tertiary">{a.course_name}</span>
                   </span>
                 )}
                 {a.status !== "done" && (

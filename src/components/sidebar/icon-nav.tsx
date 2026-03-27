@@ -82,7 +82,7 @@ const IconNav: FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col items-center py-4 gap-2">
+    <div className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2">
       {/* Logo/Branding */}
       <Link
         href="/"
