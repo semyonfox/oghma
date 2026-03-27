@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
-import { CanvasClient } from '@/lib/canvas/client.js';
-import sql from '@/database/pgsql.js';
-import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
-import { SendMessageCommand } from '@aws-sdk/client-sqs';
-import { ensureWorkerRunning } from '@/lib/ecs';
-import { decrypt } from '@/lib/crypto';
-import logger from '@/lib/logger';
+import { NextResponse } from "next/server";
+import { validateSession } from "@/lib/auth.js";
+import { CanvasClient } from "@/lib/canvas/client.js";
+import sql from "@/database/pgsql.js";
+import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
+import { SendMessageCommand } from "@aws-sdk/client-sqs";
+import { ensureWorkerRunning } from "@/lib/ecs";
+import { decrypt } from "@/lib/crypto";
+import logger from "@/lib/logger";
 
 /**
  * POST /api/canvas/import
@@ -22,13 +22,16 @@ export async function POST(request) {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { courseIds } = await request.json();
 
     if (!Array.isArray(courseIds) || courseIds.length === 0) {
-      return NextResponse.json({ error: 'courseIds array is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "courseIds array is required" },
+        { status: 400 },
+      );
     }
 
     const rows = await sql`
@@ -40,7 +43,10 @@ export async function POST(request) {
     const { canvas_token, canvas_domain } = rows[0] ?? {};
 
     if (!canvas_token || !canvas_domain) {
-      return NextResponse.json({ error: 'No Canvas account connected' }, { status: 400 });
+      return NextResponse.json(
+        { error: "No Canvas account connected" },
+        { status: 400 },
+      );
     }
 
     // decrypt the stored token before using it
@@ -50,12 +56,15 @@ export async function POST(request) {
     const client = new CanvasClient(canvas_domain, plainToken);
     const { data: courses, error: coursesError } = await client.getCourses();
     if (!courses && coursesError) {
-      return NextResponse.json({ error: 'Canvas token is invalid or expired' }, { status: 401 });
+      return NextResponse.json(
+        { error: "Canvas token is invalid or expired" },
+        { status: 401 },
+      );
     }
 
     // Cancel any existing queued/processing job and insert the new one atomically
     // so no worker can pick up the old job after we've already replaced it
-    const job = await sql.begin(async sql => {
+    const job = await sql.begin(async (sql) => {
       await sql`
         UPDATE app.canvas_import_jobs
         SET status = 'cancelled', completed_at = NOW()
@@ -71,23 +80,54 @@ export async function POST(request) {
 
     const jobId = job.id;
 
+    let sqsOk = false;
+    let ecsOk = false;
+    const queueUrl = getCanvasImportQueueUrl();
+
     try {
-      await sqsClient.send(new SendMessageCommand({
-        QueueUrl: CANVAS_IMPORT_QUEUE_URL,
-        MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
-      }));
-      await ensureWorkerRunning();
+      if (!queueUrl) {
+        logger.error(
+          "SQS_QUEUE_URL is empty — import job will rely on DB safety-net only",
+          { jobId },
+        );
+      } else {
+        await sqsClient.send(
+          new SendMessageCommand({
+            QueueUrl: queueUrl,
+            MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+          }),
+        );
+        sqsOk = true;
+      }
     } catch (sqsErr) {
-      // SQS send failed but the Postgres job record exists —
-      // worker safety-net poll will pick it up, so don't fail the request
-      logger.warn('SQS send failed (job still queued in DB)', { error: sqsErr.message });
+      logger.warn("SQS send failed", {
+        jobId,
+        error: sqsErr.message,
+        queueUrl: queueUrl ? "(set)" : "(empty)",
+      });
+    }
+
+    try {
+      await ensureWorkerRunning();
+      ecsOk = true;
+    } catch (ecsErr) {
+      logger.warn("ECS scale-up failed", { jobId, error: ecsErr.message });
+    }
+
+    if (!sqsOk && !ecsOk) {
+      logger.error(
+        "Both SQS and ECS failed — import job may not be processed",
+        { jobId },
+      );
     }
 
     return NextResponse.json({ success: true, queued: true, jobId });
-
   } catch (err) {
-    logger.error('canvas import queue error', { error: err });
-    return NextResponse.json({ error: 'Failed to queue import' }, { status: 500 });
+    logger.error("canvas import queue error", { error: err });
+    return NextResponse.json(
+      { error: "Failed to queue import" },
+      { status: 500 },
+    );
   }
 }
 
@@ -101,7 +141,7 @@ export async function DELETE() {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const cancelled = await sql`
@@ -112,7 +152,11 @@ export async function DELETE() {
     `;
 
     if (cancelled.length === 0) {
-      return NextResponse.json({ success: true, cancelled: false, reason: 'No active job' });
+      return NextResponse.json({
+        success: true,
+        cancelled: false,
+        reason: "No active job",
+      });
     }
 
     // mark in-flight file records so the worker skips them
@@ -125,7 +169,10 @@ export async function DELETE() {
 
     return NextResponse.json({ success: true, cancelled: true, jobId });
   } catch (err) {
-    logger.error('canvas import cancel error', { error: err });
-    return NextResponse.json({ error: 'Failed to cancel import' }, { status: 500 });
+    logger.error("canvas import cancel error", { error: err });
+    return NextResponse.json(
+      { error: "Failed to cancel import" },
+      { status: 500 },
+    );
   }
 }

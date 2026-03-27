@@ -68,11 +68,22 @@ const NAV_ITEMS: NavItem[] = [
 const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const { activeNav, setActiveNav } = useLayoutStore();
+  const {
+    activeNav,
+    setActiveNav,
+    rightPanelOpen,
+    rightPanelTab,
+    openRightPanelTab,
+  } = useLayoutStore();
   const { t } = useI18n();
   const handleNavClick = (item: NavItem) => {
     if (item.section === "search") {
       usePortalStore.getState().search.open();
+      return;
+    }
+    // AI chat toggles the right panel AI tab instead of navigating away
+    if (item.section === "chat") {
+      openRightPanelTab("ai");
       return;
     }
     setActiveNav(item.section);
@@ -95,7 +106,10 @@ const IconNav: FC = () => {
       <div className="flex flex-col gap-1 flex-1">
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
-          const isActive = activeNav === item.section;
+          const isActive =
+            item.section === "chat"
+              ? rightPanelOpen && rightPanelTab === "ai"
+              : activeNav === item.section;
           const translatedLabel = t(item.labelKey);
 
           return (

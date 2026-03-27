@@ -1,16 +1,21 @@
-'use client';
+"use client";
 
-import { FC, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
-import { FileSpec } from '@/lib/notes/state/layout.zustand';
-import { DocumentIcon, RectangleGroupIcon, XMarkIcon, CpuChipIcon } from '@heroicons/react/24/outline';
-import useLayoutStore from '@/lib/notes/state/layout.zustand';
-import useI18n from '@/lib/notes/hooks/use-i18n';
+import { FC, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import {
+  DocumentIcon,
+  RectangleGroupIcon,
+  XMarkIcon,
+  CpuChipIcon,
+} from "@heroicons/react/24/outline";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
-const FileRenderer = dynamic(() => import('./file-renderer'), { ssr: false });
+const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 
 interface FileViewPaneProps {
-  pane: 'A' | 'B';
+  pane: "A" | "B";
   file?: FileSpec;
 }
 
@@ -20,25 +25,37 @@ interface FileViewPaneProps {
  * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
-   const { t } = useI18n();
-   const { setPaneA, setPaneB, setActivePane, activePane, rightPanelOpen, rightPanelTab, openRightPanelTab, paneA, paneB } = useLayoutStore();
-   const paneRef = useRef<HTMLDivElement>(null);
-   const [isDragging, setIsDragging] = useState(false);
+  const { t } = useI18n();
+  const {
+    setPaneA,
+    setPaneB,
+    setActivePane,
+    activePane,
+    rightPanelOpen,
+    rightPanelTab,
+    openRightPanelTab,
+    paneA,
+    paneB,
+  } = useLayoutStore();
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-   if (!file || !file.fileId) {
-     return (
-       <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-2">
-         <DocumentIcon className="w-10 h-10 opacity-30" />
-         <p className="text-sm font-medium text-text-secondary">{t('file_view_pane.select_file')}</p>
-         <p className="text-xs text-text-tertiary max-w-[18rem] text-center leading-relaxed">
-           {t('file_view_pane.select_file_hint')}
-         </p>
-       </div>
-     );
-   }
+  if (!file || !file.fileId) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-2">
+        <DocumentIcon className="w-10 h-10 opacity-30" />
+        <p className="text-sm font-medium text-text-secondary">
+          {t("file_view_pane.select_file")}
+        </p>
+        <p className="text-xs text-text-tertiary max-w-[18rem] text-center leading-relaxed">
+          {t("file_view_pane.select_file_hint")}
+        </p>
+      </div>
+    );
+  }
 
   const handleClose = () => {
-    if (pane === 'A') {
+    if (pane === "A") {
       setPaneA(undefined);
     } else {
       setPaneB(undefined);
@@ -47,10 +64,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!file) return;
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = "move";
     // set both formats: application/json (standard) and paneFile (legacy compat)
-    e.dataTransfer.setData('application/json', JSON.stringify(file));
-    e.dataTransfer.setData('paneFile', JSON.stringify(file));
+    e.dataTransfer.setData("application/json", JSON.stringify(file));
+    e.dataTransfer.setData("paneFile", JSON.stringify(file));
     setIsDragging(true);
   };
 
@@ -60,7 +77,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = "move";
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -69,8 +86,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
     try {
       // accept application/json (sidebar drags) and paneFile (pane-to-pane drags)
-      const jsonData = e.dataTransfer.getData('application/json');
-      const paneFileData = e.dataTransfer.getData('paneFile');
+      const jsonData = e.dataTransfer.getData("application/json");
+      const paneFileData = e.dataTransfer.getData("paneFile");
       const rawData = jsonData || paneFileData;
       if (!rawData) return;
 
@@ -84,7 +101,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
       // If dropped on right half: open in pane B
       if (dropX > rightThreshold) {
-        if (pane === 'A') {
+        if (pane === "A") {
           // File from pane A dropped on right side
           setPaneB(draggedFile);
         } else {
@@ -93,7 +110,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
         }
       } else {
         // If dropped on left half: open in pane A and move current to pane B
-        if (pane === 'A') {
+        if (pane === "A") {
           // File from pane A dropped on left side (no swap needed)
           setPaneA(draggedFile);
         } else {
@@ -103,7 +120,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
         }
       }
     } catch (error) {
-      console.error('Drop error:', error);
+      console.error("Drop error:", error);
     }
   };
 
@@ -111,8 +128,8 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
     <div
       ref={paneRef}
       className={`h-full flex flex-col bg-background transition-colors ${
-        activePane === pane ? 'ring-1 ring-inset ring-primary-500/30' : ''
-      } ${isDragging ? 'opacity-60' : ''}`}
+        activePane === pane ? "ring-1 ring-inset ring-primary-500/30" : ""
+      } ${isDragging ? "opacity-60" : ""}`}
       onMouseDown={() => setActivePane(pane)}
       draggable
       onDragStart={handleDragStart}
@@ -120,38 +137,44 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-       {/* Pane Header */}
-       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between cursor-move">
-         <div className="flex items-center gap-2 min-w-0">
-           <span className="text-xs font-mono text-text-tertiary">{t('file_view_pane.pane_label', { pane })}</span>
-          <span className="text-sm text-text-secondary truncate">{file.title || file.fileId}</span>
-          <span className="text-xs text-text-tertiary opacity-60">({file.fileType})</span>
+      {/* Pane Header */}
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between cursor-move">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-mono text-text-tertiary">
+            {t("file_view_pane.pane_label", { pane })}
+          </span>
+          <span className="text-sm text-text-secondary truncate">
+            {file.title || file.fileId}
+          </span>
+          <span className="text-xs text-text-tertiary opacity-60">
+            ({file.fileType})
+          </span>
         </div>
 
         <div className="flex items-center gap-1">
           <button
-            onClick={() => openRightPanelTab('info')}
+            onClick={() => openRightPanelTab("meta")}
             className={`p-1.5 rounded transition-colors ${
-              rightPanelOpen && rightPanelTab === 'info'
-                ? 'bg-white/8 text-text-secondary'
-                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
+              rightPanelOpen && rightPanelTab === "meta"
+                ? "bg-white/8 text-text-secondary"
+                : "text-text-tertiary hover:bg-white/5 hover:text-text-secondary"
             }`}
             title="Toggle metadata panel"
           >
             <RectangleGroupIcon className="w-4 h-4" />
           </button>
           <button
-            onClick={() => openRightPanelTab('ai')}
+            onClick={() => openRightPanelTab("ai")}
             className={`p-1.5 rounded transition-colors ${
-              rightPanelOpen && rightPanelTab === 'ai'
-                ? 'bg-indigo-600/20 text-indigo-300'
-                : 'text-text-tertiary hover:bg-white/5 hover:text-text-secondary'
+              rightPanelOpen && rightPanelTab === "ai"
+                ? "bg-indigo-600/20 text-indigo-300"
+                : "text-text-tertiary hover:bg-white/5 hover:text-text-secondary"
             }`}
             title="Toggle AI assistant panel"
           >
             <CpuChipIcon className="w-4 h-4" />
           </button>
-          {pane === 'B' && (
+          {pane === "B" && (
             <button
               onClick={handleClose}
               className="p-1 hover:bg-white/5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
@@ -163,10 +186,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
         </div>
       </div>
 
-       {/* File Renderer */}
-       <div className="flex-1 overflow-auto bg-background">
-         <FileRenderer key={file.fileId} pane={pane} file={file} />
-       </div>
+      {/* File Renderer */}
+      <div className="flex-1 overflow-auto bg-editor">
+        <FileRenderer key={file.fileId} pane={pane} file={file} />
+      </div>
     </div>
   );
 };
