@@ -330,12 +330,13 @@ export default function AssignmentTracker() {
                     <div
                       className="h-full rounded-full bg-primary-500/60 transition-all"
                       style={{
-                        width: `${Math.min(100, (a.logged_hours / a.estimated_hours) * 100)}%`,
+                        width: `${Math.min(100, ((Number(a.logged_hours) || 0) / a.estimated_hours) * 100)}%`,
                       }}
                     />
                   </div>
                   <p className="mt-0.5 text-[9px] text-text-tertiary">
-                    {a.logged_hours.toFixed(1)}/{a.estimated_hours}h
+                    {(Number(a.logged_hours) || 0).toFixed(1)}/
+                    {a.estimated_hours}h
                   </p>
                 </div>
               )}
