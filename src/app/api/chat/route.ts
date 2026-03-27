@@ -85,7 +85,7 @@ async function semanticSearch(
 
 function buildSystemPrompt(results: SearchResult[]): string {
   if (results.length === 0) {
-    return "You are a helpful study assistant. No relevant notes were found for this question — let the user know, and suggest they try rephrasing or uploading more material. Be friendly and concise.";
+    return "You are a helpful study assistant. No relevant notes were found for this question, but you can still help using your general knowledge. Let the user know you didn't find matching notes, then answer as best you can. Be friendly and concise.";
   }
 
   // group chunks by note for cleaner context
@@ -103,10 +103,10 @@ function buildSystemPrompt(results: SearchResult[]): string {
   });
 
   return `You are a helpful study assistant with access to the user's notes.
-Use ONLY the context below to answer questions. If the answer isn't in the context, say so clearly rather than making something up.
-Cite which note your answer comes from when relevant.
+The notes below show what the user is currently studying. Use them as helpful context — cite which note your answer draws from when relevant — but you are not limited to them. Feel free to supplement with your broader knowledge, explain concepts in more depth, or reference up-to-date information the notes may not cover.
+If you go beyond the notes, briefly mention that you're drawing on general knowledge so the user knows.
 
-CONTEXT:
+NOTES CONTEXT:
 ${blocks.join("\n\n")}`;
 }
 
