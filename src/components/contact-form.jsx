@@ -1,56 +1,59 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import useI18n from '@/lib/notes/hooks/use-i18n'
+import { useState } from "react";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function ContactForm() {
-  const { t } = useI18n()
-  const [result, setResult] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const { t } = useI18n();
+  const [result, setResult] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const onSubmit = async (event) => {
-    event.preventDefault()
-    setIsLoading(true)
+    event.preventDefault();
+    setIsLoading(true);
 
     const accessKey = process.env.NEXT_PUBLIC_WEB3FORMS_KEY;
     if (!accessKey) {
-      setResult("Contact form is not configured");
+      setResult(t("contact.not_configured"));
       setIsLoading(false);
       return;
     }
 
-    const formData = new FormData(event.target)
-    formData.append("access_key", accessKey)
+    const formData = new FormData(event.target);
+    formData.append("access_key", accessKey);
 
     try {
       const response = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
-        body: formData
-      })
+        body: formData,
+      });
 
-      const data = await response.json()
-      
+      const data = await response.json();
+
       if (data.success) {
-        setResult(t("Message sent successfully!"))
-        event.target.reset()
-        setTimeout(() => setResult(""), 5000)
+        setResult(t("Message sent successfully!"));
+        event.target.reset();
+        setTimeout(() => setResult(""), 5000);
       } else {
-        setResult(t("Error sending message. Please try again."))
+        setResult(t("Error sending message. Please try again."));
       }
     } catch (error) {
-      setResult(t("Error sending message. Please try again."))
+      setResult(t("Error sending message. Please try again."));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-xl lg:mr-0 lg:max-w-lg">
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-         <div>
-           <label htmlFor="first-name" className="block text-sm/6 font-semibold text-white">
-             {t('First name')}
-           </label>
+        <div>
+          <label
+            htmlFor="first-name"
+            className="block text-sm/6 font-semibold text-white"
+          >
+            {t("First name")}
+          </label>
           <div className="mt-2.5">
             <input
               id="first-name"
@@ -61,10 +64,13 @@ export default function ContactForm() {
             />
           </div>
         </div>
-         <div>
-           <label htmlFor="last-name" className="block text-sm/6 font-semibold text-white">
-             {t('Last name')}
-           </label>
+        <div>
+          <label
+            htmlFor="last-name"
+            className="block text-sm/6 font-semibold text-white"
+          >
+            {t("Last name")}
+          </label>
           <div className="mt-2.5">
             <input
               id="last-name"
@@ -75,10 +81,13 @@ export default function ContactForm() {
             />
           </div>
         </div>
-         <div className="sm:col-span-2">
-           <label htmlFor="email" className="block text-sm/6 font-semibold text-white">
-             {t('Email')}
-           </label>
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="email"
+            className="block text-sm/6 font-semibold text-white"
+          >
+            {t("Email")}
+          </label>
           <div className="mt-2.5">
             <input
               id="email"
@@ -89,10 +98,13 @@ export default function ContactForm() {
             />
           </div>
         </div>
-         <div className="sm:col-span-2">
-           <label htmlFor="phone" className="block text-sm/6 font-semibold text-white">
-             {t('Phone number')}
-           </label>
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="phone"
+            className="block text-sm/6 font-semibold text-white"
+          >
+            {t("Phone number")}
+          </label>
           <div className="mt-2.5">
             <input
               id="phone"
@@ -102,10 +114,13 @@ export default function ContactForm() {
             />
           </div>
         </div>
-         <div className="sm:col-span-2">
-           <label htmlFor="message" className="block text-sm/6 font-semibold text-white">
-             {t('Message')}
-           </label>
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="message"
+            className="block text-sm/6 font-semibold text-white"
+          >
+            {t("Message")}
+          </label>
           <div className="mt-2.5">
             <textarea
               id="message"
@@ -119,18 +134,20 @@ export default function ContactForm() {
       </div>
       <div className="mt-8 flex flex-col items-end gap-4">
         <button
-           type="submit"
-           disabled={isLoading}
-           className="rounded-md bg-primary-500 px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-xs hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-         >
-           {isLoading ? t('Sending...') : t('Send message')}
-         </button>
+          type="submit"
+          disabled={isLoading}
+          className="rounded-md bg-primary-500 px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-xs hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? t("Sending...") : t("Send message")}
+        </button>
         {result && (
-          <p className={`text-sm ${result.includes("success") ? "text-green-400" : "text-red-400"}`}>
+          <p
+            className={`text-sm ${result.includes("success") ? "text-green-400" : "text-red-400"}`}
+          >
             {result}
           </p>
         )}
       </div>
     </form>
-  )
+  );
 }
