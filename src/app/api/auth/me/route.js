@@ -7,7 +7,7 @@ import logger from '@/lib/logger';
 
 async function fetchProfile(userId) {
     const [profileRows, providers] = await Promise.all([
-        sql`SELECT display_name, avatar_url, locale FROM app.login WHERE user_id = ${userId}::uuid`,
+        sql`SELECT display_name, avatar_url, locale, email_verified FROM app.login WHERE user_id = ${userId}::uuid`,
         getLinkedProviders(userId),
     ]);
     const profile = profileRows[0] || {};
@@ -15,6 +15,7 @@ async function fetchProfile(userId) {
         displayName: profile.display_name,
         avatarUrl: profile.avatar_url,
         locale: profile.locale,
+        emailVerified: profile.email_verified ?? true,
         linkedProviders: providers,
     };
 }
