@@ -1,15 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import useCalendarStore from '@/lib/notes/state/calendar.zustand';
-import useAssignmentStore from '@/lib/notes/state/assignments.zustand';
+import { useEffect, useMemo, useRef, useState } from "react";
+import useCalendarStore from "@/lib/notes/state/calendar.zustand";
+import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
 const HOUR_HEIGHT = 56; // px per hour row
 const START_HOUR = 6;
 const END_HOUR = 24;
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_HOUR);
+const HOURS = Array.from(
+  { length: END_HOUR - START_HOUR },
+  (_, i) => i + START_HOUR,
+);
 
-function getWeekDays(anchor: Date): { date: string; label: string; dayNum: string; isToday: boolean }[] {
+function getWeekDays(
+  anchor: Date,
+): { date: string; label: string; dayNum: string; isToday: boolean }[] {
   const d = new Date(anchor);
   const dow = (d.getDay() + 6) % 7; // monday=0
   d.setDate(d.getDate() - dow);
@@ -23,7 +28,7 @@ function getWeekDays(anchor: Date): { date: string; label: string; dayNum: strin
     const dateStr = formatDate(day);
     return {
       date: dateStr,
-      label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+      label: day.toLocaleDateString("en-US", { weekday: "short" }),
       dayNum: String(day.getDate()),
       isToday: dateStr === todayStr,
     };
@@ -31,13 +36,13 @@ function getWeekDays(anchor: Date): { date: string; label: string; dayNum: strin
 }
 
 function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatHour(h: number): string {
-  if (h === 0) return '12AM';
+  if (h === 0) return "12AM";
   if (h < 12) return `${h}AM`;
-  if (h === 12) return '12PM';
+  if (h === 12) return "12PM";
   return `${h - 12}PM`;
 }
 
@@ -51,7 +56,13 @@ interface PositionedBlock {
 }
 
 export default function WeekView() {
-  const { currentDate, timeBlocks, fetchTimeBlocks, createTimeBlock, setSelectedDate } = useCalendarStore();
+  const {
+    currentDate,
+    timeBlocks,
+    fetchTimeBlocks,
+    createTimeBlock,
+    setSelectedDate,
+  } = useCalendarStore();
   const { assignments } = useAssignmentStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,8 +71,8 @@ export default function WeekView() {
 
   // fetch time blocks for the week
   useEffect(() => {
-    const start = weekDays[0].date + 'T00:00:00Z';
-    const end = weekDays[6].date + 'T23:59:59Z';
+    const start = weekDays[0].date + "T00:00:00Z";
+    const end = weekDays[6].date + "T23:59:59Z";
     fetchTimeBlocks(start, end);
   }, [weekDays, fetchTimeBlocks]);
 
@@ -89,7 +100,7 @@ export default function WeekView() {
 
       blocks.push({
         id: tb.id,
-        title: tb.assignment_title || tb.title || 'Study block',
+        title: tb.assignment_title || tb.title || "Study block",
         courseColor: tb.course_color || null,
         top,
         height,
@@ -101,7 +112,12 @@ export default function WeekView() {
 
   // due date markers
   const dueMarkers = useMemo(() => {
-    const markers: { col: number; top: number; title: string; color: string }[] = [];
+    const markers: {
+      col: number;
+      top: number;
+      title: string;
+      color: string;
+    }[] = [];
     for (const a of assignments) {
       if (!a.due_at) continue;
       const d = new Date(a.due_at);
@@ -114,7 +130,7 @@ export default function WeekView() {
         col: colIdx,
         top: (hour - START_HOUR) * HOUR_HEIGHT,
         title: a.title,
-        color: a.course_color ?? '#ef4444',
+        color: a.course_color ?? "#ef4444",
       });
     }
     return markers;
@@ -123,25 +139,30 @@ export default function WeekView() {
   // current time indicator
   const now = new Date();
   const todayCol = weekDays.findIndex((d) => d.isToday);
-  const nowTop = todayCol >= 0
-    ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT
-    : -1;
+  const nowTop =
+    todayCol >= 0
+      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT
+      : -1;
 
   // click-to-create time block
-  const handleGridClick = async (colIdx: number, e: React.MouseEvent<HTMLDivElement>) => {
+  const handleGridClick = async (
+    colIdx: number,
+    e: React.MouseEvent<HTMLDivElement>,
+  ) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0);
     const hour = Math.floor(y / HOUR_HEIGHT) + START_HOUR;
-    const snappedMinute = Math.round((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 2)) * 30;
+    const snappedMinute =
+      Math.round((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 2)) * 30;
 
     const date = weekDays[colIdx].date;
     const startHour = hour + (snappedMinute >= 60 ? 1 : 0);
     const startMin = snappedMinute % 60;
 
-    const starts_at = `${date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
+    const starts_at = `${date}T${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}:00`;
     const endHour = startHour + (startMin + 30 >= 60 ? 1 : 0);
     const endMin = (startMin + 30) % 60;
-    const ends_at = `${date}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
+    const ends_at = `${date}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
 
     await createTimeBlock({ starts_at, ends_at });
     setSelectedDate(date);
@@ -150,15 +171,27 @@ export default function WeekView() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* day headers */}
-      <div className="grid shrink-0 border-b border-border-subtle" style={{ gridTemplateColumns: '3.5rem repeat(7, 1fr)' }}>
+      <div
+        className="grid shrink-0 border-b border-border-subtle bg-surface/50"
+        style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
+      >
         <div className="border-r border-border-subtle" />
         {weekDays.map((d) => (
-          <div key={d.date} className="flex flex-col items-center py-2 text-xs text-text-tertiary">
-            <span>{d.label}</span>
-            <span className={`
-              mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold
-              ${d.isToday ? 'bg-primary-500 text-white' : 'text-text-secondary'}
-            `}>
+          <div
+            key={d.date}
+            className={`flex flex-col items-center py-2.5 border-r border-border-subtle ${d.isToday ? "bg-primary-500/[0.04]" : ""}`}
+          >
+            <span
+              className={`text-[11px] font-medium uppercase tracking-wider ${d.isToday ? "text-primary-400" : "text-text-tertiary"}`}
+            >
+              {d.label}
+            </span>
+            <span
+              className={`
+              mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-colors
+              ${d.isToday ? "bg-primary-500 text-white shadow-sm shadow-primary-500/30" : "text-text-secondary"}
+            `}
+            >
               {d.dayNum}
             </span>
           </div>
@@ -167,12 +200,22 @@ export default function WeekView() {
 
       {/* scrollable grid */}
       <div ref={scrollRef} className="flex-1 overflow-auto">
-        <div className="relative" style={{ gridTemplateColumns: '3.5rem repeat(7, 1fr)', display: 'grid' }}>
+        <div
+          className="relative"
+          style={{
+            gridTemplateColumns: "3.5rem repeat(7, 1fr)",
+            display: "grid",
+          }}
+        >
           {/* hour labels */}
-          <div className="sticky left-0 z-10 bg-surface border-r border-border-subtle">
+          <div className="sticky left-0 z-10 bg-background border-r border-border-subtle">
             {HOURS.map((h) => (
-              <div key={h} style={{ height: HOUR_HEIGHT }} className="relative">
-                <span className="absolute -top-2.5 right-2 text-[10px] text-text-tertiary tabular-nums">
+              <div
+                key={h}
+                style={{ height: HOUR_HEIGHT }}
+                className="relative border-b border-border-subtle"
+              >
+                <span className="absolute -top-2.5 right-2.5 text-[10px] font-medium text-text-tertiary/70 tabular-nums select-none">
                   {formatHour(h)}
                 </span>
               </div>
@@ -183,7 +226,7 @@ export default function WeekView() {
           {weekDays.map((d, colIdx) => (
             <div
               key={d.date}
-              className="relative border-r border-border-subtle cursor-pointer"
+              className={`relative border-r border-border-subtle cursor-pointer ${d.isToday ? "bg-primary-500/[0.02]" : ""}`}
               onClick={(e) => handleGridClick(colIdx, e)}
             >
               {/* hour grid lines */}
@@ -191,7 +234,7 @@ export default function WeekView() {
                 <div
                   key={h}
                   style={{ height: HOUR_HEIGHT }}
-                  className="border-b border-white/5"
+                  className="border-b border-border-subtle hover:bg-surface/50 transition-colors"
                 />
               ))}
 
@@ -201,16 +244,19 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="absolute left-0.5 right-0.5 rounded-md overflow-hidden text-[10px] leading-tight px-1.5 py-1"
+                    className="absolute left-1 right-1 rounded-lg overflow-hidden text-[10px] leading-tight px-2 py-1.5 shadow-sm transition-shadow hover:shadow-md cursor-default"
                     style={{
                       top: b.top,
                       height: b.height,
-                      backgroundColor: (b.courseColor ?? '#7c3aed') + '20',
-                      borderLeft: `3px solid ${b.courseColor ?? '#7c3aed'}`,
+                      backgroundColor: (b.courseColor ?? "#7c3aed") + "18",
+                      borderLeft: `3px solid ${b.courseColor ?? "#7c3aed"}`,
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p className="font-medium truncate" style={{ color: b.courseColor ?? '#c4b5fd' }}>
+                    <p
+                      className="font-semibold truncate"
+                      style={{ color: b.courseColor ?? "#c4b5fd" }}
+                    >
                       {b.title}
                     </p>
                   </div>
@@ -222,22 +268,34 @@ export default function WeekView() {
                 .map((m, i) => (
                   <div
                     key={`due-${i}`}
-                    className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none"
-                    style={{
-                      top: m.top,
-                      borderColor: m.color,
-                    }}
+                    className="absolute left-0 right-0 pointer-events-none"
+                    style={{ top: m.top }}
                     title={`Due: ${m.title}`}
-                  />
+                  >
+                    <div
+                      className="border-t-2 border-dashed"
+                      style={{ borderColor: m.color + "80" }}
+                    />
+                    <div
+                      className="absolute right-1 -top-2.5 rounded px-1 py-0 text-[9px] font-semibold"
+                      style={{
+                        backgroundColor: m.color + "20",
+                        color: m.color,
+                      }}
+                    >
+                      due
+                    </div>
+                  </div>
                 ))}
 
               {/* current time line */}
               {colIdx === todayCol && nowTop >= 0 && (
                 <div
-                  className="absolute left-0 right-0 border-t-2 border-red-500 pointer-events-none z-10"
+                  className="absolute left-0 right-0 pointer-events-none z-10"
                   style={{ top: nowTop }}
                 >
-                  <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-red-500" />
+                  <div className="border-t-2 border-primary-500" />
+                  <div className="absolute -left-1.5 -top-[5px] h-[10px] w-[10px] rounded-full bg-primary-500 shadow-sm shadow-primary-500/40" />
                 </div>
               )}
             </div>
