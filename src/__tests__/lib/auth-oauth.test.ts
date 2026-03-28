@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // mock the database module before importing the module under test
 vi.mock('@/database/pgsql.js', () => {
-    const mockSql = vi.fn();
+    const mockSql = vi.fn() as ReturnType<typeof vi.fn> & { begin: ReturnType<typeof vi.fn> };
     mockSql.begin = vi.fn();
     return { default: mockSql };
 });

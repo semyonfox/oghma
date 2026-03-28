@@ -17,7 +17,7 @@ export function createNewCard(): FSRSCard {
 export function reviewCard(card: FSRSCard, rating: 1 | 2 | 3 | 4): { card: FSRSCard; log: RecordLogItem } {
     const now = new Date();
     const scheduling = f.repeat(card, now);
-    const r = rating as Rating;
+    const r = rating as Rating.Again | Rating.Hard | Rating.Good | Rating.Easy;
     return {
         card: scheduling[r].card,
         log: scheduling[r],

@@ -131,7 +131,7 @@ export class StoreS3 extends StoreProvider {
       if (isNoSuchKeyError(error)) {
         return false;
       }
-      this.logger.error(error, `Error checking if object exists: ${path}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error checking if object exists: ${path}`);
       return false;
     }
   }
@@ -154,7 +154,7 @@ export class StoreS3 extends StoreProvider {
       if (isNoSuchKeyError(error)) {
         return undefined;
       }
-      this.logger.error(error, `Error retrieving object: ${path}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object: ${path}`);
       throw error;
     }
   }
@@ -175,7 +175,7 @@ export class StoreS3 extends StoreProvider {
       if (isNoSuchKeyError(error)) {
         return undefined;
       }
-      this.logger.error(error, `Error retrieving object metadata: ${path}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object metadata: ${path}`);
       throw error;
     }
   }
@@ -207,7 +207,7 @@ export class StoreS3 extends StoreProvider {
       if (isNoSuchKeyError(error)) {
         return {};
       }
-      this.logger.error(error, `Error retrieving object and metadata: ${path}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error retrieving object and metadata: ${path}`);
       throw error;
     }
   }
@@ -239,7 +239,7 @@ export class StoreS3 extends StoreProvider {
         })
       );
     } catch (error) {
-      this.logger.error(error, `Error uploading object: ${fullPath}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error uploading object: ${fullPath}`);
       throw error;
     }
   }
@@ -259,7 +259,7 @@ export class StoreS3 extends StoreProvider {
         })
       );
     } catch (error) {
-      this.logger.error(error, `Error deleting object: ${fullPath}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error deleting object: ${fullPath}`);
       throw error;
     }
   }
@@ -293,7 +293,7 @@ export class StoreS3 extends StoreProvider {
         })
       );
     } catch (error) {
-      this.logger.error(error, `Error copying object from ${from} to ${to}`);
+      this.logger.error(error instanceof Error ? error : String(error), `Error copying object from ${from} to ${to}`);
       throw error;
     }
   }
