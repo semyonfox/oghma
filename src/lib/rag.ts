@@ -29,11 +29,15 @@ export async function runRAGPipeline(
   );
 }
 
+interface ChunkRow {
+  text: string;
+}
+
 async function searchChunks(
   vector: number[],
   userId: string,
 ): Promise<string[]> {
-  const results = await sql`
+  const results = await sql<ChunkRow[]>`
         SELECT c.text
         FROM app.embeddings e
         JOIN app.chunks c ON c.id = e.chunk_id
@@ -41,7 +45,7 @@ async function searchChunks(
         ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
         LIMIT 20
     `;
-  return results.map((row: any) => row.text);
+  return results.map((row) => row.text);
 }
 
 function buildMessages(
