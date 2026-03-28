@@ -25,7 +25,7 @@ function normalize(email) {
     return email.toLowerCase().trim();
 }
 
-function shouldUseRedis() {
+function useRedis() {
     return redisReady;
 }
 
@@ -179,7 +179,7 @@ function memGetRateLimitResetTime(email) {
 
 export async function isAccountLocked(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             return await redisIsAccountLocked(email);
         } catch (err) {
@@ -191,7 +191,7 @@ export async function isAccountLocked(email) {
 
 export async function isRateLimited(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             return await redisIsRateLimited(email);
         } catch (err) {
@@ -203,7 +203,7 @@ export async function isRateLimited(email) {
 
 export async function recordFailedAttempt(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             await redisRecordFailedAttempt(email);
             return;
@@ -216,7 +216,7 @@ export async function recordFailedAttempt(email) {
 
 export async function clearFailedAttempts(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             await redisClearFailedAttempts(email);
             return;
@@ -229,7 +229,7 @@ export async function clearFailedAttempts(email) {
 
 export async function getLockoutMinutesRemaining(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             return await redisGetLockoutMinutesRemaining(email);
         } catch (err) {
@@ -241,7 +241,7 @@ export async function getLockoutMinutesRemaining(email) {
 
 export async function getRateLimitResetTime(email) {
     email = normalize(email);
-    if (shouldUseRedis()) {
+    if (useRedis()) {
         try {
             return await redisGetRateLimitResetTime(email);
         } catch (err) {
