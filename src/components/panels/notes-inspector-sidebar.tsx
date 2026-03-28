@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRightIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronRightIcon,
+  SparklesIcon,
+  ArrowTopRightOnSquareIcon,
+} from "@heroicons/react/24/outline";
 import useLayoutStore, {
   type RightPanelTab,
 } from "@/lib/notes/state/layout.zustand";
@@ -232,19 +236,44 @@ export default function NotesInspectorSidebar() {
         {activeTab === "ai" && (
           <div className="flex-1 flex flex-col min-h-0">
             {activeFile?.fileId && (
-              <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border-subtle">
-                <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
-                <p className="text-[11px] text-text-tertiary truncate">
-                  {t("AI Chat")} — {activeFile.title || t("Untitled")}
-                </p>
+              <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-border-subtle">
+                <div className="flex items-center gap-2">
+                  <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
+                  <p className="text-[11px] text-text-tertiary truncate">
+                    {t("AI Chat")} — {activeFile.title || t("Untitled")}
+                  </p>
+                </div>
+                <a
+                  href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
+                  className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors"
+                  title={t("Open full chat")}
+                >
+                  {t("Full chat")}
+                  <ArrowTopRightOnSquareIcon className="w-3 h-3" />
+                </a>
               </div>
             )}
-            <ChatInterface
-              compact
-              noteId={activeFile?.fileId || undefined}
-              noteTitle={activeFile?.title || undefined}
-              className="flex-1 min-h-0"
-            />
+            {activeFile?.fileId ? (
+              <ChatInterface
+                compact
+                noteId={activeFile.fileId}
+                noteTitle={activeFile.title}
+                className="flex-1 min-h-0"
+              />
+            ) : (
+              <div className="p-4 flex flex-col items-center gap-3 text-center">
+                <SparklesIcon className="w-8 h-8 text-text-tertiary opacity-40" />
+                <p className="text-xs text-text-tertiary">
+                  {t("Select a note to start chatting with AI.")}
+                </p>
+                <a
+                  href="/chat"
+                  className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                >
+                  {t("Open AI chat")} →
+                </a>
+              </div>
+            )}
           </div>
         )}
 

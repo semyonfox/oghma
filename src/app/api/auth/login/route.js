@@ -34,112 +34,109 @@ import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 
 export const POST = withErrorHandler(async (request) => {
-    // 1. Parse and validate request body
-    const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return parseError;
+  // 1. Parse and validate request body
+  const { data: body, error: parseError } = await parseJsonBody(request);
+  if (parseError) return parseError;
 
-    const { email, password, rememberMe } = body;
+  const { email, password, rememberMe } = body;
 
-    // 2. Validate credentials format
-    const validation = validateAuthCredentials(email, password, false);
-    if (!validation.isValid) {
-      return createValidationErrorResponse(validation.errors);
-    }
+  // 2. Validate credentials format
+  const validation = validateAuthCredentials(email, password, false);
+  if (!validation.isValid) {
+    return createValidationErrorResponse(validation.errors);
+  }
 
-    // 3. Check if account is locked due to too many failed attempts
-    if (await isAccountLocked(email)) {
-      const minutesRemaining = await getLockoutMinutesRemaining(email);
-      return createErrorResponse(
-        `Account temporarily locked. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? "s" : ""}.`,
-        429,
-      );
-    }
+  // 3. Check if account is locked due to too many failed attempts
+  if (await isAccountLocked(email)) {
+    const minutesRemaining = await getLockoutMinutesRemaining(email);
+    return createErrorResponse(
+      `Account temporarily locked. Try again in ${minutesRemaining} minute${minutesRemaining !== 1 ? "s" : ""}.`,
+      429,
+    );
+  }
 
-    // 4. Check rate limit (prevents brute force even with multiple accounts)
-    if (await isRateLimited(email)) {
-      return createErrorResponse(
-        "Too many login attempts. Please try again later.",
-        429,
-      );
-    }
+  // 4. Check rate limit (prevents brute force even with multiple accounts)
+  if (await isRateLimited(email)) {
+    return createErrorResponse(
+      "Too many login attempts. Please try again later.",
+      429,
+    );
+  }
 
-    // 5. Query database for user
-    const data = await sql`
+  // 5. Query database for user
+  const data = await sql`
             SELECT user_id, email, hashed_password, is_active, deleted_at, email_verified
             FROM app.login
             WHERE email = ${email.trim()};
         `;
 
-    const user = data[0];
+  const user = data[0];
 
-    if (!user) {
-      // Record failed attempt for security tracking
-      await recordFailedAttempt(email);
-      return createErrorResponse("Invalid email or password", 401);
-    }
+  if (!user) {
+    // Record failed attempt for security tracking
+    await recordFailedAttempt(email);
+    return createErrorResponse("Invalid email or password", 401);
+  }
 
-    // reject soft-deleted accounts
-    if (user.is_active === false || user.deleted_at) {
-      return createErrorResponse(
-        "This account has been deactivated. Contact support if this was a mistake.",
-        403,
-      );
-    }
-
-    // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
-    if (data.length > 1) {
-      logger.error("multiple accounts with same email detected", {
-        emailHash: require("crypto")
-          .createHash("sha256")
-          .update(email.trim())
-          .digest("hex")
-          .slice(0, 16),
-        count: data.length,
-        user_ids: data.map((u) => u.user_id),
-      });
-      return createErrorResponse(
-        "Account configuration error. Please contact support.",
-        500,
-      );
-    }
-
-    // 6. Verify password
-    const matchingPassword = await bcrypt.compare(
-      password,
-      user.hashed_password,
+  // reject soft-deleted accounts
+  if (user.is_active === false || user.deleted_at) {
+    return createErrorResponse(
+      "This account has been deactivated. Contact support if this was a mistake.",
+      403,
     );
+  }
 
-    if (!matchingPassword) {
-      // Record failed attempt for security tracking
-      await recordFailedAttempt(email);
-      return createErrorResponse("Invalid email or password", 401);
-    }
-
-    // 7. Successful login - clear failed attempt counters
-    await clearFailedAttempts(email);
-
-    // 7b. Check email verification status
-    if (user.email_verified === false) {
-      return new Response(
-        JSON.stringify({
-          requiresVerification: true,
-          email: user.email,
-          message: "Please verify your email address before signing in.",
-        }),
-        { status: 403, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    // 8. Create auth session (generates JWT, sets cookie, returns response)
-    const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
-
-    // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
-    //    We don't await this — login speed is unaffected.
-    queueCanvasSync(user.user_id).catch((err) =>
-      logger.warn("canvas auto-sync queue failed", { error: err.message }),
+  // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
+  if (data.length > 1) {
+    logger.error("multiple accounts with same email detected", {
+      emailHash: require("crypto")
+        .createHash("sha256")
+        .update(email.trim())
+        .digest("hex")
+        .slice(0, 16),
+      count: data.length,
+      user_ids: data.map((u) => u.user_id),
+    });
+    return createErrorResponse(
+      "Account configuration error. Please contact support.",
+      500,
     );
+  }
 
-    return sessionResponse;
+  // 6. Verify password
+  const matchingPassword = await bcrypt.compare(password, user.hashed_password);
+
+  if (!matchingPassword) {
+    // Record failed attempt for security tracking
+    await recordFailedAttempt(email);
+    return createErrorResponse("Invalid email or password", 401);
+  }
+
+  // 7. Successful login - clear failed attempt counters
+  await clearFailedAttempts(email);
+
+  // 7b. Check email verification status
+  if (user.email_verified === false) {
+    return new Response(
+      JSON.stringify({
+        requiresVerification: true,
+        email: user.email,
+        message: "Please verify your email address before signing in.",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  // 8. Create auth session (generates JWT, sets cookie, returns response)
+  const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
+
+  // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
+  //    We don't await this — login speed is unaffected.
+  queueCanvasSync(user.user_id).catch((err) =>
+    logger.warn("canvas auto-sync queue failed", { error: err.message }),
+  );
+
+  return sessionResponse;
 });
 
 // ── Canvas auto-sync helper ───────────────────────────────────────────────────
