@@ -91,7 +91,7 @@ function logViolation(category: string, identifier: string, count: number, limit
   sql`
     INSERT INTO app.rate_limit_log (category, identifier, blocked, count, limit_max)
     VALUES (${category}, ${hashed}, true, ${count}, ${limitMax})
-  `.catch(err => {
+  `.catch((err: unknown) => {
     logger.warn('rate limit audit log failed', { category, error: (err as Error).message });
   });
 }

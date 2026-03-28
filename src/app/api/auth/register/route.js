@@ -17,8 +17,9 @@ import {sendVerificationEmail} from "@/lib/email.js";
 import {checkRateLimit, getClientIp} from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from '@/lib/logger';
+import { withErrorHandler } from "@/lib/api-error";
 
-export async function POST(request) {
+export const POST = withErrorHandler(async (request) => {
     try {
         const limited = await checkRateLimit('register', getClientIp(request));
         if (limited) return limited;
@@ -89,16 +90,9 @@ export async function POST(request) {
         );
 
     } catch (error) {
-        logger.error('registration error', {
-            message: error.message,
-            code: error.code,
-            detail: error.detail,
-        });
-
         if (error.code === '23505' && error.detail && error.detail.includes('email')) {
             return createErrorResponse('User already exists', 409);
         }
-
-        return createErrorResponse('Internal server error', 500);
+        throw error;
     }
-}
+});

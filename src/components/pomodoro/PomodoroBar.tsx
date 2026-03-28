@@ -75,11 +75,15 @@ export default function PomodoroBar({
   // auto-hide after completion (same pattern as CanvasImportToast)
   useEffect(() => {
     if (isComplete) {
-      const timer = setTimeout(() => {
+      let innerTimer: ReturnType<typeof setTimeout>
+      const outerTimer = setTimeout(() => {
         setVisible(false)
-        setTimeout(stop, 300)
+        innerTimer = setTimeout(stop, 300)
       }, 6000)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(outerTimer)
+        clearTimeout(innerTimer)
+      }
     }
   }, [isComplete, stop])
 
