@@ -36,7 +36,7 @@ export interface LexicalEditorProps {
   onClickLink?: (href: string) => void;
   onHoverLink?: (event: MouseEvent | React.MouseEvent) => void | boolean;
   onUploadImage?: (file: File) => Promise<string>;
-  onShowToast?: (message: string, type?: string) => void;
+  onShowToast?: (message: string, type?: 'default' | 'success' | 'error' | 'info' | 'loading') => void;
   dictionary?: Record<string, any>;
   tooltip?: FC<any>;
   extensions?: any[];
