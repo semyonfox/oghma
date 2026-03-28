@@ -150,7 +150,7 @@ export default function WeekView() {
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const y = e.clientY - rect.top + (scrollRef.current?.scrollTop ?? 0);
+    const y = e.clientY - rect.top;
     const hour = Math.floor(y / HOUR_HEIGHT) + START_HOUR;
     const snappedMinute =
       Math.round((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 2)) * 30;
