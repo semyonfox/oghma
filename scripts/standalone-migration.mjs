@@ -40,6 +40,9 @@ CREATE TABLE app.login (
     hashed_password      TEXT NOT NULL,
     reset_token          VARCHAR UNIQUE,
     reset_token_expires  TIMESTAMPTZ,
+    email_verified       BOOLEAN NOT NULL DEFAULT false,
+    verification_token   TEXT,
+    verification_token_expires TIMESTAMPTZ,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -103,7 +106,7 @@ CREATE TABLE app.tree_items (
 
 CREATE INDEX idx_tree_user_parent ON app.tree_items(user_id, parent_id);
 CREATE INDEX idx_tree_note ON app.tree_items(note_id);
-CREATE INDEX idx_tree_user_note ON app.tree_items(user_id, note_id);
+-- UNIQUE(user_id, note_id) already creates an implicit index, no separate one needed
 
 -- ============================================================================
 -- TABLE: app.attachments (PDF uploads, images, etc)
