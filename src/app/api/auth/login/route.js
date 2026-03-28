@@ -31,9 +31,9 @@ import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
 import logger from "@/lib/logger";
+import { withErrorHandler } from "@/lib/api-error";
 
-export async function POST(request) {
-  try {
+export const POST = withErrorHandler(async (request) => {
     // 1. Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return parseError;
@@ -140,15 +140,7 @@ export async function POST(request) {
     );
 
     return sessionResponse;
-  } catch (error) {
-    logger.error("login error", {
-      message: error.message,
-      code: error.code,
-      detail: error.detail,
-    });
-    return createErrorResponse("Internal server error", 500);
-  }
-}
+});
 
 // ── Canvas auto-sync helper ───────────────────────────────────────────────────
 

@@ -45,7 +45,7 @@ async function searchChunks(
         ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
         LIMIT 20
     `;
-  return results.map((row) => row.text);
+  return results.map((row: { text: string }) => row.text);
 }
 
 function buildMessages(

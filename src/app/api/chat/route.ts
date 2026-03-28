@@ -257,6 +257,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   let searchResults: SearchResult[] = [];
   let embeddingAvailable = false;
+  let ragFailed = false;
 
   await xraySubsegment("rag-pipeline", async () => {
     const queryVector = await embedText(message);
@@ -280,6 +281,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     logger.warn("RAG pipeline failed, proceeding without context", {
       error: detail,
     });
+    ragFailed = true;
   });
 
   const systemPrompt = buildSystemPrompt(searchResults);
@@ -319,6 +321,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       reply,
       sources: uniqueSources,
       llmAvailable: true,
+      ragAvailable: !ragFailed,
       sessionId,
     });
   } catch (error) {
