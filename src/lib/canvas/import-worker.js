@@ -335,6 +335,7 @@ async function processRagPipeline(
       { content: rawText },
     );
 
+    // stripped text for full-text search (no ### --- ** etc.)
     await sql`
       UPDATE app.notes
       SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
