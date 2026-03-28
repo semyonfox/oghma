@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { debounce, createDebouncedFunction } from '@/lib/notes/utils/debounce';
 
-beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+beforeEach(() => { vi.useFakeTimers() });
+afterEach(() => { vi.useRealTimers() });
 
 describe('debounce', () => {
     it('does not call immediately', () => {
