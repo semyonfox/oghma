@@ -391,31 +391,26 @@ async function _runFileImport(importRecordId, file, opts) {
     return { skipped: true };
   }
 
-  // atomically check dedup + claim the import slot in one transaction
+  // atomically check dedup + claim the import slot
   const moduleIdVal = moduleId ?? -1;
   const claimed = await sql.begin(async (tx) => {
+    // skip if already successfully imported or queued for retry
     const [existing] = await tx`
-      SELECT id, status FROM app.canvas_imports
+      SELECT status FROM app.canvas_imports
       WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int
-      ORDER BY created_at DESC LIMIT 1
-      FOR UPDATE
+        AND status IN ('complete', 'pending_retry')
+      LIMIT 1
     `;
-    if (existing) {
-      if (
-        existing.status === "complete" ||
-        existing.status === "pending_retry"
-      ) {
-        return false; // skip — already done or retry queued
-      }
-      // stale record (error/downloading/processing) — replace atomically
-      await tx`DELETE FROM app.canvas_imports WHERE id = ${existing.id}::uuid`;
-      console.log(
-        `Cleared stale import (${existing.status}): ${file.display_name}`,
-      );
-    }
+    if (existing) return false;
+
+    // upsert: insert new record or reclaim a stale one atomically
     await tx`
       INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, job_id)
       VALUES (${importRecordId}::uuid, ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int, ${file.id}::int, ${file.display_name}, ${resolvedMimeType}, 'downloading', ${opts.jobId ?? null})
+      ON CONFLICT (user_id, canvas_file_id)
+      DO UPDATE SET id = ${importRecordId}::uuid, status = 'downloading', job_id = ${opts.jobId ?? null},
+                    filename = ${file.display_name}, mime_type = ${resolvedMimeType}, created_at = NOW()
+      WHERE app.canvas_imports.status NOT IN ('complete', 'pending_retry')
     `;
     return true;
   });
