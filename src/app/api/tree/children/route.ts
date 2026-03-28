@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
     const body = {
       parentId: parentId || 'root',
-      items: rows.map(row => ({
+      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null }) => ({
         id: row.id,
         title: row.title,
         isFolder: row.isFolder,
