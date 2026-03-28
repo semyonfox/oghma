@@ -81,9 +81,14 @@ const IconNav: FC = () => {
       usePortalStore.getState().search.open();
       return;
     }
-    // AI chat toggles the right panel AI tab instead of navigating away
+    // AI chat: toggle right panel on /notes (where the inspector exists),
+    // otherwise navigate to the full /chat page
     if (item.section === "chat") {
-      openRightPanelTab("ai");
+      if (pathname?.startsWith("/notes")) {
+        openRightPanelTab("ai");
+      } else {
+        router.push("/chat");
+      }
       return;
     }
     setActiveNav(item.section);
