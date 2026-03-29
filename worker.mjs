@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Canvas Import Worker Launcher
- * Spawns the worker using tsx for TypeScript support
+ * Spawns the SQS poll loop (worker-entry.js) using tsx for TypeScript support
  */
 
 import { spawn } from 'child_process';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const worker = spawn(path.join(__dirname, 'node_modules/.bin/tsx'), [
-  path.join(__dirname, 'src/lib/canvas/import-worker.js'),
+  path.join(__dirname, 'src/lib/canvas/worker-entry.js'),
 ], {
   stdio: 'inherit',
   cwd: __dirname,
