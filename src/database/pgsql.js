@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import awsSslProfiles from 'aws-ssl-profiles';
+import { config } from '@/lib/config';
 const { ca: rdsCaCerts } = awsSslProfiles;
 
 // lazy connection - only created on first use, not at module load
@@ -19,13 +20,11 @@ function getSQL() {
         // use the bundled AWS RDS CA certificates for proper TLS verification
         sql = postgres(url, {
             ssl: requiresSSL ? { ca: rdsCaCerts } : false,
-            // Connection timeout settings (in milliseconds)
-            idle_in_transaction_session_timeout: 30000, // 30s - max time for transaction
-            statement_timeout: 30000, // 30s - max time for a single query
-            // Connection pool settings
-            max: 20, // max 20 connections in pool
-            idle_timeout: 10, // close idle connections after 10s
-            connect_timeout: 10, // 10s to establish connection
+            idle_in_transaction_session_timeout: config.db.transactionTimeoutMs,
+            statement_timeout: config.db.statementTimeoutMs,
+            max: config.db.maxConnections,
+            idle_timeout: config.db.idleTimeoutSeconds,
+            connect_timeout: config.db.connectTimeoutSeconds,
         });
     }
     return sql;

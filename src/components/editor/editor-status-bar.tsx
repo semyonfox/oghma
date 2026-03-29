@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { FC, useMemo } from 'react';
-import { useEditorStats } from '@/lib/notes/hooks/use-editor-stats';
-import useI18n from '@/lib/notes/hooks/use-i18n';
+import { FC, useMemo } from "react";
+import { useEditorStats } from "@/lib/notes/hooks/use-editor-stats";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface EditorStatusBarProps {
   content: string;
-  syncStatus: 'saved' | 'saving' | 'offline' | 'error';
+  syncStatus: "saved" | "saving" | "offline" | "error";
   lastSaved?: Date;
   cursorLine?: number;
   cursorColumn?: number;
@@ -22,42 +22,44 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
   content,
   syncStatus,
   lastSaved,
-  cursorLine = 1,
-  cursorColumn = 1,
-  zoom = 100,
-  onZoomChange,
+  cursorLine: _cursorLine = 1,
+  cursorColumn: _cursorColumn = 1,
+  zoom: _zoom = 100,
+  onZoomChange: _onZoomChange,
 }) => {
   const { t } = useI18n();
   const stats = useEditorStats(content);
 
   const syncStatusUI = useMemo(() => {
     switch (syncStatus) {
-      case 'saved':
+      case "saved":
         return (
           <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-green-500"></span>
-            {lastSaved ? `${t('Saved')} ${formatTimeAgo(lastSaved)}` : t('Saved')}
+            {lastSaved
+              ? `${t("Saved")} ${formatTimeAgo(lastSaved)}`
+              : t("Saved")}
           </span>
         );
-      case 'saving':
+      case "saving":
         return (
           <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-primary-500 animate-pulse"></span>
-            {t('Saving...')}
+            {t("Saving...")}
           </span>
         );
-      case 'offline':
+      case "offline":
         return (
           <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-yellow-500"></span>
-            {t('Offline')}
+            {t("Offline")}
           </span>
         );
-      case 'error':
+      case "error":
         return (
           <span className="text-[11px] text-text-tertiary flex items-center gap-1.5">
             <span className="w-1 h-1 rounded-full bg-error-500"></span>
-            {t('Sync Error')}
+            {t("Sync Error")}
           </span>
         );
     }
@@ -66,12 +68,12 @@ export const EditorStatusBar: FC<EditorStatusBarProps> = ({
   return (
     <div className="h-6 bg-background border-t border-border-subtle px-4 flex items-center justify-between text-[11px] text-text-tertiary select-none">
       {/* Left section: Sync status */}
-      <div className="flex items-center gap-3">
-        {syncStatusUI}
-      </div>
+      <div className="flex items-center gap-3">{syncStatusUI}</div>
 
       {/* Center section: Word count only */}
-      <span title={t('Word count')} className="text-text-tertiary">{stats.wordCount} {t('words')}</span>
+      <span title={t("Word count")} className="text-text-tertiary">
+        {stats.wordCount} {t("words")}
+      </span>
 
       {/* Right: Empty (removed zoom, cursor position, reading time) */}
       <div />
@@ -86,7 +88,7 @@ function formatTimeAgo(date: Date): string {
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (seconds < 30) return 'now';
+  if (seconds < 30) return "now";
   if (seconds < 60) return `${seconds}s ago`;
 
   const minutes = Math.floor(seconds / 60);

@@ -55,9 +55,16 @@ export default function I18nProvider({ children, locale, lngDict }: Props) {
     t: (key, ...args) => {
       // always try rosetta lookup first (handles dotted keys like "chat.title")
       const result = i18n.t(Array.isArray(key) ? key : [key], ...args);
-      if (result) return result;
+      const params = args[0] ?? {};
+      const hasParams =
+        typeof params === "object" && Object.keys(params).length > 0;
+      if (result) {
+        // rosetta uses {{var}} but our translations use {var} (pupa format),
+        // so always run pupa when params are provided to interpolate single-brace vars
+        return hasParams ? pupa(result, params) : result;
+      }
       // fallback: treat the key itself as the English text (with pupa interpolation)
-      return pupa(Array.isArray(key) ? key.join("") : key, args[0] ?? {});
+      return pupa(Array.isArray(key) ? key.join("") : key, params);
     },
     locale: (l: Props["locale"], dict: Props["lngDict"]) => {
       i18n.locale(l);

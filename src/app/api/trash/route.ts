@@ -15,7 +15,7 @@ async function fetchTrashItems(userId: string) {
         WHERE user_id = ${userId}::uuid AND deleted = 1
         ORDER BY deleted_at DESC
     `;
-    return rows.map(note => ({
+    return rows.map((note: { note_id: string; title: string; content: string; is_folder: boolean; deleted_at: string | null; created_at: string | null; updated_at: string | null }) => ({
         id: note.note_id,
         title: note.title,
         content: note.content,

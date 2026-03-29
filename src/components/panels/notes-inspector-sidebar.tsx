@@ -1,16 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
   SparklesIcon,
-  TagIcon,
-  DocumentTextIcon,
   ArrowTopRightOnSquareIcon,
-  ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useLayoutStore, {
+  type RightPanelTab,
+} from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import ChatInterface from "@/components/chat/chat-interface";
@@ -25,16 +23,22 @@ interface InspectorNote {
   note_id?: string;
 }
 
-type InspectorTab = "ai" | "meta" | "tags" | "tasks";
-
 export default function NotesInspectorSidebar() {
   const { t } = useI18n();
-  const { activePane, paneA, paneB, rightPanelOpen, toggleRightPanel } =
-    useLayoutStore();
+  const {
+    activePane,
+    paneA,
+    paneB,
+    rightPanelOpen,
+    toggleRightPanel,
+    rightPanelTab,
+    setRightPanelTab,
+  } = useLayoutStore();
   const activeFile = activePane === "B" && paneB ? paneB : paneA;
   const [note, setNote] = useState<InspectorNote | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<InspectorTab>("meta");
+  // tab state is driven by the layout store so icon-nav and file-view-pane can control it
+  const activeTab = rightPanelTab;
 
   useEffect(() => {
     if (!activeFile?.fileId) {
@@ -73,7 +77,7 @@ export default function NotesInspectorSidebar() {
 
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
 
-  const tabClasses = (tab: InspectorTab) => `
+  const tabClasses = (tab: RightPanelTab) => `
     px-3 py-2 text-xs font-medium transition-colors border-b-2
     ${
       activeTab === tab
@@ -110,7 +114,7 @@ export default function NotesInspectorSidebar() {
           role="tab"
           aria-selected={activeTab === "meta"}
           aria-controls="panel-meta"
-          onClick={() => setActiveTab("meta")}
+          onClick={() => setRightPanelTab("meta")}
           className={tabClasses("meta")}
         >
           {t("Meta")}
@@ -119,7 +123,7 @@ export default function NotesInspectorSidebar() {
           role="tab"
           aria-selected={activeTab === "tags"}
           aria-controls="panel-tags"
-          onClick={() => setActiveTab("tags")}
+          onClick={() => setRightPanelTab("tags")}
           className={tabClasses("tags")}
         >
           {t("Tags")}
@@ -128,7 +132,7 @@ export default function NotesInspectorSidebar() {
           role="tab"
           aria-selected={activeTab === "ai"}
           aria-controls="panel-ai"
-          onClick={() => setActiveTab("ai")}
+          onClick={() => setRightPanelTab("ai")}
           className={tabClasses("ai")}
         >
           {t("AI")}
@@ -137,7 +141,7 @@ export default function NotesInspectorSidebar() {
           role="tab"
           aria-selected={activeTab === "tasks"}
           aria-controls="panel-tasks"
-          onClick={() => setActiveTab("tasks")}
+          onClick={() => setRightPanelTab("tasks")}
           className={tabClasses("tasks")}
         >
           {t("Tasks")}
@@ -231,12 +235,14 @@ export default function NotesInspectorSidebar() {
         {/* AI Tab */}
         {activeTab === "ai" && (
           <div className="flex-1 flex flex-col min-h-0">
-            {/* open full chat link */}
             {activeFile?.fileId && (
               <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-border-subtle">
-                <p className="text-[11px] text-text-tertiary">
-                  {t("Quick AI chat")}
-                </p>
+                <div className="flex items-center gap-2">
+                  <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
+                  <p className="text-[11px] text-text-tertiary truncate">
+                    {t("AI Chat")} — {activeFile.title || t("Untitled")}
+                  </p>
+                </div>
                 <a
                   href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
                   className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors"

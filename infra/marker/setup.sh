@@ -135,7 +135,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --subnet-id "$SUBNET_ID" \
   --associate-public-ip-address \
   --user-data file://infra/marker/userdata.sh \
-  --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
+  --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":75,"VolumeType":"gp3"}}]' \
   --tag-specifications \
     "ResourceType=instance,Tags=[{Key=Name,Value=marker-server},{Key=Project,Value=$PROJECT},{Key=Service,Value=marker}]" \
   --region "$REGION" \

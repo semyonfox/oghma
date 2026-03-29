@@ -36,10 +36,14 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      await register(email, pwd)
-      router.replace('/notes')
-      // fallback redirect in case router.replace doesn't work
-      setTimeout(() => { window.location.href = '/notes' }, 1000)
+      const result = await register(email, pwd)
+      if (result.requiresVerification) {
+        router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
+        setTimeout(() => { window.location.href = `/verify-email?email=${encodeURIComponent(email)}` }, 1000)
+      } else {
+        router.replace('/notes')
+        setTimeout(() => { window.location.href = '/notes' }, 1000)
+      }
     } catch (err) {
       setErrMsg(getErrorMessage(err))
       setPwd('')
