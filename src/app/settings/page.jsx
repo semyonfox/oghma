@@ -889,9 +889,87 @@ export default function SettingsPage() {
             </div>
 
             <div className="md:col-span-2">
-              <p className="text-sm text-text-tertiary">
-                {t("AI settings coming soon.")}
-              </p>
+              <div className="space-y-8">
+                {/* model selector */}
+                <div>
+                  <label
+                    htmlFor="ai-model"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Model")}
+                  </label>
+                  <p className="mt-1 text-sm text-text-tertiary">
+                    {t("Powers chat, search, and study features.")}
+                  </p>
+                  <div className="mt-2 sm:max-w-xs">
+                    <select
+                      id="ai-model"
+                      className={cn(inputClass, "appearance-auto")}
+                      defaultValue="kimi-k2.5"
+                      disabled
+                    >
+                      <option value="kimi-k2.5">Kimi K2.5</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* BYOK stub */}
+                <div className="border-t border-border pt-6">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm/6 font-medium text-text">
+                      {t("Bring Your Own Key")}
+                    </h3>
+                    <span className="inline-flex items-center rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-400 ring-1 ring-inset ring-primary-500/20">
+                      {t("Coming Soon")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-text-tertiary">
+                    {t("Use your own API key for supported providers.")}
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:max-w-xl sm:grid-cols-6">
+                    <div className="col-span-full">
+                      <label
+                        htmlFor="byok-api-key"
+                        className="block text-sm/6 font-medium text-text opacity-50"
+                      >
+                        {t("API Key")}
+                      </label>
+                      <div className="mt-2">
+                        <input
+                          id="byok-api-key"
+                          type="password"
+                          placeholder="sk-..."
+                          disabled
+                          className={cn(
+                            inputClass,
+                            "disabled:opacity-50 disabled:cursor-not-allowed",
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-full">
+                      <label
+                        htmlFor="byok-endpoint"
+                        className="block text-sm/6 font-medium text-text opacity-50"
+                      >
+                        {t("API Endpoint")}
+                      </label>
+                      <div className="mt-2">
+                        <input
+                          id="byok-endpoint"
+                          type="url"
+                          placeholder="https://api.example.com/v1"
+                          disabled
+                          className={cn(
+                            inputClass,
+                            "disabled:opacity-50 disabled:cursor-not-allowed",
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
