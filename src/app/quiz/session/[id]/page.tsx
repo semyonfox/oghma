@@ -1,108 +1,181 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import ProgressBar from "@/components/quiz/progress-bar";
 import QuestionCard from "@/components/quiz/question-card";
-import RatingButtons from "@/components/quiz/rating-buttons";
 import Feedback from "@/components/quiz/feedback";
-import { getNextIntervals, cardFromDB } from "@/lib/quiz/fsrs";
 
-// inner component that resets naturally via key prop when question changes
+function SessionComplete({
+  progress,
+  elapsed,
+  onBack,
+}: {
+  progress: { answered: number; total: number; correct: number };
+  elapsed: number;
+  onBack: () => void;
+}) {
+  const { t } = useI18n();
+  const confettiRef = useRef(false);
+
+  useEffect(() => {
+    if (!confettiRef.current) {
+      confettiRef.current = true;
+      import("canvas-confetti").then(({ default: confetti }) => {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } });
+      });
+    }
+  }, []);
+
+  const minutes = Math.max(1, Math.round(elapsed / 60000));
+  const accuracy =
+    progress.answered > 0
+      ? Math.round((progress.correct / progress.answered) * 100)
+      : 0;
+  const advancing = progress.correct;
+  const forTomorrow = progress.answered - progress.correct;
+
+  return (
+    <div className="h-screen flex items-center justify-center px-6">
+      <div className="max-w-md w-full text-center">
+        <h1 className="font-serif text-text text-xl font-semibold">
+          {t("quiz.complete.title")}
+        </h1>
+        <p className="text-text-secondary text-sm mt-2">
+          {t("quiz.complete.score", {
+            correct: progress.correct,
+            total: progress.answered,
+          })}
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mt-6">
+          {[
+            { label: t("quiz.complete.time"), value: `${minutes} min` },
+            { label: t("quiz.complete.accuracy"), value: `${accuracy}%` },
+            { label: t("quiz.complete.advancing"), value: String(advancing) },
+            {
+              label: t("quiz.complete.for_tomorrow"),
+              value: String(forTomorrow),
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="bg-surface border border-border-subtle rounded-lg p-3"
+            >
+              <div className="text-text-tertiary text-[10px] uppercase tracking-wider">
+                {stat.label}
+              </div>
+              <div className="text-text font-medium text-lg mt-1">
+                {stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onBack}
+          className="mt-8 bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+        >
+          {t("quiz.complete.back")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function QuestionView({
-  t,
   question,
-  intervals,
   sessionId,
   currentIndex,
   cardIds,
-  sessionProgress: _sessionProgress,
   fatigueWarning,
   advanceQuestion,
   setFatigueWarning,
-  endSession,
+  onComplete,
 }: {
-  t: (key: string, params?: Record<string, unknown>) => string;
   question: any;
-  intervals: Record<1 | 2 | 3 | 4, number>;
   sessionId: string;
   currentIndex: number;
   cardIds: string[];
-  sessionProgress: { answered: number; total: number; correct: number };
   fatigueWarning: boolean;
   advanceQuestion: (q: any, p: any) => void;
   setFatigueWarning: (w: boolean) => void;
-  endSession: () => void;
+  onComplete: () => void;
 }) {
-  const router = useRouter();
+  const { t } = useI18n();
   const [answered, setAnswered] = useState(false);
   const [lastAnswer, setLastAnswer] = useState<{
     answer: string;
     wasCorrect: boolean;
   } | null>(null);
-  const startTimeRef = useRef(0);
-
-  useEffect(() => {
-    startTimeRef.current = Date.now();
-  }, []);
+  const [isLeech, setIsLeech] = useState(false);
+  const startTimeRef = useRef(Date.now());
 
   const handleAnswer = useCallback((answer: string, wasCorrect: boolean) => {
     setAnswered(true);
     setLastAnswer({ answer, wasCorrect });
   }, []);
 
-  const handleRate = useCallback(
-    async (rating: 1 | 2 | 3 | 4) => {
-      if (!lastAnswer) return;
+  const handleContinue = useCallback(async () => {
+    if (!lastAnswer) return;
 
-      const nextCardId =
-        currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
-      const responseTimeMs = Date.now() - startTimeRef.current;
+    const nextCardId =
+      currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
+    const responseTimeMs = Date.now() - startTimeRef.current;
 
-      const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId: question.card_id,
-          rating,
-          userAnswer: lastAnswer.answer,
-          wasCorrect: lastAnswer.wasCorrect,
-          responseTimeMs,
-          nextCardId,
-        }),
-      });
+    const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId: question.card_id,
+        userAnswer: lastAnswer.answer,
+        wasCorrect: lastAnswer.wasCorrect,
+        responseTimeMs,
+        nextCardId,
+      }),
+    });
 
-      if (!res.ok) return;
-      const data = await res.json();
+    if (!res.ok) return;
+    const data = await res.json();
 
-      if (data.fatigueWarning) setFatigueWarning(true);
+    if (data.fatigueWarning) setFatigueWarning(true);
+    if (data.isLeech) setIsLeech(true);
 
-      if (data.nextQuestion) {
-        advanceQuestion(data.nextQuestion, data.sessionProgress);
-      } else {
-        endSession();
-        router.push("/quiz");
+    if (data.nextQuestion) {
+      advanceQuestion(data.nextQuestion, data.sessionProgress);
+    } else {
+      onComplete();
+    }
+  }, [
+    lastAnswer,
+    question,
+    currentIndex,
+    cardIds,
+    sessionId,
+    advanceQuestion,
+    setFatigueWarning,
+    onComplete,
+  ]);
+
+  // keyboard: Enter/Space to continue after answering
+  useEffect(() => {
+    if (!answered || !lastAnswer) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handleContinue();
       }
-    },
-    [
-      lastAnswer,
-      question,
-      currentIndex,
-      cardIds,
-      sessionId,
-      advanceQuestion,
-      setFatigueWarning,
-      endSession,
-      router,
-    ],
-  );
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [answered, lastAnswer, handleContinue]);
 
   return (
     <>
       {fatigueWarning && (
-        <div className="mt-4 bg-ai-500/10 border border-ai-500/20 rounded-lg p-3 text-xs text-ai-400">
+        <div className="mt-4 bg-surface border border-border-subtle rounded-lg p-3 text-xs text-text-tertiary">
           {t("quiz.session.fatigue_warning")}
         </div>
       )}
@@ -111,13 +184,25 @@ function QuestionView({
         <QuestionCard question={question} onAnswer={handleAnswer} />
 
         {answered && lastAnswer && (
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-3">
             <Feedback
               wasCorrect={lastAnswer.wasCorrect}
               explanation={question.explanation}
               correctAnswer={question.correct_answer}
             />
-            <RatingButtons intervals={intervals} onRate={handleRate} />
+            {isLeech && (
+              <p className="text-text-tertiary text-xs">
+                {t("quiz.session.leech_warning")}
+              </p>
+            )}
+            <div className="flex justify-center">
+              <button
+                onClick={handleContinue}
+                className="bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                {t("quiz.session.continue")}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -134,29 +219,20 @@ export default function QuizSessionPage() {
     currentIndex,
     currentQuestion,
     sessionProgress,
+    sessionStartTime,
+    sessionCompleted,
     fatigueWarning,
     startSession,
     advanceQuestion,
     setFatigueWarning,
+    completeSession,
     endSession,
   } = useQuizStore();
   const { t } = useI18n();
 
   const [streak, setStreak] = useState(0);
 
-  // compute intervals from current question (pure derivation)
-  const intervals = useMemo<Record<1 | 2 | 3 | 4, number>>(() => {
-    if (!currentQuestion) return { 1: 0, 2: 0, 3: 0, 4: 0 };
-    try {
-      if (currentQuestion.intervals) return currentQuestion.intervals;
-      const card = cardFromDB(currentQuestion);
-      return getNextIntervals(card);
-    } catch {
-      return { 1: 0, 2: 1, 3: 3, 4: 7 };
-    }
-  }, [currentQuestion]);
-
-  // load session on mount
+  // load session on mount if store is empty (e.g. page refresh)
   useEffect(() => {
     if (!cardIds.length) {
       fetch(`/api/quiz/sessions/${sessionId}`)
@@ -169,12 +245,54 @@ export default function QuizSessionPage() {
     }
   }, [sessionId, cardIds.length, startSession]);
 
-  // fetch streak
+  // fetch streak for progress bar
   useEffect(() => {
     fetch("/api/quiz/streak")
       .then((r) => r.json())
       .then((d) => setStreak(d.current_streak || 0));
   }, []);
+
+  const handleSkip = useCallback(async () => {
+    const nextIdx = currentIndex + 1;
+    if (nextIdx >= cardIds.length) {
+      completeSession();
+      return;
+    }
+
+    // fetch the next card's question data without recording a review
+    const nextCardId = cardIds[nextIdx];
+    try {
+      const res = await fetch(`/api/quiz/cards/${nextCardId}`);
+      if (!res.ok) {
+        completeSession();
+        return;
+      }
+      const data = await res.json();
+      advanceQuestion(data.question, sessionProgress);
+    } catch {
+      completeSession();
+    }
+  }, [
+    currentIndex,
+    cardIds,
+    sessionProgress,
+    advanceQuestion,
+    completeSession,
+  ]);
+
+  if (sessionCompleted) {
+    const elapsed = Date.now() - sessionStartTime;
+    return (
+      <SessionComplete
+        progress={sessionProgress}
+        elapsed={elapsed}
+        onBack={() => {
+          endSession();
+          router.push("/quiz");
+        }}
+      />
+    );
+  }
 
   if (!currentQuestion) {
     return (
@@ -186,8 +304,6 @@ export default function QuizSessionPage() {
     );
   }
 
-  // key on card_id forces QuestionView to remount when question changes,
-  // naturally resetting answered/lastAnswer state without manual setState
   return (
     <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto">
       <ProgressBar
@@ -198,21 +314,19 @@ export default function QuizSessionPage() {
           router.push("/quiz");
         }}
         streak={streak}
+        onSkip={handleSkip}
       />
 
       <QuestionView
         key={currentQuestion.card_id}
-        t={t}
         question={currentQuestion}
-        intervals={intervals}
         sessionId={sessionId}
         currentIndex={currentIndex}
         cardIds={cardIds}
-        sessionProgress={sessionProgress}
         fatigueWarning={fatigueWarning}
         advanceQuestion={advanceQuestion}
         setFatigueWarning={setFatigueWarning}
-        endSession={endSession}
+        onComplete={completeSession}
       />
     </div>
   );
