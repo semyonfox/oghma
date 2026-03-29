@@ -16,14 +16,10 @@ export default function Feedback({
   const { t } = useI18n();
   return (
     <div
-      className={`rounded-lg p-4 border ${wasCorrect ? "bg-success-500/5 border-success-500/20" : "bg-error-500/5 border-error-500/20"}`}
+      className={`rounded-lg p-4 border ${wasCorrect ? "bg-success-500/3 border-success-500/15" : "bg-error-500/3 border-error-500/15"}`}
     >
-      <div
-        className={`text-sm font-semibold mb-2 ${wasCorrect ? "text-success-400" : "text-error-400"}`}
-      >
-        {wasCorrect
-          ? `✓ ${t("quiz.feedback.correct")}`
-          : `✗ ${t("quiz.feedback.incorrect")}`}
+      <div className="text-sm font-medium mb-2 text-text-secondary">
+        {wasCorrect ? t("quiz.feedback.correct") : t("quiz.feedback.incorrect")}
       </div>
       {!wasCorrect && (
         <div className="text-xs text-text-secondary mb-2">
