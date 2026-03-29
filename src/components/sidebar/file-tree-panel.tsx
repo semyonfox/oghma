@@ -50,6 +50,8 @@ const FileTreePanel: FC = () => {
       .getState()
       .initTree()
       .catch((e) => console.error("Error initializing tree:", e));
+    // one-time initialization on mount; API objects are stable module-level singletons
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
