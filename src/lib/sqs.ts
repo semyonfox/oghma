@@ -15,8 +15,5 @@ export function getExtractRetryQueueUrl(): string {
   return process.env.SQS_EXTRACT_RETRY_QUEUE_URL ?? "";
 }
 
-// keep the old exports as aliases so existing callers don't break during migration.
-// these still read at module-load time — prefer the getter functions above.
-export const CANVAS_IMPORT_QUEUE_URL: string = process.env.SQS_QUEUE_URL ?? "";
-export const EXTRACT_RETRY_QUEUE_URL: string =
-  process.env.SQS_EXTRACT_RETRY_QUEUE_URL ?? "";
+// removed stale module-level exports — they bake in "" during next build
+// because env vars are unset at build time. use the getter functions above.

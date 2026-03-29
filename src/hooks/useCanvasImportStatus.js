@@ -58,6 +58,9 @@ export function useCanvasImportStatus(options = {}) {
             error: data.issues?.error ?? 0,
           });
           setShowToast(true);
+        } else {
+          // no active job and nothing to show — stale entry, hide toast
+          setShowToast(false);
         }
 
         localStorage.removeItem(LS_ACTIVE_JOB);

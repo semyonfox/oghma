@@ -18,6 +18,7 @@ export default function QuizDashboard() {
     setDashboard,
     setCourses,
     setDashboardLoading,
+    startSession,
   } = useQuizStore();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -63,6 +64,11 @@ export default function QuizDashboard() {
     });
     if (!res.ok) return;
     const data = await res.json();
+    // store session data in Zustand before navigating so the session page
+    // has cardIds + first question immediately (no extra GET needed)
+    if (data.cardIds && data.question) {
+      startSession(data.sessionId, data.cardIds, data.question);
+    }
     router.push(`/quiz/session/${data.sessionId}`);
   };
 

@@ -87,10 +87,10 @@ export const Favorites: FC = () => {
 
   return (
     <>
-      <div className="group p-2 text-text-tertiary flex items-center sticky top-0 bg-background z-10">
-        <div className="flex-auto flex items-center">
-          <span>{t("Favorites")}</span>
-        </div>
+      <div className="group flex items-center h-7 px-2 mt-1 sticky top-0 bg-background z-10">
+        <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
+          {t("Favorites")}
+        </span>
         <IconButton
           icon="Selector"
           onClick={() => setFold((prev) => !prev)}
