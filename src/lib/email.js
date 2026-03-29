@@ -95,6 +95,94 @@ export async function sendVerificationEmail(email, verificationToken) {
   }
 }
 
+export async function sendVaultImportCompleteEmail(
+  email,
+  { totalFiles, totalFolders, failedFiles },
+) {
+  const fromEmail =
+    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  if (!fromEmail) {
+    console.warn(
+      "[email] SES from-email not configured, skipping vault import notification",
+    );
+    return;
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const hasFailures = failedFiles > 0;
+
+  const mailOptions = {
+    from: fromEmail,
+    to: email,
+    subject: "Your vault import is complete",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Vault Import Complete</h2>
+        <p>Your vault has been imported successfully.</p>
+        <ul style="line-height: 1.8;">
+          <li><strong>${totalFolders}</strong> folders created</li>
+          <li><strong>${totalFiles}</strong> files processed</li>
+          ${hasFailures ? `<li style="color: #e53e3e;"><strong>${failedFiles}</strong> files failed</li>` : ""}
+        </ul>
+        <a href="${baseUrl}"
+           style="background-color: #4299e1; color: white; padding: 12px 24px;
+                  text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 16px;">
+          Open OghmaNote
+        </a>
+      </div>
+    `,
+    text: `Vault Import Complete\n\n${totalFolders} folders created, ${totalFiles} files processed${hasFailures ? `, ${failedFiles} failed` : ""}.\n\nOpen OghmaNote: ${baseUrl}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (err) {
+    console.error(
+      "[email] failed to send vault import notification:",
+      err.message,
+    );
+  }
+}
+
+export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
+  const fromEmail =
+    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  if (!fromEmail) {
+    console.warn(
+      "[email] SES from-email not configured, skipping vault export notification",
+    );
+    return;
+  }
+
+  const mailOptions = {
+    from: fromEmail,
+    to: email,
+    subject: "Your vault export is ready",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Vault Export Ready</h2>
+        <p>Your vault export has been generated and is ready to download.</p>
+        <a href="${downloadUrl}"
+           style="background-color: #4299e1; color: white; padding: 12px 24px;
+                  text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 16px;">
+          Download Vault
+        </a>
+        <p style="margin-top: 20px; color: #666;">This download link expires in 24 hours.</p>
+      </div>
+    `,
+    text: `Vault Export Ready\n\nDownload your vault: ${downloadUrl}\n\nThis link expires in 24 hours.`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (err) {
+    console.error(
+      "[email] failed to send vault export notification:",
+      err.message,
+    );
+  }
+}
+
 /* permissions policy (group name: AWSSESSendingGroupDoNotRename)
 {
     "Version": "2012-10-17",
