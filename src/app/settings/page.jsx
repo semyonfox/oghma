@@ -142,6 +142,8 @@ export default function SettingsPage() {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+    // navigation is a static array defined outside the component
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // instant theme preview when radio changes
