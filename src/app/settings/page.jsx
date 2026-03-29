@@ -60,6 +60,16 @@ export default function SettingsPage() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
+  // vault import/export state
+  const [importStatus, setImportStatus] = useState(null); // null | 'uploading' | 'processing' | 'complete' | 'failed'
+  const [importProgress, setImportProgress] = useState(null); // { percent, completed, total }
+  const [importJobId, setImportJobId] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [exportStatus, setExportStatus] = useState(null); // null | 'processing' | 'complete' | 'failed'
+  const [exportJobId, setExportJobId] = useState(null);
+  const [exportDownloadUrl, setExportDownloadUrl] = useState(null);
+  const importFileRef = useRef(null);
+
   const DELETE_ACCOUNT_PHRASE = "delete my account";
 
   const VAULT_CONFIRM_PHRASE =
@@ -338,6 +348,201 @@ export default function SettingsPage() {
       setIsSigningOut(false);
     }
   };
+
+  // ── Vault Import ──
+  async function handleVaultImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".zip")) {
+      toast.error(t("Please select a .zip file"));
+      return;
+    }
+
+    try {
+      setImportStatus("uploading");
+      setUploadProgress(0);
+
+      // get presigned URL
+      const presignRes = await fetch("/api/vault/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentLength: file.size }),
+      });
+      if (!presignRes.ok) {
+        const err = await presignRes.json();
+        throw new Error(err.error || "Failed to get upload URL");
+      }
+      const { uploadUrl, s3Key } = await presignRes.json();
+
+      // upload to S3 via XMLHttpRequest for progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", "application/zip");
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
+          }
+        };
+        xhr.onload = () =>
+          xhr.status < 400
+            ? resolve()
+            : reject(new Error(`Upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(file);
+      });
+
+      setImportStatus("processing");
+      setUploadProgress(100);
+
+      // start the import job
+      const startRes = await fetch("/api/vault/import/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ s3Key }),
+      });
+      if (!startRes.ok) {
+        const err = await startRes.json();
+        throw new Error(err.error || "Failed to start import");
+      }
+      const { jobId } = await startRes.json();
+      setImportJobId(jobId);
+
+      toast.success(t("Import started! Processing your vault..."));
+    } catch (err) {
+      console.error("Vault import failed:", err);
+      setImportStatus("failed");
+      toast.error(err.message || t("Import failed"));
+    }
+
+    // reset file input
+    if (importFileRef.current) importFileRef.current.value = "";
+  }
+
+  // ── Vault Export ──
+  async function handleVaultExport() {
+    try {
+      setExportStatus("processing");
+      setExportDownloadUrl(null);
+
+      const res = await fetch("/api/vault/export", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to start export");
+      }
+      const { jobId } = await res.json();
+      setExportJobId(jobId);
+
+      toast.success(t("Export started! We'll notify you when it's ready."));
+    } catch (err) {
+      console.error("Vault export failed:", err);
+      setExportStatus("failed");
+      toast.error(err.message || t("Export failed"));
+    }
+  }
+
+  // poll import status
+  useEffect(() => {
+    if (
+      !importJobId ||
+      importStatus === "complete" ||
+      importStatus === "failed"
+    )
+      return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/vault/status?type=vault-import");
+        if (!res.ok) return;
+        const { job, progress } = await res.json();
+        if (!job) return;
+        if (job.status === "complete") {
+          setImportStatus("complete");
+          setImportProgress(progress);
+          toast.success(t("Vault import complete!"));
+          clearInterval(interval);
+        } else if (job.status === "failed") {
+          setImportStatus("failed");
+          toast.error(job.error || t("Import failed"));
+          clearInterval(interval);
+        } else if (progress) {
+          setImportProgress(progress);
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [importJobId, importStatus, t]);
+
+  // poll export status
+  useEffect(() => {
+    if (
+      !exportJobId ||
+      exportStatus === "complete" ||
+      exportStatus === "failed"
+    )
+      return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/vault/status?type=vault-export");
+        if (!res.ok) return;
+        const { job, downloadUrl } = await res.json();
+        if (!job) return;
+        if (job.status === "complete" && downloadUrl) {
+          setExportStatus("complete");
+          setExportDownloadUrl(downloadUrl);
+          toast.success(t("Vault export ready!"));
+          clearInterval(interval);
+        } else if (job.status === "failed") {
+          setExportStatus("failed");
+          toast.error(job.error || t("Export failed"));
+          clearInterval(interval);
+        }
+      } catch {
+        /* ignore poll errors */
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [exportJobId, exportStatus, t]);
+
+  // check for existing vault jobs on mount
+  useEffect(() => {
+    async function checkExistingJobs() {
+      try {
+        const [importRes, exportRes] = await Promise.all([
+          fetch("/api/vault/status?type=vault-import"),
+          fetch("/api/vault/status?type=vault-export"),
+        ]);
+        if (importRes.ok) {
+          const { job, progress } = await importRes.json();
+          if (job && ["queued", "processing"].includes(job.status)) {
+            setImportStatus("processing");
+            setImportJobId(job.jobId);
+            setImportProgress(progress);
+          } else if (job?.status === "complete") {
+            setImportStatus("complete");
+            setImportProgress(progress);
+          }
+        }
+        if (exportRes.ok) {
+          const { job, downloadUrl } = await exportRes.json();
+          if (job && ["queued", "processing"].includes(job.status)) {
+            setExportStatus("processing");
+            setExportJobId(job.jobId);
+          } else if (job?.status === "complete" && downloadUrl) {
+            setExportStatus("complete");
+            setExportDownloadUrl(downloadUrl);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    checkExistingJobs();
+  }, []);
 
   return (
     <div className="bg-background min-h-screen">
@@ -989,35 +1194,174 @@ export default function SettingsPage() {
 
             <div className="md:col-span-2">
               <div className="space-y-6">
+                {/* import section */}
                 <div>
-                  <h3 className="text-sm/6 font-medium text-text mb-3">
+                  <h3 className="text-sm/6 font-medium text-text mb-1">
                     {t("Import Notes")}
                   </h3>
                   <p className="text-sm text-text-tertiary mb-4">
-                    {t("Import a zip file containing markdown files.")}
+                    {t(
+                      "Upload a .zip file to import folders and notes. Supports PDF, DOCX, Markdown, and more. Max 10GB.",
+                    )}
                   </p>
-                  <button
-                    type="button"
-                    className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle hover:bg-subtle-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled
-                  >
-                    {t("Import (Coming soon)")}
-                  </button>
+
+                  {importStatus === "uploading" && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm text-text-secondary mb-1">
+                        <span>{t("Uploading...")}</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full bg-subtle rounded-full h-2">
+                        <div
+                          className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {importStatus === "processing" && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm text-text-secondary mb-1">
+                        <span>
+                          {importProgress
+                            ? `${t("Processing")} ${importProgress.completed}/${importProgress.total} ${t("files")}...`
+                            : t("Processing...")}
+                        </span>
+                        {importProgress?.percent != null && (
+                          <span>{importProgress.percent}%</span>
+                        )}
+                      </div>
+                      <div className="w-full bg-subtle rounded-full h-2">
+                        <div
+                          className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${importProgress?.percent ?? 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {importStatus === "complete" && (
+                    <div className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20">
+                      {t("Import complete!")}
+                      {importProgress &&
+                        ` ${importProgress.completed} ${t("files processed")}.`}
+                    </div>
+                  )}
+
+                  {importStatus === "failed" && (
+                    <div className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+                      {t("Import failed. Please try again.")}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      ref={importFileRef}
+                      type="file"
+                      accept=".zip"
+                      onChange={handleVaultImport}
+                      disabled={
+                        importStatus === "uploading" ||
+                        importStatus === "processing"
+                      }
+                      className="hidden"
+                      id="vault-import-file"
+                    />
+                    <label
+                      htmlFor="vault-import-file"
+                      className={cn(
+                        "rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle cursor-pointer",
+                        importStatus === "uploading" ||
+                          importStatus === "processing"
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-subtle-hover",
+                      )}
+                    >
+                      {importStatus === "uploading"
+                        ? t("Uploading...")
+                        : importStatus === "processing"
+                          ? t("Processing...")
+                          : t("Select .zip file")}
+                    </label>
+                  </div>
                 </div>
 
+                {/* export section */}
                 <div className="border-t border-border pt-6">
-                  <h3 className="text-sm/6 font-medium text-text mb-3">
+                  <h3 className="text-sm/6 font-medium text-text mb-1">
                     {t("Export Notes")}
                   </h3>
                   <p className="text-sm text-text-tertiary mb-4">
-                    {t("Download all your notes as a zip file.")}
+                    {t("Download all your notes and files as a zip archive.")}
                   </p>
+
+                  {exportStatus === "processing" && (
+                    <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
+                      <svg
+                        className="animate-spin h-4 w-4 text-primary-500"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                      {t("Generating export... This may take a few minutes.")}
+                    </div>
+                  )}
+
+                  {exportStatus === "complete" && exportDownloadUrl && (
+                    <div className="mb-4">
+                      <div className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20 mb-3">
+                        {t("Export ready!")}
+                      </div>
+                      <a
+                        href={exportDownloadUrl}
+                        download
+                        className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 inline-block"
+                      >
+                        {t("Download vault.zip")}
+                      </a>
+                      <p className="mt-2 text-xs text-text-tertiary">
+                        {t("Link expires in 24 hours.")}
+                      </p>
+                    </div>
+                  )}
+
+                  {exportStatus === "failed" && (
+                    <div className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+                      {t("Export failed. Please try again.")}
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle hover:bg-subtle-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled
+                    onClick={handleVaultExport}
+                    disabled={exportStatus === "processing"}
+                    className={cn(
+                      "rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle",
+                      exportStatus === "processing"
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-subtle-hover",
+                    )}
                   >
-                    {t("Export (Coming soon)")}
+                    {exportStatus === "processing"
+                      ? t("Exporting...")
+                      : t("Export vault")}
                   </button>
                 </div>
               </div>
