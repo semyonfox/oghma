@@ -1,39 +1,48 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Dialog, DialogBackdrop, DialogPanel, TransitionChild } from '@headlessui/react'
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
-import useI18n from '@/lib/notes/hooks/use-i18n'
+import { useState } from "react";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  TransitionChild,
+} from "@headlessui/react";
+import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 function classNames(...classes) {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(" ");
 }
 
 function TeamsSection({ teams, onNavigateItem }) {
-  const { t } = useI18n()
+  const { t } = useI18n();
   return (
     <>
-      <div className="text-xs/6 font-semibold text-gray-400">{t('Your teams')}</div>
+      <div className="text-xs/6 font-semibold text-gray-400">
+        {t("Your teams")}
+      </div>
       <ul role="list" className="-mx-2 mt-2 space-y-1">
         {teams.map((team) => (
           <li key={team.name}>
             <a
               href={team.href}
               onClick={(e) => {
-                e.preventDefault()
-                onNavigateItem(team)
+                e.preventDefault();
+                onNavigateItem(team);
               }}
               className={classNames(
-                team.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
-                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+                team.current
+                  ? "bg-white/5 text-white"
+                  : "text-gray-400 hover:bg-white/5 hover:text-white",
+                "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
               )}
             >
               <span
                 className={classNames(
                   team.current
-                    ? 'border-white/20 text-white'
-                    : 'border-white/10 text-gray-400 group-hover:border-white/20 group-hover:text-white',
-                  'flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium',
+                    ? "border-white/20 text-white"
+                    : "border-white/10 text-gray-400 group-hover:border-white/20 group-hover:text-white",
+                  "flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium",
                 )}
               >
                 {team.initial}
@@ -44,11 +53,11 @@ function TeamsSection({ teams, onNavigateItem }) {
         ))}
       </ul>
     </>
-  )
+  );
 }
 
 function ProfileSection({ userProfile, onProfileClick }) {
-  const { t } = useI18n()
+  const { t } = useI18n();
   return (
     <li className="-mx-6 mt-auto">
       <button
@@ -62,11 +71,11 @@ function ProfileSection({ userProfile, onProfileClick }) {
             className="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10"
           />
         )}
-        <span className="sr-only">{t('Your profile')}</span>
+        <span className="sr-only">{t("Your profile")}</span>
         <span aria-hidden="true">{userProfile.name}</span>
       </button>
     </li>
-  )
+  );
 }
 
 function SidebarContent({
@@ -83,8 +92,10 @@ function SidebarContent({
   return (
     <div
       className={classNames(
-        'relative flex grow flex-col gap-y-5 overflow-y-auto',
-        mobile ? 'bg-gray-900 px-6 pb-2 ring ring-white/10 before:pointer-events-none before:absolute before:inset-0 before:bg-black/10' : 'border-r border-white/10 bg-black/10 px-6',
+        "relative flex grow flex-col gap-y-5 overflow-y-auto",
+        mobile
+          ? "bg-gray-900 px-6 pb-2 ring ring-white/10 before:pointer-events-none before:absolute before:inset-0 before:bg-black/10"
+          : "border-r border-white/10 bg-black/10 px-6",
       )}
     >
       {/* Logo */}
@@ -107,20 +118,24 @@ function SidebarContent({
                   <a
                     href={item.href}
                     onClick={(e) => {
-                      e.preventDefault()
-                      onNavigateItem(item)
+                      e.preventDefault();
+                      onNavigateItem(item);
                     }}
                     className={classNames(
-                      item.current ? 'bg-white/5 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white',
-                      'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+                      item.current
+                        ? "bg-white/5 text-white"
+                        : "text-gray-400 hover:bg-white/5 hover:text-white",
+                      "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
                     )}
                   >
                     {item.icon && (
                       <item.icon
                         aria-hidden="true"
                         className={classNames(
-                          item.current ? 'text-white' : 'text-gray-400 group-hover:text-white',
-                          'size-6 shrink-0',
+                          item.current
+                            ? "text-white"
+                            : "text-gray-400 group-hover:text-white",
+                          "size-6 shrink-0",
                         )}
                       />
                     )}
@@ -140,46 +155,53 @@ function SidebarContent({
 
           {/* User Profile */}
           {userProfile && (
-            <ProfileSection userProfile={userProfile} onProfileClick={onProfileClick} />
+            <ProfileSection
+              userProfile={userProfile}
+              onProfileClick={onProfileClick}
+            />
           )}
         </ul>
       </nav>
     </div>
-  )
+  );
 }
 
 export function SidebarLayout({
   navigationItems = [],
   teams = [],
-  logoText = 'OghmaNotes',
+  logoText = "OghmaNotes",
   logoSrc = null,
   userProfile = null,
-  pageTitle = 'Dashboard',
+  pageTitle = "Dashboard",
   children = null,
   onNavigate = null,
   onProfileClick = null,
 }) {
-  const { t } = useI18n()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { t } = useI18n();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleNavClick = (item) => {
+  const _handleNavClick = (item) => {
     if (onNavigate) {
-      onNavigate(item)
+      onNavigate(item);
     }
-    setSidebarOpen(false)
-  }
+    setSidebarOpen(false);
+  };
 
   const onNavigateItem = (item) => {
     if (onNavigate) {
-      onNavigate(item)
+      onNavigate(item);
     }
-    setSidebarOpen(false)
-  }
+    setSidebarOpen(false);
+  };
 
   return (
     <div>
       {/* Mobile Sidebar Dialog */}
-      <Dialog open={sidebarOpen} onClose={setSidebarOpen} className="relative z-50 lg:hidden">
+      <Dialog
+        open={sidebarOpen}
+        onClose={setSidebarOpen}
+        className="relative z-50 lg:hidden"
+      >
         <DialogBackdrop
           transition
           className="fixed inset-0 bg-gray-900/80 transition-opacity duration-300 ease-linear data-closed:opacity-0"
@@ -192,8 +214,12 @@ export function SidebarLayout({
           >
             <TransitionChild>
               <div className="absolute top-0 left-full flex w-16 justify-center pt-5 duration-300 ease-in-out data-closed:opacity-0">
-                <button type="button" onClick={() => setSidebarOpen(false)} className="-m-2.5 p-2.5">
-                  <span className="sr-only">{t('Close sidebar')}</span>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="-m-2.5 p-2.5"
+                >
+                  <span className="sr-only">{t("Close sidebar")}</span>
                   <XMarkIcon aria-hidden="true" className="size-6 text-white" />
                 </button>
               </div>
@@ -234,13 +260,18 @@ export function SidebarLayout({
           onClick={() => setSidebarOpen(true)}
           className="-m-2.5 p-2.5 text-gray-400 hover:text-white"
         >
-          <span className="sr-only">{t('Open sidebar')}</span>
+          <span className="sr-only">{t("Open sidebar")}</span>
           <Bars3Icon aria-hidden="true" className="size-6" />
         </button>
-        <div className="flex-1 text-sm/6 font-semibold text-white">{pageTitle}</div>
+        <div className="flex-1 text-sm/6 font-semibold text-white">
+          {pageTitle}
+        </div>
         {userProfile && (
-          <button onClick={onProfileClick} className="hover:opacity-80 transition-opacity">
-            <span className="sr-only">{t('Your profile')}</span>
+          <button
+            onClick={onProfileClick}
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="sr-only">{t("Your profile")}</span>
             {userProfile.avatar && (
               <img
                 alt={userProfile.name}
@@ -257,5 +288,5 @@ export function SidebarLayout({
         <div className="px-4 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>
-  )
+  );
 }

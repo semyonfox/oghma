@@ -1,22 +1,25 @@
-/* * register Route Handler
+/*
+ * register Route Handler
  * Creates new user account with validated credentials
  * 1. Validate request fields and password strength
  * 2. Check if user already exists
  * 3. Hash password and insert new user
- * 4. Generate JWT token and create session
- * 5. Return success response
+ * 4. Generate verification token and send email
+ * 5. Return success response (requires verification)
  */
 
-// taken from authentication beta docs, nextJS on the 07/11/2025: https://nextjs.org/docs/app/guides/authentication
 import sql from "@/database/pgsql.js";
 import {validateAuthCredentials} from "@/lib/validation.js";
-import {createAuthSession, createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
+import {createErrorResponse, createValidationErrorResponse, parseJsonBody} from "@/lib/auth.js";
 import {generateUUID} from "@/lib/utils/uuid";
+import {generateSecureToken, hashToken} from "@/lib/tokens.js";
+import {sendVerificationEmail} from "@/lib/email.js";
 import {checkRateLimit, getClientIp} from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from '@/lib/logger';
+import { withErrorHandler } from "@/lib/api-error";
 
-export async function POST(request) {
+export const POST = withErrorHandler(async (request) => {
     try {
         const limited = await checkRateLimit('register', getClientIp(request));
         if (limited) return limited;
@@ -50,10 +53,16 @@ export async function POST(request) {
         // 5. Generate UUID v7 for user
         const userId = generateUUID();
 
-        // 6. Insert new user into database
+        // 6. Generate verification token
+        const verificationToken = generateSecureToken();
+        const tokenHash = hashToken(verificationToken);
+        const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // 7. Insert new user with email_verified = false
         const data = await sql`
-            INSERT INTO app.login (user_id, email, hashed_password)
-            VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}) RETURNING user_id, email
+            INSERT INTO app.login (user_id, email, hashed_password, email_verified, verification_token, verification_token_expires)
+            VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}, false, ${tokenHash}, ${tokenExpires})
+            RETURNING user_id, email
         `;
 
         const user = data[0];
@@ -62,22 +71,28 @@ export async function POST(request) {
             return createErrorResponse('An error occurred while creating your account', 500);
         }
 
-        // 7. Create auth session (generates JWT, sets cookie, returns response)
-        return await createAuthSession(user, 1);
+        // 8. Send verification email
+        try {
+            await sendVerificationEmail(email.trim(), verificationToken);
+        } catch (emailErr) {
+            logger.error('failed to send verification email during registration', { error: emailErr.message });
+            // account is created but email failed -- user can resend later
+        }
+
+        // 9. Return success with requiresVerification flag (no session created)
+        return new Response(
+            JSON.stringify({
+                success: true,
+                requiresVerification: true,
+                message: 'Account created. Please check your email to verify your account.',
+            }),
+            { status: 201, headers: { 'Content-Type': 'application/json' } }
+        );
 
     } catch (error) {
-        logger.error('registration error', {
-            message: error.message,
-            code: error.code,
-            detail: error.detail,
-        });
-
-        // Handle UNIQUE constraint violation on email (race condition fallback)
-        // error.code = '23505' for PostgreSQL unique_violation
         if (error.code === '23505' && error.detail && error.detail.includes('email')) {
             return createErrorResponse('User already exists', 409);
         }
-
-        return createErrorResponse('Internal server error', 500);
+        throw error;
     }
-}
+});

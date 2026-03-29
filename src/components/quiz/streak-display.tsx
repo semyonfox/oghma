@@ -11,7 +11,7 @@ interface StreakDisplayProps {
 
 export default function StreakDisplay({
   currentStreak,
-  longestStreak,
+  longestStreak: _longestStreak,
   newMilestone,
 }: StreakDisplayProps) {
   const { t } = useI18n();

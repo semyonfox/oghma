@@ -153,54 +153,51 @@ export default function MonthView() {
   return (
     <div className="flex h-full flex-col">
       {/* day headers */}
-      <div className="grid grid-cols-7 text-center text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+      <div className="grid grid-cols-7 gap-px border-b border-border-subtle bg-white/5 text-center text-xs font-medium text-text-tertiary">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-          <div key={d} className="py-2.5">
+          <div key={d} className="bg-surface py-2">
             {d}
           </div>
         ))}
       </div>
 
       {/* grid */}
-      <div className="flex flex-1 bg-background text-xs">
-        <div className="w-full grid grid-cols-7 grid-rows-6 border-t border-border-subtle">
+      <div className="flex flex-1 bg-white/5 text-xs text-text-tertiary">
+        <div className="w-full grid grid-cols-7 grid-rows-6 gap-px">
           {days.map((day) => (
             <button
               key={day.date}
               type="button"
               onClick={() => setSelectedDate(day.date)}
               className={`
-                relative group border-b border-r border-border-subtle px-2 py-2 text-left transition-colors min-h-[5.5rem]
-                ${day.isCurrentMonth ? "bg-background hover:bg-surface" : "bg-surface/30 hover:bg-surface/50"}
-                ${day.isSelected ? "ring-2 ring-inset ring-primary-500/40 bg-primary-500/[0.03]" : ""}
+                relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-white/5
+                ${!day.isCurrentMonth ? "opacity-40" : ""}
+                ${day.isSelected ? "ring-1 ring-inset ring-primary-500/50" : ""}
               `}
             >
               <time
                 dateTime={day.date}
                 className={`
-                  inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors
-                  ${day.isToday ? "bg-primary-500 text-white shadow-sm shadow-primary-500/30" : ""}
-                  ${day.isSelected && !day.isToday ? "bg-primary-500/15 text-primary-400 font-semibold" : ""}
-                  ${!day.isToday && !day.isSelected && day.isCurrentMonth ? "text-text-secondary group-hover:text-text" : ""}
-                  ${!day.isToday && !day.isSelected && !day.isCurrentMonth ? "text-text-tertiary/50" : ""}
+                  inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
+                  ${day.isToday ? "bg-primary-500 font-semibold text-white" : ""}
+                  ${day.isSelected && !day.isToday ? "bg-white/10 font-semibold text-text-secondary" : ""}
+                  ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
                 `}
               >
                 {dayOfMonth(day.date)}
               </time>
 
               {/* events */}
-              <div className="mt-1.5 space-y-1">
+              <div className="mt-1 space-y-px">
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-tight transition-colors"
+                    className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 bg-white/5"
                     style={{
-                      backgroundColor: (a.courseColor ?? "#7c3aed") + "15",
-                      color: a.courseColor ?? "#c4b5fd",
-                      borderLeft: `2px solid ${a.courseColor ?? "#7c3aed"}`,
+                      borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
                   >
-                    {a.title}
+                    <span className="text-text-secondary">{a.title}</span>
                   </div>
                 ))}
                 {day.timeBlocks
@@ -208,13 +205,13 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="truncate rounded-md border-l-2 border-primary-500/40 px-1.5 py-0.5 text-[10px] leading-tight bg-primary-500/10 text-primary-300"
+                      className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 border-primary-500/40 bg-white/5 text-text-tertiary"
                     >
                       {tb.title || "Study block"}
                     </div>
                   ))}
                 {day.assignments.length + day.timeBlocks.length > 2 && (
-                  <span className="text-[10px] text-text-tertiary font-medium pl-0.5">
+                  <span className="text-[10px] text-text-tertiary">
                     +{day.assignments.length + day.timeBlocks.length - 2} more
                   </span>
                 )}

@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
-import { CanvasClient } from '@/lib/canvas/client.js';
-import sql from '@/database/pgsql.js';
-import { sqsClient, CANVAS_IMPORT_QUEUE_URL } from '@/lib/sqs';
-import { SendMessageCommand } from '@aws-sdk/client-sqs';
-import { ensureWorkerRunning } from '@/lib/ecs';
-import { decrypt } from '@/lib/crypto';
-import logger from '@/lib/logger';
+import { NextResponse } from "next/server";
+import { validateSession } from "@/lib/auth.js";
+import { CanvasClient } from "@/lib/canvas/client.js";
+import sql from "@/database/pgsql.js";
+import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
+import { SendMessageCommand } from "@aws-sdk/client-sqs";
+import { ensureWorkerRunning } from "@/lib/ecs";
+import { decrypt } from "@/lib/crypto";
+import logger from "@/lib/logger";
 
 /**
  * POST /api/canvas/sync
@@ -18,11 +18,11 @@ import logger from '@/lib/logger';
  * Returns { queued: true, jobId } or { queued: false, reason } if there is
  * nothing to sync (no prior imports or no canvas credentials).
  */
-export async function POST(request) {
+export async function POST(_request) {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const credRows = await sql`
@@ -33,7 +33,10 @@ export async function POST(request) {
     const { canvas_token, canvas_domain } = credRows[0] ?? {};
 
     if (!canvas_token || !canvas_domain) {
-      return NextResponse.json({ queued: false, reason: 'No Canvas account connected' });
+      return NextResponse.json({
+        queued: false,
+        reason: "No Canvas account connected",
+      });
     }
 
     const plainToken = decrypt(canvas_token, user.user_id);
@@ -46,32 +49,45 @@ export async function POST(request) {
     `;
 
     if (prevCourseRows.length === 0) {
-      return NextResponse.json({ queued: false, reason: 'No previously imported courses' });
+      return NextResponse.json({
+        queued: false,
+        reason: "No previously imported courses",
+      });
     }
 
-    const prevCourseIds = new Set(prevCourseRows.map(r => String(r.canvas_course_id)));
+    const prevCourseIds = new Set(
+      prevCourseRows.map((r) => String(r.canvas_course_id)),
+    );
 
     // Fetch current course list from Canvas to get up-to-date name / course_code
     const client = new CanvasClient(canvas_domain, plainToken);
     const { data: allCourses } = await client.getCourses();
 
     const courses = (allCourses ?? [])
-      .filter(c => prevCourseIds.has(String(c.id)))
-      .map(c => ({ id: c.id, name: c.name ?? String(c.id), course_code: c.course_code ?? '', term: c.term ?? null }));
+      .filter((c) => prevCourseIds.has(String(c.id)))
+      .map((c) => ({
+        id: c.id,
+        name: c.name ?? String(c.id),
+        course_code: c.course_code ?? "",
+        term: c.term ?? null,
+      }));
 
     // Fall back to bare ID objects for any course no longer visible in Canvas
     for (const id of prevCourseIds) {
-      if (!courses.some(c => String(c.id) === id)) {
-        courses.push({ id: Number(id), name: String(id), course_code: '' });
+      if (!courses.some((c) => String(c.id) === id)) {
+        courses.push({ id: Number(id), name: String(id), course_code: "" });
       }
     }
 
     if (courses.length === 0) {
-      return NextResponse.json({ queued: false, reason: 'No matching active courses found' });
+      return NextResponse.json({
+        queued: false,
+        reason: "No matching active courses found",
+      });
     }
 
     // cancel any in-flight job and insert the sync atomically
-    const job = await sql.begin(async sql => {
+    const job = await sql.begin(async (sql) => {
       await sql`
         UPDATE app.canvas_import_jobs
         SET status = 'cancelled', completed_at = NOW()
@@ -88,20 +104,26 @@ export async function POST(request) {
     const jobId = job.id;
 
     try {
-      await sqsClient.send(new SendMessageCommand({
-        QueueUrl: CANVAS_IMPORT_QUEUE_URL,
-        MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
-      }));
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: getCanvasImportQueueUrl(),
+          MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+        }),
+      );
       await ensureWorkerRunning();
     } catch (sqsErr) {
-      logger.warn('SQS send failed for sync (job still queued in DB)', { error: sqsErr.message });
+      logger.warn("SQS send failed for sync (job still queued in DB)", {
+        error: sqsErr.message,
+      });
     }
 
     return NextResponse.json({ queued: true, jobId });
-
   } catch (err) {
-    logger.error('canvas sync error', { error: err?.message ?? err, stack: err?.stack });
-    return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
+    logger.error("canvas sync error", {
+      error: err?.message ?? err,
+      stack: err?.stack,
+    });
+    return NextResponse.json({ error: "Sync failed" }, { status: 500 });
   }
 }
 
@@ -111,11 +133,11 @@ export async function POST(request) {
  * Returns whether a sync is available (user has canvas credentials + prior imports)
  * and whether a sync job is currently active.
  */
-export async function GET(request) {
+export async function GET(_request) {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const [credRows, prevCourseRows, activeJobRows] = await Promise.all([
@@ -136,9 +158,11 @@ export async function GET(request) {
       courseCount,
       activeJob: activeJobRows[0] ?? null,
     });
-
   } catch (err) {
-    logger.error('canvas sync status error', { error: err });
-    return NextResponse.json({ error: 'Failed to check sync status' }, { status: 500 });
+    logger.error("canvas sync status error", { error: err });
+    return NextResponse.json(
+      { error: "Failed to check sync status" },
+      { status: 500 },
+    );
   }
 }

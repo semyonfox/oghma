@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowLeftIcon,
   UserCircleIcon,
@@ -13,318 +13,329 @@ import {
   SparklesIcon,
   ExclamationTriangleIcon,
   ArrowRightStartOnRectangleIcon,
-} from '@heroicons/react/24/outline'
-import { ChevronDownIcon } from '@heroicons/react/20/solid'
-import LanguageSelector from '@/components/common/LanguageSelector'
-import CanvasIntegration from '@/components/settings/canvas-integration'
-import useI18n from '@/lib/notes/hooks/use-i18n'
-import { useSettingsStore } from '@/lib/notes/state/ui/settings'
+} from "@heroicons/react/24/outline";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import LanguageSelector from "@/components/common/LanguageSelector";
+import CanvasIntegration from "@/components/settings/canvas-integration";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 
-const inputClass = 'block w-full rounded-md bg-input px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6'
+const inputClass =
+  "block w-full rounded-md bg-input px-3 py-1.5 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6";
 
 function cn(...classes) {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(" ");
 }
 
 export default function SettingsPage() {
-  const router = useRouter()
-  const { t } = useI18n()
-  const { settings, setSettings, updateSettings } = useSettingsStore()
+  const router = useRouter();
+  const { t } = useI18n();
+  const {
+    settings: _settings,
+    setSettings,
+    updateSettings,
+  } = useSettingsStore();
   const [formState, setFormState] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    timezone: 'UTC',
-    theme: 'dark',
-    editorWidth: 'large',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
-  const [savingSection, setSavingSection] = useState(null)
-  const [activeSection, setActiveSection] = useState('account')
-  const [avatarUrl, setAvatarUrl] = useState(null)
-  const [avatarPreview, setAvatarPreview] = useState(null)
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
-  const avatarInputRef = useRef(null)
-  const [clearVaultConfirm, setClearVaultConfirm] = useState(false)
-  const [clearVaultInput, setClearVaultInput] = useState('')
-  const [isClearingVault, setIsClearingVault] = useState(false)
-  const [deleteAccountModal, setDeleteAccountModal] = useState(false)
-  const [deleteAccountInput, setDeleteAccountInput] = useState('')
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
+    firstName: "",
+    lastName: "",
+    email: "",
+    timezone: "UTC",
+    theme: "dark",
+    editorWidth: "large",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [savingSection, setSavingSection] = useState(null);
+  const [activeSection, setActiveSection] = useState("account");
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+  const [clearVaultConfirm, setClearVaultConfirm] = useState(false);
+  const [clearVaultInput, setClearVaultInput] = useState("");
+  const [isClearingVault, setIsClearingVault] = useState(false);
+  const [deleteAccountModal, setDeleteAccountModal] = useState(false);
+  const [deleteAccountInput, setDeleteAccountInput] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const DELETE_ACCOUNT_PHRASE = 'delete my account'
+  const DELETE_ACCOUNT_PHRASE = "delete my account";
 
-  const VAULT_CONFIRM_PHRASE = "I solemnly swear on my academic career that I, a person of sound mind and questionable study habits, do hereby voluntarily and irrevocably consent to the total and utter annihilation of every single note, file, and folder in my vault, fully understanding that they are gone forever and that this is entirely my own fault"
+  const VAULT_CONFIRM_PHRASE =
+    "I solemnly swear on my academic career that I, a person of sound mind and questionable study habits, do hereby voluntarily and irrevocably consent to the total and utter annihilation of every single note, file, and folder in my vault, fully understanding that they are gone forever and that this is entirely my own fault";
 
   const navigation = [
-    { name: t('Account'), id: 'account', icon: UserCircleIcon },
-    { name: t('Editor & Theme'), id: 'editor', icon: SwatchIcon },
-    { name: t('Password'), id: 'password', icon: KeyIcon },
-    { name: t('Canvas'), id: 'canvas', icon: AcademicCapIcon },
-    { name: t('AI Settings'), id: 'ai', icon: SparklesIcon },
-    { name: t('Data & Export'), id: 'data', icon: ArrowDownTrayIcon },
-    { name: t('Danger Zone'), id: 'danger', icon: ExclamationTriangleIcon },
-  ]
+    { name: t("Account"), id: "account", icon: UserCircleIcon },
+    { name: t("Editor & Theme"), id: "editor", icon: SwatchIcon },
+    { name: t("Password"), id: "password", icon: KeyIcon },
+    { name: t("Canvas"), id: "canvas", icon: AcademicCapIcon },
+    { name: t("AI Settings"), id: "ai", icon: SparklesIcon },
+    { name: t("Data & Export"), id: "data", icon: ArrowDownTrayIcon },
+    { name: t("Danger Zone"), id: "danger", icon: ExclamationTriangleIcon },
+  ];
 
   // load user profile and settings on mount
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const profileResponse = await fetch('/api/auth/me')
+        const profileResponse = await fetch("/api/auth/me");
         if (profileResponse.ok) {
-          const { user } = await profileResponse.json()
+          const { user } = await profileResponse.json();
           if (user) {
-            const nameParts = (user.name || '').split(' ')
+            const nameParts = (user.name || "").split(" ");
             setFormState((prev) => ({
               ...prev,
-              firstName: nameParts[0] || '',
-              lastName: nameParts.slice(1).join(' ') || '',
-              email: user.email || '',
-            }))
+              firstName: nameParts[0] || "",
+              lastName: nameParts.slice(1).join(" ") || "",
+              email: user.email || "",
+            }));
           }
         }
 
-        const settingsResponse = await fetch('/api/settings')
+        const settingsResponse = await fetch("/api/settings");
         if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json()
-          setSettings(settingsData)
+          const settingsData = await settingsResponse.json();
+          setSettings(settingsData);
           setFormState((prev) => ({
             ...prev,
-            theme: settingsData.theme || 'dark',
-            editorWidth: settingsData.editorsize === 'small' ? 'small' : 'large',
-            timezone: settingsData.timezone || 'UTC',
+            theme: settingsData.theme || "dark",
+            editorWidth:
+              settingsData.editorsize === "small" ? "small" : "large",
+            timezone: settingsData.timezone || "UTC",
             // prefer saved display names over OAuth-provided ones
-            ...(settingsData.firstName ? { firstName: settingsData.firstName } : {}),
-            ...(settingsData.lastName ? { lastName: settingsData.lastName } : {}),
-          }))
+            ...(settingsData.firstName
+              ? { firstName: settingsData.firstName }
+              : {}),
+            ...(settingsData.lastName
+              ? { lastName: settingsData.lastName }
+              : {}),
+          }));
         }
 
-        const avatarResponse = await fetch('/api/auth/avatar')
+        const avatarResponse = await fetch("/api/auth/avatar");
         if (avatarResponse.ok) {
-          const { avatarUrl: url } = await avatarResponse.json()
-          if (url) setAvatarUrl(url)
+          const { avatarUrl: url } = await avatarResponse.json();
+          if (url) setAvatarUrl(url);
         }
       } catch (error) {
-        console.error('Failed to load user data:', error)
+        console.error("Failed to load user data:", error);
       }
-    }
-    loadUserData()
-  }, [setSettings])
+    };
+    loadUserData();
+  }, [setSettings]);
 
   // track active section on scroll
   useEffect(() => {
-    const sectionIds = navigation.map((n) => n.id)
+    const sectionIds = navigation.map((n) => n.id);
     const handleScroll = () => {
       for (const id of sectionIds) {
-        const el = document.getElementById(id)
+        const el = document.getElementById(id);
         if (el) {
-          const rect = el.getBoundingClientRect()
+          const rect = el.getBoundingClientRect();
           if (rect.top <= 200 && rect.bottom >= 0) {
-            setActiveSection(id)
-            break
+            setActiveSection(id);
+            break;
           }
         }
       }
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // instant theme preview when radio changes
   useEffect(() => {
-    const root = document.documentElement
-    let isDark
-    if (formState.theme === 'system') {
-      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const root = document.documentElement;
+    let isDark;
+    if (formState.theme === "system") {
+      isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     } else {
-      isDark = formState.theme === 'dark'
+      isDark = formState.theme === "dark";
     }
-    root.classList.toggle('light', !isDark)
-    root.classList.toggle('dark', isDark)
-  }, [formState.theme])
+    root.classList.toggle("light", !isDark);
+    root.classList.toggle("dark", isDark);
+  }, [formState.theme]);
 
   const scrollToSection = (id) => {
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth' })
-  }
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
 
   const handleProfileSave = async (e) => {
-    e.preventDefault()
-    setSavingSection('profile')
+    e.preventDefault();
+    setSavingSection("profile");
     try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           timezone: formState.timezone,
           firstName: formState.firstName,
           lastName: formState.lastName,
         }),
-      })
+      });
       if (response.ok) {
-        toast.success(t('Profile updated successfully'))
+        toast.success(t("Profile updated successfully"));
       } else {
-        const error = await response.json()
-        toast.error(error.error || t('Failed to save profile'))
+        const error = await response.json();
+        toast.error(error.error || t("Failed to save profile"));
       }
     } catch (error) {
-      console.error('Failed to save profile:', error)
-      toast.error(t('Failed to save profile'))
+      console.error("Failed to save profile:", error);
+      toast.error(t("Failed to save profile"));
     } finally {
-      setSavingSection(null)
+      setSavingSection(null);
     }
-  }
+  };
 
   const handleEditorSettingsSave = async (e) => {
-    e.preventDefault()
-    setSavingSection('editor')
+    e.preventDefault();
+    setSavingSection("editor");
     try {
       await updateSettings({
         theme: formState.theme,
-        editorsize: formState.editorWidth === 'small' ? 'small' : 'large',
-      })
-      localStorage.setItem('ogma-theme', formState.theme)
-      toast.success(t('Editor settings saved'))
+        editorsize: formState.editorWidth === "small" ? "small" : "large",
+      });
+      localStorage.setItem("ogma-theme", formState.theme);
+      toast.success(t("Editor settings saved"));
     } catch (error) {
-      console.error('Failed to save editor settings:', error)
-      toast.error(t('Failed to save settings'))
+      console.error("Failed to save editor settings:", error);
+      toast.error(t("Failed to save settings"));
     } finally {
-      setSavingSection(null)
+      setSavingSection(null);
     }
-  }
+  };
 
   const handlePasswordChange = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (formState.newPassword !== formState.confirmPassword) {
-      toast.error(t('Passwords do not match'))
-      return
+      toast.error(t("Passwords do not match"));
+      return;
     }
     if (formState.newPassword.length < 8) {
-      toast.error(t('Password must be at least 8 characters'))
-      return
+      toast.error(t("Password must be at least 8 characters"));
+      return;
     }
-    setSavingSection('password')
+    setSavingSection("password");
     try {
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword: formState.currentPassword,
           newPassword: formState.newPassword,
         }),
-      })
+      });
       if (response.ok) {
-        toast.success(t('Password changed successfully'))
+        toast.success(t("Password changed successfully"));
         setFormState((prev) => ({
           ...prev,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        }))
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        }));
       } else {
-        toast.error(t('Failed to change password'))
+        toast.error(t("Failed to change password"));
       }
     } catch (error) {
-      console.error('Failed to change password:', error)
-      toast.error(t('Failed to change password'))
+      console.error("Failed to change password:", error);
+      toast.error(t("Failed to change password"));
     } finally {
-      setSavingSection(null)
+      setSavingSection(null);
     }
-  }
+  };
 
   const handleClearVault = async () => {
-    setIsClearingVault(true)
+    setIsClearingVault(true);
     try {
-      const res = await fetch('/api/vault', { method: 'DELETE' })
-      const data = await res.json()
+      const res = await fetch("/api/vault", { method: "DELETE" });
+      const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? t('Failed to clear vault'))
-        return
+        toast.error(data.error ?? t("Failed to clear vault"));
+        return;
       }
-      const { summary } = data
+      const { summary } = data;
       toast.success(
-        `${t('Vault cleared')} — ${summary.notesDeleted} ${t('notes')}, ${summary.s3FilesDeleted} ${t('files deleted')}`
-      )
-      setClearVaultConfirm(false)
+        `${t("Vault cleared")} — ${summary.notesDeleted} ${t("notes")}, ${summary.s3FilesDeleted} ${t("files deleted")}`,
+      );
+      setClearVaultConfirm(false);
     } catch {
-      toast.error(t('Failed to clear vault'))
+      toast.error(t("Failed to clear vault"));
     } finally {
-      setIsClearingVault(false)
+      setIsClearingVault(false);
     }
-  }
+  };
 
   const handleDeleteAccount = async () => {
-    setIsDeletingAccount(true)
+    setIsDeletingAccount(true);
     try {
-      const res = await fetch('/api/auth/delete-account', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/delete-account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmation: DELETE_ACCOUNT_PHRASE }),
-      })
-      const data = await res.json()
+      });
+      const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? t('Failed to delete account'))
-        return
+        toast.error(data.error ?? t("Failed to delete account"));
+        return;
       }
-      router.push('/login')
+      router.push("/login");
     } catch {
-      toast.error(t('Failed to delete account'))
+      toast.error(t("Failed to delete account"));
     } finally {
-      setIsDeletingAccount(false)
+      setIsDeletingAccount(false);
     }
-  }
+  };
 
   const handleAvatarFileChange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const objectUrl = URL.createObjectURL(file)
-    setAvatarPreview(objectUrl)
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarPreview(objectUrl);
 
-    setIsUploadingAvatar(true)
+    setIsUploadingAvatar(true);
     try {
-      const formData = new FormData()
-      formData.append('avatar', file)
+      const formData = new FormData();
+      formData.append("avatar", file);
 
-      const response = await fetch('/api/auth/avatar', {
-        method: 'POST',
+      const response = await fetch("/api/auth/avatar", {
+        method: "POST",
         body: formData,
-      })
+      });
 
       if (response.ok) {
-        const { avatarUrl: newUrl } = await response.json()
-        setAvatarUrl(newUrl)
-        setAvatarPreview(null)
-        toast.success(t('Avatar updated successfully'))
+        const { avatarUrl: newUrl } = await response.json();
+        setAvatarUrl(newUrl);
+        setAvatarPreview(null);
+        toast.success(t("Avatar updated successfully"));
       } else {
-        const err = await response.json()
-        setAvatarPreview(null)
-        toast.error(err.error || t('Failed to upload avatar'))
+        const err = await response.json();
+        setAvatarPreview(null);
+        toast.error(err.error || t("Failed to upload avatar"));
       }
     } catch (error) {
-      console.error('Avatar upload failed:', error)
-      setAvatarPreview(null)
-      toast.error(t('Failed to upload avatar'))
+      console.error("Avatar upload failed:", error);
+      setAvatarPreview(null);
+      toast.error(t("Failed to upload avatar"));
     } finally {
-      setIsUploadingAvatar(false)
-      if (avatarInputRef.current) avatarInputRef.current.value = ''
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
-  }
+  };
 
   const handleSignOut = async () => {
-    setIsSigningOut(true)
+    setIsSigningOut(true);
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-      localStorage.removeItem('ogma-theme')
-      window.location.href = '/login'
+      await fetch("/api/auth/logout", { method: "POST" });
+      localStorage.removeItem("ogma-theme");
+      window.location.href = "/login";
     } catch {
-      toast.error(t('Failed to sign out'))
-      setIsSigningOut(false)
+      toast.error(t("Failed to sign out"));
+      setIsSigningOut(false);
     }
-  }
+  };
 
   return (
     <div className="bg-background min-h-screen">
@@ -334,11 +345,11 @@ export default function SettingsPage() {
           <button
             onClick={() => router.back()}
             className="inline-flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-subtle p-2 -ml-2"
-            title={t('Back')}
+            title={t("Back")}
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
-          <h1 className="text-lg font-semibold text-text">{t('Settings')}</h1>
+          <h1 className="text-lg font-semibold text-text">{t("Settings")}</h1>
         </div>
       </div>
 
@@ -350,8 +361,8 @@ export default function SettingsPage() {
               <button
                 className={cn(
                   activeSection === item.id
-                    ? 'text-primary-400 border-b-2 border-primary-500 pb-3.5'
-                    : 'hover:text-text-secondary',
+                    ? "text-primary-400 border-b-2 border-primary-500 pb-3.5"
+                    : "hover:text-text-secondary",
                 )}
                 onClick={() => scrollToSection(item.id)}
               >
@@ -365,7 +376,7 @@ export default function SettingsPage() {
               onClick={handleSignOut}
               disabled={isSigningOut}
             >
-              {isSigningOut ? t('Signing out...') : t('Sign out')}
+              {isSigningOut ? t("Signing out...") : t("Sign out")}
             </button>
           </li>
         </ul>
@@ -380,10 +391,10 @@ export default function SettingsPage() {
                 <li key={item.id}>
                   <button
                     className={cn(
-                      'group flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      "group flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       activeSection === item.id
-                        ? 'bg-primary-500/10 text-primary-400'
-                        : 'text-text-tertiary hover:text-text-secondary hover:bg-subtle',
+                        ? "bg-primary-500/10 text-primary-400"
+                        : "text-text-tertiary hover:text-text-secondary hover:bg-subtle",
                     )}
                     onClick={() => scrollToSection(item.id)}
                   >
@@ -400,7 +411,7 @@ export default function SettingsPage() {
                 className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium text-error-400 hover:bg-error-500/10 transition-colors disabled:opacity-50"
               >
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5 shrink-0" />
-                {isSigningOut ? t('Signing out...') : t('Sign out')}
+                {isSigningOut ? t("Signing out...") : t("Sign out")}
               </button>
             </div>
           </nav>
@@ -408,12 +419,18 @@ export default function SettingsPage() {
 
         {/* main content */}
         <main className="flex-1 divide-y divide-border">
-
           {/* ── Account ── */}
-          <div id="account" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="account"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Personal Information')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Update your profile information and avatar.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Personal Information")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Update your profile information and avatar.")}
+              </p>
             </div>
 
             <form className="md:col-span-2" onSubmit={handleProfileSave}>
@@ -429,7 +446,7 @@ export default function SettingsPage() {
                   />
                   {avatarPreview || avatarUrl ? (
                     <img
-                      alt={t('Profile')}
+                      alt={t("Profile")}
                       src={avatarPreview || avatarUrl}
                       className="size-24 flex-none rounded-lg bg-surface object-cover outline -outline-offset-1 outline-border"
                     />
@@ -446,29 +463,59 @@ export default function SettingsPage() {
                       onClick={() => avatarInputRef.current?.click()}
                     >
                       {isUploadingAvatar && (
-                        <svg className="animate-spin size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        <svg
+                          className="animate-spin size-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
                         </svg>
                       )}
-                      {isUploadingAvatar ? t('Uploading...') : t('Change avatar')}
+                      {isUploadingAvatar
+                        ? t("Uploading...")
+                        : t("Change avatar")}
                     </button>
-                    <p className="mt-2 text-xs/5 text-text-tertiary">{t('JPG, GIF, PNG or WebP. 5 MB max.')}</p>
+                    <p className="mt-2 text-xs/5 text-text-tertiary">
+                      {t("JPG, GIF, PNG or WebP. 5 MB max.")}
+                    </p>
                   </div>
                 </div>
 
                 {/* first name */}
                 <div className="sm:col-span-3">
-                  <label htmlFor="first-name" className="block text-sm/6 font-medium text-text">{t('First name')}</label>
+                  <label
+                    htmlFor="first-name"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("First name")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="first-name"
                       name="first-name"
                       type="text"
                       autoComplete="given-name"
-                      placeholder={t('John')}
+                      placeholder={t("John")}
                       value={formState.firstName}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, firstName: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          firstName: e.target.value,
+                        }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -476,16 +523,26 @@ export default function SettingsPage() {
 
                 {/* last name */}
                 <div className="sm:col-span-3">
-                  <label htmlFor="last-name" className="block text-sm/6 font-medium text-text">{t('Last name')}</label>
+                  <label
+                    htmlFor="last-name"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Last name")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="last-name"
                       name="last-name"
                       type="text"
                       autoComplete="family-name"
-                      placeholder={t('Doe')}
+                      placeholder={t("Doe")}
                       value={formState.lastName}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, lastName: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          lastName: e.target.value,
+                        }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -493,7 +550,12 @@ export default function SettingsPage() {
 
                 {/* email (read-only from auth provider) */}
                 <div className="col-span-full">
-                  <label htmlFor="email" className="block text-sm/6 font-medium text-text">{t('Email address')}</label>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Email address")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="email"
@@ -502,28 +564,43 @@ export default function SettingsPage() {
                       autoComplete="email"
                       value={formState.email}
                       readOnly
-                      className={cn(inputClass, 'cursor-not-allowed opacity-60')}
+                      className={cn(
+                        inputClass,
+                        "cursor-not-allowed opacity-60",
+                      )}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-text-tertiary">{t('Email is managed by your authentication provider.')}</p>
+                  <p className="mt-1 text-xs text-text-tertiary">
+                    {t("Email is managed by your authentication provider.")}
+                  </p>
                 </div>
 
                 {/* timezone */}
                 <div className="col-span-full">
-                  <label htmlFor="timezone" className="block text-sm/6 font-medium text-text">{t('Timezone')}</label>
+                  <label
+                    htmlFor="timezone"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Timezone")}
+                  </label>
                   <div className="mt-2 grid grid-cols-1">
                     <select
                       id="timezone"
                       name="timezone"
                       value={formState.timezone}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, timezone: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          timezone: e.target.value,
+                        }))
+                      }
                       className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-input py-1.5 pr-8 pl-3 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                     >
-                      <option>{t('UTC')}</option>
-                      <option>{t('Pacific Standard Time')}</option>
-                      <option>{t('Eastern Standard Time')}</option>
-                      <option>{t('Greenwich Mean Time')}</option>
-                      <option>{t('Central European Time')}</option>
+                      <option>{t("UTC")}</option>
+                      <option>{t("Pacific Standard Time")}</option>
+                      <option>{t("Eastern Standard Time")}</option>
+                      <option>{t("Greenwich Mean Time")}</option>
+                      <option>{t("Central European Time")}</option>
                     </select>
                     <ChevronDownIcon
                       aria-hidden="true"
@@ -541,69 +618,108 @@ export default function SettingsPage() {
               <div className="mt-8 flex">
                 <button
                   type="submit"
-                  disabled={savingSection === 'profile'}
+                  disabled={savingSection === "profile"}
                   className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {savingSection === 'profile' ? t('Saving...') : t('Save changes')}
+                  {savingSection === "profile"
+                    ? t("Saving...")
+                    : t("Save changes")}
                 </button>
               </div>
             </form>
           </div>
 
           {/* ── Editor & Theme ── */}
-          <div id="editor" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="editor"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Editor & Theme')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Customize your note editor appearance and behavior.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Editor & Theme")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Customize your note editor appearance and behavior.")}
+              </p>
             </div>
 
             <form className="md:col-span-2" onSubmit={handleEditorSettingsSave}>
               <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
                 {/* theme — light/system disabled until component color migration is done */}
                 <div>
-                  <label className="block text-sm/6 font-medium text-text mb-3">{t('Theme')}</label>
+                  <label className="block text-sm/6 font-medium text-text mb-3">
+                    {t("Theme")}
+                  </label>
                   <div className="flex gap-3">
                     {[
-                      { label: t('Light'), value: 'light', disabled: true },
-                      { label: t('Dark'), value: 'dark', disabled: false },
-                      { label: t('System'), value: 'system', disabled: true },
+                      { label: t("Light"), value: "light", disabled: true },
+                      { label: t("Dark"), value: "dark", disabled: false },
+                      { label: t("System"), value: "system", disabled: true },
                     ].map((theme) => (
-                      <label key={theme.value} className={`flex items-center ${theme.disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <label
+                        key={theme.value}
+                        className={`flex items-center ${theme.disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
                         <input
                           type="radio"
                           name="theme"
                           value={theme.value}
                           checked={formState.theme === theme.value}
                           disabled={theme.disabled}
-                          onChange={(e) => setFormState((prev) => ({ ...prev, theme: e.target.value }))}
+                          onChange={(e) =>
+                            setFormState((prev) => ({
+                              ...prev,
+                              theme: e.target.value,
+                            }))
+                          }
                           className="mr-2 accent-primary-500"
                         />
-                        <span className="text-sm text-text-secondary">{theme.label}</span>
+                        <span className="text-sm text-text-secondary">
+                          {theme.label}
+                        </span>
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-text-tertiary mt-2">{t('Light and system themes coming soon')}</p>
+                  <p className="text-xs text-text-tertiary mt-2">
+                    {t("Light and system themes coming soon")}
+                  </p>
                 </div>
 
                 {/* editor width */}
                 <div>
-                  <label className="block text-sm/6 font-medium text-text mb-1">{t('Editor Width')}</label>
-                  <p className="text-xs text-text-tertiary mb-3">{t('Controls the max width of the note editor. Can also be overridden per note.')}</p>
+                  <label className="block text-sm/6 font-medium text-text mb-1">
+                    {t("Editor Width")}
+                  </label>
+                  <p className="text-xs text-text-tertiary mb-3">
+                    {t(
+                      "Controls the max width of the note editor. Can also be overridden per note.",
+                    )}
+                  </p>
                   <div className="flex gap-3">
                     {[
-                      { label: t('Small'), value: 'small' },
-                      { label: t('Large'), value: 'large' },
+                      { label: t("Small"), value: "small" },
+                      { label: t("Large"), value: "large" },
                     ].map((size) => (
-                      <label key={size.value} className="flex items-center cursor-pointer">
+                      <label
+                        key={size.value}
+                        className="flex items-center cursor-pointer"
+                      >
                         <input
                           type="radio"
                           name="editor-width"
                           value={size.value}
                           checked={formState.editorWidth === size.value}
-                          onChange={(e) => setFormState((prev) => ({ ...prev, editorWidth: e.target.value }))}
+                          onChange={(e) =>
+                            setFormState((prev) => ({
+                              ...prev,
+                              editorWidth: e.target.value,
+                            }))
+                          }
                           className="mr-2 accent-primary-500"
                         />
-                        <span className="text-sm text-text-secondary">{size.label}</span>
+                        <span className="text-sm text-text-secondary">
+                          {size.label}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -613,26 +729,40 @@ export default function SettingsPage() {
               <div className="mt-8 flex">
                 <button
                   type="submit"
-                  disabled={savingSection === 'editor'}
+                  disabled={savingSection === "editor"}
                   className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {savingSection === 'editor' ? t('Saving...') : t('Save changes')}
+                  {savingSection === "editor"
+                    ? t("Saving...")
+                    : t("Save changes")}
                 </button>
               </div>
             </form>
           </div>
 
           {/* ── Password ── */}
-          <div id="password" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="password"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Change password')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Update your password associated with your account.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Change password")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Update your password associated with your account.")}
+              </p>
             </div>
 
             <form className="md:col-span-2" onSubmit={handlePasswordChange}>
               <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
                 <div className="col-span-full">
-                  <label htmlFor="current-password" className="block text-sm/6 font-medium text-text">{t('Current password')}</label>
+                  <label
+                    htmlFor="current-password"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Current password")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="current-password"
@@ -640,14 +770,24 @@ export default function SettingsPage() {
                       type="password"
                       autoComplete="current-password"
                       value={formState.currentPassword}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          currentPassword: e.target.value,
+                        }))
+                      }
                       className={inputClass}
                     />
                   </div>
                 </div>
 
                 <div className="col-span-full">
-                  <label htmlFor="new-password" className="block text-sm/6 font-medium text-text">{t('New password')}</label>
+                  <label
+                    htmlFor="new-password"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("New password")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="new-password"
@@ -655,14 +795,24 @@ export default function SettingsPage() {
                       type="password"
                       autoComplete="new-password"
                       value={formState.newPassword}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, newPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          newPassword: e.target.value,
+                        }))
+                      }
                       className={inputClass}
                     />
                   </div>
                 </div>
 
                 <div className="col-span-full">
-                  <label htmlFor="confirm-password" className="block text-sm/6 font-medium text-text">{t('Confirm password')}</label>
+                  <label
+                    htmlFor="confirm-password"
+                    className="block text-sm/6 font-medium text-text"
+                  >
+                    {t("Confirm password")}
+                  </label>
                   <div className="mt-2">
                     <input
                       id="confirm-password"
@@ -670,7 +820,12 @@ export default function SettingsPage() {
                       type="password"
                       autoComplete="new-password"
                       value={formState.confirmPassword}
-                      onChange={(e) => setFormState((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          confirmPassword: e.target.value,
+                        }))
+                      }
                       className={inputClass}
                     />
                   </div>
@@ -680,72 +835,109 @@ export default function SettingsPage() {
               <div className="mt-8 flex">
                 <button
                   type="submit"
-                  disabled={savingSection === 'password'}
+                  disabled={savingSection === "password"}
                   className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {savingSection === 'password' ? t('Updating...') : t('Change password')}
+                  {savingSection === "password"
+                    ? t("Updating...")
+                    : t("Change password")}
                 </button>
               </div>
             </form>
           </div>
 
           {/* ── Canvas Integration ── */}
-          <div id="canvas" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="canvas"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Canvas Integration')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Connect your Canvas LMS account to import your courses and lecture materials.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Canvas Integration")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t(
+                  "Connect your Canvas LMS account to import your courses and lecture materials.",
+                )}
+              </p>
             </div>
 
             <div className="md:col-span-2 space-y-8">
               <div>
-                <h3 className="text-sm/6 font-medium text-text mb-4">{t('Connect Canvas Account')}</h3>
+                <h3 className="text-sm/6 font-medium text-text mb-4">
+                  {t("Connect Canvas Account")}
+                </h3>
                 <CanvasIntegration />
               </div>
             </div>
           </div>
 
           {/* ── AI Settings ── */}
-          <div id="ai" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="ai"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('AI Settings')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Configure AI-powered features for your notes.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("AI Settings")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Configure AI-powered features for your notes.")}
+              </p>
             </div>
 
             <div className="md:col-span-2">
-              <p className="text-sm text-text-tertiary">{t('AI settings coming soon.')}</p>
+              <p className="text-sm text-text-tertiary">
+                {t("AI settings coming soon.")}
+              </p>
             </div>
           </div>
 
           {/* ── Data & Export ── */}
-          <div id="data" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="data"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Data & Export')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Import or export your notes in various formats.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Data & Export")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Import or export your notes in various formats.")}
+              </p>
             </div>
 
             <div className="md:col-span-2">
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-sm/6 font-medium text-text mb-3">{t('Import Notes')}</h3>
-                  <p className="text-sm text-text-tertiary mb-4">{t('Import a zip file containing markdown files.')}</p>
+                  <h3 className="text-sm/6 font-medium text-text mb-3">
+                    {t("Import Notes")}
+                  </h3>
+                  <p className="text-sm text-text-tertiary mb-4">
+                    {t("Import a zip file containing markdown files.")}
+                  </p>
                   <button
                     type="button"
                     className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle hover:bg-subtle-hover disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled
                   >
-                    {t('Import (Coming soon)')}
+                    {t("Import (Coming soon)")}
                   </button>
                 </div>
 
                 <div className="border-t border-border pt-6">
-                  <h3 className="text-sm/6 font-medium text-text mb-3">{t('Export Notes')}</h3>
-                  <p className="text-sm text-text-tertiary mb-4">{t('Download all your notes as a zip file.')}</p>
+                  <h3 className="text-sm/6 font-medium text-text mb-3">
+                    {t("Export Notes")}
+                  </h3>
+                  <p className="text-sm text-text-tertiary mb-4">
+                    {t("Download all your notes as a zip file.")}
+                  </p>
                   <button
                     type="button"
                     className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text ring-1 ring-border-subtle hover:bg-subtle-hover disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled
                   >
-                    {t('Export (Coming soon)')}
+                    {t("Export (Coming soon)")}
                   </button>
                 </div>
               </div>
@@ -753,31 +945,46 @@ export default function SettingsPage() {
           </div>
 
           {/* ── Danger Zone ── */}
-          <div id="danger" className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3">
+          <div
+            id="danger"
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+          >
             <div>
-              <h2 className="text-base/7 font-semibold text-text">{t('Danger Zone')}</h2>
-              <p className="mt-1 text-sm/6 text-text-tertiary">{t('Irreversible and destructive actions.')}</p>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Danger Zone")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t("Irreversible and destructive actions.")}
+              </p>
             </div>
 
             <div className="md:col-span-2 space-y-6">
               {/* log out other sessions */}
               <div>
-                <h3 className="text-sm/6 font-medium text-text mb-2">{t('Log out other sessions')}</h3>
-                <p className="text-sm text-text-tertiary mb-4">{t('Sign out all other active sessions on your account.')}</p>
+                <h3 className="text-sm/6 font-medium text-text mb-2">
+                  {t("Log out other sessions")}
+                </h3>
+                <p className="text-sm text-text-tertiary mb-4">
+                  {t("Sign out all other active sessions on your account.")}
+                </p>
                 <button
                   type="button"
                   disabled
                   className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 opacity-50 cursor-not-allowed"
                 >
-                  {t('Log out other sessions (coming soon)')}
+                  {t("Log out other sessions (coming soon)")}
                 </button>
               </div>
 
               {/* clear vault */}
               <div className="border-t border-border pt-6">
-                <h3 className="text-sm/6 font-medium text-text mb-2">{t('Clear vault')}</h3>
+                <h3 className="text-sm/6 font-medium text-text mb-2">
+                  {t("Clear vault")}
+                </h3>
                 <p className="text-sm text-text-tertiary mb-4">
-                  {t('Permanently delete all notes, folders, and imported files. Your account and Canvas connection will remain intact.')}
+                  {t(
+                    "Permanently delete all notes, folders, and imported files. Your account and Canvas connection will remain intact.",
+                  )}
                 </p>
                 {!clearVaultConfirm ? (
                   <button
@@ -785,19 +992,19 @@ export default function SettingsPage() {
                     className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
                     onClick={() => setClearVaultConfirm(true)}
                   >
-                    {t('Clear vault')}
+                    {t("Clear vault")}
                   </button>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs text-text-tertiary">
-                      {t('To confirm, type the following phrase exactly:')}
+                      {t("To confirm, type the following phrase exactly:")}
                     </p>
                     <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded p-3 ring-1 ring-red-500/20 leading-relaxed select-none pointer-events-none">
                       {VAULT_CONFIRM_PHRASE}
                     </p>
                     <textarea
                       rows={4}
-                      placeholder={t('Type the phrase above...')}
+                      placeholder={t("Type the phrase above...")}
                       value={clearVaultInput}
                       onChange={(e) => setClearVaultInput(e.target.value)}
                       onPaste={(e) => e.preventDefault()}
@@ -806,19 +1013,26 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        disabled={isClearingVault || (clearVaultInput !== VAULT_CONFIRM_PHRASE && clearVaultInput !== '0')}
+                        disabled={
+                          isClearingVault ||
+                          (clearVaultInput !== VAULT_CONFIRM_PHRASE &&
+                            clearVaultInput !== "0")
+                        }
                         className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
                         onClick={handleClearVault}
                       >
-                        {isClearingVault ? t('Clearing...') : t('Confirm')}
+                        {isClearingVault ? t("Clearing...") : t("Confirm")}
                       </button>
                       <button
                         type="button"
                         disabled={isClearingVault}
                         className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text hover:bg-subtle-hover"
-                        onClick={() => { setClearVaultConfirm(false); setClearVaultInput('') }}
+                        onClick={() => {
+                          setClearVaultConfirm(false);
+                          setClearVaultInput("");
+                        }}
                       >
-                        {t('Cancel')}
+                        {t("Cancel")}
                       </button>
                     </div>
                   </div>
@@ -827,16 +1041,20 @@ export default function SettingsPage() {
 
               {/* delete account */}
               <div className="border-t border-border pt-6">
-                <h3 className="text-sm/6 font-medium text-text mb-2">{t('Delete account')}</h3>
+                <h3 className="text-sm/6 font-medium text-text mb-2">
+                  {t("Delete account")}
+                </h3>
                 <p className="text-sm text-text-tertiary mb-4">
-                  {t('Permanently delete your account and all associated data. This action cannot be undone.')}
+                  {t(
+                    "Permanently delete your account and all associated data. This action cannot be undone.",
+                  )}
                 </p>
                 <button
                   type="button"
                   className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400"
                   onClick={() => setDeleteAccountModal(true)}
                 >
-                  {t('Delete my account')}
+                  {t("Delete my account")}
                 </button>
               </div>
             </div>
@@ -848,12 +1066,20 @@ export default function SettingsPage() {
       {deleteAccountModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl bg-surface border border-border-subtle shadow-2xl p-6 space-y-4">
-            <h2 className="text-base font-semibold text-text">{t('Delete your account?')}</h2>
+            <h2 className="text-base font-semibold text-text">
+              {t("Delete your account?")}
+            </h2>
             <p className="text-sm text-text-tertiary">
-              {t('Your account will be deactivated immediately and scheduled for permanent deletion after 30 days. To cancel, contact support within that window.')}
+              {t(
+                "Your account will be deactivated immediately and scheduled for permanent deletion after 30 days. To cancel, contact support within that window.",
+              )}
             </p>
             <p className="text-xs text-text-tertiary">
-              {t('To confirm, type')} <span className="font-mono text-red-400">{DELETE_ACCOUNT_PHRASE}</span> {t('below:')}
+              {t("To confirm, type")}{" "}
+              <span className="font-mono text-red-400">
+                {DELETE_ACCOUNT_PHRASE}
+              </span>{" "}
+              {t("below:")}
             </p>
             <input
               type="text"
@@ -866,24 +1092,30 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3 pt-1">
               <button
                 type="button"
-                disabled={isDeletingAccount || deleteAccountInput !== DELETE_ACCOUNT_PHRASE}
+                disabled={
+                  isDeletingAccount ||
+                  deleteAccountInput !== DELETE_ACCOUNT_PHRASE
+                }
                 className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
                 onClick={handleDeleteAccount}
               >
-                {isDeletingAccount ? t('Deleting...') : t('Delete my account')}
+                {isDeletingAccount ? t("Deleting...") : t("Delete my account")}
               </button>
               <button
                 type="button"
                 disabled={isDeletingAccount}
                 className="rounded-md bg-subtle px-3 py-2 text-sm font-semibold text-text hover:bg-subtle-hover"
-                onClick={() => { setDeleteAccountModal(false); setDeleteAccountInput('') }}
+                onClick={() => {
+                  setDeleteAccountModal(false);
+                  setDeleteAccountInput("");
+                }}
               >
-                {t('Cancel')}
+                {t("Cancel")}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
