@@ -10,20 +10,20 @@
  *   - /api/assignments/sync route for on-demand syncs
  */
 
-import sql from '../../database/pgsql.js';
+import sql from "../../database/pgsql.js";
 
 // deterministic color palette for course badges
 const COURSE_COLORS = [
-  '#7c3aed', // purple
-  '#f59e0b', // amber
-  '#06b6d4', // cyan
-  '#ef4444', // red
-  '#22c55e', // green
-  '#ec4899', // pink
-  '#3b82f6', // blue
-  '#f97316', // orange
-  '#8b5cf6', // violet
-  '#14b8a6', // teal
+  "#7c3aed", // purple
+  "#f59e0b", // amber
+  "#06b6d4", // cyan
+  "#ef4444", // red
+  "#22c55e", // green
+  "#ec4899", // pink
+  "#3b82f6", // blue
+  "#f97316", // orange
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
 ];
 
 function hashString(str) {
@@ -36,13 +36,14 @@ function hashString(str) {
 
 function deriveStatus(assignment) {
   const submission = assignment.submission;
-  if (submission?.submitted_at || submission?.workflow_state === 'submitted') {
-    return 'done';
+  const ws = submission?.workflow_state;
+  if (submission?.submitted_at || ws === "submitted" || ws === "graded") {
+    return "done";
   }
   if (assignment.due_at && new Date(assignment.due_at) < new Date()) {
-    return 'late';
+    return "late";
   }
-  return 'upcoming';
+  return "upcoming";
 }
 
 /**
@@ -54,15 +55,23 @@ function deriveStatus(assignment) {
  * @param {import('./client.js').CanvasClient} client - authenticated Canvas client
  * @returns {Promise<{ synced: number, errors: number }>}
  */
-export async function syncAssignmentMetadata(courseId, userId, courseTitle, client) {
+export async function syncAssignmentMetadata(
+  courseId,
+  userId,
+  courseTitle,
+  client,
+) {
   const { data: assignments, error } = await client.getAssignments(courseId);
 
   if (error || !assignments) {
-    console.warn(`[sync-assignments] failed to fetch assignments for course ${courseId}: ${error}`);
+    console.warn(
+      `[sync-assignments] failed to fetch assignments for course ${courseId}: ${error}`,
+    );
     return { synced: 0, errors: 1 };
   }
 
-  const courseColor = COURSE_COLORS[hashString(courseTitle) % COURSE_COLORS.length];
+  const courseColor =
+    COURSE_COLORS[hashString(courseTitle) % COURSE_COLORS.length];
   let synced = 0;
   let errors = 0;
 
@@ -103,7 +112,9 @@ export async function syncAssignmentMetadata(courseId, userId, courseTitle, clie
       `;
       synced++;
     } catch (err) {
-      console.error(`[sync-assignments] failed to upsert assignment ${a.id}: ${err.message}`);
+      console.error(
+        `[sync-assignments] failed to upsert assignment ${a.id}: ${err.message}`,
+      );
       errors++;
     }
   }

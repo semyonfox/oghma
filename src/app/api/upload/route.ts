@@ -11,10 +11,33 @@ import sql from '@/database/pgsql';
 import { v4 as uuidv4 } from 'uuid';
 import { xraySubsegment } from '@/lib/xray';
 import logger from '@/lib/logger';
+import { config } from '@/lib/config';
 
 function sanitizeFileName(raw: string): string {
     return raw.replace(/[\/\\]/g, '_').replace(/\.\./g, '_');
 }
+
+const ALLOWED_MIME_TYPES = new Set([
+    // documents
+    'application/pdf',
+    'text/plain',
+    'text/markdown',
+    'text/x-markdown',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // images
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    // audio/video
+    'audio/mpeg',
+    'audio/wav',
+    'video/mp4',
+]);
 
 async function requireSession() {
     const session = await validateSession();
@@ -36,9 +59,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
         if (!file) return tracedError('No file provided', 400);
 
-        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-        if (file.size > MAX_FILE_SIZE) {
-            return tracedError('File too large (max 50MB)', 400);
+        if (file.size > config.upload.maxFileSizeBytes) {
+            return tracedError(`File too large (max ${Math.round(config.upload.maxFileSizeBytes / 1024 / 1024)}MB)`, 400);
+        }
+
+        // validate file type against allowlist
+        if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) {
+            return tracedError(`File type '${file.type}' is not allowed`, 400);
         }
 
         let createdNewNote = false;

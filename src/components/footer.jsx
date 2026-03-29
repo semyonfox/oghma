@@ -1,37 +1,37 @@
-'use client'
+"use client";
 
-import useI18n from '@/lib/notes/hooks/use-i18n';
-import { Locale, configLocale } from '@/locales';
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { configLocale } from "@/locales";
 
 export default function Footer() {
   const { t, locale, activeLocale } = useI18n();
 
   const navigation = {
     features: [
-      { name: t('RAG Chat'), href: '#' },
-      { name: t('Adaptive Quizzes'), href: '#' },
-      { name: t('Spaced Repetition'), href: '#' },
-      { name: t('Canvas Integration'), href: '#' },
+      { name: t("RAG Chat"), href: "#" },
+      { name: t("Adaptive Quizzes"), href: "#" },
+      { name: t("Spaced Repetition"), href: "#" },
+      { name: t("Canvas Integration"), href: "#" },
     ],
     support: [
-      { name: t('Documentation'), href: '/syntax-guide' },
-      { name: t('Guides'), href: '/syntax-guide' },
-      { name: t('Contact'), href: '/#contact' },
+      { name: t("Documentation"), href: "/syntax-guide" },
+      { name: t("Guides"), href: "/syntax-guide" },
+      { name: t("Contact"), href: "/#contact" },
     ],
     company: [
-      { name: t('About'), href: '/about' },
-      { name: t('Blog'), href: '/blog' },
-      { name: t('GitHub'), href: 'https://github.com' },
+      { name: t("About"), href: "/about" },
+      { name: t("Blog"), href: "/blog" },
+      { name: t("GitHub"), href: "https://github.com" },
     ],
     legal: [
-      { name: t('Privacy Policy'), href: '#' },
-      { name: t('Terms of Service'), href: '#' },
-      { name: t('License'), href: '#' },
+      { name: t("Privacy Policy"), href: "#" },
+      { name: t("Terms of Service"), href: "#" },
+      { name: t("License"), href: "#" },
     ],
     social: [
       {
-        name: t('GitHub'),
-        href: 'https://github.com',
+        name: t("GitHub"),
+        href: "https://github.com",
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
             <path
@@ -43,8 +43,8 @@ export default function Footer() {
         ),
       },
       {
-        name: t('X'),
-        href: 'https://x.com',
+        name: t("X"),
+        href: "https://x.com",
         icon: (props) => (
           <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
             <path d="M13.6823 10.6218L20.2391 3H18.6854L12.9921 9.61788L8.44486 3H3.2002L10.0765 13.0074L3.2002 21H4.75404L10.7663 14.0113L15.5685 21H20.8131L13.6819 10.6218H13.6823ZM11.5541 13.0956L10.8574 12.0991L5.31391 4.16971H7.70053L12.1742 10.5689L12.8709 11.5655L18.6861 19.8835H16.2995L11.5541 13.096V13.0956Z" />
@@ -62,13 +62,13 @@ export default function Footer() {
       locale(nextLocale, module.default);
 
       // Persist the language preference to user settings
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: nextLocale }),
       });
     } catch (error) {
-      console.error('Failed to change language:', error);
+      console.error("Failed to change language:", error);
     }
   };
 
@@ -78,11 +78,17 @@ export default function Footer() {
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
             <div className="font-serif text-2xl font-bold text-white flex items-center gap-2">
-              <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-8 h-8" />
-              {t('OghmaNotes')}
+              <img
+                src="/oghmanotes.svg"
+                alt="OghmaNotes Logo"
+                className="w-8 h-8"
+              />
+              {t("OghmaNotes")}
             </div>
             <p className="text-sm/6 text-balance text-text-tertiary">
-              {t('RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.')}
+              {t(
+                "RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.",
+              )}
             </p>
             <div className="flex gap-x-6">
               {navigation.social.map((item) => (
@@ -100,34 +106,42 @@ export default function Footer() {
             </div>
             {/* Language Switcher */}
             <div className="pt-4">
-              <label htmlFor="language-select" className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-2">
-                {t('Language')}
+              <label
+                htmlFor="language-select"
+                className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-2"
+              >
+                {t("Language")}
               </label>
-               <select
-                 id="language-select"
-                 value={activeLocale}
-                 onChange={handleLanguageChange}
-                 className="bg-white/5 border border-white/10 text-text-secondary text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
-                 style={{
-                   colorScheme: 'dark'
-                 }}
-               >
-                 {Object.entries(configLocale).map(([code, name]) => (
-                   <option key={code} value={code}>
-                     {name}
-                   </option>
-                 ))}
-               </select>
+              <select
+                id="language-select"
+                value={activeLocale}
+                onChange={handleLanguageChange}
+                className="bg-white/5 border border-white/10 text-text-secondary text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
+                style={{
+                  colorScheme: "dark",
+                }}
+              >
+                {Object.entries(configLocale).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">{t('Features')}</h3>
+                <h3 className="text-sm/6 font-semibold text-white">
+                  {t("Features")}
+                </h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.features.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
+                      <a
+                        href={item.href}
+                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                      >
                         {item.name}
                       </a>
                     </li>
@@ -135,11 +149,16 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">{t('Support')}</h3>
+                <h3 className="text-sm/6 font-semibold text-white">
+                  {t("Support")}
+                </h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
+                      <a
+                        href={item.href}
+                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                      >
                         {item.name}
                       </a>
                     </li>
@@ -149,11 +168,16 @@ export default function Footer() {
             </div>
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">{t('Company')}</h3>
+                <h3 className="text-sm/6 font-semibold text-white">
+                  {t("Company")}
+                </h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
+                      <a
+                        href={item.href}
+                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                      >
                         {item.name}
                       </a>
                     </li>
@@ -161,11 +185,16 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">{t('Legal')}</h3>
+                <h3 className="text-sm/6 font-semibold text-white">
+                  {t("Legal")}
+                </h3>
                 <ul role="list" className="mt-6 space-y-4">
                   {navigation.legal.map((item) => (
                     <li key={item.name}>
-                      <a href={item.href} className="text-sm/6 text-text-tertiary hover:text-text-secondary">
+                      <a
+                        href={item.href}
+                        className="text-sm/6 text-text-tertiary hover:text-text-secondary"
+                      >
                         {item.name}
                       </a>
                     </li>
@@ -176,7 +205,11 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
-          <p className="text-xs/5 text-text-tertiary">{t('© {year} OghmaNotes. All rights reserved.', { year: new Date().getFullYear() })}</p>
+          <p className="text-xs/5 text-text-tertiary">
+            {t("© {year} OghmaNotes. All rights reserved.", {
+              year: new Date().getFullYear(),
+            })}
+          </p>
         </div>
       </div>
     </footer>

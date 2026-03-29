@@ -16,7 +16,7 @@ function isValidUUID(id) {
 function generateUUIDForId(id) {
   // Generate deterministic UUID based on old ID
   // This ensures same old ID always maps to same UUID
-  const namespace = '00000000-0000-5000-a000-000000000000'; // DNS namespace
+  const _namespace = '00000000-0000-5000-a000-000000000000'; // DNS namespace
   const hash = crypto.createHash('sha1');
   hash.update(id);
   const digest = hash.digest();
@@ -95,7 +95,7 @@ async function addNoteToTree(userId, noteId, parentId) {
       VALUES (${userId}::uuid, ${noteId}::uuid, ${actualParentId}, ${position})
       ON CONFLICT DO NOTHING
     `;
-  } catch (error) {
+  } catch (_error) {
     // Silently ignore tree sync errors
   }
 }
