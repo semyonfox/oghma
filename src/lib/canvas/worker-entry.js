@@ -7,18 +7,26 @@
  * Safety net: DB poll every 30s catches orphaned jobs (SQS delivery failures)
  */
 
-import sql from '../../database/pgsql.js';
-import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
-import { ECSClient, UpdateServiceCommand } from '@aws-sdk/client-ecs';
-import { processImportJob, processExtractionRetry } from './import-worker.js';
+import sql from "../../database/pgsql.js";
+import {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} from "@aws-sdk/client-sqs";
+import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
+import { processImportJob, processExtractionRetry } from "./import-worker.js";
+import { processVaultImport } from "../vault/import-worker.js";
+import { processVaultExport } from "../vault/export-worker.js";
 
-const STUCK_JOB_THRESHOLD = '1 hour';
+const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const IDLE_POLLS_BEFORE_SHUTDOWN = 30; // 30 × 20s = ~10 min idle
 const MAX_CONCURRENT_JOBS = 3;
 
-const sqsClient = new SQSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+const sqsClient = new SQSClient({
+  region: process.env.AWS_REGION ?? "eu-north-1",
+});
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 const RETRY_QUEUE_URL = process.env.SQS_EXTRACT_RETRY_QUEUE_URL;
 
@@ -30,7 +38,9 @@ async function failStuckJobs() {
     RETURNING id
   `;
   if (stuck.length > 0) {
-    console.log(`[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`);
+    console.log(
+      `[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`,
+    );
   }
 }
 
@@ -47,13 +57,18 @@ async function claimOrphanedJobs() {
   `;
   if (orphaned.length === 0) return false;
 
-  console.log(`[${new Date().toISOString()}] DB poll: found ${orphaned.length} orphaned job(s)`);
+  console.log(
+    `[${new Date().toISOString()}] DB poll: found ${orphaned.length} orphaned job(s)`,
+  );
   const results = await Promise.allSettled(
-    orphaned.map(row => processImportJob(row.id))
+    orphaned.map((row) => processImportJob(row.id)),
   );
   for (const r of results) {
-    if (r.status === 'rejected') {
-      console.error(`[${new Date().toISOString()}] Orphaned job error:`, r.reason?.message);
+    if (r.status === "rejected") {
+      console.error(
+        `[${new Date().toISOString()}] Orphaned job error:`,
+        r.reason?.message,
+      );
     }
   }
   return true;
@@ -66,48 +81,67 @@ async function processAndDelete(message, queueUrl) {
     body = JSON.parse(message.Body);
   } catch (err) {
     console.error(`[${ts()}] Malformed SQS message, deleting:`, err.message);
-    await sqsClient.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle }));
+    await sqsClient.send(
+      new DeleteMessageCommand({
+        QueueUrl: queueUrl,
+        ReceiptHandle: message.ReceiptHandle,
+      }),
+    );
     return;
   }
-  const type = body.type ?? 'canvas-import';
-  console.log(`[${ts()}] Received ${type}: ${body.jobId ?? body.userId ?? 'unknown'}`);
+  const type = body.type ?? "canvas-import";
+  console.log(
+    `[${ts()}] Received ${type}: ${body.jobId ?? body.userId ?? "unknown"}`,
+  );
 
   switch (type) {
-    case 'canvas-import':
+    case "canvas-import":
       await processImportJob(body.jobId);
       break;
-    case 'extract-retry':
+    case "extract-retry":
       await processExtractionRetry(body);
       break;
-    case 'vault-export':
-      console.log(`[${ts()}] vault-export not yet enabled, skipping`);
+    case "vault-export":
+      await processVaultExport(body);
       break;
-    case 'vault-import':
-      console.log(`[${ts()}] vault-import not yet enabled, skipping`);
+    case "vault-import":
+      await processVaultImport(body);
       break;
     default:
       console.warn(`[${ts()}] Unknown job type: ${type}`);
   }
 
-  await sqsClient.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle }));
+  await sqsClient.send(
+    new DeleteMessageCommand({
+      QueueUrl: queueUrl,
+      ReceiptHandle: message.ReceiptHandle,
+    }),
+  );
   console.log(`[${ts()}] Done, message deleted`);
 }
 
 async function pollQueue() {
-  const res = await sqsClient.send(new ReceiveMessageCommand({
-    QueueUrl: QUEUE_URL,
-    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
-    WaitTimeSeconds: 20,
-    VisibilityTimeout: 3600,
-  }));
+  const res = await sqsClient.send(
+    new ReceiveMessageCommand({
+      QueueUrl: QUEUE_URL,
+      MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+      WaitTimeSeconds: 20,
+      VisibilityTimeout: 3600,
+    }),
+  );
 
   const messages = res.Messages ?? [];
   if (messages.length === 0) return false;
 
-  const results = await Promise.allSettled(messages.map(m => processAndDelete(m, QUEUE_URL)));
+  const results = await Promise.allSettled(
+    messages.map((m) => processAndDelete(m, QUEUE_URL)),
+  );
   for (const r of results) {
-    if (r.status === 'rejected') {
-      console.error(`[${new Date().toISOString()}] Job processing error:`, r.reason?.message);
+    if (r.status === "rejected") {
+      console.error(
+        `[${new Date().toISOString()}] Job processing error:`,
+        r.reason?.message,
+      );
     }
   }
   return true;
@@ -117,20 +151,27 @@ async function pollQueue() {
 async function pollRetryQueue() {
   if (!RETRY_QUEUE_URL) return false;
 
-  const res = await sqsClient.send(new ReceiveMessageCommand({
-    QueueUrl: RETRY_QUEUE_URL,
-    MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
-    WaitTimeSeconds: 0, // short poll — don't block the main loop
-    VisibilityTimeout: 300,
-  }));
+  const res = await sqsClient.send(
+    new ReceiveMessageCommand({
+      QueueUrl: RETRY_QUEUE_URL,
+      MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
+      WaitTimeSeconds: 0, // short poll — don't block the main loop
+      VisibilityTimeout: 300,
+    }),
+  );
 
   const messages = res.Messages ?? [];
   if (messages.length === 0) return false;
 
-  const results = await Promise.allSettled(messages.map(m => processAndDelete(m, RETRY_QUEUE_URL)));
+  const results = await Promise.allSettled(
+    messages.map((m) => processAndDelete(m, RETRY_QUEUE_URL)),
+  );
   for (const r of results) {
-    if (r.status === 'rejected') {
-      console.error(`[${new Date().toISOString()}] Retry processing error:`, r.reason?.message);
+    if (r.status === "rejected") {
+      console.error(
+        `[${new Date().toISOString()}] Retry processing error:`,
+        r.reason?.message,
+      );
     }
   }
   return true;
@@ -138,13 +179,18 @@ async function pollRetryQueue() {
 
 // ── Main loop ────────────────────────────────────────────────────────────────
 
-console.log(`[${new Date().toISOString()}] Canvas Import Worker started (SQS + DB poll)`);
+console.log(
+  `[${new Date().toISOString()}] Canvas Import Worker started (SQS + DB poll)`,
+);
 
 await failStuckJobs();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(async () => {
-  try { await claimOrphanedJobs(); }
-  catch (err) { console.error(`[${new Date().toISOString()}] DB poll error:`, err.message); }
+  try {
+    await claimOrphanedJobs();
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] DB poll error:`, err.message);
+  }
 }, DB_POLL_INTERVAL_MS);
 
 let idlePolls = 0;
@@ -153,27 +199,39 @@ while (true) {
   try {
     const hadWork = await pollQueue();
     const hadRetries = await pollRetryQueue();
-    idlePolls = (hadWork || hadRetries) ? 0 : idlePolls + 1;
+    idlePolls = hadWork || hadRetries ? 0 : idlePolls + 1;
 
     if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
       // final DB check before scaling down
-      if (await claimOrphanedJobs()) { idlePolls = 0; continue; }
+      if (await claimOrphanedJobs()) {
+        idlePolls = 0;
+        continue;
+      }
 
-      console.log(`[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`);
+      console.log(
+        `[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`,
+      );
       try {
-        const ecsClient = new ECSClient({ region: process.env.AWS_REGION ?? 'eu-north-1' });
-        await ecsClient.send(new UpdateServiceCommand({
-          cluster: process.env.ECS_CLUSTER ?? 'oghmanotes',
-          service: process.env.ECS_SERVICE ?? 'canvas-import-worker',
-          desiredCount: 0,
-        }));
+        const ecsClient = new ECSClient({
+          region: process.env.AWS_REGION ?? "eu-north-1",
+        });
+        await ecsClient.send(
+          new UpdateServiceCommand({
+            cluster: process.env.ECS_CLUSTER ?? "oghmanotes",
+            service: process.env.ECS_SERVICE ?? "canvas-import-worker",
+            desiredCount: 0,
+          }),
+        );
       } catch (scaleErr) {
-        console.error(`[${new Date().toISOString()}] Self scale-down failed:`, scaleErr.message);
+        console.error(
+          `[${new Date().toISOString()}] Self scale-down failed:`,
+          scaleErr.message,
+        );
       }
       process.exit(0);
     }
   } catch (err) {
     console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 5000));
   }
 }
