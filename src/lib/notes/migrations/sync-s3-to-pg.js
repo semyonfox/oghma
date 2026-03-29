@@ -18,7 +18,7 @@
  * @param {string} userId
  * @returns {Promise<SyncResult>}
  */
-export async function syncS3ToPG(userId) {
+export async function syncS3ToPG(_userId) {
   return {
     success: true,
     totalInS3: 0,
@@ -26,7 +26,8 @@ export async function syncS3ToPG(userId) {
     synced: 0,
     failed: 0,
     errors: [],
-    message: 'S3 to PG sync is no longer supported. All data is stored in PostgreSQL.',
+    message:
+      "S3 to PG sync is no longer supported. All data is stored in PostgreSQL.",
   };
 }
 
@@ -36,13 +37,14 @@ export async function syncS3ToPG(userId) {
  * @param {string} userId
  * @returns {Promise<Object>}
  */
-export async function checkSyncStatus(userId) {
+export async function checkSyncStatus(_userId) {
   return {
     success: true,
     totalInS3: 0,
     totalInPG: 0,
     missingInPG: 0,
     missingNoteIds: [],
-    message: 'S3 to PG sync is no longer supported. All data is stored in PostgreSQL.',
+    message:
+      "S3 to PG sync is no longer supported. All data is stored in PostgreSQL.",
   };
 }

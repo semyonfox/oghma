@@ -18,7 +18,7 @@ import logger from "@/lib/logger";
  * Returns { queued: true, jobId } or { queued: false, reason } if there is
  * nothing to sync (no prior imports or no canvas credentials).
  */
-export async function POST(request) {
+export async function POST(_request) {
   try {
     const user = await validateSession();
     if (!user) {
@@ -133,7 +133,7 @@ export async function POST(request) {
  * Returns whether a sync is available (user has canvas credentials + prior imports)
  * and whether a sync job is currently active.
  */
-export async function GET(request) {
+export async function GET(_request) {
   try {
     const user = await validateSession();
     if (!user) {

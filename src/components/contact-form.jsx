@@ -37,7 +37,7 @@ export default function ContactForm() {
       } else {
         setResult(t("Error sending message. Please try again."));
       }
-    } catch (error) {
+    } catch (_error) {
       setResult(t("Error sending message. Please try again."));
     } finally {
       setIsLoading(false);

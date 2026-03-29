@@ -31,7 +31,7 @@ export default [
       "react-hooks": reactHooks,
     },
     rules: {
-      "no-unused-vars": "warn",
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
       ...reactHooks.configs.recommended.rules,
     },
@@ -54,7 +54,7 @@ export default [
     },
     rules: {
       "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
       ...reactHooks.configs.recommended.rules,
     },

@@ -1,27 +1,33 @@
 // Lexical-based markdown editor replacement for @notea/rich-markdown-editor
-import { FC, useEffect, useCallback, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
-import { LexicalComposer } from '@lexical/react/LexicalComposer';
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
-import { ContentEditable } from '@lexical/react/LexicalContentEditable';
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin';
-import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
-import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
-import { ListPlugin } from '@lexical/react/LexicalListPlugin';
-import { HashtagPlugin } from '@lexical/react/LexicalHashtagPlugin';
-import { 
-  $convertToMarkdownString, 
-  $convertFromMarkdownString, 
-  TRANSFORMERS 
-} from '@lexical/markdown';
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListNode, ListItemNode } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
-import { LinkNode } from '@lexical/link';
-import { HashtagNode } from '@lexical/hashtag';
-import { EditorState, $getRoot } from 'lexical';
+import {
+  FC,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useMemo,
+} from "react";
+import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
+import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
+import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
+import { ListPlugin } from "@lexical/react/LexicalListPlugin";
+import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
+import {
+  $convertToMarkdownString,
+  $convertFromMarkdownString,
+  TRANSFORMERS,
+} from "@lexical/markdown";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { HeadingNode, QuoteNode } from "@lexical/rich-text";
+import { ListNode, ListItemNode } from "@lexical/list";
+import { CodeNode, CodeHighlightNode } from "@lexical/code";
+import { LinkNode } from "@lexical/link";
+import { HashtagNode } from "@lexical/hashtag";
+import { $getRoot } from "lexical";
 
 export interface LexicalEditorProps {
   id?: string;
@@ -36,7 +42,10 @@ export interface LexicalEditorProps {
   onClickLink?: (href: string) => void;
   onHoverLink?: (event: MouseEvent | React.MouseEvent) => void | boolean;
   onUploadImage?: (file: File) => Promise<string>;
-  onShowToast?: (message: string, type?: 'default' | 'success' | 'error' | 'info' | 'loading') => void;
+  onShowToast?: (
+    message: string,
+    type?: "default" | "success" | "error" | "info" | "loading",
+  ) => void;
   dictionary?: Record<string, any>;
   tooltip?: FC<any>;
   extensions?: any[];
@@ -44,10 +53,10 @@ export interface LexicalEditorProps {
 }
 
 // plugin to sync content changes
-function OnChangeContentPlugin({ 
-  onChange 
-}: { 
-  onChange?: (getValue: () => string) => void 
+function OnChangeContentPlugin({
+  onChange,
+}: {
+  onChange?: (getValue: () => string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -103,10 +112,10 @@ function ReadOnlyPlugin({ readOnly }: { readOnly?: boolean }) {
 }
 
 // plugin to handle link clicks
-function LinkClickPlugin({ 
-  onClickLink 
-}: { 
-  onClickLink?: (href: string) => void 
+function LinkClickPlugin({
+  onClickLink,
+}: {
+  onClickLink?: (href: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -115,7 +124,7 @@ function LinkClickPlugin({
 
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (target.tagName === 'A') {
+      if (target.tagName === "A") {
         const href = (target as HTMLAnchorElement).href;
         event.preventDefault();
         onClickLink(href);
@@ -124,8 +133,8 @@ function LinkClickPlugin({
 
     const editorElement = editor.getRootElement();
     if (editorElement) {
-      editorElement.addEventListener('click', handleClick);
-      return () => editorElement.removeEventListener('click', handleClick);
+      editorElement.addEventListener("click", handleClick);
+      return () => editorElement.removeEventListener("click", handleClick);
     }
   }, [editor, onClickLink]);
 
@@ -133,10 +142,10 @@ function LinkClickPlugin({
 }
 
 // plugin to handle link hover
-function LinkHoverPlugin({ 
-  onHoverLink 
-}: { 
-  onHoverLink?: (event: MouseEvent | React.MouseEvent) => void | boolean 
+function LinkHoverPlugin({
+  onHoverLink,
+}: {
+  onHoverLink?: (event: MouseEvent | React.MouseEvent) => void | boolean;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -145,15 +154,16 @@ function LinkHoverPlugin({
 
     const handleMouseOver = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (target.tagName === 'A') {
+      if (target.tagName === "A") {
         onHoverLink(event);
       }
     };
 
     const editorElement = editor.getRootElement();
     if (editorElement) {
-      editorElement.addEventListener('mouseover', handleMouseOver);
-      return () => editorElement.removeEventListener('mouseover', handleMouseOver);
+      editorElement.addEventListener("mouseover", handleMouseOver);
+      return () =>
+        editorElement.removeEventListener("mouseover", handleMouseOver);
     }
   }, [editor, onHoverLink]);
 
@@ -161,13 +171,13 @@ function LinkHoverPlugin({
 }
 
 // plugin to expose editor instance to parent via ref
-function EditorRefPlugin({ 
-  editorRef 
-}: { 
-  editorRef: React.MutableRefObject<any> 
+function EditorRefPlugin({
+  editorRef,
+}: {
+  editorRef: React.MutableRefObject<any>;
 }) {
   const [editor] = useLexicalComposerContext();
-  
+
   useEffect(() => {
     editorRef.current = editor;
   }, [editor, editorRef]);
@@ -185,11 +195,11 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
   (
     {
       id,
-      value = '',
+      value = "",
       onChange,
       readOnly = false,
-      placeholder = 'Start writing...',
-      className = '',
+      placeholder = "Start writing...",
+      className = "",
       theme = {},
       onSearchLink,
       onCreateLink,
@@ -202,49 +212,52 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
       extensions,
       embeds,
     },
-    ref
+    ref,
   ) => {
     const editorInstanceRef = useRef<any>(null);
-    
+
     // memoize config to avoid recreating on every render
-    const initialConfig = useMemo(() => ({
-      namespace: 'LexicalEditor',
-      editable: !readOnly,
-      theme: {
-        ...theme,
-        paragraph: 'editor-paragraph',
-        heading: {
-          h1: 'editor-heading-h1',
-          h2: 'editor-heading-h2',
-          h3: 'editor-heading-h3',
+    const initialConfig = useMemo(
+      () => ({
+        namespace: "LexicalEditor",
+        editable: !readOnly,
+        theme: {
+          ...theme,
+          paragraph: "editor-paragraph",
+          heading: {
+            h1: "editor-heading-h1",
+            h2: "editor-heading-h2",
+            h3: "editor-heading-h3",
+          },
+          list: {
+            ul: "editor-list-ul",
+            ol: "editor-list-ol",
+            listitem: "editor-listitem",
+          },
+          link: "editor-link",
+          code: "editor-code",
+          quote: "editor-quote",
         },
-        list: {
-          ul: 'editor-list-ul',
-          ol: 'editor-list-ol',
-          listitem: 'editor-listitem',
+        nodes: [
+          HeadingNode,
+          QuoteNode,
+          ListNode,
+          ListItemNode,
+          CodeNode,
+          CodeHighlightNode,
+          LinkNode,
+          HashtagNode,
+        ],
+        onError: (error: Error) => {
+          console.error("Lexical error:", error);
+          if (onShowToast) {
+            onShowToast("Editor error: " + error.message, "error");
+          }
         },
-        link: 'editor-link',
-        code: 'editor-code',
-        quote: 'editor-quote',
-      },
-      nodes: [
-        HeadingNode,
-        QuoteNode,
-        ListNode,
-        ListItemNode,
-        CodeNode,
-        CodeHighlightNode,
-        LinkNode,
-        HashtagNode,
-      ],
-      onError: (error: Error) => {
-        console.error('Lexical error:', error);
-        if (onShowToast) {
-          onShowToast('Editor error: ' + error.message, 'error');
-        }
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [id, readOnly]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }),
+      [id, readOnly],
+    );
 
     // expose editor instance via ref
     useImperativeHandle(ref, () => ({
@@ -281,36 +294,38 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
       focusAtEnd: () => {
         const editor = editorInstanceRef.current;
         if (!editor) return;
-        
+
         editor.update(() => {
           const root = $getRoot();
           const lastChild = root.getLastDescendant();
-          
+
           if (lastChild) {
             lastChild.selectEnd();
           } else {
             root.selectEnd();
           }
         });
-        
+
         // ensure the editor is focused
         editor.focus();
       },
     }));
 
-     return (
-        <LexicalComposer key={id} initialConfig={initialConfig}>
-          <div className={`relative w-full ${className}`} dir="ltr">
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable 
-                  className="w-full text-gray-200 outline-none min-h-[300px] px-6 py-4 text-base leading-relaxed focus:outline-none"
-                  dir="ltr"
-                />
-              }
-             placeholder={
-               <div className="absolute top-0 left-0 text-gray-600 pointer-events-none select-none px-6 py-4 text-base leading-relaxed">{placeholder}</div>
-             }
+    return (
+      <LexicalComposer key={id} initialConfig={initialConfig}>
+        <div className={`relative w-full ${className}`} dir="ltr">
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                className="w-full text-gray-200 outline-none min-h-[300px] px-6 py-4 text-base leading-relaxed focus:outline-none"
+                dir="ltr"
+              />
+            }
+            placeholder={
+              <div className="absolute top-0 left-0 text-gray-600 pointer-events-none select-none px-6 py-4 text-base leading-relaxed">
+                {placeholder}
+              </div>
+            }
             ErrorBoundary={LexicalErrorBoundary}
           />
           <HistoryPlugin />
@@ -327,9 +342,9 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
         </div>
       </LexicalComposer>
     );
-  }
+  },
 );
 
-LexicalEditor.displayName = 'LexicalEditor';
+LexicalEditor.displayName = "LexicalEditor";
 
 export default LexicalEditor;

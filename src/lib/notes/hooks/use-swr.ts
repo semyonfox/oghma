@@ -1,14 +1,14 @@
 /**
  * SWR Hook - Stale-While-Revalidate Pattern
- * 
+ *
  * Strategy: Serve cached data immediately, then revalidate in background
- * 
+ *
  * Benefits:
  * - Instant UI response (perceived performance)
  * - Always up-to-date data (background refresh)
  * - Reduced server load (cached responses)
  * - Network error resilience (cached fallback)
- * 
+ *
  * Typical flow:
  * 1. User loads page
  * 2. Cached data shown immediately
@@ -17,7 +17,7 @@
  * 5. Components rerender with fresh data
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface SWROptions {
   // Cache duration in milliseconds
@@ -76,9 +76,10 @@ function startCacheCleanup() {
 
     // If still over max size, remove least recently used entries
     if (globalCache.size > CACHE_CONFIG.maxSize) {
-      const entries = Array.from(globalCache.entries())
-        .sort((a, b) => (a[1].lastAccessedAt ?? 0) - (b[1].lastAccessedAt ?? 0));
-      
+      const entries = Array.from(globalCache.entries()).sort(
+        (a, b) => (a[1].lastAccessedAt ?? 0) - (b[1].lastAccessedAt ?? 0),
+      );
+
       const toDelete = entries.length - CACHE_CONFIG.maxSize;
       for (let i = 0; i < toDelete; i++) {
         globalCache.delete(entries[i][0]);
@@ -87,7 +88,9 @@ function startCacheCleanup() {
     }
 
     if (deletedCount > 0) {
-      console.debug(`[SWR] Cache cleanup: removed ${deletedCount} entries, current size: ${globalCache.size}`);
+      console.debug(
+        `[SWR] Cache cleanup: removed ${deletedCount} entries, current size: ${globalCache.size}`,
+      );
     }
   }, CACHE_CONFIG.cleanupInterval);
 }
@@ -108,7 +111,7 @@ export function stopCacheCleanup() {
 export function useSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
-  options: SWROptions = {}
+  options: SWROptions = {},
 ): {
   data?: T;
   error?: Error;
@@ -218,7 +221,7 @@ export function useSWR<T>(
         setIsValidating(false);
       }
     },
-    [key, fetcher, isCacheFresh, getCachedData, dedupeDuration]
+    [key, fetcher, isCacheFresh, getCachedData, dedupeDuration],
   );
 
   /**
@@ -237,7 +240,7 @@ export function useSWR<T>(
       // Revalidate after mutation
       return fetchData(false);
     },
-    [key, fetchData]
+    [key, fetchData],
   );
 
   /**
@@ -301,8 +304,8 @@ export function useSWR<T>(
       }
     };
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [revalidateOnFocus, isCacheFresh, fetchData]);
 
   return {
@@ -319,7 +322,7 @@ export function useSWR<T>(
  */
 export function clearSWRCache(): void {
   globalCache.clear();
-  console.debug('[SWR] Cache cleared');
+  console.debug("[SWR] Cache cleared");
 }
 
 /**
@@ -328,25 +331,29 @@ export function clearSWRCache(): void {
 export function getSWRCacheStats() {
   const entries = Array.from(globalCache.entries());
   const now = Date.now();
-  
+
   return {
     // Basic stats
     cacheSize: globalCache.size,
     maxCacheSize: CACHE_CONFIG.maxSize,
     ongoingRequests: ongoingRequests.size,
-    
+
     // Cache health
     entries: entries.map(([key, entry]) => ({
       key,
       age: now - entry.timestamp,
       accessCount: entry.accessCount ?? 0,
-      lastAccessedAt: entry.lastAccessedAt ? now - entry.lastAccessedAt : 'never',
+      lastAccessedAt: entry.lastAccessedAt
+        ? now - entry.lastAccessedAt
+        : "never",
     })),
-    
+
     // Memory warnings
     warnings: {
       nearCapacity: globalCache.size > CACHE_CONFIG.maxSize * 0.8,
-      hasStaleEntries: entries.some(([_, e]) => (now - e.timestamp) > CACHE_CONFIG.maxCacheDuration),
+      hasStaleEntries: entries.some(
+        ([_key, e]) => now - e.timestamp > CACHE_CONFIG.maxCacheDuration,
+      ),
     },
   };
 }
@@ -354,9 +361,12 @@ export function getSWRCacheStats() {
 /**
  * Get estimated memory usage of the cache (rough estimate)
  */
-export function estimateCacheMemory(): { entries: number; estimatedBytes: number } {
+export function estimateCacheMemory(): {
+  entries: number;
+  estimatedBytes: number;
+} {
   let estimatedBytes = 0;
-  
+
   for (const entry of globalCache.values()) {
     // Rough estimate: JSON.stringify the data to estimate size
     try {
@@ -365,7 +375,7 @@ export function estimateCacheMemory(): { entries: number; estimatedBytes: number
       estimatedBytes += 1024; // Default 1 KB if serialization fails
     }
   }
-  
+
   return {
     entries: globalCache.size,
     estimatedBytes,

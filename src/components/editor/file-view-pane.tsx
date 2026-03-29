@@ -35,7 +35,7 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
     rightPanelTab,
     openRightPanelTab,
     paneA,
-    paneB,
+    paneB: _paneB,
   } = useLayoutStore();
   const paneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);

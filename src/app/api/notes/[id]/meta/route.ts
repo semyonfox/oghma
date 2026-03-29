@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import { validateSession } from "@/lib/auth";
 
 /**
  * @deprecated Use PUT /api/notes/:id instead
@@ -8,23 +8,24 @@ import { validateSession } from '@/lib/auth';
  * as the authoritative source.
  */
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  { params: _params }: { params: Promise<{ id: string }> },
 ) {
   const user = await validateSession();
   if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   return NextResponse.json(
     {
-      error: 'Endpoint deprecated',
-      message: 'Use PUT /api/notes/:id instead for updating note metadata',
-      example: { method: 'PUT', url: '/api/notes/:id', body: { title: 'New Title', content: 'New content' } }
+      error: "Endpoint deprecated",
+      message: "Use PUT /api/notes/:id instead for updating note metadata",
+      example: {
+        method: "PUT",
+        url: "/api/notes/:id",
+        body: { title: "New Title", content: "New content" },
+      },
     },
-    { status: 410 }
+    { status: 410 },
   );
 }
