@@ -254,8 +254,9 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
             onShowToast("Editor error: " + error.message, "error");
           }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
       }),
+      // onShowToast and theme are stable refs, not needed in deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [id, readOnly],
     );
 

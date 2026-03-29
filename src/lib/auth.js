@@ -37,7 +37,7 @@ export async function createSessionCookie(token, expiryDays = 1) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: expires,
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
   });
 }

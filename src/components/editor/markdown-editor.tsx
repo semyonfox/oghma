@@ -1,6 +1,14 @@
 "use client";
 
-import { FC, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  FC,
+  memo,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
@@ -261,4 +269,4 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 };
 
-export default MarkdownEditor;
+export default memo(MarkdownEditor);
