@@ -84,7 +84,7 @@ function SidebarContent({
   logoText,
   logoSrc,
   userProfile,
-  onNavigate,
+  onNavigate: _onNavigate,
   onProfileClick,
   onNavigateItem,
   mobile = false,

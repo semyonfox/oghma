@@ -4,6 +4,7 @@ import { NoteModel } from "@/lib/notes/types/note";
 import Link from "next/link";
 import React, {
   FC,
+  memo,
   useCallback,
   useMemo,
   useState,
@@ -387,6 +388,4 @@ const SidebarListItem: FC<{
   );
 };
 
-// memo can't compare hook state (syncStatus), so we don't use a custom comparator
-// the component will re-render when sync status changes via the zustand subscription
-export default SidebarListItem;
+export default memo(SidebarListItem);

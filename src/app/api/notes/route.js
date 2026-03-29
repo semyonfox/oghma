@@ -7,6 +7,7 @@ import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
+import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
 
 // Constants
 const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
@@ -83,7 +84,12 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const rawBody = await request.json();
+
+    // validate input shape
+    const validation = validateBody(noteCreateSchema, rawBody);
+    if (!validation.success) return validation.response;
+    const body = validation.data;
 
     // validate input lengths
     if (body.title && body.title.length > MAX_TITLE_LENGTH) {
