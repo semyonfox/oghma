@@ -3,6 +3,7 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
+import react from "eslint-plugin-react";
 
 export default [
   {
@@ -28,9 +29,12 @@ export default [
       },
     },
     plugins: {
+      react,
       "react-hooks": reactHooks,
     },
     rules: {
+      "react/jsx-uses-react": "warn",
+      "react/jsx-uses-vars": "warn",
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
       ...reactHooks.configs.recommended.rules,
@@ -49,10 +53,13 @@ export default [
       },
     },
     plugins: {
+      react,
       "@typescript-eslint": tseslint,
       "react-hooks": reactHooks,
     },
     rules: {
+      "react/jsx-uses-react": "warn",
+      "react/jsx-uses-vars": "warn",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",

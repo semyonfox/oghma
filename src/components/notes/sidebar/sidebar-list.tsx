@@ -768,7 +768,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
   isExpanded,
   isActive,
   isDragging,
-  isPinned,
+  isPinned: _isPinnedProp,
   isLoading,
   hasChildren,
   depth,

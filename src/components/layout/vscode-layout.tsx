@@ -91,6 +91,8 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     return () => {
       cancelled = true;
     };
+    // router is a stable Next.js ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneA.fileId, setPaneA]);
 
   // Global keyboard shortcuts - optimized to prevent constant re-attachment

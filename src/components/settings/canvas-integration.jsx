@@ -266,6 +266,8 @@ export default function CanvasIntegration() {
     };
 
     checkConnection();
+    // one-time connection check on mount; startPolling and t are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Persist selected courses whenever they change ────────────────────────

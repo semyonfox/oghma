@@ -159,6 +159,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       }
     };
     void restore();
+    // t is a stable i18n function, not needed in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledSessionId, compact, restored]);
 
   useEffect(() => {
