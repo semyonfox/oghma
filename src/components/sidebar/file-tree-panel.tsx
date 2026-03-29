@@ -1,24 +1,24 @@
-'use client';
+"use client";
 
-import { FC, useState, useEffect, useRef } from 'react';
-import SidebarList from '@/components/notes/sidebar/sidebar-list';
-import useTreeAPI from '@/lib/notes/api/tree';
-import useNoteAPI from '@/lib/notes/api/note';
-import useTrashAPI from '@/lib/notes/api/trash';
-import useNoteTreeStore from '@/lib/notes/state/tree';
-import useNoteStore from '@/lib/notes/state/note';
-import useTrashStore from '@/lib/notes/state/trash';
-import { clearDeduplicationCache } from '@/lib/notes/api/request-deduplicator';
-import { purgeNonUUIDNoteCache } from '@/lib/notes/cache/note';
-import { toast } from 'sonner';
-import useI18n from '@/lib/notes/hooks/use-i18n';
+import { FC, useEffect, useRef } from "react";
+import SidebarList from "@/components/notes/sidebar/sidebar-list";
+import useTreeAPI from "@/lib/notes/api/tree";
+import useNoteAPI from "@/lib/notes/api/note";
+import useTrashAPI from "@/lib/notes/api/trash";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import useNoteStore from "@/lib/notes/state/note";
+import useTrashStore from "@/lib/notes/state/trash";
+import { clearDeduplicationCache } from "@/lib/notes/api/request-deduplicator";
+import { purgeNonUUIDNoteCache } from "@/lib/notes/cache/note";
+import { toast } from "sonner";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 /**
  * Obsidian-style file tree panel
  * clean header with action buttons, scrollable tree, no search box in header
  */
 const FileTreePanel: FC = () => {
-  const { t } = useI18n();
+  const { t: _t } = useI18n();
 
   // API hooks
   const treeAPI = useTreeAPI();
@@ -32,7 +32,7 @@ const FileTreePanel: FC = () => {
     initDone.current = true;
 
     const toastFn = (msg: string, type?: string) => {
-      if (type === 'error') toast.error(msg);
+      if (type === "error") toast.error(msg);
       else toast(msg);
     };
 
@@ -42,12 +42,14 @@ const FileTreePanel: FC = () => {
 
     clearDeduplicationCache();
 
-    purgeNonUUIDNoteCache().catch(e =>
-      console.warn('Failed to purge stale note cache:', e)
+    purgeNonUUIDNoteCache().catch((e) =>
+      console.warn("Failed to purge stale note cache:", e),
     );
 
-    useNoteTreeStore.getState().initTree()
-      .catch((e) => console.error('Error initializing tree:', e));
+    useNoteTreeStore
+      .getState()
+      .initTree()
+      .catch((e) => console.error("Error initializing tree:", e));
   }, []);
 
   return (

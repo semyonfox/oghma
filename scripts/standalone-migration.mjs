@@ -38,6 +38,11 @@ CREATE TABLE app.login (
     user_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email                TEXT NOT NULL UNIQUE,
     hashed_password      TEXT NOT NULL,
+    display_name         TEXT,
+    avatar_url           TEXT,
+    locale               TEXT,
+    is_active            BOOLEAN NOT NULL DEFAULT true,
+    deleted_at           TIMESTAMPTZ,
     reset_token          VARCHAR UNIQUE,
     reset_token_expires  TIMESTAMPTZ,
     email_verified       BOOLEAN NOT NULL DEFAULT false,
@@ -47,8 +52,29 @@ CREATE TABLE app.login (
 );
 
 CREATE INDEX idx_login_email ON app.login(email);
+CREATE INDEX idx_login_active ON app.login(user_id) WHERE is_active = true AND deleted_at IS NULL;
 CREATE INDEX idx_reset_token ON app.login(reset_token)
     WHERE reset_token IS NOT NULL;
+
+-- ============================================================================
+-- TABLE: app.oauth_accounts (OAuth Provider Linkage)
+-- ============================================================================
+CREATE TABLE app.oauth_accounts (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL REFERENCES app.login(user_id) ON DELETE CASCADE,
+    provider       TEXT NOT NULL,
+    provider_id    TEXT NOT NULL,
+    email          TEXT,
+    name           TEXT,
+    avatar_url     TEXT,
+    locale         TEXT,
+    raw_profile    JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(provider, provider_id)
+);
+
+CREATE INDEX idx_oauth_accounts_user ON app.oauth_accounts(user_id);
+CREATE INDEX idx_oauth_accounts_provider ON app.oauth_accounts(provider, provider_id);
 
 -- ============================================================================
 -- TABLE: app.notes (Notes & Folders)
@@ -167,6 +193,7 @@ EXECUTE FUNCTION update_notes_updated_at();
 -- COMMENTS
 -- ============================================================================
 COMMENT ON TABLE app.login IS 'Users table with UUID v7 PKs.';
+COMMENT ON TABLE app.oauth_accounts IS 'OAuth provider accounts linked to users. One user can have multiple providers.';
 COMMENT ON TABLE app.notes IS 'Notes & folders. Folders have is_folder=true. Soft-deleted notes have deleted_at set.';
 COMMENT ON TABLE app.tree_items IS 'Per-user file tree. parent_id null = root.';
 COMMENT ON COLUMN app.notes.is_folder IS 'true if folder, false if note.';
@@ -217,11 +244,12 @@ async function main() {
 
     console.log('\nmigration completed successfully\n');
     console.log('tables created:');
-    console.log('   - app.login        (users)');
-    console.log('   - app.notes        (notes & folders)');
-    console.log('   - app.tree_items   (file tree)');
-    console.log('   - app.attachments  (file uploads)');
-    console.log('   - app.pdf_annotations (PDF markups)\n');
+    console.log('   - app.login            (users)');
+    console.log('   - app.oauth_accounts   (OAuth provider linkage)');
+    console.log('   - app.notes            (notes & folders)');
+    console.log('   - app.tree_items       (file tree)');
+    console.log('   - app.attachments      (file uploads)');
+    console.log('   - app.pdf_annotations  (PDF markups)\n');
 
     console.log('features:');
     console.log('   - all primary keys are UUID v7');
@@ -252,7 +280,7 @@ async function main() {
   } finally {
     try {
       await sql.end();
-    } catch (e) {
+    } catch (_e) {
       // ignore
     }
   }
