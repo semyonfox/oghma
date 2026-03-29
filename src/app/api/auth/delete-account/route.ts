@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
-import { getStorageProvider } from '@/lib/storage/init';
-import sql from '@/database/pgsql.js';
-import logger from '@/lib/logger';
+import { NextRequest, NextResponse } from "next/server";
+import { validateSession } from "@/lib/auth.js";
+import sql from "@/database/pgsql.js";
+import logger from "@/lib/logger";
 
-const CONFIRM_PHRASE = 'delete my account';
+const CONFIRM_PHRASE = "delete my account";
 
 // how long we keep the data before a background job can hard-delete it
 const GRACE_PERIOD_DAYS = 30;
@@ -26,7 +25,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // validate confirmation phrase
@@ -34,13 +33,16 @@ export async function DELETE(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 },
+      );
     }
 
     if (body.confirmation !== CONFIRM_PHRASE) {
       return NextResponse.json(
         { error: `Confirmation phrase must be exactly: "${CONFIRM_PHRASE}"` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -61,17 +63,20 @@ export async function DELETE(request: NextRequest) {
       message: `Account scheduled for deletion. Data will be permanently removed after ${GRACE_PERIOD_DAYS} days.`,
     });
 
-    response.cookies.set('session', '', {
+    response.cookies.set("session", "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === "production",
       expires: new Date(0),
-      sameSite: 'lax',
-      path: '/',
+      sameSite: "lax",
+      path: "/",
     });
 
     return response;
   } catch (err) {
-    logger.error('delete account error', { error: err });
-    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
+    logger.error("delete account error", { error: err });
+    return NextResponse.json(
+      { error: "Failed to delete account" },
+      { status: 500 },
+    );
   }
 }

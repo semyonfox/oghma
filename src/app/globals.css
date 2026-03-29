@@ -13,7 +13,7 @@
   --color-surface-elevated: #334155;
   --color-border: rgba(255, 255, 255, 0.1);
   --color-border-subtle: rgba(255, 255, 255, 0.05);
-  
+
   /* Text colors with proper contrast */
   --color-text: #f1f5f9;
   --color-text-secondary: #cbd5e1;
@@ -125,7 +125,8 @@ html.light .obsidian-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.18);
 }
 
-html, body {
+html,
+body {
   @apply overflow-x-hidden antialiased;
   direction: ltr;
 }
@@ -355,7 +356,20 @@ html, body {
 
 /* landing page gradient background */
 .bg-landing {
-  background: radial-gradient(ellipse at top, rgb(30 41 59 / 0.5), var(--color-background) 50%);
+  background: radial-gradient(
+    ellipse at top,
+    rgb(30 41 59 / 0.5),
+    var(--color-background) 50%
+  );
+}
+
+/* editor content area gradient — subtle version of landing gradient */
+.bg-editor {
+  background: radial-gradient(
+    ellipse at top,
+    rgb(30 41 59 / 0.4),
+    var(--color-background) 60%
+  );
 }
 
 /* reduced motion */

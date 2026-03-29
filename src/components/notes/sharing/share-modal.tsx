@@ -1,23 +1,27 @@
 // archived — activate in phase 2 for public note sharing
 // from Notea (MIT), original: components/portal/share-modal.tsx
 
-import React, { FC, useCallback, useEffect, useState } from 'react';
-import usePortalStore from '@/lib/notes/state/portal';
-import IconButton from '@/components/icon-button';
-import useNoteStore from '@/lib/notes/state/note';
-import { NOTE_SHARED } from '@/lib/notes/types/meta';
+import React, { FC, useCallback, useState } from "react";
+import usePortalStore from "@/lib/notes/state/portal";
+import IconButton from "@/components/icon-button";
+import useNoteStore from "@/lib/notes/state/note";
+import { NOTE_SHARED } from "@/lib/notes/types/meta";
 // TODO: Convert to App Router (next/navigation) when sharing is active
 // import { useRouter } from 'next/router';
-import { useRouter as useNextRouter, usePathname, useSearchParams } from 'next/navigation';
-import useI18n from '@/lib/notes/hooks/use-i18n';
-import useUIComposite from '@/lib/notes/state/ui';
+import {
+  useRouter as useNextRouter,
+  usePathname,
+  useSearchParams,
+} from "next/navigation";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import useUIComposite from "@/lib/notes/state/ui";
 
 // temporary mock for Pages Router behavior
 const useRouter = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const nextRouter = useNextRouter();
-  
+
   return {
     query: Object.fromEntries(searchParams?.entries() || []),
     pathname,
@@ -48,11 +52,10 @@ const ShareModal: FC = () => {
     (checked: boolean) => {
       updateNote({
         shared: checked ? NOTE_SHARED.PUBLIC : NOTE_SHARED.PRIVATE,
-      })?.catch((v) => console.error('Error whilst updating note: %O', v));
+      })?.catch((v) => console.error("Error whilst updating note: %O", v));
     },
-    [updateNote]
+    [updateNote],
   );
-
 
   if (!share.visible || !share.anchor) {
     return null;
@@ -65,11 +68,8 @@ const ShareModal: FC = () => {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40"
-        onClick={share.close}
-      />
-      
+      <div className="fixed inset-0 z-40" onClick={share.close} />
+
       {/* Popover */}
       <div
         className="fixed z-50 bg-surface text-text-secondary rounded-lg shadow-xl border border-border"
@@ -85,9 +85,9 @@ const ShareModal: FC = () => {
               onChange={(e) => handleShare(e.target.checked)}
             />
             <div className="flex-1">
-              <h2 className="text-sm font-medium">{t('Share to web')}</h2>
+              <h2 className="text-sm font-medium">{t("Share to web")}</h2>
               <p className="text-xs text-text-tertiary">
-                {t('Anyone can visit the page via the link')}
+                {t("Anyone can visit the page via the link")}
               </p>
             </div>
           </div>
@@ -112,7 +112,7 @@ const ShareModal: FC = () => {
               />
               {copied && (
                 <div className="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs font-medium text-text-secondary bg-surface rounded whitespace-nowrap pointer-events-none">
-                  {t('Copied!')}
+                  {t("Copied!")}
                 </div>
               )}
             </div>

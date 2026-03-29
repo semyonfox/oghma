@@ -68,11 +68,27 @@ const NAV_ITEMS: NavItem[] = [
 const IconNav: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const { activeNav, setActiveNav } = useLayoutStore();
+  const {
+    activeNav,
+    setActiveNav,
+    rightPanelOpen,
+    rightPanelTab,
+    openRightPanelTab,
+  } = useLayoutStore();
   const { t } = useI18n();
   const handleNavClick = (item: NavItem) => {
     if (item.section === "search") {
       usePortalStore.getState().search.open();
+      return;
+    }
+    // AI chat: toggle right panel on /notes (where the inspector exists),
+    // otherwise navigate to the full /chat page
+    if (item.section === "chat") {
+      if (pathname?.startsWith("/notes")) {
+        openRightPanelTab("ai");
+      } else {
+        router.push("/chat");
+      }
       return;
     }
     setActiveNav(item.section);
@@ -82,7 +98,7 @@ const IconNav: FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col items-center py-4 gap-2">
+    <div className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2">
       {/* Logo/Branding */}
       <Link
         href="/"
@@ -95,7 +111,10 @@ const IconNav: FC = () => {
       <div className="flex flex-col gap-1 flex-1">
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
-          const isActive = activeNav === item.section;
+          const isActive =
+            item.section === "chat"
+              ? rightPanelOpen && rightPanelTab === "ai"
+              : activeNav === item.section;
           const translatedLabel = t(item.labelKey);
 
           return (

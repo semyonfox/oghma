@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { NoteModel } from '@/lib/notes/types/note';
-import useFetcher from '@/lib/notes/api/fetcher';
+import { useEffect, useRef, useState, useCallback } from "react";
+import useFetcher from "@/lib/notes/api/fetcher";
 
-type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
+type SyncStatus = "saved" | "saving" | "offline" | "error";
 
 interface AutoSaveState {
   status: SyncStatus;
@@ -15,7 +14,7 @@ interface AutoSaveState {
  * Debounces saves to every 3 seconds while typing
  */
 export const useAutoSave = (noteId: string | undefined, content: string) => {
-  const initialState: AutoSaveState = { status: 'saved' };
+  const initialState: AutoSaveState = { status: "saved" };
   const [state, setState] = useState(initialState);
   const contentRef = useRef(content);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -30,20 +29,20 @@ export const useAutoSave = (noteId: string | undefined, content: string) => {
   const saveToIndexedDB = useCallback(async (id: string, text: string) => {
     try {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('oghmaNotes', 1);
+        const request = indexedDB.open("oghmaNotes", 1);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
         request.onupgradeneeded = (e) => {
           const db = (e.target as IDBOpenDBRequest).result;
-          if (!db.objectStoreNames.contains('notes')) {
-            db.createObjectStore('notes', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains("notes")) {
+            db.createObjectStore("notes", { keyPath: "id" });
           }
         };
       });
 
       return new Promise<void>((resolve, reject) => {
-        const tx = db.transaction('notes', 'readwrite');
-        const store = tx.objectStore('notes');
+        const tx = db.transaction("notes", "readwrite");
+        const store = tx.objectStore("notes");
         const putRequest = store.put({
           id,
           content: text,
@@ -55,7 +54,7 @@ export const useAutoSave = (noteId: string | undefined, content: string) => {
         tx.onerror = () => reject(tx.error);
       });
     } catch (error) {
-      console.error('IndexedDB save failed:', error);
+      console.error("IndexedDB save failed:", error);
       throw error;
     }
   }, []);
@@ -64,40 +63,41 @@ export const useAutoSave = (noteId: string | undefined, content: string) => {
   const syncToServer = useCallback(
     async (id: string, text: string) => {
       if (!navigator.onLine) {
-        setState((prev) => ({ ...prev, status: 'offline' }));
+        setState((prev) => ({ ...prev, status: "offline" }));
         return;
       }
 
       try {
-        setState((prev) => ({ ...prev, status: 'saving' }));
+        setState((prev) => ({ ...prev, status: "saving" }));
 
         const response = await request(
           {
-            method: 'PUT',
+            method: "PUT",
             url: `/api/notes/${id}`,
           },
-          { content: text }
+          { content: text },
         );
 
         if (!response) {
-          throw new Error('Server response was empty');
+          throw new Error("Server response was empty");
         }
 
         setState({
-          status: 'saved',
+          status: "saved",
           lastSaved: new Date(),
         });
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        const errorMsg =
+          error instanceof Error ? error.message : "Unknown error";
         setState({
-          status: 'error',
+          status: "error",
           error: errorMsg,
         });
-        console.error('Sync error:', error);
+        console.error("Sync error:", error);
         throw error;
       }
     },
-    [request]
+    [request],
   );
 
   // Main auto-save effect (debounced)
@@ -112,10 +112,10 @@ export const useAutoSave = (noteId: string | undefined, content: string) => {
       if (navigator.onLine) {
         await syncToServer(noteId, contentRef.current);
       } else {
-        setState((prev) => ({ ...prev, status: 'offline' }));
+        setState((prev) => ({ ...prev, status: "offline" }));
       }
     } catch (error) {
-      console.error('Auto-save failed:', error);
+      console.error("Auto-save failed:", error);
     }
   }, [noteId, saveToIndexedDB, syncToServer]);
 
@@ -144,22 +144,22 @@ export const useAutoSave = (noteId: string | undefined, content: string) => {
   useEffect(() => {
     const handleOnline = () => {
       setState((prev) =>
-        prev.status === 'offline' ? { ...prev, status: 'saved' } : prev
+        prev.status === "offline" ? { ...prev, status: "saved" } : prev,
       );
       // Attempt to sync when coming back online
       performSave();
     };
 
     const handleOffline = () => {
-      setState((prev) => ({ ...prev, status: 'offline' }));
+      setState((prev) => ({ ...prev, status: "offline" }));
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, [performSave]);
 

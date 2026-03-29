@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface Assignment {
   id: string;
@@ -8,10 +8,10 @@ export interface Assignment {
   course_name: string | null;
   course_color: string | null;
   due_at: string | null;
-  status: 'upcoming' | 'in_progress' | 'done' | 'late';
+  status: "upcoming" | "in_progress" | "done" | "late";
   estimated_hours: number | null;
   logged_hours: number;
-  source: 'canvas' | 'manual';
+  source: "canvas" | "manual";
   submitted_at: string | null;
   score: number | null;
   points_possible: number | null;
@@ -19,7 +19,7 @@ export interface Assignment {
   updated_at: string;
 }
 
-export type AssignmentTab = 'upcoming' | 'done' | 'late';
+export type AssignmentTab = "upcoming" | "done" | "late";
 
 interface AssignmentState {
   assignments: Assignment[];
@@ -42,13 +42,13 @@ const useAssignmentStore = create<AssignmentState>()(
       assignments: [],
       loading: false,
       courseFilter: null,
-      activeTab: 'upcoming',
+      activeTab: "upcoming",
 
       fetchAssignments: async () => {
         set({ loading: true });
         try {
-          const res = await fetch('/api/assignments');
-          if (!res.ok) throw new Error('fetch failed');
+          const res = await fetch("/api/assignments");
+          if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
           set({ assignments: data, loading: false });
         } catch {
@@ -58,9 +58,9 @@ const useAssignmentStore = create<AssignmentState>()(
 
       createAssignment: async (data) => {
         try {
-          const res = await fetch('/api/assignments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const res = await fetch("/api/assignments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
           });
           if (!res.ok) return null;
@@ -75,8 +75,8 @@ const useAssignmentStore = create<AssignmentState>()(
       updateAssignment: async (id, data) => {
         try {
           const res = await fetch(`/api/assignments/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
           });
           if (!res.ok) return;
@@ -91,7 +91,9 @@ const useAssignmentStore = create<AssignmentState>()(
 
       deleteAssignment: async (id) => {
         try {
-          const res = await fetch(`/api/assignments/${id}`, { method: 'DELETE' });
+          const res = await fetch(`/api/assignments/${id}`, {
+            method: "DELETE",
+          });
           if (!res.ok) return;
           set((s) => ({
             assignments: s.assignments.filter((a) => a.id !== id),
@@ -103,12 +105,11 @@ const useAssignmentStore = create<AssignmentState>()(
 
       syncFromCanvas: async () => {
         try {
-          const res = await fetch('/api/assignments/sync', { method: 'POST' });
+          const res = await fetch("/api/assignments/sync", { method: "POST" });
           if (!res.ok) return null;
           const result = await res.json();
-          if (result.synced) {
-            await get().fetchAssignments();
-          }
+          // always re-fetch after sync to pick up any status changes
+          await get().fetchAssignments();
           return result;
         } catch {
           return null;
@@ -119,13 +120,13 @@ const useAssignmentStore = create<AssignmentState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
     }),
     {
-      name: 'oghma-assignments',
+      name: "oghma-assignments",
       partialize: (state) => ({
         courseFilter: state.courseFilter,
         activeTab: state.activeTab,
       }),
-    }
-  )
+    },
+  ),
 );
 
 export default useAssignmentStore;

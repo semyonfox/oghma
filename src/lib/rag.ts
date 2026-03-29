@@ -6,23 +6,38 @@
  * 4. Call the LLM and return the response
  */
 
-import { embedText } from './embedText';
-import { rerankChunks } from './rerank';
-import sql from '@/database/pgsql.js';
+import { embedText } from "./embedText";
+import { rerankChunks } from "./rerank";
+import sql from "@/database/pgsql.js";
 
 const LLM_URL = process.env.LLM_API_URL;
 const LLM_MODEL = process.env.LLM_MODEL;
 const LLM_API_KEY = process.env.LLM_API_KEY;
 
-export async function runRAGPipeline(userPrompt: string, userId: string): Promise<string> {
-    const vector = await embedText(userPrompt);
-    const candidates = await searchChunks(vector, userId);
-    const ranked = await rerankChunks(userPrompt, candidates);
-    return callLLM(buildMessages(userPrompt, ranked.map(r => r.text)));
+export async function runRAGPipeline(
+  userPrompt: string,
+  userId: string,
+): Promise<string> {
+  const vector = await embedText(userPrompt);
+  const candidates = await searchChunks(vector, userId);
+  const ranked = await rerankChunks(userPrompt, candidates);
+  return callLLM(
+    buildMessages(
+      userPrompt,
+      ranked.map((r) => r.text),
+    ),
+  );
 }
 
-async function searchChunks(vector: number[], userId: string): Promise<string[]> {
-    const results = await sql`
+interface ChunkRow {
+  text: string;
+}
+
+async function searchChunks(
+  vector: number[],
+  userId: string,
+): Promise<string[]> {
+  const results = await sql<ChunkRow[]>`
         SELECT c.text
         FROM app.embeddings e
         JOIN app.chunks c ON c.id = e.chunk_id
@@ -30,29 +45,37 @@ async function searchChunks(vector: number[], userId: string): Promise<string[]>
         ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
         LIMIT 20
     `;
-    return results.map((row: any) => row.text);
+  return results.map((row: { text: string }) => row.text);
 }
 
-function buildMessages(userPrompt: string, chunks: string[]): Array<{ role: string; content: string }> {
-    return [
-        {
-            role: 'system',
-            content: `You are a helpful assistant. Use the context below to answer the question. If the context does not contain enough information, say so.\n\nContext:\n${chunks.join('\n\n')}`,
-        },
-        { role: 'user', content: userPrompt },
-    ];
+function buildMessages(
+  userPrompt: string,
+  chunks: string[],
+): Array<{ role: string; content: string }> {
+  return [
+    {
+      role: "system",
+      content: `You are a helpful study assistant. The notes below show what the user is studying — use them as helpful context, but feel free to supplement with your broader knowledge when useful. Mention when you go beyond the notes.\n\nNotes context:\n${chunks.join("\n\n")}`,
+    },
+    { role: "user", content: userPrompt },
+  ];
 }
 
-async function callLLM(messages: Array<{ role: string; content: string }>): Promise<string> {
-    if (!LLM_API_KEY) throw new Error('LLM_API_KEY not configured');
+async function callLLM(
+  messages: Array<{ role: string; content: string }>,
+): Promise<string> {
+  if (!LLM_API_KEY) throw new Error("LLM_API_KEY not configured");
 
-    const res = await fetch(`${LLM_URL}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LLM_API_KEY}` },
-        body: JSON.stringify({ model: LLM_MODEL, messages }),
-    });
+  const res = await fetch(`${LLM_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LLM_API_KEY}`,
+    },
+    body: JSON.stringify({ model: LLM_MODEL, messages }),
+  });
 
-    if (!res.ok) throw new Error(`LLM error (${res.status})`);
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content ?? '';
+  if (!res.ok) throw new Error(`LLM error (${res.status})`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? "";
 }
