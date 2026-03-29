@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "worker": "tsx src/lib/canvas/import-worker.js",
+    "worker": "tsx src/lib/canvas/worker-entry.js",
     "build": "next build",
     "start": "next start",
     "start:next": "next start",

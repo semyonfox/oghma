@@ -40,7 +40,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const { note, fetchNote, mutateNote } = useNoteStore();
+  // only subscribe to stable action refs — never the global `note` object.
+  // subscribing to `note` caused pane A to flicker/reload whenever pane B
+  // fetched a different note because both shared the same singleton state.
+  const fetchNote = useNoteStore((s) => s.fetchNote);
+  const mutateNote = useNoteStore((s) => s.mutateNote);
   const { markModified, markSynced } = useSyncStatusStore();
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
@@ -53,30 +57,52 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
 
-  // load note content when file changes
+  // load note content when file changes.
+  // reads IndexedDB cache first so the editor shows content instantly,
+  // then refreshes from the API in the background (no flash).
   useEffect(() => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
-    setLoaded(false);
     setIsDirty(false);
 
-    fetchNote(file.fileId)
-      .then((result) => {
-        if (result && currentFileId.current === file.fileId) {
+    let cancelled = false;
+    const stale = currentFileId.current;
+
+    (async () => {
+      // try IndexedDB cache first — avoids the "Loading..." flash
+      try {
+        const { noteCacheInstance } = await import("@/lib/notes/cache");
+        const cached = await noteCacheInstance.getItem<{ content?: string }>(
+          file.fileId,
+        );
+        if (!cancelled && cached?.content != null && currentFileId.current === stale) {
+          setLocalContent(cached.content);
+          setLoaded(true);
+        }
+      } catch {
+        // cache miss — fall through to API fetch
+      }
+
+      // always fetch from API for freshness
+      try {
+        const result = await fetchNote(file.fileId);
+        if (!cancelled && result && currentFileId.current === stale) {
           setLocalContent(result.content ?? "");
           setLoaded(true);
         }
-      })
-      .catch(console.error);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [file.fileId, fetchNote]);
 
-  // pick up content from store when note loads from cache
-  useEffect(() => {
-    if (note && note.id === file.fileId && !isDirty && !loaded) {
-      setLocalContent(note.content ?? "");
-      setLoaded(true);
-    }
-  }, [note, file.fileId, isDirty, loaded]);
+  // removed: the old effect watched the global `note` singleton, meaning a
+  // fetchNote in pane B would push new state into pane A and cause a flash.
+  // now fetchNote's return value (in the effect above) is the sole content source.
 
   // cross-pane sync: when another editor saves this file, pick up the new content
   useEffect(() => {
