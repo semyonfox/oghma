@@ -1,30 +1,37 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
-import { MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline'
-import { BuildingOffice2Icon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline'
-import { motion } from 'motion/react'
-import Header from '@/components/header'
-import Footer from '@/components/footer'
-import TestimonialSection from '@/components/testimonial-section'
-import ContactForm from '@/components/contact-form'
-import useI18n from '@/lib/notes/hooks/use-i18n'
-import { useHomeFeatures } from '@/lib/hooks/useHomeFeatures'
-import { useHomeFAQs } from '@/lib/hooks/useHomeFAQs'
+import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
+import { MinusSmallIcon, PlusSmallIcon } from "@heroicons/react/24/outline";
+import {
+  BuildingOffice2Icon,
+  EnvelopeIcon,
+  PhoneIcon,
+} from "@heroicons/react/24/outline";
+import { motion } from "motion/react";
+import Header from "@/components/header";
+import Footer from "@/components/footer";
+import TestimonialSection from "@/components/testimonial-section";
+import ContactForm from "@/components/contact-form";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { useHomeFeatures } from "@/lib/hooks/useHomeFeatures";
+import { useHomeFAQs } from "@/lib/hooks/useHomeFAQs";
 
 function FadeIn({ children, delay = 0, className }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }}
-      transition={{ duration: 0.5, delay, ease: 'easeOut' }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.5, delay, ease: "easeOut" }}
       className={className}
     >
       {children}
     </motion.div>
-  )
+  );
 }
 
 // stylized CSS mock-up of the OghmaNote editor
@@ -51,7 +58,9 @@ function HeroMockup() {
         </div>
         {/* file tree */}
         <div className="w-36 sm:w-48 border-r border-white/5 p-3 space-y-1.5 hidden sm:block">
-          <div className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Files</div>
+          <div className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+            Files
+          </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-primary-500/40" />
             <div className="h-2 w-20 rounded bg-white/15" />
@@ -108,13 +117,13 @@ function HeroMockup() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function Home() {
-  const { t } = useI18n()
-  const features = useHomeFeatures()
-  const faqs = useHomeFAQs()
+  const { t } = useI18n();
+  const features = useHomeFeatures();
+  const faqs = useHomeFAQs();
 
   return (
     <div className="bg-landing">
@@ -128,7 +137,7 @@ export default function Home() {
           <div
             style={{
               clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
+                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
             }}
             className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-primary-500/30 to-secondary-500/20 opacity-20 sm:left-[calc(50%-30rem)] sm:w-288.75"
           />
@@ -138,12 +147,14 @@ export default function Home() {
             <div className="mx-auto max-w-2xl text-center">
               <FadeIn>
                 <h1 className="font-serif text-5xl font-semibold tracking-tight text-balance text-white sm:text-7xl">
-                  {t('OghmaNotes: Semantic Notes & RAG Chat')}
+                  {t("OghmaNotes: Semantic Notes & RAG Chat")}
                 </h1>
               </FadeIn>
               <FadeIn delay={0.1}>
                 <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:text-xl/8">
-                  {t('Upload PDFs. Ask questions with cited answers. Generate adaptive quizzes. Master your materials with spaced-repetition flashcards and Canvas sync. Offline-first learning, designed for busy students.')}
+                  {t(
+                    "Upload PDFs. Ask questions with cited answers. Generate adaptive quizzes. Master your materials with spaced-repetition flashcards and Canvas sync. Offline-first learning, designed for busy students.",
+                  )}
                 </p>
               </FadeIn>
               <FadeIn delay={0.2}>
@@ -152,10 +163,13 @@ export default function Home() {
                     href="/register"
                     className="rounded-md bg-primary-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
                   >
-                    {t('Get started free')}
+                    {t("Get started free")}
                   </a>
-                  <a href="#features" className="text-sm/6 font-semibold text-white">
-                    {t('Learn more')} <span aria-hidden="true">&rarr;</span>
+                  <a
+                    href="#features"
+                    className="text-sm/6 font-semibold text-white"
+                  >
+                    {t("Learn more")} <span aria-hidden="true">&rarr;</span>
                   </a>
                 </div>
               </FadeIn>
@@ -173,7 +187,7 @@ export default function Home() {
           <div
             style={{
               clipPath:
-                'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)',
+                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
             }}
             className="relative left-[calc(50%+3rem)] aspect-1155/678 w-144.5 -translate-x-1/2 bg-linear-to-tr from-primary-500/30 to-secondary-500/20 opacity-20 sm:left-[calc(50%+36rem)] sm:w-288.75"
           />
@@ -184,9 +198,11 @@ export default function Home() {
       <div id="features" className="bg-background pb-24 sm:pb-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <FadeIn>
-            <h2 className="text-center text-base/7 font-semibold text-primary-400">{t('Core Features')}</h2>
+            <h2 className="text-center text-base/7 font-semibold text-primary-400">
+              {t("Core Features")}
+            </h2>
             <p className="mx-auto mt-2 max-w-lg text-center font-serif text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">
-              {t('Everything you need for RAG-powered learning')}
+              {t("Everything you need for RAG-powered learning")}
             </p>
           </FadeIn>
           <dl className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
@@ -195,13 +211,18 @@ export default function Home() {
                 <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-6 transition-all duration-200 hover:bg-white/[0.07] hover:ring-white/20">
                   <dt>
                     <div className="bg-primary-500/10 rounded-lg p-2 w-fit mb-4">
-                      <feature.icon aria-hidden="true" className="size-8 text-primary-400" />
+                      <feature.icon
+                        aria-hidden="true"
+                        className="size-8 text-primary-400"
+                      />
                     </div>
                     <span className="font-serif text-lg font-semibold text-white">
                       {t(feature.name)}
                     </span>
                   </dt>
-                  <dd className="mt-2 text-base/7 text-gray-400">{t(feature.description)}</dd>
+                  <dd className="mt-2 text-base/7 text-gray-400">
+                    {t(feature.description)}
+                  </dd>
                 </div>
               </FadeIn>
             ))}
@@ -218,20 +239,22 @@ export default function Home() {
           <div className="relative isolate overflow-hidden bg-gray-800 px-6 py-24 after:pointer-events-none after:absolute after:inset-0 after:inset-ring after:inset-ring-white/15 sm:rounded-3xl sm:px-24 after:sm:rounded-3xl xl:py-32">
             <FadeIn>
               <h2 className="mx-auto max-w-3xl text-center font-serif text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                {t('Ready to master your materials?')}
+                {t("Ready to master your materials?")}
               </h2>
               <p className="mx-auto mt-6 max-w-lg text-center text-lg text-gray-300">
-                {t('Start with OghmaNotes today. Semantic search, RAG chat, adaptive quizzes, and spaced repetition—everything for RAG-powered learning.')}
+                {t(
+                  "Start with OghmaNotes today. Semantic search, RAG chat, adaptive quizzes, and spaced repetition—everything for RAG-powered learning.",
+                )}
               </p>
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
                   href="/register"
                   className="rounded-md bg-white px-6 py-3 text-sm font-semibold text-gray-900 shadow-xs hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
-                  {t('Get started free')}
+                  {t("Get started free")}
                 </a>
                 <a href="/login" className="text-sm/6 font-semibold text-white">
-                  {t('Sign in')} <span aria-hidden="true">&rarr;</span>
+                  {t("Sign in")} <span aria-hidden="true">&rarr;</span>
                 </a>
               </div>
             </FadeIn>
@@ -240,7 +263,13 @@ export default function Home() {
               aria-hidden="true"
               className="absolute top-1/2 left-1/2 -z-10 size-256 -translate-x-1/2"
             >
-              <circle r={512} cx={512} cy={512} fill="url(#cta-gradient)" fillOpacity="0.7" />
+              <circle
+                r={512}
+                cx={512}
+                cy={512}
+                fill="url(#cta-gradient)"
+                fillOpacity="0.7"
+              />
               <defs>
                 <radialGradient
                   r={1}
@@ -266,27 +295,37 @@ export default function Home() {
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
             <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
               <FadeIn>
-                <h2 className="font-serif text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">{t('Get in touch')}</h2>
+                <h2 className="font-serif text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
+                  {t("Get in touch")}
+                </h2>
                 <p className="mt-6 text-lg/8 text-gray-400">
-                  {t('Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we\'ll get back to you.')}
+                  {t(
+                    "Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we'll get back to you.",
+                  )}
                 </p>
               </FadeIn>
               <dl className="mt-10 space-y-4 text-base/7 text-gray-300">
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">{t('Address')}</span>
-                    <BuildingOffice2Icon aria-hidden="true" className="h-7 w-6 text-gray-400" />
+                    <span className="sr-only">{t("Address")}</span>
+                    <BuildingOffice2Icon
+                      aria-hidden="true"
+                      className="h-7 w-6 text-gray-400"
+                    />
                   </dt>
                   <dd>
-                    {t('School of Computer Science')}
+                    {t("School of Computer Science")}
                     <br />
-                    {t('University of Galway, Ireland')}
+                    {t("University of Galway, Ireland")}
                   </dd>
                 </div>
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">{t('Telephone')}</span>
-                    <PhoneIcon aria-hidden="true" className="h-7 w-6 text-gray-400" />
+                    <span className="sr-only">{t("Telephone")}</span>
+                    <PhoneIcon
+                      aria-hidden="true"
+                      className="h-7 w-6 text-gray-400"
+                    />
                   </dt>
                   <dd>
                     <a href="tel:+353-91-495556" className="hover:text-white">
@@ -296,11 +335,17 @@ export default function Home() {
                 </div>
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
-                    <span className="sr-only">{t('Email')}</span>
-                    <EnvelopeIcon aria-hidden="true" className="h-7 w-6 text-gray-400" />
+                    <span className="sr-only">{t("Email")}</span>
+                    <EnvelopeIcon
+                      aria-hidden="true"
+                      className="h-7 w-6 text-gray-400"
+                    />
                   </dt>
                   <dd>
-                    <a href="mailto:contact@oghmanotes.ie" className="hover:text-white">
+                    <a
+                      href="mailto:contact@oghmanotes.ie"
+                      className="hover:text-white"
+                    >
                       contact@oghmanotes.ie
                     </a>
                   </dd>
@@ -310,9 +355,9 @@ export default function Home() {
           </div>
 
           {/* Contact Form */}
-           <div className="px-6 pt-20 pb-24 sm:pb-32 lg:px-8 lg:py-48">
-             <ContactForm />
-           </div>
+          <div className="px-6 pt-20 pb-24 sm:pb-32 lg:px-8 lg:py-48">
+            <ContactForm />
+          </div>
         </div>
       </div>
 
@@ -321,17 +366,31 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40">
           <div className="mx-auto max-w-4xl">
             <FadeIn>
-              <h2 className="font-serif text-4xl font-semibold tracking-tight text-white sm:text-5xl">{t('Frequently asked questions')}</h2>
+              <h2 className="font-serif text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+                {t("Frequently asked questions")}
+              </h2>
             </FadeIn>
             <dl className="mt-16 divide-y divide-white/10">
               {faqs.map((faq) => (
-                <Disclosure key={faq.question} as="div" className="py-6 first:pt-0 last:pb-0">
+                <Disclosure
+                  key={faq.question}
+                  as="div"
+                  className="py-6 first:pt-0 last:pb-0"
+                >
                   <dt>
                     <DisclosureButton className="group flex w-full items-start justify-between text-left text-white">
-                      <span className="text-base/7 font-semibold">{faq.question}</span>
+                      <span className="text-base/7 font-semibold">
+                        {faq.question}
+                      </span>
                       <span className="ml-6 flex h-7 items-center">
-                        <PlusSmallIcon aria-hidden="true" className="size-6 group-data-[open]:hidden" />
-                        <MinusSmallIcon aria-hidden="true" className="size-6 group-not-data-[open]:hidden" />
+                        <PlusSmallIcon
+                          aria-hidden="true"
+                          className="size-6 group-data-[open]:hidden"
+                        />
+                        <MinusSmallIcon
+                          aria-hidden="true"
+                          className="size-6 group-not-data-[open]:hidden"
+                        />
                       </span>
                     </DisclosureButton>
                   </dt>
@@ -347,5 +406,5 @@ export default function Home() {
 
       <Footer />
     </div>
-  )
+  );
 }

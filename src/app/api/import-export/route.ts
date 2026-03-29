@@ -3,7 +3,6 @@
 // UI buttons in settings are disabled until you flip VAULT_JOBS_ENABLED
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
-import sql from "@/database/pgsql.js";
 import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";

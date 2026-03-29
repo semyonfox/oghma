@@ -376,7 +376,7 @@ export default function CanvasIntegration() {
 
   const allSelected =
     courses.length > 0 && selectedCourseIds.length === courses.length;
-  const someSelected = selectedCourseIds.length > 0 && !allSelected;
+  const _someSelected = selectedCourseIds.length > 0 && !allSelected;
 
   const toggleSelectAll = () => {
     if (allSelected) {

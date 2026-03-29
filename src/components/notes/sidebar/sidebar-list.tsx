@@ -23,7 +23,7 @@ import {
   TreeItemIndex,
 } from "react-complex-tree";
 import "react-complex-tree/lib/style.css";
-import { NOTE_PINNED, NOTE_DELETED, NOTE_SHARED } from "@/lib/notes/types/meta";
+import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import CreateNoteModal from "@/components/notes/create-note-modal";
 
@@ -41,7 +41,7 @@ const SidebarList = () => {
     initLoaded,
     collapseAllItems,
     genNewId,
-    addItem,
+    addItem: _addItem,
     loadChildren,
     loadingChildren,
     expandedIds,
@@ -193,7 +193,7 @@ const SidebarList = () => {
 
   // create actions
   const handleCreateNote = useCallback(
-    async (title: string, language: string) => {
+    async (title: string, _language: string) => {
       const newId = genNewId();
       const newNote = await createNote({
         id: newId,
@@ -569,7 +569,7 @@ const SidebarList = () => {
                 );
                 const isFolder =
                   item.isFolder || nodeData?.isFolder || hasChildren;
-                const isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
+                const _isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
                 const isDragging = (context as any)?.isDragging === true;
                 const isExpanded = expandedIds.has(item.index as string);
                 const isActive = activeId === item.index;
@@ -585,14 +585,14 @@ const SidebarList = () => {
                     isExpanded={isExpanded}
                     isActive={!!isActive}
                     isDragging={isDragging}
-                    isPinned={isPinned}
+                    isPinned={_isPinned}
                     isLoading={loadingChildren.has(itemId)}
                     hasChildren={hasChildren}
                     depth={depth}
                     isRenaming={isItemRenaming}
                     context={context}
                     onContextMenu={(e) =>
-                      handleItemContextMenu(e, itemId, !!isFolder, isPinned)
+                      handleItemContextMenu(e, itemId, !!isFolder, _isPinned)
                     }
                     onToggle={() => {
                       if (isFolder) {
@@ -656,7 +656,7 @@ const SidebarList = () => {
                           rect.left,
                           rect.bottom + 4,
                           !!isFolder,
-                          isPinned,
+                          _isPinned,
                         );
                     }}
                     onOpenInAIChat={(e) => {

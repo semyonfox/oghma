@@ -25,7 +25,7 @@ interface MarkdownEditorProps {
 /**
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
  */
-const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
+const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const [mode, setMode] = useState<EditorMode>("source");
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);

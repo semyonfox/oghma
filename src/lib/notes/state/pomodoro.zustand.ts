@@ -1,6 +1,11 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
-export type PomodoroPhase = 'idle' | 'focus' | 'short_break' | 'long_break' | 'complete';
+export type PomodoroPhase =
+  | "idle"
+  | "focus"
+  | "short_break"
+  | "long_break"
+  | "complete";
 
 interface PomodoroState {
   phase: PomodoroPhase;
@@ -47,7 +52,7 @@ const SHORT_BREAK = 5 * 60;
 const LONG_BREAK = 15 * 60;
 
 const usePomodoroStore = create<PomodoroState>()((set, get) => ({
-  phase: 'idle',
+  phase: "idle",
   paused: false,
   assignmentId: null,
   assignmentTitle: null,
@@ -69,14 +74,14 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
     // create server-side session
     let sessionId = null;
     try {
-      const res = await fetch('/api/pomodoro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/pomodoro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assignment_id: opts.assignmentId,
           time_block_id: opts.timeBlockId,
           duration_mins: 25,
-          type: 'focus',
+          type: "focus",
         }),
       });
       if (res.ok) {
@@ -88,7 +93,7 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
     }
 
     set({
-      phase: 'focus',
+      phase: "focus",
       paused: false,
       assignmentId: opts.assignmentId ?? null,
       assignmentTitle: opts.assignmentTitle ?? null,
@@ -108,7 +113,8 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
 
   tick: () => {
     const { phase, paused, startedAt, totalSeconds } = get();
-    if (phase === 'idle' || phase === 'complete' || paused || !startedAt) return;
+    if (phase === "idle" || phase === "complete" || paused || !startedAt)
+      return;
 
     // compute from wall clock for accuracy
     const elapsed = Math.floor((Date.now() - startedAt) / 1000);
@@ -122,7 +128,11 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
   },
 
   pause: () => {
-    const { startedAt, totalSeconds, secondsRemaining } = get();
+    const {
+      startedAt: _startedAt,
+      totalSeconds: _totalSeconds,
+      secondsRemaining: _secondsRemaining,
+    } = get();
     set({ paused: true });
   },
 
@@ -144,15 +154,15 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
     // end current server session without completing
     const { activeSessionId } = get();
     if (activeSessionId) {
-      fetch('/api/pomodoro', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      fetch("/api/pomodoro", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: activeSessionId, completed: false }),
       }).catch(() => {});
     }
 
     set({
-      phase: 'idle',
+      phase: "idle",
       paused: false,
       assignmentId: null,
       assignmentTitle: null,
@@ -166,15 +176,22 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
 
   completePhase: async () => {
     const state = get();
-    const { phase, sessionIndex, totalSessions, completedFocusSessions, activeSessionId, assignmentId } = state;
+    const {
+      phase,
+      sessionIndex,
+      totalSessions,
+      completedFocusSessions,
+      activeSessionId,
+      assignmentId,
+    } = state;
 
-    if (phase === 'focus') {
+    if (phase === "focus") {
       // complete the server-side session
       if (activeSessionId) {
         try {
-          await fetch('/api/pomodoro', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+          await fetch("/api/pomodoro", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: activeSessionId, completed: true }),
           });
         } catch {
@@ -189,7 +206,7 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
       // all sessions done
       if (nextIndex >= totalSessions) {
         set({
-          phase: 'complete',
+          phase: "complete",
           completedFocusSessions: newCompleted,
           totalMinutesLogged: newMinutes,
           secondsRemaining: 0,
@@ -204,7 +221,7 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
       const breakDuration = isLongBreak ? LONG_BREAK : SHORT_BREAK;
 
       set({
-        phase: isLongBreak ? 'long_break' : 'short_break',
+        phase: isLongBreak ? "long_break" : "short_break",
         completedFocusSessions: newCompleted,
         totalMinutesLogged: newMinutes,
         sessionIndex: nextIndex,
@@ -213,18 +230,18 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
         secondsRemaining: breakDuration,
         activeSessionId: null,
       });
-    } else if (phase === 'short_break' || phase === 'long_break') {
+    } else if (phase === "short_break" || phase === "long_break") {
       // transition back to focus — create new server session
       let sessionId = null;
       try {
-        const res = await fetch('/api/pomodoro', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/pomodoro", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             assignment_id: assignmentId,
             time_block_id: state.timeBlockId,
             duration_mins: 25,
-            type: 'focus',
+            type: "focus",
           }),
         });
         if (res.ok) {
@@ -236,7 +253,7 @@ const usePomodoroStore = create<PomodoroState>()((set, get) => ({
       }
 
       set({
-        phase: 'focus',
+        phase: "focus",
         startedAt: Date.now(),
         totalSeconds: FOCUS_DURATION,
         secondsRemaining: FOCUS_DURATION,
