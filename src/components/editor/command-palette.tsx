@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { FC, useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useShortcut } from '@/lib/notes/hooks/use-keyboard-shortcut';
-import useI18n from '@/lib/notes/hooks/use-i18n';
+import { FC, useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { XMarkIcon } from "@heroicons/react/24/outline";
+import { useShortcut } from "@/lib/notes/hooks/use-keyboard-shortcut";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface CommandItem {
   id: string;
   title: string;
   description?: string;
-  category: 'command' | 'note' | 'recent';
+  category: "command" | "note" | "recent";
   icon?: string;
   action?: () => void;
 }
@@ -26,88 +26,88 @@ interface CommandPaletteProps {
  * Provides fuzzy search over commands, notes, and recent items
  */
 export const CommandPalette: FC<CommandPaletteProps> = ({
-   isOpen: controlledIsOpen = false,
-   onClose,
-   notes = [],
-   onNoteSelect,
- }) => {
-   const { t } = useI18n();
-   const [query, setQuery] = useState('');
-   const [selectedIndex, setSelectedIndex] = useState(0);
-   const inputRef = useRef<HTMLInputElement>(null);
+  isOpen: controlledIsOpen = false,
+  onClose,
+  notes = [],
+  onNoteSelect,
+}) => {
+  const { t } = useI18n();
+  const [query, setQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClose = useCallback(() => {
-    setQuery('');
+    setQuery("");
     setSelectedIndex(0);
     onClose?.();
   }, [onClose]);
 
   // Built-in commands
-   const commands: CommandItem[] = useMemo(
-     () => [
-       {
-         id: 'new-note',
-         title: t('command_palette.create_new_note.title'),
-         description: t('command_palette.create_new_note.description'),
-         category: 'command',
-         icon: '📝',
-         action: () => {
-           onClose?.();
-         },
-       },
-       {
-         id: 'new-folder',
-         title: t('command_palette.create_new_folder.title'),
-         description: t('command_palette.create_new_folder.description'),
-         category: 'command',
-         icon: '📁',
-         action: () => {
-           onClose?.();
-         },
-       },
-       {
-         id: 'search-notes',
-         title: t('command_palette.search_notes.title'),
-         description: t('command_palette.search_notes.description'),
-         category: 'command',
-         icon: '🔍',
-         action: () => {
-           onClose?.();
-         },
-       },
-       {
-         id: 'generate-quiz',
-         title: t('command_palette.generate_quiz.title'),
-         description: t('command_palette.generate_quiz.description'),
-         category: 'command',
-         icon: '📋',
-         action: () => {
-           onClose?.();
-         },
-       },
-       {
-         id: 'export-note',
-         title: t('command_palette.export_note.title'),
-         description: t('command_palette.export_note.description'),
-         category: 'command',
-         icon: '📤',
-         action: () => {
-           onClose?.();
-         },
-       },
-       {
-         id: 'settings',
-         title: t('command_palette.settings.title'),
-         description: t('command_palette.settings.description'),
-         category: 'command',
-         icon: '⚙️',
-         action: () => {
-           onClose?.();
-         },
-       },
-     ],
-     [onClose, t]
-   );
+  const commands: CommandItem[] = useMemo(
+    () => [
+      {
+        id: "new-note",
+        title: t("command_palette.create_new_note.title"),
+        description: t("command_palette.create_new_note.description"),
+        category: "command",
+        icon: "📝",
+        action: () => {
+          onClose?.();
+        },
+      },
+      {
+        id: "new-folder",
+        title: t("command_palette.create_new_folder.title"),
+        description: t("command_palette.create_new_folder.description"),
+        category: "command",
+        icon: "📁",
+        action: () => {
+          onClose?.();
+        },
+      },
+      {
+        id: "search-notes",
+        title: t("command_palette.search_notes.title"),
+        description: t("command_palette.search_notes.description"),
+        category: "command",
+        icon: "🔍",
+        action: () => {
+          onClose?.();
+        },
+      },
+      {
+        id: "generate-quiz",
+        title: t("command_palette.generate_quiz.title"),
+        description: t("command_palette.generate_quiz.description"),
+        category: "command",
+        icon: "📋",
+        action: () => {
+          onClose?.();
+        },
+      },
+      {
+        id: "export-note",
+        title: t("command_palette.export_note.title"),
+        description: t("command_palette.export_note.description"),
+        category: "command",
+        icon: "📤",
+        action: () => {
+          onClose?.();
+        },
+      },
+      {
+        id: "settings",
+        title: t("command_palette.settings.title"),
+        description: t("command_palette.settings.description"),
+        category: "command",
+        icon: "⚙️",
+        action: () => {
+          onClose?.();
+        },
+      },
+    ],
+    [onClose, t],
+  );
 
   // Convert notes to command items
   const noteItems: CommandItem[] = useMemo(
@@ -115,13 +115,13 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
       notes.map((note) => ({
         id: note.id,
         title: note.title,
-        category: 'note' as const,
+        category: "note" as const,
         action: () => {
           onNoteSelect?.(note.id);
           onClose?.();
         },
       })),
-    [notes, onNoteSelect, onClose]
+    [notes, onNoteSelect, onClose],
   );
 
   // Fuzzy search filter
@@ -135,12 +135,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
     }
 
     const searchQuery = query.toLowerCase();
-    const scored = [
-      ...commands,
-      ...noteItems,
-    ].map((item) => {
+    const scored = [...commands, ...noteItems].map((item) => {
       const titleLower = item.title.toLowerCase();
-      const descLower = item.description?.toLowerCase() || '';
+      const descLower = item.description?.toLowerCase() || "";
 
       // Exact match = highest score
       if (titleLower === searchQuery) return { ...item, score: 100 };
@@ -164,7 +161,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
 
   // Register keyboard shortcut (Cmd+K) - just open/close, don't toggle local state
   useShortcut({
-    key: 'k',
+    key: "k",
     meta: true,
     handler: () => {
       if (controlledIsOpen) {
@@ -180,29 +177,33 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((prev) => Math.max(0, prev - 1));
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) => Math.min(filteredItems.length - 1, prev + 1));
+          setSelectedIndex((prev) =>
+            Math.min(filteredItems.length - 1, prev + 1),
+          );
           break;
-        case 'Enter':
+        case "Enter":
           e.preventDefault();
           if (filteredItems[selectedIndex]) {
             filteredItems[selectedIndex].action?.();
           }
           break;
-        case 'Escape':
+        case "Escape":
           e.preventDefault();
           handleClose();
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // handleClose wraps onClose which is already in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledIsOpen, selectedIndex, filteredItems, onClose]);
 
   // Auto-focus input when opened
@@ -229,9 +230,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                 setQuery(e.target.value);
                 setSelectedIndex(0);
               }}
-              placeholder={t('command_palette.search_placeholder')}
-               className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
-             />
+              placeholder={t("command_palette.search_placeholder")}
+              className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
+            />
             <button
               onClick={handleClose}
               className="text-gray-500 hover:text-gray-400 transition-colors"
@@ -248,13 +249,13 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                   key={item.id}
                   onClick={() => {
                     item.action?.();
-                    setQuery('');
+                    setQuery("");
                     setSelectedIndex(0);
                   }}
                   className={`w-full px-4 py-3 text-left transition-colors border-b border-gray-800 last:border-b-0 ${
                     idx === selectedIndex
-                      ? 'bg-indigo-600/20 text-indigo-300'
-                      : 'text-gray-400 hover:bg-gray-700'
+                      ? "bg-indigo-600/20 text-indigo-300"
+                      : "text-gray-400 hover:bg-gray-700"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -262,7 +263,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                     <div className="flex-1">
                       <div className="font-medium text-white">{item.title}</div>
                       {item.description && (
-                        <div className="text-xs text-gray-500">{item.description}</div>
+                        <div className="text-xs text-gray-500">
+                          {item.description}
+                        </div>
                       )}
                     </div>
                     <span className="text-xs text-gray-600 bg-gray-700/50 px-2 py-1 rounded">
@@ -272,19 +275,21 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                 </button>
               ))}
             </div>
-           ) : query.trim() ? (
-             <div className="px-4 py-8 text-center text-gray-500">
-               <p>{t('command_palette.no_results', { query })}</p>
-               <p className="text-xs mt-2">{t('command_palette.try_different_search')}</p>
-             </div>
-           ) : null}
+          ) : query.trim() ? (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <p>{t("command_palette.no_results", { query })}</p>
+              <p className="text-xs mt-2">
+                {t("command_palette.try_different_search")}
+              </p>
+            </div>
+          ) : null}
 
-           {/* Help text */}
-           <div className="border-t border-gray-700 px-4 py-2 bg-gray-900/50 text-xs text-gray-600">
-             <span>{t('command_palette.help_navigate')}</span>
-             <span className="ml-4">{t('command_palette.help_select')}</span>
-             <span className="ml-4">{t('command_palette.help_close')}</span>
-           </div>
+          {/* Help text */}
+          <div className="border-t border-gray-700 px-4 py-2 bg-gray-900/50 text-xs text-gray-600">
+            <span>{t("command_palette.help_navigate")}</span>
+            <span className="ml-4">{t("command_palette.help_select")}</span>
+            <span className="ml-4">{t("command_palette.help_close")}</span>
+          </div>
         </div>
       </div>
     </div>
