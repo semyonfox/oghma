@@ -109,7 +109,6 @@ export function useCanvasImportStatus(options = {}) {
   }, []);
 
   // on mount: check active job and maybe trigger auto-sync
-  /* eslint-disable react-hooks/set-state-in-effect -- restoring persisted state on mount */
   useEffect(() => {
     if (!autoCheckOnMount) return;
 
@@ -126,7 +125,6 @@ export function useCanvasImportStatus(options = {}) {
       maybeAutoSync();
     }, 0);
   }, [autoCheckOnMount, checkStatus, maybeAutoSync]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // poll every 3s while importing
   useEffect(() => {

@@ -72,3 +72,4 @@ database/schema-current.json
 
 # worktrees
 .worktrees/
+.serena/

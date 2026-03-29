@@ -14,12 +14,6 @@
 
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
-import {
-  SQSClient,
-  ReceiveMessageCommand,
-  DeleteMessageCommand,
-} from "@aws-sdk/client-sqs";
-import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
 import { CanvasClient } from "./client.js";
 import { chunkText } from "../chunking.ts";
 import { embedChunks } from "../embeddings.ts";
@@ -49,11 +43,6 @@ const PROCESSABLE_TYPES = new Set([
 ]);
 const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
 const FILE_CONCURRENCY = 5;
-const STUCK_JOB_THRESHOLD = "1 hour";
-const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-// 30 empty polls × 20s long-poll = ~10 min idle before self-scale-down
-const IDLE_POLLS_BEFORE_SHUTDOWN = 30;
-
 async function pooled(tasks, limit) {
   const results = [];
   const executing = new Set();

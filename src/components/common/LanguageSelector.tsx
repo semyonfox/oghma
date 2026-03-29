@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Combobox,
   ComboboxButton,
@@ -8,14 +8,14 @@ import {
   ComboboxOption,
   ComboboxOptions,
   Label,
-} from '@headlessui/react';
-import { ChevronDownIcon } from '@heroicons/react/20/solid';
-import useI18n from '@/lib/notes/hooks/use-i18n';
-import { Locale, configLocale } from '@/locales';
-import { useSettingsStore } from '@/lib/notes/state/ui/settings';
+} from "@headlessui/react";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import { Locale, configLocale } from "@/locales";
+import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 
 interface LanguageSelectorProps {
-  variant?: 'default' | 'compact';
+  variant?: "default" | "compact";
   showLabel?: boolean;
   onLanguageChange?: (locale: Locale) => void;
   className?: string;
@@ -23,30 +23,32 @@ interface LanguageSelectorProps {
 
 // Flag emoji mapping for each locale
 const localeFlags: Record<Locale, string> = {
-  [Locale.EN]: '🇬🇧',
-  [Locale.GA]: '🇮🇪',
-  [Locale.HI]: '🇮🇳',
-  [Locale.ZH_CN]: '🇨🇳',
-  [Locale.FR_FR]: '🇫🇷',
-  [Locale.ES_ES]: '🇪🇸',
-  [Locale.IT_IT]: '🇮🇹',
-  [Locale.de_DE]: '🇩🇪',
-  [Locale.ru_RU]: '🇷🇺',
-  [Locale.ar]: '🇸🇦',
-  [Locale.nl_NL]: '🇳🇱',
-  [Locale.sv_SE]: '🇸🇪',
+  [Locale.EN]: "🇬🇧",
+  [Locale.GA]: "🇮🇪",
+  [Locale.HI]: "🇮🇳",
+  [Locale.ZH_CN]: "🇨🇳",
+  [Locale.FR_FR]: "🇫🇷",
+  [Locale.ES_ES]: "🇪🇸",
+  [Locale.IT_IT]: "🇮🇹",
+  [Locale.de_DE]: "🇩🇪",
+  [Locale.ru_RU]: "🇷🇺",
+  [Locale.ar]: "🇸🇦",
+  [Locale.nl_NL]: "🇳🇱",
+  [Locale.sv_SE]: "🇸🇪",
 };
 
 export default function LanguageSelector({
-  variant = 'default',
+  variant = "default",
   showLabel = true,
   onLanguageChange,
-  className = '',
+  className = "",
 }: LanguageSelectorProps) {
   const { t, locale, activeLocale } = useI18n();
   const { updateSettings } = useSettingsStore();
-  const [query, setQuery] = useState('');
-  const [selectedLocale, setSelectedLocale] = useState<Locale | null>(activeLocale as Locale);
+  const [query, setQuery] = useState("");
+  const [selectedLocale, setSelectedLocale] = useState<Locale | null>(
+    activeLocale as Locale,
+  );
 
   const languages = Object.entries(configLocale).map(([code, name]) => ({
     code: code as Locale,
@@ -55,11 +57,12 @@ export default function LanguageSelector({
   }));
 
   const filteredLanguages =
-    query === ''
+    query === ""
       ? languages
-      : languages.filter((lang) =>
-          lang.name.toLowerCase().includes(query.toLowerCase()) ||
-          lang.code.toLowerCase().includes(query.toLowerCase())
+      : languages.filter(
+          (lang) =>
+            lang.name.toLowerCase().includes(query.toLowerCase()) ||
+            lang.code.toLowerCase().includes(query.toLowerCase()),
         );
 
   const handleLanguageChange = async (lang: Locale) => {
@@ -73,24 +76,26 @@ export default function LanguageSelector({
 
       // Update local state
       setSelectedLocale(lang);
-      setQuery('');
+      setQuery("");
 
       // Call custom callback if provided
       onLanguageChange?.(lang);
     } catch (error) {
-      console.error('Failed to change language:', error);
+      console.error("Failed to change language:", error);
     }
   };
 
-  const currentLanguage = languages.find((lang) => lang.code === selectedLocale);
+  const currentLanguage = languages.find(
+    (lang) => lang.code === selectedLocale,
+  );
 
-  if (variant === 'compact') {
+  if (variant === "compact") {
     // For compact variant, use a regular select (backward compatible)
     return (
       <div className={className}>
         {showLabel && (
           <label className="block text-sm/6 font-medium text-white mb-2">
-            {t('Language')}
+            {t("Language")}
           </label>
         )}
         <select
@@ -98,7 +103,7 @@ export default function LanguageSelector({
           onChange={(e) => handleLanguageChange(e.target.value as Locale)}
           className="block w-full rounded-md bg-white/5 py-1.5 px-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6 appearance-none"
           style={{
-            colorScheme: 'dark'
+            colorScheme: "dark",
           }}
         >
           {languages.map((lang) => (
@@ -116,7 +121,7 @@ export default function LanguageSelector({
     <div className={className}>
       {showLabel && (
         <Label className="block text-sm/6 font-medium text-white mb-2">
-          {t('Language')}
+          {t("Language")}
         </Label>
       )}
       <Combobox
@@ -132,16 +137,19 @@ export default function LanguageSelector({
           <ComboboxInput
             className="block w-full rounded-md bg-white/5 py-1.5 pr-12 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
             onChange={(event) => setQuery(event.target.value)}
-            onBlur={() => setQuery('')}
-            displayValue={(code) =>
+            onBlur={() => setQuery("")}
+            displayValue={(_code) =>
               currentLanguage
                 ? `${currentLanguage.flag} ${currentLanguage.name}`
-                : t('Language')
+                : t("Language")
             }
-            placeholder={t('Search languages...')}
+            placeholder={t("Search languages...")}
           />
           <ComboboxButton className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-hidden">
-            <ChevronDownIcon className="size-5 text-gray-400" aria-hidden="true" />
+            <ChevronDownIcon
+              className="size-5 text-gray-400"
+              aria-hidden="true"
+            />
           </ComboboxButton>
 
           <ComboboxOptions
@@ -150,7 +158,7 @@ export default function LanguageSelector({
           >
             {filteredLanguages.length === 0 && query.length > 0 ? (
               <div className="cursor-default px-3 py-2 text-gray-400">
-                {t('No languages found')}
+                {t("No languages found")}
               </div>
             ) : (
               filteredLanguages.map((lang) => (
@@ -162,7 +170,9 @@ export default function LanguageSelector({
                   <div className="flex items-center">
                     <span className="text-xl mr-3">{lang.flag}</span>
                     <div>
-                      <span className="block truncate font-medium">{lang.name}</span>
+                      <span className="block truncate font-medium">
+                        {lang.name}
+                      </span>
                       <span className="text-xs text-gray-400">{lang.code}</span>
                     </div>
                   </div>

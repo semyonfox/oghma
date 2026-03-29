@@ -1,23 +1,17 @@
 /**
  * Request Deduplicator - Prevents duplicate API calls
- * 
+ *
  * Problem: Multiple components might request the same data simultaneously
  * Solution: Share the same promise for identical requests
- * 
+ *
  * Example:
  *   - User navigates to note
  *   - Editor loads
  *   - Sidebar loads
  *   - All three might fetch the same note data
- * 
+ *
  * With deduplication: Only 1 fetch, shared among 3 components
  */
-
-interface RequestKey {
-  url: string;
-  method: string;
-  body?: string;
-}
 
 interface CachedResponse<T> {
   data: T;
@@ -41,7 +35,7 @@ const DEDUP_CONFIG = {
   // but user interactions (create/rename/move) see fresh data.
   postDedupWindow: 2 * 1000,
   // Only deduplicate GET requests (safe to replay)
-  dedupMethods: ['GET'],
+  dedupMethods: ["GET"],
   // Cleanup interval for stale responses
   cleanupInterval: 30 * 1000, // 30 seconds
 };
@@ -68,7 +62,9 @@ function startPostDedupCleanup() {
     }
 
     if (cleanedCount > 0) {
-      console.debug(`[Dedup] Post-dedup cleanup: removed ${cleanedCount} stale responses`);
+      console.debug(
+        `[Dedup] Post-dedup cleanup: removed ${cleanedCount} stale responses`,
+      );
     }
   }, DEDUP_CONFIG.cleanupInterval);
 }
@@ -87,27 +83,27 @@ export function stopPostDedupCleanup() {
  * Generate a unique key for the request
  */
 function getRequestKey(url: string, method: string, body?: string): string {
-  const bodyKey = body ? `:${body}` : '';
+  const bodyKey = body ? `:${body}` : "";
   return `${method}:${url}${bodyKey}`;
 }
 
 /**
  * Deduplicated fetch wrapper with multi-level caching
- * 
+ *
  * Strategy:
  * 1. Check post-dedup cache (responses from last 10 seconds)
  * 2. Check in-flight requests (requests currently being fetched)
  * 3. If neither exists, make new request and cache response
- * 
+ *
  * This provides two levels of deduplication:
  * - In-flight: Combine simultaneous requests (0.5-2 second window)
  * - Post-dedup: Reuse recent responses (10 second window)
  */
 export async function deduplicatedFetch<T>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
-  const method = options.method || 'GET';
+  const method = options.method || "GET";
   const body = options.body ? String(options.body) : undefined;
   const key = getRequestKey(url, method, body);
 
@@ -141,15 +137,15 @@ export async function deduplicatedFetch<T>(
   const promise = (async () => {
     try {
       const response = await fetch(url, options);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       if (response.status === 204) {
         return undefined;
       }
-      
+
       const data = await response.json();
 
       // Cache successful responses for post-dedup window (only safe methods).
@@ -158,16 +154,22 @@ export async function deduplicatedFetch<T>(
       // and serving them from cache would make initTree think the tree is empty.
       const isEmptyItemsResponse =
         data &&
-        typeof data === 'object' &&
+        typeof data === "object" &&
         Array.isArray(data.items) &&
         data.items.length === 0;
 
-      if (shouldDeduplicate && response.status === 200 && !isEmptyItemsResponse) {
+      if (
+        shouldDeduplicate &&
+        response.status === 200 &&
+        !isEmptyItemsResponse
+      ) {
         responseCache.set(key, {
           data,
           timestamp: Date.now(),
         });
-        console.debug(`[Dedup] Cached response for ${DEDUP_CONFIG.postDedupWindow}ms: ${key}`);
+        console.debug(
+          `[Dedup] Cached response for ${DEDUP_CONFIG.postDedupWindow}ms: ${key}`,
+        );
       }
 
       return data;
@@ -195,7 +197,7 @@ export async function deduplicatedFetch<T>(
 export function clearDeduplicationCache(): void {
   inflightRequests.clear();
   responseCache.clear();
-  console.debug('[Dedup] All caches cleared');
+  console.debug("[Dedup] All caches cleared");
 }
 
 /**
@@ -203,7 +205,7 @@ export function clearDeduplicationCache(): void {
  */
 export function clearPostDedupCache(): void {
   responseCache.clear();
-  console.debug('[Dedup] Post-dedup cache cleared');
+  console.debug("[Dedup] Post-dedup cache cleared");
 }
 
 /**
@@ -240,7 +242,7 @@ export function getCachedResponses(): string[] {
 export function getDedupStats() {
   const now = Date.now();
   const cacheAges = Array.from(responseCache.values()).map(
-    (entry) => now - entry.timestamp
+    (entry) => now - entry.timestamp,
   );
 
   return {
@@ -248,9 +250,10 @@ export function getDedupStats() {
     cachedResponses: responseCache.size,
     totalRequests: stats.totalRequests,
     deduplicatedRequests: stats.deduplicatedRequests,
-    dedupEfficiency: stats.totalRequests > 0
-      ? Math.round((stats.deduplicatedRequests / stats.totalRequests) * 100)
-      : 0,
+    dedupEfficiency:
+      stats.totalRequests > 0
+        ? Math.round((stats.deduplicatedRequests / stats.totalRequests) * 100)
+        : 0,
     cacheStats: {
       oldestCacheMsOld: Math.max(...cacheAges, 0),
       newestCacheMsOld: Math.min(...cacheAges, Infinity),

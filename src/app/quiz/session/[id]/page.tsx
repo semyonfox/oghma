@@ -18,7 +18,7 @@ function QuestionView({
   sessionId,
   currentIndex,
   cardIds,
-  sessionProgress,
+  sessionProgress: _sessionProgress,
   fatigueWarning,
   advanceQuestion,
   setFatigueWarning,

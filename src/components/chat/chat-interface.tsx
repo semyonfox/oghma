@@ -12,7 +12,6 @@ import {
   PaperAirplaneIcon,
   SparklesIcon,
   DocumentTextIcon,
-  XMarkIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
