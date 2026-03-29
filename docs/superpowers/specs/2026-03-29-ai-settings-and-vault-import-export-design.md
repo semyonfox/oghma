@@ -47,12 +47,12 @@ Add to `app.canvas_import_jobs`:
 ### Import flow
 
 1. **Upload**: user selects .zip file via file input in settings
-2. **Presigned upload**: `POST /api/vault/import` returns a presigned S3 PUT URL. Browser uploads directly to S3 (max 500MB).
+2. **Presigned upload**: `POST /api/vault/import` returns a presigned S3 multipart upload URL. Browser uploads directly to S3 (max 10GB) using chunked multipart upload.
 3. **Job creation**: after upload completes, `POST /api/vault/import/start` creates job record + sends SQS message `{ type: 'vault-import', jobId, userId, s3Key }`
 4. **ECS scale-up**: calls `ensureWorkerRunning()` (existing `src/lib/ecs.ts`)
 5. **Worker processing** (`src/lib/vault/import-worker.js`):
-   - downloads zip from S3
-   - decompresses with `fflate.unzipSync()` (fine for <= 500MB)
+   - streams zip from S3 using range requests
+   - decompresses with `fflate`'s streaming `Unzip` class (processes entries one at a time, flat ~200MB memory regardless of zip size)
    - iterates entries, skipping `__MACOSX/`, `.DS_Store`, etc.
    - for each directory: calls generic `findOrCreateFolder()` (new wrapper around canvas-folders.js logic without canvas-specific IDs)
    - for each file: `createNote()`, upload to S3, run `processRagPipeline()` for PDFs/docs/text
@@ -73,7 +73,7 @@ Add to `app.canvas_import_jobs`:
      - if `s3_key` exists: downloads file from S3, adds to zip at the computed path
      - if text note (no s3_key, has content): writes `{title}.md` at the computed path
      - skips deleted notes (`deleted != 0`)
-   - builds zip with `fflate.zipSync()` or streaming `Zip` for larger vaults
+   - builds zip with `fflate`'s streaming `Zip` class, piping compressed chunks directly into an S3 multipart upload (flat ~200MB memory regardless of vault size)
    - uploads zip to S3 at `exports/{userId}/{jobId}/vault-export.zip`
    - generates 24-hour presigned download URL
    - updates job with `output_s3_key` and download URL
@@ -141,7 +141,7 @@ Replaces the disabled "Import (Coming soon)" and "Export (Coming soon)" buttons 
 
 **Import section**:
 
-- file input accepting `.zip` (max 500MB)
+- file input accepting `.zip` (max 10GB)
 - upload progress bar during S3 upload
 - processing status with file count progress (e.g., "Processing 15/47 files...")
 - completion message with summary
@@ -161,16 +161,17 @@ Both sections show the last job status if one exists (polling on mount).
 - S3 upload failures: presigned URL expiry (15 min), frontend shows retry option
 - worker timeout: stuck job detection already exists (1 hour threshold)
 
-### Performance expectations (500MB vault ceiling)
+### Performance expectations (up to 10GB vaults)
 
-- **Export**: 30-60 seconds for typical vaults
-- **Import (markdown only)**: 1-2 minutes
-- **Import (mixed with PDFs)**: 5-15 minutes depending on OCR load
-- Memory: `unzipSync` on 500MB needs ~1-1.5GB RAM. Fargate container at 2GB is sufficient.
+- **Export (small vault < 500MB)**: 30-60 seconds
+- **Export (large vault ~6GB)**: 3-8 minutes (S3 download throughput bound)
+- **Import (markdown only)**: 1-5 minutes depending on file count
+- **Import (mixed with PDFs, ~6GB)**: 15-45 minutes depending on OCR load
+- Memory: streaming Zip/Unzip keeps usage flat at ~200MB regardless of vault size. Fargate container stays at 2GB.
 
 ### Security
 
 - presigned URLs scoped to user's S3 prefix
 - job ownership validated on all status endpoints
-- zip bomb protection: reject if decompressed size > 2GB or entry count > 10,000
+- zip bomb protection: reject if decompressed size > 20GB or entry count > 50,000
 - path traversal protection: sanitize zip entry paths (no `../`)
