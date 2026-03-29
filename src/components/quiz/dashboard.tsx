@@ -6,7 +6,6 @@ import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
-import StreakDisplay from "./streak-display";
 
 export default function QuizDashboard() {
   const router = useRouter();
@@ -38,7 +37,6 @@ export default function QuizDashboard() {
       } catch {
         // network or parse error — fallback handled below
       } finally {
-        // if dashboardData was never set (API failed), provide defaults
         if (!useQuizStore.getState().dashboardData) {
           setDashboard({
             dueCount: 0,
@@ -64,8 +62,6 @@ export default function QuizDashboard() {
     });
     if (!res.ok) return;
     const data = await res.json();
-    // store session data in Zustand before navigating so the session page
-    // has cardIds + first question immediately (no extra GET needed)
     if (data.cardIds && data.question) {
       startSession(data.sessionId, data.cardIds, data.question);
     }
@@ -92,19 +88,13 @@ export default function QuizDashboard() {
             })}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <StreakDisplay
-            currentStreak={dashboardData.currentStreak}
-            longestStreak={dashboardData.longestStreak}
-          />
-          <button
-            onClick={() => startReview("all")}
-            disabled={dashboardData.dueCount === 0}
-            className="bg-secondary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {t("Start Review")}
-          </button>
-        </div>
+        <button
+          onClick={() => startReview("all")}
+          disabled={dashboardData.dueCount === 0}
+          className="bg-secondary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t("Start Review")}
+        </button>
       </div>
 
       <StatsRow
@@ -112,6 +102,7 @@ export default function QuizDashboard() {
         dueCount={dashboardData.dueCount}
         reviewedToday={dashboardData.reviewedToday}
         weekAccuracy={dashboardData.weekAccuracy}
+        currentStreak={dashboardData.currentStreak}
       />
 
       <div className="mt-6">
