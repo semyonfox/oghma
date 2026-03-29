@@ -13,12 +13,22 @@ import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
 import type { FilterType } from "@/lib/quiz/types";
 import sql from "@/database/pgsql.js";
+import {
+  quizSessionCreateSchema,
+  validateBody,
+} from "@/lib/validations/schemas";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
 
-  const body = await request.json();
+  const rawBody = await request.json();
+
+  // validate input shape
+  const zodResult = validateBody(quizSessionCreateSchema, rawBody);
+  if (!zodResult.success) return zodResult.response;
+  const body = zodResult.data;
+
   const filterType = body.filterType as FilterType;
   const filterValue = body.filterValue;
 
