@@ -32,11 +32,16 @@ import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
+import { loginSchema, validateBody } from "@/lib/validations/schemas";
 
 export const POST = withErrorHandler(async (request) => {
   // 1. Parse and validate request body
   const { data: body, error: parseError } = await parseJsonBody(request);
   if (parseError) return parseError;
+
+  // 1b. Validate input shape with Zod
+  const zodResult = validateBody(loginSchema, body);
+  if (!zodResult.success) return zodResult.response;
 
   const { email, password, rememberMe } = body;
 
