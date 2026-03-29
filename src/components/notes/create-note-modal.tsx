@@ -123,21 +123,21 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 rounded-lg shadow-xl max-w-sm w-full"
+        className="bg-surface rounded-xl shadow-2xl ring-1 ring-white/[0.08] max-w-sm w-full"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
            <h2
              id="create-note-title"
-             className="text-lg font-semibold text-white"
+             className="text-base font-semibold text-text"
            >
              {t('Create Note')}
            </h2>
           <button
             onClick={onClose}
             disabled={isCreating}
-            className="p-1 hover:bg-white/10 rounded text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+            className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -152,8 +152,8 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
               disabled={isCreating}
              className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
                  mode === 'new'
-                   ? 'bg-indigo-600 text-white'
-                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   ? 'bg-primary-600 text-text-on-primary'
+                   : 'bg-surface-elevated/50 text-text-secondary hover:bg-surface-elevated'
                } disabled:opacity-50`}
              >
                {t('File')}
@@ -163,8 +163,8 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                disabled={isCreating}
                className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
                  mode === 'folder'
-                   ? 'bg-indigo-600 text-white'
-                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   ? 'bg-primary-600 text-text-on-primary'
+                   : 'bg-surface-elevated/50 text-text-secondary hover:bg-surface-elevated'
                } disabled:opacity-50`}
              >
                {t('Folder')}
@@ -174,8 +174,8 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                disabled={isCreating}
                className={`flex-1 px-4 py-2 rounded font-medium text-sm transition-colors ${
                  mode === 'upload'
-                   ? 'bg-indigo-600 text-white'
-                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   ? 'bg-primary-600 text-text-on-primary'
+                   : 'bg-surface-elevated/50 text-text-secondary hover:bg-surface-elevated'
                } disabled:opacity-50`}
              >
                {t('Upload')}
@@ -185,7 +185,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           {/* New File Mode */}
            {mode === 'new' && (
              <div className="space-y-4">
-               <p className="text-sm text-gray-400">
+               <p className="text-sm text-text-tertiary">
                  {t('Create a new markdown file')}
                </p>
              </div>
@@ -194,7 +194,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
            {/* New Folder Mode */}
            {mode === 'folder' && (
              <div className="space-y-4">
-               <p className="text-sm text-gray-400">
+               <p className="text-sm text-text-tertiary">
                  {t('Create a new folder to organize your notes')}
                </p>
              </div>
@@ -209,19 +209,19 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragging
-                  ? 'border-blue-500 bg-blue-500/10'
-                  : 'border-gray-600 hover:border-gray-500'
+                  ? 'border-primary-500 bg-primary-500/10'
+                  : 'border-border hover:border-text-tertiary'
               }`}
             >
-               <CloudArrowUpIcon className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-               <p className="text-sm font-medium text-gray-300 mb-2">
+               <CloudArrowUpIcon className="w-10 h-10 mx-auto mb-3 text-text-tertiary opacity-50" />
+               <p className="text-sm font-medium text-text-secondary mb-2">
                  {t('Drag and drop your file')}
                </p>
-               <p className="text-xs text-gray-500 mb-4">{t('or')}</p>
+               <p className="text-xs text-text-tertiary mb-4">{t('or')}</p>
                <button
                  onClick={handleClickUpload}
                  disabled={isCreating}
-                 className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors disabled:opacity-50"
+                 className="inline-block px-4 py-2 bg-primary-600 hover:bg-primary-700 text-text-on-primary text-sm rounded transition-colors disabled:opacity-50"
                >
                  {t('Choose File')}
                </button>
@@ -236,11 +236,11 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
         </div>
 
          {/* Footer */}
-         <div className="px-6 py-4 border-t border-white/10 flex justify-end gap-2">
+         <div className="px-6 py-4 border-t border-border-subtle flex justify-end gap-2">
            <button
              onClick={onClose}
              disabled={isCreating}
-             className="px-4 py-2 text-sm text-gray-300 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+             className="px-4 py-2 text-sm text-text-secondary hover:bg-white/[0.06] rounded transition-colors disabled:opacity-50"
            >
              {t('Close')}
            </button>
@@ -248,7 +248,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
              <button
                onClick={handleCreateNew}
                disabled={isCreating}
-               className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+               className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-text-on-primary rounded transition-colors disabled:opacity-50"
              >
                {isCreating ? t('Creating...') : t('Create')}
              </button>
@@ -257,7 +257,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
              <button
                onClick={handleCreateFolder}
                disabled={isCreating}
-               className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+               className="px-4 py-2 text-sm bg-primary-600 hover:bg-primary-700 text-text-on-primary rounded transition-colors disabled:opacity-50"
              >
                {isCreating ? t('Creating...') : t('Create')}
              </button>

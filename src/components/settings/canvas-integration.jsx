@@ -178,7 +178,11 @@ export default function CanvasIntegration() {
         const res = await fetch("/api/canvas/connect");
         const data = await res.json();
 
-        if (res.ok && data.connected) {
+        if (res.status === 401) {
+          setConnectionWarning(
+            t("Your session has expired. Please log in again."),
+          );
+        } else if (res.ok && data.connected) {
           setIsConnected(true);
           setConnectedDomain(data.domain);
           setCourses(data.courses ?? []);
@@ -341,6 +345,10 @@ export default function CanvasIntegration() {
     try {
       const res = await fetch("/api/canvas/sync", { method: "POST" });
       const data = await res.json();
+      if (res.status === 401) {
+        setConnectionError(t("Your session has expired. Please log in again."));
+        return;
+      }
       if (!res.ok || !data.queued) {
         setConnectionError(data.error ?? data.reason ?? t("Sync failed"));
         return;
@@ -517,6 +525,13 @@ export default function CanvasIntegration() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setConnectionError(
+            t("Your session has expired. Please log in again."),
+          );
+          setIsImporting(false);
+          return;
+        }
         if (res.status === 403 && data.courseId) {
           const updated = {
             ...courseErrors,
