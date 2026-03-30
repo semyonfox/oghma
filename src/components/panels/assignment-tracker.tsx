@@ -17,7 +17,7 @@ import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import NewTaskModal from "./new-task-modal";
 
-// -- per-course mini ring --------------------------------------------------
+// -- concentric activity rings ---------------------------------------------
 
 interface CourseRingData {
   name: string;
@@ -26,82 +26,81 @@ interface CourseRingData {
   total: number;
 }
 
-function MiniRing({
-  done,
-  total,
-  color,
-  size = 36,
-}: {
-  done: number;
-  total: number;
-  color: string;
-  size?: number;
-}) {
-  const cx = size / 2;
-  const r = cx - 3;
-  const circ = 2 * Math.PI * r;
-  const pct = total > 0 ? done / total : 0;
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className="shrink-0"
-    >
-      <circle
-        cx={cx}
-        cy={cx}
-        r={r}
-        fill="none"
-        strokeWidth={3}
-        className="stroke-border-subtle"
-      />
-      {pct > 0 && (
-        <circle
-          cx={cx}
-          cy={cx}
-          r={r}
-          fill="none"
-          strokeWidth={3}
-          stroke={color}
-          strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cx})`}
-          style={{ transition: "stroke-dasharray 0.4s ease" }}
-        />
-      )}
-      <text
-        x={cx}
-        y={cx + 4}
-        textAnchor="middle"
-        className="fill-text-tertiary"
-        fontSize={10}
-        fontWeight={600}
-      >
-        {total > 0 ? `${Math.round(pct * 100)}` : "0"}
-      </text>
-    </svg>
-  );
-}
-
-function CourseRings({ courses }: { courses: CourseRingData[] }) {
+function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
   if (courses.length === 0) return null;
 
+  const size = 120;
+  const cx = size / 2;
+  const strokeWidth = 6;
+  const gap = 3;
+  // outermost radius leaves room for stroke
+  const outerR = cx - strokeWidth / 2 - 1;
+
   return (
-    <div className="flex items-center gap-3 px-3 py-2 overflow-x-auto">
-      {courses.map((c) => (
-        <div
-          key={c.name}
-          className="flex flex-col items-center gap-1 min-w-0"
-          title={`${c.name}: ${c.done}/${c.total}`}
-        >
-          <MiniRing done={c.done} total={c.total} color={c.color} />
-          <span className="text-[9px] text-text-tertiary truncate max-w-[56px] leading-none">
-            {c.name}
-          </span>
-        </div>
-      ))}
+    <div className="flex flex-col items-center gap-2 px-3 py-3">
+      {/* concentric ring SVG */}
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="shrink-0"
+      >
+        {courses.map((c, i) => {
+          const r = outerR - i * (strokeWidth + gap);
+          if (r <= 0) return null;
+          const circ = 2 * Math.PI * r;
+          const pct = c.total > 0 ? c.done / c.total : 0;
+
+          return (
+            <g key={c.name}>
+              {/* background track */}
+              <circle
+                cx={cx}
+                cy={cx}
+                r={r}
+                fill="none"
+                strokeWidth={strokeWidth}
+                className="stroke-border-subtle"
+              />
+              {/* progress arc */}
+              {pct > 0 && (
+                <circle
+                  cx={cx}
+                  cy={cx}
+                  r={r}
+                  fill="none"
+                  strokeWidth={strokeWidth}
+                  stroke={c.color}
+                  strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
+                  strokeLinecap="round"
+                  transform={`rotate(-90 ${cx} ${cx})`}
+                  style={{ transition: "stroke-dasharray 0.4s ease" }}
+                />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* legend */}
+      <div className="flex flex-col gap-1">
+        {courses.map((c) => {
+          const pct = c.total > 0 ? Math.round((c.done / c.total) * 100) : 0;
+          return (
+            <div
+              key={c.name}
+              className="flex items-center gap-1.5 text-[10px] text-text-tertiary leading-none"
+            >
+              <span
+                className="inline-block w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: c.color }}
+              />
+              <span className="truncate max-w-[120px]">{c.name}</span>
+              <span className="ml-auto tabular-nums opacity-70">{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -278,7 +277,7 @@ export default function AssignmentTracker() {
       </div>
 
       {/* per-course completion rings */}
-      <CourseRings courses={courseRings} />
+      <ConcentricRings courses={courseRings} />
 
       {/* tab bar */}
       <div className="flex mx-3 mb-2 rounded-md bg-white/[0.03] p-0.5">
