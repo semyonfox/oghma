@@ -16,10 +16,10 @@ export default function GlobalError({
       <h2 className="text-lg font-semibold mb-2">
         {t("error.something_went_wrong")}
       </h2>
-      <p className="text-sm text-gray-500 mb-4">{error.message}</p>
+      <p className="text-sm text-text-tertiary mb-4">{error.message}</p>
       <button
         onClick={reset}
-        className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors"
+        className="px-4 py-2 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-500 transition-colors"
       >
         {t("error.try_again")}
       </button>

@@ -134,16 +134,16 @@ body {
 @layer components {
   /* Editor Styles */
   .editor-input {
-    @apply w-full bg-gray-800 text-white outline-none border-none rounded-lg;
+    @apply w-full bg-surface text-text outline-none border-none rounded-lg;
     @apply transition-colors duration-200;
   }
 
   .editor-input:focus {
-    @apply bg-gray-700 ring-2 ring-indigo-500;
+    @apply bg-surface-elevated ring-2 ring-primary-500;
   }
 
   .editor-placeholder {
-    @apply absolute text-gray-500 pointer-events-none select-none;
+    @apply absolute text-text-tertiary pointer-events-none select-none;
   }
 
   .lexical-editor-wrapper {
@@ -152,11 +152,11 @@ body {
 
   /* Lexical Editor Theme */
   .editor-theme-light {
-    @apply bg-white text-gray-900;
+    @apply bg-white text-neutral-900;
   }
 
   .editor-theme-dark {
-    @apply bg-gray-800 text-gray-50;
+    @apply bg-surface text-text;
   }
 
   /* Lexical Rich Text Plugin Styles */
@@ -190,19 +190,19 @@ body {
   }
 
   .lexical-editor a {
-    @apply text-indigo-500 underline hover:text-indigo-600 cursor-pointer;
+    @apply text-primary-400 underline hover:text-primary-300 cursor-pointer;
   }
 
   .lexical-editor blockquote {
-    @apply border-l-4 border-indigo-500 pl-4 italic my-2 text-gray-400;
+    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-tertiary;
   }
 
   .lexical-editor code {
-    @apply bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-mono text-sm;
+    @apply bg-surface-elevated px-2 py-1 rounded font-mono text-sm;
   }
 
   .lexical-editor pre {
-    @apply bg-gray-900 text-gray-50 p-4 rounded-lg overflow-x-auto;
+    @apply bg-background text-text p-4 rounded-lg overflow-x-auto;
   }
 
   /* Lexical theme classes - used by Lexical for semantic markup */
@@ -235,15 +235,15 @@ body {
   }
 
   .editor-link {
-    @apply text-blue-400 underline hover:text-blue-300 cursor-pointer;
+    @apply text-primary-400 underline hover:text-primary-300 cursor-pointer;
   }
 
   .editor-code {
-    @apply bg-slate-700 text-slate-300 px-2 py-1 rounded font-mono text-sm;
+    @apply bg-surface-elevated text-text-secondary px-2 py-1 rounded font-mono text-sm;
   }
 
   .editor-quote {
-    @apply border-l-4 border-blue-500 pl-4 italic my-2 text-slate-400;
+    @apply border-l-4 border-primary-500 pl-4 italic my-2 text-text-tertiary;
   }
 
   /* Card hover effect */

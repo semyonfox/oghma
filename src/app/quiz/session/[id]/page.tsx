@@ -38,7 +38,7 @@ function SessionComplete({
   const forTomorrow = progress.answered - progress.correct;
 
   return (
-    <div className="h-screen flex items-center justify-center px-6">
+    <div className="h-screen flex items-center justify-center px-6 bg-background text-text">
       <div className="max-w-md w-full text-center">
         <h1 className="font-serif text-text text-xl font-semibold">
           {t("quiz.complete.title")}
@@ -296,7 +296,7 @@ export default function QuizSessionPage() {
 
   if (!currentQuestion) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-text-tertiary text-sm">
           {t("quiz.session.loading")}
         </div>
@@ -305,7 +305,7 @@ export default function QuizSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto">
+    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-background text-text">
       <ProgressBar
         current={sessionProgress.answered}
         total={sessionProgress.total}
