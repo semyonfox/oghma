@@ -296,7 +296,7 @@ export async function processVaultImport(msg) {
 
     console.log(`[${ts()}] Streaming zip from S3: ${s3Key}`);
 
-    const entryCount = await streamAndProcessZip(
+    const totalEntries = await streamAndProcessZip(
       s3Key,
       userId,
       jobId,
@@ -351,7 +351,7 @@ export async function processVaultImport(msg) {
 
           totalFiles++;
           if (totalFiles % 10 === 0) {
-            await sql`UPDATE app.canvas_import_jobs SET expected_total = ${entryCount || totalFiles}, updated_at = NOW() WHERE id = ${jobId}::uuid`;
+            await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles + failedFiles}, updated_at = NOW() WHERE id = ${jobId}::uuid`;
           }
           console.log(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {
@@ -366,7 +366,7 @@ export async function processVaultImport(msg) {
 
     await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'complete', expected_total = ${totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
+      SET status = 'complete', expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid
     `;
 

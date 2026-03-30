@@ -14,6 +14,12 @@ const IGNORED_PATHS = [
   "Thumbs.db",
   ".git/",
   "node_modules/",
+  "[Content_Types].xml",
+  "_rels/",
+  "docProps/",
+  "ppt/",
+  "word/",
+  "xl/",
 ];
 
 /**
