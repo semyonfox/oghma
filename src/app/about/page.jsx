@@ -23,8 +23,8 @@ const universities = [
     logo: "/University_Of_Galway_Logo__Positive_Landscape.svg",
   },
   {
-    name: "Dublin City University",
-    logo: "/dcu_logo.png",
+    name: "University of Galway",
+    logo: "/University_Of_Galway_Logo__Positive_Landscape.svg",
   },
 ];
 

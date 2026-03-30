@@ -164,6 +164,12 @@ export default function WeekView() {
     const endMin = (startMin + 30) % 60;
     const ends_at = `${date}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
 
+    // prevent overlapping time blocks on the same slot
+    const hasOverlap = timeBlocks.some(
+      (tb) => tb.starts_at < ends_at && tb.ends_at > starts_at,
+    );
+    if (hasOverlap) return;
+
     await createTimeBlock({ starts_at, ends_at });
     setSelectedDate(date);
   };

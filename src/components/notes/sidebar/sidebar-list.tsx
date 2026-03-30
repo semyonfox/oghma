@@ -542,7 +542,7 @@ const SidebarList = () => {
         </div>
 
         {/* Tree */}
-        <div className="flex-1 overflow-y-auto pb-4">
+        <div className="flex-1 pb-4">
           <ControlledTreeEnvironment
             items={treeData}
             getItemTitle={(item) => item.data?.title ?? "Untitled"}

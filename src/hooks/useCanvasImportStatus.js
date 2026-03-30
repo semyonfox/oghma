@@ -71,6 +71,11 @@ export function useCanvasImportStatus(options = {}) {
           .map((l) => l.noteId);
         if (newNoteIds.length > 0) {
           useSyncStatusStore.getState().markCanvasNew(newNoteIds);
+
+          // refresh file tree to show newly imported notes
+          const { default: useNoteTreeStore } =
+            await import("@/lib/notes/state/tree");
+          useNoteTreeStore.getState().refreshTree();
         }
       }
     } catch (err) {
