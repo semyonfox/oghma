@@ -99,9 +99,9 @@ export const EditorHeader: FC<EditorHeaderProps> = ({
                   {i > 0 && (
                     <span className="text-text-tertiary opacity-40">/</span>
                   )}
-                  <button className="hover:text-text-tertiary transition-colors">
+                  <span className="hover:text-text-tertiary transition-colors">
                     {crumb}
-                  </button>
+                  </span>
                 </span>
               ))}
             </div>
