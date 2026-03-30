@@ -1383,23 +1383,6 @@ export default function SettingsPage() {
             </div>
 
             <div className="md:col-span-2 space-y-6">
-              {/* log out other sessions */}
-              <div>
-                <h3 className="text-sm/6 font-medium text-text mb-2">
-                  {t("Log out other sessions")}
-                </h3>
-                <p className="text-sm text-text-tertiary mb-4">
-                  {t("Sign out all other active sessions on your account.")}
-                </p>
-                <button
-                  type="button"
-                  disabled
-                  className="rounded-md bg-yellow-500/10 px-3 py-2 text-sm font-semibold text-yellow-400 ring-1 ring-yellow-500/20 opacity-50 cursor-not-allowed"
-                >
-                  {t("Log out other sessions (coming soon)")}
-                </button>
-              </div>
-
               {/* clear vault */}
               <div className="border-t border-border pt-6">
                 <h3 className="text-sm/6 font-medium text-text mb-2">

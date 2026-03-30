@@ -659,13 +659,15 @@ export default function CanvasIntegration() {
             </label>
             <p className="mt-1 text-xs text-text-tertiary">
               {t("Your institution's Canvas URL e.g.")}{" "}
-              <span className="text-text-secondary">dcu.instructure.com</span>
+              <span className="text-text-secondary">
+                universityofgalway.instructure.com
+              </span>
             </p>
             <div className="mt-2">
               <input
                 id="canvas-domain"
                 type="text"
-                placeholder="dcu.instructure.com"
+                placeholder="universityofgalway.instructure.com"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
