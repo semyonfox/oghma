@@ -27,8 +27,15 @@ const UUID_RE =
 const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { treeWidth, rightPanelWidth, rightPanelOpen, paneB, setPaneA, paneA } =
-    useLayoutStore();
+  // granular selectors — only re-render when the specific values this
+  // component reads actually change (not on every pane content update)
+  const treeWidth = useLayoutStore((s) => s.treeWidth);
+  const rightPanelWidth = useLayoutStore((s) => s.rightPanelWidth);
+  const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
+  const paneB = useLayoutStore((s) => s.paneB);
+  const setPaneA = useLayoutStore((s) => s.setPaneA);
+  // read paneA.fileId only (not the full object) to avoid re-renders on title/editMode changes
+  const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
 
   // Load file from URL path (e.g., /notes/<uuid>)
   useEffect(() => {
@@ -55,7 +62,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
           `/api/notes/${fileId}?fields=note_id,title,content`,
         );
         if (!response.ok) {
-          if (!cancelled && fileId !== paneA.fileId) {
+          if (!cancelled && fileId !== paneAFileId) {
             setPaneA({
               fileId,
               fileType: "note",
@@ -76,7 +83,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
           );
         }
       } catch {
-        if (!cancelled && fileId !== paneA.fileId) {
+        if (!cancelled && fileId !== paneAFileId) {
           setPaneA({
             fileId,
             fileType: "note",
@@ -93,7 +100,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     };
     // router is a stable Next.js ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, paneA.fileId, setPaneA]);
+  }, [pathname, paneAFileId, setPaneA]);
 
   // Global keyboard shortcuts - optimized to prevent constant re-attachment
   useEffect(() => {

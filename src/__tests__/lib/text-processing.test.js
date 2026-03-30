@@ -2,17 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { processExtractedText } from '@/lib/canvas/text-processing.js';
 
 describe('processExtractedText', () => {
-    it('removes common stop words', () => {
+    it('preserves stop words for embedding context', () => {
         const result = processExtractedText('the quick brown fox is a very fast animal');
-        expect(result).not.toMatch(/\bthe\b/);
-        expect(result).not.toMatch(/\bis\b/);
-        expect(result).not.toMatch(/\ba\b/);
+        expect(result).toContain('the');
+        expect(result).toContain('is');
         expect(result).toContain('quick');
         expect(result).toContain('brown');
         expect(result).toContain('fox');
     });
 
-    it('removes pure numbers (page numbers, years etc.)', () => {
+    it('strips pure numbers (page/slide artefacts) but keeps alphanumeric tokens', () => {
         const result = processExtractedText('Chapter 12 Page 45 Introduction Algorithms');
         expect(result).not.toMatch(/\b12\b/);
         expect(result).not.toMatch(/\b45\b/);
@@ -20,7 +19,7 @@ describe('processExtractedText', () => {
         expect(result).toContain('Introduction');
     });
 
-    it('removes single characters', () => {
+    it('removes single characters (PDF artefacts)', () => {
         const result = processExtractedText('a x b word1 c test');
         // single chars like x, b, c should be stripped
         expect(result).not.toMatch(/\bx\b/);
@@ -66,8 +65,8 @@ describe('processExtractedText', () => {
         expect(result).toContain('http2');
     });
 
-    it('returns empty string for input of only stop words and noise', () => {
-        const result = processExtractedText('the is a 1 2 3 --- ...');
+    it('returns empty string for input of only noise symbols', () => {
+        const result = processExtractedText('--- ... ### (())');
         expect(result).toBe('');
     });
 });

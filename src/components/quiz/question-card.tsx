@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { BloomLevel } from "@/lib/quiz/types";
@@ -32,7 +32,7 @@ export default function QuestionCard({
     setSelected(index);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (submitted) return;
     setSubmitted(true);
 
@@ -45,17 +45,50 @@ export default function QuestionCard({
       const isCorrect = question.options[selected].is_correct;
       onAnswer(question.options[selected].text, isCorrect);
     }
-  };
+  }, [submitted, question, fillInAnswer, selected, onAnswer]);
+
+  // keyboard shortcuts for MCQ selection and submission
+  useEffect(() => {
+    if (submitted) return;
+    const handler = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      if (question.options) {
+        const numKey = parseInt(e.key);
+        if (numKey >= 1 && numKey <= question.options.length) {
+          e.preventDefault();
+          setSelected(numKey - 1);
+          return;
+        }
+        const letterIdx = e.key.toUpperCase().charCodeAt(0) - 65;
+        if (letterIdx >= 0 && letterIdx < question.options.length) {
+          e.preventDefault();
+          setSelected(letterIdx);
+          return;
+        }
+      }
+      if (e.key === "Enter" && selected !== null) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [submitted, question.options, selected, handleSubmit]);
 
   return (
     <div className="flex-1 flex flex-col justify-center gap-5">
       {/* tags */}
       <div className="flex gap-2 items-center">
-        <span className="bg-secondary-500/15 text-secondary-400 px-2.5 py-0.5 rounded text-[10px] font-medium">
+        <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded text-[10px] font-medium">
           {BLOOM_NAMES[question.bloom_level]}
         </span>
         {moduleName && (
-          <span className="bg-primary-500/15 text-primary-400 px-2.5 py-0.5 rounded text-[10px]">
+          <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded text-[10px]">
             {moduleName}
           </span>
         )}
@@ -76,15 +109,15 @@ export default function QuestionCard({
 
             if (submitted) {
               if (option.is_correct) {
-                borderColor = "border-success-500";
-                bgColor = "bg-success-500/5";
+                borderColor = "border-success-500/20";
+                bgColor = "bg-success-500/3";
               } else if (i === selected && !option.is_correct) {
-                borderColor = "border-error-500";
-                bgColor = "bg-error-500/5";
+                borderColor = "border-error-500/20";
+                bgColor = "bg-error-500/3";
               }
             } else if (i === selected) {
-              borderColor = "border-secondary-500";
-              bgColor = "bg-secondary-500/5";
+              borderColor = "border-text-tertiary";
+              bgColor = "bg-white/5";
             }
 
             return (
@@ -99,12 +132,12 @@ export default function QuestionCard({
                     i === selected
                       ? submitted
                         ? option.is_correct
-                          ? "bg-success-500 border-success-500 text-white"
-                          : "bg-error-500 border-error-500 text-white"
-                        : "bg-secondary-500 border-secondary-500 text-white"
+                          ? "bg-success-500/20 border-success-500/30 text-text-secondary"
+                          : "bg-error-500/20 border-error-500/30 text-text-secondary"
+                        : "bg-white/10 border-text-tertiary text-text-secondary"
                       : submitted && option.is_correct
-                        ? "bg-success-500 border-success-500 text-white"
-                        : "border-text-tertiary text-text-tertiary"
+                        ? "bg-success-500/20 border-success-500/30 text-text-secondary"
+                        : "border-border-subtle text-text-tertiary"
                   }`}
                 >
                   {letter}
@@ -135,7 +168,7 @@ export default function QuestionCard({
             onChange={(e) => setFillInAnswer(e.target.value)}
             disabled={submitted}
             placeholder={t("quiz.question.type_answer")}
-            className="flex-1 bg-surface border border-border-subtle rounded-lg px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:border-secondary-500"
+            className="flex-1 bg-surface border border-border-subtle rounded-lg px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary"
             onKeyDown={(e) =>
               e.key === "Enter" &&
               !submitted &&
@@ -154,7 +187,7 @@ export default function QuestionCard({
             (question.options && selected === null) ||
             (question.question_type === "fill_in" && !fillInAnswer.trim())
           }
-          className="bg-secondary-500 text-white px-6 py-2.5 rounded-lg text-sm font-semibold self-center hover:bg-secondary-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="bg-surface-elevated border border-border-subtle text-text px-6 py-2.5 rounded-lg text-sm font-medium self-center hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t("quiz.question.check_answer")}
         </button>

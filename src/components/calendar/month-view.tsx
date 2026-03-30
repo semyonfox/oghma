@@ -96,6 +96,8 @@ export default function MonthView() {
     setSelectedDate,
     timeBlocks,
     fetchTimeBlocks,
+    reviewDates,
+    fetchReviewDates,
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
 
@@ -109,6 +111,16 @@ export default function MonthView() {
     const end = new Date(year, month + 2, 10).toISOString();
     fetchTimeBlocks(start, end);
   }, [anchor, fetchTimeBlocks]);
+
+  // fetch quiz review dates for streak badges
+  useEffect(() => {
+    const year = anchor.getFullYear();
+    const month = anchor.getMonth();
+    const start = `${year}-${String(month).padStart(2, "0")}-20`;
+    const endDate = new Date(year, month + 2, 10);
+    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+    fetchReviewDates(start, end);
+  }, [anchor, fetchReviewDates]);
 
   const days = useMemo(() => {
     const cells = getMonthDays(anchor);
@@ -186,6 +198,13 @@ export default function MonthView() {
               >
                 {dayOfMonth(day.date)}
               </time>
+
+              {/* ogham streak badge */}
+              {reviewDates.has(day.date) && (
+                <span className="absolute top-1 right-1.5 text-[9px] text-text-tertiary opacity-60 leading-none">
+                  ᚑ
+                </span>
+              )}
 
               {/* events */}
               <div className="mt-1 space-y-px">

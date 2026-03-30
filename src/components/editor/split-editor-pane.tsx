@@ -13,7 +13,8 @@ import FileViewPane from './file-view-pane';
  * - No drag-to-split: splitting is context-menu only
  */
 const SplitEditorPane: FC = () => {
-  const { paneA, paneB } = useLayoutStore();
+  const paneA = useLayoutStore((s) => s.paneA);
+  const paneB = useLayoutStore((s) => s.paneB);
 
   // split is active only when pane B has a file
   const isSplitActive = paneB && paneB.fileId;
@@ -37,9 +38,7 @@ const SplitEditorPane: FC = () => {
         </Panel>
 
         {/* Resize handle */}
-        <PanelResizeHandle className="w-1 bg-surface-elevated/30 hover:bg-primary-500/70 active:bg-primary-500 transition-colors cursor-col-resize group flex items-center justify-center">
-          <div className="w-0.5 h-8 bg-surface-elevated/50 group-hover:bg-primary-400 rounded-full transition-colors" />
-        </PanelResizeHandle>
+        <PanelResizeHandle className="w-px bg-border-subtle hover:bg-primary-500/40 active:bg-primary-500/60 transition-colors cursor-col-resize" />
 
         {/* Pane B */}
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
