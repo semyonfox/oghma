@@ -5,7 +5,7 @@
  */
 
 import sql from "../../database/pgsql.js";
-import { Zip, ZipPassThrough, ZipDeflate } from "fflate";
+import { Zip, ZipDeflate } from "fflate";
 import {
   S3Client,
   CreateMultipartUploadCommand,
@@ -128,7 +128,7 @@ export async function processVaultExport(msg) {
   try {
     await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}::uuid`;
 
-    const storage = getStorageProvider();
+    getStorageProvider();
     const exportMap = await buildExportPathMap(userId);
     const totalFiles = exportMap.size;
 
@@ -175,14 +175,13 @@ export async function processVaultExport(msg) {
           continue;
         }
 
-        // add to zip — use ZipPassThrough for already-compressed files, ZipDeflate for text
+        // always use ZipDeflate to avoid nested-zip entry leakage when
+        // importing archives that contain zip-based formats (.pptx/.docx/.xlsx)
         const isText =
           path.endsWith(".md") ||
           path.endsWith(".txt") ||
           path.endsWith(".markdown");
-        const zipEntry = isText
-          ? new ZipDeflate(path, { level: 6 })
-          : new ZipPassThrough(path);
+        const zipEntry = new ZipDeflate(path, { level: isText ? 6 : 1 });
 
         zip.add(zipEntry);
         zipEntry.push(new Uint8Array(fileData), true);
