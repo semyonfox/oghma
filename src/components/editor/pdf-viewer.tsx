@@ -95,10 +95,10 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   const displayScale = fitMode ? fitScale : scale;
 
   return (
-    <div className="h-full flex flex-col bg-gray-800">
+    <div className="h-full flex flex-col bg-surface">
       {/* Controls */}
-      <div className="flex-shrink-0 px-4 py-2 bg-gray-900 border-b border-white/10 flex items-center justify-between">
-        <div className="text-xs text-gray-400">
+      <div className="flex-shrink-0 px-4 py-2 bg-background border-b border-border-subtle flex items-center justify-between">
+        <div className="text-xs text-text-tertiary">
           {numPages
             ? t("pdf_viewer.page_count", { count: numPages })
             : t("Loading...")}
@@ -127,7 +127,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
           </button>
 
-          <span className="text-xs text-gray-400 min-w-10 text-center tabular-nums">
+          <span className="text-xs text-text-tertiary min-w-10 text-center tabular-nums">
             {Math.round(displayScale * 100)}%
           </span>
 
@@ -144,7 +144,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
       {/* PDF canvas — scrollable */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto flex items-start justify-center bg-gray-800 p-4"
+        className="flex-1 overflow-y-auto flex items-start justify-center bg-surface p-4"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3 mt-16">

@@ -120,21 +120,21 @@ function ChatPageInner() {
       : null;
 
   return (
-    <div className="h-screen w-screen flex bg-gray-900 text-gray-100 overflow-hidden">
+    <div className="h-screen w-screen flex bg-background text-text overflow-hidden">
       {/* ── left sidebar ───────────────────────────────────────────── */}
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-white/8 bg-gray-950">
+      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface">
         {/* header */}
-        <div className="flex items-center gap-2 px-4 py-4 border-b border-white/8">
+        <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
           <Link
             href="/notes"
-            className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors"
             title={t("chat.back_to_notes")}
           >
             <ArrowLeftIcon className="w-4 h-4" />
           </Link>
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <SparklesIcon className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-200 truncate">
+            <SparklesIcon className="w-4 h-4 text-primary-400 flex-shrink-0" />
+            <span className="text-sm font-medium text-text-secondary truncate">
               {t("chat.title")}
             </span>
           </div>
@@ -151,7 +151,7 @@ function ChatPageInner() {
         <div className="px-3 py-3">
           <button
             onClick={newConversation}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 bg-white/4 border border-white/8 hover:bg-white/8 hover:text-gray-200 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-tertiary bg-subtle border border-border-subtle hover:bg-subtle-hover hover:text-text-secondary transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
             {t("chat.new_conversation")}
@@ -159,15 +159,15 @@ function ChatPageInner() {
         </div>
 
         {/* conversation list */}
-        <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 obsidian-scrollbar">
           {conversations.map((conv) => (
             <button
               key={conv.id}
               onClick={() => setActiveId(conv.id)}
               className={`group w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
                 conv.id === activeId
-                  ? "bg-indigo-600/20 border border-indigo-500/30 text-gray-200"
-                  : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                  ? "bg-primary-500/15 border border-primary-500/25 text-text-secondary"
+                  : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
               }`}
             >
               <div className="flex items-start justify-between gap-1">
@@ -187,19 +187,19 @@ function ChatPageInner() {
                       void deleteConversation(conv.id);
                     }
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all flex-shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-text-tertiary hover:text-error-400 transition-all flex-shrink-0"
                   title={t("chat.delete_conversation")}
                 >
                   <TrashIcon className="w-3 h-3" />
                 </span>
               </div>
               {conv.noteTitle && (
-                <div className="flex items-center gap-1 mt-0.5 text-gray-600">
+                <div className="flex items-center gap-1 mt-0.5 text-text-tertiary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{conv.noteTitle}</span>
                 </div>
               )}
-              <p className="text-gray-700 mt-0.5">
+              <p className="text-text-tertiary opacity-60 mt-0.5">
                 {new Date(conv.createdAt).toLocaleDateString([], {
                   month: "short",
                   day: "numeric",
@@ -208,17 +208,17 @@ function ChatPageInner() {
             </button>
           ))}
           {loaded && conversations.length === 0 && (
-            <p className="text-xs text-gray-600 text-center py-4">
+            <p className="text-xs text-text-tertiary text-center py-4">
               {t("chat.no_conversations")}
             </p>
           )}
         </nav>
 
         {/* footer */}
-        <div className="flex-shrink-0 border-t border-white/8 px-4 py-3">
+        <div className="flex-shrink-0 border-t border-border-subtle px-4 py-3">
           <Link
             href="/settings"
-            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
             {t("chat.configure_ai")}
           </Link>
@@ -228,9 +228,9 @@ function ChatPageInner() {
       {/* ── main chat area ─────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* top bar */}
-        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-white/8 bg-gray-900">
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-background">
           <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-sm font-medium text-gray-200 truncate">
+            <h1 className="text-sm font-medium text-text-secondary truncate">
               {activeConv?.title ??
                 (contextPrefix
                   ? t("chat.about_context", { context: contextPrefix })
@@ -239,7 +239,7 @@ function ChatPageInner() {
             {(activeConv?.noteId || paramNoteId) && (
               <a
                 href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-white/10 bg-white/4 text-[11px] text-gray-400 hover:text-gray-200 transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
               >
                 <DocumentTextIcon className="w-3 h-3" />
                 <span className="truncate max-w-[150px]">
@@ -248,7 +248,7 @@ function ChatPageInner() {
               </a>
             )}
             {paramFolderId && !activeConv?.noteId && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-indigo-500/20 bg-indigo-600/10 text-[11px] text-indigo-400">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-[11px] text-primary-400">
                 <svg
                   className="w-3 h-3 flex-shrink-0"
                   viewBox="0 0 20 20"
@@ -259,7 +259,7 @@ function ChatPageInner() {
                 <span className="truncate max-w-[150px]">
                   {paramFolderTitle}
                 </span>
-                <span className="text-indigo-500/60 ml-0.5">
+                <span className="text-primary-500/60 ml-0.5">
                   · {t("chat.rag_coming_soon")}
                 </span>
               </span>
@@ -285,8 +285,8 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen flex items-center justify-center bg-gray-900">
-          <SparklesIcon className="w-8 h-8 text-indigo-400 animate-pulse" />
+        <div className="h-screen w-screen flex items-center justify-center bg-background">
+          <SparklesIcon className="w-8 h-8 text-primary-400 animate-pulse" />
         </div>
       }
     >

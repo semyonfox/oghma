@@ -24,7 +24,7 @@ export default function BlogPost({ params }) {
           </h1>
           <Link
             href="/blog"
-            className="mt-6 text-indigo-400 hover:text-indigo-300"
+            className="mt-6 text-primary-400 hover:text-primary-300"
           >
             {t("blog.backToPosts")}
           </Link>
@@ -41,11 +41,11 @@ export default function BlogPost({ params }) {
           <div className="mb-8 border-b border-white/10 pb-8">
             <Link
               href="/blog"
-              className="text-sm text-indigo-400 hover:text-indigo-300 mb-4 inline-block"
+              className="text-sm text-primary-400 hover:text-primary-300 mb-4 inline-block"
             >
               {t("blog.backToPostsArrow")}
             </Link>
-            <p className="text-base/7 font-semibold text-indigo-400">
+            <p className="text-base/7 font-semibold text-primary-400">
               {t("blog.articleLabel")}
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
@@ -83,7 +83,7 @@ export default function BlogPost({ params }) {
                 <li key={idx} className="flex gap-x-3">
                   <CheckCircleIcon
                     aria-hidden="true"
-                    className="mt-1 size-5 flex-none text-indigo-400"
+                    className="mt-1 size-5 flex-none text-primary-400"
                   />
                   <span>
                     <strong className="font-semibold text-white">
@@ -102,7 +102,7 @@ export default function BlogPost({ params }) {
             </h2>
             <p className="mt-6">{post.section2Content}</p>
 
-            <figure className="mt-10 border-l border-indigo-400 pl-9">
+            <figure className="mt-10 border-l border-primary-400 pl-9">
               <blockquote className="font-semibold text-white">
                 <p>"{post.testimonial.quote}"</p>
               </blockquote>
@@ -147,7 +147,7 @@ export default function BlogPost({ params }) {
             <div className="mt-8">
               <Link
                 href="/register"
-                className="rounded-md bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600"
+                className="rounded-md bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600"
               >
                 {t("blog.cta.button")}
               </Link>

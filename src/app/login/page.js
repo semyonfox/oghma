@@ -86,7 +86,7 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
+        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef}>
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={handleEmailChange}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={pwd}
                   onChange={handlePasswordChange}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>
@@ -163,7 +163,7 @@ export default function LoginPage() {
 
               <Link
                 href="/forgot-password"
-                className="text-sm/6 font-semibold text-indigo-400 hover:text-indigo-300"
+                className="text-sm/6 font-semibold text-primary-400 hover:text-primary-300"
               >
                 {t("Forgot password?")}
               </Link>
@@ -173,7 +173,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-md bg-indigo-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? t("Signing in...") : t("Sign in")}
               </button>
@@ -183,11 +183,11 @@ export default function LoginPage() {
           {/* Social login section */}
           <div>
             <div className="mt-10 flex items-center gap-x-6">
-              <div className="w-full flex-1 border-t border-white/10" />
+              <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-secondary">
                 {t("Or continue with")}
               </p>
-              <div className="w-full flex-1 border-t border-white/10" />
+              <div className="w-full flex-1 border-t border-border-subtle" />
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-4">
@@ -299,7 +299,7 @@ export default function LoginPage() {
           {t("Don't have an account?")}{" "}
           <Link
             href="/register"
-            className="font-semibold text-indigo-400 hover:text-indigo-300"
+            className="font-semibold text-primary-400 hover:text-primary-300"
           >
             {t("Create one")}
           </Link>

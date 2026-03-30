@@ -318,12 +318,12 @@ const LexicalEditor = forwardRef<LexicalEditorRef, LexicalEditorProps>(
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="w-full text-gray-200 outline-none min-h-[300px] px-6 py-4 text-base leading-relaxed focus:outline-none"
+                className="w-full text-text outline-none min-h-[300px] px-6 py-4 text-base leading-relaxed focus:outline-none"
                 dir="ltr"
               />
             }
             placeholder={
-              <div className="absolute top-0 left-0 text-gray-600 pointer-events-none select-none px-6 py-4 text-base leading-relaxed">
+              <div className="absolute top-0 left-0 text-text-tertiary pointer-events-none select-none px-6 py-4 text-base leading-relaxed">
                 {placeholder}
               </div>
             }

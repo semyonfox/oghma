@@ -982,7 +982,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 </svg>
               </button>
               <button
-                className="p-0.5 rounded hover:bg-indigo-600/20 text-text-tertiary hover:text-indigo-300 transition-colors"
+                className="p-0.5 rounded hover:bg-primary-600/20 text-text-tertiary hover:text-primary-300 transition-colors"
                 onClick={onOpenInAIChat}
                 title={isFolder ? t("Chat with folder") : t("Chat with note")}
                 tabIndex={-1}

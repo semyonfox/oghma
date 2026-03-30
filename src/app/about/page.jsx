@@ -361,9 +361,9 @@ export default function About() {
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
             {/* Feature 1 - AI-Powered Insights */}
-            <div className="group relative overflow-hidden rounded-2xl border border-indigo-500/20 p-8 transition-all hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/20">
-              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="mb-6 inline-flex rounded-lg bg-indigo-500/10 p-3">
+            <div className="group relative overflow-hidden rounded-2xl border border-primary-500/20 p-8 transition-all hover:border-primary-500/60 hover:shadow-lg hover:shadow-primary-500/20">
+              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-primary-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="mb-6 inline-flex rounded-lg bg-primary-500/10 p-3">
                 <span className="text-3xl">✨</span>
               </div>
               <h3 className="text-lg font-semibold text-white">
