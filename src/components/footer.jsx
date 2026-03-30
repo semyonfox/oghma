@@ -73,7 +73,7 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-background border-t border-white/10">
+    <footer className="bg-background border-t border-border-subtle">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-8 sm:pt-24 lg:px-8 lg:pt-32">
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
@@ -204,7 +204,7 @@ export default function Footer() {
             </div>
           </div>
         </div>
-        <div className="mt-16 border-t border-white/10 pt-8 sm:mt-20 lg:mt-24">
+        <div className="mt-16 border-t border-border-subtle pt-8 sm:mt-20 lg:mt-24">
           <p className="text-xs/5 text-text-tertiary">
             {t("© {year} OghmaNotes. All rights reserved.", {
               year: new Date().getFullYear(),

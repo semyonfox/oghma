@@ -66,7 +66,7 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
           title={t("AI Assistant")}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
             rightPanelTab === "ai"
-              ? "bg-indigo-600/20 text-indigo-300"
+              ? "bg-primary-600/20 text-primary-300"
               : "text-text-tertiary hover:bg-white/5 hover:text-text-secondary"
           }`}
         >
@@ -170,14 +170,14 @@ export const PropertiesPanel: FC<PropertiesPanelProps> = ({
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-600/15 text-indigo-300 rounded text-xs"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-600/15 text-primary-300 rounded text-xs"
                   >
                     #{tag}
                     <button
                       onClick={() =>
                         onTagsChange?.(tags.filter((t) => t !== tag))
                       }
-                      className="hover:text-indigo-200 transition-colors ml-0.5 leading-none"
+                      className="hover:text-primary-200 transition-colors ml-0.5 leading-none"
                     >
                       ✕
                     </button>

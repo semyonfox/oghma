@@ -154,7 +154,7 @@ export default function PomodoroBar({
       </div>
 
       {/* info strip */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-900/95 backdrop-blur-sm border-t border-white/5 text-xs">
+      <div className="flex items-center justify-between px-4 py-1.5 bg-background/95 backdrop-blur-sm border-t border-border-subtle text-xs">
         <div className="flex items-center gap-2 min-w-0">
           {/* status dot or check icon */}
           {isComplete ? (

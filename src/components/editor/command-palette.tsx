@@ -219,9 +219,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-2xl mx-auto">
         {/* Input field */}
-        <div className="relative bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden">
+        <div className="relative bg-surface border border-border-subtle rounded-lg shadow-2xl overflow-hidden">
           <div className="flex items-center px-4 py-3">
-            <span className="text-gray-500">🔍</span>
+            <span className="text-text-tertiary">🔍</span>
             <input
               ref={inputRef}
               type="text"
@@ -231,11 +231,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                 setSelectedIndex(0);
               }}
               placeholder={t("command_palette.search_placeholder")}
-              className="flex-1 bg-transparent text-white ml-3 focus:outline-none"
+              className="flex-1 bg-transparent text-text ml-3 focus:outline-none"
             />
             <button
               onClick={handleClose}
-              className="text-gray-500 hover:text-gray-400 transition-colors"
+              className="text-text-tertiary hover:text-text-secondary transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -243,7 +243,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
 
           {/* Results */}
           {filteredItems.length > 0 ? (
-            <div className="border-t border-gray-700 max-h-96 overflow-y-auto">
+            <div className="border-t border-border-subtle max-h-96 overflow-y-auto">
               {filteredItems.map((item, idx) => (
                 <button
                   key={item.id}
@@ -252,23 +252,23 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
                     setQuery("");
                     setSelectedIndex(0);
                   }}
-                  className={`w-full px-4 py-3 text-left transition-colors border-b border-gray-800 last:border-b-0 ${
+                  className={`w-full px-4 py-3 text-left transition-colors border-b border-border-subtle last:border-b-0 ${
                     idx === selectedIndex
-                      ? "bg-indigo-600/20 text-indigo-300"
-                      : "text-gray-400 hover:bg-gray-700"
+                      ? "bg-primary-600/20 text-primary-300"
+                      : "text-text-tertiary hover:bg-surface-elevated"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     {item.icon && <span className="text-lg">{item.icon}</span>}
                     <div className="flex-1">
-                      <div className="font-medium text-white">{item.title}</div>
+                      <div className="font-medium text-text">{item.title}</div>
                       {item.description && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-text-tertiary">
                           {item.description}
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-gray-600 bg-gray-700/50 px-2 py-1 rounded">
+                    <span className="text-xs text-text-tertiary bg-surface-elevated/50 px-2 py-1 rounded">
                       {item.category}
                     </span>
                   </div>
@@ -276,7 +276,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
               ))}
             </div>
           ) : query.trim() ? (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div className="px-4 py-8 text-center text-text-tertiary">
               <p>{t("command_palette.no_results", { query })}</p>
               <p className="text-xs mt-2">
                 {t("command_palette.try_different_search")}
@@ -285,7 +285,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           ) : null}
 
           {/* Help text */}
-          <div className="border-t border-gray-700 px-4 py-2 bg-gray-900/50 text-xs text-gray-600">
+          <div className="border-t border-border-subtle px-4 py-2 bg-background/50 text-xs text-text-tertiary">
             <span>{t("command_palette.help_navigate")}</span>
             <span className="ml-4">{t("command_palette.help_select")}</span>
             <span className="ml-4">{t("command_palette.help_close")}</span>

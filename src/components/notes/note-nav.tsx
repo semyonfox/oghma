@@ -165,7 +165,7 @@ const NoteNav: FC = () => {
         <ShareIcon
           className={`w-4 h-4 ${
             note?.shared === NOTE_SHARED.PUBLIC
-              ? "text-indigo-500"
+              ? "text-primary-400"
               : "text-text-tertiary"
           }`}
           aria-hidden="true"

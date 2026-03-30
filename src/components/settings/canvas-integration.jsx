@@ -670,7 +670,7 @@ export default function CanvasIntegration() {
                 placeholder="universityofgalway.instructure.com"
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
               />
             </div>
           </div>
@@ -689,7 +689,7 @@ export default function CanvasIntegration() {
                 placeholder={t("Paste your Canvas API token here")}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
               />
             </div>
           </div>
@@ -705,7 +705,7 @@ export default function CanvasIntegration() {
             type="button"
             disabled={!domain || !token || isConnecting}
             onClick={handleConnect}
-            className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isConnecting ? t("Connecting...") : t("Connect Canvas")}
           </button>
@@ -982,7 +982,7 @@ export default function CanvasIntegration() {
                 type="button"
                 disabled={selectedCourseIds.length === 0 || isSyncing}
                 onClick={handleImport}
-                className="rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {`${t("Import selected courses")}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ""}`}
               </button>

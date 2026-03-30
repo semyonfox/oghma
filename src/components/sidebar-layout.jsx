@@ -18,7 +18,7 @@ function TeamsSection({ teams, onNavigateItem }) {
   const { t } = useI18n();
   return (
     <>
-      <div className="text-xs/6 font-semibold text-gray-400">
+      <div className="text-xs/6 font-semibold text-text-tertiary">
         {t("Your teams")}
       </div>
       <ul role="list" className="-mx-2 mt-2 space-y-1">
@@ -33,7 +33,7 @@ function TeamsSection({ teams, onNavigateItem }) {
               className={classNames(
                 team.current
                   ? "bg-white/5 text-white"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white",
+                  : "text-text-tertiary hover:bg-white/5 hover:text-white",
                 "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
               )}
             >
@@ -41,7 +41,7 @@ function TeamsSection({ teams, onNavigateItem }) {
                 className={classNames(
                   team.current
                     ? "border-white/20 text-white"
-                    : "border-white/10 text-gray-400 group-hover:border-white/20 group-hover:text-white",
+                    : "border-border-subtle text-text-tertiary group-hover:border-white/20 group-hover:text-white",
                   "flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium",
                 )}
               >
@@ -68,7 +68,7 @@ function ProfileSection({ userProfile, onProfileClick }) {
           <img
             alt={userProfile.name}
             src={userProfile.avatar}
-            className="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10"
+            className="size-8 rounded-full bg-surface outline -outline-offset-1 outline-border"
           />
         )}
         <span className="sr-only">{t("Your profile")}</span>
@@ -94,8 +94,8 @@ function SidebarContent({
       className={classNames(
         "relative flex grow flex-col gap-y-5 overflow-y-auto",
         mobile
-          ? "bg-gray-900 px-6 pb-2 ring ring-white/10 before:pointer-events-none before:absolute before:inset-0 before:bg-black/10"
-          : "border-r border-white/10 bg-black/10 px-6",
+          ? "bg-background px-6 pb-2 ring ring-border-subtle before:pointer-events-none before:absolute before:inset-0 before:bg-black/10"
+          : "border-r border-border-subtle bg-black/10 px-6",
       )}
     >
       {/* Logo */}
@@ -124,7 +124,7 @@ function SidebarContent({
                     className={classNames(
                       item.current
                         ? "bg-white/5 text-white"
-                        : "text-gray-400 hover:bg-white/5 hover:text-white",
+                        : "text-text-tertiary hover:bg-white/5 hover:text-white",
                       "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
                     )}
                   >
@@ -134,7 +134,7 @@ function SidebarContent({
                         className={classNames(
                           item.current
                             ? "text-white"
-                            : "text-gray-400 group-hover:text-white",
+                            : "text-text-tertiary group-hover:text-white",
                           "size-6 shrink-0",
                         )}
                       />
@@ -204,7 +204,7 @@ export function SidebarLayout({
       >
         <DialogBackdrop
           transition
-          className="fixed inset-0 bg-gray-900/80 transition-opacity duration-300 ease-linear data-closed:opacity-0"
+          className="fixed inset-0 bg-background/80 transition-opacity duration-300 ease-linear data-closed:opacity-0"
         />
 
         <div className="fixed inset-0 flex">
@@ -240,7 +240,7 @@ export function SidebarLayout({
       </Dialog>
 
       {/* Desktop Sidebar */}
-      <div className="hidden bg-gray-900 lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+      <div className="hidden bg-background lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
         <SidebarContent
           navigationItems={navigationItems}
           teams={teams}
@@ -254,11 +254,11 @@ export function SidebarLayout({
       </div>
 
       {/* Mobile Top Bar */}
-      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-gray-900 px-4 py-4 after:pointer-events-none after:absolute after:inset-0 after:border-b after:border-white/10 after:bg-black/10 sm:px-6 lg:hidden">
+      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 after:pointer-events-none after:absolute after:inset-0 after:border-b after:border-border-subtle after:bg-black/10 sm:px-6 lg:hidden">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="-m-2.5 p-2.5 text-gray-400 hover:text-white"
+          className="-m-2.5 p-2.5 text-text-tertiary hover:text-white"
         >
           <span className="sr-only">{t("Open sidebar")}</span>
           <Bars3Icon aria-hidden="true" className="size-6" />
@@ -276,7 +276,7 @@ export function SidebarLayout({
               <img
                 alt={userProfile.name}
                 src={userProfile.avatar}
-                className="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10"
+                className="size-8 rounded-full bg-surface outline -outline-offset-1 outline-border"
               />
             )}
           </button>
