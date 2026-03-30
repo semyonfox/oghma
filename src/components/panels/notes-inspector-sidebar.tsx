@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
-  SparklesIcon,
   ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import useLayoutStore, {
@@ -78,7 +77,7 @@ export default function NotesInspectorSidebar() {
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
 
   const tabClasses = (tab: RightPanelTab) => `
-    px-3 py-2 text-xs font-medium transition-colors border-b-2
+    px-2.5 py-1.5 text-[11px] font-medium transition-colors border-b-2
     ${
       activeTab === tab
         ? "border-primary-500 text-text-secondary"
@@ -89,24 +88,24 @@ export default function NotesInspectorSidebar() {
   return (
     <div className="h-full flex flex-col bg-surface text-text">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-        <h3 className="text-sm font-medium text-text-secondary truncate">
+      <div className="flex items-center justify-between border-b border-border-subtle px-3 h-9">
+        <h3 className="text-[13px] text-text-secondary truncate">
           {activeFile?.title || t("No file")}
         </h3>
         {rightPanelOpen && (
           <button
             onClick={toggleRightPanel}
-            className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-white/5 hover:text-text-secondary flex-shrink-0"
+            className="rounded p-1 text-text-tertiary transition-colors hover:bg-white/[0.06] hover:text-text-secondary flex-shrink-0"
             title={t("Collapse panel")}
           >
-            <ChevronRightIcon className="h-4 w-4" />
+            <ChevronRightIcon className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
 
       {/* Tabs */}
       <div
-        className="flex border-b border-border-subtle px-3 gap-0"
+        className="flex border-b border-border-subtle px-2"
         role="tablist"
         aria-label="Inspector tabs"
       >
@@ -156,48 +155,48 @@ export default function NotesInspectorSidebar() {
             {loading ? (
               <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
             ) : note ? (
-              <dl className="space-y-3 text-sm">
+              <dl className="space-y-3">
                 <div>
-                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                  <dt className="text-[11px] text-text-tertiary">
                     {t("Title")}
                   </dt>
-                  <dd className="mt-1 text-text-secondary text-sm">
+                  <dd className="mt-0.5 text-text-secondary text-[13px]">
                     {note.title || activeFile?.title || t("Untitled")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                  <dt className="text-[11px] text-text-tertiary">
                     {t("Type")}
                   </dt>
-                  <dd className="mt-1 text-text-secondary text-sm">
+                  <dd className="mt-0.5 text-text-secondary text-[13px]">
                     {activeFile.fileType}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                  <dt className="text-[11px] text-text-tertiary">
                     {t("Created")}
                   </dt>
-                  <dd className="mt-1 text-text-tertiary text-sm">
+                  <dd className="mt-0.5 text-text-tertiary text-[13px]">
                     {note.created_at
                       ? new Date(note.created_at).toLocaleDateString()
                       : t("Unknown")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                  <dt className="text-[11px] text-text-tertiary">
                     {t("Updated")}
                   </dt>
-                  <dd className="mt-1 text-text-tertiary text-sm">
+                  <dd className="mt-0.5 text-text-tertiary text-[13px]">
                     {note.updated_at
                       ? new Date(note.updated_at).toLocaleDateString()
                       : t("Unknown")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase tracking-widest text-text-tertiary">
+                  <dt className="text-[11px] text-text-tertiary">
                     {t("ID")}
                   </dt>
-                  <dd className="mt-1 break-all font-mono text-[10px] text-text-tertiary opacity-60">
+                  <dd className="mt-0.5 break-all font-mono text-[10px] text-text-tertiary/50">
                     {note.note_id || note.id || activeFile.fileId}
                   </dd>
                 </div>
@@ -236,16 +235,13 @@ export default function NotesInspectorSidebar() {
         {activeTab === "ai" && (
           <div className="flex-1 flex flex-col min-h-0">
             {activeFile?.fileId && (
-              <div className="flex-shrink-0 flex items-center justify-between px-3 pt-3 pb-2 border-b border-border-subtle">
-                <div className="flex items-center gap-2">
-                  <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
-                  <p className="text-[11px] text-text-tertiary truncate">
-                    {t("AI Chat")} — {activeFile.title || t("Untitled")}
-                  </p>
-                </div>
+              <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border-subtle">
+                <p className="text-[11px] text-text-tertiary truncate">
+                  {activeFile.title || t("Untitled")}
+                </p>
                 <a
                   href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
-                  className="flex items-center gap-1 text-[11px] text-primary-400 hover:text-primary-300 transition-colors"
+                  className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
                   title={t("Open full chat")}
                 >
                   {t("Full chat")}
@@ -261,16 +257,15 @@ export default function NotesInspectorSidebar() {
                 className="flex-1 min-h-0"
               />
             ) : (
-              <div className="p-4 flex flex-col items-center gap-3 text-center">
-                <SparklesIcon className="w-8 h-8 text-text-tertiary opacity-40" />
+              <div className="p-4 flex flex-col items-center gap-2 text-center">
                 <p className="text-xs text-text-tertiary">
                   {t("Select a note to start chatting with AI.")}
                 </p>
                 <a
                   href="/chat"
-                  className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                  className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
                 >
-                  {t("Open AI chat")} →
+                  {t("Open AI chat")}
                 </a>
               </div>
             )}

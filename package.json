@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "worker": "tsx src/lib/canvas/import-worker.js",
+    "worker": "tsx src/lib/canvas/worker-entry.js",
     "build": "next build",
     "start": "next start",
     "start:next": "next start",
@@ -48,6 +48,7 @@
     "dompurify": "^3.3.3",
     "emoji-regex": "^10.6.0",
     "escape-string-regexp": "^5.0.0",
+    "fflate": "^0.8.2",
     "highlight.js": "^11.11.1",
     "idb": "^8.0.3",
     "ioredis": "^5.10.1",

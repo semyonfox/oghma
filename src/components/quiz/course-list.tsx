@@ -28,18 +28,6 @@ export default function CourseList({
     c.courseName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const getMasteryColor = (mastery: number) => {
-    if (mastery > 75) return "text-success-400";
-    if (mastery > 50) return "text-ai-400";
-    return "text-error-400";
-  };
-
-  const getBarColor = (mastery: number) => {
-    if (mastery > 75) return "bg-success-500";
-    if (mastery > 50) return "bg-ai-500";
-    return "bg-error-500";
-  };
-
   return (
     <div>
       <div className="flex justify-between items-center mb-3">
@@ -49,7 +37,7 @@ export default function CourseList({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t("quiz.courses.search_placeholder")}
-          className="bg-surface border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500 w-48"
+          className="bg-surface border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary w-48"
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -57,20 +45,14 @@ export default function CourseList({
           <button
             key={course.courseId}
             onClick={() => onSelectCourse(course.courseId)}
-            className="bg-surface rounded-lg p-3 flex items-center gap-3 hover:bg-surface-elevated transition-colors text-left w-full"
+            className="bg-surface border border-border-subtle rounded-lg p-3 flex items-center gap-3 hover:bg-surface-elevated transition-colors text-left w-full"
           >
             <div className="flex-1 min-w-0">
               <div className="text-text text-sm font-medium truncate">
                 {course.courseName}
               </div>
               <div className="flex gap-3 mt-1 text-[10px]">
-                <span
-                  className={
-                    course.dueCount > 0
-                      ? "text-error-400"
-                      : "text-text-tertiary"
-                  }
-                >
+                <span className="text-text-tertiary">
                   {t("quiz.courses.due_count", { count: course.dueCount })}
                 </span>
                 <span className="text-text-tertiary">
@@ -79,14 +61,12 @@ export default function CourseList({
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <div
-                className={`text-sm font-bold ${getMasteryColor(course.mastery)}`}
-              >
+              <div className="text-text-secondary text-sm font-medium">
                 {course.mastery}%
               </div>
               <div className="w-12 h-1 bg-surface-elevated rounded-full mt-1">
                 <div
-                  className={`h-full rounded-full ${getBarColor(course.mastery)}`}
+                  className="h-full rounded-full bg-text-tertiary"
                   style={{ width: `${course.mastery}%` }}
                 />
               </div>

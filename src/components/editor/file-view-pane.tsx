@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useRef, useState } from "react";
+import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import {
@@ -26,110 +26,107 @@ interface FileViewPaneProps {
  */
 const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   const { t } = useI18n();
-  const {
-    setPaneA,
-    setPaneB,
-    setActivePane,
-    activePane,
-    rightPanelOpen,
-    rightPanelTab,
-    openRightPanelTab,
-    paneA,
-    paneB: _paneB,
-  } = useLayoutStore();
+
+  // granular selectors — only re-render when values this component reads change
+  const activePane = useLayoutStore((s) => s.activePane);
+  const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
+  const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
+  const setPaneA = useLayoutStore((s) => s.setPaneA);
+  const setPaneB = useLayoutStore((s) => s.setPaneB);
+  const setActivePane = useLayoutStore((s) => s.setActivePane);
+  const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
+
   const paneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  if (!file || !file.fileId) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-2">
-        <DocumentIcon className="w-10 h-10 opacity-30" />
-        <p className="text-sm font-medium text-text-secondary">
-          {t("file_view_pane.select_file")}
-        </p>
-        <p className="text-xs text-text-tertiary max-w-[18rem] text-center leading-relaxed">
-          {t("file_view_pane.select_file_hint")}
-        </p>
-      </div>
-    );
-  }
-
-  const handleClose = () => {
+  // all hooks must be called before any early returns
+  const handleClose = useCallback(() => {
     if (pane === "A") {
       setPaneA(undefined);
     } else {
       setPaneB(undefined);
     }
-  };
+  }, [pane, setPaneA, setPaneB]);
 
-  const handleDragStart = (e: React.DragEvent) => {
-    if (!file) return;
-    e.dataTransfer.effectAllowed = "move";
-    // set both formats: application/json (standard) and paneFile (legacy compat)
-    e.dataTransfer.setData("application/json", JSON.stringify(file));
-    e.dataTransfer.setData("paneFile", JSON.stringify(file));
-    setIsDragging(true);
-  };
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (!file) return;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("application/json", JSON.stringify(file));
+      e.dataTransfer.setData("paneFile", JSON.stringify(file));
+      setIsDragging(true);
+    },
+    [file],
+  );
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setIsDragging(false);
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
 
-    try {
-      // accept application/json (sidebar drags) and paneFile (pane-to-pane drags)
-      const jsonData = e.dataTransfer.getData("application/json");
-      const paneFileData = e.dataTransfer.getData("paneFile");
-      const rawData = jsonData || paneFileData;
-      if (!rawData) return;
+      try {
+        const jsonData = e.dataTransfer.getData("application/json");
+        const paneFileData = e.dataTransfer.getData("paneFile");
+        const rawData = jsonData || paneFileData;
+        if (!rawData) return;
 
-      const draggedFile: FileSpec = JSON.parse(rawData);
-      if (!draggedFile.fileId) return;
+        const draggedFile: FileSpec = JSON.parse(rawData);
+        if (!draggedFile.fileId) return;
 
-      // Get the viewport width and drop position
-      const viewportWidth = window.innerWidth;
-      const dropX = e.clientX;
-      const rightThreshold = viewportWidth / 2;
+        // read paneA at drop time (avoids subscribing to it in render)
+        const currentPaneA = useLayoutStore.getState().paneA;
 
-      // If dropped on right half: open in pane B
-      if (dropX > rightThreshold) {
-        if (pane === "A") {
-          // File from pane A dropped on right side
+        const viewportWidth = window.innerWidth;
+        const dropX = e.clientX;
+        const rightThreshold = viewportWidth / 2;
+
+        if (dropX > rightThreshold) {
           setPaneB(draggedFile);
         } else {
-          // File from pane B dropped on right side (no change needed)
-          setPaneB(draggedFile);
+          if (pane === "A") {
+            setPaneA(draggedFile);
+          } else {
+            setPaneA(draggedFile);
+            setPaneB(currentPaneA);
+          }
         }
-      } else {
-        // If dropped on left half: open in pane A and move current to pane B
-        if (pane === "A") {
-          // File from pane A dropped on left side (no swap needed)
-          setPaneA(draggedFile);
-        } else {
-          // File from pane B dropped on left side: swap to A, current A goes to B
-          setPaneA(draggedFile);
-          setPaneB(paneA);
-        }
+      } catch (error) {
+        console.error("Drop error:", error);
       }
-    } catch (error) {
-      console.error("Drop error:", error);
-    }
-  };
+    },
+    [pane, setPaneA, setPaneB],
+  );
+
+  // empty state — no file assigned to this pane
+  if (!file || !file.fileId) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-3">
+        <DocumentIcon className="w-8 h-8 opacity-20" />
+        <div className="text-center">
+          <p className="text-sm text-text-tertiary">
+            {t("file_view_pane.select_file")}
+          </p>
+          <p className="text-xs text-text-tertiary/60 mt-1 max-w-[16rem] leading-relaxed">
+            {t("file_view_pane.select_file_hint")}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       ref={paneRef}
-      className={`h-full flex flex-col bg-background transition-colors ${
-        activePane === pane ? "ring-1 ring-inset ring-primary-500/30" : ""
-      } ${isDragging ? "opacity-60" : ""}`}
+      className={`h-full flex flex-col bg-background transition-colors ${isDragging ? "opacity-60" : ""}`}
       onMouseDown={() => setActivePane(pane)}
       draggable
       onDragStart={handleDragStart}
@@ -138,49 +135,43 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
       onDrop={handleDrop}
     >
       {/* Pane Header */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between cursor-move">
+      <div className="flex-shrink-0 h-9 px-3 border-b border-border-subtle flex items-center justify-between cursor-move">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono text-text-tertiary">
-            {t("file_view_pane.pane_label", { pane })}
-          </span>
-          <span className="text-sm text-text-secondary truncate">
+          <span className="text-[13px] text-text-secondary truncate">
             {file.title || file.fileId}
-          </span>
-          <span className="text-xs text-text-tertiary opacity-60">
-            ({file.fileType})
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => openRightPanelTab("meta")}
-            className={`p-1.5 rounded transition-colors ${
+            className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "meta"
-                ? "bg-white/8 text-text-secondary"
-                : "text-text-tertiary hover:bg-white/5 hover:text-text-secondary"
+                ? "bg-white/[0.08] text-text-secondary"
+                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
             }`}
             title="Toggle metadata panel"
           >
-            <RectangleGroupIcon className="w-4 h-4" />
+            <RectangleGroupIcon className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => openRightPanelTab("ai")}
-            className={`p-1.5 rounded transition-colors ${
+            className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "ai"
-                ? "bg-indigo-600/20 text-indigo-300"
-                : "text-text-tertiary hover:bg-white/5 hover:text-text-secondary"
+                ? "bg-white/[0.08] text-text-secondary"
+                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
             }`}
             title="Toggle AI assistant panel"
           >
-            <CpuChipIcon className="w-4 h-4" />
+            <CpuChipIcon className="w-3.5 h-3.5" />
           </button>
           {pane === "B" && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-white/5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors"
               title="Close this pane"
             >
-              <XMarkIcon className="w-4 h-4" />
+              <XMarkIcon className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -194,4 +185,4 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   );
 };
 
-export default FileViewPane;
+export default memo(FileViewPane);

@@ -104,16 +104,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     allCardIds.push(...newCards.map((c: any) => c.id));
   }
 
-  // create session
+  // create session (persist card_ids so GET can reconstruct the session)
   const sessionId = generateUUID();
   await sql`
-        INSERT INTO app.quiz_sessions (id, user_id, filter_type, filter_value, total_questions)
+        INSERT INTO app.quiz_sessions (id, user_id, filter_type, filter_value, total_questions, card_ids)
         VALUES (
             ${sessionId}::uuid,
             ${userId}::uuid,
             ${filterType},
             ${filterValue ? JSON.stringify(filterValue) : null}::jsonb,
-            ${allCardIds.length}
+            ${allCardIds.length},
+            ${JSON.stringify(allCardIds)}::jsonb
         )
     `;
 

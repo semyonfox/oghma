@@ -10,6 +10,19 @@
  *   const { data, forbidden, error } = await client.getCourses();
  */
 
+// transient errors worth retrying (network blips, server hiccups)
+const RETRYABLE_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT']);
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+
+function isRetryable(err) {
+  return RETRYABLE_CODES.has(err?.code) || RETRYABLE_CODES.has(err?.cause?.code);
+}
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export class CanvasClient {
   /**
    * @param {string} domain - Canvas institution domain e.g. 'dcu.instructure.com'
@@ -28,38 +41,48 @@ export class CanvasClient {
    * @returns {Promise<{ data: any|null, forbidden: boolean, error?: string }>}
    */
   async #get(path) {
-    try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          Accept: 'application/json',
-        },
-      });
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: 'application/json',
+          },
+        });
 
-      // respect Canvas rate limit headers — back off when close to limit
-      await this.#respectRateLimit(response);
+        // respect Canvas rate limit headers — back off when close to limit
+        await this.#respectRateLimit(response);
 
-      if (response.status === 403) {
-        return { data: null, forbidden: true, error: 'Access restricted by lecturer' };
+        if (response.status === 403) {
+          return { data: null, forbidden: true, error: 'Access restricted by lecturer' };
+        }
+
+        if (response.status === 401) {
+          return { data: null, forbidden: false, error: 'Invalid or expired Canvas token' };
+        }
+
+        if (response.status === 429) {
+          if (attempt < MAX_RETRIES) {
+            await sleep(RETRY_BASE_MS * 2 ** attempt);
+            continue;
+          }
+          return { data: null, forbidden: false, error: 'Canvas API rate limited — try again later' };
+        }
+
+        if (!response.ok) {
+          return { data: null, forbidden: false, error: `Canvas API error: ${response.status}` };
+        }
+
+        const data = await response.json();
+        return { data, forbidden: false };
+
+      } catch (err) {
+        if (attempt < MAX_RETRIES && isRetryable(err)) {
+          await sleep(RETRY_BASE_MS * 2 ** attempt);
+          continue;
+        }
+        return { data: null, forbidden: false, error: err instanceof Error ? err.message : 'Unknown error' };
       }
-
-      if (response.status === 401) {
-        return { data: null, forbidden: false, error: 'Invalid or expired Canvas token' };
-      }
-
-      if (response.status === 429) {
-        return { data: null, forbidden: false, error: 'Canvas API rate limited — try again later' };
-      }
-
-      if (!response.ok) {
-        return { data: null, forbidden: false, error: `Canvas API error: ${response.status}` };
-      }
-
-      const data = await response.json();
-      return { data, forbidden: false };
-
-    } catch (err) {
-      return { data: null, forbidden: false, error: err instanceof Error ? err.message : 'Unknown error' };
     }
   }
 
@@ -86,42 +109,54 @@ export class CanvasClient {
     let url = `${this.baseUrl}${path}${path.includes('?') ? '&' : '?'}per_page=100`;
 
     while (url) {
-      try {
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: 'application/json',
-          },
-        });
+      let pageSuccess = false;
+      for (let attempt = 0; attempt <= MAX_RETRIES && !pageSuccess; attempt++) {
+        try {
+          const response = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${this.token}`,
+              Accept: 'application/json',
+            },
+          });
 
-        await this.#respectRateLimit(response);
+          await this.#respectRateLimit(response);
 
-        if (response.status === 403) {
-          return { data: results, forbidden: true, error: 'Access restricted by lecturer' };
+          if (response.status === 403) {
+            return { data: results, forbidden: true, error: 'Access restricted by lecturer' };
+          }
+
+          if (response.status === 401) {
+            return { data: results, forbidden: false, error: 'Invalid or expired Canvas token' };
+          }
+
+          if (response.status === 429) {
+            if (attempt < MAX_RETRIES) {
+              await sleep(RETRY_BASE_MS * 2 ** attempt);
+              continue;
+            }
+            return { data: results, forbidden: false, error: 'Canvas API rate limited — try again later' };
+          }
+
+          if (!response.ok) {
+            return { data: results, forbidden: false, error: `Canvas API error: ${response.status}` };
+          }
+
+          const page = await response.json();
+          results.push(...page);
+
+          // Canvas puts the next page URL in the Link header: <url>; rel="next"
+          const linkHeader = response.headers.get('Link');
+          const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
+          url = nextMatch ? nextMatch[1] : null;
+          pageSuccess = true;
+
+        } catch (err) {
+          if (attempt < MAX_RETRIES && isRetryable(err)) {
+            await sleep(RETRY_BASE_MS * 2 ** attempt);
+            continue;
+          }
+          return { data: results, forbidden: false, error: err instanceof Error ? err.message : 'Unknown error' };
         }
-
-        if (response.status === 401) {
-          return { data: results, forbidden: false, error: 'Invalid or expired Canvas token' };
-        }
-
-        if (response.status === 429) {
-          return { data: results, forbidden: false, error: 'Canvas API rate limited — try again later' };
-        }
-
-        if (!response.ok) {
-          return { data: results, forbidden: false, error: `Canvas API error: ${response.status}` };
-        }
-
-        const page = await response.json();
-        results.push(...page);
-
-        // Canvas puts the next page URL in the Link header: <url>; rel="next"
-        const linkHeader = response.headers.get('Link');
-        const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
-        url = nextMatch ? nextMatch[1] : null;
-
-      } catch (err) {
-        return { data: results, forbidden: false, error: err instanceof Error ? err.message : 'Unknown error' };
       }
     }
 
@@ -206,26 +241,40 @@ export class CanvasClient {
    * @returns {Promise<{ buffer: Buffer|null, forbidden: boolean, error?: string }>}
    */
   async downloadFile(url) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-        },
-      });
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+          },
+        });
 
-      if (response.status === 403) {
-        return { buffer: null, forbidden: true, error: 'File download restricted' };
+        if (response.status === 403) {
+          return { buffer: null, forbidden: true, error: 'File download restricted' };
+        }
+
+        if (response.status === 429) {
+          if (attempt < MAX_RETRIES) {
+            await sleep(RETRY_BASE_MS * 2 ** attempt);
+            continue;
+          }
+          return { buffer: null, forbidden: false, error: 'Download rate limited' };
+        }
+
+        if (!response.ok) {
+          return { buffer: null, forbidden: false, error: `Download failed: ${response.status}` };
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        return { buffer: Buffer.from(arrayBuffer), forbidden: false };
+
+      } catch (err) {
+        if (attempt < MAX_RETRIES && isRetryable(err)) {
+          await sleep(RETRY_BASE_MS * 2 ** attempt);
+          continue;
+        }
+        return { buffer: null, forbidden: false, error: err instanceof Error ? err.message : 'Download error' };
       }
-
-      if (!response.ok) {
-        return { buffer: null, forbidden: false, error: `Download failed: ${response.status}` };
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      return { buffer: Buffer.from(arrayBuffer), forbidden: false };
-
-    } catch (err) {
-      return { buffer: null, forbidden: false, error: err instanceof Error ? err.message : 'Download error' };
     }
   }
 }
