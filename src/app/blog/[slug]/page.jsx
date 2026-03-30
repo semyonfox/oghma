@@ -1,10 +1,12 @@
 "use client";
 
+import { use } from "react";
 import {
   CheckCircleIcon,
   InformationCircleIcon,
 } from "@heroicons/react/20/solid";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { blogPostsBySlug } from "@/lib/blog-data";
@@ -12,25 +14,12 @@ import { blogPostsBySlug } from "@/lib/blog-data";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function BlogPost({ params }) {
+  const { slug } = use(params);
   const { t } = useI18n();
-  const post = blogPostsBySlug[params.slug];
+  const post = blogPostsBySlug[slug];
 
   if (!post) {
-    return (
-      <div className="bg-gray-900 px-6 py-32 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold text-white">
-            {t("blog.postNotFound")}
-          </h1>
-          <Link
-            href="/blog"
-            className="mt-6 text-primary-400 hover:text-primary-300"
-          >
-            {t("blog.backToPosts")}
-          </Link>
-        </div>
-      </div>
-    );
+    notFound();
   }
 
   return (
