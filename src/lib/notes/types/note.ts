@@ -1,25 +1,24 @@
 // extracted from Notea (MIT License)
 
-import { EDITOR_SIZE, NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from './meta';
+import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from "./meta";
 
 export interface NoteModel {
-    id: string; // UUID v7 format
-    title: string;
-    /**
-     * Parent ID (UUID v7)
-     */
-    pid?: string;
-    content?: string;
-    pic?: string;
-    date?: string;
-    createdAt?: string; // ISO 8601 timestamp
-    updatedAt?: string; // ISO 8601 timestamp
-    isFolder?: boolean; // true if this note is a folder/directory
-    s3Key?: string; // S3 storage path for attached files/PDFs
-    deleted: NOTE_DELETED;
-    shared: NOTE_SHARED;
-    pinned: NOTE_PINNED;
-    editorsize: EDITOR_SIZE | null;
+  id: string; // UUID v7 format
+  title: string;
+  /**
+   * Parent ID (UUID v7)
+   */
+  pid?: string;
+  content?: string;
+  pic?: string;
+  date?: string;
+  createdAt?: string; // ISO 8601 timestamp
+  updatedAt?: string; // ISO 8601 timestamp
+  isFolder?: boolean; // true if this note is a folder/directory
+  s3Key?: string; // S3 storage path for attached files/PDFs
+  deleted: NOTE_DELETED;
+  shared: NOTE_SHARED;
+  pinned: NOTE_PINNED;
 }
 
 /**
@@ -27,8 +26,9 @@ export interface NoteModel {
  * like `/550e8400-e29b-41d4-a716-446655440000`
  */
 export const isNoteLink = (str: string) => {
-    return new RegExp(`^/${NOTE_ID_REGEXP}$`).test(str);
+  return new RegExp(`^/${NOTE_ID_REGEXP}$`).test(str);
 };
 
 // UUID v7 pattern: 8-4-4-4-12 hex digits with hyphens
-export const NOTE_ID_REGEXP = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+export const NOTE_ID_REGEXP =
+  "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";

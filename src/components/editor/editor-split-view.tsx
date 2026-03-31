@@ -104,7 +104,7 @@ export const EditorSplitView: FC<EditorSplitViewProps> = ({
   }, []);
 
   return (
-    <div className="flex h-full gap-2 bg-gray-800">
+    <div className="flex h-full gap-2 bg-surface">
       {/* Editor pane (left) */}
       <div
         ref={editorRef}
@@ -117,22 +117,22 @@ export const EditorSplitView: FC<EditorSplitViewProps> = ({
       </div>
 
       {/* Divider (optional: could be draggable in future) */}
-      {showPreview && <div className="w-px bg-gray-700" />}
+      {showPreview && <div className="w-px bg-border-subtle" />}
 
       {/* Preview pane (right) */}
       {showPreview && (
         <div
           ref={previewRef}
-          className="flex-1 overflow-auto border-l border-gray-700 p-4"
+          className="flex-1 overflow-auto border-l border-border-subtle p-4"
           onScroll={handlePreviewScroll}
           onClick={handlePreviewClick}
         >
           <div className="prose prose-invert max-w-none">
             {/* Preview content would be rendered here */}
             {/* This would typically use a Markdown renderer component */}
-            <div className="text-gray-400 text-sm">
+            <div className="text-text-tertiary text-sm">
               <p>Live preview coming soon...</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-text-tertiary opacity-60">
                 Your rendered Markdown will appear here
               </p>
             </div>

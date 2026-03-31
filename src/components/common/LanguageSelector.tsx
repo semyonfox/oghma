@@ -101,7 +101,7 @@ export default function LanguageSelector({
         <select
           value={selectedLocale || activeLocale}
           onChange={(e) => handleLanguageChange(e.target.value as Locale)}
-          className="block w-full rounded-md bg-white/5 py-1.5 px-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6 appearance-none"
+          className="block w-full rounded-md bg-white/5 py-1.5 px-3 text-base text-white outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6 appearance-none"
           style={{
             colorScheme: "dark",
           }}
@@ -135,7 +135,7 @@ export default function LanguageSelector({
       >
         <div className="relative">
           <ComboboxInput
-            className="block w-full rounded-md bg-white/5 py-1.5 pr-12 pl-3 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+            className="block w-full rounded-md bg-white/5 py-1.5 pr-12 pl-3 text-base text-white outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => setQuery("")}
             displayValue={(_code) =>
@@ -147,17 +147,17 @@ export default function LanguageSelector({
           />
           <ComboboxButton className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-hidden">
             <ChevronDownIcon
-              className="size-5 text-gray-400"
+              className="size-5 text-text-tertiary"
               aria-hidden="true"
             />
           </ComboboxButton>
 
           <ComboboxOptions
             transition
-            className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md bg-gray-800 py-1 text-base outline -outline-offset-1 outline-white/10 data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
+            className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md bg-surface py-1 text-base outline -outline-offset-1 outline-border-subtle data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
           >
             {filteredLanguages.length === 0 && query.length > 0 ? (
-              <div className="cursor-default px-3 py-2 text-gray-400">
+              <div className="cursor-default px-3 py-2 text-text-tertiary">
                 {t("No languages found")}
               </div>
             ) : (
@@ -165,7 +165,7 @@ export default function LanguageSelector({
                 <ComboboxOption
                   key={lang.code}
                   value={lang.code}
-                  className="cursor-default px-3 py-2 text-white select-none data-focus:bg-indigo-500 data-focus:outline-hidden"
+                  className="cursor-default px-3 py-2 text-white select-none data-focus:bg-primary-500 data-focus:outline-hidden"
                 >
                   <div className="flex items-center">
                     <span className="text-xl mr-3">{lang.flag}</span>
@@ -173,7 +173,9 @@ export default function LanguageSelector({
                       <span className="block truncate font-medium">
                         {lang.name}
                       </span>
-                      <span className="text-xs text-gray-400">{lang.code}</span>
+                      <span className="text-xs text-text-tertiary">
+                        {lang.code}
+                      </span>
                     </div>
                   </div>
                 </ComboboxOption>

@@ -46,6 +46,20 @@ function deriveStatus(assignment) {
   return "upcoming";
 }
 
+function isSubmitted(assignment) {
+  const submission = assignment?.submission;
+  const ws = submission?.workflow_state;
+  return !!(submission?.submitted_at || ws === "submitted" || ws === "graded");
+}
+
+export function shouldSyncAssignment(assignment) {
+  if (!assignment) return false;
+  if (assignment.locked_for_user === true) return false;
+  if (assignment.published === false) return false;
+  if (!assignment.due_at && !isSubmitted(assignment)) return false;
+  return true;
+}
+
 /**
  * Sync assignment metadata for a single course.
  *
@@ -76,6 +90,7 @@ export async function syncAssignmentMetadata(
   let errors = 0;
 
   for (const a of assignments) {
+    if (!shouldSyncAssignment(a)) continue;
     try {
       const status = deriveStatus(a);
       const submission = a.submission;

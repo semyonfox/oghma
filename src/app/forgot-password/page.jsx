@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-white/10 sm:rounded-lg sm:px-12">
+        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} className="space-y-6">
             {message && <Alert variant="success" description={message} />}
             {error && <Alert variant="error" description={error} />}
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={t("Enter your email")}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { XMarkIcon } from "@heroicons/react/20/solid";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
@@ -61,6 +62,7 @@ export default function WeekView() {
     timeBlocks,
     fetchTimeBlocks,
     createTimeBlock,
+    deleteTimeBlock,
     setSelectedDate,
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
@@ -164,6 +166,12 @@ export default function WeekView() {
     const endMin = (startMin + 30) % 60;
     const ends_at = `${date}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
 
+    // prevent overlapping time blocks on the same slot
+    const hasOverlap = timeBlocks.some(
+      (tb) => tb.starts_at < ends_at && tb.ends_at > starts_at,
+    );
+    if (hasOverlap) return;
+
     await createTimeBlock({ starts_at, ends_at });
     setSelectedDate(date);
   };
@@ -185,7 +193,7 @@ export default function WeekView() {
             <span
               className={`
               mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold
-              ${d.isToday ? "bg-primary-500 text-white" : "text-text-secondary"}
+              ${d.isToday ? "bg-primary-500 text-text-on-primary" : "text-text-secondary"}
             `}
             >
               {d.dayNum}
@@ -226,7 +234,7 @@ export default function WeekView() {
                 <div
                   key={h}
                   style={{ height: HOUR_HEIGHT }}
-                  className="border-b border-white/5"
+                  className="border-b border-subtle"
                 />
               ))}
 
@@ -236,7 +244,7 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="absolute left-0.5 right-0.5 rounded-sm overflow-hidden text-[10px] leading-tight px-1.5 py-1 bg-white/5 border-l-2"
+                    className="group/block absolute left-0.5 right-0.5 rounded-md overflow-hidden text-[10px] leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm"
                     style={{
                       top: b.top,
                       height: b.height,
@@ -244,7 +252,19 @@ export default function WeekView() {
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p className="font-medium truncate text-text-secondary">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void deleteTimeBlock(b.id);
+                      }}
+                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-subtle hover:text-text-secondary transition"
+                      aria-label="Delete study block"
+                      title="Delete study block"
+                    >
+                      <XMarkIcon className="h-3 w-3" />
+                    </button>
+                    <p className="font-medium truncate pr-4 text-text-secondary">
                       {b.title}
                     </p>
                   </div>

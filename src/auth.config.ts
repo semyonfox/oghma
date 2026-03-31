@@ -102,6 +102,7 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
 }
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true, // trust forwarded host headers behind Amplify/CloudFront
   secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   providers,
   session: { strategy: "jwt" },
