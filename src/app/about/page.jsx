@@ -185,7 +185,7 @@ export default function About() {
   const team = getTeam(t);
   const footerNavigation = getFooterNavigation(t);
   return (
-    <div className="bg-background">
+    <div className="bg-landing">
       <Header />
 
       <main className="isolate">
@@ -486,7 +486,7 @@ export default function About() {
         </div>
 
         {/* Team section */}
-        <div className="bg-background py-24 sm:py-32">
+        <div className="py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
               <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">
