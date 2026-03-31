@@ -28,7 +28,6 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
   const { t } = useI18n();
 
   // granular selectors — only re-render when values this component reads change
-  const activePane = useLayoutStore((s) => s.activePane);
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
   const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
   const setPaneA = useLayoutStore((s) => s.setPaneA);

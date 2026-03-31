@@ -111,7 +111,11 @@ function QuestionView({
     wasCorrect: boolean;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+  }, []);
 
   const handleAnswer = useCallback((answer: string, wasCorrect: boolean) => {
     setAnswered(true);
@@ -123,7 +127,8 @@ function QuestionView({
 
     const nextCardId =
       currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
-    const responseTimeMs = Date.now() - startTimeRef.current;
+    const startTime = startTimeRef.current ?? Date.now();
+    const responseTimeMs = Date.now() - startTime;
 
     const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
       method: "POST",
@@ -220,6 +225,7 @@ export default function QuizSessionPage() {
     currentQuestion,
     sessionProgress,
     sessionStartTime,
+    sessionEndTime,
     sessionCompleted,
     fatigueWarning,
     startSession,
@@ -281,11 +287,10 @@ export default function QuizSessionPage() {
   ]);
 
   if (sessionCompleted) {
-    const elapsed = Date.now() - sessionStartTime;
     return (
       <SessionComplete
         progress={sessionProgress}
-        elapsed={elapsed}
+        elapsed={Math.max(0, sessionEndTime - sessionStartTime)}
         onBack={() => {
           endSession();
           router.push("/quiz");
