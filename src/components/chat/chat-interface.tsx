@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { parseSseBlocks } from "@/lib/chat/sse";
 
 export interface Message {
   id: string;
@@ -53,7 +54,7 @@ const TypingDots: FC = () => (
     {[0, 150, 300].map((delay) => (
       <span
         key={delay}
-        className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
+        className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce"
         style={{ animationDelay: `${delay}ms` }}
       />
     ))}
@@ -71,7 +72,7 @@ const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({
         <a
           key={s.id}
           href={`/notes/${s.id}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-gray-400 hover:text-gray-200 hover:border-white/20 transition-colors"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-subtle border border-border-subtle text-[10px] text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
         >
           <DocumentTextIcon className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="max-w-[120px] truncate">
@@ -183,6 +184,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    const assistantId = makeId();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        sources: [],
+        timestamp: Date.now(),
+      },
+    ]);
+
     // build history for context (skip welcome message)
     const history = messages
       .filter((m) => m.id !== "welcome")
@@ -192,7 +205,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, noteId, sessionId, history }),
+        body: JSON.stringify({
+          message: text,
+          noteId,
+          sessionId,
+          history,
+          stream: true,
+        }),
       });
 
       if (!res.ok) {
@@ -200,19 +219,91 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         throw new Error(data.error || `Server error ${res.status}`);
       }
 
-      const data = await res.json();
-      if (data.sessionId && data.sessionId !== sessionId) {
-        setSessionId(data.sessionId);
-        onSessionCreated?.(data.sessionId, text.slice(0, 60));
+      const contentType = res.headers.get("Content-Type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.sessionId && data.sessionId !== sessionId) {
+          setSessionId(data.sessionId);
+          onSessionCreated?.(data.sessionId, text.slice(0, 60));
+        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: data.reply || "",
+                  sources: Array.isArray(data.sources) ? data.sources : [],
+                }
+              : m,
+          ),
+        );
+        return;
       }
-      const assistantMsg: Message = {
-        id: makeId(),
-        role: "assistant",
-        content: data.reply,
-        sources: Array.isArray(data.sources) ? data.sources : [],
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+
+      if (!res.body) {
+        throw new Error("Missing stream body");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      const parseState = { buffer: "" };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        const chunk = done
+          ? decoder.decode()
+          : decoder.decode(value, { stream: true });
+
+        if (chunk) {
+          for (const frame of parseSseBlocks(chunk, parseState)) {
+            let payload: any = {};
+            try {
+              payload = JSON.parse(frame.data);
+            } catch {
+              payload = {};
+            }
+
+            if (frame.event === "meta") {
+              if (payload.sessionId && payload.sessionId !== sessionId) {
+                setSessionId(payload.sessionId);
+                onSessionCreated?.(payload.sessionId, text.slice(0, 60));
+              }
+              if (Array.isArray(payload.sources)) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, sources: payload.sources }
+                      : m,
+                  ),
+                );
+              }
+              continue;
+            }
+
+            if (frame.event === "token") {
+              const token =
+                typeof payload.text === "string" ? payload.text : "";
+              if (!token) continue;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: `${m.content}${token}` }
+                    : m,
+                ),
+              );
+              continue;
+            }
+
+            if (frame.event === "error") {
+              throw new Error(
+                payload?.message || t("error.something_went_wrong"),
+              );
+            }
+          }
+        }
+
+        if (done) break;
+      }
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("error.something_went_wrong");
@@ -260,8 +351,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <div
                 className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed ${
                   m.role === "user"
-                    ? "bg-indigo-600/80 text-white rounded-br-none"
-                    : "bg-white/6 text-gray-200 rounded-bl-none border border-white/8"
+                    ? "bg-primary-500/80 text-text-on-primary rounded-br-none"
+                    : "bg-subtle text-text-secondary rounded-bl-none border border-border-subtle"
                 }`}
               >
                 {m.role === "assistant" ? (
@@ -272,7 +363,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                         <p className="mb-1 last:mb-0">{children}</p>
                       ),
                       code: ({ children }) => (
-                        <code className="bg-white/10 px-1 rounded text-[10px]">
+                        <code className="bg-subtle px-1 rounded text-[10px]">
                           {children}
                         </code>
                       ),
@@ -296,17 +387,17 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               role="status"
               aria-label="AI is thinking"
             >
-              <div className="bg-white/6 border border-white/8 rounded-lg rounded-bl-none px-2.5 py-1.5">
+              <div className="bg-subtle border border-border-subtle rounded-lg rounded-bl-none px-2.5 py-1.5">
                 <TypingDots />
               </div>
             </div>
           )}
-          {error && <p className="text-xs text-red-400 px-1">{error}</p>}
+          {error && <p className="text-xs text-error-400 px-1">{error}</p>}
           <div ref={bottomRef} />
         </div>
 
         {/* input */}
-        <div className="flex-shrink-0 border-t border-white/8 px-2 py-2">
+        <div className="flex-shrink-0 border-t border-border-subtle px-2 py-2">
           <div className="flex items-center gap-1.5">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -316,12 +407,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               disabled={loading}
-              className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
+              className="flex-1 min-w-0 bg-subtle border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary placeholder-text-tertiary focus:outline-none focus:border-primary-500/50 disabled:opacity-50"
             />
             <button
               onClick={send}
               disabled={loading || !input.trim()}
-              className="p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded transition-colors flex-shrink-0"
+              className="p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3.5 h-3.5" />
             </button>
@@ -336,18 +427,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     <div className={`flex flex-col h-full ${className}`}>
       {/* context banner */}
       {(noteId || noteTitle) && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-white/8 bg-white/3 text-xs text-gray-400">
-          <SparklesIcon className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border-subtle bg-subtle text-xs text-text-tertiary">
+          <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
           <span>{t("chat.context_label")} </span>
           <a
             href={`/notes/${noteId}`}
-            className="text-indigo-300 hover:text-indigo-200 truncate transition-colors"
+            className="text-primary-300 hover:text-primary-200 truncate transition-colors"
           >
             {noteTitle || t("chat.selected_note")}
           </a>
           <button
             onClick={clear}
-            className="ml-auto flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors"
+            className="ml-auto flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors"
             title={t("chat.clear_conversation")}
           >
             <ArrowPathIcon className="w-3.5 h-3.5" />
@@ -357,15 +448,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       )}
 
       {/* messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
         {messages.map((m) => (
           <div
             key={m.id}
             className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {m.role === "assistant" && (
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mt-0.5">
-                <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center mt-0.5">
+                <SparklesIcon className="w-3.5 h-3.5 text-primary-400" />
               </div>
             )}
 
@@ -373,8 +464,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <div
                 className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                   m.role === "user"
-                    ? "bg-indigo-600 text-white rounded-br-sm"
-                    : "bg-gray-800 text-gray-100 rounded-bl-sm border border-white/8"
+                    ? "bg-primary-500 text-text-on-primary rounded-br-sm"
+                    : "bg-surface text-text rounded-bl-sm border border-border-subtle"
                 }`}
               >
                 {m.role === "assistant" ? (
@@ -401,23 +492,23 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                             {children}
                           </code>
                         ) : (
-                          <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono">
+                          <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
                             {children}
                           </code>
                         );
                       },
                       strong: ({ children }) => (
-                        <strong className="font-semibold text-white">
+                        <strong className="font-semibold text-text">
                           {children}
                         </strong>
                       ),
                       h3: ({ children }) => (
-                        <h3 className="font-semibold text-white mt-3 mb-1">
+                        <h3 className="font-semibold text-text mt-3 mb-1">
                           {children}
                         </h3>
                       ),
                       h4: ({ children }) => (
-                        <h4 className="font-medium text-white mt-2 mb-1">
+                        <h4 className="font-medium text-text mt-2 mb-1">
                           {children}
                         </h4>
                       ),
@@ -432,14 +523,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
               {m.sources && m.sources.length > 0 && (
                 <div className="mt-2 ml-1">
-                  <p className="text-[11px] text-gray-600 mb-1">
+                  <p className="text-[11px] text-text-tertiary mb-1">
                     {t("chat.sources")}
                   </p>
                   <SourceChips sources={m.sources} />
                 </div>
               )}
 
-              <p className="text-[10px] text-gray-600 mt-1 ml-1">
+              <p className="text-[10px] text-text-tertiary opacity-60 mt-1 ml-1">
                 {new Date(m.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -455,10 +546,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             role="status"
             aria-label="AI is thinking"
           >
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
-              <SparklesIcon className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center">
+              <SparklesIcon className="w-3.5 h-3.5 text-primary-400 animate-pulse" />
             </div>
-            <div className="bg-gray-800 border border-white/8 rounded-2xl rounded-bl-sm px-4 py-3">
+            <div className="bg-surface border border-border-subtle rounded-2xl rounded-bl-sm px-4 py-3">
               <TypingDots />
             </div>
           </div>
@@ -466,7 +557,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
         {error && (
           <div className="flex justify-center">
-            <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-lg">
+            <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-lg">
               {error}
             </p>
           </div>
@@ -476,14 +567,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       </div>
 
       {/* input bar */}
-      <div className="flex-shrink-0 border-t border-white/8 bg-gray-900 px-4 md:px-8 lg:px-12 py-4">
+      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-12 py-4">
         <div className="max-w-3xl mx-auto">
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               void send();
             }}
-            className="flex items-end gap-3 bg-gray-800 border border-white/10 rounded-2xl px-4 py-3 focus-within:border-indigo-500/50 transition-colors"
+            className="flex items-end gap-3 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -498,18 +589,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               placeholder={t("chat.ask_placeholder")}
               disabled={loading}
               rows={1}
-              className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 focus:outline-none resize-none disabled:opacity-50 leading-relaxed"
+              className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50 leading-relaxed"
               style={{ minHeight: "24px", maxHeight: "120px" }}
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="flex-shrink-0 p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-colors mb-0.5"
+              className="flex-shrink-0 p-2 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-xl transition-colors mb-0.5"
             >
               <PaperAirplaneIcon className="w-4 h-4" />
             </button>
           </form>
-          <p className="text-center text-[11px] text-gray-700 mt-2">
+          <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-2">
             {t("chat.disclaimer")}
           </p>
         </div>

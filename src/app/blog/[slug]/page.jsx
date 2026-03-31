@@ -1,10 +1,12 @@
 "use client";
 
+import { use } from "react";
 import {
   CheckCircleIcon,
   InformationCircleIcon,
 } from "@heroicons/react/20/solid";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { blogPostsBySlug } from "@/lib/blog-data";
@@ -12,25 +14,12 @@ import { blogPostsBySlug } from "@/lib/blog-data";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function BlogPost({ params }) {
+  const { slug } = use(params);
   const { t } = useI18n();
-  const post = blogPostsBySlug[params.slug];
+  const post = blogPostsBySlug[slug];
 
   if (!post) {
-    return (
-      <div className="bg-gray-900 px-6 py-32 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold text-white">
-            {t("blog.postNotFound")}
-          </h1>
-          <Link
-            href="/blog"
-            className="mt-6 text-indigo-400 hover:text-indigo-300"
-          >
-            {t("blog.backToPosts")}
-          </Link>
-        </div>
-      </div>
-    );
+    notFound();
   }
 
   return (
@@ -41,11 +30,11 @@ export default function BlogPost({ params }) {
           <div className="mb-8 border-b border-white/10 pb-8">
             <Link
               href="/blog"
-              className="text-sm text-indigo-400 hover:text-indigo-300 mb-4 inline-block"
+              className="text-sm text-primary-400 hover:text-primary-300 mb-4 inline-block"
             >
               {t("blog.backToPostsArrow")}
             </Link>
-            <p className="text-base/7 font-semibold text-indigo-400">
+            <p className="text-base/7 font-semibold text-primary-400">
               {t("blog.articleLabel")}
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
@@ -83,7 +72,7 @@ export default function BlogPost({ params }) {
                 <li key={idx} className="flex gap-x-3">
                   <CheckCircleIcon
                     aria-hidden="true"
-                    className="mt-1 size-5 flex-none text-indigo-400"
+                    className="mt-1 size-5 flex-none text-primary-400"
                   />
                   <span>
                     <strong className="font-semibold text-white">
@@ -102,7 +91,7 @@ export default function BlogPost({ params }) {
             </h2>
             <p className="mt-6">{post.section2Content}</p>
 
-            <figure className="mt-10 border-l border-indigo-400 pl-9">
+            <figure className="mt-10 border-l border-primary-400 pl-9">
               <blockquote className="font-semibold text-white">
                 <p>"{post.testimonial.quote}"</p>
               </blockquote>
@@ -147,7 +136,7 @@ export default function BlogPost({ params }) {
             <div className="mt-8">
               <Link
                 href="/register"
-                className="rounded-md bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-600"
+                className="rounded-md bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600"
               >
                 {t("blog.cta.button")}
               </Link>

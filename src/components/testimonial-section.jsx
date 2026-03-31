@@ -42,7 +42,7 @@ export default function TestimonialSection() {
   );
 
   return (
-    <div className="bg-gray-900 py-16 sm:py-24">
+    <div className="bg-surface py-16 sm:py-24">
       <div className="mx-auto max-w-5xl px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -71,7 +71,7 @@ export default function TestimonialSection() {
                   </span>
                 ))}
               </div>
-              <p className="font-serif text-base/7 text-gray-100 italic mb-6">
+              <p className="font-serif text-base/7 text-text italic mb-6">
                 &ldquo;{item.quote}&rdquo;
               </p>
               <div className="flex items-center gap-3">

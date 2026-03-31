@@ -38,7 +38,7 @@ function SessionComplete({
   const forTomorrow = progress.answered - progress.correct;
 
   return (
-    <div className="h-screen flex items-center justify-center px-6">
+    <div className="h-screen flex items-center justify-center px-6 bg-background text-text">
       <div className="max-w-md w-full text-center">
         <h1 className="font-serif text-text text-xl font-semibold">
           {t("quiz.complete.title")}
@@ -111,7 +111,11 @@ function QuestionView({
     wasCorrect: boolean;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+  }, []);
 
   const handleAnswer = useCallback((answer: string, wasCorrect: boolean) => {
     setAnswered(true);
@@ -123,7 +127,8 @@ function QuestionView({
 
     const nextCardId =
       currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
-    const responseTimeMs = Date.now() - startTimeRef.current;
+    const startTime = startTimeRef.current ?? Date.now();
+    const responseTimeMs = Date.now() - startTime;
 
     const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
       method: "POST",
@@ -220,6 +225,7 @@ export default function QuizSessionPage() {
     currentQuestion,
     sessionProgress,
     sessionStartTime,
+    sessionEndTime,
     sessionCompleted,
     fatigueWarning,
     startSession,
@@ -281,11 +287,10 @@ export default function QuizSessionPage() {
   ]);
 
   if (sessionCompleted) {
-    const elapsed = Date.now() - sessionStartTime;
     return (
       <SessionComplete
         progress={sessionProgress}
-        elapsed={elapsed}
+        elapsed={Math.max(0, sessionEndTime - sessionStartTime)}
         onBack={() => {
           endSession();
           router.push("/quiz");
@@ -296,7 +301,7 @@ export default function QuizSessionPage() {
 
   if (!currentQuestion) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-text-tertiary text-sm">
           {t("quiz.session.loading")}
         </div>
@@ -305,7 +310,7 @@ export default function QuizSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto">
+    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-background text-text">
       <ProgressBar
         current={sessionProgress.answered}
         total={sessionProgress.total}

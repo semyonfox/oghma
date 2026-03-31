@@ -141,7 +141,6 @@ export const Favorites: FC = () => {
                             deleted: 0,
                             shared: 0,
                             pinned: 1,
-                            editorsize: null,
                           } as NoteModel)
                         }
                         snapshot={{

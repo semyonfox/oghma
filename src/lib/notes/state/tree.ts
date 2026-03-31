@@ -68,6 +68,7 @@ export interface NoteTreeState {
   showItem: (note: NoteModel) => void;
   checkItemIsShown: (note: NoteModel) => boolean;
   collapseAllItems: () => void;
+  refreshTree: () => Promise<void>;
   setLoading: (loading: boolean) => void;
   setDependencies: (treeAPI: any, noteAPI: any, toast: any) => void;
   // View state setters for react-complex-tree
@@ -498,6 +499,11 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     get()
       .setItemsExpandState(expandedItems, false)
       .catch((v) => console.error("Error whilst collapsing item: %O", v));
+  },
+
+  refreshTree: async () => {
+    set({ initLoaded: false });
+    await get().initTree();
   },
 }));
 

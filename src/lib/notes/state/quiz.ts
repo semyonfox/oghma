@@ -28,6 +28,7 @@ interface QuizState {
   sessionProgress: { answered: number; total: number; correct: number };
   fatigueWarning: boolean;
   sessionStartTime: number;
+  sessionEndTime: number;
   sessionCompleted: boolean;
 
   // actions
@@ -56,6 +57,7 @@ const useQuizStore = create<QuizState>((set) => ({
   sessionProgress: { answered: 0, total: 0, correct: 0 },
   fatigueWarning: false,
   sessionStartTime: 0,
+  sessionEndTime: 0,
   sessionCompleted: false,
 
   setDashboard: (data) => set({ dashboardData: data }),
@@ -70,6 +72,7 @@ const useQuizStore = create<QuizState>((set) => ({
       sessionProgress: { answered: 0, total: cardIds.length, correct: 0 },
       fatigueWarning: false,
       sessionStartTime: Date.now(),
+      sessionEndTime: 0,
       sessionCompleted: false,
     }),
   setCurrentQuestion: (question) => set({ currentQuestion: question }),
@@ -80,7 +83,8 @@ const useQuizStore = create<QuizState>((set) => ({
       sessionProgress: progress,
     })),
   setFatigueWarning: (warning) => set({ fatigueWarning: warning }),
-  completeSession: () => set({ sessionCompleted: true }),
+  completeSession: () =>
+    set({ sessionCompleted: true, sessionEndTime: Date.now() }),
   endSession: () =>
     set({
       sessionId: null,
@@ -90,6 +94,7 @@ const useQuizStore = create<QuizState>((set) => ({
       sessionProgress: { answered: 0, total: 0, correct: 0 },
       fatigueWarning: false,
       sessionStartTime: 0,
+      sessionEndTime: 0,
       sessionCompleted: false,
     }),
 }));
