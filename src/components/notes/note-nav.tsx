@@ -16,7 +16,6 @@ import {
   ShareIcon,
   EllipsisHorizontalIcon,
   EyeIcon,
-  ArrowsPointingOutIcon,
 } from "@heroicons/react/24/outline";
 
 const MenuButton: FC = () => {
@@ -51,7 +50,7 @@ const NoteNav: FC = () => {
   const _noteId = useNoteId();
   const { ua } = useUIComposite();
   const { getPaths, showItem, checkItemIsShown } = useNoteTreeStore();
-  const { share, menu, editorWidthSelect } = usePortalStore();
+  const { share, menu } = usePortalStore();
 
   const handleClickShare = useCallback(
     (event: MouseEvent) => {
@@ -69,15 +68,6 @@ const NoteNav: FC = () => {
       menu.open();
     },
     [note, menu],
-  );
-
-  const handleClickEditorWidth = useCallback(
-    (event: MouseEvent) => {
-      editorWidthSelect.setData(note);
-      editorWidthSelect.setAnchor(event.target as Element);
-      editorWidthSelect.open();
-    },
-    [note, editorWidthSelect],
   );
 
   const handleClickOpenInTree = useCallback(() => {
@@ -165,21 +155,9 @@ const NoteNav: FC = () => {
         <ShareIcon
           className={`w-4 h-4 ${
             note?.shared === NOTE_SHARED.PUBLIC
-              ? "text-indigo-500"
+              ? "text-primary-400"
               : "text-text-tertiary"
           }`}
-          aria-hidden="true"
-        />
-      </button>
-
-      <button
-        onClick={handleClickEditorWidth}
-        className="p-1 rounded hover:bg-surface-elevated transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500"
-        title={t("Editor width")}
-        aria-label={t("Editor width")}
-      >
-        <ArrowsPointingOutIcon
-          className="w-4 h-4 text-text-tertiary"
           aria-hidden="true"
         />
       </button>

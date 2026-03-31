@@ -26,14 +26,16 @@ interface AssignmentState {
   loading: boolean;
   courseFilter: string | null;
   activeTab: AssignmentTab;
+  includeAll: boolean;
 
-  fetchAssignments: () => Promise<void>;
+  fetchAssignments: (opts?: { all?: boolean }) => Promise<void>;
   createAssignment: (data: Partial<Assignment>) => Promise<Assignment | null>;
   updateAssignment: (id: string, data: Partial<Assignment>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
   syncFromCanvas: () => Promise<{ count: number } | null>;
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
+  setIncludeAll: (all: boolean) => void;
 }
 
 const useAssignmentStore = create<AssignmentState>()(
@@ -43,11 +45,15 @@ const useAssignmentStore = create<AssignmentState>()(
       loading: false,
       courseFilter: null,
       activeTab: "upcoming",
+      includeAll: false,
 
-      fetchAssignments: async () => {
+      fetchAssignments: async (opts) => {
         set({ loading: true });
         try {
-          const res = await fetch("/api/assignments");
+          const all = opts?.all ?? get().includeAll;
+          const res = await fetch(
+            all ? "/api/assignments?all=1" : "/api/assignments",
+          );
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
           set({ assignments: data, loading: false });
@@ -118,12 +124,14 @@ const useAssignmentStore = create<AssignmentState>()(
 
       setCourseFilter: (course) => set({ courseFilter: course }),
       setActiveTab: (tab) => set({ activeTab: tab }),
+      setIncludeAll: (all) => set({ includeAll: all }),
     }),
     {
       name: "oghma-assignments",
       partialize: (state) => ({
         courseFilter: state.courseFilter,
         activeTab: state.activeTab,
+        includeAll: state.includeAll,
       }),
     },
   ),

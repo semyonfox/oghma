@@ -24,7 +24,7 @@ const SKIP_KEYS = new Set([
   'OghmaNotes', 'OghmaNotes Logo', 'GitHub', 'Google', 'Microsoft', 'Apple',
   'Facebook', 'Instagram', 'LinkedIn', 'YouTube', 'X', 'SocsBoard',
   'HTML', 'UTC', 'ID', 'ID:', 'M', 'S',
-  'john@example.com', 'dcu.instructure.com',
+  'john@example.com', 'universityofgalway.instructure.com',
   'NUI Galway', 'Trinity College Dublin', 'University College Dublin',
   'University College Cork', 'Dublin City University',
   'John', 'Doe', 'RAG Chat', 'Canvas',

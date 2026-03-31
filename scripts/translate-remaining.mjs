@@ -21,7 +21,7 @@ const LOCALE_MAP = {
 // only skip things that truly cannot/should not be translated
 const SKIP_KEYS = new Set([
   'OghmaNotes', 'OghmaNotes Logo', 'GitHub', 'SocsBoard',
-  'john@example.com', 'dcu.instructure.com',
+  'john@example.com', 'universityofgalway.instructure.com',
   'NUI Galway', 'Trinity College Dublin', 'University College Dublin',
   'University College Cork', 'Dublin City University',
   'David Kim', 'Emma Rodriguez', 'Jessica Walsh', 'Marcus Johnson',
