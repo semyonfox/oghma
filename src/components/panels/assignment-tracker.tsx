@@ -136,6 +136,20 @@ const toneFg: Record<string, string> = {
   none: "text-text-tertiary",
 };
 
+function isVisibleInTab(a: Assignment, tab: AssignmentTab) {
+  const isCanvasUndated = a.source === "canvas" && !a.due_at;
+  if (tab === "upcoming") {
+    if (isCanvasUndated) return false;
+    return a.status === "upcoming" || a.status === "in_progress";
+  }
+  if (tab === "done") return a.status === "done";
+  if (tab === "late") {
+    if (isCanvasUndated) return false;
+    return a.status === "late";
+  }
+  return true;
+}
+
 // -- main component --------------------------------------------------------
 
 export default function AssignmentTracker() {
@@ -145,18 +159,20 @@ export default function AssignmentTracker() {
     loading,
     courseFilter,
     activeTab,
+    includeAll,
     fetchAssignments,
     syncFromCanvas,
     setCourseFilter,
     setActiveTab,
+    setIncludeAll,
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((s) => s.start);
   const [showNewTask, setShowNewTask] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    fetchAssignments();
-  }, [fetchAssignments]);
+    fetchAssignments({ all: includeAll });
+  }, [fetchAssignments, includeAll]);
 
   // build course list for filter dropdown
   const courses = useMemo(() => {
@@ -190,11 +206,7 @@ export default function AssignmentTracker() {
   const filtered = useMemo(() => {
     return assignments.filter((a) => {
       if (courseFilter && a.course_name !== courseFilter) return false;
-      if (activeTab === "upcoming")
-        return a.status === "upcoming" || a.status === "in_progress";
-      if (activeTab === "done") return a.status === "done";
-      if (activeTab === "late") return a.status === "late";
-      return true;
+      return isVisibleInTab(a, activeTab);
     });
   }, [assignments, courseFilter, activeTab]);
 
@@ -204,11 +216,9 @@ export default function AssignmentTracker() {
       ? assignments.filter((a) => a.course_name === courseFilter)
       : assignments;
     return {
-      upcoming: base.filter(
-        (a) => a.status === "upcoming" || a.status === "in_progress",
-      ).length,
-      done: base.filter((a) => a.status === "done").length,
-      late: base.filter((a) => a.status === "late").length,
+      upcoming: base.filter((a) => isVisibleInTab(a, "upcoming")).length,
+      done: base.filter((a) => isVisibleInTab(a, "done")).length,
+      late: base.filter((a) => isVisibleInTab(a, "late")).length,
     };
   }, [assignments, courseFilter]);
 
@@ -248,7 +258,7 @@ export default function AssignmentTracker() {
             <ListboxOptions className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-border-subtle bg-surface py-1 text-xs shadow-lg">
               <ListboxOption
                 value={null}
-                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/5 data-[focus]:bg-white/5"
+                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
               >
                 {t("All Courses")}
               </ListboxOption>
@@ -256,7 +266,7 @@ export default function AssignmentTracker() {
                 <ListboxOption
                   key={c}
                   value={c}
-                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/5 data-[focus]:bg-white/5"
+                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                 >
                   {c}
                 </ListboxOption>
@@ -265,9 +275,22 @@ export default function AssignmentTracker() {
           </div>
         </Listbox>
         <button
+          onClick={() => setIncludeAll(!includeAll)}
+          className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors ${
+            includeAll
+              ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
+              : "border-border-subtle bg-subtle text-text-tertiary hover:text-text-secondary"
+          }`}
+          title={
+            includeAll ? t("Showing all assignments") : t("Get all assignments")
+          }
+        >
+          {includeAll ? t("All") : t("Get all")}
+        </button>
+        <button
           onClick={handleSync}
           disabled={syncing}
-          className="rounded-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-white/5 transition-colors disabled:opacity-40"
+          className="rounded-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors disabled:opacity-40"
           title={t("Sync from Canvas")}
         >
           <ArrowPathIcon
@@ -280,7 +303,7 @@ export default function AssignmentTracker() {
       <ConcentricRings courses={courseRings} />
 
       {/* tab bar */}
-      <div className="flex mx-3 mb-2 rounded-md bg-white/[0.03] p-0.5">
+      <div className="flex mx-3 mb-2 rounded-md bg-subtle p-0.5">
         {tabs.map(({ key, label }) => (
           <button
             key={key}
@@ -329,7 +352,7 @@ export default function AssignmentTracker() {
             return (
               <div
                 key={a.id}
-                className="group rounded-lg border border-border-subtle bg-surface/50 p-2.5 transition-colors hover:bg-surface/80"
+                className="group rounded-lg border border-border-subtle bg-surface p-2.5 transition-colors hover:bg-surface-elevated"
               >
                 {/* top row: course badge + focus button */}
                 <div className="flex items-center justify-between gap-1.5">
@@ -379,7 +402,7 @@ export default function AssignmentTracker() {
                 {/* hour progress bar */}
                 {hoursEst > 0 && (
                   <div className="mt-2">
-                    <div className="h-[3px] rounded-full bg-white/[0.06]">
+                    <div className="h-[3px] rounded-full bg-subtle">
                       <div
                         className="h-full rounded-full transition-all duration-300"
                         style={{

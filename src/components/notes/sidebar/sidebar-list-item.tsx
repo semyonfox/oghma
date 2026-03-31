@@ -248,9 +248,9 @@ const SidebarListItem: FC<{
           itemElementRef.current = el;
           innerRef(el);
         }}
-        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-white/5 transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
           snapshot.isDragging
-            ? "opacity-60 bg-white/8 shadow-lg ring-1 ring-white/20"
+            ? "opacity-60 bg-subtle-hover shadow-lg ring-1 ring-primary-400/30"
             : ""
         } ${activeId === item.id ? "bg-primary-500/10 text-primary-400" : ""}`}
         role="treeitem"
@@ -270,7 +270,7 @@ const SidebarListItem: FC<{
             emoji ? (
               <span
                 onClick={handleClickIcon}
-                className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-white/10 transition-colors"
+                className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-subtle transition-colors"
                 role="button"
                 tabIndex={0}
                 aria-label={isExpanded ? t("Collapse") : t("Expand")}
@@ -321,7 +321,7 @@ const SidebarListItem: FC<{
                   handleRenameCompleteMemoized(item.title || "");
                 }
               }}
-              className="flex-1 truncate bg-white/10 border border-border rounded px-1 py-0.5 outline-none text-text-secondary focus:bg-white/20 focus:border-primary-500 transition-colors text-sm"
+              className="flex-1 truncate bg-subtle border border-border rounded px-1 py-0.5 outline-none text-text-secondary focus:bg-subtle-hover focus:border-primary-500 transition-colors text-sm"
               dir="auto"
               onClick={(e) => e.stopPropagation()}
               aria-label={t("Rename note")}

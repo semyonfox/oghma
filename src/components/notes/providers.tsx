@@ -11,7 +11,6 @@ import SearchModal from "@/components/notes/search-modal";
 import TrashModal from "@/components/notes/trash-modal";
 import PreviewModal from "@/components/notes/preview-modal";
 import LinkToolbar from "@/components/notes/link-toolbar";
-import EditorWidthSelect from "@/components/notes/editor-width-select";
 
 interface NotesProvidersProps {
   children: ReactNode;
@@ -26,7 +25,6 @@ function NotesProvidersContent({ children }: NotesProvidersProps) {
       <TrashModal />
       <PreviewModal />
       <LinkToolbar />
-      <EditorWidthSelect />
       <Toaster position="bottom-center" />
     </>
   );

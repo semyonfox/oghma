@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { parseSseBlocks } from "@/lib/chat/sse";
 
 export interface Message {
   id: string;
@@ -183,6 +184,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
+    const assistantId = makeId();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        sources: [],
+        timestamp: Date.now(),
+      },
+    ]);
+
     // build history for context (skip welcome message)
     const history = messages
       .filter((m) => m.id !== "welcome")
@@ -192,7 +205,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, noteId, sessionId, history }),
+        body: JSON.stringify({
+          message: text,
+          noteId,
+          sessionId,
+          history,
+          stream: true,
+        }),
       });
 
       if (!res.ok) {
@@ -200,19 +219,91 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         throw new Error(data.error || `Server error ${res.status}`);
       }
 
-      const data = await res.json();
-      if (data.sessionId && data.sessionId !== sessionId) {
-        setSessionId(data.sessionId);
-        onSessionCreated?.(data.sessionId, text.slice(0, 60));
+      const contentType = res.headers.get("Content-Type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.sessionId && data.sessionId !== sessionId) {
+          setSessionId(data.sessionId);
+          onSessionCreated?.(data.sessionId, text.slice(0, 60));
+        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: data.reply || "",
+                  sources: Array.isArray(data.sources) ? data.sources : [],
+                }
+              : m,
+          ),
+        );
+        return;
       }
-      const assistantMsg: Message = {
-        id: makeId(),
-        role: "assistant",
-        content: data.reply,
-        sources: Array.isArray(data.sources) ? data.sources : [],
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+
+      if (!res.body) {
+        throw new Error("Missing stream body");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      const parseState = { buffer: "" };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        const chunk = done
+          ? decoder.decode()
+          : decoder.decode(value, { stream: true });
+
+        if (chunk) {
+          for (const frame of parseSseBlocks(chunk, parseState)) {
+            let payload: any = {};
+            try {
+              payload = JSON.parse(frame.data);
+            } catch {
+              payload = {};
+            }
+
+            if (frame.event === "meta") {
+              if (payload.sessionId && payload.sessionId !== sessionId) {
+                setSessionId(payload.sessionId);
+                onSessionCreated?.(payload.sessionId, text.slice(0, 60));
+              }
+              if (Array.isArray(payload.sources)) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, sources: payload.sources }
+                      : m,
+                  ),
+                );
+              }
+              continue;
+            }
+
+            if (frame.event === "token") {
+              const token =
+                typeof payload.text === "string" ? payload.text : "";
+              if (!token) continue;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: `${m.content}${token}` }
+                    : m,
+                ),
+              );
+              continue;
+            }
+
+            if (frame.event === "error") {
+              throw new Error(
+                payload?.message || t("error.something_went_wrong"),
+              );
+            }
+          }
+        }
+
+        if (done) break;
+      }
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("error.something_went_wrong");
@@ -272,7 +363,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                         <p className="mb-1 last:mb-0">{children}</p>
                       ),
                       code: ({ children }) => (
-                        <code className="bg-white/10 px-1 rounded text-[10px]">
+                        <code className="bg-subtle px-1 rounded text-[10px]">
                           {children}
                         </code>
                       ),
@@ -401,7 +492,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                             {children}
                           </code>
                         ) : (
-                          <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono">
+                          <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
                             {children}
                           </code>
                         );

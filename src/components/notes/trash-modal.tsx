@@ -49,7 +49,7 @@ const TrashItem: FC<{
     <li
       ref={ref}
       className={`flex items-center py-2 px-4 cursor-pointer transition-colors ${
-        selected ? "bg-primary-500/10" : "hover:bg-white/5"
+        selected ? "bg-primary-500/10" : "hover:bg-subtle"
       }`}
     >
       <a
