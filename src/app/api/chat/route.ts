@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession, type SessionUser } from "@/lib/auth";
+import { validateSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { embedText } from "@/lib/embedText";
 import { rerankChunks } from "@/lib/rerank";

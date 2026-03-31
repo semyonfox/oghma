@@ -1,7 +1,7 @@
 // extract API route — document ingestion pipeline (manual upload)
 // supports PDF, DOCX, PPTX (via Marker), and text/markdown (direct decode)
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession, type SessionUser } from "@/lib/auth";
+import { validateSession } from "@/lib/auth";
 import { chunkText } from "@/lib/chunking";
 import { embedChunks } from "@/lib/embeddings";
 import { extractWithMarker } from "@/lib/ocr";

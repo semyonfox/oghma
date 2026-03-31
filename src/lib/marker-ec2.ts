@@ -28,7 +28,6 @@ const HEALTH_CHECK_TIMEOUT_MS = 300_000; // 5 min — ASG cold start can take lo
 const SINGLE_INSTANCE_TIMEOUT_MS = 180_000; // 3 min for single instance
 const MAX_TRANSITION_WAIT_MS = 120_000;
 
-const MIN_ACTIVE_INSTANCES = 1;
 const SCALE_UP_INSTANCES = 2; // scale to 2 for throughput
 
 export async function ensureMarkerRunning(): Promise<string> {
