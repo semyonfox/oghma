@@ -104,6 +104,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     allCardIds.push(...newCards.map((c: any) => c.id));
   }
 
+  if (allCardIds.length === 0) {
+    return tracedError(
+      "Could not prepare quiz questions right now. Please try again in a moment.",
+      503,
+    );
+  }
+
   // create session (persist card_ids so GET can reconstruct the session)
   const sessionId = generateUUID();
   await sql`
