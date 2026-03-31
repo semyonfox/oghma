@@ -46,7 +46,7 @@ export default function LoginPage() {
         if (mounted) setOauthProviders(providers ?? {});
       })
       .catch(() => {
-        if (mounted) setOauthProviders({});
+        if (mounted) setOauthProviders(null);
       });
 
     return () => {

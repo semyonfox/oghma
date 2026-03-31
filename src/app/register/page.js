@@ -31,7 +31,7 @@ export default function RegisterPage() {
         if (mounted) setOauthProviders(providers ?? {});
       })
       .catch(() => {
-        if (mounted) setOauthProviders({});
+        if (mounted) setOauthProviders(null);
       });
 
     return () => {

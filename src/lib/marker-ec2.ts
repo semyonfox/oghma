@@ -1,80 +1,164 @@
-// manages the Marker OCR EC2 instance lifecycle
-// starts the instance on demand, waits for the server to be healthy,
-// and provides the API URL for the import pipeline
+// manages the Marker OCR server lifecycle
+// supports two modes:
+//   1. ASG mode (preferred): scales an Auto Scaling Group, ALB handles routing
+//   2. Single instance mode (legacy): starts/stops a single EC2 instance
 import {
-    EC2Client,
-    StartInstancesCommand,
-    DescribeInstancesCommand,
-} from '@aws-sdk/client-ec2';
+  EC2Client,
+  StartInstancesCommand,
+  DescribeInstancesCommand,
+} from "@aws-sdk/client-ec2";
+import {
+  AutoScalingClient,
+  DescribeAutoScalingGroupsCommand,
+  SetDesiredCapacityCommand,
+} from "@aws-sdk/client-auto-scaling";
 
-const ec2 = new EC2Client({ region: process.env.AWS_REGION ?? 'eu-north-1' });
+// ASG mode (eu-west-1)
+const ASG_NAME = process.env.MARKER_ASG_NAME;
+const ASG_REGION = process.env.MARKER_ASG_REGION ?? "eu-west-1";
+
+// single instance mode (legacy)
 const INSTANCE_ID = process.env.MARKER_EC2_INSTANCE_ID;
-const MARKER_URL = process.env.MARKER_API_URL; // http://<elastic-ip>:8000
+
+// shared
+const MARKER_URL = process.env.MARKER_API_URL; // ALB DNS or Elastic IP
 
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
-const HEALTH_CHECK_TIMEOUT_MS = 180_000; // 3 min — cold start takes ~1-2 min
+const HEALTH_CHECK_TIMEOUT_MS = 300_000; // 5 min — ASG cold start can take longer
+const SINGLE_INSTANCE_TIMEOUT_MS = 180_000; // 3 min for single instance
+const MAX_TRANSITION_WAIT_MS = 120_000;
 
-const MAX_TRANSITION_WAIT_MS = 120_000; // 2 min max wait for pending/stopping
+const MIN_ACTIVE_INSTANCES = 1;
+const SCALE_UP_INSTANCES = 2; // scale to 2 for throughput
 
 export async function ensureMarkerRunning(): Promise<string> {
-    if (!INSTANCE_ID || !MARKER_URL) {
-        throw new Error('MARKER_EC2_INSTANCE_ID and MARKER_API_URL must be set');
-    }
+  if (!MARKER_URL) {
+    throw new Error("MARKER_API_URL must be set");
+  }
 
-    const deadline = Date.now() + MAX_TRANSITION_WAIT_MS;
+  // ASG mode: scale up the group, ALB routes traffic
+  if (ASG_NAME) {
+    return ensureAsgRunning();
+  }
 
-    while (true) {
-        const state = await getInstanceState();
+  // single instance mode (legacy)
+  if (INSTANCE_ID) {
+    return ensureSingleInstanceRunning();
+  }
 
-        if (state === 'running') {
-            await waitForHealthy();
-            return MARKER_URL;
-        }
-
-        if (state === 'stopped') {
-            console.log(`Starting Marker EC2 instance ${INSTANCE_ID}`);
-            await ec2.send(new StartInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
-            await waitForHealthy();
-            return MARKER_URL;
-        }
-
-        if (state === 'pending' || state === 'stopping') {
-            if (Date.now() > deadline) {
-                throw new Error(`Marker instance stuck in ${state} state for over 2 minutes`);
-            }
-            console.log(`Marker instance in ${state} state, waiting...`);
-            await new Promise(r => setTimeout(r, 10_000));
-            continue;
-        }
-
-        throw new Error(`Marker instance in unexpected state: ${state}`);
-    }
+  throw new Error(
+    "Either MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID must be set",
+  );
 }
 
-async function getInstanceState(): Promise<string> {
-    const res = await ec2.send(new DescribeInstancesCommand({
-        InstanceIds: [INSTANCE_ID!],
-    }));
-    return res.Reservations?.[0]?.Instances?.[0]?.State?.Name ?? 'unknown';
+// ASG mode: check if instances are running, scale up if needed
+async function ensureAsgRunning(): Promise<string> {
+  const asg = new AutoScalingClient({ region: ASG_REGION });
+
+  const { AutoScalingGroups } = await asg.send(
+    new DescribeAutoScalingGroupsCommand({
+      AutoScalingGroupNames: [ASG_NAME!],
+    }),
+  );
+
+  const group = AutoScalingGroups?.[0];
+  if (!group) {
+    throw new Error(`ASG ${ASG_NAME} not found in ${ASG_REGION}`);
+  }
+
+  const desired = group.DesiredCapacity ?? 0;
+  const healthy =
+    group.Instances?.filter(
+      (i) => i.HealthStatus === "Healthy" && i.LifecycleState === "InService",
+    ).length ?? 0;
+
+  console.log(
+    `Marker ASG: desired=${desired}, healthy=${healthy}, max=${group.MaxSize}`,
+  );
+
+  // if no instances running, scale up
+  if (desired === 0) {
+    const target = Math.min(
+      SCALE_UP_INSTANCES,
+      group.MaxSize ?? SCALE_UP_INSTANCES,
+    );
+    console.log(`Scaling Marker ASG to ${target} instances`);
+    await asg.send(
+      new SetDesiredCapacityCommand({
+        AutoScalingGroupName: ASG_NAME!,
+        DesiredCapacity: target,
+      }),
+    );
+  }
+
+  // wait for ALB to have healthy targets
+  await waitForHealthy(HEALTH_CHECK_TIMEOUT_MS);
+  return MARKER_URL!;
 }
 
-async function waitForHealthy(): Promise<void> {
-    const deadline = Date.now() + HEALTH_CHECK_TIMEOUT_MS;
+// single instance mode (legacy)
+async function ensureSingleInstanceRunning(): Promise<string> {
+  const ec2 = new EC2Client({ region: process.env.AWS_REGION ?? "eu-north-1" });
+  const deadline = Date.now() + MAX_TRANSITION_WAIT_MS;
 
-    while (Date.now() < deadline) {
-        try {
-            const res = await fetch(`${MARKER_URL}/`, {
-                signal: AbortSignal.timeout(5_000),
-            });
-            if (res.ok) {
-                console.log('Marker server is healthy');
-                return;
-            }
-        } catch {
-            // server not ready yet
-        }
-        await new Promise(r => setTimeout(r, HEALTH_CHECK_INTERVAL_MS));
+  while (true) {
+    const state = await getInstanceState(ec2);
+
+    if (state === "running") {
+      await waitForHealthy(SINGLE_INSTANCE_TIMEOUT_MS);
+      return MARKER_URL!;
     }
 
-    throw new Error('Marker server failed to become healthy within timeout');
+    if (state === "stopped") {
+      console.log(`Starting Marker EC2 instance ${INSTANCE_ID}`);
+      await ec2.send(
+        new StartInstancesCommand({ InstanceIds: [INSTANCE_ID!] }),
+      );
+      await waitForHealthy(SINGLE_INSTANCE_TIMEOUT_MS);
+      return MARKER_URL!;
+    }
+
+    if (state === "pending" || state === "stopping") {
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Marker instance stuck in ${state} state for over 2 minutes`,
+        );
+      }
+      console.log(`Marker instance in ${state} state, waiting...`);
+      await new Promise((r) => setTimeout(r, 10_000));
+      continue;
+    }
+
+    throw new Error(`Marker instance in unexpected state: ${state}`);
+  }
+}
+
+async function getInstanceState(ec2: EC2Client): Promise<string> {
+  const res = await ec2.send(
+    new DescribeInstancesCommand({
+      InstanceIds: [INSTANCE_ID!],
+    }),
+  );
+  return res.Reservations?.[0]?.Instances?.[0]?.State?.Name ?? "unknown";
+}
+
+async function waitForHealthy(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`${MARKER_URL}/`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok) {
+        console.log("Marker server is healthy");
+        return;
+      }
+    } catch {
+      // server not ready yet
+    }
+    await new Promise((r) => setTimeout(r, HEALTH_CHECK_INTERVAL_MS));
+  }
+
+  throw new Error("Marker server failed to become healthy within timeout");
 }
