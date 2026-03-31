@@ -54,7 +54,7 @@ const LinkToolbar: FC = () => {
           <div className="flex gap-1">
             <button
               onClick={handleOpen}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-text-tertiary hover:bg-white/5 transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-text-tertiary hover:bg-subtle transition-colors"
               title={t("Open link")}
               aria-label={t("Open link")}
             >
@@ -63,7 +63,7 @@ const LinkToolbar: FC = () => {
             </button>
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-text-tertiary hover:bg-white/5 transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-text-tertiary hover:bg-subtle transition-colors"
               title={t("Copy link to clipboard")}
               aria-label={t("Copy link")}
             >

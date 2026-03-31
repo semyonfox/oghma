@@ -480,7 +480,7 @@ const SidebarList = () => {
           <div className="flex items-center gap-0.5">
             <button
               onClick={handleQuickNewNote}
-              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New note")}
             >
               <svg
@@ -496,7 +496,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleQuickNewFolder}
-              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New folder")}
             >
               <svg
@@ -512,7 +512,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleCollapseAll}
-              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("Collapse all")}
             >
               <svg
@@ -527,7 +527,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("More options")}
             >
               <svg
@@ -701,7 +701,7 @@ const SidebarList = () => {
           onClick={() => setDeleteConfirmId(null)}
         >
           <div
-            className="bg-surface rounded-lg shadow-2xl ring-1 ring-white/[0.08] p-5 w-[320px] space-y-4"
+            className="bg-surface rounded-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
@@ -845,8 +845,8 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                     transition-colors duration-75 rounded-[3px] mx-0.5
                     ${
                       isActive
-                        ? "bg-white/8 text-text-secondary"
-                        : "text-text-tertiary hover:text-text-secondary hover:bg-white/[0.04]"
+                        ? "bg-subtle text-text-secondary"
+                        : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
                     }
                     ${isDragging ? "opacity-40" : ""}
                 `}
@@ -936,7 +936,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 truncate bg-white/10 border border-primary-500/50 rounded px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
+              className="flex-1 min-w-0 truncate bg-subtle border border-primary-500/50 rounded px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
             />
           ) : (
             <span
@@ -968,7 +968,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {!isRenaming && (
             <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
               <button
-                className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+                className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                 onClick={onDotsClick}
                 title={t("More actions")}
                 tabIndex={-1}
@@ -1003,7 +1003,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
               </button>
               {isFolder && (
                 <button
-                  className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                   onClick={onAddNote}
                   title={t("New note inside")}
                   tabIndex={-1}
@@ -1029,7 +1029,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
         {hasChildren && isExpanded && (
           <div className="relative">
             <div
-              className="absolute top-0 bottom-0 w-px bg-white/[0.06] pointer-events-none"
+              className="absolute top-0 bottom-0 w-px bg-primary-500/20 pointer-events-none"
               style={{ left: `${pl + 11}px` }}
             />
             {children}

@@ -8,11 +8,11 @@
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
 
   /* === SEMANTIC SURFACES & TEXT === */
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-elevated: #334155;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-background: #0f122b;
+  --color-surface: #171b3a;
+  --color-surface-elevated: #222853;
+  --color-border: rgba(129, 140, 248, 0.22);
+  --color-border-subtle: rgba(129, 140, 248, 0.14);
 
   /* Text colors with proper contrast */
   --color-text: #f1f5f9;
@@ -93,9 +93,9 @@
   --color-neutral-900: #171717;
 
   /* === INTERACTIVE ELEMENTS === */
-  --color-input: rgba(255, 255, 255, 0.05);
-  --color-subtle: rgba(255, 255, 255, 0.1);
-  --color-subtle-hover: rgba(255, 255, 255, 0.15);
+  --color-input: rgba(99, 102, 241, 0.14);
+  --color-subtle: rgba(99, 102, 241, 0.16);
+  --color-subtle-hover: rgba(99, 102, 241, 0.24);
 }
 
 /* light mode overrides */
@@ -367,8 +367,16 @@ body {
 .bg-editor {
   background: radial-gradient(
     ellipse at top,
-    rgb(30 41 59 / 0.4),
+    rgb(79 70 229 / 0.22),
     var(--color-background) 60%
+  );
+}
+
+.bg-chat-page {
+  background: radial-gradient(
+    ellipse at top,
+    rgb(99 102 241 / 0.2),
+    var(--color-background) 58%
   );
 }
 

@@ -75,7 +75,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         const cached = await noteCacheInstance.getItem<{ content?: string }>(
           file.fileId,
         );
-        if (!cancelled && cached?.content != null && currentFileId.current === stale) {
+        if (
+          !cancelled &&
+          cached?.content != null &&
+          currentFileId.current === stale
+        ) {
           setLocalContent(cached.content);
           setLoaded(true);
         }
@@ -280,7 +284,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </div>
           )
         ) : loaded ? (
-          <div className="w-full max-w-[65ch] mx-auto h-full">
+          <div className="w-full max-w-[95ch] mx-auto h-full">
             <div className="px-12 pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
               <PreviewRenderer content={displayContent} />
             </div>

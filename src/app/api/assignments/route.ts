@@ -17,9 +17,17 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
     const course = url.searchParams.get("course");
+    const includeAll = url.searchParams.get("all") === "1";
+    const windowDaysParam = Number(url.searchParams.get("windowDays") ?? "120");
+    const windowDays = Number.isFinite(windowDaysParam)
+      ? Math.min(Math.max(windowDaysParam, 1), 730)
+      : 120;
+    const cutoffIso = new Date(
+      Date.now() - windowDays * 86400000,
+    ).toISOString();
 
     let rows;
-    if (status && course) {
+    if (status && course && includeAll) {
       rows = await sql`
         SELECT * FROM app.assignments
         WHERE user_id = ${user.user_id}::uuid
@@ -27,22 +35,74 @@ export async function GET(request: Request) {
           AND course_name = ${course}
         ORDER BY due_at ASC NULLS LAST, created_at DESC
       `;
-    } else if (status) {
+    } else if (status && includeAll) {
       rows = await sql`
         SELECT * FROM app.assignments
         WHERE user_id = ${user.user_id}::uuid AND status = ${status}
         ORDER BY due_at ASC NULLS LAST, created_at DESC
       `;
-    } else if (course) {
+    } else if (course && includeAll) {
       rows = await sql`
         SELECT * FROM app.assignments
         WHERE user_id = ${user.user_id}::uuid AND course_name = ${course}
+        ORDER BY due_at ASC NULLS LAST, created_at DESC
+      `;
+    } else if (includeAll) {
+      rows = await sql`
+        SELECT * FROM app.assignments
+        WHERE user_id = ${user.user_id}::uuid
+        ORDER BY due_at ASC NULLS LAST, created_at DESC
+      `;
+    } else if (status && course) {
+      rows = await sql`
+        SELECT * FROM app.assignments
+        WHERE user_id = ${user.user_id}::uuid
+          AND status = ${status}
+          AND course_name = ${course}
+          AND (
+            source <> 'canvas'
+            OR status IN ('upcoming', 'in_progress')
+            OR due_at >= ${cutoffIso}::timestamptz
+            OR submitted_at >= ${cutoffIso}::timestamptz
+          )
+        ORDER BY due_at ASC NULLS LAST, created_at DESC
+      `;
+    } else if (status) {
+      rows = await sql`
+        SELECT * FROM app.assignments
+        WHERE user_id = ${user.user_id}::uuid
+          AND status = ${status}
+          AND (
+            source <> 'canvas'
+            OR status IN ('upcoming', 'in_progress')
+            OR due_at >= ${cutoffIso}::timestamptz
+            OR submitted_at >= ${cutoffIso}::timestamptz
+          )
+        ORDER BY due_at ASC NULLS LAST, created_at DESC
+      `;
+    } else if (course) {
+      rows = await sql`
+        SELECT * FROM app.assignments
+        WHERE user_id = ${user.user_id}::uuid
+          AND course_name = ${course}
+          AND (
+            source <> 'canvas'
+            OR status IN ('upcoming', 'in_progress')
+            OR due_at >= ${cutoffIso}::timestamptz
+            OR submitted_at >= ${cutoffIso}::timestamptz
+          )
         ORDER BY due_at ASC NULLS LAST, created_at DESC
       `;
     } else {
       rows = await sql`
         SELECT * FROM app.assignments
         WHERE user_id = ${user.user_id}::uuid
+          AND (
+            source <> 'canvas'
+            OR status IN ('upcoming', 'in_progress')
+            OR due_at >= ${cutoffIso}::timestamptz
+            OR submitted_at >= ${cutoffIso}::timestamptz
+          )
         ORDER BY due_at ASC NULLS LAST, created_at DESC
       `;
     }

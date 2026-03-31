@@ -10,6 +10,10 @@ import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
+import { getLlmMaxTokens, getLlmTimeoutMs } from "@/lib/ai-config";
+import { extractProviderText } from "@/lib/chat/llm-stream";
+import { parseSseBlocks, toSseEvent } from "@/lib/chat/sse";
+import { getTraceId } from "@/lib/trace";
 
 interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -118,6 +122,8 @@ async function callLLM(
   const apiUrl = process.env.LLM_API_URL;
   const model = process.env.LLM_MODEL || "kimi-k2.5";
   const apiKey = process.env.LLM_API_KEY;
+  const timeoutMs = getLlmTimeoutMs();
+  const maxTokens = getLlmMaxTokens();
   if (!apiUrl) throw new Error("LLM_API_URL not configured");
   if (!apiKey) throw new Error("LLM_API_KEY not configured");
 
@@ -133,7 +139,11 @@ async function callLLM(
       ? { type: "disabled" as const }
       : undefined;
 
-  const body: Record<string, unknown> = { model, messages, max_tokens: 16384 };
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    max_tokens: maxTokens,
+  };
   if (thinking) body.thinking = thinking;
 
   const res = await fetch(`${apiUrl}/chat/completions`, {
@@ -143,7 +153,7 @@ async function callLLM(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) {
@@ -153,6 +163,82 @@ async function callLLM(
 
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "";
+}
+
+async function* callLLMStream(
+  systemPrompt: string,
+  history: ChatMessage[],
+  userMessage: string,
+): AsyncGenerator<string, void, unknown> {
+  const apiUrl = process.env.LLM_API_URL;
+  const model = process.env.LLM_MODEL || "kimi-k2.5";
+  const apiKey = process.env.LLM_API_KEY;
+  const timeoutMs = getLlmTimeoutMs();
+  const maxTokens = getLlmMaxTokens();
+  if (!apiUrl) throw new Error("LLM_API_URL not configured");
+  if (!apiKey) throw new Error("LLM_API_KEY not configured");
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    ...history.slice(-8),
+    { role: "user", content: userMessage },
+  ];
+
+  const thinking =
+    process.env.LLM_THINKING === "off"
+      ? { type: "disabled" as const }
+      : undefined;
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    max_tokens: maxTokens,
+    stream: true,
+  };
+  if (thinking) body.thinking = thinking;
+
+  const res = await fetch(`${apiUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
+  }
+
+  if (!res.body) {
+    throw new Error("LLM stream body missing");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const state = { buffer: "" };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    const chunk = done
+      ? decoder.decode()
+      : decoder.decode(value, { stream: true });
+    if (chunk) {
+      for (const frame of parseSseBlocks(chunk, state)) {
+        if (frame.data === "[DONE]") return;
+        try {
+          const payload = JSON.parse(frame.data);
+          const text = extractProviderText(payload);
+          if (text) yield text;
+        } catch {
+          // ignore malformed or non-json chunks
+        }
+      }
+    }
+    if (done) return;
+  }
 }
 
 async function persistMessage(
@@ -213,11 +299,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     noteId,
     sessionId: requestedSessionId,
     history: requestHistory = [],
+    stream = false,
   }: {
     message: string;
     noteId?: string;
     sessionId?: string;
     history?: ChatMessage[];
+    stream?: boolean;
   } = body;
 
   if (!message?.trim()) {
@@ -292,13 +380,102 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   );
 
+  const fallbackReply =
+    searchResults.length > 0
+      ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map((r) => `"${r.title || "Untitled"}"`))].join(", ")}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
+      : embeddingAvailable
+        ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
+        : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
+
+  if (stream) {
+    const encoder = new TextEncoder();
+    const llmAvailable = !!process.env.LLM_API_URL;
+    return new NextResponse(
+      new ReadableStream({
+        start(controller) {
+          void (async () => {
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  toSseEvent("meta", {
+                    sessionId,
+                    sources: uniqueSources,
+                    ragAvailable: !ragFailed,
+                    llmAvailable,
+                  }),
+                ),
+              );
+
+              if (!llmAvailable) {
+                controller.enqueue(
+                  encoder.encode(toSseEvent("token", { text: fallbackReply })),
+                );
+                await persistMessage(
+                  sessionId,
+                  "assistant",
+                  fallbackReply,
+                  uniqueSources,
+                );
+                controller.enqueue(encoder.encode(toSseEvent("done", {})));
+                controller.close();
+                return;
+              }
+
+              const t0 = Date.now();
+              let reply = "";
+              for await (const token of callLLMStream(
+                systemPrompt,
+                history,
+                message,
+              )) {
+                reply += token;
+                controller.enqueue(
+                  encoder.encode(toSseEvent("token", { text: token })),
+                );
+              }
+              void Metrics.llmLatency(Date.now() - t0);
+
+              await persistMessage(
+                sessionId,
+                "assistant",
+                reply,
+                uniqueSources,
+              );
+              controller.enqueue(encoder.encode(toSseEvent("done", {})));
+              controller.close();
+            } catch (error) {
+              void Metrics.llmError();
+              const detail =
+                error instanceof Error ? error.message : String(error);
+              logger.error("LLM stream failed", {
+                error: detail,
+                model: process.env.LLM_MODEL,
+              });
+              controller.enqueue(
+                encoder.encode(
+                  toSseEvent("error", {
+                    message: "Failed to generate response",
+                    traceId: getTraceId(),
+                  }),
+                ),
+              );
+              controller.close();
+            }
+          })();
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      },
+    );
+  }
+
   if (!process.env.LLM_API_URL) {
-    const reply =
-      searchResults.length > 0
-        ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map((r) => `"${r.title || "Untitled"}"`))].join(", ")}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
-        : embeddingAvailable
-          ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
-          : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
+    const reply = fallbackReply;
 
     await persistMessage(sessionId, "assistant", reply, uniqueSources);
     return NextResponse.json({
