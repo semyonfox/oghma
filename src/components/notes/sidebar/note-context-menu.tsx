@@ -209,7 +209,7 @@ export default function NoteContextMenuPortal({
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[9999] min-w-[180px] rounded-md bg-surface/95 backdrop-blur-md py-1 shadow-2xl ring-1 ring-white/[0.08]"
+      className="fixed z-[9999] min-w-[180px] rounded-md bg-surface/95 backdrop-blur-md py-1 shadow-2xl ring-1 ring-border-subtle"
       style={{
         top: `${(adjusted ?? position).y}px`,
         left: `${(adjusted ?? position).x}px`,

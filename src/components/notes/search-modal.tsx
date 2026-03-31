@@ -160,7 +160,7 @@ export default function SearchModal() {
                         <li key={result.id}>
                           <button
                             onClick={() => handleSelectNote(result.id)}
-                            className="w-full px-4 py-3 text-left hover:bg-white/5 focus:bg-white/5 focus:outline-none transition-colors"
+                            className="w-full px-4 py-3 text-left hover:bg-subtle focus:bg-subtle focus:outline-none transition-colors"
                           >
                             <div className="flex items-start">
                               <DocumentTextIcon className="mt-1 h-5 w-5 text-text-tertiary flex-shrink-0" />

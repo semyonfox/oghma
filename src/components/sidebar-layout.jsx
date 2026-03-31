@@ -32,17 +32,17 @@ function TeamsSection({ teams, onNavigateItem }) {
               }}
               className={classNames(
                 team.current
-                  ? "bg-white/5 text-white"
-                  : "text-text-tertiary hover:bg-white/5 hover:text-white",
+                  ? "bg-subtle text-text"
+                  : "text-text-tertiary hover:bg-subtle hover:text-text",
                 "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
               )}
             >
               <span
                 className={classNames(
                   team.current
-                    ? "border-white/20 text-white"
-                    : "border-border-subtle text-text-tertiary group-hover:border-white/20 group-hover:text-white",
-                  "flex size-6 shrink-0 items-center justify-center rounded-lg border bg-white/5 text-[0.625rem] font-medium",
+                    ? "border-primary-400/40 text-text"
+                    : "border-border-subtle text-text-tertiary group-hover:border-primary-400/40 group-hover:text-text",
+                  "flex size-6 shrink-0 items-center justify-center rounded-lg border bg-subtle text-[0.625rem] font-medium",
                 )}
               >
                 {team.initial}
@@ -62,7 +62,7 @@ function ProfileSection({ userProfile, onProfileClick }) {
     <li className="-mx-6 mt-auto">
       <button
         onClick={onProfileClick}
-        className="w-full flex items-center gap-x-4 px-6 py-3 text-sm/6 font-semibold text-white hover:bg-white/5 transition-colors"
+        className="w-full flex items-center gap-x-4 px-6 py-3 text-sm/6 font-semibold text-text hover:bg-subtle transition-colors"
       >
         {userProfile.avatar && (
           <img
@@ -94,8 +94,8 @@ function SidebarContent({
       className={classNames(
         "relative flex grow flex-col gap-y-5 overflow-y-auto",
         mobile
-          ? "bg-background px-6 pb-2 ring ring-border-subtle before:pointer-events-none before:absolute before:inset-0 before:bg-black/10"
-          : "border-r border-border-subtle bg-black/10 px-6",
+          ? "bg-background px-6 pb-2 ring ring-border-subtle before:pointer-events-none before:absolute before:inset-0 before:bg-primary-900/15"
+          : "border-r border-border-subtle bg-surface/80 px-6 backdrop-blur",
       )}
     >
       {/* Logo */}
@@ -103,7 +103,7 @@ function SidebarContent({
         {logoSrc ? (
           <img alt="Logo" src={logoSrc} className="h-8 w-auto" />
         ) : (
-          <span className="text-xl font-bold text-white">{logoText}</span>
+          <span className="text-xl font-bold text-text">{logoText}</span>
         )}
       </div>
 
@@ -123,8 +123,8 @@ function SidebarContent({
                     }}
                     className={classNames(
                       item.current
-                        ? "bg-white/5 text-white"
-                        : "text-text-tertiary hover:bg-white/5 hover:text-white",
+                        ? "bg-subtle text-text"
+                        : "text-text-tertiary hover:bg-subtle hover:text-text",
                       "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
                     )}
                   >
@@ -133,8 +133,8 @@ function SidebarContent({
                         aria-hidden="true"
                         className={classNames(
                           item.current
-                            ? "text-white"
-                            : "text-text-tertiary group-hover:text-white",
+                            ? "text-text"
+                            : "text-text-tertiary group-hover:text-text",
                           "size-6 shrink-0",
                         )}
                       />
@@ -254,16 +254,16 @@ export function SidebarLayout({
       </div>
 
       {/* Mobile Top Bar */}
-      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 after:pointer-events-none after:absolute after:inset-0 after:border-b after:border-border-subtle after:bg-black/10 sm:px-6 lg:hidden">
+      <div className="sticky top-0 z-40 flex items-center gap-x-6 bg-background px-4 py-4 after:pointer-events-none after:absolute after:inset-0 after:border-b after:border-border-subtle after:bg-primary-900/15 sm:px-6 lg:hidden">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="-m-2.5 p-2.5 text-text-tertiary hover:text-white"
+          className="-m-2.5 p-2.5 text-text-tertiary hover:text-text"
         >
           <span className="sr-only">{t("Open sidebar")}</span>
           <Bars3Icon aria-hidden="true" className="size-6" />
         </button>
-        <div className="flex-1 text-sm/6 font-semibold text-white">
+        <div className="flex-1 text-sm/6 font-semibold text-text">
           {pageTitle}
         </div>
         {userProfile && (

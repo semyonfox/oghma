@@ -210,7 +210,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         className={`group flex items-center h-[26px] pr-1 rounded-sm cursor-pointer select-none transition-colors duration-100 ${
           isActive
             ? "bg-primary-500/10 text-primary-400"
-            : "text-text-tertiary hover:text-text-secondary hover:bg-white/5"
+            : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
         }`}
         style={{ paddingLeft: `${pl + 4}px` }}
         onClick={handleRowClick}
@@ -295,7 +295,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               }
             }}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 min-w-0 truncate bg-white/10 border border-border rounded px-1 outline-none text-text focus:bg-white/15 focus:border-primary-500 text-sm"
+            className="flex-1 min-w-0 truncate bg-subtle border border-border rounded px-1 outline-none text-text focus:bg-subtle-hover focus:border-primary-500 text-sm"
           />
         ) : (
           <a
@@ -340,7 +340,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         {!isRenaming && (
           <span className="flex-shrink-0 flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
             <button
-              className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               onClick={handleDotsClick}
               title={t("More actions")}
             >
@@ -354,7 +354,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             </button>
             {isFolder && (
               <button
-                className="p-0.5 rounded hover:bg-white/10 text-text-tertiary hover:text-text-secondary transition-colors"
+                className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                 onClick={handleAddNote}
                 title={t("New note")}
               >
@@ -380,7 +380,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         <div className="relative">
           {/* Indent guide line */}
           <div
-            className="absolute top-0 bottom-0 w-px bg-white/[0.04] pointer-events-none"
+            className="absolute top-0 bottom-0 w-px bg-primary-500/20 pointer-events-none"
             style={{ left: `${pl + 11}px` }}
           />
           {children.length === 0 && item.childrenLoaded && !isLoading && (

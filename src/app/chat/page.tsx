@@ -120,9 +120,9 @@ function ChatPageInner() {
       : null;
 
   return (
-    <div className="h-screen w-screen flex bg-background text-text overflow-hidden">
+    <div className="h-screen w-screen flex bg-chat-page text-text overflow-hidden">
       {/* ── left sidebar ───────────────────────────────────────────── */}
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface">
+      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface/95 backdrop-blur">
         {/* header */}
         <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
           <Link
@@ -228,7 +228,7 @@ function ChatPageInner() {
       {/* ── main chat area ─────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* top bar */}
-        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-background">
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface/55 backdrop-blur">
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-sm font-medium text-text-secondary truncate">
               {activeConv?.title ??
@@ -285,7 +285,7 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="h-screen w-screen flex items-center justify-center bg-chat-page">
           <SparklesIcon className="w-8 h-8 text-primary-400 animate-pulse" />
         </div>
       }

@@ -193,9 +193,7 @@ export default function NotesInspectorSidebar() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-text-tertiary">
-                    {t("ID")}
-                  </dt>
+                  <dt className="text-[11px] text-text-tertiary">{t("ID")}</dt>
                   <dd className="mt-0.5 break-all font-mono text-[10px] text-text-tertiary/50">
                     {note.note_id || note.id || activeFile.fileId}
                   </dd>
@@ -217,7 +215,7 @@ export default function NotesInspectorSidebar() {
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-border-subtle bg-white/5 px-2 py-0.5 text-xs text-text-tertiary"
+                    className="rounded-full border border-border-subtle bg-subtle px-2 py-0.5 text-xs text-text-tertiary"
                   >
                     #{tag}
                   </span>

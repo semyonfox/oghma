@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { XMarkIcon } from "@heroicons/react/20/solid";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
@@ -94,6 +95,7 @@ export default function MonthView() {
     currentDate,
     selectedDate,
     setSelectedDate,
+    deleteTimeBlock,
     timeBlocks,
     fetchTimeBlocks,
     reviewDates,
@@ -165,7 +167,7 @@ export default function MonthView() {
   return (
     <div className="flex h-full flex-col">
       {/* day headers */}
-      <div className="grid grid-cols-7 gap-px border-b border-border-subtle bg-white/5 text-center text-xs font-medium text-text-tertiary">
+      <div className="grid grid-cols-7 gap-px border-b border-border-subtle bg-subtle text-center text-xs font-medium text-text-tertiary">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div key={d} className="bg-surface py-2">
             {d}
@@ -174,7 +176,7 @@ export default function MonthView() {
       </div>
 
       {/* grid */}
-      <div className="flex flex-1 bg-white/5 text-xs text-text-tertiary">
+      <div className="flex flex-1 bg-subtle text-xs text-text-tertiary">
         <div className="w-full grid grid-cols-7 grid-rows-6 gap-px">
           {days.map((day) => (
             <button
@@ -182,7 +184,7 @@ export default function MonthView() {
               type="button"
               onClick={() => setSelectedDate(day.date)}
               className={`
-                relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-white/5
+                relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-elevated
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
                 ${day.isSelected ? "ring-1 ring-inset ring-primary-500/50" : ""}
               `}
@@ -191,8 +193,8 @@ export default function MonthView() {
                 dateTime={day.date}
                 className={`
                   inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
-                  ${day.isToday ? "bg-primary-500 font-semibold text-white" : ""}
-                  ${day.isSelected && !day.isToday ? "bg-white/10 font-semibold text-text-secondary" : ""}
+                  ${day.isToday ? "bg-primary-500 font-semibold text-text-on-primary" : ""}
+                  ${day.isSelected && !day.isToday ? "bg-subtle font-semibold text-text-secondary" : ""}
                   ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
                 `}
               >
@@ -211,7 +213,7 @@ export default function MonthView() {
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 bg-white/5"
+                    className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 bg-subtle"
                     style={{
                       borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
@@ -224,8 +226,20 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 border-primary-500/40 bg-white/5 text-text-tertiary"
+                      className="group/tb relative truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 border-primary-500/40 bg-subtle text-text-tertiary"
                     >
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void deleteTimeBlock(tb.id);
+                        }}
+                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle-hover transition"
+                        aria-label="Delete study block"
+                        title="Delete study block"
+                      >
+                        <XMarkIcon className="h-2.5 w-2.5" />
+                      </button>
                       {tb.title || "Study block"}
                     </div>
                   ))}
