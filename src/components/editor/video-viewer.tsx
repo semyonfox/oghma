@@ -2,7 +2,7 @@
 
 import { FC, useRef } from "react";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
-import { useFileUrl } from "./use-file-url";
+import { useSignedUrl } from "./use-signed-url";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface VideoViewerProps {
@@ -16,7 +16,7 @@ interface VideoViewerProps {
 const VideoViewer: FC<VideoViewerProps> = ({ file }) => {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { url: videoSrc } = useFileUrl(file.sourcePath);
+  const { url: videoSrc } = useSignedUrl(file.sourcePath);
 
   return (
     <div className="h-full flex flex-col bg-surface">

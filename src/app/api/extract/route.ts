@@ -1,7 +1,7 @@
 // extract API route — document ingestion pipeline (manual upload)
 // supports PDF, DOCX, PPTX (via Marker), and text/markdown (direct decode)
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { validateSession, type SessionUser } from "@/lib/auth";
 import { chunkText } from "@/lib/chunking";
 import { embedChunks } from "@/lib/embeddings";
 import { extractWithMarker } from "@/lib/ocr";
@@ -48,7 +48,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const session = await validateSession();
   if (!session) throw new ApiError(401, "Unauthorized");
 
-  const userId = (session as { user_id: string }).user_id;
+  const userId = session.user_id;
   const limited = await checkRateLimit("extract", userId);
   if (limited) return limited;
 

@@ -21,10 +21,16 @@ DROP TABLE IF EXISTS app.tree_items CASCADE;
 DROP TABLE IF EXISTS app.notes CASCADE;
 DROP TABLE IF EXISTS app.login CASCADE;
 
--- Also drop old temporary tables that may exist
+-- Also drop RAG/pipeline tables for fresh rebuild
+DROP TABLE IF EXISTS app.quiz_cards CASCADE;
+DROP TABLE IF EXISTS app.quiz_questions CASCADE;
 DROP TABLE IF EXISTS app.canvas_imports CASCADE;
-DROP TABLE IF EXISTS app.documents CASCADE;
+DROP TABLE IF EXISTS app.canvas_import_jobs CASCADE;
+DROP TABLE IF EXISTS app.chat_messages CASCADE;
+DROP TABLE IF EXISTS app.chat_sessions CASCADE;
+DROP TABLE IF EXISTS app.embeddings CASCADE;
 DROP TABLE IF EXISTS app.chunks CASCADE;
+DROP TABLE IF EXISTS app.documents CASCADE;
 
 -- Create extensions (ignore if they already exist on RDS)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -91,7 +97,11 @@ CREATE TABLE app.notes (
     pinned      SMALLINT NOT NULL DEFAULT 0,
     shared      SMALLINT NOT NULL DEFAULT 0,
     cloned_from UUID REFERENCES app.notes(note_id) ON DELETE SET NULL,
-    embedding   vector(1536),
+    extracted_text TEXT,
+    canvas_course_id INTEGER,
+    canvas_module_id INTEGER,
+    canvas_assignment_id INTEGER,
+    canvas_academic_year TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -111,9 +121,6 @@ CREATE INDEX idx_notes_shared ON app.notes(shared, created_at DESC)
 CREATE INDEX idx_notes_s3_key ON app.notes(s3_key);
 
 CREATE INDEX idx_notes_search_vector ON app.notes USING GIN(to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(content, '')))
-    WHERE deleted = 0 AND deleted_at IS NULL;
-
-CREATE INDEX idx_notes_embedding_hnsw ON app.notes USING hnsw(embedding vector_cosine_ops)
     WHERE deleted = 0 AND deleted_at IS NULL;
 
 -- ============================================================================
@@ -167,6 +174,134 @@ CREATE TABLE app.pdf_annotations (
 
 CREATE INDEX idx_pdf_annotations_note ON app.pdf_annotations(note_id);
 CREATE INDEX idx_pdf_annotations_user ON app.pdf_annotations(user_id);
+
+-- ============================================================================
+-- TABLE: app.chunks (text segments from documents)
+-- ============================================================================
+CREATE TABLE app.chunks (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL,
+    user_id     UUID NOT NULL,
+    text        TEXT NOT NULL,
+    page_number INTEGER,
+    section     TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_chunks_user_document ON app.chunks(user_id, document_id);
+
+-- ============================================================================
+-- TABLE: app.embeddings (Cohere embed-multilingual-v3.0, 1024 dims)
+-- ============================================================================
+CREATE TABLE app.embeddings (
+    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id  UUID NOT NULL,
+    embedding vector(1024) NOT NULL
+);
+
+CREATE INDEX idx_embeddings_chunk ON app.embeddings(chunk_id);
+CREATE INDEX idx_embeddings_hnsw ON app.embeddings USING hnsw(embedding vector_cosine_ops);
+
+-- ============================================================================
+-- TABLE: app.chat_sessions
+-- ============================================================================
+CREATE TABLE app.chat_sessions (
+    id         UUID PRIMARY KEY,
+    user_id    UUID NOT NULL,
+    note_id    UUID,
+    title      TEXT NOT NULL DEFAULT 'New Chat',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- TABLE: app.chat_messages
+-- ============================================================================
+CREATE TABLE app.chat_messages (
+    id         UUID PRIMARY KEY,
+    session_id UUID NOT NULL,
+    role       TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    sources    JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- TABLE: app.canvas_import_jobs (background processing)
+-- ============================================================================
+CREATE TABLE app.canvas_import_jobs (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL,
+    status         VARCHAR NOT NULL DEFAULT 'queued',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    started_at     TIMESTAMPTZ,
+    completed_at   TIMESTAMPTZ,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    course_ids     JSONB NOT NULL DEFAULT '[]'::jsonb,
+    error_message  TEXT,
+    job_type       TEXT NOT NULL DEFAULT 'import',
+    expected_total INTEGER,
+    type           TEXT NOT NULL DEFAULT 'canvas',
+    input_s3_key   TEXT,
+    output_s3_key  TEXT,
+    download_url   TEXT
+);
+
+-- ============================================================================
+-- TABLE: app.canvas_imports (per-file tracking)
+-- ============================================================================
+CREATE TABLE app.canvas_imports (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID NOT NULL,
+    canvas_course_id INTEGER,
+    canvas_module_id INTEGER,
+    canvas_file_id   INTEGER,
+    note_id          UUID,
+    filename         TEXT,
+    mime_type        TEXT,
+    status           VARCHAR NOT NULL DEFAULT 'downloading',
+    error_message    TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    job_id           UUID
+);
+
+-- ============================================================================
+-- TABLE: app.quiz_questions (generated from chunks via LLM)
+-- ============================================================================
+CREATE TABLE app.quiz_questions (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL,
+    note_id        UUID NOT NULL,
+    chunk_id       UUID NOT NULL,
+    question_type  TEXT NOT NULL,
+    bloom_level    INTEGER NOT NULL,
+    question_text  TEXT NOT NULL,
+    options        JSONB,
+    correct_answer TEXT NOT NULL,
+    explanation    TEXT NOT NULL DEFAULT '',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- TABLE: app.quiz_cards (FSRS spaced repetition)
+-- ============================================================================
+CREATE TABLE app.quiz_cards (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL,
+    question_id    UUID NOT NULL,
+    state          TEXT NOT NULL DEFAULT 'new',
+    stability      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    difficulty     DOUBLE PRECISION NOT NULL DEFAULT 0,
+    elapsed_days   INTEGER NOT NULL DEFAULT 0,
+    scheduled_days INTEGER NOT NULL DEFAULT 0,
+    reps           INTEGER NOT NULL DEFAULT 0,
+    lapses         INTEGER NOT NULL DEFAULT 0,
+    due            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_review    TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ============================================================================
 -- TRIGGERS: auto-update updated_at
@@ -244,21 +379,31 @@ async function main() {
 
     console.log('\nmigration completed successfully\n');
     console.log('tables created:');
-    console.log('   - app.login            (users)');
-    console.log('   - app.oauth_accounts   (OAuth provider linkage)');
-    console.log('   - app.notes            (notes & folders)');
-    console.log('   - app.tree_items       (file tree)');
-    console.log('   - app.attachments      (file uploads)');
-    console.log('   - app.pdf_annotations  (PDF markups)\n');
+    console.log('   - app.login              (users)');
+    console.log('   - app.oauth_accounts     (OAuth provider linkage)');
+    console.log('   - app.notes              (notes & folders)');
+    console.log('   - app.tree_items         (file tree)');
+    console.log('   - app.attachments        (file uploads)');
+    console.log('   - app.pdf_annotations    (PDF markups)');
+    console.log('   - app.chunks             (document text segments)');
+    console.log('   - app.embeddings         (vector embeddings, 1024d)');
+    console.log('   - app.chat_sessions      (RAG chat sessions)');
+    console.log('   - app.chat_messages      (RAG chat messages)');
+    console.log('   - app.canvas_import_jobs (background import jobs)');
+    console.log('   - app.canvas_imports     (per-file import tracking)');
+    console.log('   - app.quiz_questions     (LLM-generated questions)');
+    console.log('   - app.quiz_cards         (FSRS spaced repetition)\n');
 
     console.log('features:');
     console.log('   - all primary keys are UUID v7');
     console.log('   - folder support (is_folder column)');
     console.log('   - soft delete (deleted_at column)');
     console.log('   - per-user file tree (tree_items table)');
-    console.log('   - ready for semantic search\n');
+    console.log('   - RAG pipeline (chunks + embeddings + chat)');
+    console.log('   - Canvas LMS import pipeline');
+    console.log('   - quiz generation with spaced repetition\n');
 
-    console.log('database ready for react-complex-tree\n');
+    console.log('database ready\n');
 
     process.exit(0);
   } catch (error) {
