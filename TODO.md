@@ -43,7 +43,7 @@
 - [x] JWT session management
 - [x] Password reset via AWS SES email
 - [x] Rate limiting + lockout
-- [x] NextAuth v4 skeleton (Credentials + Google/GitHub/Azure/Apple providers declared)
+- [x] NextAuth v4 skeleton (Credentials + Google/GitHub providers declared)
 - [ ] OAuth providers actually functional (Google, GitHub)
 - [ ] Change password (POST /api/auth/change-password)
 - [ ] Delete account (POST /api/auth/delete-account)
