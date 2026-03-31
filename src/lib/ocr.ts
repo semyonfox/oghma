@@ -9,7 +9,7 @@ import { ensureMarkerRunning } from "./marker-ec2";
 export interface MarkerResult {
   text: string;
   chunks: string[];
-  source: "ec2" | "datalab" | "pdf-parse";
+  source: "ec2" | "datalab";
 }
 
 const DATALAB_URL = "https://www.datalab.to/api/v1/convert";

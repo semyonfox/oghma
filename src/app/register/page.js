@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { getProviders, signIn } from "next-auth/react";
 import { register, getErrorMessage } from "@/lib/apiClient";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import {
+  buildOAuthSignInOptions,
+  isOAuthProviderConfigured,
+} from "@/lib/oauth-client";
 
 export default function RegisterPage() {
   const { t } = useI18n();
@@ -15,8 +19,25 @@ export default function RegisterPage() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [errMsg, setErrMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oauthProviders, setOauthProviders] = useState(null);
   const errRef = useRef();
   const router = useRouter();
+
+  useEffect(() => {
+    let mounted = true;
+
+    getProviders()
+      .then((providers) => {
+        if (mounted) setOauthProviders(providers ?? {});
+      })
+      .catch(() => {
+        if (mounted) setOauthProviders({});
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,10 +78,22 @@ export default function RegisterPage() {
     }
   };
 
-  // TODO: Implement social registration handlers (Google, Microsoft, GitHub, Apple)
+  // TODO: Implement social registration handlers (Google, GitHub)
   const handleSocialSignUp = (provider) => {
-    signIn(provider, { redirect: true, redirectTo: "/notes" });
+    if (
+      oauthProviders &&
+      !isOAuthProviderConfigured(provider, oauthProviders)
+    ) {
+      setErrMsg(t("This sign-in provider is not configured right now"));
+      return;
+    }
+
+    signIn(provider, buildOAuthSignInOptions("/notes"));
   };
+
+  const isProviderDisabled = (provider) =>
+    oauthProviders !== null &&
+    !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
@@ -174,6 +207,7 @@ export default function RegisterPage() {
               {/* Google */}
               <button
                 type="button"
+                disabled={isProviderDisabled("google")}
                 onClick={() => handleSocialSignUp("google")}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
@@ -198,40 +232,10 @@ export default function RegisterPage() {
                 <span className="text-sm/6 font-semibold">Google</span>
               </button>
 
-              {/* Microsoft */}
-              <button
-                type="button"
-                onClick={() => handleSocialSignUp("azure-ad")}
-                className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
-              >
-                <svg
-                  viewBox="0 0 2499.6 2500"
-                  aria-hidden="true"
-                  className="h-5 w-5"
-                >
-                  <path
-                    d="m1187.9 1187.9h-1187.9v-1187.9h1187.9z"
-                    fill="#f1511b"
-                  />
-                  <path
-                    d="m2499.6 1187.9h-1188v-1187.9h1187.9v1187.9z"
-                    fill="#80cc28"
-                  />
-                  <path
-                    d="m1187.9 2500h-1187.9v-1187.9h1187.9z"
-                    fill="#00adef"
-                  />
-                  <path
-                    d="m2499.6 2500h-1188v-1187.9h1187.9v1187.9z"
-                    fill="#fbbc09"
-                  />
-                </svg>
-                <span className="text-sm/6 font-semibold">Microsoft</span>
-              </button>
-
               {/* GitHub */}
               <button
                 type="button"
+                disabled={isProviderDisabled("github")}
                 onClick={() => handleSocialSignUp("github")}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
               >
@@ -248,28 +252,6 @@ export default function RegisterPage() {
                   />
                 </svg>
                 <span className="text-sm/6 font-semibold">GitHub</span>
-              </button>
-
-              {/* Apple */}
-              <button
-                type="button"
-                onClick={() => handleSocialSignUp("apple")}
-                className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
-              >
-                <svg
-                  viewBox="0 0 41.5 51"
-                  aria-hidden="true"
-                  className="h-5 w-5"
-                >
-                  <path
-                    fill="#FFFFFF"
-                    d="M40.2,17.4c-3.4,2.1-5.5,5.7-5.5,9.7c0,4.5,2.7,8.6,6.8,10.3c-0.8,2.6-2,5-3.5,7.2c-2.2,3.1-4.5,6.3-7.9,6.3
-                    s-4.4-2-8.4-2c-3.9,0-5.3,2.1-8.5,2.1s-5.4-2.9-7.9-6.5C2,39.5,0.1,33.7,0,27.6c0-9.9,6.4-15.2,12.8-15.2c3.4,0,6.2,2.2,8.3,2.2
-                    c2,0,5.2-2.3,9-2.3C34.1,12.2,37.9,14.1,40.2,17.4z M28.3,8.1C30,6.1,30.9,3.6,31,1c0-0.3,0-0.7-0.1-1c-2.9,0.3-5.6,1.7-7.5,3.9
-                    c-1.7,1.9-2.7,4.3-2.8,6.9c0,0.3,0,0.6,0.1,0.9c0.2,0,0.5,0.1,0.7,0.1C24.1,11.6,26.6,10.2,28.3,8.1z"
-                  />
-                </svg>
-                <span className="text-sm/6 font-semibold">Apple</span>
               </button>
             </div>
           </div>
