@@ -21,7 +21,7 @@ const LOCALE_MAP = {
 
 // keys that should NOT be translated (brand names, technical terms, codes)
 const SKIP_KEYS = new Set([
-  'OghmaNotes', 'OghmaNotes Logo', 'GitHub', 'Google', 'Microsoft', 'Apple',
+  'OghmaNotes', 'OghmaNotes Logo', 'GitHub', 'Google',
   'Facebook', 'Instagram', 'LinkedIn', 'YouTube', 'X', 'SocsBoard',
   'HTML', 'UTC', 'ID', 'ID:', 'M', 'S',
   'john@example.com', 'universityofgalway.instructure.com',
