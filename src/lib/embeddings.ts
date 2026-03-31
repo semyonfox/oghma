@@ -3,6 +3,8 @@
 // strips markdown syntax before embedding — ###, ---, ** etc. are noise in vector space
 // the original markdown chunk text is preserved in chunks.text for LLM RAG context
 
+import { getCohereTimeoutMs } from "@/lib/ai-config";
+import { Metrics } from "@/lib/metrics";
 import { stripMarkdown } from "./strip-markdown";
 
 const COHERE_URL = "https://api.cohere.com/v2/embed";
@@ -45,8 +47,12 @@ export async function embedChunks(
     const batch = stripped.slice(i, i + BATCH_SIZE);
     const originalBatch = nonEmpty.slice(i, i + BATCH_SIZE);
     try {
-      const res = await fetch(COHERE_URL, buildRequest(apiKey, batch));
+      const res = await fetch(COHERE_URL, {
+        ...buildRequest(apiKey, batch),
+        signal: AbortSignal.timeout(getCohereTimeoutMs()),
+      });
       if (!res.ok) {
+        void Metrics.cohereError("embed");
         console.warn(
           `Cohere embed failed (${res.status}), skipping ${batch.length} chunks`,
         );
@@ -60,6 +66,7 @@ export async function embedChunks(
         results.push({ chunk: originalBatch[j], vector: vectors[j] });
       }
     } catch (err) {
+      void Metrics.cohereError("embed");
       console.warn(
         `Cohere embed error: ${err instanceof Error ? err.message : err}`,
       );

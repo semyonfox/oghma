@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { validateSession, type SessionUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { embedText } from "@/lib/embedText";
 import { rerankChunks } from "@/lib/rerank";
@@ -289,7 +289,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return tracedError("Unauthorized", 401);
   }
 
-  const userId = (user as { user_id: string }).user_id;
+  const userId = user.user_id;
   const limited = await checkRateLimit("chat", userId);
   if (limited) return limited;
 

@@ -8,7 +8,7 @@ import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
-import { v4 as uuidv4 } from "uuid";
+
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
@@ -154,7 +154,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       storage.getSignUrl(storagePath, 300),
     );
 
-    const attachmentId = uuidv4();
+    const attachmentId = generateUUID();
     try {
       await sql`
                 INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)

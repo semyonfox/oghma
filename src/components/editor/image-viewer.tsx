@@ -7,7 +7,7 @@ import {
   MagnifyingGlassPlusIcon,
   ArrowUturnLeftIcon,
 } from "@heroicons/react/24/outline";
-import { useFileUrl } from "./use-file-url";
+import { useSignedUrl } from "./use-signed-url";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface ImageViewerProps {
@@ -25,7 +25,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const { url: imageSrc, loading } = useFileUrl(file.sourcePath);
+  const { url: imageSrc, loading } = useSignedUrl(file.sourcePath);
 
   const handleZoomIn = useCallback(() => {
     setZoom((z) => Math.min(z + 0.2, 5));

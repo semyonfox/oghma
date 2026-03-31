@@ -19,7 +19,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 
 // CodeMirror accesses browser APIs on import, so lazy-load it client-side only
-const CodeMirrorEditor = dynamic(() => import("./codemirror-editor"), {
+const SourceEditor = dynamic(() => import("./source-editor"), {
   ssr: false,
 });
 
@@ -268,7 +268,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         {mode === "source" ? (
           loaded ? (
             <div className="w-full h-full">
-              <CodeMirrorEditor
+              <SourceEditor
                 value={displayContent}
                 onChange={(val) => {
                   setLocalContent(val);

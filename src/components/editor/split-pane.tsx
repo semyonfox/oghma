@@ -1,13 +1,17 @@
-'use client';
+"use client";
 
-import { FC } from 'react';
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import useLayoutStore from '@/lib/notes/state/layout.zustand';
-import FileViewPane from './file-view-pane';
+import { FC } from "react";
+import {
+  Group as PanelGroup,
+  Panel,
+  Separator as PanelResizeHandle,
+} from "react-resizable-panels";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import EditorPane from "./editor-pane";
 
 /**
  * Main editor pane component with VS Code-style split behavior.
- * 
+ *
  * - Single pane by default (Pane A fills the space)
  * - Pane B appears only when explicitly triggered via "Open in split right" context menu
  * - No drag-to-split: splitting is context-menu only
@@ -22,7 +26,7 @@ const SplitEditorPane: FC = () => {
   if (!isSplitActive) {
     return (
       <div className="h-full w-full">
-        <FileViewPane pane="A" file={paneA} />
+        <EditorPane pane="A" file={paneA} />
       </div>
     );
   }
@@ -33,7 +37,7 @@ const SplitEditorPane: FC = () => {
         {/* Pane A */}
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
           <div className="w-full h-full">
-            <FileViewPane pane="A" file={paneA} />
+            <EditorPane pane="A" file={paneA} />
           </div>
         </Panel>
 
@@ -43,7 +47,7 @@ const SplitEditorPane: FC = () => {
         {/* Pane B */}
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
           <div className="w-full h-full">
-            <FileViewPane pane="B" file={paneB} />
+            <EditorPane pane="B" file={paneB} />
           </div>
         </Panel>
       </PanelGroup>

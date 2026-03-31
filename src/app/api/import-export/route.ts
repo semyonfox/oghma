@@ -2,7 +2,7 @@
 // tree + S3 storage are wired — these are ready to enable
 // UI buttons in settings are disabled until you flip VAULT_JOBS_ENABLED
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
+import { validateSession, type SessionUser } from "@/lib/auth";
 import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const action = request.nextUrl.searchParams.get("action");
-  const userId = (session as { user_id: string }).user_id;
+  const userId = session.user_id;
 
   if (action === "export") {
     // queue a background export — worker builds zip and uploads to S3
