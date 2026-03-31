@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
+import {
+  getSessionCardIdAtIndex,
+  normalizeSessionCardIds,
+} from "@/lib/quiz/session-card-ids";
 import sql from "@/database/pgsql.js";
 
 export const GET = withErrorHandler(
@@ -20,7 +24,7 @@ export const GET = withErrorHandler(
 
     if (!session) return tracedError("Session not found", 404);
 
-    const cardIds: string[] = session.card_ids ?? [];
+    const cardIds = normalizeSessionCardIds(session.card_ids);
 
     // figure out how many questions have already been answered in this session
     const [{ count: answeredCount }] = await sql`
@@ -32,12 +36,25 @@ export const GET = withErrorHandler(
     // load the current question (first unanswered card)
     let question = null;
     if (currentIndex < cardIds.length) {
+      const currentCardId = getSessionCardIdAtIndex(
+        session.card_ids,
+        currentIndex,
+      );
+      if (!currentCardId) {
+        return NextResponse.json({
+          ...session,
+          cardIds,
+          currentIndex,
+          question: null,
+        });
+      }
+
       const rows = await sql`
             SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
                    qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
             FROM app.quiz_cards qc
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
-            WHERE qc.id = ${cardIds[currentIndex]}::uuid
+            WHERE qc.id = ${currentCardId}::uuid
         `;
       question = rows[0] ?? null;
       if (question) {
