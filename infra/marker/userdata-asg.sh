@@ -32,6 +32,7 @@ fi
 
 PYTHON_DIR=$(dirname "$PYTORCH_PYTHON")
 echo "Using Python: $PYTORCH_PYTHON"
+echo "Python dir: $PYTHON_DIR"
 
 PIP_BIN=""
 if [ -x "$PYTHON_DIR/pip" ]; then
@@ -41,13 +42,27 @@ elif [ -x "$PYTHON_DIR/pip3" ]; then
 fi
 
 # install marker-pdf with server dependencies
+echo "Installing marker-pdf with server extra..."
 if [ -n "$PIP_BIN" ]; then
-  "$PIP_BIN" install --upgrade pip
+  "$PIP_BIN" install --upgrade pip setuptools wheel
   "$PIP_BIN" install "marker-pdf[server]"
 else
   "$PYTORCH_PYTHON" -m ensurepip --upgrade || true
-  "$PYTORCH_PYTHON" -m pip install --upgrade pip
+  "$PYTORCH_PYTHON" -m pip install --upgrade pip setuptools wheel
   "$PYTORCH_PYTHON" -m pip install "marker-pdf[server]"
+fi
+
+# check if marker_server command is installed
+MARKER_SERVER_BIN=""
+if [ -x "$PYTHON_DIR/marker_server" ]; then
+  MARKER_SERVER_BIN="$PYTHON_DIR/marker_server"
+  echo "Found marker_server at: $MARKER_SERVER_BIN"
+elif command -v marker_server &> /dev/null; then
+  MARKER_SERVER_BIN="$(which marker_server)"
+  echo "Found marker_server in PATH: $MARKER_SERVER_BIN"
+else
+  echo "WARNING: marker_server not found, will try python -m marker"
+  MARKER_SERVER_BIN=""
 fi
 
 NVIDIA_LIB_PATHS=(
@@ -79,15 +94,16 @@ done
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH_VALUE:${LD_LIBRARY_PATH:-}"
 
 # verify GPU
+echo "GPU verification:"
 "$PYTORCH_PYTHON" -c "
 import torch
 print(f'CUDA available: {torch.cuda.is_available()}')
 if torch.cuda.is_available():
     print(f'Device: {torch.cuda.get_device_name(0)}')
     print(f'VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB')
-"
+" || true
 
-# create systemd service
+# create systemd service with fallback command
 cat > /etc/systemd/system/marker.service <<SVCEOF
 [Unit]
 Description=Marker OCR API Server (GPU - ASG)
@@ -96,11 +112,13 @@ After=network.target
 [Service]
 Type=simple
 User=ec2-user
-ExecStart=${PYTHON_DIR}/marker_server --port 8000 --host 0.0.0.0
+ExecStart=/bin/bash -c "export LD_LIBRARY_PATH='${LD_LIBRARY_PATH_VALUE}'; exec ${MARKER_SERVER_BIN:-$PYTORCH_PYTHON -m marker.server} --port 8000 --host 0.0.0.0"
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 Environment=TORCH_DEVICE=cuda
-Environment=LD_LIBRARY_PATH=${LD_LIBRARY_PATH_VALUE}
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=marker-server
 
 [Install]
 WantedBy=multi-user.target
@@ -109,6 +127,10 @@ SVCEOF
 systemctl daemon-reload
 systemctl enable marker
 systemctl start marker
+
+# log service status
+echo "Marker service status:"
+systemctl status marker --no-pager || true
 
 # no idle shutdown here — ASG scale-in handles instance lifecycle
 
