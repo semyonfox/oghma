@@ -1,12 +1,17 @@
 import { BLOOM_NAMES, BLOOM_DESCRIPTIONS } from "./types";
 import type { BloomLevel, QuestionType, QuizQuestion } from "./types";
 import { generateUUID } from "@/lib/utils/uuid";
-import { getLlmMaxTokens, getLlmTimeoutMs } from "@/lib/ai-config";
+import {
+  buildProviderThinking,
+  getLlmMaxTokens,
+  getLlmModel,
+  getLlmThinkingMode,
+  getLlmTimeoutMs,
+} from "@/lib/ai-config";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 
 const LLM_URL = process.env.LLM_API_URL;
-const LLM_MODEL = process.env.LLM_MODEL || "kimi-k2.5";
 const LLM_API_KEY = process.env.LLM_API_KEY;
 const MAX_CHUNK_CHARS = 1800;
 
@@ -110,13 +115,10 @@ export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
 async function callLLM(prompt: string): Promise<string> {
   if (!LLM_API_KEY || !LLM_URL) throw new Error("LLM not configured");
 
-  const thinking =
-    process.env.LLM_THINKING === "off"
-      ? ({ type: "disabled" } as const)
-      : undefined;
+  const thinking = buildProviderThinking(getLlmThinkingMode());
 
   const body: Record<string, unknown> = {
-    model: LLM_MODEL,
+    model: getLlmModel(),
     messages: [{ role: "user", content: prompt }],
     max_tokens: getLlmMaxTokens(),
   };
