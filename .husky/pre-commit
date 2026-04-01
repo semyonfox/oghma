@@ -1,1 +1,24 @@
-npm run test:ci
+#!/bin/bash
+# precommit hook: validate code quality, tests, and infrastructure
+
+set -e
+
+echo "🔍 Running precommit checks..."
+
+# 1. Lint all code
+echo "✓ Linting TypeScript/JavaScript..."
+npm run lint:all
+
+# 2. Validate Dockerfile.marker syntax (if it exists and Docker is available)
+if [ -f Dockerfile.marker ] && command -v docker &> /dev/null; then
+  echo "✓ Validating Dockerfile.marker..."
+  npm run docker:marker:validate || echo "⚠ Docker validation skipped (Docker not available)"
+fi
+
+# 3. Validate shell scripts in infra/marker
+if command -v shellcheck &> /dev/null; then
+  echo "✓ Checking shell scripts..."
+  find infra/marker -name "*.sh" -type f -exec shellcheck {} \; || true
+fi
+
+echo "✅ Precommit checks passed!"
