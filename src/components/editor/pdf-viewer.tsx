@@ -121,7 +121,6 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
 
           <button
             onClick={handleZoomOut}
-            disabled={fitMode}
             className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
           >
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
@@ -133,7 +132,6 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
 
           <button
             onClick={handleZoomIn}
-            disabled={fitMode}
             className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
           >
             <MagnifyingGlassPlusIcon className="w-4 h-4" />

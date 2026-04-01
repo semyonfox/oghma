@@ -157,6 +157,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         const signedUrl = await xraySubsegment("s3-sign-url", () =>
             storage.getSignUrl(storagePath, 300),
         );
+        const extractionSignedUrl = await storage.getSignUrl(storagePath, 1800);
 
         const attachmentId = generateUUID();
         try {
@@ -188,7 +189,32 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 logger.warn("failed to update note with s3_key", { error: updateError });
             }
         }
+        // trigger extraction for extractable file types
+        const extractableTypes = new Set([
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain",
+            "text/markdown",
+            "text/x-markdown",
+        ]);
 
+        if (extractableTypes.has(file.type)) {
+            try {
+                const extractUrl = new URL("/api/extract", request.url).toString();
+                void fetch(extractUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Cookie": request.headers.get("cookie") ?? "",
+                    },
+                    body: JSON.stringify({ url: extractionSignedUrl, documentId: noteId }),
+                });
+            } catch (extractErr) {
+                logger.warn("failed to trigger extraction", { error: extractErr });
+            }
+        }
         return NextResponse.json({
             success: true,
             noteId,
