@@ -18,6 +18,7 @@ export function useCanvasImportStatus(options = {}) {
   const [showToast, setShowToast] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const autoSyncTriggered = useRef(false);
+  const seenRecentLogNoteIds = useRef(new Set());
 
   const abortRef = useRef(null);
 
@@ -40,7 +41,40 @@ export function useCanvasImportStatus(options = {}) {
         data.activeJob?.status === "queued";
       setIsImporting(active);
 
+      const collectNewRecentLogNoteIds = (allowedStatuses) => {
+        if (!Array.isArray(data.recentLogs)) return [];
+
+        const nextNewNoteIds = [];
+
+        for (const log of data.recentLogs) {
+          const noteId = log?.noteId;
+          if (!noteId || !allowedStatuses.has(log?.status)) continue;
+          if (seenRecentLogNoteIds.current.has(noteId)) continue;
+
+          seenRecentLogNoteIds.current.add(noteId);
+          nextNewNoteIds.push(noteId);
+        }
+
+        return nextNewNoteIds;
+      };
+
+      const markAndRefreshNewNotes = async (newNoteIds) => {
+        if (newNoteIds.length === 0) return;
+
+        useSyncStatusStore.getState().markCanvasNew(newNoteIds);
+
+        // refresh file tree to show newly imported notes
+        const { default: useNoteTreeStore } =
+          await import("@/lib/notes/state/tree");
+        useNoteTreeStore.getState().refreshTree();
+      };
+
       if (active) {
+        const newNoteIds = collectNewRecentLogNoteIds(
+          new Set(["indexing", "complete"]),
+        );
+        await markAndRefreshNewNotes(newNoteIds);
+
         setProgress({
           ...data.progress,
           jobType: data.activeJob?.jobType ?? "import",
@@ -66,17 +100,8 @@ export function useCanvasImportStatus(options = {}) {
         localStorage.removeItem(LS_ACTIVE_JOB);
 
         // mark newly imported notes with blue dot in sidebar
-        const newNoteIds = (data.recentLogs ?? [])
-          .filter((l) => l.status === "complete" && l.noteId)
-          .map((l) => l.noteId);
-        if (newNoteIds.length > 0) {
-          useSyncStatusStore.getState().markCanvasNew(newNoteIds);
-
-          // refresh file tree to show newly imported notes
-          const { default: useNoteTreeStore } =
-            await import("@/lib/notes/state/tree");
-          useNoteTreeStore.getState().refreshTree();
-        }
+        const newNoteIds = collectNewRecentLogNoteIds(new Set(["complete"]));
+        await markAndRefreshNewNotes(newNoteIds);
       }
     } catch (err) {
       if (err?.name === "AbortError") return;

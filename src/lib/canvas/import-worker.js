@@ -16,10 +16,10 @@ import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
 import { CanvasClient } from "./client.js";
 import { chunkText } from "../chunking.ts";
-import { embedChunks } from "../embeddings.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
+import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import {
   findOrCreateFolder,
   cleanCourseName,
@@ -28,8 +28,11 @@ import {
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
 import { extractWithMarker } from "../ocr.ts";
-import { sqsClient, getExtractRetryQueueUrl } from "../sqs.ts";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
+import { ensureMarkerRunning } from "../marker-ec2.ts";
+import {
+  enqueueExtractionRetry,
+  MAX_EXTRACTION_RETRIES,
+} from "./extraction-retry.ts";
 
 const PROCESSABLE_TYPES = new Set([
   "application/pdf",
@@ -41,8 +44,64 @@ const PROCESSABLE_TYPES = new Set([
   "text/x-markdown",
   "text/plain",
 ]);
-const FILE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per file
+const FILE_TIMEOUT_MS = Math.max(
+  60_000,
+  Number.parseInt(process.env.CANVAS_FILE_TIMEOUT_MS ?? "", 10) ||
+    10 * 60 * 1000,
+);
 const FILE_CONCURRENCY = 5;
+
+function parseEnvConcurrency(name, defaultValue) {
+  const raw = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : defaultValue;
+}
+
+function parseEnvEnabled(name, defaultValue = true) {
+  const raw = process.env[name];
+  if (raw === undefined) return defaultValue;
+  const value = raw.toLowerCase();
+  return value !== "0" && value !== "false" && value !== "off";
+}
+
+function createAsyncLimiter(limit) {
+  let active = 0;
+  const queue = [];
+
+  const next = () => {
+    if (active >= limit || queue.length === 0) return;
+    active += 1;
+    const { fn, resolve, reject } = queue.shift();
+    Promise.resolve()
+      .then(fn)
+      .then(resolve, reject)
+      .finally(() => {
+        active -= 1;
+        next();
+      });
+  };
+
+  return (fn) =>
+    new Promise((resolve, reject) => {
+      queue.push({ fn, resolve, reject });
+      next();
+    });
+}
+
+const CANVAS_GLOBAL_FILE_CONCURRENCY = parseEnvConcurrency(
+  "CANVAS_GLOBAL_FILE_CONCURRENCY",
+  6,
+);
+const CANVAS_OCR_CONCURRENCY = parseEnvConcurrency("CANVAS_OCR_CONCURRENCY", 2);
+const CANVAS_EMBED_CONCURRENCY = parseEnvConcurrency(
+  "CANVAS_EMBED_CONCURRENCY",
+  3,
+);
+const CANVAS_PREWARM_MARKER = parseEnvEnabled("CANVAS_PREWARM_MARKER", true);
+
+const globalFileLimiter = createAsyncLimiter(CANVAS_GLOBAL_FILE_CONCURRENCY);
+const ocrLimiter = createAsyncLimiter(CANVAS_OCR_CONCURRENCY);
+const embedLimiter = createAsyncLimiter(CANVAS_EMBED_CONCURRENCY);
+
 async function pooled(tasks, limit) {
   const results = [];
   const executing = new Set();
@@ -155,91 +214,26 @@ async function setImportStatus(importRecordId, status, extra = {}) {
   }
 }
 
-// backoff delays for SQS extraction retries: 30s, 2m, 8m, 15m (SQS max)
-const RETRY_DELAYS = [30, 120, 480, 900];
-
 async function queueExtractionRetry(retryOpts) {
-  const retryUrl = getExtractRetryQueueUrl();
-  if (!retryUrl) {
-    console.warn(
-      `No extraction retry queue configured, giving up on note ${retryOpts.noteId}`,
-    );
-    return;
-  }
+  const { delaySeconds, queueUrl, usedFallbackQueue } =
+    await enqueueExtractionRetry(retryOpts);
 
-  const delay =
-    RETRY_DELAYS[Math.min(retryOpts.attempt, RETRY_DELAYS.length - 1)];
   console.log(
-    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delay}s)`,
+    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)` +
+      (usedFallbackQueue ? " via main queue fallback" : ""),
   );
 
-  await sqsClient.send(
-    new SendMessageCommand({
-      QueueUrl: retryUrl,
-      DelaySeconds: delay,
-      MessageBody: JSON.stringify({
-        type: "extract-retry",
-        ...retryOpts,
-        attempt: retryOpts.attempt + 1,
-      }),
-    }),
-  );
-}
-
-// writes chunks + embeddings to a target note, replacing any existing ones
-async function writeEmbeddings(targetNoteId, userId, chunks) {
-  const embeddings = await embedChunks(chunks);
-
-  if (embeddings.length > 0) {
-    const chunkValues = embeddings.map(({ chunk }) => [
-      targetNoteId,
-      userId,
-      chunk,
-    ]);
-    const chunkRows = await sql`
-      INSERT INTO app.chunks (document_id, user_id, text)
-      SELECT * FROM UNNEST(
-        ${chunkValues.map((v) => v[0])}::uuid[],
-        ${chunkValues.map((v) => v[1])}::uuid[],
-        ${chunkValues.map((v) => v[2])}::text[]
-      ) RETURNING id
-    `;
-    const embValues = chunkRows.map((row, i) => [
-      row.id,
-      JSON.stringify(embeddings[i].vector),
-    ]);
-    await sql`
-      INSERT INTO app.embeddings (chunk_id, embedding)
-      SELECT * FROM UNNEST(
-        ${embValues.map((v) => v[0])}::uuid[],
-        ${embValues.map((v) => v[1])}::vector[]
-      )
-    `;
-  }
-
-  return embeddings.length;
-}
-
-// replaces old chunks + embeddings atomically: insert new, then delete old
-// if embedding fails, old data is preserved (no data loss)
-async function replaceEmbeddings(targetNoteId, userId, chunks) {
-  // snapshot old chunk IDs before inserting new ones
-  const oldChunks =
-    await sql`SELECT id FROM app.chunks WHERE document_id = ${targetNoteId}::uuid`;
-  const oldIds = oldChunks.map((r) => r.id);
-
-  const count = await writeEmbeddings(targetNoteId, userId, chunks);
-
-  // only delete old data after new embeddings succeed
-  if (oldIds.length > 0) {
-    await sql`DELETE FROM app.embeddings WHERE chunk_id = ANY(${oldIds}::uuid[])`;
-    await sql`DELETE FROM app.chunks WHERE id = ANY(${oldIds}::uuid[])`;
-    console.log(
-      `Replaced ${oldIds.length} old chunks with ${count} new ones on note ${targetNoteId}`,
+  if (usedFallbackQueue) {
+    console.warn(
+      `SQS_EXTRACT_RETRY_QUEUE_URL not set, using fallback queue: ${queueUrl}`,
     );
   }
+}
 
-  return count;
+async function replaceEmbeddings(targetNoteId, userId, chunks) {
+  return embedLimiter(() =>
+    replaceNoteEmbeddings(targetNoteId, userId, chunks),
+  );
 }
 
 async function processRagPipeline(
@@ -265,9 +259,8 @@ async function processRagPipeline(
     } else {
       // binary docs (PDF, DOCX, PPTX): Marker OCR extraction
       try {
-        const marker = await extractWithMarker(
-          buffer,
-          filename ?? "document.pdf",
+        const marker = await ocrLimiter(() =>
+          extractWithMarker(buffer, filename ?? "document.pdf"),
         );
         rawText = marker.text;
         chunks = marker.chunks;
@@ -275,7 +268,7 @@ async function processRagPipeline(
           `Marker (${marker.source}): extracted ${chunks.length} chunks for note ${noteId}`,
         );
       } catch (extractErr) {
-        if (attempt < RETRY_DELAYS.length) {
+        if (attempt < MAX_EXTRACTION_RETRIES) {
           await queueExtractionRetry({
             noteId,
             userId,
@@ -317,7 +310,7 @@ async function processRagPipeline(
 
     // binary files: create a sibling .md note for the extracted content
     const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
-    const { noteId: mdNoteId, created: mdCreated } = await findOrCreateNote(
+    const { noteId: mdNoteId } = await findOrCreateNote(
       userId,
       mdTitle,
       parentFolderId,
@@ -331,9 +324,7 @@ async function processRagPipeline(
       WHERE note_id = ${mdNoteId}::uuid
     `;
 
-    const count = mdCreated
-      ? await writeEmbeddings(mdNoteId, userId, chunks)
-      : await replaceEmbeddings(mdNoteId, userId, chunks);
+    const count = await replaceEmbeddings(mdNoteId, userId, chunks);
 
     if (attempt > 0) {
       await sql`
@@ -384,13 +375,13 @@ async function _runFileImport(importRecordId, file, opts) {
   // atomically check dedup + claim the import slot
   const moduleIdVal = moduleId ?? -1;
   const claimed = await sql.begin(async (tx) => {
-    // skip if already successfully imported or queued for retry
+    // skip if already successfully imported, indexing, or queued for retry
     const [existing] = await tx`
-      SELECT status FROM app.canvas_imports
-      WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int
-        AND status IN ('complete', 'pending_retry')
-      LIMIT 1
-    `;
+        SELECT status FROM app.canvas_imports
+        WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int
+          AND status IN ('complete', 'indexing', 'pending_retry')
+        LIMIT 1
+      `;
     if (existing) return false;
 
     // upsert: insert new record or reclaim a stale one atomically
@@ -400,7 +391,7 @@ async function _runFileImport(importRecordId, file, opts) {
       ON CONFLICT (user_id, canvas_file_id)
       DO UPDATE SET id = ${importRecordId}::uuid, status = 'downloading', job_id = ${opts.jobId ?? null},
                     filename = ${file.display_name}, mime_type = ${resolvedMimeType}, created_at = NOW()
-      WHERE app.canvas_imports.status NOT IN ('complete', 'pending_retry')
+      WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
     `;
     return true;
   });
@@ -438,11 +429,29 @@ async function _runFileImport(importRecordId, file, opts) {
             ${file.display_name}, ${s3Key}, ${resolvedMimeType}, ${buffer.length})
   `;
 
-  await processRagPipeline(noteId, userId, parentFolderId, buffer, {
-    filename: file.display_name,
-    mimeType: resolvedMimeType,
-    s3Key,
-  });
+  await setImportStatus(importRecordId, "indexing", { noteId });
+
+  const ragResult = await processRagPipeline(
+    noteId,
+    userId,
+    parentFolderId,
+    buffer,
+    {
+      filename: file.display_name,
+      mimeType: resolvedMimeType,
+      s3Key,
+    },
+  );
+
+  if (ragResult === null) {
+    return;
+  }
+
+  if (await isJobCancelled(opts.jobId)) {
+    await setImportStatus(importRecordId, "cancelled");
+    return;
+  }
+
   await setImportStatus(importRecordId, "complete", { noteId });
   console.log(`Processed: ${file.display_name}`);
 }
@@ -454,13 +463,17 @@ async function downloadAndStoreFile(file, opts) {
     timerId = setTimeout(
       () =>
         reject(
-          new Error(`File timed out after 2 minutes: ${file.display_name}`),
+          new Error(
+            `File timed out after ${Math.round(FILE_TIMEOUT_MS / 60000)} minutes: ${file.display_name}`,
+          ),
         ),
       FILE_TIMEOUT_MS,
     );
   });
   try {
-    await Promise.race([_runFileImport(importRecordId, file, opts), timer]);
+    await globalFileLimiter(() =>
+      Promise.race([_runFileImport(importRecordId, file, opts), timer]),
+    );
   } catch (error) {
     console.error(`File processing error (${file.display_name}):`, error);
     try {
@@ -673,6 +686,18 @@ function parseJobCourses(job) {
 
 async function runJobPipeline(jobId, userId, courses) {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
+
+  if (CANVAS_PREWARM_MARKER) {
+    Promise.resolve()
+      .then(() => ensureMarkerRunning())
+      .then(() => {
+        console.log("Marker prewarm complete");
+      })
+      .catch((error) => {
+        console.warn(`Marker prewarm skipped: ${error.message}`);
+      });
+  }
+
   const [creds] =
     await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
   if (!creds) throw new Error("User or Canvas credentials not found");
@@ -735,12 +760,33 @@ export async function processExtractionRetry(msg) {
 
   const storage = getStorageProvider();
   const buffer = await storage.getObject(s3Key);
-  if (!buffer) throw new Error(`S3 object not found: ${s3Key}`);
+  if (!buffer) {
+    await sql`
+      UPDATE app.canvas_imports
+      SET status = 'error', error_message = ${`S3 object not found: ${s3Key}`}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid
+    `;
+    return;
+  }
 
-  await processRagPipeline(noteId, userId, parentFolderId, buffer, {
-    filename,
-    mimeType,
-    s3Key,
-    attempt,
-  });
+  try {
+    await processRagPipeline(noteId, userId, parentFolderId, buffer, {
+      filename,
+      mimeType,
+      s3Key,
+      attempt,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    await sql`
+      UPDATE app.canvas_imports
+      SET status = 'error', error_message = ${message}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid
+    `;
+
+    console.error(
+      `[${new Date().toISOString()}] Extraction retry failed for note ${noteId}: ${message}`,
+    );
+  }
 }
