@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,20 +24,50 @@ interface Conversation {
   createdAt: number;
 }
 
+interface ContextItem {
+  id: string;
+  title: string;
+}
+
 function ChatPageInner() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
 
-  const paramNoteId = searchParams.get("noteId") ?? undefined;
-  const paramNoteTitle = searchParams.get("noteTitle") ?? undefined;
-  const paramFolderId = searchParams.get("folderId") ?? undefined;
-  const paramFolderTitle = searchParams.get("folderTitle") ?? undefined;
+  const { paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles } =
+    useMemo(
+      () => ({
+        paramNoteIds: searchParams.getAll("noteId").filter(Boolean),
+        paramNoteTitles: searchParams.getAll("noteTitle"),
+        paramFolderIds: searchParams.getAll("folderId").filter(Boolean),
+        paramFolderTitles: searchParams.getAll("folderTitle"),
+      }),
+      [searchParams],
+    );
+  const paramNoteId = paramNoteIds[0] ?? undefined;
+  const paramNoteTitle = paramNoteTitles[0] ?? undefined;
+  const paramFolderId = paramFolderIds[0] ?? undefined;
+  const paramFolderTitle = paramFolderTitles[0] ?? undefined;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [selectedNotes, setSelectedNotes] = useState<ContextItem[]>([]);
+  const [selectedFolders, setSelectedFolders] = useState<ContextItem[]>([]);
 
   const activeConv = conversations.find((c) => c.id === activeId);
+
+  useEffect(() => {
+    const notes: ContextItem[] = paramNoteIds.map((id, i) => ({
+      id,
+      title: paramNoteTitles[i] || "Untitled",
+    }));
+    const folders: ContextItem[] = paramFolderIds.map((id, i) => ({
+      id,
+      title: paramFolderTitles[i] || "Folder",
+    }));
+    setSelectedNotes(notes);
+    setSelectedFolders(folders);
+  }, [paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles]);
 
   // load existing sessions from DB
   const loadSessions = useCallback(async () => {
@@ -113,11 +143,29 @@ function ChatPageInner() {
     }
   };
 
-  const contextPrefix = paramFolderId
-    ? `Folder: "${paramFolderTitle}"`
-    : paramNoteTitle
-      ? `Note: "${paramNoteTitle}"`
-      : null;
+  const contextPrefix =
+    selectedFolders.length > 0
+      ? `${selectedFolders.length} folder${selectedFolders.length > 1 ? "s" : ""}`
+      : selectedNotes.length > 0
+        ? `${selectedNotes.length} file${selectedNotes.length > 1 ? "s" : ""}`
+        : paramFolderId
+          ? `Folder: "${paramFolderTitle}"`
+          : paramNoteTitle
+            ? `Note: "${paramNoteTitle}"`
+            : null;
+
+  const removeSelectedNote = (id: string) => {
+    setSelectedNotes((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const removeSelectedFolder = (id: string) => {
+    setSelectedFolders((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const clearSelection = () => {
+    setSelectedNotes([]);
+    setSelectedFolders([]);
+  };
 
   return (
     <div className="h-screen w-screen flex bg-chat-page text-text overflow-hidden">
@@ -236,33 +284,58 @@ function ChatPageInner() {
                   ? t("chat.about_context", { context: contextPrefix })
                   : t("chat.new_conversation"))}
             </h1>
-            {(activeConv?.noteId || paramNoteId) && (
-              <a
-                href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+            {(activeConv?.noteId || paramNoteId) &&
+              selectedNotes.length === 0 &&
+              selectedFolders.length === 0 && (
+                <a
+                  href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+                >
+                  <DocumentTextIcon className="w-3 h-3" />
+                  <span className="truncate max-w-[150px]">
+                    {activeConv?.noteTitle ?? paramNoteTitle}
+                  </span>
+                </a>
+              )}
+            {selectedNotes.map((note) => (
+              <span
+                key={`note-${note.id}`}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary"
               >
                 <DocumentTextIcon className="w-3 h-3" />
-                <span className="truncate max-w-[150px]">
-                  {activeConv?.noteTitle ?? paramNoteTitle}
-                </span>
-              </a>
-            )}
-            {paramFolderId && !activeConv?.noteId && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-[11px] text-primary-400">
-                <svg
-                  className="w-3 h-3 flex-shrink-0"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+                <span className="truncate max-w-[120px]">{note.title}</span>
+                <button
+                  onClick={() => removeSelectedNote(note.id)}
+                  className="text-text-tertiary hover:text-text-secondary"
+                  title="Remove file"
                 >
-                  <path d="M2 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                </svg>
-                <span className="truncate max-w-[150px]">
-                  {paramFolderTitle}
-                </span>
-                <span className="text-primary-500/60 ml-0.5">
-                  · {t("chat.rag_coming_soon")}
-                </span>
+                  ×
+                </button>
               </span>
+            ))}
+            {selectedFolders.map((folder) => (
+              <span
+                key={`folder-${folder.id}`}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-[11px] text-primary-400"
+              >
+                <span className="truncate max-w-[120px]">{folder.title}</span>
+                <button
+                  onClick={() => removeSelectedFolder(folder.id)}
+                  className="text-primary-500/70 hover:text-primary-300"
+                  title="Remove folder"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {(selectedNotes.length > 0 || selectedFolders.length > 0) && (
+              <button
+                onClick={clearSelection}
+                className="text-[11px] text-text-tertiary hover:text-text-secondary"
+                title="Clear selected context"
+              >
+                clear
+              </button>
             )}
           </div>
         </header>
@@ -271,8 +344,18 @@ function ChatPageInner() {
         <ChatInterface
           key={activeId ?? "new"}
           sessionId={activeId ?? undefined}
-          noteId={activeConv?.noteId ?? paramNoteId}
-          noteTitle={activeConv?.noteTitle ?? paramNoteTitle}
+          noteId={
+            selectedNotes.length === 1 && selectedFolders.length === 0
+              ? selectedNotes[0].id
+              : (activeConv?.noteId ?? paramNoteId)
+          }
+          noteTitle={
+            selectedNotes.length === 1 && selectedFolders.length === 0
+              ? selectedNotes[0].title
+              : (activeConv?.noteTitle ?? paramNoteTitle)
+          }
+          selectedNoteIds={selectedNotes.map((n) => n.id)}
+          selectedFolderIds={selectedFolders.map((f) => f.id)}
           onSessionCreated={handleSessionCreated}
           className="flex-1 min-h-0"
         />
