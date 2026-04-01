@@ -18,6 +18,8 @@ import {
   validateBody,
 } from "@/lib/validations/schemas";
 
+const AI_GENERATION_BATCH_SIZE = 5;
+
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
@@ -59,8 +61,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   );
 
   // generate questions for uncovered chunks (on-demand)
+  // always try to generate a small batch so sessions organically fill until all chunks are covered
   const generatedQuestionIds: string[] = [];
-  for (const chunkId of selection.newChunks) {
+  const generationChunkIds = uncoveredChunkIds.slice(
+    0,
+    AI_GENERATION_BATCH_SIZE,
+  );
+  for (const chunkId of generationChunkIds) {
     const [chunk] = await sql`
             SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
             FROM app.chunks c
@@ -74,6 +81,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             FROM app.quiz_reviews qr
             JOIN app.quiz_questions qq ON qr.question_id = qq.id
             WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+            ORDER BY qr.created_at ASC
         `;
     const bloomLevel = getCurrentBloomLevel(reviews);
     const questionType = pickQuestionType(bloomLevel);
@@ -91,7 +99,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   // collect all card IDs for this session
-  const allCardIds = [
+  const prioritizedCardIds = [
     ...selection.due.map((c) => c.id),
     ...selection.retention.map((c) => c.id),
   ];
@@ -101,8 +109,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             SELECT id FROM app.quiz_cards
             WHERE question_id = ANY(${generatedQuestionIds}::uuid[])
         `;
-    allCardIds.push(...newCards.map((c: any) => c.id));
+    prioritizedCardIds.unshift(...newCards.map((c: any) => c.id));
   }
+
+  const allCardIds = [...new Set(prioritizedCardIds)].slice(0, maxQuestions);
 
   if (allCardIds.length === 0) {
     return tracedError(
