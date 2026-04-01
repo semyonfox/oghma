@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
-import sql from '@/database/pgsql.js';
-import logger from '@/lib/logger';
+import { NextResponse } from "next/server";
+import { validateSession } from "@/lib/auth.js";
+import sql from "@/database/pgsql.js";
+import logger from "@/lib/logger";
 
 /**
  * GET /api/canvas/status
@@ -22,7 +22,7 @@ export async function GET() {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // active or most-recently-completed job
@@ -35,14 +35,16 @@ export async function GET() {
     `;
 
     const job = activeJobs?.[0] ?? null;
-    const isActive = job && ['queued', 'processing'].includes(job.status);
-    const activeJob = isActive ? {
-      jobId: job.id,
-      status: job.status,
-      jobType: job.job_type,
-      startedAt: job.started_at,
-      createdAt: job.created_at,
-    } : null;
+    const isActive = job && ["queued", "processing"].includes(job.status);
+    const activeJob = isActive
+      ? {
+          jobId: job.id,
+          status: job.status,
+          jobType: job.job_type,
+          startedAt: job.started_at,
+          createdAt: job.created_at,
+        }
+      : null;
 
     // scope file stats to the current job via job_id FK when available,
     // fall back to time-based scoping for legacy jobs without job_id
@@ -53,7 +55,8 @@ export async function GET() {
       sql`
         SELECT
           COUNT(*) as total,
-          COUNT(CASE WHEN status = 'complete'    THEN 1 END) as completed,
+          COUNT(CASE WHEN status = 'complete'    THEN 1 END) as indexed,
+          COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
           COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
           COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
           COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
@@ -78,20 +81,44 @@ export async function GET() {
       `,
     ]);
 
-    const stats = fileStats[0] ?? { total: 0, completed: 0, downloading: 0, processing: 0, forbidden: 0, error: 0 };
-    const [total, completed, downloading, processing, forbidden, errorCount] =
-      ['total', 'completed', 'downloading', 'processing', 'forbidden', 'error']
-        .map(k => parseInt(stats[k], 10));
+    const stats = fileStats[0] ?? {
+      total: 0,
+      indexed: 0,
+      indexing: 0,
+      downloading: 0,
+      processing: 0,
+      forbidden: 0,
+      error: 0,
+    };
+    const [
+      total,
+      indexed,
+      indexing,
+      downloading,
+      processing,
+      forbidden,
+      errorCount,
+    ] = [
+      "total",
+      "indexed",
+      "indexing",
+      "downloading",
+      "processing",
+      "forbidden",
+      "error",
+    ].map((k) => parseInt(stats[k], 10));
+    const completed = indexed + indexing;
 
     // use expected_total from the discovery phase as denominator when available —
     // this prevents the progress bar from jumping backwards as new files are found
     const denominator = job?.expected_total ?? total;
     const settled = completed + forbidden + errorCount;
-    const progressPercent = !isActive && denominator > 0
-      ? 100
-      : denominator > 0
-        ? Math.min(99, Math.round((settled / denominator) * 100))
-        : null;
+    const progressPercent =
+      !isActive && denominator > 0
+        ? 100
+        : denominator > 0
+          ? Math.min(99, Math.round((settled / denominator) * 100))
+          : null;
 
     return NextResponse.json({
       success: true,
@@ -99,6 +126,8 @@ export async function GET() {
       progress: {
         total: denominator,
         completed,
+        indexed,
+        indexing,
         downloading,
         processing,
         percent: progressPercent,
@@ -107,7 +136,7 @@ export async function GET() {
         forbidden,
         error: errorCount,
       },
-      recentLogs: (recentLogs ?? []).map(r => ({
+      recentLogs: (recentLogs ?? []).map((r) => ({
         filename: r.filename,
         status: r.status,
         errorMessage: r.error_message,
@@ -116,9 +145,11 @@ export async function GET() {
         noteId: r.note_id,
       })),
     });
-
   } catch (err) {
-    logger.error('canvas status error', { error: err });
-    return NextResponse.json({ error: 'Failed to fetch import status' }, { status: 500 });
+    logger.error("canvas status error", { error: err });
+    return NextResponse.json(
+      { error: "Failed to fetch import status" },
+      { status: 500 },
+    );
   }
 }
