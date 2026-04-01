@@ -164,7 +164,7 @@ export async function DELETE() {
     await sql`
       UPDATE app.canvas_imports
       SET status = 'cancelled', error_message = 'Cancelled by user', updated_at = NOW()
-      WHERE job_id = ${jobId}::uuid AND status IN ('downloading', 'processing')
+      WHERE job_id = ${jobId}::uuid AND status IN ('downloading', 'processing', 'indexing')
     `;
 
     return NextResponse.json({ success: true, cancelled: true, jobId });

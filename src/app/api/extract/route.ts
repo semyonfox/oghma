@@ -3,8 +3,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { chunkText } from "@/lib/chunking";
-import { embedChunks } from "@/lib/embeddings";
 import { extractWithMarker } from "@/lib/ocr";
+import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { stripMarkdown } from "@/lib/strip-markdown";
 import sql from "@/database/pgsql.js";
 import { withErrorHandler } from "@/lib/api-error";
@@ -25,23 +25,6 @@ function isAllowedUrl(raw: string): boolean {
   return !/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|localhost|::1|\[::1\])/.test(
     h,
   );
-}
-
-async function storeChunkWithEmbedding(
-  documentId: string,
-  userId: string,
-  chunk: string,
-  vector: number[],
-) {
-  const [row] = await sql`
-        INSERT INTO app.chunks (document_id, user_id, text)
-        VALUES (${documentId}, ${userId}, ${chunk})
-        RETURNING id
-    `;
-    await sql`
-        INSERT INTO app.embeddings (chunk_id, user_id, embedding)
-        VALUES (${row.id}, ${userId}, ${JSON.stringify(vector)}::vector)
-    `;
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -95,19 +78,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   });
 
+  const chunksStored = await xraySubsegment("replace-embeddings", () =>
+    replaceNoteEmbeddings(documentId, userId, chunks!),
+  );
+
   // stripped text for PG full-text search (no markdown syntax noise)
   const cleanedText = stripMarkdown(rawText!);
   await sql`UPDATE app.notes SET extracted_text = ${cleanedText}, updated_at = NOW() WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid`;
 
-  const embeddings = await xraySubsegment("embed-chunks", () =>
-    embedChunks(chunks!),
-  );
-
-  await Promise.all(
-    embeddings.map(({ chunk, vector }) =>
-      storeChunkWithEmbedding(documentId, userId, chunk, vector),
-    ),
-  );
-
-  return NextResponse.json({ success: true, chunksStored: embeddings.length });
+  return NextResponse.json({ success: true, chunksStored });
 });
