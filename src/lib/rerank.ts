@@ -13,6 +13,7 @@ const TOP_N = 5;
 const MIN_RELEVANCE = 0.15;
 
 interface RerankResult {
+  index: number;
   text: string;
   score: number;
 }
@@ -23,14 +24,16 @@ export async function rerankChunks(
   topN = TOP_N,
 ): Promise<RerankResult[]> {
   if (chunks.length <= topN) {
-    return chunks.map((text) => ({ text, score: 1 }));
+    return chunks.map((text, index) => ({ index, text, score: 1 }));
   }
 
   const apiKey = process.env.COHERE_API_KEY;
   const timeoutMs = getCohereTimeoutMs();
   if (!apiKey) {
     // no API key — fall back to top-N by vector distance order (already sorted)
-    return chunks.slice(0, topN).map((text) => ({ text, score: 1 }));
+    return chunks
+      .slice(0, topN)
+      .map((text, index) => ({ index, text, score: 1 }));
   }
 
   try {
@@ -51,7 +54,9 @@ export async function rerankChunks(
 
     if (!res.ok) {
       void Metrics.cohereError("rerank");
-      return chunks.slice(0, topN).map((text) => ({ text, score: 1 }));
+      return chunks
+        .slice(0, topN)
+        .map((text, index) => ({ index, text, score: 1 }));
     }
 
     const json = await res.json();
@@ -61,6 +66,7 @@ export async function rerankChunks(
     const filtered = results
       .filter((r) => r.relevance_score >= MIN_RELEVANCE)
       .map((r) => ({
+        index: r.index,
         text: chunks[r.index],
         score: r.relevance_score,
       }));
@@ -75,12 +81,16 @@ export async function rerankChunks(
           candidateCount: chunks.length,
         },
       );
-      return chunks.slice(0, topN).map((text) => ({ text, score: 0 }));
+      return chunks
+        .slice(0, topN)
+        .map((text, index) => ({ index, text, score: 0 }));
     }
 
     return filtered;
   } catch {
     void Metrics.cohereError("rerank");
-    return chunks.slice(0, topN).map((text) => ({ text, score: 1 }));
+    return chunks
+      .slice(0, topN)
+      .map((text, index) => ({ index, text, score: 1 }));
   }
 }
