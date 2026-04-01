@@ -42,7 +42,7 @@ export default function TestimonialSection() {
   );
 
   return (
-    <div className="bg-surface py-16 sm:py-24">
+    <div className="border-y border-white/5 bg-white/[0.02] py-16 sm:py-24">
       <div className="mx-auto max-w-5xl px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}

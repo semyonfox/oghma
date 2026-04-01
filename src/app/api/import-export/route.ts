@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const action = request.nextUrl.searchParams.get("action");
-  const userId = (session as { user_id: string }).user_id;
+  const userId = session.user_id;
 
   if (action === "export") {
     // queue a background export — worker builds zip and uploads to S3

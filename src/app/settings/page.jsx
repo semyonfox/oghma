@@ -1384,7 +1384,7 @@ export default function SettingsPage() {
 
             <div className="md:col-span-2 space-y-6">
               {/* clear vault */}
-              <div className="border-t border-border pt-6">
+              <div>
                 <h3 className="text-sm/6 font-medium text-text mb-2">
                   {t("Clear vault")}
                 </h3>

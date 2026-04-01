@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue(null),
+}));
+
 import { generateJWTToken, verifyJWTToken } from "@/lib/auth.js";
 
 // JWT_SECRET is set in setup.ts

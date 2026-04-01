@@ -12,9 +12,9 @@ import {
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
+const FileRouter = dynamic(() => import("./file-router"), { ssr: false });
 
-interface FileViewPaneProps {
+interface EditorPaneProps {
   pane: "A" | "B";
   file?: FileSpec;
 }
@@ -24,7 +24,7 @@ interface FileViewPaneProps {
  * Shows title, file type icon, and routes to appropriate viewer
  * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
-const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
+const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
   const { t } = useI18n();
 
   // granular selectors — only re-render when values this component reads change
@@ -178,10 +178,10 @@ const FileViewPane: FC<FileViewPaneProps> = ({ pane, file }) => {
 
       {/* File Renderer */}
       <div className="flex-1 overflow-auto bg-editor">
-        <FileRenderer key={file.fileId} pane={pane} file={file} />
+        <FileRouter key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
   );
 };
 
-export default memo(FileViewPane);
+export default memo(EditorPane);
