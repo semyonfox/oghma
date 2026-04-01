@@ -6,9 +6,8 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { findOrCreateOAuthUser } from "@/lib/auth-oauth";
 import type { OAuthProfile } from "@/lib/auth-oauth";
-import type { NextAuthConfig } from "next-auth";
 
-const providers: NextAuthConfig["providers"] = [];
+const providers: any[] = [];
 
 if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
   providers.push(
@@ -77,11 +76,11 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
   }
 }
 
-export const authConfig: NextAuthConfig = {
+export const authConfig = {
   trustHost: true, // trust forwarded host headers behind Amplify/CloudFront
-  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   providers,
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt" as const },
   pages: {
     signIn: "/login",
     error: "/auth/error",
