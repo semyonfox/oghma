@@ -206,7 +206,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     ? process.env.NEXT_PUBLIC_APP_URL
                     : `https://${process.env.NEXT_PUBLIC_APP_URL}`;
                 const extractUrl = new URL("/api/extract", appUrl).toString();
-                void fetch(extractUrl, {
+                await fetch(extractUrl, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
