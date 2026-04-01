@@ -233,52 +233,31 @@ const SidebarList = () => {
     }
   }, [createFolder]);
 
-  const handleUploadFile = useCallback(
-    async (file: File) => {
-      try {
-        const newId = genNewId();
-        const fileName = file.name || "Untitled";
-        const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const handleUploadFile = useCallback(
+        async (file: File) => {
+            try {
+                const fileName = file.name || "Untitled";
 
-        let fileType: "note" | "pdf" | "image" | "video" = "note";
-        if (ext === "pdf") fileType = "pdf";
-        else if (
-          ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"].includes(ext)
-        )
-          fileType = "image";
-        else if (["mp4", "webm", "ogg", "mov"].includes(ext))
-          fileType = "video";
+                const formData = new FormData();
+                formData.append("file", file);
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("noteId", newId);
+                const uploadRes = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData,
+                });
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+                if (!uploadRes.ok) {
+                    toast.error("Failed to upload file");
+                    return;
+                }
 
-        if (!uploadRes.ok) {
-          toast.error("Failed to upload file");
-          return;
-        }
-        const uploadData = await uploadRes.json();
-
-        const content =
-          fileType === "note" ? await file.text() : uploadData.path;
-
-        const newNote = await createNote({
-          id: newId,
-          title: fileName,
-          content,
-        });
-
-        if (newNote) router.push(`/notes/${newId}`);
-      } catch {
-        toast.error("Failed to upload file");
-      }
-    },
-    [genNewId, createNote, router],
+                const uploadData = await uploadRes.json();
+                router.push(`/notes/${uploadData.noteId}`);
+            } catch {
+                toast.error("Failed to upload file");
+            }
+        },
+    [router],
   );
 
   const handleCollapseAll = useCallback(() => {
