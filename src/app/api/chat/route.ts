@@ -197,47 +197,65 @@ async function* callLLMStream(
   };
   if (thinking) body.thinking = thinking;
 
-  const res = await fetch(`${apiUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  // use an AbortController so we can implement an idle timeout that resets
+  // on every chunk instead of aborting the entire stream after a fixed wall time
+  const controller = new AbortController();
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
-  }
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(), timeoutMs);
+  };
 
-  if (!res.body) {
-    throw new Error("LLM stream body missing");
-  }
+  // start the idle clock — covers the initial connection + first chunk wait
+  resetIdleTimer();
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  const state = { buffer: "" };
+  try {
+    const res = await fetch(`${apiUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
-  while (true) {
-    const { value, done } = await reader.read();
-    const chunk = done
-      ? decoder.decode()
-      : decoder.decode(value, { stream: true });
-    if (chunk) {
-      for (const frame of parseSseBlocks(chunk, state)) {
-        if (frame.data === "[DONE]") return;
-        try {
-          const payload = JSON.parse(frame.data);
-          const text = extractProviderText(payload);
-          if (text) yield text;
-        } catch {
-          // ignore malformed or non-json chunks
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`LLM API error (${res.status}): ${text.slice(0, 200)}`);
+    }
+
+    if (!res.body) {
+      throw new Error("LLM stream body missing");
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    const state = { buffer: "" };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      resetIdleTimer(); // data arrived — reset the idle clock
+      const chunk = done
+        ? decoder.decode()
+        : decoder.decode(value, { stream: true });
+      if (chunk) {
+        for (const frame of parseSseBlocks(chunk, state)) {
+          if (frame.data === "[DONE]") return;
+          try {
+            const payload = JSON.parse(frame.data);
+            const text = extractProviderText(payload);
+            if (text) yield text;
+          } catch {
+            // ignore malformed or non-json chunks
+          }
         }
       }
+      if (done) return;
     }
-    if (done) return;
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer);
   }
 }
 

@@ -39,7 +39,7 @@ const PreviewModal: FC = () => {
         onMouseLeave={() => preview.close()}
       >
         <Link
-          href={`/${preview.data.id}`}
+          href={`/notes/${preview.data.id}`}
           className="block p-3 hover:bg-subtle transition-colors"
           onClick={() => preview.close()}
         >

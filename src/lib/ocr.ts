@@ -1,19 +1,14 @@
-// document text extraction via self-hosted Marker on EC2 (primary)
-// falls back to Datalab Convert API if EC2 is unavailable
-//
-// EC2 Marker: synchronous POST /marker/upload (g4dn.xlarge GPU, auto-starts)
-// Datalab: async submit+poll POST /api/v1/convert
+// document text extraction via self-hosted Marker
+// Marker API: synchronous POST /marker/upload
 
 import { ensureMarkerRunning } from "./marker-ec2";
 
 export interface MarkerResult {
   text: string;
   chunks: string[];
-  source: "ec2" | "datalab";
+  source: "ec2";
 }
 
-const DATALAB_URL = "https://www.datalab.to/api/v1/convert";
-const POLL_INTERVAL_MS = 2_000;
 const TOTAL_TIMEOUT_MS = 120_000;
 
 const MIME_MAP: Record<string, string> = {
@@ -36,33 +31,25 @@ export async function extractWithMarker(
   buffer: Buffer,
   filename: string,
 ): Promise<MarkerResult> {
-  // primary: self-hosted Marker on EC2 (GPU)
-  if (process.env.MARKER_EC2_INSTANCE_ID) {
-    try {
-      const markerUrl = await ensureMarkerRunning();
-      const result = await callEc2Marker(
-        `${markerUrl}/marker/upload`,
-        buffer,
-        filename,
-      );
-      if (result) return { ...result, source: "ec2" };
-    } catch (err: any) {
-      console.warn(`EC2 Marker error: ${err?.message ?? err}`);
-    }
+  const hasAsgConfig = Boolean(process.env.MARKER_ASG_NAME);
+  const hasInstanceConfig = Boolean(process.env.MARKER_EC2_INSTANCE_ID);
+
+  if (!hasAsgConfig && !hasInstanceConfig) {
+    throw new Error(
+      "Marker is not configured (set MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID)",
+    );
   }
 
-  // fallback: Datalab hosted API
-  const datalabKey = process.env.DATALAB_API_KEY;
-  if (datalabKey) {
-    try {
-      const result = await callDatalab(buffer, filename, datalabKey);
-      if (result) return { ...result, source: "datalab" };
-    } catch (err: any) {
-      console.warn(`Datalab error: ${err?.message ?? err}`);
-    }
+  const markerUrl = await ensureMarkerRunning();
+  const result = await callEc2Marker(
+    `${markerUrl}/marker/upload`,
+    buffer,
+    filename,
+  );
+  if (!result) {
+    throw new Error("Marker returned no result");
   }
-
-  throw new Error("Marker unavailable (both EC2 and Datalab failed)");
+  return { ...result, source: "ec2" };
 }
 
 // self-hosted marker_server on EC2 — synchronous single-request
@@ -107,74 +94,6 @@ async function callEc2Marker(
   } finally {
     clearTimeout(timeout);
   }
-}
-
-// Datalab Convert API — async submit + poll
-async function callDatalab(
-  buffer: Buffer,
-  filename: string,
-  apiKey: string,
-): Promise<{ text: string; chunks: string[] } | null> {
-  const form = new FormData();
-  const mime = mimeFromFilename(filename);
-  form.append(
-    "file",
-    new Blob([new Uint8Array(buffer)], { type: mime }),
-    filename,
-  );
-  form.append("output_format", "markdown");
-  form.append("paginate", "true");
-
-  const submitRes = await fetch(DATALAB_URL, {
-    method: "POST",
-    headers: { "X-API-Key": apiKey },
-    body: form,
-  });
-
-  if (submitRes.status === 429) {
-    throw new Error("Datalab rate limited");
-  }
-
-  if (!submitRes.ok) {
-    throw new Error(
-      `Datalab submit ${submitRes.status}: ${(await submitRes.text()).slice(0, 200)}`,
-    );
-  }
-
-  const submitJson = await submitRes.json();
-  if (!submitJson.success)
-    throw new Error(submitJson.error ?? "Datalab submit failed");
-
-  const checkUrl = submitJson.request_check_url;
-  if (!checkUrl) throw new Error("Datalab did not return request_check_url");
-
-  const deadline = Date.now() + TOTAL_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-    const pollRes = await fetch(checkUrl, {
-      headers: { "X-API-Key": apiKey },
-    });
-
-    if (!pollRes.ok) {
-      throw new Error(
-        `Datalab poll ${pollRes.status}: ${(await pollRes.text()).slice(0, 200)}`,
-      );
-    }
-
-    const result = await pollRes.json();
-    if (result.status === "processing") continue;
-    if (result.status === "failed")
-      throw new Error(result.error ?? "Datalab conversion failed");
-
-    if (result.status === "complete") {
-      const text = typeof result.markdown === "string" ? result.markdown : "";
-      return { text, chunks: splitMarkdownToChunks(text) };
-    }
-  }
-
-  throw new Error("Datalab conversion timed out");
 }
 
 function splitMarkdownToChunks(markdown: string, targetSize = 500): string[] {
