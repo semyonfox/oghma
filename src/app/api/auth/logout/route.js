@@ -6,12 +6,12 @@ export async function POST() {
     // every cookie name that could hold session state
     const cookieNames = [
       "session", // custom JWT (email/password)
-      "next-auth.session-token", // Auth.js session (dev)
-      "next-auth.csrf-token", // Auth.js CSRF (dev)
-      "next-auth.callback-url", // Auth.js callback (dev)
-      "__Secure-next-auth.session-token", // Auth.js session (prod/HTTPS)
-      "__Secure-next-auth.csrf-token", // Auth.js CSRF (prod/HTTPS)
-      "__Secure-next-auth.callback-url", // Auth.js callback (prod/HTTPS)
+      "authjs.session-token", // Auth.js v5 session (dev)
+      "authjs.csrf-token", // Auth.js v5 CSRF (dev)
+      "authjs.callback-url", // Auth.js v5 callback (dev)
+      "__Secure-authjs.session-token", // Auth.js v5 session (prod/HTTPS)
+      "__Secure-authjs.csrf-token", // Auth.js v5 CSRF (prod/HTTPS)
+      "__Secure-authjs.callback-url", // Auth.js v5 callback (prod/HTTPS)
     ];
 
     const headers = new Headers({ "Content-Type": "application/json" });

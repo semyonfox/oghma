@@ -195,7 +195,7 @@ export default function Home() {
       </div>
 
       {/* Features Section */}
-      <div id="features" className="bg-background pb-24 sm:pb-32">
+      <div id="features" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <FadeIn>
             <h2 className="text-center text-base/7 font-semibold text-primary-400">
@@ -234,7 +234,7 @@ export default function Home() {
       <TestimonialSection />
 
       {/* CTA Section */}
-      <div className="bg-background pb-16 sm:pb-24">
+      <div className="py-16 sm:py-24">
         <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
           <div className="relative isolate overflow-hidden bg-gray-800 px-6 py-24 after:pointer-events-none after:absolute after:inset-0 after:inset-ring after:inset-ring-white/15 sm:rounded-3xl sm:px-24 after:sm:rounded-3xl xl:py-32">
             <FadeIn>
@@ -289,7 +289,7 @@ export default function Home() {
       </div>
 
       {/* Contact Section */}
-      <div id="contact" className="relative isolate bg-background">
+      <div id="contact" className="relative isolate">
         <div className="mx-auto grid max-w-7xl grid-cols-1 lg:grid-cols-2">
           {/* Contact Info */}
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
@@ -362,7 +362,7 @@ export default function Home() {
       </div>
 
       {/* FAQ Section */}
-      <div className="bg-background">
+      <div>
         <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40">
           <div className="mx-auto max-w-4xl">
             <FadeIn>

@@ -69,7 +69,7 @@ export async function POST(request) {
     }
     return resetAckResponse();
   } catch (error) {
-    logger.error("password reset request error", { error });
-    return createErrorResponse("Failed to send reset email", 500);
+      logger.error("password reset request error", { error });
+      return createErrorResponse("Failed to send reset email", 500);
   }
 }

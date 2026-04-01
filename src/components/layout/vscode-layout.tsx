@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import IconNav from "@/components/sidebar/icon-nav";
 import FileTreePanel from "@/components/sidebar/file-tree-panel";
-import SplitEditorPane from "@/components/editor/split-editor-pane";
+import SplitPane from "@/components/editor/split-pane";
 import NotesInspectorSidebar from "@/components/panels/notes-inspector-sidebar";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
@@ -144,7 +144,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
 
         {/* Pane 3: Main Editor (Flex fill) */}
         <div className="bg-background overflow-hidden flex flex-col">
-          <SplitEditorPane />
+          <SplitPane />
         </div>
 
         {/* Pane 4: Right Panel (Collapsible, default 280px) */}

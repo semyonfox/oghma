@@ -1,15 +1,11 @@
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
-import Azure from "next-auth/providers/azure-ad";
-import Apple from "next-auth/providers/apple";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { findOrCreateOAuthUser } from "@/lib/auth-oauth";
 import type { OAuthProfile } from "@/lib/auth-oauth";
-
-type NextAuthConfig = any;
 
 const providers: any[] = [];
 
@@ -31,29 +27,6 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
   );
 }
 
-if (
-  process.env.AZURE_CLIENT_ID &&
-  process.env.AZURE_CLIENT_SECRET &&
-  process.env.AZURE_TENANT_ID
-) {
-  providers.push(
-    Azure({
-      clientId: process.env.AZURE_CLIENT_ID,
-      clientSecret: process.env.AZURE_CLIENT_SECRET,
-      tenantId: process.env.AZURE_TENANT_ID,
-    }),
-  );
-}
-
-if (process.env.APPLE_ID && process.env.APPLE_SECRET) {
-  providers.push(
-    Apple({
-      clientId: process.env.APPLE_ID,
-      clientSecret: process.env.APPLE_SECRET,
-    }),
-  );
-}
-
 if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
   try {
     providers.push(
@@ -65,14 +38,16 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
           password: { label: "Password", type: "password" },
         },
         async authorize(credentials) {
-          if (!credentials?.email || !credentials?.password) return null;
+          const email = credentials?.email as string | undefined;
+          const password = credentials?.password as string | undefined;
+          if (!email || !password) return null;
 
           try {
             const dbConnection = sql as any;
             const users = await dbConnection`
                             SELECT user_id, email, hashed_password
                             FROM app.login
-                            WHERE email = ${credentials.email}
+                            WHERE email = ${email}
                               AND is_active = true
                               AND deleted_at IS NULL
                         `;
@@ -82,7 +57,7 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
 
             const user = users[0] as any;
             const isPasswordValid = await bcrypt.compare(
-              credentials.password,
+              password,
               user.hashed_password,
             );
 
@@ -101,11 +76,11 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
   }
 }
 
-export const authConfig: NextAuthConfig = {
+export const authConfig = {
   trustHost: true, // trust forwarded host headers behind Amplify/CloudFront
-  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   providers,
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt" as const },
   pages: {
     signIn: "/login",
     error: "/auth/error",

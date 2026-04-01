@@ -1,10 +1,10 @@
 // shared auth utilities — JWT, sessions, response formatting
 
 import jwt from "jsonwebtoken";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import sql from "@/database/pgsql.js";
-import { getToken } from "next-auth/jwt";
+import { auth } from "@/auth";
 
 // jwt
 
@@ -68,30 +68,21 @@ export async function validateSession(_request) {
     }
   }
 
-  // 2. try NextAuth session (OAuth login)
-  // NextAuth v4 uses JWE (encrypted tokens), not plain JWTs —
-  // must use getToken() which handles decryption internally
+  // 2. try NextAuth v5 session (OAuth login)
   try {
-    const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
-    if (secret) {
-      // build a minimal request-like object from next/headers
-      // so getToken can read the session cookie (callers don't pass request)
-      const hdrs = await headers();
-      const req = { headers: hdrs };
-      const nextAuthToken = await getToken({ req, secret });
-      if (nextAuthToken?.user_id) {
-        const [user] = await sql`
-                    SELECT user_id, email FROM app.login
-                    WHERE user_id = ${nextAuthToken.user_id}::uuid
-                      AND is_active = true
-                      AND deleted_at IS NULL
-                    LIMIT 1
-                `;
-        if (user) return user;
-      }
+    const session = await auth();
+    if (session?.user?.id) {
+      const [user] = await sql`
+                  SELECT user_id, email FROM app.login
+                  WHERE user_id = ${session.user.id}::uuid
+                    AND is_active = true
+                    AND deleted_at IS NULL
+                  LIMIT 1
+              `;
+      if (user) return user;
     }
   } catch {
-    // NextAuth token invalid or expired — fall through
+    // NextAuth session invalid or expired — fall through
   }
 
   return null;

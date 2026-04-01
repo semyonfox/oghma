@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth";
-import { authConfig } from "@/auth.config";
+import { auth } from "@/auth";
 import { validateSession } from "@/lib/auth.js";
 import { getLinkedProviders } from "@/lib/auth-oauth";
 import sql from "@/database/pgsql.js";
@@ -23,7 +22,7 @@ async function fetchProfile(userId) {
 export async function GET(_request) {
   try {
     // try Auth.js session first (OAuth users)
-    const authJsSession = await getServerSession(authConfig);
+    const authJsSession = await auth();
     if (authJsSession?.user?.id) {
       const userId = authJsSession.user.id;
       const profile = await fetchProfile(userId);
