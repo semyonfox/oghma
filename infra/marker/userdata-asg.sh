@@ -33,9 +33,50 @@ fi
 PYTHON_DIR=$(dirname "$PYTORCH_PYTHON")
 echo "Using Python: $PYTORCH_PYTHON"
 
+PIP_BIN=""
+if [ -x "$PYTHON_DIR/pip" ]; then
+  PIP_BIN="$PYTHON_DIR/pip"
+elif [ -x "$PYTHON_DIR/pip3" ]; then
+  PIP_BIN="$PYTHON_DIR/pip3"
+fi
+
 # install marker-pdf with server dependencies
-"$PYTHON_DIR/pip" install --upgrade pip
-"$PYTHON_DIR/pip" install "marker-pdf[server]"
+if [ -n "$PIP_BIN" ]; then
+  "$PIP_BIN" install --upgrade pip
+  "$PIP_BIN" install "marker-pdf[server]"
+else
+  "$PYTORCH_PYTHON" -m ensurepip --upgrade || true
+  "$PYTORCH_PYTHON" -m pip install --upgrade pip
+  "$PYTORCH_PYTHON" -m pip install "marker-pdf[server]"
+fi
+
+NVIDIA_LIB_PATHS=(
+  "/usr/local/lib/python3.9/site-packages/nvidia/cudnn/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cublas/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cuda_runtime/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cuda_nvrtc/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cuda_cupti/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cufft/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/curand/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cusolver/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cusparse/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/cusparselt/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/nccl/lib"
+  "/usr/local/lib/python3.9/site-packages/nvidia/nvjitlink/lib"
+)
+
+LD_LIBRARY_PATH_VALUE=""
+for p in "${NVIDIA_LIB_PATHS[@]}"; do
+  if [ -d "$p" ]; then
+    if [ -z "$LD_LIBRARY_PATH_VALUE" ]; then
+      LD_LIBRARY_PATH_VALUE="$p"
+    else
+      LD_LIBRARY_PATH_VALUE="$LD_LIBRARY_PATH_VALUE:$p"
+    fi
+  fi
+done
+
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH_VALUE:${LD_LIBRARY_PATH:-}"
 
 # verify GPU
 "$PYTORCH_PYTHON" -c "
@@ -43,7 +84,7 @@ import torch
 print(f'CUDA available: {torch.cuda.is_available()}')
 if torch.cuda.is_available():
     print(f'Device: {torch.cuda.get_device_name(0)}')
-    print(f'VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB')
+    print(f'VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB')
 "
 
 # create systemd service
@@ -59,6 +100,7 @@ ExecStart=${PYTHON_DIR}/marker_server --port 8000 --host 0.0.0.0
 Restart=on-failure
 RestartSec=5
 Environment=TORCH_DEVICE=cuda
+Environment=LD_LIBRARY_PATH=${LD_LIBRARY_PATH_VALUE}
 
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-const DEFAULT_LLM_TIMEOUT_MS = 20_000;
+const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 2_048;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 
@@ -19,7 +19,7 @@ export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
     env.LLM_TIMEOUT_MS,
     DEFAULT_LLM_TIMEOUT_MS,
     1_000,
-    60_000,
+    600_000,
   );
 }
 

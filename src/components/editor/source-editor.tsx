@@ -33,6 +33,7 @@ const appTheme = EditorView.theme({
   "&": {
     height: "100%",
     fontSize: "14px",
+    backgroundColor: "transparent",
   },
   ".cm-scroller": {
     fontFamily:
@@ -41,9 +42,9 @@ const appTheme = EditorView.theme({
     overflow: "auto",
   },
   ".cm-content": {
-    maxWidth: "65ch",
+    maxWidth: "82ch",
     margin: "0 auto",
-    padding: "0 3rem",
+    padding: "0 clamp(1rem, 4vw, 2.5rem)",
   },
   ".cm-gutters": {
     display: "none",
