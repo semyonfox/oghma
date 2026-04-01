@@ -141,7 +141,7 @@ if [ "$AMI_ID" = "None" ] || [ -z "$AMI_ID" ]; then
 fi
 echo "  AMI: $AMI_ID"
 
-# 5. IAM instance profile (for CloudWatch logs)
+# 5. IAM instance profile (for CloudWatch logs + ECR access)
 echo "[5/9] Setting up IAM role..."
 ROLE_NAME="marker-ec2-role-${PROJECT}"
 PROFILE_NAME="marker-ec2-profile-${PROJECT}"
@@ -161,6 +161,23 @@ if ! aws iam get-role --role-name "$ROLE_NAME" &>/dev/null; then
   aws iam attach-role-policy \
     --role-name "$ROLE_NAME" \
     --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  # add ECR access for pulling Docker image
+  aws iam put-role-policy \
+    --role-name "$ROLE_NAME" \
+    --policy-name marker-ecr-access \
+    --policy-document '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ],
+        "Resource": "*"
+      }]
+    }'
 
   echo "  Created role: $ROLE_NAME"
 else
@@ -182,7 +199,7 @@ fi
 
 # 6. create Launch Template
 echo "[6/9] Creating Launch Template..."
-USERDATA_B64=$(base64 -w0 infra/marker/userdata-asg.sh)
+USERDATA_B64=$(base64 -w0 infra/marker/userdata-docker-asg.sh)
 
 # delete old version if exists, or create new
 LT_ID=$(aws ec2 describe-launch-templates \

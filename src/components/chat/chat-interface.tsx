@@ -18,6 +18,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { parseSseBlocks } from "@/lib/chat/sse";
+import type { LlmThinkingMode } from "@/lib/ai-config";
 
 export interface Message {
   id: string;
@@ -35,6 +36,8 @@ interface ChatInterfaceProps {
   /** Pre-select a note as the chat context */
   noteId?: string;
   noteTitle?: string;
+  selectedNoteIds?: string[];
+  selectedFolderIds?: string[];
   /** Called when a new session is created server-side (id, title) */
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** Optional extra class on the wrapper */
@@ -44,6 +47,7 @@ interface ChatInterfaceProps {
 // i18n keys for welcome messages — translated at render time via t()
 const WELCOME_COMPACT_KEY = "chat.welcome_compact";
 const WELCOME_FULL_KEY = "chat.welcome_full";
+const THINKING_MODE_KEY = "chat-thinking-mode";
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -89,6 +93,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   sessionId: controlledSessionId,
   noteId,
   noteTitle,
+  selectedNoteIds = [],
+  selectedFolderIds = [],
   onSessionCreated,
   className = "",
 }) => {
@@ -107,6 +113,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const [sessionId, setSessionId] = useState<string | null>(
     controlledSessionId ?? null,
   );
+  const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
   const [restored, setRestored] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
@@ -168,6 +175,34 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(THINKING_MODE_KEY);
+    if (saved === "on" || saved === "off" || saved === "auto") {
+      setThinkingMode(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
+  }, [thinkingMode]);
+
+  const cycleThinkingMode = () => {
+    setThinkingMode((current) => {
+      if (current === "auto") return "on";
+      if (current === "on") return "off";
+      return "auto";
+    });
+  };
+
+  const thinkingLabel =
+    thinkingMode === "on"
+      ? "thinking on"
+      : thinkingMode === "off"
+        ? "thinking off"
+        : "thinking auto";
+
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -199,6 +234,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     // build history for context (skip welcome message)
     const history = messages
       .filter((m) => m.id !== "welcome")
+      .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
@@ -208,9 +244,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         body: JSON.stringify({
           message: text,
           noteId,
+          noteIds: selectedNoteIds,
+          folderIds: selectedFolderIds,
           sessionId,
           history,
           stream: true,
+          thinkingMode,
         }),
       });
 
@@ -398,6 +437,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
         {/* input */}
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-2">
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={cycleThinkingMode}
+              className="text-[10px] uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
+              title="Toggle LLM thinking mode"
+            >
+              {thinkingLabel}
+            </button>
+          </div>
           <div className="flex items-center gap-1.5">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -576,6 +625,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             }}
             className="flex items-end gap-3 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
           >
+            <button
+              type="button"
+              onClick={cycleThinkingMode}
+              className="mb-0.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
+              title="Toggle LLM thinking mode"
+            >
+              {thinkingLabel}
+            </button>
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
               value={input}

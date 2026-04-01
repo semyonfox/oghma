@@ -9,7 +9,7 @@ import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/chunking";
-import { embedChunks } from "@/lib/embeddings";
+import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
@@ -146,39 +146,11 @@ export const PUT = withErrorHandler(async (request, { params }) => {
     // only hit Cohere when the semantic content actually changed
     if (cleanedText !== (existingNote.extracted_text ?? "")) {
       try {
-        const chunks = chunkText(body.content);
-        const embeddings = await embedChunks(chunks);
-
-        // fetch old chunk IDs before inserting new ones
-        const oldChunks = await sql`
-          SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid
-        `;
-
-        // insert new chunks + embeddings
-        if (embeddings.length > 0) {
-          const chunkRows = await sql`
-             INSERT INTO app.chunks (document_id, user_id, text)
-             SELECT * FROM UNNEST(
-               ${embeddings.map(() => noteId)}::uuid[],
-               ${embeddings.map(() => user.user_id)}::uuid[],
-               ${embeddings.map((e) => e.chunk)}::text[]
-             ) RETURNING id
-           `;
-          await sql`
-             INSERT INTO app.embeddings (chunk_id, embedding)
-             SELECT * FROM UNNEST(
-               ${chunkRows.map((r) => r.id)}::uuid[],
-               ${embeddings.map((e) => JSON.stringify(e.vector))}::vector[]
-             )
-           `;
-        }
-
-        // delete old chunks (CASCADE removes old embeddings)
-        if (oldChunks.length > 0) {
-          const oldIds = oldChunks.map((r) => r.id);
-          await sql`DELETE FROM app.embeddings WHERE chunk_id = ANY(${oldIds}::uuid[])`;
-          await sql`DELETE FROM app.chunks WHERE id = ANY(${oldIds}::uuid[])`;
-        }
+        await replaceNoteEmbeddings(
+          noteId,
+          user.user_id,
+          chunkText(body.content),
+        );
 
         await sql`UPDATE app.notes SET extracted_text = ${cleanedText} WHERE note_id = ${noteId}::uuid`;
       } catch (embedErr) {

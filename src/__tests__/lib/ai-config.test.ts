@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildProviderThinking,
   getCohereTimeoutMs,
   getLlmMaxTokens,
+  getLlmModel,
+  getLlmThinkingMode,
   getLlmTimeoutMs,
 } from "@/lib/ai-config";
 
@@ -36,5 +39,42 @@ describe("ai-config", () => {
     expect(getLlmTimeoutMs(env)).toBe(600_000);
     expect(getLlmMaxTokens(env)).toBe(4_096);
     expect(getCohereTimeoutMs(env)).toBe(20_000);
+  });
+
+  it("normalizes common kimi model aliases", () => {
+    expect(
+      getLlmModel({ LLM_MODEL: "kimik2.5" } as unknown as NodeJS.ProcessEnv),
+    ).toBe("kimi-k2.5");
+    expect(
+      getLlmModel({ LLM_MODEL: "kimi-2.5" } as unknown as NodeJS.ProcessEnv),
+    ).toBe("kimi-k2.5");
+    expect(getLlmModel({ LLM_MODEL: "" } as unknown as NodeJS.ProcessEnv)).toBe(
+      "kimi-k2.5",
+    );
+  });
+
+  it("resolves thinking mode defaults and aliases", () => {
+    expect(getLlmThinkingMode({} as unknown as NodeJS.ProcessEnv)).toBe("auto");
+    expect(
+      getLlmThinkingMode({
+        LLM_THINKING: "enabled",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("on");
+    expect(
+      getLlmThinkingMode({
+        LLM_THINKING: "disabled",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("off");
+    expect(
+      getLlmThinkingMode({
+        LLM_THINKING: "off",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("off");
+  });
+
+  it("builds provider thinking payload from thinking mode", () => {
+    expect(buildProviderThinking("auto")).toBeUndefined();
+    expect(buildProviderThinking("on")).toEqual({ type: "enabled" });
+    expect(buildProviderThinking("off")).toEqual({ type: "disabled" });
   });
 });
