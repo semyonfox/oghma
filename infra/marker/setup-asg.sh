@@ -199,7 +199,7 @@ fi
 
 # 6. create Launch Template
 echo "[6/9] Creating Launch Template..."
-USERDATA_B64=$(base64 -w0 infra/marker/userdata-docker-asg.sh)
+USERDATA_B64=$(base64 -w0 infra/marker/userdata-asg.sh)
 
 # delete old version if exists, or create new
 LT_ID=$(aws ec2 describe-launch-templates \
