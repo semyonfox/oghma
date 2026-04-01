@@ -10,8 +10,11 @@
     "start": "next start",
     "start:next": "next start",
     "lint": "eslint",
+    "lint:all": "eslint . && npm run test:ci",
     "test": "vitest",
     "test:ci": "vitest run",
+    "docker:marker:build": "docker build -f Dockerfile.marker -t marker-ocr:latest .",
+    "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
     "prepare": "husky"
   },
   "dependencies": {

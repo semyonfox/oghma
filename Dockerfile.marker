@@ -1,0 +1,43 @@
+# Stage 1: Build marker-pdf and dependencies with GPU support
+# Uses NVIDIA PyTorch CUDA base image with all CUDA/cuDNN libraries pre-installed
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+# Python 3.10 is pre-installed in this image, just need pip
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+  python3-pip \
+  python3-dev \
+  build-essential \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Upgrade pip and install marker-pdf + dependencies
+# Using --no-cache-dir to keep image smaller
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+  pip install --no-cache-dir \
+  'marker-pdf>=0.6.0' \
+  fastapi \
+  uvicorn \
+  python-multipart \
+  pydantic \
+  pydantic-settings
+
+# Set Python environment
+ENV PYTHONUNBUFFERED=1 \
+  TORCH_DEVICE=cuda \
+  CUDA_VISIBLE_DEVICES=0
+
+# Health check: ensure / endpoint responds
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=5)" || exit 1
+
+# Create non-root user for security
+RUN groupadd -r marker && useradd -r -g marker marker
+WORKDIR /marker
+RUN chown -R marker:marker /marker
+
+USER marker
+
+# Expose port
+EXPOSE 8000
+
+# Start marker server with GPU support enabled
+CMD ["marker_server", "--port", "8000", "--host", "0.0.0.0"]
