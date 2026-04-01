@@ -38,9 +38,9 @@ async function storeChunkWithEmbedding(
         VALUES (${documentId}, ${userId}, ${chunk})
         RETURNING id
     `;
-  await sql`
-        INSERT INTO app.embeddings (chunk_id, embedding)
-        VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
+    await sql`
+        INSERT INTO app.embeddings (chunk_id, user_id, embedding)
+        VALUES (${row.id}, ${userId}, ${JSON.stringify(vector)}::vector)
     `;
 }
 
