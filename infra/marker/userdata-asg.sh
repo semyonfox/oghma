@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # EC2 user-data for g5.xlarge ASG instances (NVIDIA A10G GPU)
 # uses Deep Learning OSS Nvidia Driver AMI GPU PyTorch (Amazon Linux 2023)
-# PyTorch + CUDA are pre-installed, just need marker-pdf
+# PyTorch + CUDA are pre-installed, just need marker-pdf + server dependencies
 set -euo pipefail
 
 exec > /var/log/marker-setup.log 2>&1
@@ -41,15 +41,21 @@ elif [ -x "$PYTHON_DIR/pip3" ]; then
   PIP_BIN="$PYTHON_DIR/pip3"
 fi
 
-# install marker-pdf with server dependencies
-echo "Installing marker-pdf with server extra..."
+# install marker-pdf + server dependencies
+# Note: marker-pdf[server] extra does NOT exist, server deps are only in dev
+# We must install fastapi, uvicorn, python-multipart manually
+echo "Installing marker-pdf and server dependencies..."
 if [ -n "$PIP_BIN" ]; then
   "$PIP_BIN" install --upgrade pip setuptools wheel
-  "$PIP_BIN" install "marker-pdf[server]"
+  "$PIP_BIN" install "marker-pdf"
+  # Install server dependencies (not in marker-pdf[server])
+  "$PIP_BIN" install fastapi uvicorn python-multipart
 else
   "$PYTORCH_PYTHON" -m ensurepip --upgrade || true
   "$PYTORCH_PYTHON" -m pip install --upgrade pip setuptools wheel
-  "$PYTORCH_PYTHON" -m pip install "marker-pdf[server]"
+  "$PYTORCH_PYTHON" -m pip install "marker-pdf"
+  # Install server dependencies
+  "$PYTORCH_PYTHON" -m pip install fastapi uvicorn python-multipart
 fi
 
 # check if marker_server command is installed
@@ -61,8 +67,9 @@ elif command -v marker_server &> /dev/null; then
   MARKER_SERVER_BIN="$(which marker_server)"
   echo "Found marker_server in PATH: $MARKER_SERVER_BIN"
 else
-  echo "WARNING: marker_server not found, will try python -m marker"
-  MARKER_SERVER_BIN=""
+  echo "ERROR: marker_server not found after pip install"
+  echo "Trying to run via python module..."
+  MARKER_SERVER_BIN="$PYTORCH_PYTHON -m marker.scripts.server"
 fi
 
 NVIDIA_LIB_PATHS=(
@@ -103,7 +110,7 @@ if torch.cuda.is_available():
     print(f'VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB')
 " || true
 
-# create systemd service with fallback command
+# create systemd service
 cat > /etc/systemd/system/marker.service <<SVCEOF
 [Unit]
 Description=Marker OCR API Server (GPU - ASG)
@@ -112,8 +119,8 @@ After=network.target
 [Service]
 Type=simple
 User=ec2-user
-ExecStart=/bin/bash -c "export LD_LIBRARY_PATH='${LD_LIBRARY_PATH_VALUE}'; exec ${MARKER_SERVER_BIN:-$PYTORCH_PYTHON -m marker.server} --port 8000 --host 0.0.0.0"
-Restart=on-failure
+ExecStart=/bin/bash -c "export LD_LIBRARY_PATH='${LD_LIBRARY_PATH_VALUE}'; exec ${MARKER_SERVER_BIN} --port 8000 --host 0.0.0.0"
+Restart=always
 RestartSec=10
 Environment=TORCH_DEVICE=cuda
 StandardOutput=journal
@@ -132,6 +139,11 @@ systemctl start marker
 echo "Marker service status:"
 systemctl status marker --no-pager || true
 
+# log some debug info
+echo "Checking marker_server availability:"
+"$MARKER_SERVER_BIN" --help 2>&1 | head -5 || echo "marker_server --help failed"
+
 # no idle shutdown here — ASG scale-in handles instance lifecycle
 
 echo "[$(date)] Marker ASG instance setup complete (GPU mode)"
+
