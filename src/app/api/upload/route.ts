@@ -202,7 +202,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
         if (extractableTypes.has(file.type)) {
             try {
-                const extractUrl = new URL("/api/extract", request.url).toString();
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL?.startsWith("http")
+                    ? process.env.NEXT_PUBLIC_APP_URL
+                    : `https://${process.env.NEXT_PUBLIC_APP_URL}`;
+                const extractUrl = new URL("/api/extract", appUrl).toString();
                 void fetch(extractUrl, {
                     method: "POST",
                     headers: {
