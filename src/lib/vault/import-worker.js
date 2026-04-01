@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
 import { AsyncUnzipInflate, Unzip } from "fflate";
 import { chunkText } from "../chunking.ts";
-import { embedChunks } from "../embeddings.ts";
+import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
@@ -71,31 +71,23 @@ async function createNote(userId, title, parentId, opts = {}) {
   return noteId;
 }
 
-async function writeEmbeddings(noteId, userId, chunks) {
-  const embeddings = await embedChunks(chunks);
-  if (embeddings.length === 0) return 0;
+async function findOrCreateNote(userId, title, parentId, opts = {}) {
+  const existing = await sql`
+    SELECT n.note_id FROM app.notes n
+    JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+    WHERE n.user_id = ${userId}::uuid
+      AND n.title = ${title}
+      AND n.is_folder = false
+      AND n.deleted = 0
+      AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
+    LIMIT 1
+  `;
+  if (existing.length > 0) {
+    return { noteId: existing[0].note_id, created: false };
+  }
 
-  const chunkValues = embeddings.map(({ chunk }) => [noteId, userId, chunk]);
-  const chunkRows = await sql`
-    INSERT INTO app.chunks (document_id, user_id, text)
-    SELECT * FROM UNNEST(
-      ${chunkValues.map((v) => v[0])}::uuid[],
-      ${chunkValues.map((v) => v[1])}::uuid[],
-      ${chunkValues.map((v) => v[2])}::text[]
-    ) RETURNING id
-  `;
-  const embValues = chunkRows.map((row, i) => [
-    row.id,
-    JSON.stringify(embeddings[i].vector),
-  ]);
-  await sql`
-    INSERT INTO app.embeddings (chunk_id, embedding)
-    SELECT * FROM UNNEST(
-      ${embValues.map((v) => v[0])}::uuid[],
-      ${embValues.map((v) => v[1])}::vector[]
-    )
-  `;
-  return embeddings.length;
+  const noteId = await createNote(userId, title, parentId, opts);
+  return { noteId, created: true };
 }
 
 async function processRagPipeline(
@@ -128,22 +120,27 @@ async function processRagPipeline(
       SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
     `;
-    const count = await writeEmbeddings(noteId, userId, chunks);
+    const count = await replaceNoteEmbeddings(noteId, userId, chunks);
     console.log(`[vault-import] RAG: ${count} chunks for text note ${noteId}`);
     return;
   }
 
   // binary docs: create sibling .md note
   const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
-  const mdNoteId = await createNote(userId, mdTitle, parentFolderId, {
-    content: rawText,
-  });
+  const { noteId: mdNoteId } = await findOrCreateNote(
+    userId,
+    mdTitle,
+    parentFolderId,
+    {
+      content: rawText,
+    },
+  );
   await sql`
     UPDATE app.notes
-    SET extracted_text = ${searchText}, updated_at = NOW()
+    SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
   `;
-  const count = await writeEmbeddings(mdNoteId, userId, chunks);
+  const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
   console.log(
     `[vault-import] RAG: ${count} chunks for MD note ${mdNoteId} (source: ${noteId})`,
   );

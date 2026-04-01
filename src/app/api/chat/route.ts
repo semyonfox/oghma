@@ -10,7 +10,14 @@ import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
-import { getLlmMaxTokens, getLlmTimeoutMs } from "@/lib/ai-config";
+import {
+  buildProviderThinking,
+  getLlmMaxTokens,
+  getLlmModel,
+  getLlmThinkingMode,
+  getLlmTimeoutMs,
+  type LlmThinkingMode,
+} from "@/lib/ai-config";
 import { extractProviderText } from "@/lib/chat/llm-stream";
 import { parseSseBlocks, toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
@@ -35,13 +42,13 @@ const MAX_DISTANCE = 0.75;
 async function semanticSearch(
   userId: string,
   queryVector: number[],
-  noteId?: string,
+  scopedNoteIds?: string[] | null,
   limit = 8,
 ): Promise<SearchResult[]> {
   const vectorStr = `[${queryVector.join(",")}]`;
 
-  if (noteId) {
-    // strict note scope when a note is selected
+  if (scopedNoteIds && scopedNoteIds.length > 0) {
+    // strict scope when notes/folders are selected
     const pinned = await sql`
             SELECT n.note_id, n.title, c.text AS chunk_text,
                    (e.embedding <=> ${vectorStr}::vector) AS distance
@@ -49,7 +56,7 @@ async function semanticSearch(
             JOIN app.chunks c ON c.id = e.chunk_id
             JOIN app.notes n ON n.note_id = c.document_id
             WHERE c.user_id = ${userId}::uuid
-              AND c.document_id = ${noteId}::uuid
+              AND c.document_id = ANY(${scopedNoteIds}::uuid[])
               AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
             ORDER BY e.embedding <=> ${vectorStr}::vector
             LIMIT ${limit}
@@ -69,6 +76,51 @@ async function semanticSearch(
         LIMIT ${limit}
     `;
   return rows as SearchResult[];
+}
+
+function normalizeUuidList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const normalized = value.map((v) => String(v)).filter((v) => isValidUUID(v));
+  return [...new Set(normalized)];
+}
+
+async function resolveScopedNoteIds(
+  userId: string,
+  noteIds: string[],
+  folderIds: string[],
+): Promise<string[] | null> {
+  if (noteIds.length === 0 && folderIds.length === 0) return null;
+
+  const scoped = new Set<string>(noteIds);
+
+  if (folderIds.length > 0) {
+    const folderDescendants = await sql`
+            WITH RECURSIVE subtree AS (
+                SELECT ti.note_id
+                FROM app.tree_items ti
+                WHERE ti.user_id = ${userId}::uuid
+                  AND ti.note_id = ANY(${folderIds}::uuid[])
+                UNION
+                SELECT child.note_id
+                FROM app.tree_items child
+                JOIN subtree s ON child.parent_id = s.note_id
+                WHERE child.user_id = ${userId}::uuid
+            )
+            SELECT n.note_id
+            FROM app.notes n
+            JOIN subtree s ON s.note_id = n.note_id
+            WHERE n.user_id = ${userId}::uuid
+              AND n.is_folder = false
+              AND n.deleted = 0
+              AND n.deleted_at IS NULL
+        `;
+
+    for (const row of folderDescendants as { note_id: string }[]) {
+      scoped.add(row.note_id);
+    }
+  }
+
+  return [...scoped];
 }
 
 function buildSystemPrompt(results: SearchResult[]): string {
@@ -102,9 +154,10 @@ async function callLLM(
   systemPrompt: string,
   history: ChatMessage[],
   userMessage: string,
+  thinkingMode: LlmThinkingMode,
 ): Promise<string> {
   const apiUrl = process.env.LLM_API_URL;
-  const model = process.env.LLM_MODEL || "kimi-k2.5";
+  const model = getLlmModel();
   const apiKey = process.env.LLM_API_KEY;
   const timeoutMs = getLlmTimeoutMs();
   const maxTokens = getLlmMaxTokens();
@@ -117,11 +170,7 @@ async function callLLM(
     { role: "user", content: userMessage },
   ];
 
-  // LLM_THINKING=off disables Kimi K2.5 chain-of-thought (saves tokens during dev)
-  const thinking =
-    process.env.LLM_THINKING === "off"
-      ? { type: "disabled" as const }
-      : undefined;
+  const thinking = buildProviderThinking(thinkingMode);
 
   const body: Record<string, unknown> = {
     model,
@@ -153,9 +202,10 @@ async function* callLLMStream(
   systemPrompt: string,
   history: ChatMessage[],
   userMessage: string,
+  thinkingMode: LlmThinkingMode,
 ): AsyncGenerator<string, void, unknown> {
   const apiUrl = process.env.LLM_API_URL;
-  const model = process.env.LLM_MODEL || "kimi-k2.5";
+  const model = getLlmModel();
   const apiKey = process.env.LLM_API_KEY;
   const timeoutMs = getLlmTimeoutMs();
   const maxTokens = getLlmMaxTokens();
@@ -168,10 +218,7 @@ async function* callLLMStream(
     { role: "user", content: userMessage },
   ];
 
-  const thinking =
-    process.env.LLM_THINKING === "off"
-      ? { type: "disabled" as const }
-      : undefined;
+  const thinking = buildProviderThinking(thinkingMode);
 
   const body: Record<string, unknown> = {
     model,
@@ -299,16 +346,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const {
     message,
     noteId,
+    noteIds = [],
+    folderIds = [],
     sessionId: requestedSessionId,
     history: requestHistory = [],
     stream = false,
+    thinkingMode: requestedThinkingMode,
   }: {
     message: string;
     noteId?: string;
+    noteIds?: string[];
+    folderIds?: string[];
     sessionId?: string;
     history?: ChatMessage[];
     stream?: boolean;
+    thinkingMode?: LlmThinkingMode;
   } = body;
+
+  const thinkingMode: LlmThinkingMode =
+    requestedThinkingMode === "on" ||
+    requestedThinkingMode === "off" ||
+    requestedThinkingMode === "auto"
+      ? requestedThinkingMode
+      : getLlmThinkingMode();
 
   if (!message?.trim()) {
     return tracedError("message is required", 400);
@@ -319,16 +379,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // sanitize noteId before it reaches any SQL queries
   const validNoteId = noteId && isValidUUID(noteId) ? noteId : undefined;
+  const dedupedNoteIds = normalizeUuidList(noteIds);
+  if (validNoteId) dedupedNoteIds.push(validNoteId);
+  const scopedInputNoteIds = [...new Set(dedupedNoteIds)];
+  const scopedInputFolderIds = normalizeUuidList(folderIds);
+  const scopedNoteIds = await resolveScopedNoteIds(
+    userId,
+    scopedInputNoteIds,
+    scopedInputFolderIds,
+  );
+  const sessionNoteId =
+    scopedInputFolderIds.length === 0 && scopedInputNoteIds.length === 1
+      ? scopedInputNoteIds[0]
+      : undefined;
 
   const sessionId = await resolveSession(
     userId,
     requestedSessionId,
-    validNoteId,
+    sessionNoteId,
     message,
   );
 
   // load history from DB when continuing a session; fall back to request history
-  let history: ChatMessage[] = requestHistory;
+  let history: ChatMessage[] = requestHistory.filter(
+    (m: ChatMessage) => !!m?.content?.trim(),
+  );
   if (requestedSessionId && isValidUUID(requestedSessionId)) {
     const dbMessages = await sql`
             SELECT role, content FROM app.chat_messages
@@ -336,10 +411,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             ORDER BY created_at
             LIMIT 20
         `;
-    history = dbMessages.map((m: { role: string; content: string }) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    history = dbMessages
+      .map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }))
+      .filter((m: ChatMessage) => !!m.content?.trim());
   }
 
   // persist user message immediately
@@ -356,7 +433,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const candidates = await semanticSearch(
       userId,
       queryVector,
-      validNoteId,
+      scopedNoteIds,
       20,
     );
     const chunkTexts = candidates.map((r) => r.chunk_text);
@@ -434,6 +511,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 systemPrompt,
                 history,
                 message,
+                thinkingMode,
               )) {
                 reply += token;
                 controller.enqueue(
@@ -456,7 +534,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 error instanceof Error ? error.message : String(error);
               logger.error("LLM stream failed", {
                 error: detail,
-                model: process.env.LLM_MODEL,
+                model: getLlmModel(),
+                thinkingMode,
               });
               controller.enqueue(
                 encoder.encode(
@@ -496,7 +575,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   try {
     const t0 = Date.now();
     const reply = await xraySubsegment("llm-call", () =>
-      callLLM(systemPrompt, history, message),
+      callLLM(systemPrompt, history, message, thinkingMode),
     );
     void Metrics.llmLatency(Date.now() - t0);
 
@@ -513,7 +592,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const detail = error instanceof Error ? error.message : String(error);
     logger.error("LLM call failed", {
       error: detail,
-      model: process.env.LLM_MODEL,
+      model: getLlmModel(),
+      thinkingMode,
     });
     return tracedError("Failed to generate response", 502);
   }

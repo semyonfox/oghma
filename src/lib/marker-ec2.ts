@@ -33,24 +33,55 @@ const SCALE_UP_INSTANCES = Math.max(
   Number.parseInt(process.env.MARKER_SCALE_UP_INSTANCES ?? "1", 10) || 1,
 );
 
+const MARKER_READY_CACHE_MS = Math.max(
+  0,
+  Number.parseInt(process.env.MARKER_READY_CACHE_MS ?? "90000", 10) || 90_000,
+);
+
+let lastReadyAt = 0;
+let cachedReadyUrl: string | null = null;
+let ensureInFlight: Promise<string> | null = null;
+
 export async function ensureMarkerRunning(): Promise<string> {
-  if (!MARKER_URL) {
-    throw new Error("MARKER_API_URL must be set");
+  if (cachedReadyUrl && Date.now() - lastReadyAt < MARKER_READY_CACHE_MS) {
+    return cachedReadyUrl;
   }
 
-  // ASG mode: scale up the group, ALB routes traffic
-  if (ASG_NAME) {
-    return ensureAsgRunning();
+  if (ensureInFlight) {
+    return ensureInFlight;
   }
 
-  // single instance mode (legacy)
-  if (INSTANCE_ID) {
-    return ensureSingleInstanceRunning();
-  }
+  ensureInFlight = (async () => {
+    if (!MARKER_URL) {
+      throw new Error("MARKER_API_URL must be set");
+    }
 
-  throw new Error(
-    "Either MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID must be set",
-  );
+    // ASG mode: scale up the group, ALB routes traffic
+    if (ASG_NAME) {
+      const url = await ensureAsgRunning();
+      cachedReadyUrl = url;
+      lastReadyAt = Date.now();
+      return url;
+    }
+
+    // single instance mode (legacy)
+    if (INSTANCE_ID) {
+      const url = await ensureSingleInstanceRunning();
+      cachedReadyUrl = url;
+      lastReadyAt = Date.now();
+      return url;
+    }
+
+    throw new Error(
+      "Either MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID must be set",
+    );
+  })();
+
+  try {
+    return await ensureInFlight;
+  } finally {
+    ensureInFlight = null;
+  }
 }
 
 // ASG mode: check if instances are running, scale up if needed

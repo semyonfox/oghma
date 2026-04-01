@@ -24,6 +24,17 @@ const DB_POLL_INTERVAL_MS = 30_000;
 const IDLE_POLLS_BEFORE_SHUTDOWN = 30; // 30 × 20s = ~10 min idle
 const MAX_CONCURRENT_JOBS = 3;
 
+const idlePollsBeforeShutdownEnv = Number.parseInt(
+  process.env.WORKER_IDLE_POLLS_BEFORE_SHUTDOWN ?? "",
+  10,
+);
+const effectiveIdlePollsBeforeShutdown =
+  Number.isInteger(idlePollsBeforeShutdownEnv) && idlePollsBeforeShutdownEnv > 0
+    ? idlePollsBeforeShutdownEnv
+    : IDLE_POLLS_BEFORE_SHUTDOWN;
+const keepWarmMode =
+  String(process.env.WORKER_KEEP_WARM ?? "").toLowerCase() === "true";
+
 const sqsClient = new SQSClient({
   region: process.env.AWS_REGION ?? "eu-north-1",
 });
@@ -180,7 +191,7 @@ async function pollRetryQueue() {
 // ── Main loop ────────────────────────────────────────────────────────────────
 
 console.log(
-  `[${new Date().toISOString()}] Canvas Import Worker started (SQS + DB poll)`,
+  `[${new Date().toISOString()}] Canvas Import Worker started (SQS + DB poll, idleThreshold=${effectiveIdlePollsBeforeShutdown}, keepWarm=${keepWarmMode})`,
 );
 
 await failStuckJobs();
@@ -201,15 +212,23 @@ while (true) {
     const hadRetries = await pollRetryQueue();
     idlePolls = hadWork || hadRetries ? 0 : idlePolls + 1;
 
-    if (idlePolls >= IDLE_POLLS_BEFORE_SHUTDOWN) {
+    if (idlePolls >= effectiveIdlePollsBeforeShutdown) {
       // final DB check before scaling down
       if (await claimOrphanedJobs()) {
         idlePolls = 0;
         continue;
       }
 
+      if (keepWarmMode) {
+        console.log(
+          `[${new Date().toISOString()}] ${effectiveIdlePollsBeforeShutdown} idle polls reached, keep-warm mode active; continuing`,
+        );
+        idlePolls = 0;
+        continue;
+      }
+
       console.log(
-        `[${new Date().toISOString()}] ${IDLE_POLLS_BEFORE_SHUTDOWN} idle polls (~10 min), scaling down`,
+        `[${new Date().toISOString()}] ${effectiveIdlePollsBeforeShutdown} idle polls reached, scaling down`,
       );
       try {
         const ecsClient = new ECSClient({
