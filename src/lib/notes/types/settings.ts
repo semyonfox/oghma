@@ -7,6 +7,10 @@ export interface Settings {
   locale?: Locale;
   theme?: "light" | "dark" | "system";
   daily_root_id?: string;
+  firstName?: string;
+  lastName?: string;
+  timezone?: string;
+  editorsize?: "small" | "large";
 }
 
 export const DEFAULT_SETTINGS: Settings = {

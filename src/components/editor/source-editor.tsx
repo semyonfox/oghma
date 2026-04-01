@@ -1,71 +1,160 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import useEditorStore from "@/lib/notes/state/editor.zustand";
-import useI18n from "@/lib/notes/hooks/use-i18n";
+import { useEffect, useRef } from "react";
+import { EditorState } from "@codemirror/state";
+import {
+  EditorView,
+  keymap,
+  placeholder as cmPlaceholder,
+} from "@codemirror/view";
+import {
+  defaultKeymap,
+  indentWithTab,
+  history,
+  historyKeymap,
+} from "@codemirror/commands";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import {
+  syntaxHighlighting,
+  defaultHighlightStyle,
+} from "@codemirror/language";
+import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 
-interface SourceEditorProps {
-  content: string;
-  onContentChange: (content: string) => void;
+interface CodeMirrorEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSave?: () => void;
+  placeholder?: string;
 }
 
-export default function SourceEditor({
-  content,
-  onContentChange,
-}: SourceEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [localContent, setLocalContent] = useState(content);
-  const { saveNow } = useEditorStore();
-  const { t } = useI18n();
+// custom theme overrides to blend with the app's dark background
+const appTheme = EditorView.theme({
+  "&": {
+    height: "100%",
+    fontSize: "14px",
+    backgroundColor: "transparent",
+  },
+  ".cm-scroller": {
+    fontFamily:
+      'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    padding: "3rem 0 12rem 0",
+    overflow: "auto",
+  },
+  ".cm-content": {
+    maxWidth: "82ch",
+    margin: "0 auto",
+    padding: "0 clamp(1rem, 4vw, 2.5rem)",
+  },
+  ".cm-gutters": {
+    display: "none",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+  },
+  ".cm-selectionBackground": {
+    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+  },
+  "&.cm-focused .cm-selectionBackground": {
+    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+  },
+  ".cm-cursor": {
+    borderLeftColor: "#e2e8f0",
+  },
+  // markdown-specific token styling
+  ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
+  ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
+  ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
+  ".cm-strong": { fontWeight: "700" },
+  ".cm-em": { fontStyle: "italic" },
+  ".cm-strikethrough": { textDecoration: "line-through" },
+  ".cm-url": { color: "#60a5fa" },
+  ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
+});
 
-  // sync content when prop changes
+export default function CodeMirrorEditor({
+  value,
+  onChange,
+  onSave,
+  placeholder = "",
+}: CodeMirrorEditorProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  // keep callbacks in refs so extensions don't go stale
+  const onChangeRef = useRef(onChange);
+  const onSaveRef = useRef(onSave);
+
   useEffect(() => {
-    setLocalContent(content);
-  }, [content]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
-    setLocalContent(newContent);
-    onContentChange(newContent);
-  };
+  // create editor once on mount
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // ctrl+s or cmd+s to save the current content using Zustand's saveNow()
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      saveNow();
+    const saveKeymap = keymap.of([
+      {
+        key: "Mod-s",
+        run: () => {
+          onSaveRef.current?.();
+          return true;
+        },
+      },
+    ]);
+
+    const updateListener = EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        onChangeRef.current(update.state.doc.toString());
+      }
+    });
+
+    const state = EditorState.create({
+      doc: value,
+      extensions: [
+        saveKeymap,
+        history(),
+        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        markdown({ base: markdownLanguage, codeLanguages: languages }),
+        syntaxHighlighting(oneDarkHighlightStyle),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        oneDark,
+        appTheme,
+        EditorView.lineWrapping,
+        cmPlaceholder(placeholder),
+        updateListener,
+      ],
+    });
+
+    const view = new EditorView({ state, parent: containerRef.current });
+    viewRef.current = view;
+
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
+    // only create once on mount — value synced separately below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // sync external value changes (e.g. note switch, cross-pane sync)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    if (value !== current) {
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: value },
+      });
     }
-
-    // tab key inserts two spaces at cursor position without losing focus on textarea
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const start = e.currentTarget.selectionStart;
-      const end = e.currentTarget.selectionEnd;
-      const newContent =
-        localContent.substring(0, start) + "  " + localContent.substring(end);
-      setLocalContent(newContent);
-      onContentChange(newContent);
-
-      // restore cursor position after state update
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart =
-            textareaRef.current.selectionEnd = start + 2;
-        }
-      }, 0);
-    }
-  };
+  }, [value]);
 
   return (
-    <textarea
-      ref={textareaRef}
-      value={localContent}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      className="w-full h-full p-4 font-mono text-sm bg-background text-text-secondary border-none outline-none resize-none transition-all"
-      placeholder={t("Write your markdown here...")}
-      spellCheck={false}
-      dir="ltr"
+    <div
+      ref={containerRef}
+      className="h-full w-full bg-background text-text-secondary"
     />
   );
 }

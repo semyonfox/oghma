@@ -48,6 +48,10 @@ export async function POST(request: Request) {
       "locale",
       "theme",
       "daily_root_id",
+      "firstName",
+      "lastName",
+      "timezone",
+      "editorsize",
     ]);
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(body)) {

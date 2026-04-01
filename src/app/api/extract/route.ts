@@ -38,9 +38,9 @@ async function storeChunkWithEmbedding(
         VALUES (${documentId}, ${userId}, ${chunk})
         RETURNING id
     `;
-  await sql`
-        INSERT INTO app.embeddings (chunk_id, embedding)
-        VALUES (${row.id}, ${JSON.stringify(vector)}::vector)
+    await sql`
+        INSERT INTO app.embeddings (chunk_id, user_id, embedding)
+        VALUES (${row.id}, ${userId}, ${JSON.stringify(vector)}::vector)
     `;
 }
 
@@ -48,7 +48,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const session = await validateSession();
   if (!session) throw new ApiError(401, "Unauthorized");
 
-  const userId = (session as { user_id: string }).user_id;
+  const userId = session.user_id;
   const limited = await checkRateLimit("extract", userId);
   if (limited) return limited;
 

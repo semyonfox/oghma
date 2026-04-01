@@ -25,7 +25,7 @@ export default function BlogPost({ params }) {
   return (
     <>
       <Header />
-      <div className="bg-gray-900 px-6 py-32 lg:px-8">
+      <div className="bg-landing px-6 py-28 sm:py-32 lg:px-8">
         <div className="mx-auto max-w-3xl text-base/7 text-gray-300">
           <div className="mb-8 border-b border-white/10 pb-8">
             <Link
