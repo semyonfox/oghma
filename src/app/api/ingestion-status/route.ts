@@ -14,7 +14,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     if (!noteId || !isValidUUID(noteId)) return tracedError("Invalid noteId", 400);
 
     // only return jobs belonging to this user
-    const [job] = await sql`
+    let job;
+    try {
+        [job] = await sql`
         SELECT status, chunks_stored, error, created_at, updated_at
         FROM app.ingestion_jobs
         WHERE note_id = ${noteId}::uuid
@@ -22,6 +24,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         ORDER BY created_at DESC
         LIMIT 1
     `;
+    } catch {
+        return NextResponse.json({ status: "none" });
+    }
 
     if (!job) {
         return NextResponse.json({ status: "none" });
