@@ -107,8 +107,9 @@ async function run() {
                 await failJob(job.id, err);
             }
         } catch (err) {
-            // DB connection error or similar — log and keep polling
-            logger.error("ingestion-worker: unexpected error in poll loop", { error: err });
+            logger.error("ingestion-worker: unexpected error in poll loop", {
+                error: err instanceof Error ? { message: err.message, stack: err.stack } : String(err)
+            });
             await sleep(POLL_INTERVAL_MS);
         }
     }
