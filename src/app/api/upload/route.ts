@@ -8,7 +8,6 @@ import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql";
-
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
@@ -71,6 +70,16 @@ const ALLOWED_MIME_TYPES = new Set([
     "audio/mpeg",
     "audio/wav",
     "video/mp4",
+]);
+
+const EXTRACTABLE_TYPES = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/markdown",
+    "text/x-markdown",
 ]);
 
 async function requireSession() {
@@ -157,7 +166,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         const signedUrl = await xraySubsegment("s3-sign-url", () =>
             storage.getSignUrl(storagePath, 300),
         );
-        const extractionSignedUrl = await storage.getSignUrl(storagePath, 1800);
 
         const attachmentId = generateUUID();
         try {
@@ -189,35 +197,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 logger.warn("failed to update note with s3_key", { error: updateError });
             }
         }
-        // trigger extraction for extractable file types
-        const extractableTypes = new Set([
-            "application/pdf",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "text/plain",
-            "text/markdown",
-            "text/x-markdown",
-        ]);
 
-        if (extractableTypes.has(file.type)) {
+        // queue extraction as a background job — do NOT await inline
+        // this keeps the upload response well under Cloudflare's 100s timeout
+        // regardless of file size or vault batch size
+        if (EXTRACTABLE_TYPES.has(file.type)) {
             try {
-                const appUrl = process.env.NEXT_PUBLIC_APP_URL?.startsWith("http")
-                    ? process.env.NEXT_PUBLIC_APP_URL
-                    : `https://${process.env.NEXT_PUBLIC_APP_URL}`;
-                const extractUrl = new URL("/api/extract", appUrl).toString();
-                await fetch(extractUrl, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Cookie": request.headers.get("cookie") ?? "",
-                    },
-                    body: JSON.stringify({ url: extractionSignedUrl, documentId: noteId }),
-                });
-            } catch (extractErr) {
-                logger.warn("failed to trigger extraction", { error: extractErr });
+                await sql`
+                    INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type)
+                    VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${file.type})
+                `;
+            } catch (jobErr) {
+                // non-fatal — file is uploaded, RAG just won't be available
+                logger.warn("failed to queue ingestion job", { error: jobErr, noteId });
             }
         }
+
         return NextResponse.json({
             success: true,
             noteId,
@@ -228,6 +223,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             type: file.type,
             attachmentId,
             createdNewNote,
+            extractionQueued: EXTRACTABLE_TYPES.has(file.type),
         });
     } catch (error) {
         logger.error("upload error", { error });
@@ -246,7 +242,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         const owned = await sql`
             SELECT 1 FROM app.attachments
             WHERE s3_key = ${path} AND user_id = ${session.user_id}::uuid
-      LIMIT 1
+            LIMIT 1
         `;
         if (!owned.length) return tracedError("File not found", 404);
 
