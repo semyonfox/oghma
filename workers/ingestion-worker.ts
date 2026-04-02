@@ -12,7 +12,7 @@
  */
 
 import sql from "../src/database/pgsql.js";
-import { runExtraction } from "@/app/api/extract/route";
+import { runExtraction } from "../src/app/api/extract/route";
 import logger from "../src/lib/logger";
 
 const POLL_INTERVAL_MS = 2_000;   // how often to check for new jobs when idle
