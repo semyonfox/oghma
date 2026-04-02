@@ -1,0 +1,49 @@
+[33md7c6f7e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: checkout: moving from dev to main
+[33mb3462aa[m[33m ([m[1;31morigin/dev[m[33m, [m[1;32mdev[m[33m)[m HEAD@{1}: checkout: moving from main to dev
+[33md7c6f7e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{2}: checkout: moving from dev to main
+[33mb3462aa[m[33m ([m[1;31morigin/dev[m[33m, [m[1;32mdev[m[33m)[m HEAD@{3}: checkout: moving from main to dev
+[33md7c6f7e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{4}: rebase (finish): returning to refs/heads/main
+[33md7c6f7e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{5}: rebase (start): checkout origin/main
+[33m1d3c405[m HEAD@{6}: checkout: moving from dev to main
+[33mb3462aa[m[33m ([m[1;31morigin/dev[m[33m, [m[1;32mdev[m[33m)[m HEAD@{7}: checkout: moving from dev to dev
+[33mb3462aa[m[33m ([m[1;31morigin/dev[m[33m, [m[1;32mdev[m[33m)[m HEAD@{8}: pull --rebase origin dev (finish): returning to refs/heads/dev
+[33mb3462aa[m[33m ([m[1;31morigin/dev[m[33m, [m[1;32mdev[m[33m)[m HEAD@{9}: pull --rebase origin dev (start): checkout b3462aa9f0ab4b3680d8007685ca7e9f60aa9cd5
+[33m252dbb9[m HEAD@{10}: checkout: moving from main to dev
+[33m1d3c405[m HEAD@{11}: rebase (finish): returning to refs/heads/main
+[33m1d3c405[m HEAD@{12}: rebase (pick): lambda upload test
+[33md7056de[m HEAD@{13}: rebase (pick): fix: correct app URL for extraction trigger
+[33mcdfef23[m HEAD@{14}: rebase (pick): fix: auth session check, email verification for special users, extraction pipeline test, document zoom, renaming documents feature
+[33m121f564[m HEAD@{15}: rebase (pick): fix: upload pipeline and RAG schema
+[33md3978e0[m HEAD@{16}: rebase (pick): update landing/blog styling and add obsidian demo user flow guide
+[33mb5646c0[m HEAD@{17}: rebase (pick): fix quiz generation reliability and clean dead code
+[33mac46a6e[m HEAD@{18}: rebase (pick): fix settings storage typing for uuid user ids
+[33m24fbb7b[m HEAD@{19}: rebase (pick): migrate auth to NextAuth v5 and add Marker ASG support
+[33m2f12e17[m HEAD@{20}: rebase (pick): audit RAG pipeline and clean up dead code
+[33m0881ee5[m HEAD@{21}: rebase (start): checkout origin/main
+[33m252dbb9[m HEAD@{22}: merge dev: Fast-forward
+[33me524c81[m HEAD@{23}: checkout: moving from dev to main
+[33m252dbb9[m HEAD@{24}: commit: lambda upload test
+[33m42f64b3[m HEAD@{25}: commit: fix: correct app URL for extraction trigger
+[33mf4c3043[m HEAD@{26}: commit: fix: auth session check, email verification for special users, extraction pipeline test, document zoom, renaming documents feature
+[33m8f83d13[m HEAD@{27}: rebase (finish): returning to refs/heads/dev
+[33m8f83d13[m HEAD@{28}: rebase (continue): fix: upload pipeline and RAG schema
+[33me5dc851[m HEAD@{29}: pull --rebase origin dev (start): checkout e5dc8518ad487c2307e8eb038dd657dc4f033225
+[33m53dd292[m HEAD@{30}: commit: fix: upload pipeline and RAG schema
+[33m95c1854[m HEAD@{31}: reset: moving to origin/dev
+[33med03f18[m HEAD@{32}: checkout: moving from dev to dev
+[33med03f18[m HEAD@{33}: pull: updating HEAD
+[33med03f18[m HEAD@{34}: checkout: moving from dev to dev
+[33med03f18[m HEAD@{35}: reset: moving to origin/dev
+[33md4227ad[m HEAD@{36}: reset: moving to origin/main
+[33mca1404c[m HEAD@{37}: checkout: moving from feature/RAG to dev
+[33m69f5571[m[33m ([m[1;32mfeature/RAG[m[33m)[m HEAD@{38}: commit: implemented rag pipeline, changed SQL query layout to handle a vector table, switched to cohere for reranker
+[33m6781f91[m[33m ([m[1;32mfeature/auth-middleware[m[33m)[m HEAD@{39}: checkout: moving from feature/auth-middleware to feature/RAG
+[33m6781f91[m[33m ([m[1;32mfeature/auth-middleware[m[33m)[m HEAD@{40}: commit: Add middleware route protection and linked registration to db
+[33me47a251[m[33m ([m[1;32mfeature/pdf-extraction[m[33m)[m HEAD@{41}: checkout: moving from feature/pdf-extraction to feature/auth-middleware
+[33me47a251[m[33m ([m[1;32mfeature/pdf-extraction[m[33m)[m HEAD@{42}: commit: fix npm audit vulnerabilities
+[33m64caadc[m HEAD@{43}: commit: remove remaining sensitive values
+[33m4d1c023[m HEAD@{44}: commit: remove sensitive values from env and deploy
+[33ma8f15a0[m HEAD@{45}: commit: implemented chunking, embedding, and pdf text extraction which returns chunks and their vectors as pairs
+[33mb30bbe2[m HEAD@{46}: checkout: moving from main to feature/pdf-extraction
+[33mb30bbe2[m HEAD@{47}: commit: Update Project_Default.xml
+[33me26b465[m HEAD@{48}: clone: from https://github.com/semyonfox/oghma.git
