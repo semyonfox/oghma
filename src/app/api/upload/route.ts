@@ -202,16 +202,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         // this keeps the upload response well under Cloudflare's 100s timeout
         // regardless of file size or vault batch size
         const mimeType = file.type || "application/pdf";
-        if (EXTRACTABLE_TYPES.has(mimeType)) {
-            logger.info("queueing ingestion job", { noteId, mimeType });
-            try {
-                await sql`
-                    INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type)
-                    VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${mimeType})
-                `;
-            } catch (jobErr) {
-                logger.error("failed to queue ingestion job", { error: jobErr, noteId });
-            }
+        logger.info("queueing ingestion job", { noteId, mimeType, fileType: file.type });
+        try {
+            await sql`
+        INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type)
+        VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${mimeType})
+    `;
+            logger.info("ingestion job queued successfully", { noteId });
+        } catch (jobErr) {
+            logger.error("failed to queue ingestion job", { error: jobErr, noteId });
         }
 
         return NextResponse.json({
