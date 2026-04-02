@@ -27,6 +27,7 @@ import "react-complex-tree/lib/style.css";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import CreateNoteModal from "@/components/notes/create-note-modal";
+import useSWR from "swr";
 
 const INDENT_PX = 14;
 
@@ -249,7 +250,7 @@ const SidebarList = () => {
                 }
 
                 const uploadData = await uploadRes.json();
-                router.push(`/notes/${uploadData.noteId}`);
+                window.location.href = `/notes/${uploadData.noteId}`;
             } catch {
                 toast.error("Failed to upload file");
             }
@@ -770,6 +771,15 @@ const TreeItem: React.FC<TreeItemProps> = memo(
         const escapedRef = useRef(false);
         const committedRef = useRef(false);
         const pl = depth * INDENT_PX;
+        const { data: ingestionData } = useSWR(
+            !isFolder ? `/api/ingestion-status?noteId=${itemId}` : null,
+            (url: string) => fetch(url).then((r) => r.json()),
+            {
+                refreshInterval: (data) =>
+                    data?.status === "pending" || data?.status === "processing" ? 3000 : 0,
+            }
+        );
+        const isIndexing = ingestionData?.status === "pending" || ingestionData?.status === "processing";
 
         useEffect(() => {
             renameValueRef.current = renameValue;
@@ -954,6 +964,9 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                             />
                         )}
 
+                    {isIndexing && (
+                        <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full ml-1 bg-blue-400" title="Indexing for search..." />
+                    )}
                     {/* Hover actions */}
                     {!isRenaming && (
                         <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
