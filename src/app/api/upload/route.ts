@@ -202,9 +202,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         // this keeps the upload response well under Cloudflare's 100s timeout
         // regardless of file size or vault batch size
         if (EXTRACTABLE_TYPES.has(file.type)) {
+            logger.info("queueing ingestion job", { noteId, mimeType: file.type });
             try {
                 await sql`
-                    INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type)
+                    INSERT INTO app.ingestion_jobs
                     VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${file.type})
                 `;
             } catch (jobErr) {
