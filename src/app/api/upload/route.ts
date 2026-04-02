@@ -208,8 +208,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${file.type})
                 `;
             } catch (jobErr) {
-                // non-fatal — file is uploaded, RAG just won't be available
-                logger.warn("failed to queue ingestion job", { error: jobErr, noteId });
+                logger.error("failed to queue ingestion job", { error: jobErr, noteId });
             }
         }
 
