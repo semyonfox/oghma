@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { addMonthsClamped } from "@/lib/notes/utils/calendar-date";
 
 export type CalendarView = "month" | "week";
 
@@ -41,12 +42,6 @@ interface CalendarState {
   deleteTimeBlock: (id: string) => Promise<void>;
 }
 
-function addMonths(dateStr: string, n: number): string {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + n);
-  return d.toISOString();
-}
-
 function addWeeks(dateStr: string, n: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + n * 7);
@@ -70,7 +65,7 @@ const useCalendarStore = create<CalendarState>()(
         set({
           currentDate:
             view === "month"
-              ? addMonths(currentDate, 1)
+              ? addMonthsClamped(currentDate, 1)
               : addWeeks(currentDate, 1),
         });
       },
@@ -80,7 +75,7 @@ const useCalendarStore = create<CalendarState>()(
         set({
           currentDate:
             view === "month"
-              ? addMonths(currentDate, -1)
+              ? addMonthsClamped(currentDate, -1)
               : addWeeks(currentDate, -1),
         });
       },
