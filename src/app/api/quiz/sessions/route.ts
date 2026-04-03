@@ -2,23 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
-import {
-  resolveChunkIds,
-  getSessionCandidates,
-  selectCards,
-} from "@/lib/quiz/select";
+import { resolveChunkIds, selectNextQuestion } from "@/lib/quiz/select";
 import { generateQuestion } from "@/lib/quiz/generate";
 import { getCurrentBloomLevel, pickQuestionType } from "@/lib/quiz/bloom";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
-import { SESSION_DEFAULTS } from "@/lib/quiz/types";
 import type { FilterType } from "@/lib/quiz/types";
 import sql from "@/database/pgsql.js";
 import {
   quizSessionCreateSchema,
   validateBody,
 } from "@/lib/validations/schemas";
-
-const AI_GENERATION_BATCH_SIZE = 5;
+import { ensureQuestionBuffer } from "@/lib/quiz/generate-background";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -26,7 +20,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const rawBody = await request.json();
 
-  // validate input shape
   const zodResult = validateBody(quizSessionCreateSchema, rawBody);
   if (!zodResult.success) return zodResult.response;
   const body = zodResult.data;
@@ -47,116 +40,101 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  // get candidates
-  const { dueCards, uncoveredChunkIds, masteredCards } =
-    await getSessionCandidates(userId, chunkIds);
+  // create session (infinite — no fixed card_ids)
+  const sessionId = generateUUID();
+  await sql`
+    INSERT INTO app.quiz_sessions (id, user_id, filter_type, filter_value, total_questions, card_ids)
+    VALUES (
+      ${sessionId}::uuid,
+      ${userId}::uuid,
+      ${filterType},
+      ${filterValue ? JSON.stringify(filterValue) : null}::jsonb,
+      0,
+      ${JSON.stringify(chunkIds)}::jsonb
+    )
+  `;
 
-  // select cards for this session
-  const maxQuestions = body.maxQuestions || SESSION_DEFAULTS.maxQuestions;
-  const selection = selectCards(
-    dueCards,
-    uncoveredChunkIds,
-    maxQuestions,
-    masteredCards,
-  );
+  // pick the first question
+  const next = await selectNextQuestion(userId, chunkIds, []);
+  let firstQuestion: any = null;
 
-  // generate questions for uncovered chunks (on-demand)
-  // always try to generate a small batch so sessions organically fill until all chunks are covered
-  const generatedQuestionIds: string[] = [];
-  const generationChunkIds = uncoveredChunkIds.slice(
-    0,
-    AI_GENERATION_BATCH_SIZE,
-  );
-  for (const chunkId of generationChunkIds) {
+  if (next?.type === "card") {
+    const rows = await sql`
+      SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
+             qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
+      FROM app.quiz_cards qc
+      JOIN app.quiz_questions qq ON qc.question_id = qq.id
+      WHERE qc.id = ${next.cardId}::uuid
+    `;
+    firstQuestion = rows[0] ?? null;
+    if (firstQuestion) {
+      const fsrsCard = cardFromDB(firstQuestion);
+      firstQuestion.intervals = getNextIntervals(fsrsCard);
+    }
+  } else if (next?.type === "generate") {
+    // generate a question on the fly for an uncovered chunk
     const [chunk] = await sql`
-            SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-            FROM app.chunks c
-            JOIN app.notes n ON c.document_id = n.note_id
-            WHERE c.id = ${chunkId}::uuid
+      SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+      FROM app.chunks c
+      JOIN app.notes n ON c.document_id = n.note_id
+      WHERE c.id = ${next.chunkId}::uuid
+    `;
+    if (chunk) {
+      const reviews = await sql`
+        SELECT qq.bloom_level, qr.was_correct
+        FROM app.quiz_reviews qr
+        JOIN app.quiz_questions qq ON qr.question_id = qq.id
+        WHERE qq.chunk_id = ${next.chunkId}::uuid AND qr.user_id = ${userId}::uuid
+        ORDER BY qr.created_at ASC
+      `;
+      const bloomLevel = getCurrentBloomLevel(reviews);
+      const questionType = pickQuestionType(bloomLevel);
+      const question = await generateQuestion(
+        userId,
+        chunk.document_id,
+        next.chunkId,
+        chunk.text,
+        chunk.title || "Unknown Module",
+        bloomLevel,
+        questionType,
+        chunk.canvas_course_id,
+      );
+      if (question) {
+        // fetch the full card+question data
+        const rows = await sql`
+          SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
+                 qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
+          FROM app.quiz_cards qc
+          JOIN app.quiz_questions qq ON qc.question_id = qq.id
+          WHERE qq.id = ${question.id}::uuid
         `;
-    if (!chunk) continue;
-
-    const reviews = await sql`
-            SELECT qq.bloom_level, qr.was_correct
-            FROM app.quiz_reviews qr
-            JOIN app.quiz_questions qq ON qr.question_id = qq.id
-            WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-            ORDER BY qr.created_at ASC
-        `;
-    const bloomLevel = getCurrentBloomLevel(reviews);
-    const questionType = pickQuestionType(bloomLevel);
-
-    const question = await generateQuestion(
-      userId,
-      chunk.document_id,
-      chunkId,
-      chunk.text,
-      chunk.title || "Unknown Module",
-      bloomLevel,
-      questionType,
-    );
-    if (question) generatedQuestionIds.push(question.id);
+        firstQuestion = rows[0] ?? null;
+        if (firstQuestion) {
+          const fsrsCard = cardFromDB(firstQuestion);
+          firstQuestion.intervals = getNextIntervals(fsrsCard);
+        }
+      }
+    }
   }
 
-  // collect all card IDs for this session
-  const prioritizedCardIds = [
-    ...selection.due.map((c) => c.id),
-    ...selection.retention.map((c) => c.id),
-  ];
-
-  if (generatedQuestionIds.length > 0) {
-    const newCards = await sql`
-            SELECT id FROM app.quiz_cards
-            WHERE question_id = ANY(${generatedQuestionIds}::uuid[])
-        `;
-    prioritizedCardIds.unshift(...newCards.map((c: any) => c.id));
-  }
-
-  const allCardIds = [...new Set(prioritizedCardIds)].slice(0, maxQuestions);
-
-  if (allCardIds.length === 0) {
+  if (!firstQuestion) {
+    // clean up the session we just created
+    await sql`DELETE FROM app.quiz_sessions WHERE id = ${sessionId}::uuid`;
     return tracedError(
       "Could not prepare quiz questions right now. Please try again in a moment.",
       503,
     );
   }
 
-  // create session (persist card_ids so GET can reconstruct the session)
-  const sessionId = generateUUID();
-  await sql`
-        INSERT INTO app.quiz_sessions (id, user_id, filter_type, filter_value, total_questions, card_ids)
-        VALUES (
-            ${sessionId}::uuid,
-            ${userId}::uuid,
-            ${filterType},
-            ${filterValue ? JSON.stringify(filterValue) : null}::jsonb,
-            ${allCardIds.length},
-            to_jsonb(${allCardIds}::uuid[])
-        )
-    `;
-
-  // get first question
-  let firstQuestion: any = null;
-  if (allCardIds.length > 0) {
-    const rows = await sql`
-            SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
-                   qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
-            FROM app.quiz_cards qc
-            JOIN app.quiz_questions qq ON qc.question_id = qq.id
-            WHERE qc.id = ${allCardIds[0]}::uuid
-        `;
-    firstQuestion = rows[0] ?? null;
-    if (firstQuestion) {
-      const fsrsCard = cardFromDB(firstQuestion);
-      firstQuestion.intervals = getNextIntervals(fsrsCard);
-    }
-  }
+  // fire-and-forget: ensure question buffer for upcoming questions
+  ensureQuestionBuffer(userId, {
+    filterChunkIds: chunkIds.slice(0, 200),
+  }).catch(() => {});
 
   return NextResponse.json(
     {
       sessionId,
-      totalQuestions: allCardIds.length,
-      cardIds: allCardIds,
+      totalQuestions: chunkIds.length,
       currentIndex: 0,
       question: firstQuestion,
     },

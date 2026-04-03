@@ -731,6 +731,27 @@ export async function processImportJob(jobId) {
       return false;
     }
     await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
+
+    // seed initial quiz questions from newly imported chunks (non-fatal)
+    try {
+      const chunks = await sql`
+        SELECT c.id FROM app.chunks c
+        JOIN app.canvas_imports ci ON ci.note_id = c.document_id
+        WHERE ci.job_id = ${jobId}::uuid AND c.user_id = ${job.user_id}::uuid
+      `;
+      const chunkIds = chunks.map((r) => r.id);
+      if (chunkIds.length > 0) {
+        const { seedQuestionsAfterImport } =
+          await import("../quiz/generate-background.ts");
+        const seeded = await seedQuestionsAfterImport(job.user_id, chunkIds, 5);
+        console.log(
+          `Quiz seed: ${seeded} questions generated for job ${jobId}`,
+        );
+      }
+    } catch (seedErr) {
+      console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);
+    }
+
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
     console.log(`Job completed: ${jobId}`);
     return true;
@@ -759,11 +780,13 @@ export async function processExtractionRetry(msg) {
   }
 
   const storage = getStorageProvider();
-  const buffer = await storage.getObject(s3Key);
-  if (!buffer) {
+  const objectData = await storage.getObjectAndMeta(s3Key);
+  const buffer = objectData?.buffer;
+
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
     await sql`
       UPDATE app.canvas_imports
-      SET status = 'error', error_message = ${`S3 object not found: ${s3Key}`}, updated_at = NOW()
+      SET status = 'error', error_message = ${`S3 object missing/empty: ${s3Key}`}, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
     `;
     return;
