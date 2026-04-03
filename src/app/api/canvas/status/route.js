@@ -120,9 +120,29 @@ export async function GET() {
           ? Math.min(99, Math.round((settled / denominator) * 100))
           : null;
 
+    // heuristic cold-start detection: the Marker OCR server (GPU-backed EC2/ASG) can take
+    // several minutes to initialise. we can't directly observe the worker's health-check
+    // polling loop from this API route (separate process), so we infer cold-start from:
+    //   - there is an active job
+    //   - files are in processing state (worker is running, calling Marker)
+    //   - no files have completed yet (Marker hasn't returned a result)
+    //   - the job started within the Marker cold-start window (≤ 5 min ago)
+    // this is a best-effort signal; once any file completes the flag clears automatically.
+    const MARKER_COLD_START_WINDOW_MS = 5 * 60 * 1000;
+    const jobStartedAt = job?.started_at
+      ? new Date(job.started_at).getTime()
+      : null;
+    const markerColdStarting =
+      isActive &&
+      processing > 0 &&
+      indexed === 0 &&
+      jobStartedAt !== null &&
+      Date.now() - jobStartedAt < MARKER_COLD_START_WINDOW_MS;
+
     return NextResponse.json({
       success: true,
       activeJob,
+      markerColdStarting: markerColdStarting ?? false,
       progress: {
         total: denominator,
         completed,

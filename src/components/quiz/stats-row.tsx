@@ -35,11 +35,8 @@ export default function StatsRow({
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {statCards.map((stat) => (
-        <div
-          key={stat.label}
-          className="bg-surface border border-border-subtle rounded-lg p-4"
-        >
-          <div className="text-text-tertiary text-[10px] uppercase tracking-wider">
+        <div key={stat.label} className="glass-card rounded-radius-lg p-4">
+          <div className="text-text-tertiary text-xs uppercase tracking-wider">
             {stat.label}
           </div>
           <div className="text-text text-2xl font-bold mt-1">{stat.value}</div>

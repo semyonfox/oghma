@@ -169,14 +169,14 @@ function ChatPageInner() {
   };
 
   return (
-    <div className="h-screen w-screen flex bg-chat-page text-text overflow-hidden">
+    <div className="h-screen w-screen flex bg-app-page text-text overflow-hidden">
       {/* ── icon navigation rail (48px fixed) ───────────────────────── */}
       <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
         <IconNav />
       </div>
 
       {/* ── conversation sidebar (240px fixed) ───────────────────────── */}
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface/95 backdrop-blur overflow-hidden">
+      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
         {/* header */}
         <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
           <Link
@@ -205,7 +205,7 @@ function ChatPageInner() {
         <div className="px-3 py-3">
           <button
             onClick={newConversation}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-tertiary bg-subtle border border-border-subtle hover:bg-subtle-hover hover:text-text-secondary transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-tertiary glass-card-interactive hover:text-text-secondary transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
             {t("chat.new_conversation")}
@@ -220,12 +220,12 @@ function ChatPageInner() {
               onClick={() => setActiveId(conv.id)}
               className={`group w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
                 conv.id === activeId
-                  ? "bg-primary-500/15 border border-primary-500/25 text-text-secondary"
-                  : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                  ? "glass-card-active text-text-secondary"
+                  : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
               }`}
             >
               <div className="flex items-start justify-between gap-1">
-                <p className="font-medium truncate text-[13px] flex-1">
+                <p className="font-medium truncate text-sm flex-1">
                   {conv.title}
                 </p>
                 <span
@@ -282,7 +282,7 @@ function ChatPageInner() {
       {/* ── main chat area ─────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* top bar */}
-        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface/55 backdrop-blur">
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle glass-panel">
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-sm font-medium text-text-secondary truncate">
               {activeConv?.title ??
@@ -295,7 +295,7 @@ function ChatPageInner() {
               selectedFolders.length === 0 && (
                 <a
                   href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary hover:text-text-secondary transition-colors"
                 >
                   <DocumentTextIcon className="w-3 h-3" />
                   <span className="truncate max-w-[150px]">
@@ -306,7 +306,7 @@ function ChatPageInner() {
             {selectedNotes.map((note) => (
               <span
                 key={`note-${note.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-[11px] text-text-tertiary"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
               >
                 <DocumentTextIcon className="w-3 h-3" />
                 <span className="truncate max-w-[120px]">{note.title}</span>
@@ -322,7 +322,7 @@ function ChatPageInner() {
             {selectedFolders.map((folder) => (
               <span
                 key={`folder-${folder.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-[11px] text-primary-400"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-xs text-primary-400"
               >
                 <span className="truncate max-w-[120px]">{folder.title}</span>
                 <button
@@ -337,7 +337,7 @@ function ChatPageInner() {
             {(selectedNotes.length > 0 || selectedFolders.length > 0) && (
               <button
                 onClick={clearSelection}
-                className="text-[11px] text-text-tertiary hover:text-text-secondary"
+                className="text-xs text-text-tertiary hover:text-text-secondary"
                 title="Clear selected context"
               >
                 clear
@@ -374,7 +374,7 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen flex items-center justify-center bg-chat-page">
+        <div className="h-screen w-screen flex items-center justify-center bg-app-page">
           <SparklesIcon className="w-8 h-8 text-primary-400 animate-pulse" />
         </div>
       }
