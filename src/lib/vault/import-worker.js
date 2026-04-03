@@ -361,6 +361,26 @@ export async function processVaultImport(msg) {
       },
     );
 
+    // seed initial quiz questions from newly imported chunks (non-fatal)
+    try {
+      const chunks = await sql`
+        SELECT c.id FROM app.chunks c
+        WHERE c.user_id = ${userId}::uuid
+          AND c.created_at >= (SELECT started_at FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid)
+      `;
+      const chunkIds = chunks.map((r) => r.id);
+      if (chunkIds.length > 0) {
+        const { seedQuestionsAfterImport } =
+          await import("../quiz/generate-background.ts");
+        const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
+        console.log(`[${ts()}] Quiz seed: ${seeded} questions generated`);
+      }
+    } catch (seedErr) {
+      console.warn(
+        `[${ts()}] Quiz seed failed (non-fatal): ${seedErr.message}`,
+      );
+    }
+
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'complete', expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()

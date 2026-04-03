@@ -33,6 +33,7 @@ export function buildGenerationPrompt(
   moduleName: string,
   bloomLevel: BloomLevel,
   questionType: QuestionType,
+  existingQuestions?: string[],
 ): string {
   const levelName = BLOOM_NAMES[bloomLevel];
   const levelDesc = BLOOM_DESCRIPTIONS[bloomLevel];
@@ -81,7 +82,15 @@ Return ONLY valid JSON with this exact structure:
   "options": [{"text": "...", "is_correct": true/false}, ...] or null,
   "correct_answer": "...",
   "explanation": "..."
-}`;
+}${
+    existingQuestions && existingQuestions.length > 0
+      ? `
+
+IMPORTANT: Avoid generating questions similar to these existing questions for this course:
+${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+Ask about a DIFFERENT concept or aspect of the material.`
+      : ""
+  }`;
 }
 
 interface ParsedQuestion {
@@ -170,16 +179,33 @@ export async function generateQuestion(
   moduleName: string,
   bloomLevel: BloomLevel,
   questionType: QuestionType,
+  courseId?: number,
 ): Promise<QuizQuestion | null> {
   const limitedChunkText =
     chunkText.length > MAX_CHUNK_CHARS
       ? `${chunkText.slice(0, MAX_CHUNK_CHARS)}\n\n[truncated for question generation]`
       : chunkText;
+
+  let existingQuestions: string[] = [];
+  if (courseId) {
+    const existing = await sql`
+      SELECT qq.question_text
+      FROM app.quiz_questions qq
+      JOIN app.notes n ON qq.note_id = n.note_id
+      WHERE qq.user_id = ${userId}::uuid
+        AND n.canvas_course_id = ${courseId}
+      ORDER BY qq.created_at DESC
+      LIMIT 5
+    `;
+    existingQuestions = existing.map((r: any) => r.question_text);
+  }
+
   const prompt = buildGenerationPrompt(
     limitedChunkText,
     moduleName,
     bloomLevel,
     questionType,
+    existingQuestions,
   );
 
   let raw: string;
