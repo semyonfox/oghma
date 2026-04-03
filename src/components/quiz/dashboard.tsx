@@ -62,8 +62,8 @@ export default function QuizDashboard() {
     });
     if (!res.ok) return;
     const data = await res.json();
-    if (data.cardIds && data.question) {
-      startSession(data.sessionId, data.cardIds, data.question);
+    if (data.question) {
+      startSession(data.sessionId, data.question, data.totalQuestions ?? 0);
     }
     router.push(`/quiz/session/${data.sessionId}`);
   };
@@ -90,7 +90,9 @@ export default function QuizDashboard() {
         </div>
         <button
           onClick={() => startReview("all")}
-          disabled={dashboardData.dueCount === 0}
+          disabled={
+            dashboardData.totalCards === 0 && dashboardData.dueCount === 0
+          }
           className="bg-secondary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t("Start Review")}
