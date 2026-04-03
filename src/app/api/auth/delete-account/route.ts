@@ -5,21 +5,21 @@ import logger from "@/lib/logger";
 
 const CONFIRM_PHRASE = "delete my account";
 
-// how long we keep the data before a background job can hard-delete it
-const GRACE_PERIOD_DAYS = 30;
-
 /**
  * DELETE /api/auth/delete-account
  *
- * Soft-deletes the authenticated user's account:
- *   1. Validates session
- *   2. Requires body: { confirmation: "delete my account" }
- *   3. Sets is_active = false and deleted_at = now() on app.login
- *   4. Clears the session cookie — account is immediately inaccessible
+ * Schedules the account for deletion (GDPR Article 17 — 30-day grace period):
+ *   1. Validates session and confirmation phrase
+ *   2. Sets deleted_at = NOW() on app.login (soft-delete marker)
+ *   3. Clears all session cookies — account is immediately inaccessible
+ *   4. Returns the date when permanent deletion will occur (30 days out)
  *
- * A background job (or manual process) can hard-delete rows where
- * deleted_at < now() - GRACE_PERIOD_DAYS after the grace period.
- * Until then the account can be recovered by contacting support.
+ * Actual data erasure is performed by the cleanup job at
+ *   POST /api/admin/cleanup-deleted-accounts
+ * after the 30-day window expires.
+ *
+ * To recover the account during the grace period, call:
+ *   POST /api/auth/cancel-deletion
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -48,34 +48,53 @@ export async function DELETE(request: NextRequest) {
 
     const userId = user.user_id;
 
-    // soft-delete: mark inactive with a timestamp, data stays intact
+    // mark account as scheduled for deletion — no data is erased yet
     await sql`
       UPDATE app.login
-      SET
-        is_active   = false,
-        deleted_at  = now()
+      SET deleted_at = NOW()
       WHERE user_id = ${userId}::uuid
     `;
 
-    // clear the session cookie — login attempts will now 401 because is_active = false
+    logger.info("delete-account: deletion scheduled", { userId });
+
+    const scheduledDeletion = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
     const response = NextResponse.json({
       success: true,
-      message: `Account scheduled for deletion. Data will be permanently removed after ${GRACE_PERIOD_DAYS} days.`,
+      message:
+        "Your account has been scheduled for deletion. You have 30 days to cancel this action by visiting the account recovery page.",
+      scheduledDeletion,
     });
 
-    response.cookies.set("session", "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      expires: new Date(0),
-      sameSite: "lax",
-      path: "/",
-    });
+    // expire all session cookies immediately
+    const expired = "Thu, 01 Jan 1970 00:00:00 UTC";
+    const cookieNames = [
+      "session",
+      "authjs.session-token",
+      "authjs.csrf-token",
+      "authjs.callback-url",
+      "__Secure-authjs.session-token",
+      "__Secure-authjs.csrf-token",
+      "__Secure-authjs.callback-url",
+    ];
+    for (const name of cookieNames) {
+      response.headers.append(
+        "Set-Cookie",
+        `${name}=; Path=/; Expires=${expired}; HttpOnly; SameSite=Lax`,
+      );
+      response.headers.append(
+        "Set-Cookie",
+        `${name}=; Path=/; Expires=${expired}; HttpOnly; Secure; SameSite=Lax`,
+      );
+    }
 
     return response;
   } catch (err) {
-    logger.error("delete account error", { error: err });
+    logger.error("delete-account error", { error: err });
     return NextResponse.json(
-      { error: "Failed to delete account" },
+      { error: "Failed to schedule account deletion" },
       { status: 500 },
     );
   }
