@@ -133,7 +133,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
         }}
       >
         {/* Pane 1: Icon Navigation (Fixed 48px) */}
-        <div className="bg-background border-r border-border-subtle overflow-y-auto flex flex-col">
+        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
           <IconNav />
         </div>
 
