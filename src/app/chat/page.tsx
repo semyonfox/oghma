@@ -11,6 +11,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
+import IconNav from "@/components/sidebar/icon-nav";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface Conversation {
@@ -169,8 +170,13 @@ function ChatPageInner() {
 
   return (
     <div className="h-screen w-screen flex bg-chat-page text-text overflow-hidden">
-      {/* ── left sidebar ───────────────────────────────────────────── */}
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface/95 backdrop-blur">
+      {/* ── icon navigation rail (48px fixed) ───────────────────────── */}
+      <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
+        <IconNav />
+      </div>
+
+      {/* ── conversation sidebar (240px fixed) ───────────────────────── */}
+      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle bg-surface/95 backdrop-blur overflow-hidden">
         {/* header */}
         <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
           <Link
