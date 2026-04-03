@@ -37,13 +37,19 @@ export function shouldIgnore(entryPath) {
  * Returns null if the path is unsafe.
  */
 export function sanitizePath(entryPath) {
+  if (typeof entryPath !== "string" || !entryPath) return null;
+
   let cleaned = entryPath.replace(/\\/g, "/");
-  // strip leading slashes and dots
-  cleaned = cleaned.replace(/^[./]+/, "");
-  // reject path traversal
-  if (cleaned.includes("../") || cleaned.includes("..\\")) return null;
-  // reject absolute paths
-  if (cleaned.startsWith("/")) return null;
+
+  // reject absolute paths (unix and windows drive paths)
+  if (cleaned.startsWith("/") || /^[a-zA-Z]:\//.test(cleaned)) return null;
+
+  // reject traversal segments anywhere in the path
+  if (cleaned.split("/").some((segment) => segment === "..")) return null;
+
+  // strip leading ./ segments only
+  cleaned = cleaned.replace(/^(?:\.\/)+/, "");
+
   return cleaned || null;
 }
 

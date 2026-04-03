@@ -38,7 +38,7 @@ function SessionComplete({
   const forTomorrow = progress.answered - progress.correct;
 
   return (
-    <div className="h-screen flex items-center justify-center px-6 bg-background text-text">
+    <div className="h-screen flex items-center justify-center px-6 bg-app-page text-text">
       <div className="max-w-md w-full text-center">
         <h1 className="font-serif text-text text-xl font-semibold">
           {t("quiz.complete.title")}
@@ -60,11 +60,8 @@ function SessionComplete({
               value: String(forTomorrow),
             },
           ].map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-surface border border-border-subtle rounded-lg p-3"
-            >
-              <div className="text-text-tertiary text-[10px] uppercase tracking-wider">
+            <div key={stat.label} className="glass-card rounded-radius-lg p-3">
+              <div className="text-text-tertiary text-xs uppercase tracking-wider">
                 {stat.label}
               </div>
               <div className="text-text font-medium text-lg mt-1">
@@ -76,7 +73,7 @@ function SessionComplete({
 
         <button
           onClick={onBack}
-          className="mt-8 bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+          className="mt-8 glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
         >
           {t("quiz.complete.back")}
         </button>
@@ -180,7 +177,7 @@ function QuestionView({
   return (
     <>
       {fatigueWarning && (
-        <div className="mt-4 bg-surface border border-border-subtle rounded-lg p-3 text-xs text-text-tertiary">
+        <div className="mt-4 glass-card rounded-radius-lg p-3 text-xs text-text-tertiary">
           {t("quiz.session.fatigue_warning")}
         </div>
       )}
@@ -203,7 +200,7 @@ function QuestionView({
             <div className="flex justify-center">
               <button
                 onClick={handleContinue}
-                className="bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+                className="glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
               >
                 {t("quiz.session.continue")}
               </button>
@@ -301,7 +298,7 @@ export default function QuizSessionPage() {
 
   if (!currentQuestion) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
+      <div className="flex items-center justify-center h-screen bg-app-page">
         <div className="text-text-tertiary text-sm">
           {t("quiz.session.loading")}
         </div>
@@ -310,7 +307,7 @@ export default function QuizSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-background text-text">
+    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-app-page text-text">
       <ProgressBar
         current={sessionProgress.answered}
         total={sessionProgress.total}

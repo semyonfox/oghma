@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # autoscaling Marker GPU deployment for eu-west-1 (Ireland)
-# creates: Launch Template + ALB + Target Group + ASG + IAM Role
+# creates: Launch Template (spot) + ALB + Target Group + ASG + IAM Role
 #
 # architecture:
-#   ALB (port 80) -> Target Group (port 8000) -> ASG (g5.xlarge, 0-4 instances)
-#   instances auto-register with target group, scale-to-zero when idle
+#   ALB (port 80) -> Target Group (port 8000) -> ASG (g5.xlarge spot, 0-2 instances)
+#   pure scale-to-zero — GPU only runs during active imports, cold start ~4-7 min
+#
+# cost (spot ~$0.35/hr): pay-per-use only, ~$0 when idle
 #
 # run from project root: bash infra/marker/setup-asg.sh
 set -euo pipefail
@@ -17,12 +19,13 @@ ASG_NAME="marker-asg-${PROJECT}"
 LT_NAME="marker-lt-${PROJECT}"
 TG_NAME="marker-tg-${PROJECT}"
 ALB_NAME="marker-alb-${PROJECT}"
-MAX_INSTANCES="${MARKER_MAX_INSTANCES:-4}"
+MAX_INSTANCES="${MARKER_MAX_INSTANCES:-2}"
 
 echo "=== Marker OCR Autoscaling Setup (Ireland) ==="
 echo "Region:    $REGION"
-echo "Instance:  $INSTANCE_TYPE"
+echo "Instance:  $INSTANCE_TYPE (spot)"
 echo "Max scale: $MAX_INSTANCES"
+echo "Mode:      scale-to-zero (cold start on demand)"
 echo ""
 
 # 1. get default VPC + subnets
@@ -197,11 +200,35 @@ else
   echo "  Instance profile exists: $PROFILE_NAME"
 fi
 
-# 6. create Launch Template
-echo "[6/9] Creating Launch Template..."
+# 6. create Launch Template (spot instances)
+echo "[6/9] Creating Launch Template (spot)..."
 USERDATA_B64=$(base64 -w0 infra/marker/userdata-asg.sh)
 
-# delete old version if exists, or create new
+# spot instance config — terminate on interruption (ASG handles replacement)
+SPOT_CONFIG='"InstanceMarketOptions": {"MarketType": "spot", "SpotOptions": {"SpotInstanceType": "one-time", "InstanceInterruptionBehavior": "terminate"}}'
+
+LT_DATA="{
+  \"ImageId\": \"$AMI_ID\",
+  \"InstanceType\": \"$INSTANCE_TYPE\",
+  \"KeyName\": \"$KEY_NAME\",
+  \"SecurityGroupIds\": [\"$INST_SG_ID\"],
+  \"UserData\": \"$USERDATA_B64\",
+  \"IamInstanceProfile\": {\"Name\": \"$PROFILE_NAME\"},
+  \"BlockDeviceMappings\": [{
+    \"DeviceName\": \"/dev/xvda\",
+    \"Ebs\": {\"VolumeSize\": 75, \"VolumeType\": \"gp3\"}
+  }],
+  $SPOT_CONFIG,
+  \"TagSpecifications\": [{
+    \"ResourceType\": \"instance\",
+    \"Tags\": [
+      {\"Key\": \"Name\", \"Value\": \"marker-asg-instance\"},
+      {\"Key\": \"Project\", \"Value\": \"$PROJECT\"},
+      {\"Key\": \"Service\", \"Value\": \"marker\"}
+    ]
+  }]
+}"
+
 LT_ID=$(aws ec2 describe-launch-templates \
   --launch-template-names "$LT_NAME" \
   --region "$REGION" \
@@ -210,53 +237,15 @@ LT_ID=$(aws ec2 describe-launch-templates \
 if [ "$LT_ID" = "None" ] || [ -z "$LT_ID" ]; then
   LT_ID=$(aws ec2 create-launch-template \
     --launch-template-name "$LT_NAME" \
-    --launch-template-data "{
-      \"ImageId\": \"$AMI_ID\",
-      \"InstanceType\": \"$INSTANCE_TYPE\",
-      \"KeyName\": \"$KEY_NAME\",
-      \"SecurityGroupIds\": [\"$INST_SG_ID\"],
-      \"UserData\": \"$USERDATA_B64\",
-      \"IamInstanceProfile\": {\"Name\": \"$PROFILE_NAME\"},
-      \"BlockDeviceMappings\": [{
-        \"DeviceName\": \"/dev/xvda\",
-        \"Ebs\": {\"VolumeSize\": 75, \"VolumeType\": \"gp3\"}
-      }],
-      \"TagSpecifications\": [{
-        \"ResourceType\": \"instance\",
-        \"Tags\": [
-          {\"Key\": \"Name\", \"Value\": \"marker-asg-instance\"},
-          {\"Key\": \"Project\", \"Value\": \"$PROJECT\"},
-          {\"Key\": \"Service\", \"Value\": \"marker\"}
-        ]
-      }]
-    }" \
+    --launch-template-data "$LT_DATA" \
     --region "$REGION" \
     --query 'LaunchTemplate.LaunchTemplateId' --output text)
-  echo "  Created Launch Template: $LT_ID"
+  echo "  Created Launch Template (spot): $LT_ID"
 else
-  # create new version
   aws ec2 create-launch-template-version \
     --launch-template-id "$LT_ID" \
-    --launch-template-data "{
-      \"ImageId\": \"$AMI_ID\",
-      \"InstanceType\": \"$INSTANCE_TYPE\",
-      \"KeyName\": \"$KEY_NAME\",
-      \"SecurityGroupIds\": [\"$INST_SG_ID\"],
-      \"UserData\": \"$USERDATA_B64\",
-      \"IamInstanceProfile\": {\"Name\": \"$PROFILE_NAME\"},
-      \"BlockDeviceMappings\": [{
-        \"DeviceName\": \"/dev/xvda\",
-        \"Ebs\": {\"VolumeSize\": 75, \"VolumeType\": \"gp3\"}
-      }],
-      \"TagSpecifications\": [{
-        \"ResourceType\": \"instance\",
-        \"Tags\": [
-          {\"Key\": \"Name\", \"Value\": \"marker-asg-instance\"},
-          {\"Key\": \"Project\", \"Value\": \"$PROJECT\"},
-          {\"Key\": \"Service\", \"Value\": \"marker\"}
-        ]
-      }]
-    }" \
+    --version-description "spot-instances" \
+    --launch-template-data "$LT_DATA" \
     --source-version 1 \
     --region "$REGION" >/dev/null
 
@@ -265,7 +254,7 @@ else
     --default-version '$Latest' \
     --region "$REGION" >/dev/null
 
-  echo "  Updated Launch Template: $LT_ID"
+  echo "  Updated Launch Template (spot): $LT_ID"
 fi
 
 # 7. create ALB + Target Group
@@ -379,11 +368,9 @@ else
   echo "  Updated ASG: $ASG_NAME"
 fi
 
-# 9. create scale-to-zero policy (scale in when ALB has 0 requests for 5 min)
-echo "[9/9] Setting up scaling policies..."
+# 9. target tracking policy (scale out under load, scale in when idle)
+echo "[9/9] Setting up target tracking policy..."
 
-# target tracking: scale based on ALB request count per target
-# when requests > 10/min per instance, scale out; when 0, scale in
 aws autoscaling put-scaling-policy \
   --auto-scaling-group-name "$ASG_NAME" \
   --policy-name "marker-target-tracking" \
@@ -399,18 +386,21 @@ aws autoscaling put-scaling-policy \
   }" \
   --region "$REGION" >/dev/null 2>&1 || echo "  (target tracking policy may need ALB traffic first)"
 
+echo "  Target tracking policy created"
+
 echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "ASG Name:     $ASG_NAME"
 echo "ALB DNS:      $ALB_DNS"
 echo "Endpoint:     http://$ALB_DNS"
-echo "Max scale:    $MAX_INSTANCES x $INSTANCE_TYPE (NVIDIA A10G)"
+echo "Instance:     $INSTANCE_TYPE (NVIDIA A10G, spot)"
+echo "Max scale:    $MAX_INSTANCES instances"
+echo "Mode:         scale-to-zero — GPU starts on demand, cold start ~4-7 min"
+echo ""
+echo "Estimated cost (spot ~\$0.35/hr): pay-per-use only, ~\$0 when idle"
 echo ""
 echo "Add these to your environment:"
 echo "  MARKER_ASG_NAME=$ASG_NAME"
 echo "  MARKER_API_URL=http://$ALB_DNS"
 echo "  MARKER_ASG_REGION=$REGION"
-echo ""
-echo "The ASG starts at 0 instances (scale-to-zero)."
-echo "The app scales up when imports begin, scales down when idle."
