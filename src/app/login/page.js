@@ -111,15 +111,15 @@ export default function LoginPage() {
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
+    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-text-secondary">
+        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text-secondary">
           {t("Sign in to your account")}
         </h2>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12">
+        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12">
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef}>
@@ -148,7 +148,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={handleEmailChange}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -169,7 +169,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={pwd}
                   onChange={handlePasswordChange}
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded border-white/10 bg-white/5 text-primary-500 focus:ring-2 focus:ring-primary-500 focus:ring-offset-background"
+                    className="size-4 rounded-radius-sm border border-border-subtle bg-surface text-primary-500 focus:ring-1 focus:ring-primary-500/50 focus:ring-offset-background"
                   />
                 </div>
                 <label
@@ -229,7 +229,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={isProviderDisabled("google")}
                 onClick={() => handleSocialLogin("google")}
-                className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
+                className="flex w-full items-center justify-center gap-3 rounded-md glass-card-interactive px-3 py-2 text-sm font-semibold text-white"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
                   <path
@@ -257,7 +257,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={isProviderDisabled("github")}
                 onClick={() => handleSocialLogin("github")}
-                className="flex w-full items-center justify-center gap-3 rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white ring ring-white/5 hover:bg-white/20 focus-visible:ring-transparent"
+                className="flex w-full items-center justify-center gap-3 rounded-md glass-card-interactive px-3 py-2 text-sm font-semibold text-white"
               >
                 <svg
                   fill="currentColor"

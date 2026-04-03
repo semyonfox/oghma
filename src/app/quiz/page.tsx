@@ -13,7 +13,7 @@ export default function QuizPage() {
   }, [setActiveNav]);
 
   return (
-    <div className="flex h-screen bg-background text-text">
+    <div className="flex h-screen bg-app-page text-text">
       <IconNav />
       <div className="flex-1 overflow-y-auto">
         <QuizDashboard />

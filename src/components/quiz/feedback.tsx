@@ -16,7 +16,7 @@ export default function Feedback({
   const { t } = useI18n();
   return (
     <div
-      className={`rounded-lg p-4 border ${wasCorrect ? "bg-success-500/3 border-success-500/15" : "bg-error-500/3 border-error-500/15"}`}
+      className={`rounded-radius-lg p-4 border ${wasCorrect ? "bg-success-500/3 border-success-500/15" : "bg-error-500/3 border-error-500/15"}`}
     >
       <div className="text-sm font-medium mb-2 text-text-secondary">
         {wasCorrect ? t("quiz.feedback.correct") : t("quiz.feedback.incorrect")}
