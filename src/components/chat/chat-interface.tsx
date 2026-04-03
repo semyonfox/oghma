@@ -76,7 +76,7 @@ const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({
         <a
           key={s.id}
           href={`/notes/${s.id}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-subtle border border-border-subtle text-[10px] text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-subtle border border-border-subtle text-[10px] text-text-tertiary hover:text-text-secondary transition-colors"
         >
           <DocumentTextIcon className="w-2.5 h-2.5 flex-shrink-0" />
           <span className="max-w-[120px] truncate">
@@ -381,17 +381,17 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     return (
       <div className={`flex flex-col h-full ${className}`}>
         {/* messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        <div className="flex-1 overflow-y-auto px-3 py-1.5 space-y-1.5">
           {messages.map((m) => (
             <div
               key={m.id}
               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed ${
+                className={`max-w-[85%] px-2.5 py-1.5 rounded-md text-xs leading-relaxed ${
                   m.role === "user"
-                    ? "bg-primary-500/80 text-text-on-primary rounded-br-none"
-                    : "bg-subtle text-text-secondary rounded-bl-none border border-border-subtle"
+                    ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
+                    : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
                 }`}
               >
                 {m.role === "assistant" ? (
@@ -513,7 +513,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <div
                 className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                   m.role === "user"
-                    ? "bg-primary-500 text-text-on-primary rounded-br-sm"
+                    ? "bg-primary-500/85 text-text-on-primary rounded-br-sm"
                     : "bg-surface text-text rounded-bl-sm border border-border-subtle"
                 }`}
               >
