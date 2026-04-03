@@ -1,88 +1,119 @@
 #!/usr/bin/env python3
-"""
-Marker OCR FastAPI Server
-Wraps marker-pdf library for extraction via HTTP API
-"""
+"""Marker OCR API compatible with /marker/upload used by app OCR client."""
 
+from __future__ import annotations
+
+import asyncio
 import logging
-import sys
+import os
+import tempfile
+from pathlib import Path
+
 import torch
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
 import uvicorn
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import JSONResponse
+from marker.converters.pdf import PdfConverter
+from marker.models import create_model_dict
+from marker.output import text_from_rendered
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("marker-server")
 
-logger.info("Initializing Marker OCR server...")
-logger.info(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-    logger.info(
-        f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB"
-    )
+app = FastAPI(title="Marker OCR Server", version="1.1.0")
 
-# Import marker after logging setup
-try:
-    from marker.converters.pdf import PdfConverter
-    from marker.models import create_model_dict
+_converter = None
+_init_lock = asyncio.Lock()
+_convert_lock = asyncio.Lock()
 
-    logger.info("✓ Marker library loaded successfully")
-except ImportError as e:
-    logger.error(f"Failed to import marker: {e}")
-    sys.exit(1)
 
-app = FastAPI(title="Marker OCR Server", version="1.0.0")
+def _build_converter() -> PdfConverter:
+    logger.info("loading marker models")
+    artifacts = create_model_dict()
+    try:
+        converter = PdfConverter(artifact_dict=artifacts)
+    except TypeError:
+        # compatibility with older marker versions
+        converter = PdfConverter(model_dict=artifacts)
+    logger.info("marker models ready")
+    return converter
 
-# Initialize marker models on startup
-model_dict = None
+
+async def _ensure_converter() -> PdfConverter:
+    global _converter
+    if _converter is not None:
+        return _converter
+
+    async with _init_lock:
+        if _converter is None:
+            _converter = await asyncio.to_thread(_build_converter)
+    return _converter
 
 
 @app.on_event("startup")
-async def startup_event():
-    global model_dict
-    logger.info("Loading marker models...")
-    try:
-        model_dict = create_model_dict()
-        logger.info("✓ Models loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load models: {e}")
-        raise
+async def startup() -> None:
+    logger.info("marker API starting")
+    logger.info("torch cuda available: %s", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        logger.info("gpu: %s", torch.cuda.get_device_name(0))
+    # warm in background so / health check is fast
+    asyncio.create_task(_ensure_converter())
 
 
 @app.get("/")
-async def health_check():
-    """Health check endpoint for ALB"""
+async def health() -> dict[str, str]:
     return {"status": "healthy", "service": "marker-ocr"}
 
 
-@app.post("/extract")
-async def extract_pdf(file: UploadFile = File(...)):
-    """Extract text from PDF file"""
+@app.post("/marker/upload")
+async def marker_upload(
+    file: UploadFile = File(...),
+    output_format: str = Form("markdown"),
+    paginate_output: str = Form("true"),
+) -> JSONResponse:
+    _ = paginate_output  # accepted for API compatibility
+
+    if output_format.lower() != "markdown":
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "only markdown output is supported"},
+        )
+
+    data = await file.read()
+    if not data:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "empty file"},
+        )
+
+    suffix = Path(file.filename or "document.pdf").suffix or ".pdf"
+    fd, temp_path = tempfile.mkstemp(prefix="marker-", suffix=suffix)
+    os.close(fd)
+
     try:
-        if not file.filename.endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDF files supported")
+        with open(temp_path, "wb") as handle:
+            handle.write(data)
 
-        # Read file content
-        contents = await file.read()
+        converter = await _ensure_converter()
+        logger.info("processing %s (%d bytes)", file.filename or "document", len(data))
 
-        logger.info(f"Processing PDF: {file.filename} ({len(contents)} bytes)")
+        async with _convert_lock:
+            rendered = await asyncio.to_thread(converter, temp_path)
+            text, _, _ = await asyncio.to_thread(text_from_rendered, rendered)
 
-        # Convert PDF using marker
-        converter = PdfConverter(fname="", model_dict=model_dict)
-        # This is a simplified version - actual implementation would process the PDF
-
-        return {
-            "filename": file.filename,
-            "status": "processed",
-            "message": "PDF processing complete",
-        }
-    except Exception as e:
-        logger.error(f"PDF processing error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(content={"success": True, "output": text})
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("marker extraction failed")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(exc)},
+        )
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
-    logger.info("Starting FastAPI server on 0.0.0.0:8000...")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
