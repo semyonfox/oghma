@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { XMarkIcon } from "@heroicons/react/20/solid";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import { isoToDateKey } from "@/lib/notes/utils/calendar-date";
 
 interface DayCell {
   date: string; // YYYY-MM-DD
@@ -118,7 +119,8 @@ export default function MonthView() {
   useEffect(() => {
     const year = anchor.getFullYear();
     const month = anchor.getMonth();
-    const start = `${year}-${String(month).padStart(2, "0")}-20`;
+    const startDate = new Date(year, month - 1, 20);
+    const start = formatDate(startDate);
     const endDate = new Date(year, month + 2, 10);
     const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
     fetchReviewDates(start, end);
@@ -130,7 +132,7 @@ export default function MonthView() {
     // map assignments to their due dates
     for (const a of assignments) {
       if (!a.due_at) continue;
-      const dueDate = a.due_at.slice(0, 10);
+      const dueDate = isoToDateKey(a.due_at);
       const cell = cells.find((c) => c.date === dueDate);
       if (cell) {
         cell.assignments.push({
@@ -144,7 +146,7 @@ export default function MonthView() {
 
     // map time blocks to their start dates
     for (const tb of timeBlocks) {
-      const blockDate = tb.starts_at.slice(0, 10);
+      const blockDate = isoToDateKey(tb.starts_at);
       const cell = cells.find((c) => c.date === blockDate);
       if (cell) {
         cell.timeBlocks.push({
