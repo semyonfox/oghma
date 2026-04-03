@@ -89,6 +89,7 @@ async function requireSession() {
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
+    logger.info("upload route hit");
     try {
         const session = await requireSession();
         if (!session) return tracedError("Unauthorized", 401);
