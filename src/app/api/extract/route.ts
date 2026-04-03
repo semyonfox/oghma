@@ -106,15 +106,11 @@ export async function runExtraction(
         return { chunksStored: 0 };
     }
 
-    const embeddings = await xraySubsegment("embed-chunks", () => replaceNoteEmbeddings(documentId, userId, chunks));
-
-    await Promise.all(
-        embeddings.map(({ chunk, vector }) =>
-            storeChunkWithEmbedding(documentId, userId, chunk, vector),
-        ),
+    const chunksStored = await xraySubsegment("replace-embeddings", () =>
+        replaceNoteEmbeddings(documentId, userId, chunks),
     );
 
-    return { chunksStored: embeddings.length };
+    return { chunksStored };
 }
 
 // HTTP handler — kept for manual/admin use, not called by normal upload flow
