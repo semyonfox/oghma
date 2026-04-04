@@ -37,7 +37,7 @@ export default function CourseList({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t("quiz.courses.search_placeholder")}
-          className="bg-surface border border-border-subtle rounded-radius-md px-3 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50 w-48"
+          className="bg-surface border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary w-48"
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -45,13 +45,13 @@ export default function CourseList({
           <button
             key={course.courseId}
             onClick={() => onSelectCourse(course.courseId)}
-            className="glass-card-interactive rounded-radius-lg p-3 flex items-center gap-3 transition-colors text-left w-full"
+            className="bg-surface border border-border-subtle rounded-lg p-3 flex items-center gap-3 hover:bg-surface-elevated transition-colors text-left w-full"
           >
             <div className="flex-1 min-w-0">
               <div className="text-text text-sm font-medium truncate">
                 {course.courseName}
               </div>
-              <div className="flex gap-3 mt-1 text-xs">
+              <div className="flex gap-3 mt-1 text-[10px]">
                 <span className="text-text-tertiary">
                   {t("quiz.courses.due_count", { count: course.dueCount })}
                 </span>

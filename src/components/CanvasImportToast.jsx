@@ -81,7 +81,7 @@ export default function CanvasImportToast({
     >
       {/* progress track */}
       {isProcessing && (
-        <div className="h-0.5 w-full bg-white/[0.07]">
+        <div className="h-0.5 w-full bg-white/5">
           <div
             className="h-full bg-primary-500 transition-all duration-700 ease-out"
             style={{ width: `${percent}%` }}

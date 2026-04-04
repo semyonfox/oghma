@@ -62,10 +62,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Icon-only navigation sidebar (48px fixed width)
+ * Icon-only navigation sidebar (56px fixed width)
  * VSCode-style left navigation with hover tooltips
- * NOTE: Parent container is responsible for overflow behavior (overflow-hidden).
- * This component should never be scrollable; it fills full height.
  */
 const IconNav: FC = () => {
   const router = useRouter();

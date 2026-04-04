@@ -26,21 +26,6 @@ export function chooseExtractionRetryQueueUrl(
   const retryQueue = retryQueueUrl.trim();
   if (retryQueue) return retryQueue;
 
-  // SQS_EXTRACT_RETRY_QUEUE_URL is not set — falling back to the main import queue.
-  // Risk: retry messages (type: "extract-retry") share the queue with fresh import jobs.
-  // Because SQS FIFO ordering is not guaranteed and retry messages carry a DelaySeconds,
-  // they can be delivered out of order relative to new jobs and consume worker concurrency
-  // slots for already-failed items, starving fresh imports. Set SQS_EXTRACT_RETRY_QUEUE_URL
-  // to a separate queue in production to avoid this. The retry messages include a `type`
-  // field ("extract-retry") and an `attempt` counter so they can be identified if needed.
-  if (mainQueueUrl.trim()) {
-    console.warn(
-      "SQS_EXTRACT_RETRY_QUEUE_URL is not set — retry messages will be sent to the main " +
-        "import queue. This can interfere with fresh import jobs. Set SQS_EXTRACT_RETRY_QUEUE_URL " +
-        "to a dedicated retry queue in production.",
-    );
-  }
-
   const mainQueue = mainQueueUrl.trim();
   if (mainQueue) return mainQueue;
 
