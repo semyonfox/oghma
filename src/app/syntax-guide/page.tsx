@@ -10,7 +10,7 @@ export default function SyntaxGuidePage() {
   const guideContent = useSyntaxGuideContent();
 
   return (
-    <div className="min-h-screen bg-app-page text-text">
+    <div className="min-h-screen bg-background text-text">
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-6 flex items-center justify-between">
           <Link

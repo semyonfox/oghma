@@ -84,11 +84,11 @@ export default function QuestionCard({
     <div className="flex-1 flex flex-col justify-center gap-5">
       {/* tags */}
       <div className="flex gap-2 items-center">
-        <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded-radius-sm text-xs font-medium">
+        <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded text-[10px] font-medium">
           {BLOOM_NAMES[question.bloom_level]}
         </span>
         {moduleName && (
-          <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded-radius-sm text-xs">
+          <span className="bg-surface-elevated text-text-tertiary px-2.5 py-0.5 rounded text-[10px]">
             {moduleName}
           </span>
         )}
@@ -117,7 +117,7 @@ export default function QuestionCard({
               }
             } else if (i === selected) {
               borderColor = "border-text-tertiary";
-              bgColor = "bg-primary-500/10";
+              bgColor = "bg-white/5";
             }
 
             return (
@@ -125,7 +125,7 @@ export default function QuestionCard({
                 key={i}
                 onClick={() => handleMCQSelect(i)}
                 disabled={submitted}
-                className={`${bgColor} border ${borderColor} rounded-radius-lg px-4 py-3 text-sm text-left flex items-center gap-3 transition-colors ${!submitted ? "hover:border-text-tertiary cursor-pointer" : ""}`}
+                className={`${bgColor} border ${borderColor} rounded-lg px-4 py-3 text-sm text-left flex items-center gap-3 transition-colors ${!submitted ? "hover:border-text-tertiary cursor-pointer" : ""}`}
               >
                 <div
                   className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs flex-shrink-0 ${
@@ -168,7 +168,7 @@ export default function QuestionCard({
             onChange={(e) => setFillInAnswer(e.target.value)}
             disabled={submitted}
             placeholder={t("quiz.question.type_answer")}
-            className="flex-1 bg-surface border border-border-subtle rounded-radius-lg px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50"
+            className="flex-1 bg-surface border border-border-subtle rounded-lg px-4 py-3 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary"
             onKeyDown={(e) =>
               e.key === "Enter" &&
               !submitted &&
@@ -187,7 +187,7 @@ export default function QuestionCard({
             (question.options && selected === null) ||
             (question.question_type === "fill_in" && !fillInAnswer.trim())
           }
-          className="glass-card-interactive text-text px-6 py-2.5 rounded-radius-lg text-sm font-medium self-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="bg-surface-elevated border border-border-subtle text-text px-6 py-2.5 rounded-lg text-sm font-medium self-center hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {t("quiz.question.check_answer")}
         </button>

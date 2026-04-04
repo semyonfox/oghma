@@ -83,28 +83,8 @@ export const POST = withErrorHandler(async (request) => {
     return createErrorResponse("Invalid email or password", 401);
   }
 
-  // reject accounts scheduled for deletion — tell the user they can recover it
-  if (user.deleted_at) {
-    const deletedAt = new Date(user.deleted_at);
-    const gracePeriodEnd = new Date(
-      deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000,
-    );
-    const daysRemaining = Math.max(
-      0,
-      Math.ceil(
-        (gracePeriodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-      ),
-    );
-    return createErrorResponse(
-      daysRemaining > 0
-        ? `This account is scheduled for deletion in ${daysRemaining} day${daysRemaining !== 1 ? "s" : ""}. To recover it, use the account recovery option.`
-        : "This account has been permanently deleted.",
-      403,
-    );
-  }
-
-  // reject hard-deactivated accounts
-  if (user.is_active === false) {
+  // reject soft-deleted accounts
+  if (user.is_active === false || user.deleted_at) {
     return createErrorResponse(
       "This account has been deactivated. Contact support if this was a mistake.",
       403,
