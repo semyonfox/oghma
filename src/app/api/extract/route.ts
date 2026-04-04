@@ -90,8 +90,14 @@ export async function runExtraction(
             const text = buffer.toString("utf-8");
             return { rawText: text, chunks: chunkText(text) };
         }
-        const marker = await extractWithMarker(buffer, filename);
-        return { rawText: marker.text, chunks: marker.chunks };
+        try {
+            const marker = await extractWithMarker(buffer, filename);
+            return { rawText: marker.text, chunks: marker.chunks };
+        } catch (err) {
+            logger.warn("Marker unavailable, falling back to basic extraction", { err });
+            const text = buffer.toString("utf-8");
+            return { rawText: text, chunks: chunkText(text) };
+        }
     });
 
     const cleanedText = stripMarkdown(rawText);
