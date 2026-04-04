@@ -9,15 +9,15 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes -- SRS (Updated v3)}
+\lhead{OghmaNotes -- SRS (Updated v4)}
 
 \title{Software Requirements Specification \\
 \Large OghmaNotes: Learning Platform with AI Chat}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
-\date{March 2025}
+\date{April 2026 (Updated v4)}
 
 \hypersetup{
-    pdftitle={OghmaNotes SRS v3},
+    pdftitle={OghmaNotes SRS v4},
     pdfauthor={Samuel Regan, Semyon Fox, Shreyansh Singh}
 }
 
@@ -38,7 +38,7 @@ OghmaNotes is a web-based learning platform for students to take markdown notes,
 
 This document defines the realistic scope, architecture, and features for OghmaNotes. It reflects actual codebase capabilities and planned development phases.
 
-\textbf{Important Note:} ``In Scope'' means features are planned for the project. Not all are implemented yet. See each phase section and the implementation status notes for actual progress.
+\textbf{Important Note:} All features listed as ``In Scope'' are implemented and deployed as of April 2026. See the Timeline section for development history across four phases.
 
 \subsection{Audience}
 
@@ -72,8 +72,9 @@ For: Development team, supervisors, stakeholders.
 
 \begin{itemize}
     \item \textbf{RAG Chat:} Ask questions about your notes and PDFs, receive AI answers with citations
-    \item \textbf{PDF Chunking:} Automatic text segmentation (500 tokens per chunk, 50--100 token overlap)
-    \item \textbf{Vector Embeddings:} 1536-dimensional embeddings for semantic search
+    \item \textbf{PDF Chunking:} Automatic text segmentation (approximately 500 characters per chunk, sentence-aligned with no overlap)
+    \item \textbf{Vector Embeddings:} 1024-dimensional embeddings (Cohere embed-multilingual-v3.0)
+    \item \textbf{Reranking:} Cohere rerank-multilingual-v3.0 for precision improvement
     \item \textbf{Streaming Responses:} Token-by-token response generation
     \item \textbf{Source Citations:} Clickable links to source PDF locations and notes
 \end{itemize}
@@ -84,17 +85,15 @@ For: Development team, supervisors, stakeholders.
     \item \textbf{Quiz Generation:} Auto-generate quizzes from notes and PDFs
     \item \textbf{Quiz Types:} Multiple choice, short answer, true/false
     \item \textbf{Difficulty Levels:} Easy, medium, hard
-    \item \textbf{Flashcard System:} Spaced repetition using SM-2 algorithm
+    \item \textbf{Flashcard System:} Spaced repetition using FSRS (Free Spaced Repetition Scheduler) algorithm via ts-fsrs
     \item \textbf{Flashcard Deck Management:} Create, review, and track progress
     \item \textbf{Analytics (Basics):} Overall quiz scores, flashcard mastery, study time tracking (Phase 3, Weeks 8--12)
 \end{itemize}
 
-\subsubsection{Canvas LMS Integration (Phase 3)}
-
-\textit{Status: Planned for Phase 3 (Weeks 8--12). Zero code currently implemented.}
+\subsubsection{Canvas LMS Integration}
 
 \begin{itemize}
-    \item \textbf{OAuth Connection:} Secure connection to Canvas LMS
+    \item \textbf{API Token Connection:} Secure encrypted token storage (AES-256-GCM) for Canvas REST API access
     \item \textbf{Assignment Sync:} Auto-import assignments and due dates
     \item \textbf{Calendar Mapping:} Display Canvas due dates on assignment calendar
     \item \textbf{Daily Sync:} Automatic sync of new assignments (with manual refresh option)
@@ -112,11 +111,14 @@ For: Development team, supervisors, stakeholders.
 
 \begin{itemize}
     \item Email and password registration
+    \item Google and GitHub OAuth via NextAuth v5 (Auth.js)
     \item Email verification required
     \item JWT authentication (24-hour expiry)
     \item Secure password reset (1-hour token, single-use)
     \item Passwords hashed with bcrypt (10+ rounds)
-    \item Account deletion with soft-delete grace period (7 days)
+    \item Login lockout after 5 failed attempts (15-minute window, 30-minute lockout)
+    \item Rate limiting via Redis-backed sliding window counter
+    \item Account deletion with soft-delete grace period (30 days, GDPR-compliant)
     \item Settings management (email, password, preferences)
 \end{itemize}
 
@@ -124,7 +126,8 @@ For: Development team, supervisors, stakeholders.
 
 \begin{itemize}
     \item VSCode-style layout (icon nav, sidebar, split editor panes)
-    \item Dark mode only
+    \item Dark and light mode with class-based Tailwind v4 theming
+    \item Internationalisation supporting 12 languages
     \item Responsive design (desktop, tablet)
     \item Real-time form validation
     \item Keyboard-first navigation
@@ -137,7 +140,6 @@ For: Development team, supervisors, stakeholders.
 \begin{itemize}
     \item Real-time collaborative editing
     \item Native mobile applications (PWA only)
-    \item Light mode
     \item Instructor dashboards
     \item Video/audio transcription
     \item Note templates or snippets
@@ -175,7 +177,7 @@ For: Development team, supervisors, stakeholders.
     \item Lexical rich-text editor for note editing
     \item PDF.js for document viewing
     \item Zustand for state management
-    \item Dark mode only (Material Design 3)
+    \item Dark and light mode with class-based Tailwind v4 theming
 \end{itemize}
 
 \subsection{Backend}
@@ -190,7 +192,7 @@ For: Development team, supervisors, stakeholders.
 \subsection{Database}
 
 \begin{itemize}
-    \item PostgreSQL 12+
+    \item PostgreSQL 17.4
     \item pgvector extension for semantic search
     \item UUID v7 for all primary keys (cryptographically secure, sortable by timestamp)
     \item Version-controlled migrations
@@ -208,17 +210,23 @@ For: Development team, supervisors, stakeholders.
 \subsection{LLM Integration}
 
 \begin{itemize}
-    \item User-managed API keys (OpenAI, Anthropic, or compatible)
-    \item No backend LLM secrets stored
-    \item Client-side API key usage with CORS
+    \item Kimi K2.5 (Moonshot AI) via OpenAI-compatible API for production LLM
+    \item Cohere embed-multilingual-v3.0 for 1024-dimensional embeddings
+    \item Cohere rerank-multilingual-v3.0 for relevance reranking
+    \item Server-side API key management (not client-side)
     \item Streaming responses via Server-Sent Events
+    \item Self-hosted Marker OCR on EC2 ASG (g5.xlarge, NVIDIA A10G GPU)
 \end{itemize}
 
 \subsection{Deployment}
 
 \begin{itemize}
-    \item AWS Amplify for auto-deployment from main branch
-    \item GitHub Actions for CI/CD
+    \item AWS Amplify Gen 2 for auto-deployment from main branch
+    \item AWS ECS Fargate for Canvas import worker (Docker containerised)
+    \item AWS SQS for asynchronous job queue
+    \item AWS SES for transactional email
+    \item AWS ElastiCache (Valkey 8.2) for session caching and rate limiting
+    \item AWS EC2 Auto Scaling Group for GPU-backed OCR
 \end{itemize}
 
 %==============================================================================
@@ -237,7 +245,7 @@ For: Development team, supervisors, stakeholders.
     \item System shall hash passwords using bcrypt with minimum 10 rounds
     \item System shall lock accounts after 5 failed login attempts
     \item System shall support user logout
-    \item System shall allow users to delete accounts (soft-delete with 7-day recovery window)
+    \item System shall allow users to delete accounts (soft-delete with 30-day GDPR-compliant recovery window)
 \end{enumerate}
 
 \subsection{Note Taking}
@@ -283,16 +291,16 @@ For: Development team, supervisors, stakeholders.
 \subsection{RAG Chat \& AI Features}
 
 \begin{enumerate}
-    \item System shall extract text from PDFs and split into semantic chunks (500 tokens, 50--100 overlap)
-    \item System shall generate 1536-dimensional embeddings for text chunks
+    \item System shall extract text from PDFs and split into semantic chunks (approximately 500 characters, sentence-aligned, no overlap)
+    \item System shall generate 1024-dimensional embeddings for text chunks
     \item System shall store embeddings in PostgreSQL with pgvector extension
     \item System shall accept user questions in free text
-    \item System shall retrieve relevant document chunks using hybrid search
+    \item System shall retrieve relevant document chunks using vector similarity search with HNSW indexing and Cohere reranking
     \item System shall generate LLM responses with citations to source materials
     \item System shall stream responses token-by-token to the user
     \item System shall include clickable citations linking to original PDF locations
     \item System shall handle LLM API failures gracefully
-    \item System shall support user API key management for LLM providers
+    \item System shall use server-managed LLM and embedding API connections
 \end{enumerate}
 
 \subsection{Learning Tools}
@@ -313,9 +321,9 @@ For: Development team, supervisors, stakeholders.
 
 \begin{enumerate}
     \item System shall allow users to create flashcard decks from quizzes or notes
-    \item System shall implement SM-2 spaced repetition algorithm for scheduling reviews
+    \item System shall implement FSRS (Free Spaced Repetition Scheduler) algorithm for scheduling reviews
     \item System shall display daily review queue based on spaced repetition schedule
-    \item System shall allow users to rate cards (1--5 scale) during review
+    \item System shall allow users to rate cards with FSRS ratings (Again, Hard, Good, Easy)
     \item System shall track flashcard mastery percentage and progress metrics
     \item System shall persist flashcard state across sessions
     \item System shall support importing questions as flashcards
@@ -324,12 +332,14 @@ For: Development team, supervisors, stakeholders.
 \subsection{Canvas LMS Integration}
 
 \begin{enumerate}
-    \item System shall connect to Canvas LMS via OAuth 2.0
+    \item System shall connect to Canvas LMS via encrypted API token
     \item System shall retrieve assignments and due dates from Canvas courses
     \item System shall auto-sync Canvas assignments daily and on-demand
     \item System shall store Canvas assignment metadata (title, due date, course)
     \item System shall display assignments in assignment calendar view
-    \item System shall handle OAuth errors gracefully
+    \item System shall process Canvas imports asynchronously via SQS job queue and ECS Fargate worker
+    \item System shall extract text from imported PDFs via Marker OCR and generate vector embeddings
+    \item System shall handle API errors gracefully
     \item System shall allow users to disconnect and reconnect Canvas accounts
     \item System shall preserve Canvas sync history
 \end{enumerate}
@@ -412,7 +422,7 @@ Concurrent requests & 10+ simultaneous \\
     \item Keyboard navigation support throughout
     \item Responsive design (desktop 1024px+, tablet 768px+)
     \item Actionable error messages (not generic 500 errors)
-    \item Dark mode only
+    \item Dark and light mode with class-based theming
     \item VSCode-style layout for familiar developer UX
 \end{itemize}
 
@@ -432,9 +442,9 @@ Concurrent requests & 10+ simultaneous \\
 \section{API Endpoints}
 %==============================================================================
 
-\textbf{Implementation Status:} See \texttt{IMPLEMENTATION\_STATUS.md} for actual endpoint implementation status. This section lists all planned endpoints. ✅ = Implemented, 🔄 = In Progress, ⏳ = Planned.
+\textbf{Implementation Status:} All endpoints listed below are implemented and deployed.
 
-\subsection{Authentication} ✅ (All 6 endpoints implemented)
+\subsection{Authentication}
 
 \begin{tabular}{lll}
 \toprule
@@ -449,7 +459,7 @@ GET & \texttt{/api/auth/me} & Get current user info \\
 \bottomrule
 \end{tabular}
 
-\subsection{Notes} ✅ (All 7 endpoints implemented)
+\subsection{Notes}
 
 \begin{tabular}{lll}
 \toprule
@@ -465,30 +475,28 @@ POST & \texttt{/api/tree} & Reorder/mutate tree structure \\
 \bottomrule
 \end{tabular}
 
-\subsection{Search} 🔄 (Designed, 0/3 endpoints implemented - Phase 1)
+\subsection{Search}
 
 \begin{tabular}{lll}
 \toprule
 \textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
 \midrule
-GET & \texttt{/api/search?type=fuzzy\&q=...} & Fuzzy keyword search \\
-GET & \texttt{/api/search?type=semantic\&q=...} & Semantic vector search \\
-POST & \texttt{/api/notes/:id/embed} & Generate embeddings for note \\
+GET & \texttt{/api/search} & Combined fuzzy + semantic search \\
 \bottomrule
 \end{tabular}
 
-\subsection{RAG Chat} ⏳ (0/2 endpoints implemented - Phase 2)
+\subsection{RAG Chat}
 
 \begin{tabular}{lll}
 \toprule
 \textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
 \midrule
-POST & \texttt{/api/rag/chat} & Send question, receive answer \\
-GET & \texttt{/api/rag/search} & Retrieve relevant chunks \\
+POST & \texttt{/api/chat} & Send message, receive RAG response \\
+GET/POST & \texttt{/api/chat/sessions} & Manage chat sessions \\
 \bottomrule
 \end{tabular}
 
-\subsection{Files} 🔄 (2/3 implemented, extract endpoint disabled)
+\subsection{Files}
 
 \begin{tabular}{lll}
 \toprule
@@ -500,45 +508,43 @@ POST & \texttt{/api/extract} & Extract text from PDF \\
 \bottomrule
 \end{tabular}
 
-\subsection{Learning Tools} ⏳ (0/5 endpoints implemented - Phase 3)
+\subsection{Learning Tools}
 
 \begin{tabular}{lll}
 \toprule
 \textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
 \midrule
-POST & \texttt{/api/quiz} & Generate quiz \\
-GET & \texttt{/api/quiz/:id} & Get quiz \\
-POST & \texttt{/api/flashcards} & Create flashcard \\
-GET & \texttt{/api/flashcards/queue} & Get daily review queue \\
-PUT & \texttt{/api/flashcards/:id/rate} & Rate flashcard \\
+GET & \texttt{/api/quiz/dashboard} & Quiz stats and overview \\
+GET/POST & \texttt{/api/quiz/sessions} & Create and list quiz sessions \\
+POST & \texttt{/api/quiz/sessions/:id/answer} & Submit answer for a question \\
+GET & \texttt{/api/quiz/streak} & Get study streak data \\
 \bottomrule
 \end{tabular}
 
-\subsection{Canvas LMS Integration} ⏳ (0/5 endpoints implemented - Phase 3)
+\subsection{Canvas LMS Integration}
 
 \begin{tabular}{lll}
 \toprule
 \textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
 \midrule
-POST & \texttt{/api/canvas/oauth} & Start Canvas OAuth flow \\
-GET & \texttt{/api/canvas/callback} & Canvas OAuth callback \\
-GET & \texttt{/api/canvas/assignments} & Get Canvas assignments \\
-POST & \texttt{/api/canvas/sync} & Manual sync of assignments \\
-DELETE & \texttt{/api/canvas/disconnect} & Disconnect Canvas account \\
+GET/POST/DELETE & \texttt{/api/canvas/connect} & Manage Canvas connection \\
+GET & \texttt{/api/canvas/courses} & List Canvas courses \\
+POST & \texttt{/api/canvas/import} & Start Canvas import job \\
+GET & \texttt{/api/canvas/status} & Get import job status \\
 \bottomrule
 \end{tabular}
 
-\subsection{Analytics} ⏳ (0/5 endpoints implemented - Phase 3)
+\subsection{Analytics}
 
 \begin{tabular}{lll}
 \toprule
 \textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
 \midrule
-GET & \texttt{/api/analytics/overview} & Overall scores and progress \\
-GET & \texttt{/api/analytics/quiz} & Quiz performance by topic \\
-GET & \texttt{/api/analytics/flashcards} & Flashcard mastery metrics \\
-GET & \texttt{/api/analytics/study-time} & Study time tracking \\
-GET & \texttt{/api/analytics/weak-topics} & Identified weak topics \\
+GET & \texttt{/api/quiz/dashboard} & Quiz scores and progress \\
+GET & \texttt{/api/quiz/dashboard/courses} & Per-course quiz metrics \\
+GET & \texttt{/api/quiz/streak} & Study streak tracking \\
+GET/POST & \texttt{/api/pomodoro} & Pomodoro session tracking \\
+GET/POST & \texttt{/api/time-blocks} & Time block management \\
 \bottomrule
 \end{tabular}
 
@@ -548,11 +554,7 @@ GET & \texttt{/api/analytics/weak-topics} & Identified weak topics \\
 
 \subsection{Core Tables}
 
-\textbf{Implementation Status:}
-\begin{itemize}
-    \item ✅ \texttt{app.login}, \texttt{app.notes}, \texttt{app.documents}, \texttt{app.chunks} — Already created
-    \item ⏳ \texttt{app.canvas\_assignments}, \texttt{app.quiz\_results}, \texttt{app.flashcard\_review} — Phase 3 (need migration)
-\end{itemize}
+\textbf{Implementation Status:} All tables listed below are implemented and deployed in production.
 
 \subsubsection{app.login}
 
@@ -612,7 +614,7 @@ created\_at & timestamptz & DEFAULT now() \\
 
 \subsubsection{app.chunks}
 
-Text chunks from PDFs with embeddings for semantic search.
+Text chunks from PDFs for semantic search.
 
 \begin{tabular}{lll}
 \toprule
@@ -621,10 +623,43 @@ Text chunks from PDFs with embeddings for semantic search.
 id & uuid v7 & PRIMARY KEY \\
 user\_id & uuid v7 & FOREIGN KEY (login.id) \\
 document\_id & uuid v7 & FOREIGN KEY (documents.id) \\
-content & text & NOT NULL \\
+text & text & NOT NULL \\
 page\_number & integer & NULL \\
-embedding & vector(1536) & NULL \\
+section & varchar(255) & NULL \\
 created\_at & timestamptz & DEFAULT now() \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.embeddings}
+
+Vector embeddings for semantic search, stored separately from chunks.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+chunk\_id & uuid v7 & FOREIGN KEY (chunks.id) \\
+embedding & vector(1024) & NOT NULL \\
+\bottomrule
+\end{tabular}
+
+\subsubsection{app.oauth\_accounts}
+
+OAuth provider accounts linked to users.
+
+\begin{tabular}{lll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
+\midrule
+id & uuid v7 & PRIMARY KEY \\
+user\_id & uuid v7 & FOREIGN KEY (login.id) \\
+provider & varchar(50) & NOT NULL \\
+provider\_id & varchar(255) & NOT NULL \\
+email & varchar(255) & NULL \\
+name & varchar(255) & NULL \\
+avatar\_url & varchar(255) & NULL \\
+raw\_profile & jsonb & NULL \\
 \bottomrule
 \end{tabular}
 
@@ -664,9 +699,9 @@ created\_at & timestamptz & DEFAULT now() \\
 \bottomrule
 \end{tabular}
 
-\subsubsection{app.flashcard\_review}
+\subsubsection{app.quiz\_cards}
 
-Flashcard review history for SM-2 tracking.
+FSRS-based spaced repetition card state.
 
 \begin{tabular}{lll}
 \toprule
@@ -674,9 +709,16 @@ Flashcard review history for SM-2 tracking.
 \midrule
 id & uuid v7 & PRIMARY KEY \\
 user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-card\_id & uuid v7 & NOT NULL \\
-rating & integer & NOT NULL (1--5) \\
-reviewed\_at & timestamptz & DEFAULT now() \\
+question\_id & uuid v7 & FOREIGN KEY (quiz\_questions.id) \\
+state & integer & NOT NULL (FSRS state) \\
+stability & float & NOT NULL \\
+difficulty & float & NOT NULL \\
+elapsed\_days & integer & NOT NULL \\
+scheduled\_days & integer & NOT NULL \\
+reps & integer & NOT NULL \\
+lapses & integer & NOT NULL \\
+due & timestamptz & NOT NULL \\
+last\_review & timestamptz & NULL \\
 \bottomrule
 \end{tabular}
 
@@ -684,7 +726,7 @@ reviewed\_at & timestamptz & DEFAULT now() \\
 
 \begin{itemize}
     \item GIN index on \texttt{notes.search\_vector} (full-text search)
-    \item ivfflat index on \texttt{chunks.embedding} (semantic search)
+    \item HNSW (Hierarchical Navigable Small World) index on \texttt{embeddings.embedding} (semantic search)
     \item Compound index on \texttt{(user\_id, created\_at)}
     \item Compound index on \texttt{(user\_id, updated\_at)}
     \item Index on \texttt{documents.user\_id}
@@ -694,23 +736,24 @@ reviewed\_at & timestamptz & DEFAULT now() \\
 \section{Design Decisions}
 %==============================================================================
 
-\subsection{User API Key Management}
+\subsection{Server-Managed LLM Integration}
 
-\textbf{Decision:} Users provide their own LLM API keys (OpenAI, Anthropic, etc).
+\textbf{Decision:} LLM and embedding API keys are managed server-side. Users do not need to provide their own keys.
 
 \textbf{Rationale:}
 \begin{itemize}
-    \item Eliminates backend LLM infrastructure and costs
-    \item Users maintain control of their API keys and usage
-    \item Reduces vendor lock-in
-    \item Simplifies deployment and scaling
+    \item Simplified onboarding (no API key setup required)
+    \item Consistent model selection and quality control
+    \item Centralised usage monitoring and cost management
+    \item Ability to switch providers without user impact
 \end{itemize}
 
 \textbf{Implementation:}
 \begin{itemize}
-    \item API keys stored in user settings (encrypted at rest)
-    \item Keys used client-side or via secure proxy with CORS
-    \item Server never handles raw API keys beyond transit
+    \item Cohere API key configured as server environment variable for embeddings and reranking
+    \item LLM API key (Kimi K2.5) configured as server environment variable
+    \item All inference requests proxied through backend API routes
+    \item BYOK (Bring Your Own Key) planned as future optional feature
 \end{itemize}
 
 \subsection{Note Storage Architecture}
@@ -774,15 +817,15 @@ The system is ready to ship when:
         \item Fuzzy and semantic search
         \item RAG chat with citations
         \item Quiz generation
-        \item Flashcard system with SM-2
-        \item Canvas LMS integration (OAuth, assignment sync, calendar view)
+        \item Flashcard system with FSRS
+        \item Canvas LMS integration (API token, file import, assignment sync)
         \item Analytics basics (overall scores, flashcard mastery, study time)
     \end{itemize}
     
     \item Non-functional requirements validated
     \begin{itemize}
         \item Performance benchmarks met (search \textless5-50ms, RAG \textless3s)
-        \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth)
+        \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth, AES-256-GCM encryption)
         \item Reliability: 99\% uptime, graceful degradation on API failures
     \end{itemize}
     
@@ -810,52 +853,68 @@ The system is ready to ship when:
 \section{Timeline \& Phases}
 %==============================================================================
 
-\subsection{Phase 1: Search (Weeks 1--3)}
+\subsection{Phase 1: Foundation (Sep--Nov 2025)}
 
-Complete fuzzy and semantic search functionality.
-
-\begin{itemize}
-    \item Fuzzy keyword search endpoint
-    \item Semantic vector search with pgvector
-    \item Cmd+K search overlay UI
-    \item Load testing with 1000+ vectors
-\end{itemize}
-
-\subsection{Phase 2: RAG Chat (Weeks 4--7)}
-
-Implement PDF extraction pipeline and RAG chat.
+Initial project setup and core infrastructure.
 
 \begin{itemize}
-    \item PDF text extraction and chunking
-    \item Embedding generation for chunks
-    \item RAG chat endpoint with streaming
-    \item Citation generation and linking
+    \item Next.js project setup with TypeScript and Tailwind CSS
+    \item Authentication system (email/password, JWT, email verification)
+    \item Docker-based local development environment
+    \item Initial database schema and migrations
+    \item Note CRUD and S3 storage
 \end{itemize}
 
-\subsection{Phase 3: Learning Tools \& Canvas (Weeks 8--12)}
+\subsection{Phase 2: Core Build (Dec 2025 -- Feb 2026)}
 
-Implement quiz, flashcards, Canvas integration, and analytics.
+Core features and deployment pipeline.
 
 \begin{itemize}
-    \item Quiz generation from notes/PDFs
-    \item Quiz UI and scoring
-    \item Flashcard creation and review UI
-    \item SM-2 spaced repetition algorithm
-    \item Canvas OAuth integration
-    \item Assignment sync and calendar view
-    \item Analytics dashboard (basic metrics)
-    \item Quiz results and flashcard tracking
+    \item Rich-text editor integration (Lexical)
+    \item S3 file storage and presigned URLs
+    \item AWS Amplify deployment pipeline
+    \item RAG pipeline: PDF chunking, embedding generation, vector search
+    \item Canvas LMS research and API exploration
+    \item Fuzzy and semantic search with pgvector
 \end{itemize}
 
-\subsection{Post-MVP (Optional)}
+\subsection{Phase 3: Feature Sprint (Mar 2026)}
 
-Nice-to-have features for future releases:
+Rapid feature delivery across all modules.
+
+\begin{itemize}
+    \item Canvas import system with SQS queue and ECS Fargate worker
+    \item Migration from OpenAI to Cohere for embeddings and reranking
+    \item RAG chat with streaming responses and citations
+    \item Quiz generation and FSRS spaced repetition system
+    \item Internationalisation (12 languages via Rosetta-based system)
+    \item Vault import/export functionality
+    \item OAuth (Google, GitHub) via NextAuth v5
+\end{itemize}
+
+\subsection{Phase 4: Hardening (Apr 2026)}
+
+Stability, compliance, and infrastructure improvements.
+
+\begin{itemize}
+    \item GDPR-compliant account deletion (30-day grace period)
+    \item Self-hosted Marker OCR on EC2 Auto Scaling Group (GPU-backed)
+    \item Ingestion queue for document processing
+    \item Frontend unification and dark/light mode theming
+    \item ElastiCache (Valkey) for rate limiting and session caching
+    \item Pomodoro timer and time block scheduling
+\end{itemize}
+
+\subsection{Post-MVP (Future Work)}
+
+Planned features for future releases:
 
 \begin{itemize}
     \item Note tagging system
-    \item Bidirectional note linking
+    \item Bidirectional note linking with knowledge graph visualization
     \item Advanced analytics (learning patterns, AI-driven insights)
     \item Additional LMS integrations
+    \item BYOK (Bring Your Own Key) for LLM providers
 \end{itemize}
 
 %==============================================================================
@@ -867,7 +926,10 @@ Nice-to-have features for future releases:
     \item[UUID v7] Universally Unique Identifier version 7. Cryptographically secure, sortable by timestamp.
     \item[pgvector] PostgreSQL extension for storing and querying vector embeddings.
     \item[Semantic Search] Search based on meaning using vector embeddings, not keyword matching.
-    \item[SM-2] Spaced Repetition algorithm for optimal flashcard review scheduling.
+    \item[FSRS] Free Spaced Repetition Scheduler. Modern spaced repetition algorithm with improved accuracy over SM-2, implemented via the ts-fsrs library.
+    \item[HNSW] Hierarchical Navigable Small World. Graph-based index structure for approximate nearest-neighbour search in high-dimensional vector spaces.
+    \item[SQS] AWS Simple Queue Service. Managed message queue for decoupling application components.
+    \item[ECS Fargate] AWS Elastic Container Service with Fargate launch type. Serverless container runtime.
     \item[PWA] Progressive Web App. Web application that works offline and can be installed.
     \item[JWT] JSON Web Token. Stateless authentication mechanism.
     \item[S3] AWS Simple Storage Service for object storage.
