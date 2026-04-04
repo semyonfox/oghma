@@ -17,6 +17,7 @@ import PreviewRenderer from "./preview-renderer";
 import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
+import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
 
 // CodeMirror accesses browser APIs on import, so lazy-load it client-side only
 const SourceEditor = dynamic(() => import("./source-editor"), {
@@ -29,6 +30,8 @@ interface MarkdownEditorProps {
   pane: "A" | "B";
   file: FileSpec;
 }
+
+const DRAFT_DEBOUNCE_MS = 1000;
 
 /**
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
@@ -51,6 +54,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   // stable identity for this editor instance (cross-pane sync)
   const editorId = useRef(Symbol("editor"));
   const isDirtyRef = useRef(false);
+  // updatedAt from the last server response — used for conflict detection
+  const serverUpdatedAt = useRef<string | undefined>(undefined);
+  // debounce timer for draft writes
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // keep isDirtyRef in sync so the event listener always reads current value
   useEffect(() => {
@@ -58,41 +65,75 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   }, [isDirty]);
 
   // load note content when file changes.
-  // reads IndexedDB cache first so the editor shows content instantly,
-  // then refreshes from the API in the background (no flash).
+  // priority: draft (if newer) > API > IDB cache
   useEffect(() => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
     setIsDirty(false);
+    serverUpdatedAt.current = undefined;
 
     let cancelled = false;
     const stale = currentFileId.current;
 
     (async () => {
-      // try IndexedDB cache first — avoids the "Loading..." flash
+      // check for an unsaved draft first — restore immediately if it exists
+      let draftRestored = false;
       try {
-        const { noteCacheInstance } = await import("@/lib/notes/cache");
-        const cached = await noteCacheInstance.getItem<{ content?: string }>(
-          file.fileId,
-        );
-        if (
-          !cancelled &&
-          cached?.content != null &&
-          currentFileId.current === stale
-        ) {
-          setLocalContent(cached.content);
+        const draft = await readDraft(file.fileId);
+        if (draft && !cancelled && currentFileId.current === stale) {
+          setLocalContent(draft.content);
           setLoaded(true);
+          setIsDirty(true);
+          draftRestored = true;
+          toast.info("Restored unsaved draft", { duration: 3000 });
         }
       } catch {
-        // cache miss — fall through to API fetch
+        // draft read failure is non-fatal
       }
 
-      // always fetch from API for freshness
+      // try IDB cache for instant display (if no draft)
+      if (!draftRestored) {
+        try {
+          const { noteCacheInstance } = await import("@/lib/notes/cache");
+          const cached = await noteCacheInstance.getItem<{ content?: string; updatedAt?: string }>(
+            file.fileId,
+          );
+          if (
+            !cancelled &&
+            cached?.content != null &&
+            currentFileId.current === stale
+          ) {
+            setLocalContent(cached.content);
+            setLoaded(true);
+          }
+        } catch {
+          // cache miss — fall through to API fetch
+        }
+      }
+
+      // fetch from API for freshness
       try {
         const result = await fetchNote(file.fileId);
         if (!cancelled && result && currentFileId.current === stale) {
-          setLocalContent(result.content ?? "");
-          setLoaded(true);
+          serverUpdatedAt.current = result.updatedAt;
+
+          // if a draft was restored, don't overwrite the user's unsaved work —
+          // but check if the server version is actually newer (conflict)
+          if (draftRestored) {
+            const draft = await readDraft(file.fileId);
+            const serverMs = result.updatedAt ? new Date(result.updatedAt).getTime() : 0;
+            const draftMs = draft?.draftAt ?? 0;
+            if (serverMs > draftMs) {
+              // server has a newer version than the draft — warn once, don't block
+              toast.warning(
+                "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+                { duration: 6000 },
+              );
+            }
+          } else {
+            setLocalContent(result.content ?? "");
+            setLoaded(true);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -101,6 +142,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
     return () => {
       cancelled = true;
+      if (draftTimer.current) clearTimeout(draftTimer.current);
     };
   }, [file.fileId, fetchNote]);
 
@@ -136,6 +178,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     }
   }, [isDirty, file.fileId, markModified]);
 
+  // debounced draft write — keeps IDB in sync with unsaved content
+  const scheduleDraftWrite = useCallback(
+    (content: string) => {
+      if (!file.fileId) return;
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(() => {
+        writeDraft(file.fileId, content).catch(() => {});
+      }, DRAFT_DEBOUNCE_MS);
+    },
+    [file.fileId],
+  );
+
   // save via API
   const handleSave = useCallback(async () => {
     if (!isDirty || !file.fileId) return;
@@ -146,6 +200,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       await mutateNote(file.fileId, { content: localContent });
       setIsDirty(false);
       markSynced(file.fileId);
+      // draft successfully pushed to cloud — safe to clear
+      clearDraft(file.fileId).catch(() => {});
       // broadcast to other panes showing this file
       window.dispatchEvent(
         new CustomEvent("note-content-sync", {
@@ -273,6 +329,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 onChange={(val) => {
                   setLocalContent(val);
                   setIsDirty(true);
+                  scheduleDraftWrite(val);
                 }}
                 onSave={handleSave}
                 placeholder={t("Start writing...")}
