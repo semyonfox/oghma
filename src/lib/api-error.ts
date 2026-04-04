@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from './logger';
 import { getTraceId, withTrace } from './trace';
+import { validateSession } from './auth';
 
 export class ApiError extends Error {
   constructor(
@@ -38,6 +39,14 @@ export function apiErrorResponse(error: unknown): NextResponse {
 // traced error response for manual returns within a withErrorHandler route
 export function tracedError(message: string, status: number): NextResponse {
   return NextResponse.json({ error: message, traceId: getTraceId() }, { status });
+}
+
+type AuthUser = NonNullable<Awaited<ReturnType<typeof validateSession>>>;
+
+export async function requireAuth(): Promise<AuthUser> {
+  const user = await validateSession();
+  if (!user) throw new ApiError(401, "Unauthorized");
+  return user as AuthUser;
 }
 
 type RouteHandler = (request: NextRequest, context?: any) => Promise<NextResponse>;

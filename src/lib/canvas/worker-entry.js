@@ -14,7 +14,11 @@ import {
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
 import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
-import { processImportJob, processExtractionRetry } from "./import-worker.js";
+import {
+  processImportJob,
+  processExtractionRetry,
+  processDirectExtraction,
+} from "./import-worker.js";
 import { processVaultImport } from "../vault/import-worker.js";
 import { processVaultExport } from "../vault/export-worker.js";
 
@@ -108,6 +112,9 @@ async function processAndDelete(message, queueUrl) {
   switch (type) {
     case "canvas-import":
       await processImportJob(body.jobId);
+      break;
+    case "extract":
+      await processDirectExtraction(body);
       break;
     case "extract-retry":
       await processExtractionRetry(body);
