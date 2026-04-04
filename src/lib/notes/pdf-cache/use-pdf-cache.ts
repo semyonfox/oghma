@@ -17,18 +17,17 @@ export function usePdfCache(
 ): UsePdfCacheResult {
   const { url: signedUrl, loading: urlLoading, error: urlError } = useSignedUrl(sourcePath, fileId);
 
+  // match useSignedUrl's initial loading state — false when there's nothing to load
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!(sourcePath || fileId));
   const [error, setError] = useState<string | null>(null);
 
-  // track blob URL for cleanup
-  const blobUrlRef = useRef<string | null>(null);
-
-  // derive a stable cache key from sourcePath (the S3 key) or fall back to fileId
   const cacheKey = sourcePath ?? fileId ?? null;
 
+  // hold the active blob URL so we can revoke on unmount
+  const blobUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
-    // mirror the "no source" error from useSignedUrl
     if (urlError === "no-source") {
       setUrl("");
       setLoading(false);
@@ -58,6 +57,8 @@ export function usePdfCache(
         const cached = await getCacheEntry(cacheKey);
         if (cached && !cancelled) {
           const blob = new Blob([cached.buffer], { type: "application/pdf" });
+          // revoke previous blob URL before creating a new one
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           const objectUrl = URL.createObjectURL(blob);
           blobUrlRef.current = objectUrl;
           setUrl(objectUrl);
@@ -79,12 +80,13 @@ export function usePdfCache(
 
         if (!cancelled) {
           const blob = new Blob([buffer], { type: "application/pdf" });
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           const objectUrl = URL.createObjectURL(blob);
           blobUrlRef.current = objectUrl;
           setUrl(objectUrl);
           setLoading(false);
 
-          // write to cache and evict in the background
+          // write to cache and evict in the background — non-fatal
           putCacheEntry({
             s3Key: cacheKey,
             buffer,
@@ -92,9 +94,7 @@ export function usePdfCache(
             cachedAt: Date.now(),
           })
             .then(() => runEviction())
-            .catch(() => {
-              // non-fatal — cache write failure doesn't break viewing
-            });
+            .catch(() => {});
         }
       } catch {
         if (!cancelled) {
@@ -111,7 +111,7 @@ export function usePdfCache(
     };
   }, [signedUrl, urlLoading, urlError, cacheKey]);
 
-  // revoke blob URL when component unmounts or URL changes
+  // revoke blob URL only on unmount
   useEffect(() => {
     return () => {
       if (blobUrlRef.current) {
@@ -119,7 +119,7 @@ export function usePdfCache(
         blobUrlRef.current = null;
       }
     };
-  }, [url]);
+  }, []);
 
   return { url, loading, error };
 }
