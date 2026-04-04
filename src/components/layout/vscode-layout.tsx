@@ -3,6 +3,8 @@
 import { FC, ReactNode, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import { schedulePrefetch } from "@/lib/notes/prefetch";
 import IconNav from "@/components/sidebar/icon-nav";
 import FileTreePanel from "@/components/sidebar/file-tree-panel";
 import SplitPane from "@/components/editor/split-pane";
@@ -101,6 +103,12 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     // router is a stable Next.js ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneAFileId, setPaneA]);
+
+  // schedule background prefetch once tree finishes initialising
+  const initLoaded = useNoteTreeStore((s) => s.initLoaded);
+  useEffect(() => {
+    if (initLoaded) schedulePrefetch();
+  }, [initLoaded]);
 
   // Global keyboard shortcuts - optimized to prevent constant re-attachment
   useEffect(() => {
