@@ -432,6 +432,99 @@ html.light .glass-card-active {
   box-shadow: 0 0 0 1px rgb(59 130 246 / 0.2);
 }
 
+/* markdown preview code highlighting (obsidian-like) */
+.markdown-preview pre > code.hljs {
+  display: block;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.85);
+  color: var(--color-text-secondary);
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: #94a3b8;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-name,
+.markdown-preview .hljs-doctag,
+.markdown-preview .hljs-section,
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-attr,
+.markdown-preview .hljs-built_in,
+.markdown-preview .hljs-builtin-name {
+  color: #93c5fd;
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-regexp,
+.markdown-preview .hljs-symbol,
+.markdown-preview .hljs-bullet,
+.markdown-preview .hljs-link {
+  color: #6ee7b7;
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-meta,
+.markdown-preview .hljs-variable,
+.markdown-preview .hljs-template-variable,
+.markdown-preview .hljs-addition {
+  color: #fbbf24;
+}
+
+.markdown-preview .hljs-deletion {
+  color: #f87171;
+}
+
+html.light .markdown-preview pre > code.hljs {
+  background: #f8fafc;
+  color: #334155;
+}
+
+html.light .markdown-preview .hljs-comment,
+html.light .markdown-preview .hljs-quote {
+  color: #64748b;
+}
+
+html.light .markdown-preview .hljs-keyword,
+html.light .markdown-preview .hljs-selector-tag,
+html.light .markdown-preview .hljs-literal,
+html.light .markdown-preview .hljs-name,
+html.light .markdown-preview .hljs-doctag,
+html.light .markdown-preview .hljs-section,
+html.light .markdown-preview .hljs-type,
+html.light .markdown-preview .hljs-attr,
+html.light .markdown-preview .hljs-built_in,
+html.light .markdown-preview .hljs-builtin-name {
+  color: #1d4ed8;
+}
+
+html.light .markdown-preview .hljs-string,
+html.light .markdown-preview .hljs-title,
+html.light .markdown-preview .hljs-regexp,
+html.light .markdown-preview .hljs-symbol,
+html.light .markdown-preview .hljs-bullet,
+html.light .markdown-preview .hljs-link {
+  color: #0f766e;
+}
+
+html.light .markdown-preview .hljs-number,
+html.light .markdown-preview .hljs-meta,
+html.light .markdown-preview .hljs-variable,
+html.light .markdown-preview .hljs-template-variable,
+html.light .markdown-preview .hljs-addition {
+  color: #b45309;
+}
+
+html.light .markdown-preview .hljs-deletion {
+  color: #b91c1c;
+}
+
 /* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

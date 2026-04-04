@@ -9,6 +9,9 @@ import sql from "@/database/pgsql";
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
+import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
+import { SendMessageCommand } from "@aws-sdk/client-sqs";
+import { ensureWorkerRunning } from "@/lib/ecs";
 
 function sanitizeFileName(raw: string): string {
   return raw
@@ -143,7 +146,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const signedUrl = await xraySubsegment("s3-sign-url", () =>
     storage.getSignUrl(storagePath, 300),
   );
-  const extractionSignedUrl = await storage.getSignUrl(storagePath, 1800);
 
   const attachmentId = generateUUID();
   try {
@@ -181,7 +183,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
   }
 
-  // trigger extraction for extractable file types
+  // queue extraction for extractable file types via SQS → ECS worker
+  // keeps upload response fast regardless of file size or Marker cold-start time
   const extractableTypes = new Set([
     "application/pdf",
     "application/msword",
@@ -194,20 +197,40 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (extractableTypes.has(file.type)) {
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.startsWith("http")
-        ? process.env.NEXT_PUBLIC_APP_URL
-        : `https://${process.env.NEXT_PUBLIC_APP_URL}`;
-      const extractUrl = new URL("/api/extract", appUrl).toString();
-      await fetch(extractUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: request.headers.get("cookie") ?? "",
-        },
-        body: JSON.stringify({ url: extractionSignedUrl, documentId: noteId }),
-      });
+      // insert job record so frontend can poll /api/ingestion-status
+      await sql`
+        INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type, status)
+        VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${file.type || "application/pdf"}, 'pending')
+        ON CONFLICT DO NOTHING
+      `;
+
+      // dispatch to ECS worker via SQS — same queue and worker as canvas imports
+      const queueUrl = getCanvasImportQueueUrl();
+      if (queueUrl) {
+        await sqsClient.send(
+          new SendMessageCommand({
+            QueueUrl: queueUrl,
+            MessageBody: JSON.stringify({
+              type: "extract",
+              noteId,
+              userId: session.user_id,
+              s3Key: storagePath,
+              mimeType: file.type || "application/pdf",
+              filename: fileName,
+            }),
+          }),
+        );
+      }
+
+      // wake the ECS worker if it scaled to zero (non-fatal if IAM isn't wired)
+      await ensureWorkerRunning();
+
+      logger.info("extraction job queued", { noteId, mimeType: file.type });
     } catch (extractErr) {
-      logger.warn("failed to trigger extraction", { error: extractErr });
+      logger.warn("failed to queue extraction job", {
+        error: extractErr,
+        noteId,
+      });
     }
   }
 
