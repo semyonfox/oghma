@@ -1,40 +1,44 @@
-import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth.js";
-import { checkRateLimit } from "@/lib/rateLimiter";
-import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
-import { getStorageProvider } from "@/lib/storage/init";
-import sql from "@/database/pgsql.js";
-import logger from "@/lib/logger";
+import { NextResponse } from 'next/server';
+import { validateSession } from '@/lib/auth.js';
+import { checkRateLimit } from '@/lib/rateLimiter';
+import { isValidUUID } from '@/lib/uuid-validation.js';
+import { generateUUID } from '@/lib/utils/uuid';
+import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
+import { getStorageProvider } from '@/lib/storage/init';
+import sql from '@/database/pgsql.js';
+import logger from '@/lib/logger';
 
 /**
  * POST /api/notes/:id/share
- *
+ * 
  * Clone a note to another user's workspace.
  * Creates an independent copy with cloned_from FK pointing to original.
- *
+ * 
  * @param id - Source note UUID
  * @param targetUserId - Target user UUID
  * @param targetParentId - Where to place clone (null = root)
  * @returns Cloned note ID
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await validateSession();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const limited = await checkRateLimit("share", user.user_id);
+    const limited = await checkRateLimit('share', user.user_id);
     if (limited) return limited;
 
     const { id } = await params;
     const sourceNoteId = id;
     if (!isValidUUID(sourceNoteId)) {
-      return NextResponse.json({ error: "Invalid note ID" }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid note ID' },
+        { status: 400 }
+      );
     }
 
     const body = await request.json();
@@ -42,23 +46,23 @@ export async function POST(
 
     if (!targetUserId || !isValidUUID(targetUserId)) {
       return NextResponse.json(
-        { error: "Invalid or missing targetUserId" },
-        { status: 400 },
+        { error: 'Invalid or missing targetUserId' },
+        { status: 400 }
       );
     }
 
     if (targetParentId && !isValidUUID(targetParentId)) {
       return NextResponse.json(
-        { error: "Invalid targetParentId" },
-        { status: 400 },
+        { error: 'Invalid targetParentId' },
+        { status: 400 }
       );
     }
 
     // cannot share to yourself
     if (targetUserId === user.user_id) {
       return NextResponse.json(
-        { error: "Cannot share a note with yourself. Use duplicate instead." },
-        { status: 400 },
+        { error: 'Cannot share a note with yourself. Use duplicate instead.' },
+        { status: 400 }
       );
     }
 
@@ -70,8 +74,8 @@ export async function POST(
     `;
     if (!targetUser.length) {
       return NextResponse.json(
-        { error: "Target user not found" },
-        { status: 404 },
+        { error: 'Target user not found' },
+        { status: 404 }
       );
     }
 
@@ -86,8 +90,8 @@ export async function POST(
 
     if (!sourceNote.length) {
       return NextResponse.json(
-        { error: "Source note not found" },
-        { status: 404 },
+        { error: 'Source note not found' },
+        { status: 404 }
       );
     }
 
@@ -104,20 +108,16 @@ export async function POST(
         const storage = getStorageProvider();
         const originalContent = await storage.getObject(note.s3_key);
         if (originalContent) {
-          const filename = note.s3_key.split("/").pop() ?? "file";
+          const filename = note.s3_key.split('/').pop() ?? 'file';
           clonedS3Key = `notes/${cloneId}/${filename}`;
           await storage.putObject(clonedS3Key, originalContent, {
-            contentType: "application/octet-stream",
+            contentType: 'application/octet-stream',
           });
         }
       } catch (err) {
-        logger.warn(
-          "failed to copy S3 object for share, clone will have no file",
-          {
-            sourceKey: note.s3_key,
-            error: err,
-          },
-        );
+        logger.warn('failed to copy S3 object for share, clone will have no file', {
+          sourceKey: note.s3_key, error: err,
+        });
       }
     }
 
@@ -137,7 +137,7 @@ export async function POST(
       ) VALUES (
         ${cloneId}::uuid,
         ${targetUserId}::uuid,
-        ${note.title + " (shared)"},
+        ${note.title + ' (shared)'},
         ${note.content},
         ${clonedS3Key},
         ${note.is_folder},
@@ -150,25 +150,18 @@ export async function POST(
     `;
 
     // Add clone to target user's tree
-    await addNoteToTree(
-      targetUserId,
-      cloned[0].note_id,
-      targetParentId || null,
-    );
+    await addNoteToTree(targetUserId, cloned[0].note_id, targetParentId || null);
 
-    return NextResponse.json(
-      {
-        success: true,
-        clonedNoteId: cloned[0].note_id,
-        message: "Note cloned to target user",
-      },
-      { status: 201 },
-    );
+    return NextResponse.json({
+      success: true,
+      clonedNoteId: cloned[0].note_id,
+      message: 'Note cloned to target user',
+    }, { status: 201 });
   } catch (error) {
-    logger.error("share note error", { error });
+    logger.error('share note error', { error });
     return NextResponse.json(
-      { error: "Failed to share note" },
-      { status: 500 },
+      { error: 'Failed to share note' },
+      { status: 500 }
     );
   }
 }

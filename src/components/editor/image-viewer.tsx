@@ -80,7 +80,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
           {/* Zoom Controls */}
           <button
             onClick={handleZoomOut}
-            className="p-2 rounded hover:bg-white/[0.07]"
+            className="p-2 rounded hover:bg-white/10"
           >
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
           </button>
@@ -91,7 +91,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
 
           <button
             onClick={handleZoomIn}
-            className="p-2 rounded hover:bg-white/[0.07]"
+            className="p-2 rounded hover:bg-white/10"
           >
             <MagnifyingGlassPlusIcon className="w-4 h-4" />
           </button>
@@ -100,7 +100,7 @@ const ImageViewer: FC<ImageViewerProps> = ({ file }) => {
           <div className="w-px h-4 bg-white/10 mx-1" />
           <button
             onClick={handleReset}
-            className="p-2 rounded hover:bg-white/[0.07]"
+            className="p-2 rounded hover:bg-white/10"
             title={t("image_viewer.reset_zoom")}
           >
             <ArrowUturnLeftIcon className="w-4 h-4" />

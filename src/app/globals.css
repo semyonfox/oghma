@@ -363,73 +363,21 @@ body {
   );
 }
 
-/* subtle indigo warmth for app working pages */
-.bg-app-page {
-  background: var(--color-background);
-  background-image: radial-gradient(
+/* editor content area gradient — subtle version of landing gradient */
+.bg-editor {
+  background: radial-gradient(
     ellipse at top,
-    rgb(99 102 241 / 0.04),
-    transparent 60%
+    rgb(30 41 59 / 0.4),
+    var(--color-background) 60%
   );
 }
 
-html.light .bg-app-page {
-  background-image: radial-gradient(
+.bg-chat-page {
+  background: radial-gradient(
     ellipse at top,
-    rgb(99 102 241 / 0.03),
-    transparent 60%
+    rgb(99 102 241 / 0.2),
+    var(--color-background) 58%
   );
-}
-
-/* glass surfaces — dark theme (default) */
-.glass-panel {
-  background: rgb(255 255 255 / 0.03);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
-}
-
-.glass-card {
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
-}
-
-.glass-card-interactive {
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
-  transition:
-    background 150ms,
-    box-shadow 150ms;
-}
-
-.glass-card-interactive:hover {
-  background: rgb(255 255 255 / 0.07);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2);
-}
-
-.glass-card-active {
-  background: rgb(59 130 246 / 0.1);
-  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.25);
-}
-
-/* glass surfaces — light theme */
-html.light .glass-panel {
-  background: rgb(0 0 0 / 0.02);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.06);
-}
-
-html.light .glass-card,
-html.light .glass-card-interactive {
-  background: rgb(0 0 0 / 0.03);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
-}
-
-html.light .glass-card-interactive:hover {
-  background: rgb(0 0 0 / 0.05);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12);
-}
-
-html.light .glass-card-active {
-  background: rgb(59 130 246 / 0.08);
-  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.2);
 }
 
 /* reduced motion */
