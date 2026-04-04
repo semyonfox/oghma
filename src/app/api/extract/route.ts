@@ -95,8 +95,9 @@ export async function runExtraction(
             return { rawText: marker.text, chunks: marker.chunks };
         } catch (err) {
             logger.warn("Marker unavailable, falling back to basic extraction", { err });
-            const text = buffer.toString("utf-8");
-            return { rawText: text, chunks: chunkText(text) };
+            const pdfParse = require("pdf-parse");
+            const data = await pdfParse(buffer);
+            return { rawText: data.text, chunks: chunkText(data.text) };
         }
     });
 
