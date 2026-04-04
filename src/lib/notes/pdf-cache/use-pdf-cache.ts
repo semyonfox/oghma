@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useSignedUrl } from "@/components/editor/use-signed-url";
 import { getCacheEntry, putCacheEntry } from "./store";
 import { runEviction } from "./evict";
 
@@ -11,40 +10,47 @@ interface UsePdfCacheResult {
   error: string | null;
 }
 
+// resolve the S3 key and a presigned URL — only called on cache miss
+async function resolveSignedUrl(
+  sourcePath?: string,
+  fileId?: string,
+): Promise<{ s3Key: string; signedUrl: string } | { error: string }> {
+  let s3Key = sourcePath;
+
+  if (!s3Key && fileId) {
+    const noteRes = await fetch(`/api/notes/${fileId}?fields=s3Key,content`);
+    if (!noteRes.ok) return { error: "note-fetch-failed" };
+    const note = await noteRes.json();
+    s3Key = note.s3Key || note.content || undefined;
+  }
+
+  if (!s3Key) return { error: "no-source" };
+
+  const res = await fetch(`/api/upload?path=${encodeURIComponent(s3Key)}`);
+  if (!res.ok) return { error: `http-${res.status}` };
+  const data = await res.json();
+  return { s3Key, signedUrl: data.url ?? "" };
+}
+
 export function usePdfCache(
   sourcePath?: string,
   fileId?: string,
 ): UsePdfCacheResult {
-  const { url: signedUrl, loading: urlLoading, error: urlError } = useSignedUrl(sourcePath, fileId);
-
-  // match useSignedUrl's initial loading state — false when there's nothing to load
+  const hasSource = !!(sourcePath || fileId);
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(!!(sourcePath || fileId));
+  const [loading, setLoading] = useState(hasSource);
   const [error, setError] = useState<string | null>(null);
-
-  const cacheKey = sourcePath ?? fileId ?? null;
-
-  // hold the active blob URL so we can revoke on unmount
   const blobUrlRef = useRef<string | null>(null);
 
+  // stable cache key — UUIDv7 fileId is fine when sourcePath isn't available
+  const cacheKey = sourcePath ?? fileId ?? null;
+
   useEffect(() => {
-    if (urlError === "no-source") {
-      setUrl("");
+    if (!cacheKey) {
       setLoading(false);
       setError("no-source");
       return;
     }
-
-    if (urlLoading || (!signedUrl && !urlError)) return;
-
-    if (urlError) {
-      setUrl("");
-      setLoading(false);
-      setError(urlError);
-      return;
-    }
-
-    if (!signedUrl || !cacheKey) return;
 
     let cancelled = false;
 
@@ -53,20 +59,29 @@ export function usePdfCache(
       setError(null);
 
       try {
-        // try cache first
+        // check cache before touching the network
         const cached = await getCacheEntry(cacheKey);
-        if (cached && !cancelled) {
+        if (cached) {
+          if (cancelled) return;
           const blob = new Blob([cached.buffer], { type: "application/pdf" });
-          // revoke previous blob URL before creating a new one
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-          const objectUrl = URL.createObjectURL(blob);
-          blobUrlRef.current = objectUrl;
-          setUrl(objectUrl);
+          blobUrlRef.current = URL.createObjectURL(blob);
+          setUrl(blobUrlRef.current);
+          setLoading(false);
+          return; // zero API calls on cache hit
+        }
+
+        // cache miss — resolve signed URL and fetch bytes
+        const resolved = await resolveSignedUrl(sourcePath, fileId);
+        if (cancelled) return;
+
+        if ("error" in resolved) {
+          setError(resolved.error);
           setLoading(false);
           return;
         }
 
-        // cache miss — fetch from S3
+        const { s3Key, signedUrl } = resolved;
         const res = await fetch(signedUrl);
         if (!res.ok) {
           if (!cancelled) {
@@ -77,25 +92,23 @@ export function usePdfCache(
         }
 
         const buffer = await res.arrayBuffer();
+        if (cancelled) return;
 
-        if (!cancelled) {
-          const blob = new Blob([buffer], { type: "application/pdf" });
-          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-          const objectUrl = URL.createObjectURL(blob);
-          blobUrlRef.current = objectUrl;
-          setUrl(objectUrl);
-          setLoading(false);
+        const blob = new Blob([buffer], { type: "application/pdf" });
+        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = URL.createObjectURL(blob);
+        setUrl(blobUrlRef.current);
+        setLoading(false);
 
-          // write to cache and evict in the background — non-fatal
-          putCacheEntry({
-            s3Key: cacheKey,
-            buffer,
-            size: buffer.byteLength,
-            cachedAt: Date.now(),
-          })
-            .then(() => runEviction())
-            .catch(() => {});
-        }
+        // write to cache in the background — non-fatal
+        putCacheEntry({
+          s3Key,
+          buffer,
+          size: buffer.byteLength,
+          cachedAt: Date.now(),
+        })
+          .then(() => runEviction())
+          .catch(() => {});
       } catch {
         if (!cancelled) {
           setError("network");
@@ -105,13 +118,12 @@ export function usePdfCache(
     };
 
     void load();
-
     return () => {
       cancelled = true;
     };
-  }, [signedUrl, urlLoading, urlError, cacheKey]);
+  }, [cacheKey, sourcePath, fileId]);
 
-  // revoke blob URL only on unmount
+  // revoke blob URL on unmount
   useEffect(() => {
     return () => {
       if (blobUrlRef.current) {
