@@ -157,7 +157,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
 
         {/* Pane 4: Right Panel (Collapsible, default 280px) */}
         {rightPanelOpen && (
-          <div className="bg-surface border-l border-border-subtle overflow-hidden flex flex-col">
+          <div className="glass-panel overflow-hidden flex flex-col">
             <NotesInspectorSidebar />
           </div>
         )}
