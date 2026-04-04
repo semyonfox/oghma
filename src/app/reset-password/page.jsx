@@ -59,7 +59,7 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
+      <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Alert
             variant="error"
@@ -80,15 +80,15 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
+    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text-secondary">
+        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-text-secondary">
           {t("Reset Password")}
         </h2>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12">
+        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12">
           <form onSubmit={handleSubmit} className="space-y-6">
             {message && <Alert variant="success" description={message} />}
             {error && <Alert variant="error" description={error} />}
@@ -110,7 +110,7 @@ function ResetPasswordForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t("Enter new password")}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>
@@ -132,7 +132,7 @@ function ResetPasswordForm() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={t("Confirm new password")}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
                 />
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-full items-center justify-center bg-app-page text-text-tertiary">
+        <div className="flex min-h-full items-center justify-center bg-background text-text-tertiary">
           {t("Loading...")}
         </div>
       }

@@ -7,7 +7,7 @@ import {
   getAnnotations,
   deleteAnnotations,
 } from "@/lib/notes/storage/pdf-annotations.js";
-import { isValidUUID } from "@/lib/utils/uuid";
+import { isValidUUID } from "@/lib/uuid-validation.js";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 

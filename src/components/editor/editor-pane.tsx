@@ -2,7 +2,6 @@
 
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import {
   DocumentIcon,
@@ -12,10 +11,6 @@ import {
 } from "@heroicons/react/24/outline";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import useNoteTreeStore from "@/lib/notes/state/tree";
-import useNoteStore from "@/lib/notes/state/note";
-import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import { toast } from "sonner";
 
 const FileRouter = dynamic(() => import("./file-router"), { ssr: false });
 
@@ -31,7 +26,6 @@ interface EditorPaneProps {
  */
 const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
   const { t } = useI18n();
-  const router = useRouter();
 
   // granular selectors — only re-render when values this component reads change
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
@@ -40,16 +34,9 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
   const setPaneB = useLayoutStore((s) => s.setPaneB);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
   const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
-  const initLoaded = useNoteTreeStore((s) => s.initLoaded);
-  const rootChildCount = useNoteTreeStore(
-    (s) => s.tree.items.root?.children?.length ?? 0,
-  );
-  const genNewId = useNoteTreeStore((s) => s.genNewId);
-  const createNote = useNoteStore((s) => s.createNote);
 
   const paneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isCreatingFirstNote, setIsCreatingFirstNote] = useState(false);
 
   // all hooks must be called before any early returns
   const handleClose = useCallback(() => {
@@ -118,80 +105,8 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
     [pane, setPaneA, setPaneB],
   );
 
-  const handleCreateFirstNote = useCallback(async () => {
-    if (isCreatingFirstNote) return;
-    setIsCreatingFirstNote(true);
-
-    const id = genNewId();
-    try {
-      const note = await createNote({
-        id,
-        title: "My first note",
-        content: "# Welcome to OghmaNotes\n\nStart typing here.",
-      });
-
-      if (!note) {
-        toast.error("Could not create your first note. Please try again.");
-        return;
-      }
-
-      setPaneA(buildFileSpec(note));
-      router.push(`/notes/${id}`);
-    } catch {
-      toast.error("Could not create your first note. Please try again.");
-    } finally {
-      setIsCreatingFirstNote(false);
-    }
-  }, [createNote, genNewId, isCreatingFirstNote, router, setPaneA]);
-
-  const showFirstRunOnboarding =
-    pane === "A" && initLoaded && rootChildCount === 0;
-
   // empty state — no file assigned to this pane
   if (!file || !file.fileId) {
-    if (showFirstRunOnboarding) {
-      return (
-        <div className="h-full flex items-center justify-center p-6">
-          <div className="w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
-            <h2 className="text-lg font-semibold text-text-secondary">
-              Welcome to OghmaNotes
-            </h2>
-            <p className="mt-2 text-sm text-text-tertiary leading-relaxed">
-              You are all set. Create your first note now, then import your
-              Canvas files when you are ready.
-            </p>
-            <div className="mt-4 space-y-2 text-sm text-text-tertiary">
-              <p>1. Create your first note.</p>
-              <p>2. Import Canvas courses from Settings.</p>
-              <p>3. Open AI Chat when you want summaries or quick answers.</p>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleCreateFirstNote()}
-                disabled={isCreatingFirstNote}
-                className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isCreatingFirstNote ? "Creating note..." : "Create first note"}
-              </button>
-              <a
-                href="/settings#canvas"
-                className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
-              >
-                Open Canvas import
-              </a>
-              <a
-                href="/chat"
-                className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
-              >
-                Open AI chat
-              </a>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="h-full flex flex-col items-center justify-center text-text-tertiary gap-3">
         <DocumentIcon className="w-8 h-8 opacity-20" />
@@ -221,7 +136,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
       {/* Pane Header */}
       <div className="flex-shrink-0 h-9 px-3 border-b border-border-subtle flex items-center justify-between cursor-move">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm text-text-secondary truncate">
+          <span className="text-[13px] text-text-secondary truncate">
             {file.title || file.fileId}
           </span>
         </div>
@@ -262,7 +177,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
       </div>
 
       {/* File Renderer */}
-      <div className="flex-1 overflow-auto bg-background">
+      <div className="flex-1 overflow-auto bg-editor">
         <FileRouter key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
