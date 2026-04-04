@@ -741,6 +741,70 @@ export async function processImportJob(jobId) {
   }
 }
 
+// processes a direct file upload extraction job — queued by /api/upload
+// downloads from S3, runs the full RAG pipeline, updates ingestion_jobs status
+export async function processDirectExtraction(msg) {
+  const { noteId, userId, s3Key, mimeType, filename } = msg;
+  const ts = () => new Date().toISOString();
+  console.log(`[${ts()}] Direct extraction for note ${noteId} (${mimeType})`);
+
+  // idempotency: skip if already done (SQS at-least-once can redeliver)
+  const [existing] = await sql`
+    SELECT status FROM app.ingestion_jobs
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  if (existing?.status === "done") {
+    console.log(`[${ts()}] Note ${noteId} already extracted, skipping`);
+    return;
+  }
+
+  await sql`
+    UPDATE app.ingestion_jobs
+    SET status = 'processing', updated_at = NOW()
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid AND status = 'pending'
+  `;
+
+  const storage = getStorageProvider();
+  const buffer = await storage.getObject(s3Key);
+  if (!buffer) {
+    await sql`
+      UPDATE app.ingestion_jobs
+      SET status = 'failed', error = 'S3 object not found', updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    `;
+    console.error(`[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`);
+    return;
+  }
+
+  try {
+    const result = await processRagPipeline(noteId, userId, null, buffer, {
+      filename: filename ?? s3Key.split("/").pop() ?? "document",
+      mimeType,
+      s3Key,
+    });
+    const chunksStored = result?.chunksStored ?? 0;
+    await sql`
+      UPDATE app.ingestion_jobs
+      SET status = 'done', chunks_stored = ${chunksStored}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    `;
+    console.log(
+      `[${ts()}] Direct extraction complete for note ${noteId} (${chunksStored} chunks)`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await sql`
+      UPDATE app.ingestion_jobs
+      SET status = 'failed', error = ${message}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    `;
+    console.error(
+      `[${ts()}] Direct extraction failed for note ${noteId}: ${message}`,
+    );
+  }
+}
+
 // retries a failed extraction — called from the worker when consuming the retry queue
 export async function processExtractionRetry(msg) {
   const { noteId, userId, s3Key, filename, mimeType, parentFolderId, attempt } =
