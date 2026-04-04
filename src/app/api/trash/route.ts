@@ -1,7 +1,7 @@
 // trash API route - restore and permanently delete soft-deleted notes
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
-import { isValidUUID } from '@/lib/uuid-validation';
+import { isValidUUID } from '@/lib/utils/uuid';
 import { getStorageProvider } from '@/lib/storage/init';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql';

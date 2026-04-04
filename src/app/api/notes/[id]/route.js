@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth.js";
-import { isValidUUID } from "@/lib/uuid-validation.js";
+import { isValidUUID } from "@/lib/utils/uuid";
 import { removeNoteFromTree } from "@/lib/notes/storage/pg-tree.js";
 import { deleteNoteAnnotations } from "@/lib/notes/storage/pdf-annotations.js";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";

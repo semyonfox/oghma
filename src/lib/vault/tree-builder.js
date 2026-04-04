@@ -38,12 +38,13 @@ export function shouldIgnore(entryPath) {
  */
 export function sanitizePath(entryPath) {
   let cleaned = entryPath.replace(/\\/g, "/");
-  // strip leading slashes and dots
+  // reject absolute paths before stripping
+  if (cleaned.startsWith("/") || /^[a-zA-Z]:\//.test(cleaned)) return null;
+  // reject path traversal before stripping
+  if (cleaned.includes("../") || cleaned.includes("..\\") || cleaned === "..")
+    return null;
+  // strip leading dots/slashes
   cleaned = cleaned.replace(/^[./]+/, "");
-  // reject path traversal
-  if (cleaned.includes("../") || cleaned.includes("..\\")) return null;
-  // reject absolute paths
-  if (cleaned.startsWith("/")) return null;
   return cleaned || null;
 }
 

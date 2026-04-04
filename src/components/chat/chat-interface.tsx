@@ -11,14 +11,17 @@ import {
 import {
   PaperAirplaneIcon,
   SparklesIcon,
-  DocumentTextIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { parseSseBlocks } from "@/lib/chat/sse";
 import type { LlmThinkingMode } from "@/lib/ai-config";
+import { toFriendlyChatError } from "@/lib/friendly-errors";
+import {
+  TypingDots,
+  CompactMessageBubble,
+  FullMessageBubble,
+} from "./message-bubble";
 
 export interface Message {
   id: string;
@@ -44,7 +47,7 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
-// i18n keys for welcome messages — translated at render time via t()
+// i18n keys for welcome messages
 const WELCOME_COMPACT_KEY = "chat.welcome_compact";
 const WELCOME_FULL_KEY = "chat.welcome_full";
 const THINKING_MODE_KEY = "chat-thinking-mode";
@@ -52,41 +55,6 @@ const THINKING_MODE_KEY = "chat-thinking-mode";
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
-
-const TypingDots: FC = () => (
-  <div className="flex items-center gap-1 px-1 py-0.5">
-    {[0, 150, 300].map((delay) => (
-      <span
-        key={delay}
-        className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce"
-        style={{ animationDelay: `${delay}ms` }}
-      />
-    ))}
-  </div>
-);
-
-const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({
-  sources,
-}) => {
-  const { t } = useI18n();
-  if (!Array.isArray(sources) || !sources.length) return null;
-  return (
-    <div className="flex flex-wrap gap-1 mt-2">
-      {sources.map((s) => (
-        <a
-          key={s.id}
-          href={`/notes/${s.id}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-subtle border border-border-subtle text-[10px] text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
-        >
-          <DocumentTextIcon className="w-2.5 h-2.5 flex-shrink-0" />
-          <span className="max-w-[120px] truncate">
-            {s.title || t("Untitled")}
-          </span>
-        </a>
-      ))}
-    </div>
-  );
-};
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
   compact = false,
@@ -161,13 +129,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           ]);
         }
       } catch {
-        // silently fail — fresh session is fine
+        // silently fail -- fresh session is fine
       } finally {
         setRestored(true);
       }
     };
     void restore();
-    // t is a stable i18n function, not needed in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledSessionId, compact, restored]);
 
@@ -346,11 +313,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("error.something_went_wrong");
-      const isTimeout =
-        errMsg.includes("Failed to generate") ||
-        errMsg.includes("502") ||
-        errMsg.includes("aborted");
-      setError(isTimeout ? t("error.ai_unavailable") : errMsg);
+      const friendlyMessage = toFriendlyChatError(errMsg);
+      setError(
+        friendlyMessage.includes("temporarily unavailable")
+          ? t("error.ai_unavailable")
+          : t("error.something_went_wrong"),
+      );
     } finally {
       setLoading(false);
     }
@@ -376,48 +344,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setError(null);
   };
 
-  // ── compact (sidebar) variant ─────────────────────────────────────────
+  // compact (sidebar) variant
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
-        {/* messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        <div className="flex-1 overflow-y-auto px-3 py-1.5 space-y-1.5">
           {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed ${
-                  m.role === "user"
-                    ? "bg-primary-500/80 text-text-on-primary rounded-br-none"
-                    : "bg-subtle text-text-secondary rounded-bl-none border border-border-subtle"
-                }`}
-              >
-                {m.role === "assistant" ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children }) => (
-                        <p className="mb-1 last:mb-0">{children}</p>
-                      ),
-                      code: ({ children }) => (
-                        <code className="bg-subtle px-1 rounded text-[10px]">
-                          {children}
-                        </code>
-                      ),
-                    }}
-                  >
-                    {m.content}
-                  </ReactMarkdown>
-                ) : (
-                  m.content
-                )}
-                {m.sources && m.sources.length > 0 && (
-                  <SourceChips sources={m.sources} />
-                )}
-              </div>
-            </div>
+            <CompactMessageBubble key={m.id} message={m} />
           ))}
 
           {loading && (
@@ -426,7 +359,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               role="status"
               aria-label="AI is thinking"
             >
-              <div className="bg-subtle border border-border-subtle rounded-lg rounded-bl-none px-2.5 py-1.5">
+              <div className="glass-card rounded-lg rounded-bl-none px-2.5 py-1.5">
                 <TypingDots />
               </div>
             </div>
@@ -435,13 +368,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           <div ref={bottomRef} />
         </div>
 
-        {/* input */}
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-2">
           <div className="mb-2 flex justify-end">
             <button
               type="button"
               onClick={cycleThinkingMode}
-              className="text-[10px] uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
+              className="text-xs uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
               title="Toggle LLM thinking mode"
             >
               {thinkingLabel}
@@ -456,7 +388,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               disabled={loading}
-              className="flex-1 min-w-0 bg-subtle border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary placeholder-text-tertiary focus:outline-none focus:border-primary-500/50 disabled:opacity-50"
+              className="flex-1 min-w-0 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-1.5 text-xs text-text-secondary placeholder-text-tertiary focus:outline-none focus:border-primary-500/50 disabled:opacity-50"
             />
             <button
               onClick={send}
@@ -471,7 +403,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     );
   }
 
-  // ── full-page variant ─────────────────────────────────────────────────
+  // full-page variant
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* context banner */}
@@ -499,94 +431,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
         {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {m.role === "assistant" && (
-              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center mt-0.5">
-                <SparklesIcon className="w-3.5 h-3.5 text-primary-400" />
-              </div>
-            )}
-
-            <div className={`max-w-2xl ${m.role === "user" ? "max-w-lg" : ""}`}>
-              <div
-                className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "bg-primary-500 text-text-on-primary rounded-br-sm"
-                    : "bg-surface text-text rounded-bl-sm border border-border-subtle"
-                }`}
-              >
-                {m.role === "assistant" ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children }) => (
-                        <p className="mb-2 last:mb-0">{children}</p>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-disc list-inside mb-2 space-y-0.5">
-                          {children}
-                        </ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="list-decimal list-inside mb-2 space-y-0.5">
-                          {children}
-                        </ol>
-                      ),
-                      code: ({ children, className: cls }) => {
-                        const isBlock = cls?.includes("language-");
-                        return isBlock ? (
-                          <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
-                            {children}
-                          </code>
-                        ) : (
-                          <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
-                            {children}
-                          </code>
-                        );
-                      },
-                      strong: ({ children }) => (
-                        <strong className="font-semibold text-text">
-                          {children}
-                        </strong>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="font-semibold text-text mt-3 mb-1">
-                          {children}
-                        </h3>
-                      ),
-                      h4: ({ children }) => (
-                        <h4 className="font-medium text-text mt-2 mb-1">
-                          {children}
-                        </h4>
-                      ),
-                    }}
-                  >
-                    {m.content}
-                  </ReactMarkdown>
-                ) : (
-                  <p>{m.content}</p>
-                )}
-              </div>
-
-              {m.sources && m.sources.length > 0 && (
-                <div className="mt-2 ml-1">
-                  <p className="text-[11px] text-text-tertiary mb-1">
-                    {t("chat.sources")}
-                  </p>
-                  <SourceChips sources={m.sources} />
-                </div>
-              )}
-
-              <p className="text-[10px] text-text-tertiary opacity-60 mt-1 ml-1">
-                {new Date(m.timestamp).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          </div>
+          <FullMessageBubble key={m.id} message={m} />
         ))}
 
         {loading && (
@@ -598,7 +443,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center">
               <SparklesIcon className="w-3.5 h-3.5 text-primary-400 animate-pulse" />
             </div>
-            <div className="bg-surface border border-border-subtle rounded-2xl rounded-bl-sm px-4 py-3">
+            <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3">
               <TypingDots />
             </div>
           </div>
@@ -628,7 +473,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <button
               type="button"
               onClick={cycleThinkingMode}
-              className="mb-0.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
+              className="mb-0.5 text-xs uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
               title="Toggle LLM thinking mode"
             >
               {thinkingLabel}
@@ -638,7 +483,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
-                // auto-grow up to 5 rows
                 e.target.style.height = "auto";
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
               }}
@@ -657,7 +501,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <PaperAirplaneIcon className="w-4 h-4" />
             </button>
           </form>
-          <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-2">
+          <p className="text-center text-xs text-text-tertiary opacity-50 mt-2">
             {t("chat.disclaimer")}
           </p>
         </div>
