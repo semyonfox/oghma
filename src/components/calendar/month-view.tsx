@@ -203,7 +203,7 @@ export default function MonthView() {
 
               {/* ogham streak badge */}
               {reviewDates.has(day.date) && (
-                <span className="absolute top-1 right-1.5 text-xs text-text-tertiary opacity-60 leading-none">
+                <span className="absolute top-1 right-1.5 text-[9px] text-text-tertiary opacity-60 leading-none">
                   ᚑ
                 </span>
               )}
@@ -213,7 +213,7 @@ export default function MonthView() {
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="truncate rounded-sm px-1 py-px text-xs leading-snug border-l-2 bg-subtle"
+                    className="truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 bg-subtle"
                     style={{
                       borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
@@ -226,7 +226,7 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb relative truncate rounded-sm px-1 py-px text-xs leading-snug border-l-2 border-primary-500/40 bg-subtle text-text-tertiary"
+                      className="group/tb relative truncate rounded-sm px-1 py-px text-[10px] leading-snug border-l-2 border-primary-500/40 bg-subtle text-text-tertiary"
                     >
                       <button
                         onClick={(e) => {
@@ -234,7 +234,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void deleteTimeBlock(tb.id);
                         }}
-                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-white/[0.07] transition"
+                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle-hover transition"
                         aria-label="Delete study block"
                         title="Delete study block"
                       >
@@ -244,7 +244,7 @@ export default function MonthView() {
                     </div>
                   ))}
                 {day.assignments.length + day.timeBlocks.length > 2 && (
-                  <span className="text-xs text-text-tertiary">
+                  <span className="text-[10px] text-text-tertiary">
                     +{day.assignments.length + day.timeBlocks.length - 2} more
                   </span>
                 )}

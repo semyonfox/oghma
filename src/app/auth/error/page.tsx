@@ -25,9 +25,9 @@ function AuthErrorContent() {
   const message = ERROR_MESSAGES[error] ?? ERROR_MESSAGES.Default;
 
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
+    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12">
+        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12">
           <div className="text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
               <svg
@@ -49,7 +49,7 @@ function AuthErrorContent() {
             </h2>
             <p className="text-sm text-text-tertiary mb-1">{message}</p>
             {process.env.NODE_ENV === "development" && (
-              <p className="mt-2 text-xs text-text-tertiary font-mono glass-card rounded-radius-sm px-2 py-1">
+              <p className="mt-2 text-xs text-text-tertiary font-mono bg-white/5 rounded px-2 py-1">
                 error code: {error}
               </p>
             )}
@@ -63,7 +63,7 @@ function AuthErrorContent() {
             </Link>
             <Link
               href="/"
-              className="flex w-full justify-center rounded-md glass-card-interactive px-3 py-1.5 text-sm font-semibold text-text-secondary"
+              className="flex w-full justify-center rounded-md bg-white/5 px-3 py-1.5 text-sm font-semibold text-text-secondary hover:bg-white/10"
             >
               Go home
             </Link>

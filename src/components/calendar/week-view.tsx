@@ -215,7 +215,7 @@ export default function WeekView() {
           <div className="sticky left-0 z-10 bg-surface border-r border-border-subtle">
             {HOURS.map((h) => (
               <div key={h} style={{ height: HOUR_HEIGHT }} className="relative">
-                <span className="absolute -top-2.5 right-2 text-xs text-text-tertiary tabular-nums">
+                <span className="absolute -top-2.5 right-2 text-[10px] text-text-tertiary tabular-nums">
                   {formatHour(h)}
                 </span>
               </div>
@@ -244,7 +244,7 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="group/block absolute left-0.5 right-0.5 rounded-radius-md overflow-hidden text-xs leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm"
+                    className="group/block absolute left-0.5 right-0.5 rounded-md overflow-hidden text-[10px] leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm"
                     style={{
                       top: b.top,
                       height: b.height,
@@ -258,7 +258,7 @@ export default function WeekView() {
                         e.stopPropagation();
                         void deleteTimeBlock(b.id);
                       }}
-                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-white/[0.07] hover:text-text-secondary transition"
+                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-subtle hover:text-text-secondary transition"
                       aria-label="Delete study block"
                       title="Delete study block"
                     >

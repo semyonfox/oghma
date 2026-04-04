@@ -101,7 +101,7 @@ export default function LanguageSelector({
         <select
           value={selectedLocale || activeLocale}
           onChange={(e) => handleLanguageChange(e.target.value as Locale)}
-          className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none"
+          className="block w-full rounded-md bg-white/5 py-1.5 px-3 text-base text-white outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6 appearance-none"
           style={{
             colorScheme: "dark",
           }}
@@ -135,7 +135,7 @@ export default function LanguageSelector({
       >
         <div className="relative">
           <ComboboxInput
-            className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 pr-12 pl-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+            className="block w-full rounded-md bg-white/5 py-1.5 pr-12 pl-3 text-base text-white outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
             onChange={(event) => setQuery(event.target.value)}
             onBlur={() => setQuery("")}
             displayValue={(_code) =>
@@ -154,7 +154,7 @@ export default function LanguageSelector({
 
           <ComboboxOptions
             transition
-            className="absolute z-10 mt-1 max-h-56 w-full overflow-auto glass-card rounded-radius-lg py-1 text-sm data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0"
+            className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md bg-surface py-1 text-base outline -outline-offset-1 outline-border-subtle data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
           >
             {filteredLanguages.length === 0 && query.length > 0 ? (
               <div className="cursor-default px-3 py-2 text-text-tertiary">

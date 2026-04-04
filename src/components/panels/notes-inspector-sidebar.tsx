@@ -77,7 +77,7 @@ export default function NotesInspectorSidebar() {
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
 
   const tabClasses = (tab: RightPanelTab) => `
-    px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2
+    px-2.5 py-1.5 text-[11px] font-medium transition-colors border-b-2
     ${
       activeTab === tab
         ? "border-primary-500 text-text-secondary"
@@ -86,10 +86,10 @@ export default function NotesInspectorSidebar() {
   `;
 
   return (
-    <div className="h-full flex flex-col text-text">
+    <div className="h-full flex flex-col bg-surface text-text">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border-subtle px-3 h-9">
-        <h3 className="text-sm text-text-secondary truncate">
+        <h3 className="text-[13px] text-text-secondary truncate">
           {activeFile?.title || t("No file")}
         </h3>
         {rightPanelOpen && (
@@ -157,36 +157,44 @@ export default function NotesInspectorSidebar() {
             ) : note ? (
               <dl className="space-y-3">
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("Title")}</dt>
-                  <dd className="mt-0.5 text-text-secondary text-sm">
+                  <dt className="text-[11px] text-text-tertiary">
+                    {t("Title")}
+                  </dt>
+                  <dd className="mt-0.5 text-text-secondary text-[13px]">
                     {note.title || activeFile?.title || t("Untitled")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("Type")}</dt>
-                  <dd className="mt-0.5 text-text-secondary text-sm">
+                  <dt className="text-[11px] text-text-tertiary">
+                    {t("Type")}
+                  </dt>
+                  <dd className="mt-0.5 text-text-secondary text-[13px]">
                     {activeFile.fileType}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("Created")}</dt>
-                  <dd className="mt-0.5 text-text-tertiary text-sm">
+                  <dt className="text-[11px] text-text-tertiary">
+                    {t("Created")}
+                  </dt>
+                  <dd className="mt-0.5 text-text-tertiary text-[13px]">
                     {note.created_at
                       ? new Date(note.created_at).toLocaleDateString()
                       : t("Unknown")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("Updated")}</dt>
-                  <dd className="mt-0.5 text-text-tertiary text-sm">
+                  <dt className="text-[11px] text-text-tertiary">
+                    {t("Updated")}
+                  </dt>
+                  <dd className="mt-0.5 text-text-tertiary text-[13px]">
                     {note.updated_at
                       ? new Date(note.updated_at).toLocaleDateString()
                       : t("Unknown")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
-                  <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
+                  <dt className="text-[11px] text-text-tertiary">{t("ID")}</dt>
+                  <dd className="mt-0.5 break-all font-mono text-[10px] text-text-tertiary/50">
                     {note.note_id || note.id || activeFile.fileId}
                   </dd>
                 </div>
@@ -226,12 +234,12 @@ export default function NotesInspectorSidebar() {
           <div className="flex-1 flex flex-col min-h-0">
             {activeFile?.fileId && (
               <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-                <p className="text-xs text-text-tertiary truncate">
+                <p className="text-[11px] text-text-tertiary truncate">
                   {activeFile.title || t("Untitled")}
                 </p>
                 <a
                   href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
-                  className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
                   title={t("Open full chat")}
                 >
                   {t("Full chat")}

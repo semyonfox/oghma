@@ -108,6 +108,9 @@ async function ensureAsgRunning(): Promise<string> {
   console.log(
     `Marker ASG: desired=${desired}, healthy=${healthy}, max=${group.MaxSize}`,
   );
+  if (healthy === 0) {
+        throw new Error("Marker ASG has no running instances, skipping");
+  }
 
   // if no instances running, scale up
   if (desired === 0) {
