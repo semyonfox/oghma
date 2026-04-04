@@ -89,7 +89,7 @@ function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
           return (
             <div
               key={c.name}
-              className="flex items-center gap-1.5 text-[10px] text-text-tertiary leading-none"
+              className="flex items-center gap-1.5 text-xs text-text-tertiary leading-none"
             >
               <span
                 className="inline-block w-2 h-2 rounded-full shrink-0"
@@ -249,16 +249,16 @@ export default function AssignmentTracker() {
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
           <div className="relative flex-1">
-            <ListboxButton className="relative w-full rounded-md border border-border-subtle bg-surface py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary transition-colors hover:border-border">
+            <ListboxButton className="relative w-full rounded-radius-md glass-card py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary transition-colors hover:bg-white/[0.07]">
               {courseFilter || t("All Courses")}
               <span className="absolute inset-y-0 right-0 flex items-center pr-2">
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
             </ListboxButton>
-            <ListboxOptions className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-border-subtle bg-surface py-1 text-xs shadow-lg">
+            <ListboxOptions className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-radius-md glass-card py-1 text-xs shadow-lg">
               <ListboxOption
                 value={null}
-                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
               >
                 {t("All Courses")}
               </ListboxOption>
@@ -266,7 +266,7 @@ export default function AssignmentTracker() {
                 <ListboxOption
                   key={c}
                   value={c}
-                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
                 >
                   {c}
                 </ListboxOption>
@@ -276,10 +276,10 @@ export default function AssignmentTracker() {
         </Listbox>
         <button
           onClick={() => setIncludeAll(!includeAll)}
-          className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors ${
+          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
             includeAll
               ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
-              : "border-border-subtle bg-subtle text-text-tertiary hover:text-text-secondary"
+              : "border-border-subtle bg-surface text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07]"
           }`}
           title={
             includeAll ? t("Showing all assignments") : t("Get all assignments")
@@ -290,7 +290,7 @@ export default function AssignmentTracker() {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="rounded-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors disabled:opacity-40"
+          className="rounded-radius-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07] transition-colors disabled:opacity-40"
           title={t("Sync from Canvas")}
         >
           <ArrowPathIcon
@@ -309,7 +309,7 @@ export default function AssignmentTracker() {
             key={key}
             onClick={() => setActiveTab(key)}
             className={`
-              flex-1 py-1.5 text-[11px] font-medium text-center rounded-[5px] transition-all
+              flex-1 py-1.5 text-xs font-medium text-center rounded-radius-sm transition-all
               ${
                 activeTab === key
                   ? "bg-surface text-text-secondary shadow-sm"
@@ -320,7 +320,7 @@ export default function AssignmentTracker() {
             {label}
             {counts[key] > 0 && (
               <span
-                className={`ml-1 text-[10px] ${activeTab === key ? "opacity-60" : "opacity-40"}`}
+                className={`ml-1 text-xs ${activeTab === key ? "opacity-60" : "opacity-40"}`}
               >
                 {counts[key]}
               </span>
@@ -352,13 +352,13 @@ export default function AssignmentTracker() {
             return (
               <div
                 key={a.id}
-                className="group rounded-lg border border-border-subtle bg-surface p-2.5 transition-colors hover:bg-surface-elevated"
+                className="group glass-card-interactive rounded-radius-lg p-2.5 transition-colors"
               >
                 {/* top row: course badge + focus button */}
                 <div className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-1.5 min-w-0">
                     {a.course_name && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-text-tertiary leading-none">
+                      <span className="inline-flex items-center gap-1 text-xs text-text-tertiary leading-none">
                         <span
                           className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
                           style={{
@@ -382,12 +382,12 @@ export default function AssignmentTracker() {
                 </div>
 
                 {/* title */}
-                <p className="mt-1 text-[12px] font-medium text-text-secondary leading-snug">
+                <p className="mt-1 text-sm font-medium text-text-secondary leading-snug">
                   {a.title}
                 </p>
 
                 {/* meta row: due label + score */}
-                <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+                <div className="mt-1.5 flex items-center gap-2 text-xs">
                   {due.text && (
                     <span className={toneFg[due.tone]}>{due.text}</span>
                   )}
@@ -413,7 +413,7 @@ export default function AssignmentTracker() {
                         }}
                       />
                     </div>
-                    <p className="mt-0.5 text-[9px] text-text-tertiary opacity-70">
+                    <p className="mt-0.5 text-xs text-text-tertiary opacity-70">
                       {hoursLogged.toFixed(1)}/{hoursEst}h
                     </p>
                   </div>

@@ -42,7 +42,7 @@ export default function CalendarPage() {
       : monthYear;
 
   return (
-    <div className="flex h-screen bg-background text-text">
+    <div className="flex h-screen bg-app-page text-text">
       <IconNav />
 
       <div className="flex flex-1 min-w-0">
@@ -55,22 +55,22 @@ export default function CalendarPage() {
             </h1>
             <div className="flex items-center gap-3">
               {/* prev/today/next */}
-              <div className="relative flex items-center rounded-md bg-subtle border border-border-subtle">
+              <div className="relative flex items-center rounded-md glass-card">
                 <button
                   onClick={navigateBack}
-                  className="flex h-8 w-9 items-center justify-center rounded-l-md text-text-tertiary hover:text-text-secondary hover:bg-subtle-hover"
+                  className="flex h-8 w-9 items-center justify-center rounded-l-md text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07]"
                 >
                   <ChevronLeftIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={goToToday}
-                  className="hidden md:block px-3 text-xs font-medium text-text-secondary hover:bg-subtle-hover"
+                  className="hidden md:block px-3 text-xs font-medium text-text-secondary hover:bg-white/[0.07]"
                 >
                   {t("Today")}
                 </button>
                 <button
                   onClick={navigateForward}
-                  className="flex h-8 w-9 items-center justify-center rounded-r-md text-text-tertiary hover:text-text-secondary hover:bg-subtle-hover"
+                  className="flex h-8 w-9 items-center justify-center rounded-r-md text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07]"
                 >
                   <ChevronRightIcon className="h-4 w-4" />
                 </button>
@@ -78,15 +78,15 @@ export default function CalendarPage() {
 
               {/* view switcher */}
               <Menu as="div" className="relative">
-                <MenuButton className="flex items-center gap-1.5 rounded-md bg-subtle border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-subtle-hover">
+                <MenuButton className="flex items-center gap-1.5 rounded-md glass-card px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-white/[0.07]">
                   {view === "month" ? t("Month") : t("Week")}
                   <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
                 </MenuButton>
-                <MenuItems className="absolute right-0 z-10 mt-1 w-32 rounded-md border border-border-subtle bg-surface shadow-lg py-1">
+                <MenuItems className="absolute right-0 z-10 mt-1 w-32 rounded-md glass-card shadow-lg py-1">
                   <MenuItem>
                     <button
                       onClick={() => setView("month")}
-                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
                     >
                       {t("Month view")}
                     </button>
@@ -94,7 +94,7 @@ export default function CalendarPage() {
                   <MenuItem>
                     <button
                       onClick={() => setView("week")}
-                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                      className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
                     >
                       {t("Week view")}
                     </button>
@@ -111,7 +111,7 @@ export default function CalendarPage() {
         </div>
 
         {/* right sidebar -- assignment tracker */}
-        <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-l border-border-subtle bg-surface">
+        <div className="hidden lg:flex w-[280px] shrink-0 flex-col glass-panel">
           <AssignmentTracker />
         </div>
       </div>
