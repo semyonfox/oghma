@@ -1,125 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import {
-  ExclamationCircleIcon,
-  ExclamationTriangleIcon,
-} from "@heroicons/react/24/outline";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-
-// localStorage keys
-const LS_SELECTED = "canvas_selected_courses";
-const LS_ERRORS = "canvas_course_errors";
-const LS_ACTIVE_JOB = "canvas_active_job"; // { jobId, startedAt }
-const LS_FORBIDDEN = "canvas_forbidden_courses"; // set of courseIds that had forbidden files
-const LS_SYNCED = "canvas_synced_courses"; // set of courseIds successfully imported
-
-/** Inline SVG check — heroicons CheckCircle style */
-function CheckCircleIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
-      />
-    </svg>
-  );
-}
-
-/** Inline SVG chevron down — for collapsible sections */
-function ChevronDownIcon({ className, open }) {
-  return (
-    <svg
-      className={`${className} transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-      />
-    </svg>
-  );
-}
-
-/** Status badge for each course */
-function CourseBadge({ status, errorMsg }) {
-  const config = {
-    synced: {
-      color: "fill-green-400",
-      text: "text-green-200",
-      ring: "ring-green-400/30",
-      label: "Synced",
-    },
-    outOfSync: {
-      color: "fill-yellow-400",
-      text: "text-yellow-200",
-      ring: "ring-yellow-400/30",
-      label: "Out of sync",
-    },
-    syncing: {
-      color: "fill-blue-400",
-      text: "text-blue-200",
-      ring: "ring-blue-400/30",
-      label: "Syncing",
-    },
-    forbidden: {
-      color: "fill-orange-400",
-      text: "text-orange-200",
-      ring: "ring-orange-400/30",
-      label: "Restricted",
-    },
-    error: {
-      color: "fill-red-400",
-      text: "text-red-200",
-      ring: "ring-red-400/30",
-      label: errorMsg ?? "Failed",
-    },
-    idle: null,
-  };
-
-  if (!config[status]) return null;
-
-  const { color, text, ring, label } = config[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-x-1.5 rounded-full px-2 py-1 text-xs font-medium ${text} ring-1 ${ring}`}
-    >
-      <svg viewBox="0 0 6 6" aria-hidden="true" className={`size-1.5 ${color}`}>
-        <circle r={3} cx={3} cy={3} />
-      </svg>
-      {label}
-    </span>
-  );
-}
-
-/** Status dot + label for a single log entry */
-function LogStatusIcon({ status }) {
-  const map = {
-    complete: { dot: "bg-green-400", label: "done" },
-    processing: { dot: "bg-blue-400 animate-pulse", label: "processing" },
-    downloading: { dot: "bg-yellow-400 animate-pulse", label: "downloading" },
-    forbidden: { dot: "bg-orange-400", label: "restricted" },
-    error: { dot: "bg-red-400", label: "error" },
-  };
-  const cfg = map[status] ?? { dot: "bg-white/30", label: status };
-  return (
-    <span
-      className={`mt-1 inline-block size-1.5 shrink-0 rounded-full ${cfg.dot}`}
-      title={cfg.label}
-    />
-  );
-}
+import {
+  LS_SELECTED,
+  LS_ERRORS,
+  LS_ACTIVE_JOB,
+  LS_FORBIDDEN,
+  LS_SYNCED,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  CourseBadge,
+} from "./canvas/canvas-helpers";
+import CanvasConnectionForm from "./canvas/canvas-connection-form";
+import CanvasProgressPanel from "./canvas/canvas-progress-panel";
+import { toFriendlyCanvasError } from "@/lib/friendly-errors";
 
 /**
  * CanvasIntegration
@@ -155,6 +51,7 @@ export default function CanvasIntegration() {
   const [progress, setProgress] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [markerColdStarting, setMarkerColdStarting] = useState(false);
   const pollRef = useRef(null);
 
   // Per-course status tracking (persisted in localStorage)
@@ -163,8 +60,6 @@ export default function CanvasIntegration() {
 
   // UI state
   const [courseListOpen, setCourseListOpen] = useState(true);
-  const [logsSuccessOpen, setLogsSuccessOpen] = useState(false);
-  const [logsFailedOpen, setLogsFailedOpen] = useState(true);
 
   // ── On mount: restore state + check connection ────────────────────────────
   useEffect(() => {
@@ -228,8 +123,10 @@ export default function CanvasIntegration() {
                 setIsImporting(true);
                 setProgress(statusData.progress);
                 setRecentLogs(statusData.recentLogs ?? []);
+                setMarkerColdStarting(Boolean(statusData.markerColdStarting));
                 startPolling();
               } else {
+                setMarkerColdStarting(false);
                 // job already finished while away
                 localStorage.removeItem(LS_ACTIVE_JOB);
                 if (statusData.progress) {
@@ -295,7 +192,7 @@ export default function CanvasIntegration() {
       const data = await res.json();
 
       if (!res.ok) {
-        setConnectionError(data.error ?? "Connection failed");
+        setConnectionError(toFriendlyCanvasError(data.error));
         return;
       }
 
@@ -307,7 +204,7 @@ export default function CanvasIntegration() {
       const validIds = (data.courses ?? []).map((c) => c.id);
       setSelectedCourseIds(savedIds.filter((id) => validIds.includes(id)));
     } catch {
-      setConnectionError("Could not reach the server. Please try again.");
+      setConnectionError(toFriendlyCanvasError("network"));
     } finally {
       setIsConnecting(false);
     }
@@ -325,6 +222,7 @@ export default function CanvasIntegration() {
       setImportSummary(null);
       setProgress(null);
       setRecentLogs([]);
+      setMarkerColdStarting(false);
       setDomain("");
       setToken("");
       localStorage.removeItem(LS_SELECTED);
@@ -350,7 +248,9 @@ export default function CanvasIntegration() {
         return;
       }
       if (!res.ok || !data.queued) {
-        setConnectionError(data.error ?? data.reason ?? t("Sync failed"));
+        setConnectionError(
+          toFriendlyCanvasError(data.error ?? data.reason ?? "sync failed"),
+        );
         return;
       }
       localStorage.setItem(
@@ -370,7 +270,7 @@ export default function CanvasIntegration() {
       });
       startPolling();
     } catch {
-      setConnectionError(t("Sync failed. Please try again."));
+      setConnectionError(toFriendlyCanvasError("network"));
     } finally {
       setIsSyncing(false);
     }
@@ -423,6 +323,7 @@ export default function CanvasIntegration() {
         if (!res.ok) return;
 
         setProgress(data.progress);
+        setMarkerColdStarting(Boolean(data.markerColdStarting));
         const logs = data.recentLogs ?? [];
         setRecentLogs(logs);
 
@@ -446,6 +347,7 @@ export default function CanvasIntegration() {
         if (!data.activeJob) {
           stopPolling();
           setIsImporting(false);
+          setMarkerColdStarting(false);
           localStorage.removeItem(LS_ACTIVE_JOB);
           if (data.progress) {
             setImportSummary({
@@ -483,6 +385,7 @@ export default function CanvasIntegration() {
       if (res.ok && data.cancelled) {
         stopPolling();
         setIsImporting(false);
+        setMarkerColdStarting(false);
         localStorage.removeItem(LS_ACTIVE_JOB);
         setImportSummary(null);
       }
@@ -535,12 +438,14 @@ export default function CanvasIntegration() {
         if (res.status === 403 && data.courseId) {
           const updated = {
             ...courseErrors,
-            [data.courseId]: data.error ?? "Access denied",
+            [data.courseId]: toFriendlyCanvasError(data.error ?? "forbidden"),
           };
           setCourseErrors(updated);
           localStorage.setItem(LS_ERRORS, JSON.stringify(updated));
         }
-        setConnectionError(data.error ?? t("Import failed"));
+        setConnectionError(
+          toFriendlyCanvasError(data.error ?? "import failed"),
+        );
         setIsImporting(false);
         return;
       }
@@ -556,26 +461,10 @@ export default function CanvasIntegration() {
 
       startPolling();
     } catch {
-      setConnectionError(t("Import failed. Please try again."));
+      setConnectionError(toFriendlyCanvasError("network"));
       setIsImporting(false);
     }
   };
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  function formatTime(secs) {
-    if (!secs) return null;
-    if (secs < 60) return `~${secs}s`;
-    return `~${Math.ceil(secs / 60)}m`;
-  }
-
-  function relativeTime(date) {
-    const diff = Date.now() - new Date(date).getTime();
-    const s = Math.floor(diff / 1000);
-    if (s < 5) return "just now";
-    if (s < 60) return `${s}s ago`;
-    return `${Math.floor(s / 60)}m ago`;
-  }
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -602,125 +491,29 @@ export default function CanvasIntegration() {
         </div>
       )}
 
-      {/* ── Expired / invalid token warning ───────────────────────── */}
-      {!isConnected && connectionWarning && (
-        <div className="flex items-center gap-2 rounded-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
-          <ExclamationTriangleIcon className="size-4 shrink-0" />
-          {connectionWarning}
-        </div>
-      )}
-
-      {/* ── How to get your token ──────────────────────────────────── */}
+      {/* connection form (when not connected) */}
       {!isConnected && (
-        <div className="rounded-md bg-white/5 p-4 ring-1 ring-white/10">
-          <h3 className="text-sm font-semibold text-text-secondary mb-2">
-            {t("How to generate your Canvas API token")}
-          </h3>
-          <ol className="list-decimal list-inside space-y-1 text-sm text-text-tertiary">
-            <li>{t("Log into your Canvas account")}</li>
-            <li>
-              {t("Click your profile picture →")}{" "}
-              <span className="text-text-secondary">{t("Settings")}</span>
-            </li>
-            <li>
-              {t("Scroll down to")}{" "}
-              <span className="text-text-secondary">
-                {t("Approved Integrations")}
-              </span>
-            </li>
-            <li>
-              {t("Click")}{" "}
-              <span className="text-text-secondary">
-                {t("+ New Access Token")}
-              </span>
-            </li>
-            <li>
-              {t('Give it a name (e.g. "OghmaNotes") and click')}{" "}
-              <span className="text-text-secondary">{t("Generate Token")}</span>
-            </li>
-            <li>
-              {t(
-                "Copy the token and paste it below — Canvas will only show it once",
-              )}
-            </li>
-          </ol>
-        </div>
-      )}
-
-      {/* ── Connection form ────────────────────────────────────────── */}
-      {!isConnected && (
-        <>
-          <div>
-            <label
-              htmlFor="canvas-domain"
-              className="block text-sm/6 font-medium text-text-secondary"
-            >
-              {t("Canvas Domain")}
-            </label>
-            <p className="mt-1 text-xs text-text-tertiary">
-              {t("Your institution's Canvas URL e.g.")}{" "}
-              <span className="text-text-secondary">
-                universityofgalway.instructure.com
-              </span>
-            </p>
-            <div className="mt-2">
-              <input
-                id="canvas-domain"
-                type="text"
-                placeholder="universityofgalway.instructure.com"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="canvas-token"
-              className="block text-sm/6 font-medium text-text-secondary"
-            >
-              {t("API Token")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="canvas-token"
-                type="password"
-                placeholder={t("Paste your Canvas API token here")}
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-text-secondary outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500 sm:text-sm/6"
-              />
-            </div>
-          </div>
-
-          {connectionError && (
-            <div className="flex items-center gap-2 text-sm text-red-400">
-              <ExclamationCircleIcon className="size-4 shrink-0" />
-              {connectionError}
-            </div>
-          )}
-
-          <button
-            type="button"
-            disabled={!domain || !token || isConnecting}
-            onClick={handleConnect}
-            className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isConnecting ? t("Connecting...") : t("Connect Canvas")}
-          </button>
-        </>
+        <CanvasConnectionForm
+          domain={domain}
+          setDomain={setDomain}
+          token={token}
+          setToken={setToken}
+          isConnecting={isConnecting}
+          connectionError={connectionError}
+          connectionWarning={connectionWarning}
+          onConnect={handleConnect}
+        />
       )}
 
       {/* ── Connected state — course selection ─────────────────────── */}
       {isConnected && (
         <>
           {/* Collapsible course list */}
-          <div className="rounded-md border border-border-subtle">
+          <div className="glass-card rounded-radius-md">
             <button
               type="button"
               onClick={() => setCourseListOpen(!courseListOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.07] transition-colors"
             >
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-medium text-text-secondary">
@@ -800,171 +593,16 @@ export default function CanvasIntegration() {
             </div>
           )}
 
-          {/* ── Progress panel ─────────────────────────────────────── */}
+          {/* progress panel */}
           {showProgress && (
-            <div className="rounded-md border border-border-subtle overflow-hidden">
-              {/* Header row */}
-              <div className="flex items-center justify-between px-4 py-3 bg-white/2.5">
-                <div className="flex items-center gap-2">
-                  {isImporting && (
-                    <span className="inline-block size-2 rounded-full bg-primary-400 animate-pulse" />
-                  )}
-                  <span className="text-sm font-medium text-text-secondary">
-                    {isImporting
-                      ? `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
-                      : t("Import complete")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  {isImporting && progress?.estimatedSecsRemaining && (
-                    <span className="text-xs text-text-tertiary tabular-nums">
-                      {formatTime(progress.estimatedSecsRemaining)} left
-                    </span>
-                  )}
-                  {importSummary && !isImporting && (
-                    <div className="flex items-center gap-2 text-xs tabular-nums">
-                      {importSummary.imported > 0 && (
-                        <span className="text-green-400">
-                          {importSummary.imported} imported
-                        </span>
-                      )}
-                      {importSummary.forbidden > 0 && (
-                        <span className="text-orange-400">
-                          {importSummary.forbidden} restricted
-                        </span>
-                      )}
-                      {importSummary.failed > 0 && (
-                        <span className="text-red-400">
-                          {importSummary.failed} failed
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <span className="text-sm tabular-nums font-semibold text-text-secondary">
-                    {progress.percent ?? 0}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="h-1.5 w-full bg-white/10">
-                <div
-                  className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : "bg-green-500"}`}
-                  style={{ width: `${progress.percent ?? 0}%` }}
-                />
-              </div>
-
-              {/* Log panels — success and failed/restricted */}
-              {recentLogs.length > 0 &&
-                (() => {
-                  const successLogs = recentLogs.filter(
-                    (l) => l.status === "complete",
-                  );
-                  const failedLogs = recentLogs.filter(
-                    (l) => l.status === "error" || l.status === "forbidden",
-                  );
-                  const activeLogs = recentLogs.filter(
-                    (l) =>
-                      l.status === "downloading" || l.status === "processing",
-                  );
-
-                  const LogRow = ({ log }) => (
-                    <div
-                      className={`flex items-start gap-2 px-4 py-1 border-b border-white/5 last:border-0 ${
-                        log.status === "forbidden"
-                          ? "bg-orange-500/5"
-                          : log.status === "error"
-                            ? "bg-red-500/5"
-                            : ""
-                      }`}
-                    >
-                      <LogStatusIcon status={log.status} />
-                      <span
-                        className="flex-1 min-w-0 truncate text-text-tertiary"
-                        title={log.filename}
-                      >
-                        {log.filename}
-                      </span>
-                      {log.errorMessage && (
-                        <span
-                          className="text-red-400/80 shrink-0 max-w-[10rem] truncate"
-                          title={log.errorMessage}
-                        >
-                          {log.errorMessage}
-                        </span>
-                      )}
-                      <span className="shrink-0 text-text-tertiary/50">
-                        {relativeTime(log.updatedAt)}
-                      </span>
-                    </div>
-                  );
-
-                  return (
-                    <div className="border-t border-border-subtle divide-y divide-border-subtle/50">
-                      {/* In-progress files (no toggle — always visible while active) */}
-                      {activeLogs.length > 0 && (
-                        <div className="font-mono text-xs bg-black/20">
-                          {activeLogs.map((log, i) => (
-                            <LogRow key={i} log={log} />
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Failed / restricted */}
-                      {failedLogs.length > 0 && (
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setLogsFailedOpen((o) => !o)}
-                            className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/5 transition-colors"
-                          >
-                            <span className="text-xs font-medium text-red-400/80">
-                              {t("Failed / Restricted")} ({failedLogs.length})
-                            </span>
-                            <ChevronDownIcon
-                              className="size-3.5 text-text-tertiary"
-                              open={logsFailedOpen}
-                            />
-                          </button>
-                          {logsFailedOpen && (
-                            <div className="max-h-40 overflow-y-auto font-mono text-xs bg-black/20">
-                              {failedLogs.map((log, i) => (
-                                <LogRow key={i} log={log} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Successful */}
-                      {successLogs.length > 0 && (
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setLogsSuccessOpen((o) => !o)}
-                            className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/5 transition-colors"
-                          >
-                            <span className="text-xs font-medium text-green-400/80">
-                              {t("Imported")} ({successLogs.length})
-                            </span>
-                            <ChevronDownIcon
-                              className="size-3.5 text-text-tertiary"
-                              open={logsSuccessOpen}
-                            />
-                          </button>
-                          {logsSuccessOpen && (
-                            <div className="max-h-40 overflow-y-auto font-mono text-xs bg-black/20">
-                              {successLogs.map((log, i) => (
-                                <LogRow key={i} log={log} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-            </div>
+            <CanvasProgressPanel
+              isImporting={isImporting}
+              isSyncing={isSyncing}
+              progress={progress}
+              importSummary={importSummary}
+              recentLogs={recentLogs}
+              markerColdStarting={markerColdStarting}
+            />
           )}
 
           {/* Action buttons */}
@@ -991,7 +629,7 @@ export default function CanvasIntegration() {
               type="button"
               disabled={isImporting || isSyncing || !syncAvailable}
               onClick={handleSync}
-              className="rounded-md bg-white/5 px-3 py-2 text-sm font-semibold text-text-secondary ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
               title={t("Check for new files in previously imported courses")}
             >
               {isSyncing ? t("Checking...") : t("Check for updates")}
