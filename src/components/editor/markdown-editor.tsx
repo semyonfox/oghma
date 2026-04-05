@@ -343,7 +343,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         ) : loaded ? (
           <div className="w-full max-w-[82ch] mx-auto h-full px-4 md:px-8 lg:px-10">
             <div className="pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
-              <PreviewRenderer content={displayContent} />
+              <PreviewRenderer content={displayContent} noteId={file.fileId} />
             </div>
           </div>
         ) : (
