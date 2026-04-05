@@ -3,10 +3,9 @@
 // The HTTP POST handler remains for manual/admin triggers only
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
-import { chunkText } from "@/lib/chunking";
-import { extractWithMarker } from "@/lib/ocr";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { stripMarkdown } from "@/lib/strip-markdown";
+import { extractContentFromBuffer } from "@/lib/ingestion/extraction-core";
 import sql from "@/database/pgsql.js";
 import { withErrorHandler } from "@/lib/api-error";
 import { ApiError } from "@/lib/api-error";
@@ -29,23 +28,6 @@ function isAllowedUrl(raw: string): boolean {
   return !/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|localhost|::1|\[::1\])/.test(
     h,
   );
-}
-
-async function storeChunkWithEmbedding(
-  documentId: string,
-  userId: string,
-  chunk: string,
-  vector: number[],
-) {
-  const [row] = await sql`
-        INSERT INTO app.chunks (document_id, user_id, text)
-        VALUES (${documentId}, ${userId}, ${chunk})
-        RETURNING id
-    `;
-  await sql`
-        INSERT INTO app.embeddings (chunk_id, user_id, embedding)
-        VALUES (${row.id}, ${userId}, ${JSON.stringify(vector)}::vector)
-    `;
 }
 
 export interface ExtractionResult {
@@ -88,60 +70,36 @@ export async function runExtraction(
   }
 
   const filename = s3Key.split("/").pop() ?? "document.pdf";
-  const ext = filename.toLowerCase().split(".").pop();
-  const isText = ext && ["md", "markdown", "txt"].includes(ext);
 
-  const { rawText, chunks } = await xraySubsegment(
-    "document-extract",
-    async () => {
-      if (isText) {
-        const text = buffer.toString("utf-8");
-        return { rawText: text, chunks: chunkText(text) };
-      }
-      try {
-        const marker = await extractWithMarker(buffer, filename);
-        return { rawText: marker.text, chunks: marker.chunks };
-      } catch (err) {
-        logger.warn("Marker unavailable, falling back to pdf-parse", { err });
-
-        // KNOWN LIMITATION: pdf-parse extracts embedded text only — NOT OCR.
-        // Scanned/image-heavy PDFs return empty content until Marker retries.
-        // A background SQS retry is queued so Marker re-processes once the
-        // GPU is warm (~90s cold start with baked AMI).
-        // TODO(team): add UI indicator "Processing with full OCR — check back shortly"
-        //             when a note has pending marker status.
-
-        // basic text extraction for digitally-created PDFs
-        let basicText = "";
-        try {
-          const { PDFParse } = await import("pdf-parse");
-          // PDFParse constructor takes { data: Buffer }
-          const parser = new PDFParse({ data: buffer });
-          const result = await parser.getText();
-          basicText = result?.text ?? "";
-        } catch (parseErr) {
-          logger.warn("pdf-parse also failed", { parseErr });
-        }
-
-        // queue Marker retry via SQS (exponential backoff: 30s, 2m, 8m, 15m)
-        enqueueExtractionRetry({
-          noteId: documentId,
-          userId,
-          s3Key,
-          filename,
-          mimeType: mimeType ?? "application/pdf",
-          parentFolderId: null,
-          attempt: 0,
-        }).catch((retryErr) => {
-          logger.warn("Failed to enqueue Marker retry (non-fatal)", {
-            retryErr,
-          });
-        });
-
-        return { rawText: basicText, chunks: chunkText(basicText) };
-      }
-    },
+  const extracted = await xraySubsegment("document-extract", () =>
+    extractContentFromBuffer({
+      buffer,
+      filename,
+      mimeType,
+    }),
   );
+  const { rawText, chunks, source } = extracted;
+
+  if (source === "pdf-parse") {
+    logger.warn("Marker unavailable, using pdf-parse fallback", {
+      documentId,
+      filename,
+    });
+    // Queue Marker retry so richer OCR/diagram context can replace embeddings later.
+    enqueueExtractionRetry({
+      noteId: documentId,
+      userId,
+      s3Key,
+      filename,
+      mimeType: mimeType ?? "application/pdf",
+      parentFolderId: null,
+      attempt: 0,
+    }).catch((retryErr) => {
+      logger.warn("Failed to enqueue Marker retry (non-fatal)", {
+        retryErr,
+      });
+    });
+  }
 
   const cleanedText = stripMarkdown(rawText);
   await sql`

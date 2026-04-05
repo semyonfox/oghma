@@ -15,7 +15,6 @@
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
 import { CanvasClient } from "./client.js";
-import { chunkText } from "../chunking.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
@@ -27,12 +26,12 @@ import {
 } from "./canvas-folders.js";
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
-import { extractWithMarker } from "../ocr.ts";
 import { ensureMarkerRunning } from "../marker-ec2.ts";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
 } from "./extraction-retry.ts";
+import { extractContentFromBuffer } from "../ingestion/extraction-core.ts";
 
 const PROCESSABLE_TYPES = new Set([
   "application/pdf",
@@ -245,51 +244,39 @@ async function processRagPipeline(
 ) {
   const { filename, mimeType, s3Key = null, attempt = 0 } = ragOpts;
   try {
-    let rawText;
-    let chunks;
-    const isText = mimeType?.startsWith("text/");
+    const extraction = await ocrLimiter(() =>
+      extractContentFromBuffer({
+        buffer,
+        filename: filename ?? "document.pdf",
+        mimeType,
+      }),
+    );
 
-    if (isText) {
-      // text/markdown/plain: already readable, embed directly on the original note
-      rawText = buffer.toString("utf-8");
-      chunks = chunkText(rawText);
+    const { rawText, chunks, source } = extraction;
+    const isText = source === "text";
+
+    if (source === "text") {
       console.log(
         `Text extract (${mimeType}): ${chunks.length} chunks for note ${noteId}`,
       );
+    } else if (source === "marker") {
+      console.log(`Marker: extracted ${chunks.length} chunks for note ${noteId}`);
     } else {
-      // binary docs (PDF, DOCX, PPTX): Marker OCR extraction
-      try {
-        const marker = await ocrLimiter(() =>
-          extractWithMarker(buffer, filename ?? "document.pdf"),
-        );
-        rawText = marker.text;
-        chunks = marker.chunks;
+      console.log(
+        `pdf-parse fallback: extracted ${chunks.length} chunks for note ${noteId}`,
+      );
+      if (attempt < MAX_EXTRACTION_RETRIES) {
+        await queueExtractionRetry({
+          noteId,
+          userId,
+          s3Key,
+          filename,
+          mimeType,
+          parentFolderId,
+          attempt,
+        });
         console.log(
-          `Marker (${marker.source}): extracted ${chunks.length} chunks for note ${noteId}`,
-        );
-      } catch (extractErr) {
-        if (attempt < MAX_EXTRACTION_RETRIES) {
-          await queueExtractionRetry({
-            noteId,
-            userId,
-            s3Key,
-            filename,
-            mimeType,
-            parentFolderId,
-            attempt,
-          });
-          await sql`
-            UPDATE app.canvas_imports
-            SET status = 'pending_retry', error_message = ${extractErr.message}, updated_at = NOW()
-            WHERE note_id = ${noteId}::uuid
-          `;
-          console.log(
-            `Extraction failed for note ${noteId}, queued for retry (attempt ${attempt + 1})`,
-          );
-          return null;
-        }
-        throw new Error(
-          `Extraction failed after ${attempt} retries: ${extractErr.message}`,
+          `Queued Marker enrichment retry for note ${noteId} after pdf-parse fallback`,
         );
       }
     }
@@ -305,7 +292,7 @@ async function processRagPipeline(
       `;
       const count = await replaceEmbeddings(noteId, userId, chunks);
       console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
-      return noteId;
+      return { noteId, chunksStored: count };
     }
 
     // binary files: create a sibling .md note for the extracted content
@@ -337,8 +324,28 @@ async function processRagPipeline(
     console.log(
       `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId})`,
     );
-    return mdNoteId;
+    return { noteId: mdNoteId, chunksStored: count };
   } catch (error) {
+    if (attempt < MAX_EXTRACTION_RETRIES) {
+      await queueExtractionRetry({
+        noteId,
+        userId,
+        s3Key,
+        filename,
+        mimeType,
+        parentFolderId,
+        attempt,
+      });
+      await sql`
+        UPDATE app.canvas_imports
+        SET status = 'pending_retry', error_message = ${error.message}, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+      `;
+      console.log(
+        `Extraction failed for note ${noteId}, queued for retry (attempt ${attempt + 1})`,
+      );
+      return null;
+    }
     console.error(`RAG pipeline error for note ${noteId}:`, error);
     throw error;
   }
@@ -778,15 +785,41 @@ export async function processDirectExtraction(msg) {
   }
 
   try {
-    const result = await processRagPipeline(noteId, userId, null, buffer, {
+    const [treeRow] = await sql`
+      SELECT parent_id
+      FROM app.tree_items
+      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+      LIMIT 1
+    `;
+    const sourceParentId = treeRow?.parent_id ?? null;
+
+    const result = await processRagPipeline(
+      noteId,
+      userId,
+      sourceParentId,
+      buffer,
+      {
       filename: filename ?? s3Key.split("/").pop() ?? "document",
       mimeType,
       s3Key,
-    });
-    const chunksStored = result?.chunksStored ?? 0;
+      },
+    );
+    if (!result) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+      console.log(
+        `[${ts()}] Extraction deferred for note ${noteId}; retry queued`,
+      );
+      return;
+    }
+
+    const chunksStored = result.chunksStored ?? 0;
     await sql`
       UPDATE app.ingestion_jobs
-      SET status = 'done', chunks_stored = ${chunksStored}, updated_at = NOW()
+      SET status = 'done', chunks_stored = ${chunksStored}, error = NULL, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
     `;
     console.log(
@@ -813,11 +846,12 @@ export async function processExtractionRetry(msg) {
     `[${new Date().toISOString()}] Extraction retry for note ${noteId} (attempt ${attempt})`,
   );
 
-  // idempotency: skip if already completed (SQS at-least-once can redeliver)
+  // For retry messages we still allow processing even when already complete,
+  // because retries can be used for enrichment/replacement after fallback text.
   const [importRow] = await sql`
     SELECT status FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1
   `;
-  if (importRow?.status === "complete") {
+  if (importRow?.status === "complete" && (attempt ?? 0) <= 0) {
     console.log(`Note ${noteId} already complete, skipping duplicate retry`);
     return;
   }
@@ -834,12 +868,26 @@ export async function processExtractionRetry(msg) {
   }
 
   try {
-    await processRagPipeline(noteId, userId, parentFolderId, buffer, {
+    const result = await processRagPipeline(noteId, userId, parentFolderId, buffer, {
       filename,
       mimeType,
       s3Key,
       attempt,
     });
+
+    if (result) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+    } else {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -847,6 +895,12 @@ export async function processExtractionRetry(msg) {
       UPDATE app.canvas_imports
       SET status = 'error', error_message = ${message}, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
+    `;
+
+    await sql`
+      UPDATE app.ingestion_jobs
+      SET status = 'failed', error = ${message}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
     `;
 
     console.error(

@@ -91,6 +91,56 @@ interface ParsedQuestion {
   explanation: string;
 }
 
+function firstSentence(text: string): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const parts = cleaned.split(/(?<=[.!?])\s+/);
+  return (parts[0] || cleaned).slice(0, 240).trim();
+}
+
+function buildFallbackQuestion(
+  chunkText: string,
+  moduleName: string,
+  questionType: QuestionType,
+): ParsedQuestion {
+  const sentence = firstSentence(chunkText);
+  const answer = sentence || "Review the selected content.";
+
+  if (questionType === "true_false") {
+    return {
+      question_text: `True or False: ${answer}`,
+      options: [
+        { text: "True", is_correct: true },
+        { text: "False", is_correct: false },
+      ],
+      correct_answer: "True",
+      explanation: `Generated from ${moduleName} notes. Re-check the source excerpt to confirm.`,
+    };
+  }
+
+  if (questionType === "fill_in") {
+    return {
+      question_text:
+        "Fill in the blank from your notes: ____________ (key statement)",
+      options: null,
+      correct_answer: answer,
+      explanation: `This answer comes directly from ${moduleName} content.`,
+    };
+  }
+
+  return {
+    question_text: `Which statement is supported by your ${moduleName} notes?`,
+    options: [
+      { text: answer, is_correct: true },
+      { text: "A claim not present in the source notes", is_correct: false },
+      { text: "An unrelated external fact", is_correct: false },
+      { text: "A contradictory statement", is_correct: false },
+    ],
+    correct_answer: answer,
+    explanation: "Choose the option that directly matches the extracted chunk.",
+  };
+}
+
 export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
   try {
     // extract JSON from potential markdown code fence
@@ -182,50 +232,78 @@ export async function generateQuestion(
     questionType,
   );
 
-  let raw: string;
+  let raw = "";
+  let parsed: ParsedQuestion | null = null;
   try {
     raw = await callLLM(prompt);
+    parsed = parseGeneratedQuestion(raw);
   } catch (err) {
     logger.error("quiz generation LLM call failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return null;
+    parsed = buildFallbackQuestion(limitedChunkText, moduleName, questionType);
   }
 
-  const parsed = parseGeneratedQuestion(raw);
   if (!parsed) {
     logger.warn("quiz generation: failed to parse LLM response", {
       raw: raw.slice(0, 500),
     });
-    return null;
+    parsed = buildFallbackQuestion(limitedChunkText, moduleName, questionType);
   }
 
-  const id = generateUUID();
+  let id = generateUUID();
   try {
-    await sql`
-            INSERT INTO app.quiz_questions (id, user_id, note_id, chunk_id, question_type, bloom_level, question_text, options, correct_answer, explanation)
-            VALUES (
-                ${id}::uuid,
-                ${userId}::uuid,
-                ${noteId}::uuid,
-                ${chunkId}::uuid,
-                ${questionType},
-                ${bloomLevel},
-                ${parsed.question_text},
-                ${parsed.options ? JSON.stringify(parsed.options) : null}::jsonb,
-                ${parsed.correct_answer},
-                ${parsed.explanation}
-            )
-            ON CONFLICT (user_id, chunk_id, bloom_level) DO NOTHING
+    // guard against missing DB unique constraints by doing explicit lookup + insert
+    const existingQuestion = await sql`
+            SELECT id, question_text, options, correct_answer, explanation, question_type, bloom_level, note_id, chunk_id
+            FROM app.quiz_questions
+            WHERE user_id = ${userId}::uuid
+              AND chunk_id = ${chunkId}::uuid
+              AND bloom_level = ${bloomLevel}
+            ORDER BY created_at ASC
+            LIMIT 1
         `;
 
-    // create the FSRS card
-    const cardId = generateUUID();
-    await sql`
-            INSERT INTO app.quiz_cards (id, user_id, question_id)
-            VALUES (${cardId}::uuid, ${userId}::uuid, ${id}::uuid)
-            ON CONFLICT (user_id, question_id) DO NOTHING
+    if (existingQuestion.length > 0) {
+      const q = existingQuestion[0];
+      id = q.id;
+      parsed = {
+        question_text: q.question_text,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation ?? "",
+      };
+    } else {
+      await sql`
+              INSERT INTO app.quiz_questions (id, user_id, note_id, chunk_id, question_type, bloom_level, question_text, options, correct_answer, explanation)
+              VALUES (
+                  ${id}::uuid,
+                  ${userId}::uuid,
+                  ${noteId}::uuid,
+                  ${chunkId}::uuid,
+                  ${questionType},
+                  ${bloomLevel},
+                  ${parsed.question_text},
+                  ${parsed.options ? JSON.stringify(parsed.options) : null}::jsonb,
+                  ${parsed.correct_answer},
+                  ${parsed.explanation}
+              )
+          `;
+    }
+
+    const existingCard = await sql`
+            SELECT id FROM app.quiz_cards
+            WHERE user_id = ${userId}::uuid
+              AND question_id = ${id}::uuid
+            LIMIT 1
         `;
+    if (existingCard.length === 0) {
+      const cardId = generateUUID();
+      await sql`
+              INSERT INTO app.quiz_cards (id, user_id, question_id)
+              VALUES (${cardId}::uuid, ${userId}::uuid, ${id}::uuid)
+          `;
+    }
   } catch (err) {
     logger.error("quiz generation: failed to save question", {
       error: err instanceof Error ? err.message : String(err),
