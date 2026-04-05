@@ -46,11 +46,8 @@ export function usePdfCache(
   const cacheKey = sourcePath ?? fileId ?? null;
 
   useEffect(() => {
-    if (!cacheKey) {
-      setLoading(false);
-      setError("no-source");
-      return;
-    }
+    // loading is initialised as `hasSource` so it's already false when cacheKey is null
+    if (!cacheKey) return;
 
     let cancelled = false;
 
