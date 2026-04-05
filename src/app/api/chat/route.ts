@@ -13,6 +13,7 @@ import {
 import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import logger from "@/lib/logger";
+import sql from "@/database/pgsql.js";
 
 import {
   type ChatMessage,
@@ -106,7 +107,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   await persistMessage(sessionId, "user", message);
 
   // run RAG pipeline
-  const { searchResults, embeddingAvailable, ragFailed } = await runRagPipeline(
+  const {
+    searchResults,
+    semanticMatches,
+    embeddingAvailable,
+    ragFailed,
+  } = await runRagPipeline(
     userId,
     message,
     scopedNoteIds,
@@ -119,6 +125,74 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       return { id: r.note_id, title: r.title };
     },
   );
+
+  const semanticHits = [...new Set(semanticMatches.map((r) => r.note_id))].map(
+    (id) => {
+      const r = semanticMatches.find((s) => s.note_id === id)!;
+      return { id: r.note_id, title: r.title };
+    },
+  );
+
+  let availableFiles: { id: string; title: string }[] = [];
+  let availableCount = 0;
+  let scopeMode: "global" | "scoped" = "global";
+
+  if (scopedNoteIds && scopedNoteIds.length > 0) {
+    scopeMode = "scoped";
+    const scopedRows = await sql`
+      SELECT n.note_id, n.title
+      FROM app.notes n
+      JOIN (
+        SELECT DISTINCT c.document_id
+        FROM app.chunks c
+        WHERE c.user_id = ${userId}::uuid
+          AND c.document_id = ANY(${scopedNoteIds}::uuid[])
+      ) indexed ON indexed.document_id = n.note_id
+      WHERE n.user_id = ${userId}::uuid
+        AND n.is_folder = false
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
+      ORDER BY n.title ASC
+      LIMIT 24
+    `;
+    availableFiles = (scopedRows as { note_id: string; title: string }[]).map(
+      (r) => ({ id: r.note_id, title: r.title }),
+    );
+    const scopedCountRows = await sql`
+      SELECT COUNT(DISTINCT c.document_id)::int AS total
+      FROM app.chunks c
+      JOIN app.notes n ON n.note_id = c.document_id
+      WHERE c.user_id = ${userId}::uuid
+        AND c.document_id = ANY(${scopedNoteIds}::uuid[])
+        AND n.is_folder = false
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
+    `;
+    availableCount = Number(
+      (scopedCountRows as { total: number }[])[0]?.total ?? 0,
+    );
+  } else {
+    const indexedRows = await sql`
+      SELECT COUNT(DISTINCT c.document_id)::int AS total
+      FROM app.chunks c
+      JOIN app.notes n ON n.note_id = c.document_id
+      WHERE c.user_id = ${userId}::uuid
+        AND n.is_folder = false
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
+    `;
+    availableCount = Number(
+      (indexedRows as { total: number }[])[0]?.total ?? 0,
+    );
+  }
+
+  const retrieval = {
+    scopeMode,
+    availableCount,
+    availableFiles,
+    semanticHits,
+    usedFiles: uniqueSources,
+  };
 
   const fallbackReply =
     searchResults.length > 0
@@ -141,6 +215,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   toSseEvent("meta", {
                     sessionId,
                     sources: uniqueSources,
+                    retrieval,
                     ragAvailable: !ragFailed,
                     llmAvailable,
                   }),
@@ -223,6 +298,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({
       reply: fallbackReply,
       sources: uniqueSources,
+      retrieval,
       llmAvailable: false,
       sessionId,
     });
@@ -239,6 +315,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({
       reply,
       sources: uniqueSources,
+      retrieval,
       llmAvailable: true,
       ragAvailable: !ragFailed,
       sessionId,
