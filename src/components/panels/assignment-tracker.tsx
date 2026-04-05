@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PlayIcon, PlusIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  PlayIcon,
+  PlusIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+} from "@heroicons/react/24/outline";
+import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import {
   Listbox,
   ListboxButton,
@@ -165,6 +171,7 @@ export default function AssignmentTracker() {
     setCourseFilter,
     setActiveTab,
     setIncludeAll,
+    updateAssignment,
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((s) => s.start);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -235,6 +242,11 @@ export default function AssignmentTracker() {
       courseName: a.course_name ?? undefined,
       courseColor: a.course_color ?? undefined,
     });
+  };
+
+  const handleToggleDone = (a: Assignment) => {
+    const newStatus = a.status === "done" ? "upcoming" : "done";
+    updateAssignment(a.id, { status: newStatus });
   };
 
   const tabs: { key: AssignmentTab; label: string }[] = [
@@ -354,9 +366,24 @@ export default function AssignmentTracker() {
                 key={a.id}
                 className="group glass-card-interactive rounded-radius-lg p-2.5 transition-colors"
               >
-                {/* top row: course badge + focus button */}
+                {/* top row: done checkbox + course badge + focus button */}
                 <div className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-1.5 min-w-0">
+                    <button
+                      onClick={() => handleToggleDone(a)}
+                      className="shrink-0 text-text-tertiary hover:text-primary-400 transition-colors"
+                      title={
+                        a.status === "done"
+                          ? t("Mark as upcoming")
+                          : t("Mark as done")
+                      }
+                    >
+                      {a.status === "done" ? (
+                        <CheckCircleSolid className="h-4 w-4 text-primary-400" />
+                      ) : (
+                        <CheckCircleIcon className="h-4 w-4" />
+                      )}
+                    </button>
                     {a.course_name && (
                       <span className="inline-flex items-center gap-1 text-xs text-text-tertiary leading-none">
                         <span
@@ -382,7 +409,9 @@ export default function AssignmentTracker() {
                 </div>
 
                 {/* title */}
-                <p className="mt-1 text-sm font-medium text-text-secondary leading-snug">
+                <p
+                  className={`mt-1 text-sm font-medium leading-snug ${a.status === "done" ? "line-through text-text-tertiary" : "text-text-secondary"}`}
+                >
                   {a.title}
                 </p>
 
