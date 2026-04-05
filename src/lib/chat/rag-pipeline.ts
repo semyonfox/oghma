@@ -132,6 +132,7 @@ ${blocks.join("\n\n")}`;
 
 export interface RagResult {
   searchResults: SearchResult[];
+  semanticMatches: SearchResult[];
   embeddingAvailable: boolean;
   ragFailed: boolean;
 }
@@ -146,6 +147,7 @@ export async function runRagPipeline(
   scopedNoteIds: string[] | null,
 ): Promise<RagResult> {
   let searchResults: SearchResult[] = [];
+  let semanticMatches: SearchResult[] = [];
   let embeddingAvailable = false;
   let ragFailed = false;
 
@@ -159,6 +161,7 @@ export async function runRagPipeline(
       scopedNoteIds,
       20,
     );
+    semanticMatches = candidates;
     const chunkTexts = candidates.map((r) => r.chunk_text);
     const reranked = await rerankChunks(message, chunkTexts);
     const seen = new Set<number>();
@@ -179,5 +182,5 @@ export async function runRagPipeline(
     ragFailed = true;
   });
 
-  return { searchResults, embeddingAvailable, ragFailed };
+  return { searchResults, semanticMatches, embeddingAvailable, ragFailed };
 }

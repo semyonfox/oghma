@@ -18,7 +18,8 @@ import {
   validateBody,
 } from "@/lib/validations/schemas";
 
-const AI_GENERATION_BATCH_SIZE = 5;
+const AI_GENERATION_PER_MODULE = 5;
+const AI_GENERATION_BATCH_SIZE = 25;
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -63,10 +64,24 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // generate questions for uncovered chunks (on-demand)
   // always try to generate a small batch so sessions organically fill until all chunks are covered
   const generatedQuestionIds: string[] = [];
-  const generationChunkIds = uncoveredChunkIds.slice(
-    0,
-    AI_GENERATION_BATCH_SIZE,
-  );
+  const uncoveredChunkMeta = await sql`
+        SELECT c.id, COALESCE(n.canvas_module_id, -1) AS module_id
+        FROM app.chunks c
+        JOIN app.notes n ON c.document_id = n.note_id
+        WHERE c.id = ANY(${uncoveredChunkIds}::uuid[])
+        ORDER BY random()
+    `;
+
+  const generationChunkIds: string[] = [];
+  const moduleCounts = new Map<number, number>();
+  for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: number }>) {
+    const moduleId = Number(row.module_id);
+    const used = moduleCounts.get(moduleId) ?? 0;
+    if (used >= AI_GENERATION_PER_MODULE) continue;
+    generationChunkIds.push(row.id);
+    moduleCounts.set(moduleId, used + 1);
+    if (generationChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
+  }
   for (const chunkId of generationChunkIds) {
     const [chunk] = await sql`
             SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
