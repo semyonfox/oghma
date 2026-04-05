@@ -9,6 +9,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 interface PreviewRendererProps {
   content: string;
+  noteId?: string;
 }
 
 const sanitizeSchema = structuredClone(defaultSchema);
@@ -34,7 +35,7 @@ sanitizeSchema.attributes = {
   details: ["open"],
 };
 
-export default function PreviewRenderer({ content }: PreviewRendererProps) {
+export default function PreviewRenderer({ content, noteId }: PreviewRendererProps) {
   return (
     <div
       className="markdown-preview w-full prose prose-lg prose-invert max-w-none"
@@ -57,6 +58,32 @@ export default function PreviewRenderer({ content }: PreviewRendererProps) {
               className="text-primary-400 hover:underline"
             />
           ),
+          img: ({ node: _node, src, alt, ...props }) => {
+            const rawSrc = typeof src === "string" ? src.trim() : "";
+            const isAbsolute =
+              rawSrc.startsWith("http://") ||
+              rawSrc.startsWith("https://") ||
+              rawSrc.startsWith("data:") ||
+              rawSrc.startsWith("/");
+
+            const resolvedSrc =
+              !isAbsolute &&
+              noteId &&
+              /^_page_\d+_(?:Picture|Figure)_\d+\.(?:png|jpg|jpeg|webp|gif|bmp)$/i.test(
+                rawSrc,
+              )
+                ? `/api/notes/${noteId}/assets?name=${encodeURIComponent(rawSrc)}`
+                : rawSrc;
+
+            return (
+              <img
+                {...props}
+                src={resolvedSrc}
+                alt={alt ?? ""}
+                loading="lazy"
+              />
+            );
+          },
           // custom code block styling
           code: ({
             node: _node,
