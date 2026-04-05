@@ -15,7 +15,9 @@
     "test:ci": "vitest run",
     "docker:marker:build": "docker build -f Dockerfile.marker -t marker-ocr:latest .",
     "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "i18n:audit": "node scripts/i18n-audit.mjs",
+    "i18n:extract": "node scripts/extract-i18n.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",
