@@ -27,8 +27,9 @@ export async function proxy(request: NextRequest) {
     }
 
     const session = request.cookies.get("session")?.value;
-    const nextAuthSession = request.cookies.get("next-auth.session-token")?.value
-        || request.cookies.get("__Secure-next-auth.session-token")?.value;
+    // Auth.js v5 uses "authjs." prefix (not "next-auth." which was v4)
+    const nextAuthSession = request.cookies.get("authjs.session-token")?.value
+        || request.cookies.get("__Secure-authjs.session-token")?.value;
 
     if (!session && !nextAuthSession) {
         const response = NextResponse.redirect(new URL("/login", request.url));
