@@ -12,6 +12,20 @@ export default function BlogPage() {
   return (
     <div className="bg-landing min-h-screen">
       <Header />
+      <div className="relative isolate">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
+        >
+          <div
+            style={{
+              clipPath:
+                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
+            }}
+            className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-primary-500/30 to-secondary-500/20 opacity-20 sm:left-[calc(50%-30rem)] sm:w-288.75"
+          />
+        </div>
+      </div>
       <main className="pt-28 pb-24">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
@@ -52,11 +66,11 @@ export default function BlogPage() {
                     <h3 className="mt-3 text-lg font-semibold leading-6 text-white group-hover:text-gray-300">
                       <Link href={`/blog/${post.slug}`}>
                         <span className="absolute inset-0" />
-                        {post.title}
+                        {t(post.title)}
                       </Link>
                     </h3>
                     <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-400">
-                      {post.excerpt}
+                      {t(post.excerpt)}
                     </p>
                   </div>
                   <div className="mt-6 flex items-center gap-x-4">
@@ -75,7 +89,7 @@ export default function BlogPage() {
                         <p className="font-semibold text-white">
                           {post.author.name}
                         </p>
-                        <p className="text-gray-400">{post.authorRole}</p>
+                        <p className="text-gray-400">{t(post.authorRole)}</p>
                       </div>
                     </a>
                   </div>
