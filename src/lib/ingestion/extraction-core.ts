@@ -1,5 +1,6 @@
 import { chunkText } from "@/lib/chunking";
 import { extractWithMarker } from "@/lib/ocr";
+import type { MarkerImages } from "@/lib/marker-output";
 
 export type ExtractionSource = "text" | "marker" | "pdf-parse";
 
@@ -7,6 +8,8 @@ export interface ExtractionResult {
   rawText: string;
   chunks: string[];
   source: ExtractionSource;
+  markerImages?: MarkerImages;
+  markerMetadata?: unknown;
 }
 
 interface ExtractContentParams {
@@ -48,7 +51,13 @@ export async function extractContentFromBuffer({
 
   try {
     const marker = await extractWithMarker(buffer, filename);
-    return { rawText: marker.text, chunks: marker.chunks, source: "marker" };
+    return {
+      rawText: marker.text,
+      chunks: marker.chunks,
+      source: "marker",
+      markerImages: marker.images ?? {},
+      markerMetadata: marker.metadata ?? null,
+    };
   } catch (markerError) {
     // Keep fallback scoped to PDFs (text-layer only, not OCR).
     if (mimeType === "application/pdf") {
