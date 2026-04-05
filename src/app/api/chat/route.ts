@@ -364,6 +364,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 ),
               );
 
+              // send search context so the UI can show what was found
+              controller.enqueue(
+                encoder.encode(
+                  toSseEvent("search", {
+                    scopeSize: scopedNoteIds?.length ?? null,
+                    resultsFound: searchResults.length,
+                    results: searchResults.map((r) => ({
+                      noteId: r.note_id,
+                      title: r.title || "Untitled",
+                      distance: r.distance,
+                    })),
+                  }),
+                ),
+              );
+
               if (!llmAvailable) {
                 controller.enqueue(
                   encoder.encode(toSseEvent("token", { text: fallbackReply })),
@@ -445,6 +460,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       retrieval,
       llmAvailable: false,
       sessionId,
+      searchContext: {
+        scopeSize: scopedNoteIds?.length ?? null,
+        resultsFound: searchResults.length,
+        results: searchResults.map((r) => ({
+          noteId: r.note_id,
+          title: r.title || "Untitled",
+          distance: r.distance,
+        })),
+      },
     });
   }
 
@@ -467,6 +491,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       llmAvailable: true,
       ragAvailable: !ragFailed,
       sessionId,
+      searchContext: {
+        scopeSize: scopedNoteIds?.length ?? null,
+        resultsFound: searchResults.length,
+        results: searchResults.map((r) => ({
+          noteId: r.note_id,
+          title: r.title || "Untitled",
+          distance: r.distance,
+        })),
+      },
     });
   } catch (error) {
     void Metrics.llmError();
