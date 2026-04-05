@@ -23,11 +23,18 @@ import {
   FullMessageBubble,
 } from "./message-bubble";
 
+export interface SearchContextData {
+  scopeSize: number | null; // null = searched all notes
+  resultsFound: number;
+  results: { noteId: string; title: string; distance: number }[];
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: { id: string; title: string }[];
+  searchContext?: SearchContextData;
   timestamp: number;
 }
 
@@ -239,6 +246,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   ...m,
                   content: data.reply || "",
                   sources: Array.isArray(data.sources) ? data.sources : [],
+                  searchContext: data.searchContext ?? undefined,
                 }
               : m,
           ),
@@ -283,6 +291,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   ),
                 );
               }
+              continue;
+            }
+
+            if (frame.event === "search") {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        searchContext: {
+                          scopeSize: payload.scopeSize ?? null,
+                          resultsFound: payload.resultsFound ?? 0,
+                          results: Array.isArray(payload.results)
+                            ? payload.results
+                            : [],
+                        },
+                      }
+                    : m,
+                ),
+              );
               continue;
             }
 
