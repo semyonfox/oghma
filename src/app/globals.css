@@ -432,19 +432,19 @@ html.light .glass-card-active {
   box-shadow: 0 0 0 1px rgb(59 130 246 / 0.2);
 }
 
-/* markdown preview code highlighting (obsidian-like) */
+/* markdown preview code highlighting (aligned with CodeMirror one-dark/one-light) */
 .markdown-preview pre > code.hljs {
   display: block;
   overflow-x: auto;
   border-radius: 0.5rem;
   padding: 1rem;
-  background: rgb(15 23 42 / 0.85);
-  color: var(--color-text-secondary);
+  background: rgb(40 44 52 / 0.92);
+  color: #abb2bf;
 }
 
 .markdown-preview .hljs-comment,
 .markdown-preview .hljs-quote {
-  color: #94a3b8;
+  color: #5c6370;
 }
 
 .markdown-preview .hljs-keyword,
@@ -457,7 +457,7 @@ html.light .glass-card-active {
 .markdown-preview .hljs-attr,
 .markdown-preview .hljs-built_in,
 .markdown-preview .hljs-builtin-name {
-  color: #93c5fd;
+  color: #c678dd;
 }
 
 .markdown-preview .hljs-string,
@@ -466,7 +466,7 @@ html.light .glass-card-active {
 .markdown-preview .hljs-symbol,
 .markdown-preview .hljs-bullet,
 .markdown-preview .hljs-link {
-  color: #6ee7b7;
+  color: #98c379;
 }
 
 .markdown-preview .hljs-number,
@@ -474,21 +474,26 @@ html.light .glass-card-active {
 .markdown-preview .hljs-variable,
 .markdown-preview .hljs-template-variable,
 .markdown-preview .hljs-addition {
-  color: #fbbf24;
+  color: #d19a66;
 }
 
 .markdown-preview .hljs-deletion {
-  color: #f87171;
+  color: #e06c75;
+}
+
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-function .hljs-title {
+  color: #61afef;
 }
 
 html.light .markdown-preview pre > code.hljs {
-  background: #f8fafc;
-  color: #334155;
+  background: #fafafa;
+  color: #383a42;
 }
 
 html.light .markdown-preview .hljs-comment,
 html.light .markdown-preview .hljs-quote {
-  color: #64748b;
+  color: #a0a1a7;
 }
 
 html.light .markdown-preview .hljs-keyword,
@@ -501,7 +506,7 @@ html.light .markdown-preview .hljs-type,
 html.light .markdown-preview .hljs-attr,
 html.light .markdown-preview .hljs-built_in,
 html.light .markdown-preview .hljs-builtin-name {
-  color: #1d4ed8;
+  color: #a626a4;
 }
 
 html.light .markdown-preview .hljs-string,
@@ -510,7 +515,7 @@ html.light .markdown-preview .hljs-regexp,
 html.light .markdown-preview .hljs-symbol,
 html.light .markdown-preview .hljs-bullet,
 html.light .markdown-preview .hljs-link {
-  color: #0f766e;
+  color: #50a14f;
 }
 
 html.light .markdown-preview .hljs-number,
@@ -518,11 +523,16 @@ html.light .markdown-preview .hljs-meta,
 html.light .markdown-preview .hljs-variable,
 html.light .markdown-preview .hljs-template-variable,
 html.light .markdown-preview .hljs-addition {
-  color: #b45309;
+  color: #986801;
 }
 
 html.light .markdown-preview .hljs-deletion {
-  color: #b91c1c;
+  color: #e45649;
+}
+
+html.light .markdown-preview .hljs-title,
+html.light .markdown-preview .hljs-function .hljs-title {
+  color: #4078f2;
 }
 
 /* reduced motion */
