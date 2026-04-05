@@ -25,6 +25,40 @@ import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
 
+const GETTING_STARTED_TITLE = "Getting Started";
+const GETTING_STARTED_CONTENT = `# Welcome to OghmaNotes
+
+This note is your quick guide to getting value from the app.
+
+## What OghmaNotes is
+
+OghmaNotes is a study workspace where you can:
+
+- Write and organize Markdown notes in folders
+- Import course files from Canvas
+- Ask AI questions about your material
+- Generate study support like summaries and quizzes
+
+## How to use it
+
+1. Create notes and folders in the sidebar.
+2. Open Settings to connect/import Canvas files.
+3. Use AI Chat to ask questions about your notes.
+4. Keep related content together so search and AI results stay accurate.
+
+## Good first workflow
+
+1. Create a folder per module/course.
+2. Add weekly lecture notes.
+3. Import lecture PDFs/slides.
+4. Use AI Chat after each lecture for recap questions.
+
+## Fun fact: Who is Oghma?
+
+In Irish mythology, Oghma (or Ogma) is linked with eloquence, language, and learning, and is traditionally associated with the Ogham script.
+
+You're ready to start building your study vault.`;
+
 export const POST = withErrorHandler(async (request) => {
   try {
     const limited = await checkRateLimit("register", getClientIp(request));
@@ -68,12 +102,28 @@ export const POST = withErrorHandler(async (request) => {
     const tokenHash = hashToken(verificationToken);
     const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // 7. Insert new user with email_verified = false
-    const data = await sql`
-            INSERT INTO app.login (user_id, email, hashed_password, email_verified, verification_token, verification_token_expires)
-            VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}, false, ${tokenHash}, ${tokenExpires})
-            RETURNING user_id, email
-        `;
+    const gettingStartedNoteId = generateUUID();
+
+    // 7. Insert new user and seed starter note in one transaction
+    const data = await sql.begin(async (tx) => {
+      const createdUser = await tx`
+        INSERT INTO app.login (user_id, email, hashed_password, email_verified, verification_token, verification_token_expires)
+        VALUES (${userId}::uuid, ${email.trim()}, ${hashedPassword}, false, ${tokenHash}, ${tokenExpires})
+        RETURNING user_id, email
+      `;
+
+      await tx`
+        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
+        VALUES (${gettingStartedNoteId}::uuid, ${userId}::uuid, ${GETTING_STARTED_TITLE}, ${GETTING_STARTED_CONTENT}, false, 0, NOW(), NOW())
+      `;
+
+      await tx`
+        INSERT INTO app.tree_items (user_id, note_id, parent_id)
+        VALUES (${userId}::uuid, ${gettingStartedNoteId}::uuid, NULL)
+      `;
+
+      return createdUser;
+    });
 
     const user = data[0];
 
