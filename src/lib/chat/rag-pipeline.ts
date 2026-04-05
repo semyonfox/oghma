@@ -118,7 +118,7 @@ export function buildSystemPrompt(results: SearchResult[]): string {
   }
 
   const blocks = [...byNote.entries()].map(([, { title, chunks }], i) => {
-    const body = chunks.join("\n").slice(0, 1200).replace(/\s+/g, " ").trim();
+    const body = chunks.join("\n").replace(/\s+/g, " ").trim();
     return `--- Note ${i + 1}: "${title}" ---\n${body}`;
   });
 

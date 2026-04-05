@@ -201,7 +201,7 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-7xl lg:flex lg:gap-x-16 px-4 sm:px-6 lg:px-8">
         {/* desktop sidebar */}
         <aside className="hidden lg:block lg:flex-none lg:py-8">
-          <nav className="glass-panel rounded-radius-lg p-3 sticky top-24 w-56">
+          <nav className="sticky top-24 w-56">
             <ul className="space-y-1">
               {navigation.map((item) => (
                 <li key={item.id}>
