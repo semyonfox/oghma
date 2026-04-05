@@ -35,7 +35,7 @@ describe("marker-output", () => {
       userId: "u1",
       noteId: "n1",
       markdown: "![](_page_0_Picture_3.jpeg)",
-      images: { _page_0_Picture_3.jpeg: "YWJj" },
+      images: { "_page_0_Picture_3.jpeg": "YWJj" },
       metadata: { pages: 1 },
     });
 

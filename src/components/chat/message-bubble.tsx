@@ -239,6 +239,8 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
 export const FullMessageBubble: FC<{ message: Message }> = ({
   message: m,
 }) => {
+  const { t } = useI18n();
+
   // user messages stay as a single right-aligned bubble
   if (m.role === "user") {
     return (
