@@ -27,6 +27,7 @@ import {
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
 import { ensureMarkerRunning } from "../marker-ec2.ts";
+import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
@@ -252,7 +253,13 @@ async function processRagPipeline(
       }),
     );
 
-    const { rawText, chunks, source } = extraction;
+    const {
+      rawText,
+      chunks,
+      source,
+      markerImages = {},
+      markerMetadata = null,
+    } = extraction;
     const isText = source === "text";
 
     if (source === "text") {
@@ -281,9 +288,8 @@ async function processRagPipeline(
       }
     }
 
-    const searchText = stripMarkdown(rawText);
-
     if (isText) {
+      const searchText = stripMarkdown(rawText);
       // text files: embed on the original note directly (no sibling needed)
       await sql`
         UPDATE app.notes
@@ -303,11 +309,22 @@ async function processRagPipeline(
       parentFolderId,
       { content: rawText },
     );
+    const storage = getStorageProvider();
+    const markerAssets = await persistMarkerAssetsForNote({
+      storage,
+      userId,
+      noteId: mdNoteId,
+      markdown: rawText,
+      images: markerImages,
+      metadata: markerMetadata,
+    });
+    const finalMarkdown = markerAssets.markdown;
+    const searchText = stripMarkdown(finalMarkdown);
 
     // stripped text for full-text search (no ### --- ** etc.)
     await sql`
       UPDATE app.notes
-      SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
+      SET content = ${finalMarkdown}, extracted_text = ${searchText}, updated_at = NOW()
       WHERE note_id = ${mdNoteId}::uuid
     `;
 
@@ -322,7 +339,7 @@ async function processRagPipeline(
     }
 
     console.log(
-      `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId})`,
+      `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
     );
     return { noteId: mdNoteId, chunksStored: count };
   } catch (error) {
