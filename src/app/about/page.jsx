@@ -5,26 +5,26 @@ import Header from "@/components/header";
 import { aboutBlogCards, authors } from "@/lib/blog-data";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-const universities = [
+const academicImages = [
   {
-    name: "Trinity College Dublin",
-    logo: "https://upload.wikimedia.org/wikipedia/en/d/d1/Trinity_College_Dublin.svg",
+    name: "University library",
+    src: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=600&h=400&q=80",
   },
   {
-    name: "University College Dublin",
-    logo: "https://upload.wikimedia.org/wikipedia/en/3/3b/University_College_Dublin_logo.svg",
+    name: "Students studying together",
+    src: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&h=400&q=80",
   },
   {
-    name: "University College Cork",
-    logo: "https://upload.wikimedia.org/wikipedia/en/d/db/UCC_2.svg",
+    name: "Lecture hall",
+    src: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=600&h=400&q=80",
   },
   {
-    name: "NUI Galway",
-    logo: "/University_Of_Galway_Logo__Positive_Landscape.svg",
+    name: "Campus walkway",
+    src: "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=600&h=400&q=80",
   },
   {
-    name: "University of Galway",
-    logo: "/University_Of_Galway_Logo__Positive_Landscape.svg",
+    name: "Academic research",
+    src: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=600&h=400&q=80",
   },
 ];
 
@@ -198,7 +198,7 @@ export default function About() {
                     <div className="relative">
                       <img
                         alt=""
-                        src="https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&h=528&q=80"
+                        src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&h=528&q=80"
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -208,7 +208,7 @@ export default function About() {
                     <div className="relative">
                       <img
                         alt=""
-                        src="https://images.unsplash.com/photo-1485217988980-11786ced9454?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&h=528&q=80"
+                        src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&h=528&q=80"
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -216,7 +216,7 @@ export default function About() {
                     <div className="relative">
                       <img
                         alt=""
-                        src="https://images.unsplash.com/photo-1559136555-9303baea8ebd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&crop=focalpoint&fp-x=.4&w=396&h=528&q=80"
+                        src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=396&h=528&q=80"
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -226,7 +226,7 @@ export default function About() {
                     <div className="relative">
                       <img
                         alt=""
-                        src="https://images.unsplash.com/photo-1670272504528-790c24957dda?ixlib=rb-4.0.3&ixid=MnwxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&crop=left&w=400&h=528&q=80"
+                        src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=400&h=528&q=80"
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -234,7 +234,7 @@ export default function About() {
                     <div className="relative">
                       <img
                         alt=""
-                        src="https://images.unsplash.com/photo-1670272505284-8faba1c31f7d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&h=528&q=80"
+                        src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&h=528&q=80"
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -290,7 +290,7 @@ export default function About() {
         <div className="mt-32 sm:mt-40 xl:mx-auto xl:max-w-7xl xl:px-8">
           <img
             alt=""
-            src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2832&q=80"
+            src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=2832&q=80"
             className="aspect-5/2 w-full object-cover outline-1 -outline-offset-1 outline-white/10 xl:rounded-3xl"
           />
         </div>
@@ -410,22 +410,18 @@ export default function About() {
           </div>
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <h2 className="text-center text-lg/8 font-semibold text-white">
-              {t("Trusted by students and educators worldwide")}
+              {t("Built for academic excellence")}
             </h2>
-            <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-8 gap-y-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-10 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-12 lg:gap-y-16">
-              {universities.map((uni) => (
+            <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-6 gap-y-8 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-8 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-8 lg:gap-y-10">
+              {academicImages.map((img) => (
                 <div
-                  key={uni.name}
-                  className={
-                    uni.name === "NUI Galway"
-                      ? "col-span-1 rounded-lg bg-white/10 p-4 flex items-center justify-center"
-                      : "col-span-1"
-                  }
+                  key={img.name}
+                  className="col-span-1 overflow-hidden rounded-xl"
                 >
                   <img
-                    alt={uni.name}
-                    src={uni.logo}
-                    className="max-h-32 w-full object-contain"
+                    alt={img.name}
+                    src={img.src}
+                    className="aspect-3/2 w-full object-cover"
                   />
                 </div>
               ))}
@@ -591,7 +587,7 @@ export default function About() {
                 <h3 className="mt-3 text-lg/6 font-semibold text-white">
                   <Link href={`/blog/${post.slug}`}>
                     <span className="absolute inset-0" />
-                    {post.title}
+                    {t(post.title)}
                   </Link>
                 </h3>
               </article>
