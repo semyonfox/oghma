@@ -33,6 +33,8 @@ describe("extractWithMarker", () => {
         json: async () => ({
           success: true,
           output: "# hello\n\n---\n\n# world",
+          images: { "_page_0_Picture_1.jpeg": "YWJj" },
+          metadata: { pages: 2 },
         }),
       }),
     );
@@ -43,6 +45,8 @@ describe("extractWithMarker", () => {
     expect(ensureMarkerRunningMock).toHaveBeenCalledTimes(1);
     expect(result.source).toBe("ec2");
     expect(result.chunks.length).toBeGreaterThan(0);
+    expect(result.images).toHaveProperty("_page_0_Picture_1.jpeg");
+    expect(result.metadata).toEqual({ pages: 2 });
   });
 
   it("throws when Marker is not configured", async () => {
