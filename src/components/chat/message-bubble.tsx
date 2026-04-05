@@ -31,6 +31,21 @@ export const SourceChips: FC<{ sources: { id: string; title: string }[] }> = ({
   );
 };
 
+const RetrievalSection: FC<{
+  label: string;
+  sources: { id: string; title: string }[];
+  helper?: string;
+}> = ({ label, sources, helper }) => (
+  <div className="mt-2">
+    <p className="text-[11px] text-text-tertiary mb-1">{label}</p>
+    {sources.length > 0 ? (
+      <SourceChips sources={sources} />
+    ) : helper ? (
+      <p className="text-[11px] text-text-tertiary/80">{helper}</p>
+    ) : null}
+  </div>
+);
+
 // typing animation dots
 export const TypingDots: FC = () => (
   <div className="flex items-center gap-1 px-1 py-0.5">
@@ -59,17 +74,23 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
       }`}
     >
       {m.role === "assistant" ? (
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-            code: ({ children }) => (
-              <code className="bg-subtle px-1 rounded text-xs">{children}</code>
-            ),
-          }}
-        >
-          {m.content}
-        </ReactMarkdown>
+        m.content.trim() ? (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+              code: ({ children }) => (
+                <code className="bg-subtle px-1 rounded text-xs">
+                  {children}
+                </code>
+              ),
+            }}
+          >
+            {m.content}
+          </ReactMarkdown>
+        ) : (
+          <TypingDots />
+        )
       ) : (
         m.content
       )}
@@ -101,64 +122,83 @@ export const FullMessageBubble: FC<{ message: Message }> = ({ message: m }) => {
           }`}
         >
           {m.role === "assistant" ? (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => (
-                  <p className="mb-2 last:mb-0">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc list-inside mb-2 space-y-0.5">
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal list-inside mb-2 space-y-0.5">
-                    {children}
-                  </ol>
-                ),
-                code: ({ children, className: cls }) => {
-                  const isBlock = cls?.includes("language-");
-                  return isBlock ? (
-                    <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+            m.content.trim() ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p: ({ children }) => (
+                    <p className="mb-2 last:mb-0">{children}</p>
+                  ),
+                  ul: ({ children }) => (
+                    <ul className="list-disc list-inside mb-2 space-y-0.5">
                       {children}
-                    </code>
-                  ) : (
-                    <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                    </ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol className="list-decimal list-inside mb-2 space-y-0.5">
                       {children}
-                    </code>
-                  );
-                },
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-text">
-                    {children}
-                  </strong>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="font-semibold text-text mt-3 mb-1">
-                    {children}
-                  </h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="font-medium text-text mt-2 mb-1">
-                    {children}
-                  </h4>
-                ),
-              }}
-            >
-              {m.content}
-            </ReactMarkdown>
+                    </ol>
+                  ),
+                  code: ({ children, className: cls }) => {
+                    const isBlock = cls?.includes("language-");
+                    return isBlock ? (
+                      <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                        {children}
+                      </code>
+                    );
+                  },
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-text">
+                      {children}
+                    </strong>
+                  ),
+                  h3: ({ children }) => (
+                    <h3 className="font-semibold text-text mt-3 mb-1">
+                      {children}
+                    </h3>
+                  ),
+                  h4: ({ children }) => (
+                    <h4 className="font-medium text-text mt-2 mb-1">
+                      {children}
+                    </h4>
+                  ),
+                }}
+              >
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              <TypingDots />
+            )
           ) : (
             <p>{m.content}</p>
           )}
         </div>
 
-        {m.sources && m.sources.length > 0 && (
+        {m.role === "assistant" && m.retrieval && (
           <div className="mt-2 ml-1">
-            <p className="text-xs text-text-tertiary mb-1">
-              {t("chat.sources")}
-            </p>
-            <SourceChips sources={m.sources} />
+            <RetrievalSection
+              label={`${t("chat.retrieval.available_to_search")} (${m.retrieval.availableCount})`}
+              sources={m.retrieval.availableFiles}
+              helper={
+                m.retrieval.scopeMode === "global"
+                  ? t("chat.retrieval.available_global_helper")
+                  : undefined
+              }
+            />
+            <RetrievalSection
+              label={`${t("chat.retrieval.semantic_found")} (${m.retrieval.semanticHits.length})`}
+              sources={m.retrieval.semanticHits}
+              helper={t("chat.retrieval.semantic_empty")}
+            />
+            <RetrievalSection
+              label={`${t("chat.retrieval.used_in_answer")} (${m.retrieval.usedFiles.length})`}
+              sources={m.retrieval.usedFiles}
+              helper={t("chat.retrieval.used_empty")}
+            />
           </div>
         )}
 

@@ -15,9 +15,12 @@
     "test:ci": "vitest run",
     "docker:marker:build": "docker build -f Dockerfile.marker -t marker-ocr:latest .",
     "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "i18n:audit": "node scripts/i18n-audit.mjs",
+    "i18n:extract": "node scripts/extract-i18n.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.50",
     "@aws-sdk/client-auto-scaling": "^3.1021.0",
     "@aws-sdk/client-cloudwatch": "^3.1020.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.1020.0",
@@ -32,6 +35,7 @@
     "@codemirror/theme-one-dark": "^6.1.3",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
+    "ai": "^6.0.146",
     "aws-ssl-profiles": "^1.1.2",
     "aws-xray-sdk-core": "^3.12.0",
     "bcryptjs": "^3.0.3",
