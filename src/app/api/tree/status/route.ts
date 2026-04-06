@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth.js";
+import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
-import logger from "@/lib/logger";
 
 /**
  * GET /api/tree/status
@@ -13,28 +12,24 @@ import logger from "@/lib/logger";
  *
  * @returns Health status and any issues
  */
-export async function GET(_request: Request) {
-  try {
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const GET = withErrorHandler(async () => {
+    const user = await requireAuth();
 
     // Check for orphaned notes
     const orphaned = await sql`
-      SELECT COUNT(*) as count 
+      SELECT COUNT(*) as count
       FROM app.notes n
       WHERE n.user_id = ${user.user_id}::uuid
         AND n.deleted = 0 AND n.deleted_at IS NULL
         AND n.note_id NOT IN (
-          SELECT note_id FROM app.tree_items 
+          SELECT note_id FROM app.tree_items
           WHERE user_id = ${user.user_id}::uuid
         )
     `;
 
     // Get basic stats
     const stats = await sql`
-      SELECT 
+      SELECT
         COUNT(DISTINCT n.note_id) as total_notes,
         SUM(CASE WHEN n.is_folder = true THEN 1 ELSE 0 END) as total_folders,
         SUM(CASE WHEN n.is_folder = false THEN 1 ELSE 0 END) as total_files
@@ -67,11 +62,4 @@ export async function GET(_request: Request) {
         ? "Tree structure is intact"
         : `${orphanedCount} orphaned note(s) found`,
     });
-  } catch (error) {
-    logger.error("tree status check error", { error });
-    return NextResponse.json(
-      { error: "Failed to check tree status" },
-      { status: 500 },
-    );
-  }
-}
+});

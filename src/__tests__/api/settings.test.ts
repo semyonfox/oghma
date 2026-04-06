@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth", () => ({
   validateSession: vi.fn(),
@@ -32,7 +33,7 @@ beforeEach(() => {
 
 describe("POST /api/settings", () => {
   it("persists profile and editor keys", async () => {
-    const request = new Request("http://localhost/api/settings", {
+    const request = new NextRequest("http://localhost/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

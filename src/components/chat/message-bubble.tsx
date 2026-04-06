@@ -417,6 +417,7 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
   const hasSearchContext =
     m.searchContext && m.searchContext.results.length > 0;
   const hasSources = m.sources && m.sources.length > 0;
+  const hasContent = m.content.trim().length > 0;
 
   return (
     <div className="flex gap-3 justify-start">
@@ -458,53 +459,59 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
 
         {/* bubble 2: answer + source file boxes */}
         <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => (
-                <p className="mb-2 last:mb-0">{children}</p>
-              ),
-              ul: ({ children }) => (
-                <ul className="list-disc list-inside mb-2 space-y-0.5">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-inside mb-2 space-y-0.5">
-                  {children}
-                </ol>
-              ),
-              code: ({ children, className: cls }) => {
-                const isBlock = cls?.includes("language-");
-                return isBlock ? (
-                  <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+          {hasContent ? (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => (
+                  <p className="mb-2 last:mb-0">{children}</p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside mb-2 space-y-0.5">
                     {children}
-                  </code>
-                ) : (
-                  <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside mb-2 space-y-0.5">
                     {children}
-                  </code>
-                );
-              },
-              strong: ({ children }) => (
-                <strong className="font-semibold text-text">
-                  {children}
-                </strong>
-              ),
-              h3: ({ children }) => (
-                <h3 className="font-semibold text-text mt-3 mb-1">
-                  {children}
-                </h3>
-              ),
-              h4: ({ children }) => (
-                <h4 className="font-medium text-text mt-2 mb-1">
-                  {children}
-                </h4>
-              ),
-            }}
-          >
-            {m.content}
-          </ReactMarkdown>
+                  </ol>
+                ),
+                code: ({ children, className: cls }) => {
+                  const isBlock = cls?.includes("language-");
+                  return isBlock ? (
+                    <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                      {children}
+                    </code>
+                  );
+                },
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-text">
+                    {children}
+                  </strong>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="font-semibold text-text mt-3 mb-1">
+                    {children}
+                  </h3>
+                ),
+                h4: ({ children }) => (
+                  <h4 className="font-medium text-text mt-2 mb-1">
+                    {children}
+                  </h4>
+                ),
+              }}
+            >
+              {m.content}
+            </ReactMarkdown>
+          ) : (
+            <p className="text-text-tertiary">
+              I couldn&apos;t generate an answer this time. Please try again.
+            </p>
+          )}
 
           {/* source file boxes inside the answer bubble */}
           {hasSources && <SourceFileBoxes sources={m.sources!} />}
