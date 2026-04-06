@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
@@ -10,11 +10,11 @@ import {
   LS_FORBIDDEN,
   LS_SYNCED,
   CheckCircleIcon,
-  ChevronDownIcon,
-  CourseBadge,
 } from "./canvas/canvas-helpers";
 import CanvasConnectionForm from "./canvas/canvas-connection-form";
 import CanvasProgressPanel from "./canvas/canvas-progress-panel";
+import CanvasCourseSelector from "./canvas/canvas-course-selector";
+import useCanvasImport from "./canvas/use-canvas-import";
 import { toFriendlyCanvasError } from "@/lib/friendly-errors";
 
 /**
@@ -45,21 +45,43 @@ export default function CanvasIntegration() {
   const [connectionWarning, setConnectionWarning] = useState(null);
   const [syncAvailable, setSyncAvailable] = useState(false);
 
-  // Import state
-  const [isImporting, setIsImporting] = useState(false);
-  const [importSummary, setImportSummary] = useState(null);
-  const [progress, setProgress] = useState(null);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [markerColdStarting, setMarkerColdStarting] = useState(false);
-  const pollRef = useRef(null);
-
   // Per-course status tracking (persisted in localStorage)
   const [forbiddenCourses, setForbiddenCourses] = useState({}); // { [courseId]: true }
   const [syncedCourses, setSyncedCourses] = useState({}); // { [courseId]: true }
 
   // UI state
   const [courseListOpen, setCourseListOpen] = useState(true);
+
+  // import/polling state (custom hook)
+  const {
+    isImporting,
+    setIsImporting,
+    importSummary,
+    setImportSummary,
+    progress,
+    setProgress,
+    recentLogs,
+    setRecentLogs,
+    isSyncing,
+    markerColdStarting,
+    setMarkerColdStarting,
+    handleImport,
+    handleSync,
+    handleCancel,
+    startPolling,
+    stopPolling,
+  } = useCanvasImport({
+    selectedCourseIds,
+    courses,
+    courseErrors,
+    setCourseErrors,
+    forbiddenCourses,
+    setForbiddenCourses,
+    syncedCourses,
+    setSyncedCourses,
+    setConnectionError,
+    t,
+  });
 
   // ── On mount: restore state + check connection ────────────────────────────
   useEffect(() => {
@@ -236,46 +258,6 @@ export default function CanvasIntegration() {
     }
   };
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    setImportSummary(null);
-    setRecentLogs([]);
-    try {
-      const res = await fetch("/api/canvas/sync", { method: "POST" });
-      const data = await res.json();
-      if (res.status === 401) {
-        setConnectionError(t("Your session has expired. Please log in again."));
-        return;
-      }
-      if (!res.ok || !data.queued) {
-        setConnectionError(
-          toFriendlyCanvasError(data.error ?? data.reason ?? "sync failed"),
-        );
-        return;
-      }
-      localStorage.setItem(
-        LS_ACTIVE_JOB,
-        JSON.stringify({
-          jobId: data.jobId,
-          startedAt: new Date().toISOString(),
-        }),
-      );
-      setIsImporting(true);
-      setProgress({
-        percent: 0,
-        completed: 0,
-        total: 0,
-        downloading: 0,
-        processing: 0,
-      });
-      startPolling();
-    } catch {
-      setConnectionError(toFriendlyCanvasError("network"));
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const toggleCourse = (courseId) => {
     setSelectedCourseIds((prev) =>
       prev.includes(courseId)
@@ -284,11 +266,9 @@ export default function CanvasIntegration() {
     );
   };
 
-  const allSelected =
-    courses.length > 0 && selectedCourseIds.length === courses.length;
-  const _someSelected = selectedCourseIds.length > 0 && !allSelected;
-
   const toggleSelectAll = () => {
+    const allSelected =
+      courses.length > 0 && selectedCourseIds.length === courses.length;
     if (allSelected) {
       setSelectedCourseIds([]);
     } else {
@@ -311,159 +291,6 @@ export default function CanvasIntegration() {
       return { status: syncAvailable ? "outOfSync" : "synced", error: null };
     }
     return { status: "idle", error: null };
-  };
-
-  /** Poll /api/canvas/status every 2 s while a job is active. */
-  const startPolling = () => {
-    if (pollRef.current) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch("/api/canvas/status");
-        const data = await res.json();
-        if (!res.ok) return;
-
-        setProgress(data.progress);
-        setMarkerColdStarting(Boolean(data.markerColdStarting));
-        const logs = data.recentLogs ?? [];
-        setRecentLogs(logs);
-
-        // track which courses have forbidden files — persist permanently
-        const newForbidden = { ...forbiddenCourses };
-        let forbiddenChanged = false;
-        for (const log of logs) {
-          if (log.status === "forbidden" && log.courseId) {
-            const key = String(log.courseId);
-            if (!newForbidden[key]) {
-              newForbidden[key] = true;
-              forbiddenChanged = true;
-            }
-          }
-        }
-        if (forbiddenChanged) {
-          setForbiddenCourses(newForbidden);
-          localStorage.setItem(LS_FORBIDDEN, JSON.stringify(newForbidden));
-        }
-
-        if (!data.activeJob) {
-          stopPolling();
-          setIsImporting(false);
-          setMarkerColdStarting(false);
-          localStorage.removeItem(LS_ACTIVE_JOB);
-          if (data.progress) {
-            setImportSummary({
-              imported: data.progress.completed,
-              forbidden: data.issues?.forbidden ?? 0,
-              failed: data.issues?.error ?? 0,
-              skipped: 0,
-            });
-            // mark selected courses as synced
-            const newSynced = { ...syncedCourses };
-            for (const id of selectedCourseIds) newSynced[String(id)] = true;
-            setSyncedCourses(newSynced);
-            localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
-          }
-        }
-      } catch {
-        // keep polling on transient errors
-      }
-    }, 2000);
-  };
-
-  const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  };
-
-  useEffect(() => stopPolling, []);
-
-  const handleCancel = async () => {
-    try {
-      const res = await fetch("/api/canvas/import", { method: "DELETE" });
-      const data = await res.json();
-      if (res.ok && data.cancelled) {
-        stopPolling();
-        setIsImporting(false);
-        setMarkerColdStarting(false);
-        localStorage.removeItem(LS_ACTIVE_JOB);
-        setImportSummary(null);
-      }
-    } catch {
-      // polling will eventually detect the cancelled state
-    }
-  };
-
-  const handleImport = async () => {
-    if (selectedCourseIds.length === 0) return;
-
-    setIsImporting(true);
-    setImportSummary(null);
-    setProgress({
-      percent: 0,
-      completed: 0,
-      total: 0,
-      downloading: 0,
-      processing: 0,
-    });
-    setRecentLogs([]);
-
-    try {
-      // send full course objects so the worker can use name/course_code/term for folder titles
-      const selectedCourses = courses
-        .filter((c) => selectedCourseIds.includes(c.id))
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          course_code: c.course_code,
-          term: c.term ?? null,
-        }));
-
-      const res = await fetch("/api/canvas/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseIds: selectedCourses }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          setConnectionError(
-            t("Your session has expired. Please log in again."),
-          );
-          setIsImporting(false);
-          return;
-        }
-        if (res.status === 403 && data.courseId) {
-          const updated = {
-            ...courseErrors,
-            [data.courseId]: toFriendlyCanvasError(data.error ?? "forbidden"),
-          };
-          setCourseErrors(updated);
-          localStorage.setItem(LS_ERRORS, JSON.stringify(updated));
-        }
-        setConnectionError(
-          toFriendlyCanvasError(data.error ?? "import failed"),
-        );
-        setIsImporting(false);
-        return;
-      }
-
-      // persist the jobId so progress survives a page reload
-      localStorage.setItem(
-        LS_ACTIVE_JOB,
-        JSON.stringify({
-          jobId: data.jobId,
-          startedAt: new Date().toISOString(),
-        }),
-      );
-
-      startPolling();
-    } catch {
-      setConnectionError(toFriendlyCanvasError("network"));
-      setIsImporting(false);
-    }
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -508,82 +335,16 @@ export default function CanvasIntegration() {
       {/* ── Connected state — course selection ─────────────────────── */}
       {isConnected && (
         <>
-          {/* Collapsible course list */}
-          <div className="glass-card rounded-radius-md">
-            <button
-              type="button"
-              onClick={() => setCourseListOpen(!courseListOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.07] transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-text-secondary">
-                  {t("Courses")}
-                </h3>
-                {selectedCourseIds.length > 0 && (
-                  <span className="text-xs bg-primary-500/20 text-primary-400 px-2 py-0.5 rounded-full">
-                    {selectedCourseIds.length} {t("selected")}
-                  </span>
-                )}
-              </div>
-              <ChevronDownIcon
-                className="size-4 text-text-tertiary"
-                open={courseListOpen}
-              />
-            </button>
-
-            {courseListOpen && (
-              <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-white/2.5">
-                {courses.length > 0 && (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={toggleSelectAll}
-                      className="text-xs text-primary-400 hover:text-primary-300 font-medium"
-                    >
-                      {allSelected ? t("Deselect all") : t("Select all")}
-                    </button>
-                  </div>
-                )}
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {courses.map((course) => {
-                    const { status, error } = getCourseStatus(course.id);
-                    return (
-                      <label
-                        key={course.id}
-                        className="flex items-start gap-3 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedCourseIds.includes(course.id)}
-                          onChange={() => toggleCourse(course.id)}
-                          className="mt-0.5 shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm text-text-secondary">
-                              {course.name}
-                            </p>
-                            <CourseBadge status={status} errorMsg={error} />
-                          </div>
-                          <p className="text-xs text-text-tertiary">
-                            {course.course_code}
-                          </p>
-                          {course.modules?.length > 0 && (
-                            <p className="text-xs text-text-tertiary">
-                              {course.modules.length}{" "}
-                              {course.modules.length !== 1
-                                ? t("modules")
-                                : t("module")}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <CanvasCourseSelector
+            courses={courses}
+            selectedCourseIds={selectedCourseIds}
+            onToggleCourse={toggleCourse}
+            onToggleSelectAll={toggleSelectAll}
+            getCourseStatus={getCourseStatus}
+            courseListOpen={courseListOpen}
+            setCourseListOpen={setCourseListOpen}
+            t={t}
+          />
 
           {/* Import error */}
           {connectionError && (

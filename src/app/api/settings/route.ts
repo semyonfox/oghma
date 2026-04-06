@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
+import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { DEFAULT_SETTINGS } from "@/lib/notes/types/settings";
 import {
   getSettingsFromS3,
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
-import { validateSession } from "@/lib/auth";
-import logger from "@/lib/logger";
 
-export async function GET() {
-  try {
-    // Verify user is authenticated
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const GET = withErrorHandler(async () => {
+    const user = await requireAuth();
 
     // Fetch user's settings from S3
     const userSettings = await getSettingsFromS3(user.user_id);
@@ -22,22 +16,10 @@ export async function GET() {
     const mergedSettings = { ...DEFAULT_SETTINGS, ...userSettings };
 
     return NextResponse.json(mergedSettings);
-  } catch (error) {
-    logger.error("error fetching settings", { error });
-    return NextResponse.json(
-      { error: "Failed to fetch settings" },
-      { status: 500 },
-    );
-  }
-}
+});
 
-export async function POST(request: Request) {
-  try {
-    // Verify user is authenticated
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const POST = withErrorHandler(async (request) => {
+    const user = await requireAuth();
 
     const body = await request.json();
 
@@ -66,11 +48,4 @@ export async function POST(request: Request) {
     await saveSettingsToS3(user.user_id, updatedSettings);
 
     return NextResponse.json(updatedSettings);
-  } catch (error) {
-    logger.error("error saving settings", { error });
-    return NextResponse.json(
-      { error: "Failed to save settings" },
-      { status: 500 },
-    );
-  }
-}
+});
