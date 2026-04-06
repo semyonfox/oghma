@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { XMarkIcon } from "@heroicons/react/20/solid";
+import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
+import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
@@ -51,6 +52,7 @@ interface PositionedBlock {
   id: string;
   title: string;
   courseColor: string | null;
+  completed: boolean;
   top: number;
   height: number;
   col: number;
@@ -63,6 +65,7 @@ export default function WeekView() {
     fetchTimeBlocks,
     createTimeBlock,
     deleteTimeBlock,
+    toggleTimeBlockCompleted,
     setSelectedDate,
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
@@ -104,6 +107,7 @@ export default function WeekView() {
         id: tb.id,
         title: tb.assignment_title || tb.title || "Study block",
         courseColor: tb.course_color || null,
+        completed: tb.completed ?? false,
         top,
         height,
         col: colIdx,
@@ -244,7 +248,7 @@ export default function WeekView() {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="group/block absolute left-0.5 right-0.5 rounded-radius-md overflow-hidden text-xs leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm"
+                    className={`group/block absolute left-0.5 right-0.5 rounded-radius-md overflow-hidden text-xs leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm ${b.completed ? "opacity-60" : ""}`}
                     style={{
                       top: b.top,
                       height: b.height,
@@ -264,9 +268,26 @@ export default function WeekView() {
                     >
                       <XMarkIcon className="h-3 w-3" />
                     </button>
-                    <p className="font-medium truncate pr-4 text-text-secondary">
-                      {b.title}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void toggleTimeBlockCompleted(b.id);
+                        }}
+                        className="shrink-0"
+                        aria-label={b.completed ? "Mark incomplete" : "Mark complete"}
+                      >
+                        {b.completed ? (
+                          <CheckCircleIcon className="h-3.5 w-3.5 text-primary-500" />
+                        ) : (
+                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary hover:text-primary-500 transition-colors" />
+                        )}
+                      </button>
+                      <p className={`font-medium truncate pr-4 ${b.completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}>
+                        {b.title}
+                      </p>
+                    </div>
                   </div>
                 ))}
 
