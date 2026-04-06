@@ -1,38 +1,27 @@
 import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
+import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
-import logger from '@/lib/logger';
 const database = sql as any;
 
 /**
  * GET /api/tree/children?parent_id=<uuid>
- * 
+ *
  * Fetch children of a folder (or root if parent_id not provided).
  * Sorted A-Z by title.
- * 
+ *
  * @param parent_id - UUID of parent note, or null for root
  * @returns Array of children with title, is_folder, is_expanded
  */
-export async function GET(request: Request) {
-  try {
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+export const GET = withErrorHandler(async (request) => {
+    const user = await requireAuth();
 
     const url = new URL(request.url);
     const parentId = url.searchParams.get('parent_id');
 
-    // Validate parent_id format if provided
+    // validate parent_id format if provided
     if (parentId && !/^[0-9a-f-]+$/i.test(parentId)) {
-      return NextResponse.json(
-        { error: 'Invalid parent_id format' },
-        { status: 400 }
-      );
+      throw new ApiError(400, 'Invalid parent_id format');
     }
 
     const key = cacheKeys.treeChildren(user.user_id, parentId);
@@ -89,11 +78,4 @@ export async function GET(request: Request) {
 
     await cacheSet(key, body, 300);
     return NextResponse.json(body);
-  } catch (error) {
-    logger.error('tree children fetch error', { error });
-    return NextResponse.json(
-      { error: 'Failed to fetch children' },
-      { status: 500 }
-    );
-  }
-}
+});
