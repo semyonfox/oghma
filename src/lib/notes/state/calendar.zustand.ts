@@ -10,6 +10,7 @@ export interface TimeBlock {
   starts_at: string;
   ends_at: string;
   pomodoro_count: number;
+  completed: boolean;
   // joined from assignments
   assignment_title?: string;
   course_name?: string;
@@ -38,6 +39,7 @@ interface CalendarState {
     ends_at: string;
   }) => Promise<TimeBlock | null>;
   updateTimeBlock: (id: string, data: Partial<TimeBlock>) => Promise<void>;
+  toggleTimeBlockCompleted: (id: string) => Promise<void>;
   deleteTimeBlock: (id: string) => Promise<void>;
 }
 
@@ -133,6 +135,39 @@ const useCalendarStore = create<CalendarState>()(
           }));
         } catch {
           // silent
+        }
+      },
+
+      toggleTimeBlockCompleted: async (id) => {
+        const block = get().timeBlocks.find((b) => b.id === id);
+        if (!block) return;
+        const newCompleted = !block.completed;
+        // optimistic update
+        set((s) => ({
+          timeBlocks: s.timeBlocks.map((b) =>
+            b.id === id ? { ...b, completed: newCompleted } : b,
+          ),
+        }));
+        try {
+          const res = await fetch(`/api/time-blocks/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed: newCompleted }),
+          });
+          if (!res.ok) {
+            // revert on failure
+            set((s) => ({
+              timeBlocks: s.timeBlocks.map((b) =>
+                b.id === id ? { ...b, completed: !newCompleted } : b,
+              ),
+            }));
+          }
+        } catch {
+          set((s) => ({
+            timeBlocks: s.timeBlocks.map((b) =>
+              b.id === id ? { ...b, completed: !newCompleted } : b,
+            ),
+          }));
         }
       },
 

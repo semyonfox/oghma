@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { XMarkIcon } from "@heroicons/react/20/solid";
+import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
+import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 
@@ -20,6 +21,7 @@ interface DayCell {
     id: string;
     title: string | null;
     courseColor: string | null;
+    completed: boolean;
   }[];
 }
 
@@ -96,12 +98,13 @@ export default function MonthView() {
     selectedDate,
     setSelectedDate,
     deleteTimeBlock,
+    toggleTimeBlockCompleted,
     timeBlocks,
     fetchTimeBlocks,
     reviewDates,
     fetchReviewDates,
   } = useCalendarStore();
-  const { assignments } = useAssignmentStore();
+  const { assignments, updateAssignment } = useAssignmentStore();
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
 
@@ -151,6 +154,7 @@ export default function MonthView() {
           id: tb.id,
           title: tb.assignment_title || tb.title,
           courseColor: tb.course_color || null,
+          completed: tb.completed ?? false,
         });
       }
     }
@@ -209,16 +213,35 @@ export default function MonthView() {
               )}
 
               {/* events */}
-              <div className="mt-1 space-y-px">
+              <div className="mt-1 space-y-0.5">
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="truncate rounded-sm px-1 py-px text-xs leading-snug border-l-2 bg-subtle"
+                    className="group/a relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
                     style={{
                       borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
                   >
-                    <span className="text-text-secondary">{a.title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void updateAssignment(a.id, {
+                          status: a.status === "done" ? "upcoming" : "done",
+                        });
+                      }}
+                      className="shrink-0"
+                      aria-label={a.status === "done" ? "Mark incomplete" : "Mark complete"}
+                    >
+                      {a.status === "done" ? (
+                        <CheckCircleIcon className="h-3 w-3 text-primary-500" />
+                      ) : (
+                        <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
+                      )}
+                    </button>
+                    <span className={`truncate text-text-secondary ${a.status === "done" ? "line-through opacity-60" : ""}`}>
+                      {a.title}
+                    </span>
                   </div>
                 ))}
                 {day.timeBlocks
@@ -226,8 +249,29 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb relative truncate rounded-sm px-1 py-px text-xs leading-snug border-l-2 border-primary-500/40 bg-subtle text-text-tertiary"
+                      className="group/tb relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
+                      style={{
+                        borderColor: tb.courseColor ?? "var(--color-primary-500)",
+                      }}
                     >
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void toggleTimeBlockCompleted(tb.id);
+                        }}
+                        className="shrink-0"
+                        aria-label={tb.completed ? "Mark incomplete" : "Mark complete"}
+                      >
+                        {tb.completed ? (
+                          <CheckCircleIcon className="h-3 w-3 text-primary-500" />
+                        ) : (
+                          <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
+                        )}
+                      </button>
+                      <span className={`truncate ${tb.completed ? "text-text-tertiary line-through opacity-60" : "text-text-secondary"}`}>
+                        {tb.title || "Study block"}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -240,7 +284,6 @@ export default function MonthView() {
                       >
                         <XMarkIcon className="h-2.5 w-2.5" />
                       </button>
-                      {tb.title || "Study block"}
                     </div>
                   ))}
                 {day.assignments.length + day.timeBlocks.length > 2 && (
