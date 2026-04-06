@@ -18,7 +18,6 @@ import { parseSseBlocks } from "@/lib/chat/sse";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
 import {
-  TypingDots,
   CompactMessageBubble,
   FullMessageBubble,
 } from "./message-bubble";
@@ -34,6 +33,13 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: { id: string; title: string }[];
+  retrieval?: {
+    scopeMode: "global" | "scoped";
+    availableCount: number;
+    availableFiles: { id: string; title: string }[];
+    semanticHits: { id: string; title: string }[];
+    usedFiles: { id: string; title: string }[];
+  };
   searchContext?: SearchContextData;
   timestamp: number;
 }
@@ -246,6 +252,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   ...m,
                   content: data.reply || "",
                   sources: Array.isArray(data.sources) ? data.sources : [],
+                  retrieval: data.retrieval,
                   searchContext: data.searchContext ?? undefined,
                 }
               : m,
@@ -287,6 +294,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   prev.map((m) =>
                     m.id === assistantId
                       ? { ...m, sources: payload.sources }
+                      : m,
+                  ),
+                );
+              }
+              if (payload.retrieval) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, retrieval: payload.retrieval }
                       : m,
                   ),
                 );
@@ -381,17 +397,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <CompactMessageBubble key={m.id} message={m} />
           ))}
 
-          {loading && (
-            <div
-              className="flex justify-start"
-              role="status"
-              aria-label="AI is thinking"
-            >
-              <div className="glass-card rounded-lg rounded-bl-none px-2.5 py-1.5">
-                <TypingDots />
-              </div>
-            </div>
-          )}
           {error && <p className="text-xs text-error-400 px-1">{error}</p>}
           <div ref={bottomRef} />
         </div>
@@ -461,21 +466,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         {messages.map((m) => (
           <FullMessageBubble key={m.id} message={m} />
         ))}
-
-        {loading && (
-          <div
-            className="flex gap-3 justify-start"
-            role="status"
-            aria-label="AI is thinking"
-          >
-            <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center">
-              <SparklesIcon className="w-3.5 h-3.5 text-primary-400 animate-pulse" />
-            </div>
-            <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3">
-              <TypingDots />
-            </div>
-          </div>
-        )}
 
         {error && (
           <div className="flex justify-center">
