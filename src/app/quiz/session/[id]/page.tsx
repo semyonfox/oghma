@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { triggerCelebration } from "@/lib/celebration";
 import ProgressBar from "@/components/quiz/progress-bar";
 import QuestionCard from "@/components/quiz/question-card";
 import Feedback from "@/components/quiz/feedback";
@@ -19,21 +20,19 @@ function SessionComplete({
 }) {
   const { t } = useI18n();
   const confettiRef = useRef(false);
-
-  useEffect(() => {
-    if (!confettiRef.current) {
-      confettiRef.current = true;
-      import("canvas-confetti").then(({ default: confetti }) => {
-        confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } });
-      });
-    }
-  }, []);
-
-  const minutes = Math.max(1, Math.round(elapsed / 60000));
   const accuracy =
     progress.answered > 0
       ? Math.round((progress.correct / progress.answered) * 100)
       : 0;
+
+  useEffect(() => {
+    if (accuracy === 100 && !confettiRef.current) {
+      confettiRef.current = true;
+      void triggerCelebration("quiz_perfect");
+    }
+  }, [accuracy]);
+
+  const minutes = Math.max(1, Math.round(elapsed / 60000));
   const advancing = progress.correct;
   const forTomorrow = progress.answered - progress.correct;
 

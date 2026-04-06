@@ -21,6 +21,7 @@ import useAssignmentStore, {
 } from "@/lib/notes/state/assignments.zustand";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { triggerCelebration } from "@/lib/celebration";
 import NewTaskModal from "./new-task-modal";
 
 // -- concentric activity rings ---------------------------------------------
@@ -244,9 +245,12 @@ export default function AssignmentTracker() {
     });
   };
 
-  const handleToggleDone = (a: Assignment) => {
+  const handleToggleDone = async (a: Assignment) => {
     const newStatus = a.status === "done" ? "upcoming" : "done";
-    updateAssignment(a.id, { status: newStatus });
+    await updateAssignment(a.id, { status: newStatus });
+    if (newStatus === "done") {
+      void triggerCelebration("assignment");
+    }
   };
 
   const tabs: { key: AssignmentTab; label: string }[] = [
