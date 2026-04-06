@@ -192,6 +192,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
               void Metrics.llmLatency(Date.now() - t0);
 
+              if (!reply.trim()) {
+                const emptyReply =
+                  "I couldn't generate an answer this time. Please try again.";
+                logger.error("LLM stream returned empty response", {
+                  model: getLlmModel(),
+                  thinkingMode,
+                });
+                controller.enqueue(
+                  encoder.encode(toSseEvent("token", { text: emptyReply })),
+                );
+                await persistMessage(
+                  sessionId,
+                  "assistant",
+                  emptyReply,
+                  uniqueSources,
+                );
+                controller.enqueue(encoder.encode(toSseEvent("done", {})));
+                controller.close();
+                return;
+              }
+
               await persistMessage(
                 sessionId,
                 "assistant",
