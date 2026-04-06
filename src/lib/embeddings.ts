@@ -121,8 +121,13 @@ export async function embedRawTexts(texts: string[]): Promise<number[][]> {
     return selfHosted;
   }
 
+  // Fallback to Cohere only if configured; local Ollama is preferred
   const apiKey = process.env.COHERE_API_KEY;
-  if (!apiKey) throw new Error("COHERE_API_KEY not configured");
+  if (!apiKey) {
+    throw new Error(
+      "No embedding API available: set EMBEDDING_API_URL + EMBEDDING_MODEL for local, or COHERE_API_KEY for Cohere"
+    );
+  }
 
   const vectors: number[][] = [];
   let failures = 0;
