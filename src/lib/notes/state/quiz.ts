@@ -35,7 +35,11 @@ interface QuizState {
   setDashboard: (data: QuizState["dashboardData"]) => void;
   setCourses: (courses: QuizState["courses"]) => void;
   setDashboardLoading: (loading: boolean) => void;
-  startSession: (sessionId: string, cardIds: string[], question: any) => void;
+  startSession: (
+    sessionId: string,
+    cardIds: string[],
+    question: any,
+  ) => void;
   setCurrentQuestion: (question: any) => void;
   advanceQuestion: (
     nextQuestion: any,
@@ -78,8 +82,8 @@ const useQuizStore = create<QuizState>((set) => ({
   setCurrentQuestion: (question) => set({ currentQuestion: question }),
   advanceQuestion: (nextQuestion, progress) =>
     set((state) => ({
-      currentIndex: state.currentIndex + 1,
       currentQuestion: nextQuestion,
+      currentIndex: state.currentIndex + 1,
       sessionProgress: progress,
     })),
   setFatigueWarning: (warning) => set({ fatigueWarning: warning }),

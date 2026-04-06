@@ -10,6 +10,7 @@ import FileTreePanel from "@/components/sidebar/file-tree-panel";
 import SplitPane from "@/components/editor/split-pane";
 import NotesInspectorSidebar from "@/components/panels/notes-inspector-sidebar";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
+import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 
 /**
  * Main VSCode-style 4-pane layout container
@@ -23,9 +24,6 @@ import { buildFileSpec } from "@/lib/notes/utils/file-spec";
  * - Tab: Switch between pane A and pane B (when in split mode)
  * - Escape: Close right panel
  */
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   const pathname = usePathname();
   const router = useRouter();
@@ -41,20 +39,20 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
 
   // Load file from URL path (e.g., /notes/<uuid>)
   useEffect(() => {
-    if (!pathname || !pathname.startsWith("/notes/")) return;
-
-    const fileId = pathname.replace("/notes/", "").split("/")[0];
-    if (!fileId) return;
+    const route = resolveNoteRoute(pathname);
+    if (route.type === "ignore") return;
 
     // stale nanoid IDs (pre-UUID migration) — redirect to /notes rather than
     // hammering the server with requests it will always reject with 400
-    if (!UUID_RE.test(fileId)) {
+    if (route.type === "redirect") {
       console.warn(
-        `[layout] non-UUID note id in URL: ${fileId} — redirecting to /notes`,
+        `[layout] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
       );
       router.replace("/notes");
       return;
     }
+
+    const fileId = route.noteId;
 
     let cancelled = false;
 
