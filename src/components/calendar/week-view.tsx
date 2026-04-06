@@ -67,6 +67,7 @@ export default function WeekView() {
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
   const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
@@ -151,7 +152,8 @@ export default function WeekView() {
     colIdx: number,
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return;
     const y = e.clientY - rect.top;
     const hour = Math.floor(y / HOUR_HEIGHT) + START_HOUR;
     const snappedMinute =
@@ -161,14 +163,34 @@ export default function WeekView() {
     const startHour = hour + (snappedMinute >= 60 ? 1 : 0);
     const startMin = snappedMinute % 60;
 
-    const starts_at = `${date}T${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}:00`;
+    const startDate = new Date(
+      Number.parseInt(date.slice(0, 4), 10),
+      Number.parseInt(date.slice(5, 7), 10) - 1,
+      Number.parseInt(date.slice(8, 10), 10),
+      startHour,
+      startMin,
+      0,
+      0,
+    );
     const endHour = startHour + (startMin + 30 >= 60 ? 1 : 0);
     const endMin = (startMin + 30) % 60;
-    const ends_at = `${date}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
+    const endDate = new Date(
+      Number.parseInt(date.slice(0, 4), 10),
+      Number.parseInt(date.slice(5, 7), 10) - 1,
+      Number.parseInt(date.slice(8, 10), 10),
+      endHour,
+      endMin,
+      0,
+      0,
+    );
+    const starts_at = startDate.toISOString();
+    const ends_at = endDate.toISOString();
 
     // prevent overlapping time blocks on the same slot
     const hasOverlap = timeBlocks.some(
-      (tb) => tb.starts_at < ends_at && tb.ends_at > starts_at,
+      (tb) =>
+        new Date(tb.starts_at).getTime() < endDate.getTime() &&
+        new Date(tb.ends_at).getTime() > startDate.getTime(),
     );
     if (hasOverlap) return;
 
@@ -205,6 +227,7 @@ export default function WeekView() {
       {/* scrollable grid */}
       <div ref={scrollRef} className="flex-1 overflow-auto">
         <div
+          ref={gridRef}
           className="relative"
           style={{
             gridTemplateColumns: "3.5rem repeat(7, 1fr)",
