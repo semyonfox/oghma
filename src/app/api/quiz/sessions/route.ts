@@ -10,6 +10,7 @@ import {
 import { generateQuestion } from "@/lib/quiz/generate";
 import { getCurrentBloomLevel, pickQuestionType } from "@/lib/quiz/bloom";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
+import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
 import type { FilterType } from "@/lib/quiz/types";
 import sql from "@/database/pgsql.js";
@@ -145,7 +146,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${allCardIds[0]}::uuid
         `;
-    firstQuestion = rows[0] ?? null;
+    firstQuestion = normalizeQuizQuestion(rows[0] ?? null);
     if (firstQuestion) {
       const fsrsCard = cardFromDB(firstQuestion);
       firstQuestion.intervals = getNextIntervals(fsrsCard);

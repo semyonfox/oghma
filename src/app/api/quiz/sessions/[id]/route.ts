@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
+import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import sql from "@/database/pgsql.js";
 
 export const GET = withErrorHandler(
@@ -39,7 +40,7 @@ export const GET = withErrorHandler(
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${cardIds[currentIndex]}::uuid
         `;
-      question = rows[0] ?? null;
+      question = normalizeQuizQuestion(rows[0] ?? null);
       if (question) {
         const fsrsCard = cardFromDB(question);
         question.intervals = getNextIntervals(fsrsCard);

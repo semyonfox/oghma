@@ -7,6 +7,7 @@ import {
   cardToDB,
   getNextIntervals,
 } from "@/lib/quiz/fsrs";
+import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import { generateUUID } from "@/lib/utils/uuid";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
 import sql from "@/database/pgsql.js";
@@ -95,7 +96,7 @@ export const POST = withErrorHandler(
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${nextCardId}::uuid
         `;
-      nextQuestion = rows[0] ?? null;
+      nextQuestion = normalizeQuizQuestion(rows[0] ?? null);
       if (nextQuestion) {
         const nextFsrs = cardFromDB(nextQuestion);
         nextQuestion.intervals = getNextIntervals(nextFsrs);
