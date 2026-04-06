@@ -23,6 +23,8 @@ export default function QuestionCard({
   onAnswer,
 }: QuestionCardProps) {
   const { t } = useI18n();
+  const options = Array.isArray(question.options) ? question.options : [];
+  const hasOptions = options.length > 0;
   const [selected, setSelected] = useState<number | null>(null);
   const [fillInAnswer, setFillInAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -41,11 +43,11 @@ export default function QuestionCard({
         fillInAnswer.trim().toLowerCase() ===
         question.correct_answer.trim().toLowerCase();
       onAnswer(fillInAnswer, correct);
-    } else if (selected !== null && question.options) {
-      const isCorrect = question.options[selected].is_correct;
-      onAnswer(question.options[selected].text, isCorrect);
+    } else if (selected !== null && hasOptions) {
+      const isCorrect = options[selected].is_correct;
+      onAnswer(options[selected].text, isCorrect);
     }
-  }, [submitted, question, fillInAnswer, selected, onAnswer]);
+  }, [submitted, question, fillInAnswer, selected, onAnswer, hasOptions, options]);
 
   // keyboard shortcuts for MCQ selection and submission
   useEffect(() => {
@@ -57,15 +59,15 @@ export default function QuestionCard({
       )
         return;
 
-      if (question.options) {
+      if (hasOptions) {
         const numKey = parseInt(e.key);
-        if (numKey >= 1 && numKey <= question.options.length) {
+        if (numKey >= 1 && numKey <= options.length) {
           e.preventDefault();
           setSelected(numKey - 1);
           return;
         }
         const letterIdx = e.key.toUpperCase().charCodeAt(0) - 65;
-        if (letterIdx >= 0 && letterIdx < question.options.length) {
+        if (letterIdx >= 0 && letterIdx < options.length) {
           e.preventDefault();
           setSelected(letterIdx);
           return;
@@ -78,7 +80,7 @@ export default function QuestionCard({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [submitted, question.options, selected, handleSubmit]);
+  }, [submitted, hasOptions, options.length, selected, handleSubmit]);
 
   return (
     <div className="flex-1 flex flex-col justify-center gap-5">
@@ -100,9 +102,9 @@ export default function QuestionCard({
       </h2>
 
       {/* MCQ / True-False options */}
-      {question.options && (
+      {hasOptions && (
         <div className="flex flex-col gap-2">
-          {question.options.map((option, i) => {
+          {options.map((option, i) => {
             const letter = String.fromCharCode(65 + i);
             let borderColor = "border-border-subtle";
             let bgColor = "bg-surface";
@@ -184,7 +186,7 @@ export default function QuestionCard({
         <button
           onClick={handleSubmit}
           disabled={
-            (question.options && selected === null) ||
+            (hasOptions && selected === null) ||
             (question.question_type === "fill_in" && !fillInAnswer.trim())
           }
           className="glass-card-interactive text-text px-6 py-2.5 rounded-radius-lg text-sm font-medium self-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
