@@ -1,10 +1,10 @@
-// reranks candidate chunks via Cohere Rerank API
+// reranks candidate chunks via self-hosted rerank (optional) or Cohere fallback
 // purpose-built relevance scoring — faster and more accurate than LLM-based reranking
-// uses rerank-multilingual-v3.0 to match the multilingual embedding model
 
 import { Metrics } from "@/lib/metrics";
 import logger from "@/lib/logger";
 import { getCohereTimeoutMs } from "@/lib/ai-config";
+import { defaultRerankProvider } from "@/lib/providers/self-hosted-rerank";
 
 const COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank";
 const COHERE_RERANK_MODEL = "rerank-multilingual-v3.0";
@@ -18,10 +18,10 @@ interface RerankResult {
   score: number;
 }
 
-export async function rerankChunks(
+async function rerankViaCohere(
   query: string,
   chunks: string[],
-  topN = TOP_N,
+  topN: number,
 ): Promise<RerankResult[]> {
   if (chunks.length <= topN) {
     return chunks.map((text, index) => ({ index, text, score: 1 }));
@@ -93,4 +93,30 @@ export async function rerankChunks(
       .slice(0, topN)
       .map((text, index) => ({ index, text, score: 1 }));
   }
+}
+
+export async function rerankChunks(
+  query: string,
+  chunks: string[],
+  topN = TOP_N,
+): Promise<RerankResult[]> {
+  if (chunks.length <= topN) {
+    return chunks.map((text, index) => ({ index, text, score: 1 }));
+  }
+
+  // try self-hosted rerank first, fall back to Cohere
+  if (defaultRerankProvider.isConfigured()) {
+    try {
+      const results = await defaultRerankProvider.rerank(query, chunks, topN);
+      return results as RerankResult[];
+    } catch (err) {
+      console.info(
+        `Self-hosted rerank unavailable, falling back to Cohere: ${
+          err instanceof Error ? err.message : err
+        }`,
+      );
+    }
+  }
+
+  return rerankViaCohere(query, chunks, topN);
 }
