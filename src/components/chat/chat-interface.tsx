@@ -330,6 +330,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               continue;
             }
 
+            if (frame.event === "search") {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        searchContext: {
+                          scopeSize: payload.scopeSize ?? null,
+                          resultsFound: payload.resultsFound ?? 0,
+                          results: Array.isArray(payload.results)
+                            ? payload.results
+                            : [],
+                        },
+                      }
+                    : m,
+                ),
+              );
+              continue;
+            }
+
             if (frame.event === "token") {
               const token =
                 typeof payload.text === "string" ? payload.text : "";
