@@ -104,7 +104,9 @@ export function useCanvasImportStatus(options = {}) {
         await markAndRefreshNewNotes(newNoteIds);
       }
     } catch (err) {
-      if (err?.name === "AbortError") return;
+      // Firefox may surface aborted fetches as TypeError("NetworkError...").
+      // Treat any request aborted by this controller as expected polling behavior.
+      if (err?.name === "AbortError" || controller.signal.aborted) return;
       console.error("Failed to check Canvas import status:", err);
     }
   }, []);
