@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth.js";
+import { NextResponse } from "next/server";
+import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
-import logger from "@/lib/logger";
 
 const CONFIRM_PHRASE = "delete my account";
 
@@ -21,29 +20,19 @@ const GRACE_PERIOD_DAYS = 30;
  * deleted_at < now() - GRACE_PERIOD_DAYS after the grace period.
  * Until then the account can be recovered by contacting support.
  */
-export async function DELETE(request: NextRequest) {
-  try {
-    const user = await validateSession();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const DELETE = withErrorHandler(async (request) => {
+    const user = await requireAuth();
 
     // validate confirmation phrase
     let body: { confirmation?: string } = {};
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 },
-      );
+      throw new ApiError(400, "Invalid request body");
     }
 
     if (body.confirmation !== CONFIRM_PHRASE) {
-      return NextResponse.json(
-        { error: `Confirmation phrase must be exactly: "${CONFIRM_PHRASE}"` },
-        { status: 400 },
-      );
+      throw new ApiError(400, `Confirmation phrase must be exactly: "${CONFIRM_PHRASE}"`);
     }
 
     const userId = user.user_id;
@@ -72,11 +61,4 @@ export async function DELETE(request: NextRequest) {
     });
 
     return response;
-  } catch (err) {
-    logger.error("delete account error", { error: err });
-    return NextResponse.json(
-      { error: "Failed to delete account" },
-      { status: 500 },
-    );
-  }
-}
+});
