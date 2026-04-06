@@ -399,8 +399,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               const result = streamText({
                 model: model!,
                 messages: chatMessages,
-                maxTokens: getLlmMaxTokens(),
-                maxSteps: 4,
+                maxOutputTokens: getLlmMaxTokens(),
                 tools: { makeMDNote },
               });
               for await (const token of result.textStream) {
@@ -477,8 +476,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const { text: reply } = await generateText({
       model,
       messages: chatMessages,
-      maxTokens: getLlmMaxTokens(),
-      maxSteps: 4,
+      maxOutputTokens: getLlmMaxTokens(),
       tools: { makeMDNote },
     });
     void Metrics.llmLatency(Date.now() - t0);
