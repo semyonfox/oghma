@@ -278,13 +278,6 @@ export function resetStats(): void {
 }
 
 /**
- * @deprecated Use getDedupStats() instead for more detailed information
- */
-export function getStats() {
-  return getDedupStats();
-}
-
-/**
  * Update stats when a request is deduplicated
  */
 export function recordRequest(wasDeduplicated: boolean): void {
