@@ -1,39 +1,83 @@
-// adapted from notea: https://github.com/QingWei-Li/notea
-// original file: scripts/extract-i18n.js
-//
 // extracts i18n keys from source files and updates locale JSON files
 // usage: node scripts/extract-i18n.js
 
-const extract = require('i18n-extract');
-const { resolve, extname } = require('path');
-const { sortBy, forEach } = require('lodash');
-const { readdirSync, readFileSync, writeFileSync } = require('fs');
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 
-console.log(`[i18n] Extracting keys`);
+const SRC_ROOT = 'src';
+const LOCALES_DIR = 'src/locales';
+const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
+const LOCALE_IGNORE = new Set(['STRINGS_MAPPING_EN_FR.json']);
 
-// extract from all tsx files in the web app
-const keys = extract.extractFromFiles([resolve(__dirname, '../apps/web/**/*.tsx')], {
-  marker: 't',
-  parser: 'typescript',
-});
-
-const localesPath = resolve(__dirname, '../apps/web/src/locales');
-const files = readdirSync(localesPath);
-
-forEach(files, (file) => {
-  if (extname(file) === '.json') {
-    const filePath = resolve(localesPath, file);
-    const text = readFileSync(filePath).toString() || `{}`;
-    const rawLocale = JSON.parse(text);
-    const locale = {};
-
-    forEach(sortBy(keys, 'key'), ({ key }) => {
-      if (!locale[key]) {
-        locale[key] = rawLocale[key] || key;
-      }
-    });
-
-    writeFileSync(filePath, JSON.stringify(locale, null, '  '));
-    console.log(`[i18n] Generated ${file}`);
+function walk(dir, out = []) {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === '.next') continue;
+      walk(full, out);
+      continue;
+    }
+    if (SOURCE_EXTENSIONS.has(extname(entry.name))) {
+      out.push(full);
+    }
   }
-});
+  return out;
+}
+
+function extractUsedKeys(files) {
+  const keys = new Set();
+  const directCall = /\bt\(\s*(["'`])([^"'`\n]+)\1/g;
+  const arrayCall = /\bt\(\s*\[\s*(["'`])([^"'`\n]+)\1\s*\]/g;
+
+  for (const file of files) {
+    const source = readFileSync(file, 'utf8');
+
+    let match;
+    while ((match = directCall.exec(source)) !== null) {
+      const key = match[2].trim();
+      if (/^[A-Za-z0-9_.:-]+(?:\.{3})?$/.test(key)) {
+        keys.add(key);
+      }
+    }
+
+    while ((match = arrayCall.exec(source)) !== null) {
+      const key = match[2].trim();
+      if (/^[A-Za-z0-9_.:-]+(?:\.{3})?$/.test(key)) {
+        keys.add(key);
+      }
+    }
+  }
+
+  return [...keys].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+function sortKeys(obj) {
+  return Object.fromEntries(
+    Object.keys(obj)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .map((key) => [key, obj[key]]),
+  );
+}
+
+console.log('[i18n] Extracting keys');
+
+const sourceFiles = walk(SRC_ROOT);
+const keys = extractUsedKeys(sourceFiles);
+
+const localeFiles = readdirSync(LOCALES_DIR)
+  .filter((file) => extname(file) === '.json' && !LOCALE_IGNORE.has(file))
+  .sort();
+
+for (const file of localeFiles) {
+  const filePath = join(LOCALES_DIR, file);
+  const rawLocale = JSON.parse(readFileSync(filePath, 'utf8'));
+  const locale = {};
+
+  for (const key of keys) {
+    locale[key] = rawLocale[key] ?? key;
+  }
+
+  writeFileSync(filePath, `${JSON.stringify(sortKeys(locale), null, 2)}\n`);
+  console.log(`[i18n] Generated ${file}`);
+}

@@ -79,9 +79,9 @@ function VerifyEmailContent() {
   // verifying state
   if (verifying) {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-background">
+      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-app-page">
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <h2 className="text-2xl font-bold text-text-secondary">
+          <h2 className="font-serif text-2xl font-semibold text-text-secondary">
             {t("Verifying your email...")}
           </h2>
           <p className="mt-2 text-text-tertiary">
@@ -95,7 +95,7 @@ function VerifyEmailContent() {
   // verified state
   if (verified) {
     return (
-      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-background">
+      <div className="flex min-h-full flex-col items-center justify-center py-12 bg-app-page">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Alert
             variant="success"
@@ -111,9 +111,9 @@ function VerifyEmailContent() {
 
   // default: check your inbox (no token) or error (bad token)
   return (
-    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-background">
+    <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-text-secondary">
+        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text-secondary">
           {t("Check your email")}
         </h2>
         <p className="mt-2 text-center text-sm text-text-tertiary">
@@ -128,7 +128,7 @@ function VerifyEmailContent() {
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
-        <div className="bg-surface/50 px-6 py-12 outline -outline-offset-1 outline-border sm:rounded-lg sm:px-12 space-y-6">
+        <div className="glass-card px-6 py-12 rounded-radius-xl sm:px-12 space-y-6">
           {error && <Alert variant="error" description={error} />}
           {resendMessage && (
             <Alert variant="success" description={resendMessage} />
@@ -167,7 +167,7 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-full items-center justify-center bg-background text-text-tertiary">
+        <div className="flex min-h-full items-center justify-center bg-app-page text-text-tertiary">
           {t("Loading...")}
         </div>
       }

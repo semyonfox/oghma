@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
-import { isValidUUID } from '@/lib/uuid-validation.js';
+import { isValidUUID } from '@/lib/utils/uuid';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 
