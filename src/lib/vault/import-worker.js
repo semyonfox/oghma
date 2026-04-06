@@ -16,6 +16,7 @@ import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
 import { extractWithMarker } from "../ocr.ts";
+import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import {
   shouldIgnore,
   sanitizePath,
@@ -102,6 +103,8 @@ async function processRagPipeline(
 
   let rawText;
   let chunks;
+  let markerImages = {};
+  let markerMetadata = null;
 
   if (isText) {
     rawText = buffer.toString("utf-8");
@@ -110,11 +113,12 @@ async function processRagPipeline(
     const marker = await extractWithMarker(buffer, filename ?? "document.pdf");
     rawText = marker.text;
     chunks = marker.chunks;
+    markerImages = marker.images ?? {};
+    markerMetadata = marker.metadata ?? null;
   }
 
-  const searchText = stripMarkdown(rawText);
-
   if (isText) {
+    const searchText = stripMarkdown(rawText);
     await sql`
       UPDATE app.notes
       SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
@@ -135,14 +139,25 @@ async function processRagPipeline(
       content: rawText,
     },
   );
+  const storage = getStorageProvider();
+  const markerAssets = await persistMarkerAssetsForNote({
+    storage,
+    userId,
+    noteId: mdNoteId,
+    markdown: rawText,
+    images: markerImages,
+    metadata: markerMetadata,
+  });
+  const finalMarkdown = markerAssets.markdown;
+  const searchText = stripMarkdown(finalMarkdown);
   await sql`
     UPDATE app.notes
-    SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
+    SET content = ${finalMarkdown}, extracted_text = ${searchText}, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
   `;
   const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
   console.log(
-    `[vault-import] RAG: ${count} chunks for MD note ${mdNoteId} (source: ${noteId})`,
+    `[vault-import] RAG: ${count} chunks for MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
   );
 }
 

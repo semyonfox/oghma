@@ -34,88 +34,17 @@ function FadeIn({ children, delay = 0, className }) {
   );
 }
 
-// stylized CSS mock-up of the OghmaNote editor
+// screenshot of the actual notes editor
 function HeroMockup() {
   return (
-    <div className="mt-16 sm:mt-24 rounded-2xl bg-surface ring-1 ring-white/10 shadow-2xl overflow-hidden">
-      {/* title bar */}
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-elevated/50 border-b border-white/5">
-        <div className="flex gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-500/60" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-          <div className="w-3 h-3 rounded-full bg-green-500/60" />
-        </div>
-        <span className="ml-2 text-xs text-text-tertiary">OghmaNotes</span>
-      </div>
-      {/* editor layout */}
-      <div className="flex h-64 sm:h-80">
-        {/* icon nav */}
-        <div className="w-10 sm:w-12 bg-surface-elevated/30 border-r border-white/5 flex flex-col items-center gap-3 py-3">
-          <div className="w-5 h-5 rounded bg-white/10" />
-          <div className="w-5 h-5 rounded bg-white/10" />
-          <div className="w-5 h-5 rounded bg-primary-500/30" />
-          <div className="w-5 h-5 rounded bg-white/10" />
-        </div>
-        {/* file tree */}
-        <div className="w-36 sm:w-48 border-r border-white/5 p-3 space-y-1.5 hidden sm:block">
-          <div className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-            Files
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-primary-500/40" />
-            <div className="h-2 w-20 rounded bg-white/15" />
-          </div>
-          <div className="flex items-center gap-1.5 ml-3">
-            <div className="w-3 h-3 rounded-sm bg-secondary-500/30" />
-            <div className="h-2 w-16 rounded bg-white/10" />
-          </div>
-          <div className="flex items-center gap-1.5 ml-3">
-            <div className="w-3 h-3 rounded-sm bg-secondary-500/30" />
-            <div className="h-2 w-24 rounded bg-white/10" />
-          </div>
-          <div className="flex items-center gap-1.5 mt-3">
-            <div className="w-3 h-3 rounded-sm bg-primary-500/40" />
-            <div className="h-2 w-14 rounded bg-white/15" />
-          </div>
-          <div className="flex items-center gap-1.5 ml-3">
-            <div className="w-3 h-3 rounded-sm bg-secondary-500/30" />
-            <div className="h-2 w-20 rounded bg-white/10" />
-          </div>
-        </div>
-        {/* editor pane */}
-        <div className="flex-1 p-4 sm:p-6 space-y-3">
-          <div className="h-3 w-48 sm:w-64 rounded bg-white/15" />
-          <div className="h-2 w-full rounded bg-white/[0.06]" />
-          <div className="h-2 w-5/6 rounded bg-white/[0.06]" />
-          <div className="h-2 w-4/6 rounded bg-white/[0.06]" />
-          <div className="h-2 w-0" />
-          <div className="h-2.5 w-32 rounded bg-white/10" />
-          <div className="h-2 w-full rounded bg-white/[0.06]" />
-          <div className="h-2 w-3/4 rounded bg-white/[0.06]" />
-          <div className="h-2 w-5/6 rounded bg-white/[0.06]" />
-        </div>
-        {/* chat panel */}
-        <div className="w-48 sm:w-56 border-l border-white/5 p-3 hidden md:flex flex-col">
-          <div className="text-[10px] font-semibold text-ai-500/80 uppercase tracking-wider mb-3 flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-ai-500/30" />
-            AI Chat
-          </div>
-          <div className="space-y-2 flex-1">
-            <div className="rounded-lg bg-white/5 p-2 space-y-1">
-              <div className="h-1.5 w-full rounded bg-white/10" />
-              <div className="h-1.5 w-4/5 rounded bg-white/10" />
-            </div>
-            <div className="rounded-lg bg-ai-500/10 p-2 space-y-1 ml-2">
-              <div className="h-1.5 w-full rounded bg-ai-500/20" />
-              <div className="h-1.5 w-3/4 rounded bg-ai-500/20" />
-              <div className="h-1.5 w-5/6 rounded bg-ai-500/20" />
-            </div>
-          </div>
-          <div className="mt-auto pt-2 border-t border-white/5">
-            <div className="h-7 rounded-md bg-white/5 border border-white/10" />
-          </div>
-        </div>
-      </div>
+    <div className="relative mt-16 sm:mt-24 rounded-2xl ring-1 ring-white/10 shadow-2xl overflow-hidden">
+      <img
+        src="/notes-screenshot.png"
+        alt="OghmaNotes editor with file tree, rich text editing, and AI chat"
+        className="w-full h-auto"
+      />
+      {/* soft fade-out at the bottom so the screenshot blends into the page */}
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--color-background)] to-transparent pointer-events-none" />
     </div>
   );
 }
