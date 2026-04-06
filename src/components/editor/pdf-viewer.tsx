@@ -8,7 +8,7 @@ import {
   MagnifyingGlassPlusIcon,
   ArrowsPointingOutIcon,
 } from "@heroicons/react/24/outline";
-import { useSignedUrl } from "./use-signed-url";
+import { usePdfCache } from "@/lib/notes/pdf-cache/use-pdf-cache";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 import "react-pdf/dist/Page/TextLayer.css";
@@ -38,7 +38,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
     url: pdfPath,
     loading,
     error: urlError,
-  } = useSignedUrl(file.sourcePath, file.fileId);
+  } = usePdfCache(file.sourcePath, file.fileId);
 
   // keep containerWidth in sync with pane resizes
   useEffect(() => {
@@ -111,7 +111,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
             className={`p-1.5 rounded transition-colors ${
               fitMode
                 ? "bg-white/10 text-text-secondary"
-                : "text-text-tertiary hover:bg-white/8 hover:text-text-secondary"
+                : "text-text-tertiary hover:bg-white/[0.07] hover:text-text-secondary"
             }`}
           >
             <ArrowsPointingOutIcon className="w-4 h-4" />
@@ -121,7 +121,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
 
           <button
             onClick={handleZoomOut}
-            className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
+            className="p-1.5 rounded hover:bg-white/[0.07] disabled:opacity-30 transition-colors"
           >
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
           </button>
@@ -132,7 +132,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
 
           <button
             onClick={handleZoomIn}
-            className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
+            className="p-1.5 rounded hover:bg-white/[0.07] disabled:opacity-30 transition-colors"
           >
             <MagnifyingGlassPlusIcon className="w-4 h-4" />
           </button>
