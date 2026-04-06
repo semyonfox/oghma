@@ -62,8 +62,10 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Icon-only navigation sidebar (56px fixed width)
+ * Icon-only navigation sidebar (48px fixed width)
  * VSCode-style left navigation with hover tooltips
+ * NOTE: Parent container is responsible for overflow behavior (overflow-hidden).
+ * This component should never be scrollable; it fills full height.
  */
 const IconNav: FC = () => {
   const router = useRouter();
@@ -76,6 +78,21 @@ const IconNav: FC = () => {
     openRightPanelTab,
   } = useLayoutStore();
   const { t } = useI18n();
+
+  const derivedActiveSection: NavItem["section"] | "settings" =
+    pathname?.startsWith("/settings")
+      ? "settings"
+      : pathname?.startsWith("/quiz")
+        ? "quiz"
+        : pathname?.startsWith("/calendar")
+          ? "calendar"
+          : pathname?.startsWith("/chat")
+            ? "chat"
+            : pathname?.startsWith("/notes") && rightPanelOpen && rightPanelTab === "ai"
+              ? "chat"
+              : pathname?.startsWith("/notes")
+                ? "notes"
+                : activeNav;
   const handleNavClick = (item: NavItem) => {
     if (item.section === "search") {
       usePortalStore.getState().search.open();
@@ -111,10 +128,7 @@ const IconNav: FC = () => {
       <div className="flex flex-col gap-1 flex-1">
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
-          const isActive =
-            item.section === "chat"
-              ? rightPanelOpen && rightPanelTab === "ai"
-              : activeNav === item.section;
+          const isActive = derivedActiveSection === item.section;
           const translatedLabel = t(item.labelKey);
 
           return (
@@ -158,7 +172,9 @@ const IconNav: FC = () => {
           })
         }
         className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
-          activeNav === "settings" ? "bg-subtle text-text-secondary" : ""
+          derivedActiveSection === "settings"
+            ? "bg-subtle text-text-secondary"
+            : ""
         }`}
         title={t("Settings")}
       >

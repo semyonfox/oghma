@@ -15,6 +15,7 @@ export default [
       "next-env.d.ts",
       ".archive/**",
       "public/**",
+      ".worktrees/**",
     ],
   },
   {

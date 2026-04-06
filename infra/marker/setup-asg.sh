@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
 # autoscaling Marker GPU deployment for eu-west-1 (Ireland)
-# creates: Launch Template + ALB + Target Group + ASG + IAM Role
+# creates: Launch Template (on-demand) + ALB + Target Group + ASG + IAM Role
 #
 # architecture:
-#   ALB (port 80) -> Target Group (port 8000) -> ASG (g5.xlarge, 0-4 instances)
-#   instances auto-register with target group, scale-to-zero when idle
+#   ALB (port 80) -> Target Group (port 8000) -> ASG (g4dn.xlarge on-demand, 0-2 instances)
+#   scale-to-zero — GPU only runs during active imports, cold start ~90sec (baked AMI)
+#
+# cost (~$0.74/hr on-demand): pay-per-use only, ~$0 when idle
+# NOTE: spot GPU quota = 0 on this account — on-demand required
 #
 # run from project root: bash infra/marker/setup-asg.sh
+# to use a baked AMI: MARKER_AMI_ID=ami-xxx bash infra/marker/setup-asg.sh
 set -euo pipefail
 
 REGION="eu-west-1"
-INSTANCE_TYPE="${MARKER_INSTANCE_TYPE:-g5.xlarge}"
+INSTANCE_TYPE="${MARKER_INSTANCE_TYPE:-g4dn.xlarge}"
 PROJECT="oghmanotes"
 KEY_NAME="marker-server-${PROJECT}"
 ASG_NAME="marker-asg-${PROJECT}"
 LT_NAME="marker-lt-${PROJECT}"
 TG_NAME="marker-tg-${PROJECT}"
 ALB_NAME="marker-alb-${PROJECT}"
-MAX_INSTANCES="${MARKER_MAX_INSTANCES:-4}"
+MAX_INSTANCES="${MARKER_MAX_INSTANCES:-2}"
 
 echo "=== Marker OCR Autoscaling Setup (Ireland) ==="
 echo "Region:    $REGION"
-echo "Instance:  $INSTANCE_TYPE"
+echo "Instance:  $INSTANCE_TYPE (on-demand)"
 echo "Max scale: $MAX_INSTANCES"
 echo ""
 
@@ -117,8 +121,14 @@ else
   echo "  Key pair already exists: $KEY_NAME"
 fi
 
-# 4. find NVIDIA PyTorch DLAMI
+# 4. find NVIDIA PyTorch DLAMI (or use pre-baked AMI for ~90s cold start)
 echo "[4/9] Finding GPU AMI..."
+# if MARKER_AMI_ID is set (from bake-ami.sh), use it — cold start ~90s
+# otherwise fall back to the Deep Learning AMI (~5-7 min cold start, pip installs on boot)
+AMI_ID="${MARKER_AMI_ID:-}"
+if [ -n "$AMI_ID" ]; then
+  echo "  Using baked AMI: $AMI_ID (~90s cold start)"
+else
 AMI_ID=$(aws ec2 describe-images \
   --owners amazon \
   --filters \
@@ -138,6 +148,7 @@ if [ "$AMI_ID" = "None" ] || [ -z "$AMI_ID" ]; then
       "Name=architecture,Values=x86_64" \
     --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
     --region "$REGION" --output text)
+fi
 fi
 echo "  AMI: $AMI_ID"
 
@@ -394,7 +405,7 @@ aws autoscaling put-scaling-policy \
       \"ResourceLabel\": \"$(echo "$ALB_ARN" | sed 's|.*:loadbalancer/||')/$(echo "$TG_ARN" | sed 's|.*:||')\"
     },
     \"TargetValue\": 10.0,
-    \"ScaleInCooldown\": 120,
+    \"ScaleInCooldown\": 900,
     \"ScaleOutCooldown\": 30
   }" \
   --region "$REGION" >/dev/null 2>&1 || echo "  (target tracking policy may need ALB traffic first)"
@@ -405,7 +416,7 @@ echo ""
 echo "ASG Name:     $ASG_NAME"
 echo "ALB DNS:      $ALB_DNS"
 echo "Endpoint:     http://$ALB_DNS"
-echo "Max scale:    $MAX_INSTANCES x $INSTANCE_TYPE (NVIDIA A10G)"
+echo "Max scale:    $MAX_INSTANCES x $INSTANCE_TYPE (NVIDIA T4, on-demand)"
 echo ""
 echo "Add these to your environment:"
 echo "  MARKER_ASG_NAME=$ASG_NAME"

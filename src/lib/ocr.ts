@@ -2,10 +2,16 @@
 // Marker API: synchronous POST /marker/upload
 
 import { ensureMarkerRunning } from "./marker-ec2";
+import {
+  normalizeMarkerMarkdown,
+} from "./marker-output";
+import type { MarkerImages } from "./marker-output";
 
 export interface MarkerResult {
   text: string;
   chunks: string[];
+  images: MarkerImages;
+  metadata: unknown;
   source: "ec2";
 }
 
@@ -65,7 +71,12 @@ async function callEc2Marker(
   url: string,
   buffer: Buffer,
   filename: string,
-): Promise<{ text: string; chunks: string[] } | null> {
+): Promise<{
+  text: string;
+  chunks: string[];
+  images: MarkerImages;
+  metadata: unknown;
+} | null> {
   const form = new FormData();
   const mime = mimeFromFilename(filename);
   form.append(
@@ -74,7 +85,7 @@ async function callEc2Marker(
     filename,
   );
   form.append("output_format", "markdown");
-  form.append("paginate_output", "true");
+  form.append("paginate_output", "false");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS);
@@ -96,9 +107,18 @@ async function callEc2Marker(
     if (!json.success)
       throw new Error(json.error ?? "EC2 Marker returned success=false");
 
-    const text = typeof json.output === "string" ? json.output : "";
+    const rawText = typeof json.output === "string" ? json.output : "";
+    const text = normalizeMarkerMarkdown(rawText);
     const chunks = splitMarkdownToChunks(text);
-    return { text, chunks };
+    const images =
+      json.images && typeof json.images === "object"
+        ? (json.images as MarkerImages)
+        : {};
+    const metadata =
+      json.metadata && typeof json.metadata === "object"
+        ? json.metadata
+        : null;
+    return { text, chunks, images, metadata };
   } finally {
     clearTimeout(timeout);
   }

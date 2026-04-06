@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
-import { isValidUUID } from '@/lib/uuid-validation.js';
+import { isValidUUID } from '@/lib/utils/uuid';
 import { cacheInvalidate, cacheKeys } from '@/lib/cache';
 import logger from '@/lib/logger';
 
