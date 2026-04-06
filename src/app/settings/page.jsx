@@ -16,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
+import { cn } from "@/components/settings/settings-utils";
 
 import AccountSection from "@/components/settings/account-section";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
@@ -24,10 +25,6 @@ import CanvasSection from "@/components/settings/canvas-section";
 import AISection from "@/components/settings/ai-section";
 import DataExportSection from "@/components/settings/data-export-section";
 import DangerSection from "@/components/settings/danger-section";
-
-function cn(...classes) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export default function SettingsPage() {
   const router = useRouter();
