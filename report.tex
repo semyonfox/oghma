@@ -19,21 +19,28 @@
 \usepackage{tocloft}
 \usepackage{parskip}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
+\usepackage{newpxtext}
+\usepackage{newpxmath}
+\usepackage[scaled=.88]{beramono}
 \usepackage{microtype}
+\linespread{1.04}
+
+% allow slightly looser line breaks to avoid overfull hboxes
+\emergencystretch=2em
 
 % ── Colours ───────────────────────────────────────────────────────
-\definecolor{oghmablue}{HTML}{1E3A5F}
-\definecolor{oghmaaccent}{HTML}{3B82F6}
-\definecolor{codebg}{HTML}{F5F5F5}
-\definecolor{linkblue}{HTML}{2563EB}
+\definecolor{oghmablue}{HTML}{1E3A5F}    % kept for TikZ diagrams
+\definecolor{oghmaaccent}{HTML}{3B82F6}  % kept for TikZ diagrams
+\definecolor{rulegray}{HTML}{AAAAAA}
+\definecolor{codebg}{HTML}{F8F9FA}
+\definecolor{linkblue}{HTML}{1A56DB}
 
 % ── Hyperref config ───────────────────────────────────────────────
 \hypersetup{
     colorlinks=true,
-    linkcolor=oghmablue,
+    linkcolor=black,
     urlcolor=linkblue,
-    citecolor=oghmablue,
+    citecolor=black,
     pdfauthor={Semyon Fox, Samuel Regan, Shreyansh Singh},
     pdftitle={OghmaNotes -- CT216 Project Report},
 }
@@ -41,18 +48,18 @@
 % ── Header/Footer ─────────────────────────────────────────────────
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\textcolor{oghmablue}{OghmaNotes}}
-\fancyhead[R]{\small\textcolor{oghmablue}{CT216 Software Engineering I}}
+\fancyhead[L]{\small OghmaNotes}
+\fancyhead[R]{\small CT216 Software Engineering I}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
 % ── Section formatting ────────────────────────────────────────────
 \titleformat{\section}
-    {\Large\bfseries\color{oghmablue}}{\thesection}{1em}{}[\vspace{-0.5em}\textcolor{oghmaaccent}{\rule{\textwidth}{0.8pt}}]
+    {\Large\bfseries}{\thesection}{1em}{}[\vspace{-0.5em}\textcolor{rulegray}{\rule{\textwidth}{0.5pt}}]
 \titleformat{\subsection}
-    {\large\bfseries\color{oghmablue}}{\thesubsection}{1em}{}
+    {\large\bfseries}{\thesubsection}{1em}{}
 \titleformat{\subsubsection}
-    {\normalsize\bfseries\color{oghmablue}}{\thesubsubsection}{1em}{}
+    {\normalsize\bfseries}{\thesubsubsection}{1em}{}
 
 % ── Code listing style ────────────────────────────────────────────
 \lstset{
@@ -162,7 +169,7 @@ The platform is built with Next.js~16.2 on the frontend, a PostgreSQL database w
 
 \subsection{Key Differentiators}
 
-OghmaNotes distinguishes itself from existing tools in several ways. First, RAG-powered search allows users to ask natural-language questions about their notes and uploaded PDFs, with the system retrieving semantically relevant passages rather than relying on exact keyword matches. Second, direct Canvas LMS integration enables one-click import of courses, modules, files, and assignments, processed in the background by a self-scaling worker. Third, the platform runs on a full AWS production stack, demonstrating real-world cloud engineering rather than managed PaaS solutions. The project involved over 807 commits across 65 active development days, with the application supporting 12 languages through a custom internationalisation system.
+OghmaNotes distinguishes itself from existing tools in several ways. First, RAG-powered search allows users to ask natural-language questions about their notes and uploaded PDFs, with the system retrieving semantically relevant passages rather than relying on exact keyword matches. Second, direct Canvas LMS integration enables one-click import of courses, modules, files, and assignments, processed in the background by a self-scaling worker. Third, the platform runs on a full AWS production stack, demonstrating real-world cloud engineering rather than managed PaaS solutions. The project involved over 840 commits across 69 active development days, with the application supporting 12 languages through a custom internationalisation system.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -170,7 +177,7 @@ OghmaNotes distinguishes itself from existing tools in several ways. First, RAG-
 % ══════════════════════════════════════════════════════════════════
 \section{Team Roles \& Contributions}
 
-The team comprised three members, each responsible for distinct areas of the project. Over seven months of development (September 2025 -- April 2026), the team collectively produced over 807 commits across 65 active development days.
+The team comprised three members, each responsible for distinct areas of the project. Over seven months of development (September 2025 -- April 2026), the team collectively produced over 840 commits across 69 active development days.
 
 \subsection{Semyon Fox --- Tech Lead / Full-Stack / DevOps}
 
@@ -178,7 +185,7 @@ Served as technical lead responsible for system architecture, infrastructure dec
 
 \begin{itemize}[leftmargin=1.5em]
     \item \textbf{Architecture \& Infrastructure:} Designed and implemented AWS infrastructure including Amplify hosting, SQS job queues, ECS Fargate workers, and ElastiCache. Made all major architectural decisions including the BullMQ to SQS migration and Cohere embedding integration.
-    \item \textbf{Frontend:} Built the VSCode-style note editor UI, file tree, command palette, settings page, Canvas import UI, and AI chat interface. Implemented internationalisation across 12 languages.
+    \item \textbf{Frontend:} Built the VSCode-style note editor UI, file tree, search modal, settings page, Canvas import UI, and AI chat interface. Implemented internationalisation across 12 languages.
     \item \textbf{Backend:} Developed API routes for notes CRUD, file upload, AI chat with RAG, and auth middleware with rate limiting.
     \item \textbf{DevOps:} Configured Amplify CI/CD pipeline, ECS Fargate worker deployment, and environment management across dev/main/production branches.
     \item \textbf{Canvas Integration:} Built the full Canvas LMS import pipeline from API integration through to S3 storage and RAG embedding.
@@ -245,15 +252,15 @@ The core of OghmaNotes is a VSCode-inspired note editor with a three-panel layou
 
 \subsubsection{Editor Interface}
 
-The editor features a \textbf{file tree sidebar} on the left, styled after Obsidian with indent guides and compact rows, providing hierarchical navigation through folders and files. The \textbf{main editor pane} uses a rich-text editor built on the Lexical framework with CodeMirror for markdown source editing, supporting markdown-style formatting, code blocks with syntax highlighting, and inline media. A \textbf{split-pane view} allows users to open a PDF viewer alongside their notes, enabling side-by-side study of lecture materials and note-taking.
+The editor features a \textbf{file tree sidebar} on the left, styled after Obsidian with indent guides and compact rows, providing hierarchical navigation through folders and files. The \textbf{main editor pane} uses CodeMirror~6 for markdown editing, supporting markdown-style formatting, code blocks with syntax highlighting, and inline media. A \textbf{split-pane view} allows users to open a PDF viewer alongside their notes, enabling side-by-side study of lecture materials and note-taking.
 
 \subsubsection{File Management}
 
-Users can create, rename, delete, and duplicate both files and folders. Drag-and-drop file upload is supported for PDFs and images. A breadcrumb navigation bar shows the current file's location in the hierarchy, and a command palette (accessible via keyboard shortcut) provides quick access to common actions.
+Users can create, rename, delete, and duplicate both files and folders. Drag-and-drop file upload is supported for PDFs and images. A breadcrumb navigation bar shows the current file's location in the hierarchy, and a search modal (accessible via keyboard shortcut) provides quick access to notes and actions.
 
-\screenshotplaceholder{Notes Editor --- File tree sidebar with split-pane editor and PDF viewer}
+\screenshot{notes-editor}{Notes Editor --- File tree sidebar with Canvas-imported courses}
 
-\screenshotplaceholder{Notes Editor --- Command palette overlay}
+\screenshot{editor-command-palette}{Notes Editor --- Search modal overlay}
 
 \subsection{Canvas LMS Integration}
 
@@ -279,9 +286,9 @@ Once connected, users can browse their Canvas courses and select which ones to i
 
 Real-time progress is communicated back to the user through status polling and toast notifications.
 
-\screenshotplaceholder{Canvas Import --- Settings page with API token configuration}
+\screenshot{canvas-settings}{Canvas Integration --- API token setup with step-by-step instructions}
 
-\screenshotplaceholder{Canvas Import --- Course selection and import progress}
+\screenshot{canvas-import}{Canvas Integration --- Connected account with course selection}
 
 \subsection{AI Chat (RAG-Powered)}
 
@@ -305,9 +312,9 @@ Before embedding, all markdown syntax is stripped from note content --- headers,
 
 At query time, pgvector's HNSW index performs approximate nearest-neighbour search using the \tech{<=>} cosine distance operator, retrieving up to 20 candidates within a maximum distance of 0.75. These candidates are then reranked by Cohere's \tech{rerank-multilingual-v3.0} model, which applies cross-attention scoring to the query--document pairs. Chunks scoring below a 0.15 relevance threshold are discarded, and the top 5 are retained.
 
-The surviving chunks are grouped by source note in the prompt, with a 1200-character limit per note block, and the LLM is instructed to cite sources by note title. The production LLM is Kimi K2.5 (Moonshot AI) accessed via an OpenAI-compatible API, configured with a 2048-token generation limit. Responses are streamed to the client via server-sent events with idle timeout reset to maintain connection liveness.
+The surviving chunks are grouped by source note in the prompt, and the LLM is instructed to cite sources by note title. The production LLM is Kimi K2.5 (Moonshot AI) accessed via an OpenAI-compatible API, configured with a 2048-token generation limit. Responses are streamed to the client via server-sent events with idle timeout reset to maintain connection liveness.
 
-\screenshotplaceholder{AI Chat --- Chat interface with RAG-powered responses and context attachments}
+\screenshot{chat}{AI Chat --- RAG-powered chat interface with context-aware responses}
 
 \subsection{Settings}
 
@@ -316,18 +323,18 @@ The settings page provides account management and application configuration:
 \begin{itemize}[leftmargin=1.5em]
     \item \textbf{Profile Management:} Update display name, email, and avatar.
     \item \textbf{Theme:} Toggle between dark and light modes, implemented with class-based Tailwind~v4 theming.
-    \item \textbf{Language:} Select from 13 supported locales, powered by a custom internationalisation system.
+    \item \textbf{Language:} Select from 12 supported locales, powered by a custom internationalisation system.
     \item \textbf{Canvas Integration:} Configure Canvas API token and institution URL.
     \item \textbf{OAuth Accounts:} View and manage linked OAuth providers (link/unlink Google and GitHub).
 \end{itemize}
 
-\screenshotplaceholder{Settings Page --- Profile, theme, language, and Canvas configuration}
+\screenshot{settings}{Settings Page --- Profile management, theme, and language configuration}
 
 \subsection{Quiz System (Spaced Repetition)}
 
 OghmaNotes includes a flashcard-based quiz system that uses the FSRS (Free Spaced Repetition Scheduler) algorithm via the \tech{ts-fsrs} library. Users can create flashcards from their notes and study them with scientifically-backed scheduling that optimises long-term retention. The system tracks quiz sessions, individual card reviews, and maintains streak data to encourage consistent study habits.
 
-\screenshotplaceholder{Quiz System --- Flashcard review interface with spaced repetition scheduling}
+\screenshot{quiz}{Quiz System --- Dashboard with mastery metrics and spaced repetition scheduling}
 
 \subsection{Productivity Tools}
 
@@ -340,7 +347,7 @@ The application includes several productivity features to support focused study:
     \item \textbf{Assignment Tracking:} Canvas assignments are synced and tracked, with due dates displayed in the calendar view.
 \end{itemize}
 
-\screenshotplaceholder{Productivity Tools --- Pomodoro timer, time blocks, and calendar view}
+\screenshot{productivity}{Productivity Tools --- Calendar view with Canvas assignments and course progress}
 
 \subsection{Internationalisation}
 
@@ -356,34 +363,89 @@ OghmaNotes supports 12 languages: English, Arabic, German, Spanish, French, Iris
 
 OghmaNotes follows a serverless-first architecture deployed entirely on AWS. The application consists of three main runtime components: the Next.js frontend and API (hosted on AWS Amplify), the PostgreSQL database (AWS RDS), and the Canvas import worker (AWS ECS Fargate). These are connected through a set of AWS services that handle storage (S3), messaging (SQS), caching (ElastiCache), and email (SES).
 
-\screenshotplaceholder{System Architecture Diagram --- AWS services and data flow between components}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    every node/.style={font=\small},
+    service/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2.2cm, minimum height=0.85cm, align=center, text=oghmablue, font=\small\bfseries},
+    aws/.style={draw, rounded corners, fill=oghmaaccent!12, minimum width=2.2cm, minimum height=0.85cm, align=center, font=\small},
+    client/.style={draw, rounded corners, fill=orange!10, minimum width=2.2cm, minimum height=0.85cm, align=center, font=\small\bfseries},
+    ext/.style={draw, dashed, rounded corners, fill=green!6, minimum width=2.2cm, minimum height=0.85cm, align=center, font=\small},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+    darr/.style={{Stealth[length=5pt]}-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+]
+    % row 1: client + app
+    \node[client] (browser) at (0, 0) {Browser\\React / Next.js};
+    \node[service] (amplify) at (4.5, 0) {AWS Amplify\\SSR + CDN};
+
+    % row 2: core AWS services
+    \node[aws] (cache) at (0, -2.4) {ElastiCache\\Valkey 8.2};
+    \node[aws] (rds)   at (3, -2.4) {AWS RDS\\PostgreSQL};
+    \node[aws] (s3)    at (6, -2.4) {AWS S3\\Storage};
+    \node[aws] (ses)   at (9, -2.4) {AWS SES\\Email};
+
+    % row 3: async job pipeline
+    \node[aws] (sqs) at (3, -4.8) {AWS SQS\\Job Queue};
+    \node[service] (ecs) at (6, -4.8) {ECS Fargate\\Canvas Worker};
+
+    % row 4: external services
+    \node[ext] (ec2)    at (1.5, -7.2) {EC2 GPU\\Marker OCR};
+    \node[ext] (cohere) at (4.5, -7.2) {Cohere API\\Embed + Rerank};
+    \node[ext] (llm)    at (7.5, -7.2) {Moonshot AI\\Kimi K2.5};
+
+    % client to app
+    \draw[arr] (browser) -- node[above, font=\scriptsize]{HTTPS} (amplify);
+
+    % amplify to core services
+    \draw[arr] (amplify) -- (cache);
+    \draw[arr] (amplify) -- (rds);
+    \draw[arr] (amplify) -- (s3);
+    \draw[arr] (amplify) -- (ses);
+
+    % import pipeline: DB job record triggers SQS, worker polls
+    \draw[arr] (rds) -- node[right, font=\scriptsize]{job} (sqs);
+    \draw[arr] (sqs) -- (ecs);
+
+    % worker connections
+    \draw[darr] (ecs) -- (s3);
+    \draw[arr] (ecs) -- (ec2);
+    \draw[arr] (ecs) -- (cohere);
+
+    % amplify to external APIs (RAG queries + chat)
+    \draw[darr] (amplify) -- (cohere);
+    \draw[darr] (amplify.east) -| (llm);
+\end{tikzpicture}%
+}
+\caption{System Architecture --- AWS services and data flow (ECS also reads/writes RDS)}
+\end{figure}
 
 \subsection{Technology Stack}
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabularx}{\textwidth}{lll}
+\begin{tabularx}{\textwidth}{l l X}
 \toprule
 \textbf{Layer} & \textbf{Technology} & \textbf{Notes} \\
 \midrule
-Frontend        & Next.js 16.2, React 19, TypeScript, Tailwind v4 & VSCode-inspired split-pane editor \\
-Backend         & Next.js API Routes (serverless)             & REST pattern with route handlers \\
-Database        & PostgreSQL 17.4 + pgvector (AWS RDS)        & \tech{app.*} schema, 8+ migrations \\
-Object Storage  & AWS S3                                      & Notes, attachments, Canvas files \\
-Cache           & AWS ElastiCache (Valkey 8.2)                & Session cache \\
-Job Queue       & AWS SQS                                     & Canvas import job dispatch \\
-Worker          & AWS ECS Fargate                             & Self-scaling import worker \\
-Email           & AWS SES                                     & Password reset, notifications \\
-CI/CD           & AWS Amplify Gen 2                           & Build, deploy, CDN, SSR Lambda \\
-Auth            & NextAuth v5 + Custom JWT                   & OAuth (Google/GitHub) + AES-256-GCM encryption \\
-Embeddings      & Cohere embed-multilingual-v3.0 (1024 dims)  & Migrated from Ollama (4096 dims) \\
+Frontend        & Next.js 16.2, React 19, Tailwind v4         & VSCode-inspired split-pane editor \\
+Backend         & Next.js API Routes (serverless)              & REST pattern with route handlers \\
+Database        & PostgreSQL 17.4 + pgvector (RDS)             & \tech{app.*} schema, 10 migrations \\
+Object Storage  & AWS S3                                       & Notes, attachments, Canvas files \\
+Cache           & ElastiCache (Valkey 8.2)                     & Session cache \\
+Job Queue       & AWS SQS                                      & Canvas import job dispatch \\
+Worker          & AWS ECS Fargate                              & Self-scaling import worker \\
+Email           & AWS SES                                      & Password reset, notifications \\
+CI/CD           & AWS Amplify Gen 2                            & Build, deploy, CDN, SSR Lambda \\
+Auth            & NextAuth v5 + Custom JWT                     & OAuth + AES-256-GCM encryption \\
+Embeddings      & Cohere embed-multilingual-v3.0               & 1024 dims, migrated from self-hosted Ollama \\
 Reranking       & Cohere rerank-multilingual-v3.0              & Relevance reranking for RAG \\
-LLM             & Kimi K2.5 (Moonshot AI)                    & Production LLM via OpenAI-compatible API \\
-OCR             & Marker (self-hosted EC2 ASG, g5.xlarge) + Datalab fallback & PDF/DOCX/PPTX text extraction \\
-GPU Compute     & AWS EC2 (g5.xlarge, NVIDIA A10G, spot \textasciitilde\$0.35/hr) & Marker OCR via ASG, scales to zero \\
-LMS             & Canvas LMS REST API                         & Course/file import pipeline \\
-i18n            & Custom locale system                        & 12 languages \\
+LLM             & Kimi K2.5 (Moonshot AI)                      & OpenAI-compatible API \\
+OCR             & Marker (EC2 g5.xlarge) + Datalab             & PDF/DOCX/PPTX text extraction \\
+GPU Compute     & EC2 (g4dn/g5.xlarge GPU)                     & ASG, scales to zero when idle \\
+LMS             & Canvas LMS REST API                          & Course/file import pipeline \\
+i18n            & Custom locale system                         & 12 languages \\
 \bottomrule
 \end{tabularx}
 \caption{OghmaNotes Technology Stack}
@@ -407,7 +469,7 @@ The production infrastructure runs in the \tech{eu-north-1} (Stockholm) region. 
 
 \textbf{AWS ElastiCache} (Valkey 8.2) provides in-memory caching for session data.
 
-\textbf{AWS EC2} runs a \tech{g5.xlarge} GPU instance (NVIDIA A10G) hosting the Marker OCR server for document text extraction. The instance runs within an Auto Scaling Group (ASG) behind an Application Load Balancer, using spot pricing at approximately \$0.35/hour. The ASG scales to zero when idle, with a 4--7 minute cold start when documents need processing. The instance supports PDF, DOCX, DOC, PPTX, PPT, PNG, and JPG formats. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API as an external OCR service.
+\textbf{AWS EC2} runs a GPU instance (g4dn.xlarge or g5.xlarge depending on availability) in \tech{eu-west-1} hosting the Marker OCR server for document text extraction. The instance runs within an Auto Scaling Group (ASG) behind an Application Load Balancer. The ASG scales to zero when idle, with a 4--7 minute cold start when documents need processing. The instance supports PDF, DOCX, DOC, PPTX, PPT, PNG, and JPG formats. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API as an external OCR service.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -452,18 +514,6 @@ The OghmaNotes backend exposes a REST API through Next.js API Routes. All endpoi
 
 All protected routes use a custom JWT middleware that extracts the token from HTTP-only cookies, verifies the signature, and attaches the decoded user object to the request context. Unauthenticated requests receive a 401 response. Rate limiting is implemented using a sliding-window counter pattern, with stricter limits on authentication endpoints (login, register, password reset) to prevent brute-force attacks.
 
-\subsection{Example: Notes CRUD}
-
-The notes API supports the full lifecycle of note management:
-
-\begin{itemize}[leftmargin=1.5em]
-    \item \tech{GET /api/notes} --- List all notes for the authenticated user.
-    \item \tech{POST /api/notes} --- Create a new note or folder. Accepts \tech{title}, \tech{content}, \tech{parent\_id}, and \tech{type} (file or folder).
-    \item \tech{GET /api/notes/:id} --- Retrieve a single note by ID, including content from S3 if stored externally.
-    \item \tech{PUT /api/notes/:id} --- Update note title, content, or parent (for moving within the tree).
-    \item \tech{DELETE /api/notes/:id} --- Soft-delete a note (moves to trash).
-\end{itemize}
-
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 7: KEY SYSTEM FLOWS
@@ -482,7 +532,59 @@ The authentication system supports two parallel paths that converge on a shared 
 
 \textbf{Token Refresh:} JWTs have a configurable expiry. The \tech{/api/auth/me} endpoint checks token validity and issues a refreshed token when needed.
 
-\screenshotplaceholder{Authentication Flow Diagram --- Email/password and OAuth paths converging on JWT issuance}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    every node/.style={font=\small},
+    sbox/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2cm, minimum height=0.7cm, align=center, font=\small},
+    decision/.style={draw, diamond, fill=oghmaaccent!12, aspect=1.8, align=center, font=\small, inner sep=2pt},
+    endpoint/.style={draw, rounded corners, fill=green!10, minimum width=2cm, minimum height=0.7cm, align=center, font=\small\bfseries},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+]
+    % email path (left column, x=0)
+    \node[sbox] (reg) at (0, 0) {Register\\email + password};
+    \node[sbox] (hash) at (0, -1.6) {bcrypt hash\\store in DB};
+    \node[sbox] (verify) at (0, -3.2) {SES verification\\email};
+    \node[sbox] (login) at (0, -4.8) {User logs in};
+    \node[decision] (check) at (0, -6.8) {Valid?};
+    \node[sbox] (fail) at (-3, -6.8) {401 error};
+
+    % oauth path (right column, x=6)
+    \node[sbox] (oauth) at (6, 0) {Click Google\\or GitHub};
+    \node[sbox] (redirect) at (6, -1.6) {Provider\\consent screen};
+    \node[sbox] (callback) at (6, -3.2) {Auth.js\\verify token};
+    \node[decision] (exists) at (6, -5.2) {Account\\exists?};
+    \node[sbox] (link) at (4, -6.8) {Link OAuth\\to account};
+    \node[sbox] (create) at (8.5, -5.2) {Create user\\+ link OAuth};
+
+    % convergence
+    \node[endpoint] (jwt) at (3, -9) {Issue JWT\\(HTTP-only cookie)};
+    \node[endpoint] (session) at (3, -10.6) {Session active};
+
+    % email path arrows
+    \draw[arr] (reg) -- (hash);
+    \draw[arr] (hash) -- (verify);
+    \draw[arr] (verify) -- (login);
+    \draw[arr] (login) -- (check);
+    \draw[arr] (check) -- node[above, font=\scriptsize]{no} (fail);
+    \draw[arr] (check) -- node[left, font=\scriptsize]{yes} (jwt);
+
+    % oauth path arrows
+    \draw[arr] (oauth) -- (redirect);
+    \draw[arr] (redirect) -- (callback);
+    \draw[arr] (callback) -- (exists);
+    \draw[arr] (exists) -- node[left, font=\scriptsize]{yes} (link);
+    \draw[arr] (exists) -- node[above, font=\scriptsize]{no} (create);
+    \draw[arr] (link) -- (jwt);
+    \draw[arr] (create) |- (jwt);
+
+    % final
+    \draw[arr] (jwt) -- (session);
+\end{tikzpicture}%
+}
+\caption{Authentication Flow --- Email/password and OAuth paths converging on JWT issuance}
+\end{figure}
 
 \subsection{Canvas Import Pipeline}
 
@@ -494,13 +596,55 @@ The Canvas import pipeline is the most architecturally complex flow in the syste
     \item \textbf{Worker Activation:} The ECS Fargate worker, which polls SQS on a loop, receives the message and begins processing.
     \item \textbf{Canvas API Calls:} The worker uses the Canvas REST API to enumerate courses, modules, files, and assignments. Each file is downloaded to a temporary buffer.
     \item \textbf{S3 Upload:} Downloaded files are uploaded to S3 under a user-specific key prefix, with metadata recorded in the \tech{canvas\_imports} table.
-    \item \textbf{Text Extraction:} PDFs (and DOCX/PPTX files) are sent to a self-hosted Marker instance running on an EC2 \tech{g5.xlarge} GPU instance (NVIDIA A10G) within an Auto Scaling Group. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API. Markdown syntax is stripped before embedding to reduce noise in the vector space.
+    \item \textbf{Text Extraction:} PDFs (and DOCX/PPTX files) are sent to a self-hosted Marker instance running on an EC2 GPU instance within an Auto Scaling Group. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API. Markdown syntax is stripped before embedding to reduce noise in the vector space.
     \item \textbf{Chunking \& Embedding:} Extracted text is split into sentence-aligned, non-overlapping chunks of approximately 500 characters. Each chunk is sent to Cohere's \tech{embed-multilingual-v3.0} API, producing a 1024-dimensional embedding vector.
     \item \textbf{Vector Storage:} Embeddings are stored in the \tech{note\_chunks} table using pgvector, with an HNSW index for efficient approximate nearest-neighbour search.
     \item \textbf{Completion:} The job status is updated to \tech{complete} (or \tech{failed} with error details). The worker returns to polling and scales to zero after an idle timeout.
 \end{enumerate}
 
-\screenshotplaceholder{Canvas Import Pipeline Diagram --- SQS, ECS Fargate, S3, and pgvector data flow}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=1.2cm and 1.8cm,
+    sbox/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    aws/.style={draw, rounded corners, fill=oghmaaccent!12, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+]
+    % row 1 - trigger
+    \node[sbox] (user) {User clicks\\``Import''};
+    \node[aws, right=of user] (api) {Next.js API\\creates job in DB};
+    \node[aws, right=of api] (sqs) {SQS message\\(job ID + token)};
+    \node[aws, right=of sqs] (ecs) {ECS Fargate\\worker polls};
+
+    % row 2 - processing
+    \node[aws, below=1.8cm of ecs] (canvas) {Canvas REST API\\fetch files};
+    \node[aws, left=of canvas] (s3) {Upload to\\AWS S3};
+    \node[aws, left=of s3] (ocr) {Marker OCR\\(EC2 GPU)};
+    \node[aws, left=of ocr] (chunk) {Sentence-aligned\\chunking};
+
+    % row 3 - embedding
+    \node[aws, below=1.8cm of chunk] (embed) {Cohere embed\\(1024 dims)};
+    \node[aws, right=of embed] (pgvec) {pgvector\\HNSW index};
+    \node[sbox, right=of pgvec] (done) {Job status\\$\to$ complete};
+    \node[sbox, right=of done] (scale) {Worker scales\\to zero};
+
+    % arrows
+    \draw[arr] (user) -- (api);
+    \draw[arr] (api) -- (sqs);
+    \draw[arr] (sqs) -- (ecs);
+    \draw[arr] (ecs) -- (canvas);
+    \draw[arr] (canvas) -- (s3);
+    \draw[arr] (s3) -- (ocr);
+    \draw[arr] (ocr) -- (chunk);
+    \draw[arr] (chunk) -- (embed);
+    \draw[arr] (embed) -- (pgvec);
+    \draw[arr] (pgvec) -- (done);
+    \draw[arr] (done) -- (scale);
+\end{tikzpicture}%
+}
+\caption{Canvas Import Pipeline --- From user trigger through SQS, OCR, and embedding to pgvector storage}
+\end{figure}
 
 \subsection{RAG Query Flow}
 
@@ -509,7 +653,7 @@ When a user sends a message in the AI chat interface, the following pipeline exe
 \begin{enumerate}[leftmargin=1.5em]
     \item \textbf{Query Embedding:} The user's message is sent to Cohere's embedding API, producing a 1024-dimensional query vector.
     \item \textbf{Vector Search:} The query vector is compared against stored chunk embeddings using pgvector's \tech{<=>} (cosine distance) operator with an HNSW index. The top-$k$ most similar chunks are retrieved (filtered to a maximum cosine distance of 0.75), optionally scoped to the user's selected context (specific files or folders).
-    \item \textbf{Reranking:} Retrieved chunks are passed through Cohere's \tech{rerank-multilingual-v3.0} model, which rescores them by relevance to the original query. Chunks below a minimum relevance threshold (0.15) are discarded. This step significantly improves precision over raw vector similarity alone.
+    \item \textbf{Reranking:} Retrieved chunks are passed through Cohere's rerank-multilingual-v3.0 model, which rescores them by relevance to the original query. Chunks below a minimum relevance threshold~(0.15) are discarded. This significantly improves precision over raw vector similarity alone.
     \item \textbf{Prompt Construction:} The reranked chunks are injected into a system prompt that instructs the LLM to answer based on the provided context, cite sources, and indicate when information is not available.
     \item \textbf{LLM Generation:} The prompt is sent to the LLM (Kimi K2.5 via Moonshot AI's OpenAI-compatible API). The response is streamed back to the client using server-sent events for a responsive user experience.
     \item \textbf{Session Persistence:} The message and response are stored in the \tech{chat\_messages} table, linked to the user's chat session for future reference.
@@ -517,7 +661,49 @@ When a user sends a message in the AI chat interface, the following pipeline exe
 
 The pipeline includes several optimisation decisions driven by empirical testing. The 20-candidate retrieval with reranking to 5 was chosen because raw vector similarity alone produces false positives --- semantically adjacent but topically irrelevant chunks. The Cohere reranker provides a cross-attention score that considers the query--document pair holistically, significantly improving precision. The 0.75 cosine distance threshold and 0.15 relevance floor were tuned against a test set of university lecture queries to balance recall and noise. Markdown syntax is stripped before embedding (removing headers, emphasis markers, code fences, and HTML tags) because formatting tokens dilute the semantic signal in the vector space.
 
-\screenshotplaceholder{RAG Query Flow Diagram --- Embedding, vector search, LLM generation pipeline}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=1.2cm and 1.8cm,
+    sbox/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    aws/.style={draw, rounded corners, fill=oghmaaccent!12, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+]
+    % row 1
+    \node[sbox] (query) {User sends\\chat message};
+    \node[aws, right=of query] (embed) {Cohere embed\\query vector};
+    \node[aws, right=of embed] (search) {pgvector HNSW\\cosine ($\leq$0.75)};
+    \node[aws, right=of search] (top) {Top-20\\candidates};
+
+    % row 2
+    \node[aws, below=1.8cm of top] (rerank) {Cohere rerank\\cross-attention};
+    \node[aws, left=of rerank] (filter) {Filter $\geq$0.15\\relevance};
+    \node[aws, left=of filter] (topk) {Top-5 chunks\\by source note};
+    \node[aws, left=of topk] (prompt) {Build LLM\\prompt + context};
+
+    % row 3
+    \node[aws, below=1.8cm of prompt] (llm) {Kimi K2.5\\(Moonshot AI)};
+    \node[sbox, right=of llm] (stream) {SSE stream\\response};
+    \node[sbox, right=of stream] (persist) {Persist to\\chat\_messages};
+    \node[sbox, right=of persist] (display) {Render in\\chat UI};
+
+    % arrows
+    \draw[arr] (query) -- (embed);
+    \draw[arr] (embed) -- (search);
+    \draw[arr] (search) -- (top);
+    \draw[arr] (top) -- (rerank);
+    \draw[arr] (rerank) -- (filter);
+    \draw[arr] (filter) -- (topk);
+    \draw[arr] (topk) -- (prompt);
+    \draw[arr] (prompt) -- (llm);
+    \draw[arr] (llm) -- (stream);
+    \draw[arr] (stream) -- (persist);
+    \draw[arr] (persist) -- (display);
+\end{tikzpicture}%
+}
+\caption{RAG Query Flow --- From user message through vector search, reranking, and LLM generation}
+\end{figure}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -527,7 +713,7 @@ The pipeline includes several optimisation decisions driven by empirical testing
 
 \subsection{Schema Overview}
 
-The database uses PostgreSQL~17.4 with the \tech{pgvector} extension, hosted on AWS RDS. All application tables reside under the \tech{app} schema, cleanly separating application data from PostgreSQL system tables. The schema evolved over 8+ migrations, reflecting an iterative development approach.
+The database uses PostgreSQL~17.4 with the \tech{pgvector} extension, hosted on AWS RDS. All application tables reside under the \tech{app} schema, cleanly separating application data from PostgreSQL system tables. The schema evolved over 10 migrations, reflecting an iterative development approach.
 
 \subsection{Core Tables}
 
@@ -551,6 +737,7 @@ The database uses PostgreSQL~17.4 with the \tech{pgvector} extension, hosted on 
 \tech{app.canvas\_imports}     & Individual file import records within a job \\
 \tech{app.assignments}         & Canvas assignment metadata synced from LMS \\
 \tech{app.quiz\_cards}         & Flashcard content for spaced-repetition quiz system \\
+\tech{app.quiz\_questions}     & LLM-generated questions linked to cards and chunks \\
 \tech{app.quiz\_sessions}      & Quiz session tracking with FSRS scheduling \\
 \tech{app.pomodoro\_sessions}  & Pomodoro timer session records \\
 \tech{app.time\_blocks}        & Time block scheduling entries \\
@@ -566,17 +753,64 @@ The database uses PostgreSQL~17.4 with the \tech{pgvector} extension, hosted on 
 
 The schema's relationships follow a user-centric model. Each user (in \tech{app.login}) owns notes (one-to-many), chat sessions (one-to-many), and stores their encrypted Canvas API token directly as a column. Notes form a tree structure through the \tech{app.tree\_items} table with parent references enabling nested folders. Each note can have multiple text chunks (one-to-many via \tech{app.chunks}), each with a corresponding embedding row in \tech{app.embeddings} (one-to-one). Canvas import jobs contain multiple individual file imports (one-to-many). Users can also have quiz cards, pomodoro sessions, time blocks, and assignments linked to their account.
 
-\screenshotplaceholder{Entity-Relationship Diagram --- Database schema relationships}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    every node/.style={font=\small},
+    entity/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2.6cm, minimum height=1.3cm, align=center, font=\small\bfseries, text=oghmablue},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+    lbl/.style={font=\scriptsize, fill=white, inner sep=2pt},
+]
+    % level 0: auth + chat (top)
+    \node[entity] (oauth) at (1, 2.5) {oauth\_accounts\\{\scriptsize\normalfont providers}};
+    \node[entity] (sessions) at (8, 2.5) {chat\_sessions\\{\scriptsize\normalfont threads}};
+
+    % level 1: core entities (middle)
+    \node[entity] (notes) at (1, 0) {app.notes\\{\scriptsize\normalfont + tree\_items}};
+    \node[entity] (users) at (5, 0) {app.login\\{\scriptsize\normalfont users}};
+    \node[entity] (jobs) at (10, 0) {import\_jobs\\{\scriptsize\normalfont canvas imports}};
+
+    % level 2: children
+    \node[entity] (chunks) at (-0.5, -3) {app.chunks\\{\scriptsize\normalfont text chunks}};
+    \node[entity] (attach) at (2.5, -3) {attachments\\{\scriptsize\normalfont S3 objects}};
+    \node[entity] (messages) at (8, -3) {chat\_messages\\{\scriptsize\normalfont messages}};
+    \node[entity] (imports) at (11.5, -3) {canvas\_imports\\{\scriptsize\normalfont file records}};
+
+    % level 3: deep children + user-owned
+    \node[entity] (embed) at (-0.5, -6) {embeddings\\{\scriptsize\normalfont pgvector 1024d}};
+    \node[entity] (quiz) at (3.5, -6) {quiz\_cards\\{\scriptsize\normalfont + sessions}};
+    \node[entity] (time) at (7.5, -6) {time\_blocks\\{\scriptsize\normalfont + pomodoro}};
+
+    % relationships from users
+    \draw[arr] (users) -- node[lbl]{1:N} (oauth);
+    \draw[arr] (users) -- node[lbl]{1:N} (sessions);
+    \draw[arr] (users) -- node[lbl]{1:N} (notes);
+    \draw[arr] (users) -- node[lbl]{1:N} (jobs);
+    \draw[arr] (users) -- node[lbl]{1:N} (quiz);
+    \draw[arr] (users) -- node[lbl]{1:N} (time);
+
+    % children
+    \draw[arr] (notes) -- node[lbl]{1:N} (chunks);
+    \draw[arr] (notes) -- node[lbl]{1:N} (attach);
+    \draw[arr] (chunks) -- node[lbl]{1:1} (embed);
+    \draw[arr] (sessions) -- node[lbl]{1:N} (messages);
+    \draw[arr] (jobs) -- node[lbl]{1:N} (imports);
+\end{tikzpicture}%
+}
+\caption{Entity-Relationship Diagram --- Core database relationships under the \tech{app} schema}
+\end{figure}
 
 \subsection{Vector Storage Design}
 
 The \tech{app.chunks} and \tech{app.embeddings} tables are central to the RAG system. Each chunk row contains the text, its source document ID, and user ownership. A corresponding row in \tech{app.embeddings} stores the 1024-dimensional vector embedding, linked via \tech{chunk\_id}. The table uses a pgvector HNSW index for approximate nearest-neighbour queries, providing O(log~n) lookup performance.
 
-The choice of 1024 dimensions was driven by a practical constraint: pgvector's HNSW index has a 2000-dimension limit. The project initially used Ollama's \tech{qwen3-embedding} model at 4096 dimensions, which forced brute-force O(n) scanning. Migrating to Cohere's \tech{embed-multilingual-v3.0} at 1024 dimensions enabled HNSW indexing, dramatically improving search performance. This pivot is discussed further in Section~\ref{sec:pivots}.
+The choice of 1024 dimensions was driven by two constraints: pgvector's HNSW index has a 2000-dimension limit, and the initial self-hosted Ollama embeddings at 4096 dimensions also ran through a Cloudflare Tunnel with response timeouts. Migrating to Cohere's \tech{embed-multilingual-v3.0} at 1024 dimensions resolved both, enabling HNSW indexing and eliminating the tunnel bottleneck. This pivot is discussed further in Section~\ref{sec:pivots}.
 
 \subsection{Migration History}
 
-The database evolved through multiple SQL migrations, each tracked in the \tech{app.schema\_migrations} table. Notable migrations include the initial schema creation (\tech{001}), the addition of OAuth accounts (\tech{002}), quiz session card IDs (\tech{003}), vault job columns (\tech{005}), Canvas import uniqueness constraints (\tech{006}), and email verification support. This iterative migration approach reflects agile development practices, with the schema adapting to new requirements as features were built.
+The database evolved through multiple SQL migrations, each tracked in a dedicated schema migrations table.
+Notable migrations include the initial schema creation~(\tech{001}), OAuth accounts~(\tech{002}), quiz session card IDs~(\tech{003}), vault job columns~(\tech{005}), Canvas import uniqueness constraints~(\tech{006}), and email verification support. This iterative approach reflects agile development, with the schema adapting to new requirements as features were built.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -604,7 +838,61 @@ The repository follows a two-branch model. The \tech{dev} branch serves as the i
 
 The Canvas import worker runs as a separate ECS Fargate service. Its container image is built from a Dockerfile in the repository and pushed to Amazon ECR. The ECS task definition specifies resource limits, environment variables, and the SQS queue URL. The service is configured with a desired count of zero by default, scaling up when SQS messages are detected.
 
-\screenshotplaceholder{CI/CD Pipeline Diagram --- GitHub to Amplify to production flow}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    every node/.style={font=\small},
+    sbox/.style={draw, rounded corners, fill=oghmablue!10, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    aws/.style={draw, rounded corners, fill=oghmaaccent!12, minimum width=2.2cm, minimum height=0.8cm, align=center, font=\small},
+    branch/.style={draw, rounded corners, fill=orange!10, minimum width=2cm, minimum height=0.8cm, align=center, font=\small\bfseries},
+    arr/.style={-{Stealth[length=5pt]}, thick, color=oghmablue!70},
+]
+    % row 1: dev branch
+    \node[branch] (dev) at (0, 0) {dev branch};
+    \node[aws] (devbuild) at (3.5, 0) {Amplify build\\(dev env)};
+    \node[sbox] (devdeploy) at (7.5, 0) {Deploy to\\dev.oghmanotes.ie};
+
+    % row 2: main branch
+    \node[branch] (main) at (0, -2.2) {main branch};
+    \node[aws] (mainbuild) at (3.5, -2.2) {Amplify build\\(prod env)};
+    \node[sbox] (maindeploy) at (7.5, -2.2) {Deploy to\\oghmanotes.ie};
+    \node[sbox] (cdn) at (11, -2.2) {CDN + SSR\\Lambda@Edge};
+
+    % row 3: build detail
+    \node[aws] (install) at (3.5, -4.4) {\tech{npm ci}};
+    \node[aws] (build) at (6.5, -4.4) {\tech{next build}};
+    \node[aws] (output) at (9.5, -4.4) {Static assets +\\serverless fns};
+
+    % row 4: worker pipeline
+    \node[sbox] (docker) at (3.5, -6.2) {Docker build\\worker image};
+    \node[aws] (ecr) at (6.5, -6.2) {Push to\\Amazon ECR};
+    \node[sbox] (ecsup) at (9.5, -6.2) {Update ECS\\task definition};
+
+    % dev flow
+    \draw[arr] (dev) -- (devbuild);
+    \draw[arr] (devbuild) -- (devdeploy);
+
+    % merge: dev → main (straight down, clean)
+    \draw[arr] (dev) -- node[right, font=\scriptsize]{PR merge} (main);
+
+    % main flow
+    \draw[arr] (main) -- (mainbuild);
+    \draw[arr] (mainbuild) -- (maindeploy);
+    \draw[arr] (maindeploy) -- (cdn);
+
+    % build details
+    \draw[arr] (mainbuild) -- (install);
+    \draw[arr] (install) -- (build);
+    \draw[arr] (build) -- (output);
+
+    % worker pipeline
+    \draw[arr] (docker) -- (ecr);
+    \draw[arr] (ecr) -- (ecsup);
+\end{tikzpicture}%
+}
+\caption{CI/CD Pipeline --- Branch strategy, Amplify build stages, and ECS worker deployment}
+\end{figure}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -631,15 +919,15 @@ The Canvas import job queue was initially implemented using BullMQ backed by Ela
 
 \textbf{Lesson:} Cloud networking constraints drive architectural decisions more than theoretical best practices. SQS was the pragmatic choice given the deployment environment.
 
-\subsection{Pivot 4: Local Ollama to Cohere Embeddings}
+\subsection{Pivot 4: Self-Hosted Embeddings to Cohere}
 
-The initial embedding pipeline used a self-hosted Ollama instance running \tech{qwen3-embedding}, which produced 4096-dimensional vectors. This exceeded pgvector's HNSW index limit of 2000 dimensions, forcing the system to use brute-force O(n) sequential scanning for every similarity query. The team migrated to Cohere's \tech{embed-multilingual-v3.0} API, which produces 1024-dimensional vectors compatible with HNSW indexing, reducing search complexity to O(log~n).
+The initial plan was to run embeddings on a self-hosted Ollama instance (qwen3-embedding, 4096 dimensions) and a reranker on the developer's homelab, exposed via a Cloudflare Tunnel for secure remote access. Two problems emerged: first, Cloudflare's tunnel enforces a response timeout that is incompatible with inference latency on heavier embedding models; second, the 4096-dimensional vectors exceeded pgvector's HNSW index limit of 2000~dimensions, forcing brute-force O(n) scanning for every query. Cohere's \tech{embed-multilingual-v3.0} API resolved both issues: managed API with no timeout constraints, and 1024-dimensional vectors compatible with HNSW indexing. The cost was low enough that the tradeoff was straightforward.
 
-\textbf{Lesson:} Embedding dimension choice has non-obvious downstream performance implications. The choice of model directly constrains what indexing strategies are available.
+\textbf{Lesson:} Cloudflare Tunnel response timeouts are a hidden constraint when routing inference traffic through a homelab. Managed APIs eliminate the tunnel entirely.
 
-\subsection{Pivot 5: OpenWebUI Auth Layer to Direct LLM API}
+\subsection{Pivot 5: OpenWebUI to Direct LLM API}
 
-The RAG pipeline initially routed LLM requests through OpenWebUI as an authentication intermediary. This added latency and complexity without significant benefit. The team removed OpenWebUI and implemented direct API calls to the LLM provider, with a dual-provider pattern that switches between Ollama (development) and Kimi K2.5 (production) via environment variables.
+The RAG pipeline initially routed LLM requests through a self-hosted OpenWebUI instance, also behind the Cloudflare Tunnel. The same timeout constraints applied, and the additional hop added latency without benefit. The team migrated to direct API calls to Moonshot AI's Kimi K2.5, which provides an OpenAI-compatible endpoint at low cost, removing the tunnel dependency and the OpenWebUI authentication layer entirely.
 
 \subsection{Pivot 6: pnpm to npm}
 
@@ -655,19 +943,46 @@ The project operated within an AWS education credits budget. This constraint dir
 % ══════════════════════════════════════════════════════════════════
 \section{Testing}
 
-\todo{Expand this section with specific test details and coverage metrics.}
+\subsection{Framework \& Configuration}
 
-\subsection{Testing Approach}
+The project uses Vitest~4.1.2 as its testing framework, configured for the Node.js environment with global test functions enabled. A setup file (\tech{src/\_\_tests\_\_/setup.ts}) injects default environment variables (\tech{JWT\_SECRET}, \tech{EMBEDDING\_API\_URL}) so that tests can run without a live infrastructure dependency. Tests are executed via \tech{npm run test} (watch mode) and \tech{npm run test:ci} (single-run for CI).
 
-The project uses Vitest as its testing framework, configured for the Next.js environment. Testing focused primarily on critical backend logic, including authentication flows, API route handlers, and database query functions.
+\subsection{Test Suite Overview}
 
-\subsection{What Was Tested}
+The test suite comprises 39 test files organised under \tech{src/\_\_tests\_\_/}, covering backend logic, utilities, and integration points. The following table summarises coverage by area:
 
-Unit tests cover authentication utilities (password hashing, JWT generation and verification), database query functions (note CRUD, user management), and input validation logic. API route integration tests verify that endpoints return correct status codes and response shapes for both authenticated and unauthenticated requests.
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l r X}
+\toprule
+\textbf{Area} & \textbf{Files} & \textbf{What is tested} \\
+\midrule
+Validation \& schemas   & 2  & Zod schemas for note create/update, login, register, quiz sessions, pagination, UUID params. Rejects invalid input with structured 400 responses \\
+Cryptography            & 2  & AES-256-GCM encrypt/decrypt round-trips, unicode handling, IV randomness, key isolation per user, tampered-ciphertext detection, large payloads \\
+Authentication          & 3  & OAuth provider config (Google/GitHub), credential auth toggle, login lockout after failed attempts, OAuth user creation/linking \\
+Caching                 & 1  & \tech{cacheGet}/\tech{cacheSet}/\tech{cacheInvalidate} with JSON serialisation, TTL, 100KB size guard, graceful error handling, cache key builders \\
+AI \& embeddings        & 3  & Cohere API key validation, empty-input guards, batch failure handling, LLM streaming, SSE event formatting \\
+RAG pipeline            & 3  & Text chunking (sentence-aligned, ~500 chars), reranking integration, RAG indexing, embedding generation \\
+Quiz system             & 5  & Prompt construction with Bloom taxonomy levels, LLM JSON response parsing, FSRS spaced-repetition scheduling, question selection logic \\
+Data processing         & 4  & Markdown stripping, title extraction, OCR extraction with retry logic, Canvas-specific extraction \\
+Utilities               & 7  & Debounce (with flush/cancel), field filtering, friendly error messages, logging, request tracing, environment validation, note type classification \\
+Infrastructure          & 3  & SQS queue operations, tree structure actions, client IP extraction \\
+API routes              & 1  & Settings endpoint (session validation, S3 persistence, response shape) \\
+\bottomrule
+\end{tabularx}
+\caption{Test Coverage by Area (39 test files)}
+\end{table}
+
+\subsection{Testing Patterns}
+
+The test suite follows several consistent patterns. Module mocking uses \tech{vi.mock()} with \tech{vi.hoisted()} for dependency injection, allowing tests to run without live database or API connections. Environment variable testing uses \tech{vi.stubEnv()} with cleanup via \tech{vi.unstubAllEnvs()} in \tech{afterEach} blocks. Timer-dependent logic (debounce, rate limiting) uses \tech{vi.useFakeTimers()} with explicit advancement. Error paths are tested alongside success paths --- for example, the crypto tests verify that decryption with a wrong user ID throws, and that tampered ciphertext is detected.
 
 \subsection{Honest Assessment}
 
-Test coverage is not comprehensive. The frontend components, Canvas import pipeline, and RAG query flow lack automated tests. End-to-end testing was performed manually by the team during development, with each feature verified against its requirements before merging. The team acknowledges that more rigorous automated testing would have caught certain integration issues earlier, particularly around the BullMQ to SQS migration where the failure mode only manifested in the production environment.
+The 39-file test suite provides solid coverage of backend utilities, validation, and security-critical paths (cryptography, authentication, input validation). However, coverage has clear gaps. Frontend React components have no automated tests --- all UI verification was manual. The Canvas import worker's end-to-end flow (SQS polling, Canvas API interaction, S3 upload, OCR, embedding) is tested at the unit level for individual functions but lacks an integration test that exercises the full pipeline. The RAG query flow similarly has unit tests for chunking, embedding, and reranking, but no test that simulates a complete query-to-response cycle.
+
+End-to-end testing was performed manually during development, with each feature verified against requirements before merging. The team acknowledges that the BullMQ-to-SQS migration failure --- which only manifested in production due to VPC networking constraints --- would likely have been caught by an integration test that ran against a production-like environment. This experience reinforced the value of testing infrastructure interactions, not just application logic.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -681,11 +996,11 @@ The team followed an agile-inspired approach without strict adherence to any spe
 
 \subsection{GitHub Projects}
 
-Task tracking was managed through GitHub Issues and Pull Requests. The repository accumulated 117 issues (96 closed, 21 open) and 54 pull requests over the project lifetime. Issues were categorised by feature area (authentication, editor, Canvas integration, RAG, infrastructure) and assigned to team members. Pull requests enforced code review before merging to the \tech{main} branch, with notable PRs including security hardening batches (PR~\#155), quiz system implementation (PR~\#135), and batch issue resolution sprints (PR~\#133 resolving 37 issues).
+Task tracking was managed through GitHub Issues and Pull Requests. The repository accumulated 117 issues (96 closed, 21 open) and 67 pull requests over the project lifetime. Issues were categorised by feature area (authentication, editor, Canvas integration, RAG, infrastructure) and assigned to team members. Pull requests enforced code review before merging to the \tech{main} branch, with notable PRs including security hardening batches (PR~\#155), quiz system implementation (PR~\#135), and batch issue resolution sprints (PR~\#133 resolving 37 issues).
 
 Open issues at project close include planned improvements such as centralising RAG pipeline constants, converting worker files to TypeScript, adding CloudWatch metrics for the embedding pipeline, and addressing remaining security advisories --- reflecting an honest backlog of known technical debt.
 
-\screenshotplaceholder{GitHub Issues --- Issue tracker showing feature categorisation and resolution}
+% no screenshot available for GitHub Issues
 
 \subsection{Timeline}
 
@@ -711,9 +1026,9 @@ Mar 26 -- Apr 3 & Report \& Hardening & Documentation, report writing, GDPR acco
 
 \subsection{Commit Activity}
 
-The project accumulated over 807 commits over 65 active development days. Activity was heavily concentrated in February and March 2026, with those two months accounting for 688 of the total 807 commits. The most active single day was February~17 with 70 commits. This distribution reflects the semester structure, with planning and prototyping in Semester~1 followed by intensive implementation in Semester~2.
+The project accumulated over 840 commits across 69 active development days. Activity was heavily concentrated in February and March 2026, with those two months accounting for the majority of commits. The most active single day was February~17 with 70 commits. This distribution reflects the semester structure, with planning and prototyping in Semester~1 followed by intensive implementation in Semester~2.
 
-Contributor breakdown (across all branches): Semyon Fox contributed 742 commits, Shreyansh Singh contributed 13 commits, and the remainder comprised automated dependency updates (Dependabot) and minor contributions. The commit distribution reflects the team structure described in Section~2, with Semyon serving as the primary implementer across all subsystems while Samuel and Shreyansh focused on specific feature areas where their contributions were measured more by feature delivery than commit volume.
+Contributor breakdown (across all branches): Semyon Fox contributed 784 commits, Samuel Regan contributed 49 commits, Shreyansh Singh contributed 13 commits, and the remainder comprised automated dependency updates (Dependabot) and tooling checkpoint commits. The commit distribution reflects the team structure described in Section~2, with Semyon serving as the primary implementer across all subsystems while Samuel and Shreyansh focused on specific feature areas.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -761,75 +1076,22 @@ Several improvements and features are planned or under consideration for future 
 
 \textbf{Mobile Application:} The current application is responsive but not optimised for mobile workflows. A dedicated mobile application (or Progressive Web App) would better serve students who want to review notes on the go.
 
-\textbf{Improved RAG Pipeline:} Future iterations could include hybrid search (combining vector similarity with keyword search) and support for additional document formats beyond the current set (PDF, DOCX, PPTX, images).
+\textbf{Hybrid RAG Search:} Combining vector similarity with BM25 keyword search and supporting additional document formats would improve retrieval precision, particularly for technical terms and proper nouns.
 
-\textbf{Collaborative Editing:} Real-time collaborative editing would allow study groups to work on shared notes simultaneously, similar to Google Docs but integrated with the RAG system.
+\textbf{Collaborative Editing:} Real-time collaborative editing would allow study groups to work on shared notes simultaneously, integrated with the RAG system.
 
-\textbf{Expanded LMS Support:} While Canvas LMS is currently supported, adding integrations for Moodle, Blackboard, and other popular learning management systems would broaden the platform's applicability.
+\textbf{Expanded LMS Support:} Adding integrations for Moodle, Blackboard, and other learning management systems would broaden the platform beyond Canvas.
 
-\textbf{Hybrid Search:} Combining vector similarity with BM25 keyword search would improve retrieval for queries containing technical terms or proper nouns that benefit from exact matching alongside semantic understanding.
+\textbf{BYOK (Bring Your Own Key):} Allowing students to connect their own LLM API keys would provide model choice and reduce platform costs. The settings UI stub already exists.
 
-\textbf{Multi-Modal RAG:} Extending the embedding pipeline to handle images, diagrams, and handwritten notes (via OCR) would capture knowledge that exists outside text-heavy lecture slides.
-
-\textbf{BYOK (Bring Your Own Key):} Allowing students to connect their own LLM API keys (OpenAI, Anthropic, Google) would provide model choice and reduce platform costs. The settings UI stub already exists.
-
-\textbf{Offline Support (PWA):} Implementing a Progressive Web App with IndexedDB caching would allow students to review notes and flashcards without an internet connection, syncing changes when reconnected.
-
-\textbf{Analytics Dashboard:} Tracking study patterns (time spent per module, quiz performance trends, RAG query frequency) would provide students with actionable insights into their learning habits.
+\textbf{Offline Support (PWA):} A Progressive Web App with IndexedDB caching would allow offline note review and flashcard study, syncing when reconnected.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 3: AI DISCLOSURE
 % ══════════════════════════════════════════════════════════════════
 \section{AI-Assisted Development Disclosure}
 
-This project used multiple AI coding assistants throughout development. This section provides a transparent account of how AI tools were used, what role they played, and quantitative telemetry from local session logs.
-
-\subsection{Tools Used}
-
-The primary AI tools were:
-
-\begin{itemize}[leftmargin=1.5em]
-    \item \textbf{Claude Code (Anthropic):} The primary development assistant, used for the majority of implementation, debugging, and refactoring work.
-    \item \textbf{OpenCode:} Used for targeted build/deploy sessions and batch file operations.
-    \item \textbf{Codex (OpenAI):} Used briefly for exploratory tasks.
-    \item \textbf{Gemini / Antigravity:} Evaluated but no persistent session transcripts were generated.
-\end{itemize}
-
-\subsection{Quantitative Telemetry}
-
-An audit of local AI session stores (performed March~30, 2026) produced the following metrics:
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabularx}{\textwidth}{lrrrX}
-\toprule
-\textbf{Tool} & \textbf{Sessions} & \textbf{User Msgs} & \textbf{Asst Msgs} & \textbf{Notes} \\
-\midrule
-Claude Code  & 5,293 & 17,148 & 26,775 & Top tools: Bash, Read, Edit, Grep \\
-OpenCode     & 80    & 525    & 4,442  & 36 sessions with file-change summaries; 1,476 files touched, 92k additions, 28k deletions \\
-Codex        & 4     & 11     & 17     & Exploratory use only \\
-Gemini       & 0     & ---    & ---    & Config artifacts only, no conversation transcripts \\
-\bottomrule
-\end{tabularx}
-\caption{AI Tool Usage Telemetry (audited 2026-03-30)}
-\end{table}
-
-These numbers represent the total volume of interaction across the full project lifetime. Not all sessions resulted in committed code --- many were debugging sessions, research queries, or exploratory conversations that informed design decisions without producing direct output.
-
-\subsection{How AI Was Used}
-
-The developers directed all architectural decisions, feature priorities, and design choices. AI was used as an implementation accelerator: given high-level specifications and architectural context, it would generate code which was then reviewed, tested, and modified before committing. Frequent request categories across the session logs include: debugging and fixes, Git workflow and branch management, infrastructure and deployment troubleshooting, UI/UX refinement, documentation and planning, and automation via task/subagent workflows.
-
-AI also assisted with debugging complex AWS configuration issues (VPC networking, IAM permissions, SQS message formats), generating boilerplate for repetitive patterns (API routes, database migrations, i18n translation files), and producing documentation.
-
-\subsection{What AI Did Not Do}
-
-AI did not make architectural decisions. For example, the migration from BullMQ to SQS was driven by a real networking constraint the developer encountered at runtime --- Amplify's Lambda functions could not reach ElastiCache without VPC configuration. The developers identified the problem, decided on SQS as the solution, and directed the implementation. AI did not replace understanding: the developers maintained full comprehension of the codebase and could explain every design decision from first principles.
-
-\subsection{Reflection}
-
-AI-assisted development significantly accelerated implementation velocity but introduced a tendency to overscope. The ability to implement ambitious features quickly made it tempting to add more than was necessary. The key learning was that AI assistance shifts the bottleneck from ``can I implement this?'' to ``should I implement this now?'' --- a lesson in scope management that proved as valuable as any technical skill gained during the project.
+This project used AI coding assistants throughout development, primarily Claude Code (Anthropic) and OpenCode, with brief exploratory use of OpenAI Codex. AI served as an implementation accelerator: the developers directed all architectural decisions, feature priorities, and design choices, while AI assisted with code generation, debugging, boilerplate creation, and infrastructure troubleshooting. The developers maintained full comprehension of the codebase and could explain every design decision from first principles. AI did not make architectural decisions --- for example, the BullMQ-to-SQS migration was driven by a networking constraint the developers identified at runtime, not by AI suggestion.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 15: RESOURCES & LINKS
