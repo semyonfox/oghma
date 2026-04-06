@@ -1,13 +1,14 @@
-// embeds a single query via Cohere for semantic search
+// embeds a single query via self-hosted (preferred) or Cohere fallback
 // uses input_type=search_query (asymmetric to search_document used at index time)
 
 import { Metrics } from "@/lib/metrics";
 import { getCohereTimeoutMs } from "@/lib/ai-config";
+import { defaultEmbeddingProvider } from "@/lib/providers/self-hosted-embeddings";
 
 const COHERE_URL = "https://api.cohere.com/v2/embed";
 const COHERE_MODEL = "embed-multilingual-v3.0";
 
-export async function embedText(text: string): Promise<number[]> {
+async function embedViaCohere(text: string): Promise<number[]> {
   const apiKey = process.env.COHERE_API_KEY;
   const timeoutMs = getCohereTimeoutMs();
   if (!apiKey) throw new Error("COHERE_API_KEY not configured");
@@ -39,4 +40,21 @@ export async function embedText(text: string): Promise<number[]> {
   const vectors: number[][] = json.embeddings?.float ?? [];
   if (vectors.length === 0) throw new Error("Cohere returned no embeddings");
   return vectors[0];
+}
+
+export async function embedText(text: string): Promise<number[]> {
+  // try self-hosted first, fall back to Cohere
+  try {
+    if (defaultEmbeddingProvider.isConfigured()) {
+      return await defaultEmbeddingProvider.embedSingle(text);
+    }
+  } catch (err) {
+    console.info(
+      `Self-hosted embed unavailable, falling back to Cohere: ${
+        err instanceof Error ? err.message : err
+      }`,
+    );
+  }
+
+  return embedViaCohere(text);
 }
