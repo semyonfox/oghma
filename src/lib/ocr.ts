@@ -15,7 +15,15 @@ export interface MarkerResult {
   source: "ec2";
 }
 
-const TOTAL_TIMEOUT_MS = 120_000;
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+const TOTAL_TIMEOUT_MS = parsePositiveIntEnv(
+  "MARKER_REQUEST_TIMEOUT_MS",
+  600_000,
+);
 
 const MIME_MAP: Record<string, string> = {
   pdf: "application/pdf",
