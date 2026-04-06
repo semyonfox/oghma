@@ -3,6 +3,8 @@
 import { FC, ReactNode, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import { schedulePrefetch } from "@/lib/notes/prefetch";
 import IconNav from "@/components/sidebar/icon-nav";
 import FileTreePanel from "@/components/sidebar/file-tree-panel";
 import SplitPane from "@/components/editor/split-pane";
@@ -100,6 +102,12 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneAFileId, setPaneA]);
 
+  // schedule background prefetch once tree finishes initialising
+  const initLoaded = useNoteTreeStore((s) => s.initLoaded);
+  useEffect(() => {
+    if (initLoaded) schedulePrefetch();
+  }, [initLoaded]);
+
   // Global keyboard shortcuts - optimized to prevent constant re-attachment
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -131,7 +139,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
         }}
       >
         {/* Pane 1: Icon Navigation (Fixed 48px) */}
-        <div className="bg-background border-r border-border-subtle overflow-y-auto flex flex-col">
+        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
           <IconNav />
         </div>
 
@@ -147,7 +155,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
 
         {/* Pane 4: Right Panel (Collapsible, default 280px) */}
         {rightPanelOpen && (
-          <div className="bg-surface border-l border-border-subtle overflow-hidden flex flex-col">
+          <div className="glass-panel overflow-hidden flex flex-col">
             <NotesInspectorSidebar />
           </div>
         )}

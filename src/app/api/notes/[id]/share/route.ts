@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth.js';
 import { checkRateLimit } from '@/lib/rateLimiter';
-import { isValidUUID } from '@/lib/uuid-validation.js';
+import { isValidUUID } from '@/lib/utils/uuid';
 import { generateUUID } from '@/lib/utils/uuid';
 import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
 import { getStorageProvider } from '@/lib/storage/init';

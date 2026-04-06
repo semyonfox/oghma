@@ -21,3 +21,7 @@ export function createErrorResponse(
   additionalData?: Record<string, unknown>,
 ): Response;
 export function createValidationErrorResponse(errors: unknown[]): Response;
+export function createAuthSession(
+  user: { user_id: string; email: string },
+  expiryDays?: number,
+): Promise<Response>;

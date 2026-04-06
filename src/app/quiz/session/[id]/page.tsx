@@ -38,7 +38,7 @@ function SessionComplete({
   const forTomorrow = progress.answered - progress.correct;
 
   return (
-    <div className="h-screen flex items-center justify-center px-6 bg-background text-text">
+    <div className="h-screen flex items-center justify-center px-6 bg-app-page text-text">
       <div className="max-w-md w-full text-center">
         <h1 className="font-serif text-text text-xl font-semibold">
           {t("quiz.complete.title")}
@@ -60,11 +60,8 @@ function SessionComplete({
               value: String(forTomorrow),
             },
           ].map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-surface border border-border-subtle rounded-lg p-3"
-            >
-              <div className="text-text-tertiary text-[10px] uppercase tracking-wider">
+            <div key={stat.label} className="glass-card rounded-radius-lg p-3">
+              <div className="text-text-tertiary text-xs uppercase tracking-wider">
                 {stat.label}
               </div>
               <div className="text-text font-medium text-lg mt-1">
@@ -76,7 +73,7 @@ function SessionComplete({
 
         <button
           onClick={onBack}
-          className="mt-8 bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+          className="mt-8 glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
         >
           {t("quiz.complete.back")}
         </button>
@@ -88,6 +85,8 @@ function SessionComplete({
 function QuestionView({
   question,
   sessionId,
+  currentIndex,
+  cardIds,
   fatigueWarning,
   advanceQuestion,
   setFatigueWarning,
@@ -95,6 +94,8 @@ function QuestionView({
 }: {
   question: any;
   sessionId: string;
+  currentIndex: number;
+  cardIds: string[];
   fatigueWarning: boolean;
   advanceQuestion: (q: any, p: any) => void;
   setFatigueWarning: (w: boolean) => void;
@@ -107,7 +108,6 @@ function QuestionView({
     wasCorrect: boolean;
   } | null>(null);
   const [isLeech, setIsLeech] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -120,43 +120,41 @@ function QuestionView({
   }, []);
 
   const handleContinue = useCallback(async () => {
-    if (!lastAnswer || submitting) return;
-    setSubmitting(true);
+    if (!lastAnswer) return;
 
+    const nextCardId =
+      currentIndex + 1 < cardIds.length ? cardIds[currentIndex + 1] : null;
     const startTime = startTimeRef.current ?? Date.now();
     const responseTimeMs = Date.now() - startTime;
 
-    try {
-      const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId: question.card_id,
-          userAnswer: lastAnswer.answer,
-          wasCorrect: lastAnswer.wasCorrect,
-          responseTimeMs,
-        }),
-      });
+    const res = await fetch(`/api/quiz/sessions/${sessionId}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId: question.card_id,
+        userAnswer: lastAnswer.answer,
+        wasCorrect: lastAnswer.wasCorrect,
+        responseTimeMs,
+        nextCardId,
+      }),
+    });
 
-      if (!res.ok) return;
-      const data = await res.json();
+    if (!res.ok) return;
+    const data = await res.json();
 
-      if (data.fatigueWarning) setFatigueWarning(true);
-      if (data.isLeech) setIsLeech(true);
+    if (data.fatigueWarning) setFatigueWarning(true);
+    if (data.isLeech) setIsLeech(true);
 
-      if (data.nextQuestion) {
-        advanceQuestion(data.nextQuestion, data.sessionProgress);
-      } else {
-        // no more questions available — end session
-        onComplete();
-      }
-    } finally {
-      setSubmitting(false);
+    if (data.nextQuestion) {
+      advanceQuestion(data.nextQuestion, data.sessionProgress);
+    } else {
+      onComplete();
     }
   }, [
     lastAnswer,
-    submitting,
     question,
+    currentIndex,
+    cardIds,
     sessionId,
     advanceQuestion,
     setFatigueWarning,
@@ -179,7 +177,7 @@ function QuestionView({
   return (
     <>
       {fatigueWarning && (
-        <div className="mt-4 bg-surface border border-border-subtle rounded-lg p-3 text-xs text-text-tertiary">
+        <div className="mt-4 glass-card rounded-radius-lg p-3 text-xs text-text-tertiary">
           {t("quiz.session.fatigue_warning")}
         </div>
       )}
@@ -202,12 +200,9 @@ function QuestionView({
             <div className="flex justify-center">
               <button
                 onClick={handleContinue}
-                disabled={submitting}
-                className="bg-surface-elevated border border-border-subtle text-text-secondary text-sm px-6 py-2.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
+                className="glass-card-interactive text-text-secondary text-sm px-6 py-2.5 rounded-radius-lg"
               >
-                {submitting
-                  ? t("quiz.session.loading")
-                  : t("quiz.session.continue")}
+                {t("quiz.session.continue")}
               </button>
             </div>
           </div>
@@ -222,6 +217,8 @@ export default function QuizSessionPage() {
   const router = useRouter();
   const sessionId = params.id as string;
   const {
+    cardIds,
+    currentIndex,
     currentQuestion,
     sessionProgress,
     sessionStartTime,
@@ -240,16 +237,16 @@ export default function QuizSessionPage() {
 
   // load session on mount if store is empty (e.g. page refresh)
   useEffect(() => {
-    if (!currentQuestion) {
+    if (!cardIds.length) {
       fetch(`/api/quiz/sessions/${sessionId}`)
         .then((r) => r.json())
         .then((data) => {
-          if (data.question) {
-            startSession(sessionId, data.question, data.totalQuestions ?? 0);
+          if (data.cardIds) {
+            startSession(sessionId, data.cardIds, data.question);
           }
         });
     }
-  }, [sessionId, currentQuestion, startSession]);
+  }, [sessionId, cardIds.length, startSession]);
 
   // fetch streak for progress bar
   useEffect(() => {
@@ -258,30 +255,50 @@ export default function QuizSessionPage() {
       .then((d) => setStreak(d.current_streak || 0));
   }, []);
 
-  // end session on server when user navigates away
-  const handleEndSession = useCallback(async () => {
-    try {
-      await fetch(`/api/quiz/sessions/${sessionId}`, { method: "DELETE" });
-    } catch {
-      // non-fatal
+  const handleSkip = useCallback(async () => {
+    const nextIdx = currentIndex + 1;
+    if (nextIdx >= cardIds.length) {
+      completeSession();
+      return;
     }
-    endSession();
-    router.push("/quiz");
-  }, [sessionId, endSession, router]);
+
+    // fetch the next card's question data without recording a review
+    const nextCardId = cardIds[nextIdx];
+    try {
+      const res = await fetch(`/api/quiz/cards/${nextCardId}`);
+      if (!res.ok) {
+        completeSession();
+        return;
+      }
+      const data = await res.json();
+      advanceQuestion(data.question, sessionProgress);
+    } catch {
+      completeSession();
+    }
+  }, [
+    currentIndex,
+    cardIds,
+    sessionProgress,
+    advanceQuestion,
+    completeSession,
+  ]);
 
   if (sessionCompleted) {
     return (
       <SessionComplete
         progress={sessionProgress}
         elapsed={Math.max(0, sessionEndTime - sessionStartTime)}
-        onBack={handleEndSession}
+        onBack={() => {
+          endSession();
+          router.push("/quiz");
+        }}
       />
     );
   }
 
   if (!currentQuestion) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
+      <div className="flex items-center justify-center h-screen bg-app-page">
         <div className="text-text-tertiary text-sm">
           {t("quiz.session.loading")}
         </div>
@@ -290,18 +307,24 @@ export default function QuizSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-background text-text">
+    <div className="h-screen flex flex-col px-6 py-6 max-w-2xl mx-auto bg-app-page text-text">
       <ProgressBar
         current={sessionProgress.answered}
         total={sessionProgress.total}
-        onBack={handleEndSession}
+        onBack={() => {
+          endSession();
+          router.push("/quiz");
+        }}
         streak={streak}
+        onSkip={handleSkip}
       />
 
       <QuestionView
         key={currentQuestion.card_id}
         question={currentQuestion}
         sessionId={sessionId}
+        currentIndex={currentIndex}
+        cardIds={cardIds}
         fatigueWarning={fatigueWarning}
         advanceQuestion={advanceQuestion}
         setFatigueWarning={setFatigueWarning}

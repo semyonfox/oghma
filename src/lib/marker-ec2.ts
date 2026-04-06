@@ -195,3 +195,21 @@ async function waitForHealthy(timeoutMs: number): Promise<void> {
 
   throw new Error("Marker server failed to become healthy within timeout");
 }
+
+/**
+ * Pre-warms the Marker GPU — call fire-and-forget when we know a user
+ * is likely to import notes soon (Canvas connect, new account creation).
+ *
+ * Triggers ASG scale-up from desired=0 so the instance is warming while
+ * the user is still setting up. The ASG scales back to 0 after 15 min idle.
+ * Never throws — failures are logged and swallowed.
+ */
+export function preWarmMarker(): void {
+  if (!ASG_NAME && !INSTANCE_ID) return; // marker not configured in this env
+  if (cachedReadyUrl && Date.now() - lastReadyAt < MARKER_READY_CACHE_MS)
+    return; // already warm
+
+  ensureMarkerRunning().catch((err) => {
+    console.warn("Marker pre-warm failed (non-fatal):", err?.message ?? err);
+  });
+}
