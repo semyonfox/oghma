@@ -20,8 +20,10 @@ interface QuizState {
     mastery: number;
   }[];
 
-  // active session (infinite doomscroll)
+  // active session
   sessionId: string | null;
+  cardIds: string[];
+  currentIndex: number;
   currentQuestion: any | null;
   sessionProgress: { answered: number; total: number; correct: number };
   fatigueWarning: boolean;
@@ -35,8 +37,8 @@ interface QuizState {
   setDashboardLoading: (loading: boolean) => void;
   startSession: (
     sessionId: string,
+    cardIds: string[],
     question: any,
-    totalQuestions: number,
   ) => void;
   setCurrentQuestion: (question: any) => void;
   advanceQuestion: (
@@ -53,6 +55,8 @@ const useQuizStore = create<QuizState>((set) => ({
   dashboardData: null,
   courses: [],
   sessionId: null,
+  cardIds: [],
+  currentIndex: 0,
   currentQuestion: null,
   sessionProgress: { answered: 0, total: 0, correct: 0 },
   fatigueWarning: false,
@@ -63,11 +67,13 @@ const useQuizStore = create<QuizState>((set) => ({
   setDashboard: (data) => set({ dashboardData: data }),
   setCourses: (courses) => set({ courses }),
   setDashboardLoading: (loading) => set({ dashboardLoading: loading }),
-  startSession: (sessionId, question, totalQuestions) =>
+  startSession: (sessionId, cardIds, question) =>
     set({
       sessionId,
+      cardIds,
+      currentIndex: 0,
       currentQuestion: question,
-      sessionProgress: { answered: 0, total: totalQuestions, correct: 0 },
+      sessionProgress: { answered: 0, total: cardIds.length, correct: 0 },
       fatigueWarning: false,
       sessionStartTime: Date.now(),
       sessionEndTime: 0,
@@ -75,16 +81,19 @@ const useQuizStore = create<QuizState>((set) => ({
     }),
   setCurrentQuestion: (question) => set({ currentQuestion: question }),
   advanceQuestion: (nextQuestion, progress) =>
-    set({
+    set((state) => ({
       currentQuestion: nextQuestion,
+      currentIndex: state.currentIndex + 1,
       sessionProgress: progress,
-    }),
+    })),
   setFatigueWarning: (warning) => set({ fatigueWarning: warning }),
   completeSession: () =>
     set({ sessionCompleted: true, sessionEndTime: Date.now() }),
   endSession: () =>
     set({
       sessionId: null,
+      cardIds: [],
+      currentIndex: 0,
       currentQuestion: null,
       sessionProgress: { answered: 0, total: 0, correct: 0 },
       fatigueWarning: false,
