@@ -482,22 +482,29 @@ async function _runFileImport(importRecordId, file, opts) {
 
 async function downloadAndStoreFile(file, opts) {
   const importRecordId = uuidv4();
-  let timerId;
-  const timer = new Promise((_, reject) => {
-    timerId = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `File timed out after ${Math.round(FILE_TIMEOUT_MS / 60000)} minutes: ${file.display_name}`,
-          ),
-        ),
-      FILE_TIMEOUT_MS,
-    );
-  });
   try {
-    await globalFileLimiter(() =>
-      Promise.race([_runFileImport(importRecordId, file, opts), timer]),
-    );
+    // Start the timeout only after the task has acquired a limiter slot.
+    // Otherwise long queue wait time is incorrectly counted as processing time.
+    await globalFileLimiter(async () => {
+      let timerId;
+      const timer = new Promise((_, reject) => {
+        timerId = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `File timed out after ${Math.round(FILE_TIMEOUT_MS / 60000)} minutes: ${file.display_name}`,
+              ),
+            ),
+          FILE_TIMEOUT_MS,
+        );
+      });
+
+      try {
+        await Promise.race([_runFileImport(importRecordId, file, opts), timer]);
+      } finally {
+        clearTimeout(timerId);
+      }
+    });
   } catch (error) {
     console.error(`File processing error (${file.display_name}):`, error);
     try {
@@ -509,8 +516,6 @@ async function downloadAndStoreFile(file, opts) {
     } catch (dbErr) {
       console.error("Failed to update import record:", dbErr);
     }
-  } finally {
-    clearTimeout(timerId);
   }
 }
 
