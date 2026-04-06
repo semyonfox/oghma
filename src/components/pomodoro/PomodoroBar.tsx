@@ -112,7 +112,7 @@ export default function PomodoroBar({
         )}
         {courseName && (
           <span
-            className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium"
+            className="shrink-0 rounded px-1 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: courseColor
                 ? `${courseColor}20`
@@ -146,7 +146,7 @@ export default function PomodoroBar({
       }`}
     >
       {/* progress track */}
-      <div className="h-0.5 w-full bg-white/5">
+      <div className="h-0.5 w-full bg-white/[0.07]">
         <div
           className={`h-full ${isComplete ? "bg-green-500" : barColor} transition-all duration-700 ease-out`}
           style={{ width: `${isComplete ? 100 : progress}%` }}

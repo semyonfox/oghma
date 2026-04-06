@@ -25,7 +25,19 @@ export default function BlogPost({ params }) {
   return (
     <>
       <Header />
-      <div className="bg-landing px-6 py-28 sm:py-32 lg:px-8">
+      <div className="bg-landing relative isolate px-6 py-28 sm:py-32 lg:px-8">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
+        >
+          <div
+            style={{
+              clipPath:
+                "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
+            }}
+            className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-primary-500/30 to-secondary-500/20 opacity-20 sm:left-[calc(50%-30rem)] sm:w-288.75"
+          />
+        </div>
         <div className="mx-auto max-w-3xl text-base/7 text-gray-300">
           <div className="mb-8 border-b border-white/10 pb-8">
             <Link
@@ -38,7 +50,7 @@ export default function BlogPost({ params }) {
               {t("blog.articleLabel")}
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
-              {post.title}
+              {t(post.title)}
             </h1>
             <div className="mt-6 flex items-center gap-x-4 text-sm text-gray-400">
               <a
@@ -54,7 +66,7 @@ export default function BlogPost({ params }) {
                 />
                 <div>
                   <p className="font-semibold text-white">{post.author.name}</p>
-                  <p className="text-xs text-gray-400">{post.authorRole}</p>
+                  <p className="text-xs text-gray-400">{t(post.authorRole)}</p>
                 </div>
               </a>
               <span>•</span>
@@ -62,10 +74,10 @@ export default function BlogPost({ params }) {
             </div>
           </div>
 
-          <p className="mt-6 text-xl/8">{post.intro}</p>
+          <p className="mt-6 text-xl/8">{t(post.intro)}</p>
 
           <div className="mt-10 max-w-2xl text-gray-400">
-            <p className="whitespace-pre-line">{post.content}</p>
+            <p className="whitespace-pre-line">{t(post.content)}</p>
 
             <ul role="list" className="mt-8 max-w-xl space-y-8 text-gray-400">
               {post.highlights.map((item, idx) => (
@@ -76,24 +88,24 @@ export default function BlogPost({ params }) {
                   />
                   <span>
                     <strong className="font-semibold text-white">
-                      {item.title}.
+                      {t(item.title)}.
                     </strong>{" "}
-                    {item.description}
+                    {t(item.description)}
                   </span>
                 </li>
               ))}
             </ul>
 
-            <p className="mt-8">{post.section2Content}</p>
+            <p className="mt-8">{t(post.section2Content)}</p>
 
             <h2 className="mt-16 text-3xl font-semibold tracking-tight text-pretty text-white">
-              {post.section2Title}
+              {t(post.section2Title)}
             </h2>
-            <p className="mt-6">{post.section2Content}</p>
+            <p className="mt-6">{t(post.section2Content)}</p>
 
             <figure className="mt-10 border-l border-primary-400 pl-9">
               <blockquote className="font-semibold text-white">
-                <p>"{post.testimonial.quote}"</p>
+                <p>"{t(post.testimonial.quote)}"</p>
               </blockquote>
               <figcaption className="mt-6 flex gap-x-4">
                 <img
@@ -105,12 +117,12 @@ export default function BlogPost({ params }) {
                   <strong className="font-semibold text-white">
                     {post.testimonial.author}
                   </strong>{" "}
-                  – {post.testimonial.role}
+                  – {t(post.testimonial.role)}
                 </div>
               </figcaption>
             </figure>
 
-            <p className="mt-10">{post.section3Content}</p>
+            <p className="mt-10">{t(post.section3Content)}</p>
           </div>
 
           <figure className="mt-16">
@@ -124,7 +136,7 @@ export default function BlogPost({ params }) {
                 aria-hidden="true"
                 className="mt-0.5 size-5 flex-none text-gray-600"
               />
-              {t("blog.featuredImageFor")} {post.title}
+              {t("blog.featuredImageFor")} {t(post.title)}
             </figcaption>
           </figure>
 

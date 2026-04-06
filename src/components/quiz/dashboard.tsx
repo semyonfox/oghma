@@ -62,8 +62,8 @@ export default function QuizDashboard() {
     });
     if (!res.ok) return;
     const data = await res.json();
-    if (data.question) {
-      startSession(data.sessionId, data.question, data.totalQuestions ?? 0);
+    if (data.cardIds && data.question) {
+      startSession(data.sessionId, data.cardIds, data.question);
     }
     router.push(`/quiz/session/${data.sessionId}`);
   };
@@ -77,10 +77,12 @@ export default function QuizDashboard() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-container-content mx-auto px-6 py-8">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-text text-xl font-bold">{t("quiz.title")}</h1>
+          <h1 className="font-serif text-text text-2xl font-semibold">
+            {t("quiz.title")}
+          </h1>
           <p className="text-text-tertiary text-xs mt-1">
             {t("quiz.cards_due_summary", {
               dueCount: dashboardData.dueCount,
@@ -90,10 +92,8 @@ export default function QuizDashboard() {
         </div>
         <button
           onClick={() => startReview("all")}
-          disabled={
-            dashboardData.totalCards === 0 && dashboardData.dueCount === 0
-          }
-          className="bg-secondary-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={dashboardData.dueCount === 0}
+          className="bg-secondary-500 text-white px-4 py-2 rounded-radius-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t("Start Review")}
         </button>
