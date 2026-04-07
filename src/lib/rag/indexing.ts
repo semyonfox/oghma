@@ -50,7 +50,7 @@ export async function replaceNoteEmbeddings(
 
   // atomic: insert new chunks+embeddings and delete old ones in one transaction
   // prevents orphaned chunks if the embedding INSERT fails mid-flight
-  await sql.begin(async (tx) => {
+  await sql.begin(async (tx: any) => {
     const chunkRows = await tx`
       INSERT INTO app.chunks (document_id, user_id, text)
       SELECT * FROM UNNEST(
