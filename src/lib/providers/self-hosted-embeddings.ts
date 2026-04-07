@@ -12,11 +12,12 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
   name = "self-hosted";
   private apiUrl: string;
   private apiKey: string;
-  private model: string = "qwen3-embedding:8b";
+  private model: string;
 
-  constructor(apiUrl?: string, apiKey?: string) {
+  constructor(apiUrl?: string, apiKey?: string, model?: string) {
     this.apiUrl = apiUrl || process.env.EMBEDDING_API_URL || "";
     this.apiKey = apiKey || process.env.EMBEDDING_API_KEY || "";
+    this.model = model || process.env.EMBEDDING_MODEL || "qwen3-embedding:8b";
   }
 
   isConfigured(): boolean {
@@ -110,8 +111,9 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
 export function createEmbeddingProvider(
   apiUrl?: string,
   apiKey?: string,
+  model?: string,
 ): EmbeddingProvider {
-  return new SelfHostedEmbeddingProvider(apiUrl, apiKey);
+  return new SelfHostedEmbeddingProvider(apiUrl, apiKey, model);
 }
 
 export const defaultEmbeddingProvider = new SelfHostedEmbeddingProvider();
