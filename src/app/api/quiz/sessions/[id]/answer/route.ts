@@ -96,9 +96,10 @@ export const POST = withErrorHandler(
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${nextCardId}::uuid
         `;
-      nextQuestion = normalizeQuizQuestion(rows[0] ?? null);
-      if (nextQuestion) {
-        const nextFsrs = cardFromDB(nextQuestion);
+      const rawNext = rows[0] ?? null;
+      nextQuestion = normalizeQuizQuestion(rawNext);
+      if (nextQuestion && rawNext) {
+        const nextFsrs = cardFromDB(rawNext);
         nextQuestion.intervals = getNextIntervals(nextFsrs);
       }
     }
