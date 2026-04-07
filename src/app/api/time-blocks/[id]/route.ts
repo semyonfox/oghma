@@ -13,7 +13,7 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
   requireValidId(id);
 
   const body = await request.json();
-  const { starts_at, ends_at, assignment_id, title } = body;
+  const { starts_at, ends_at, assignment_id, title, completed } = body;
 
   let pomodoroCount: number | undefined;
   if (starts_at && ends_at) {
@@ -27,7 +27,8 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
       ends_at = COALESCE(${ends_at ?? null}, ends_at),
       assignment_id = COALESCE(${assignment_id ?? null}, assignment_id),
       title = COALESCE(${title ?? null}, title),
-      pomodoro_count = COALESCE(${pomodoroCount ?? null}, pomodoro_count)
+      pomodoro_count = COALESCE(${pomodoroCount ?? null}, pomodoro_count),
+      completed = COALESCE(${completed ?? null}, completed)
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
     RETURNING *
   `;

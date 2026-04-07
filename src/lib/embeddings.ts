@@ -1,23 +1,17 @@
-// batch-embeds chunks via Cohere embed API v2
-// uses embed-multilingual-v3.0 (1024 dims) with asymmetric input_type for better retrieval
+// batch-embeds chunks via self-hosted embeddings (preferred) or Cohere fallback
 // strips markdown syntax before embedding — ###, ---, ** etc. are noise in vector space
 // the original markdown chunk text is preserved in chunks.text for LLM RAG context
 
 import { getCohereTimeoutMs } from "@/lib/ai-config";
 import { Metrics } from "@/lib/metrics";
 import { stripMarkdown } from "./strip-markdown";
+import { defaultEmbeddingProvider } from "@/lib/providers/self-hosted-embeddings";
 
 const COHERE_URL = "https://api.cohere.com/v2/embed";
 const COHERE_MODEL = "embed-multilingual-v3.0";
 const BATCH_SIZE = 96; // Cohere allows up to 96 texts per request
-const DEFAULT_SELF_HOSTED_PATHS = [
-  "/api/embeddings",
-  "/api/v1/embeddings",
-  "/v1/embeddings",
-  "/ollama/api/embed",
-];
 
-function buildRequest(apiKey: string, batch: string[]) {
+function buildCohereRequest(apiKey: string, batch: string[]) {
   return {
     method: "POST",
     headers: {
@@ -33,110 +27,52 @@ function buildRequest(apiKey: string, batch: string[]) {
   };
 }
 
-function joinUrl(base: string, path: string): string {
-  return `${base.replace(/\/+$/, "")}${path}`;
-}
-
-function parseEmbeddingVectors(json: any): number[][] {
-  if (Array.isArray(json?.data)) {
-    return json.data
-      .map((row: any) => row?.embedding)
-      .filter((embedding: unknown) => Array.isArray(embedding));
+async function embedViaSelfHosted(
+  chunks: string[],
+): Promise<{ chunk: string; vector: number[] }[]> {
+  if (!defaultEmbeddingProvider.isConfigured()) {
+    throw new Error("Self-hosted embeddings not configured");
   }
 
-  if (Array.isArray(json?.embeddings?.float)) {
-    return json.embeddings.float;
-  }
-
-  if (Array.isArray(json?.embeddings)) {
-    return json.embeddings;
-  }
-
-  if (Array.isArray(json?.embedding)) {
-    return [json.embedding];
-  }
-
-  return [];
-}
-
-async function embedWithSelfHostedApi(
-  batch: string[],
-): Promise<number[][] | null> {
-  const baseUrl = (process.env.EMBEDDING_API_URL ?? "").trim();
-  if (!baseUrl) return null;
-
-  const apiKey =
-    (process.env.EMBEDDING_API_KEY ?? "").trim() ||
-    (process.env.DATALAB_API_KEY ?? "").trim() ||
-    "";
-  const model = (process.env.EMBEDDING_MODEL ?? "").trim();
-  const timeoutMs = getCohereTimeoutMs();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-  for (const path of DEFAULT_SELF_HOSTED_PATHS) {
-    try {
-      const isOllamaEmbed = path === "/ollama/api/embed";
-      const body = isOllamaEmbed
-        ? {
-            ...(model ? { model } : {}),
-            input: batch,
-          }
-        : {
-            ...(model ? { model } : {}),
-            input: batch,
-          };
-
-      const res = await fetch(joinUrl(baseUrl, path), {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-      if (!res.ok) {
-        continue;
-      }
-
-      const json = await res.json();
-      const vectors = parseEmbeddingVectors(json);
-      if (vectors.length === batch.length) return vectors;
-    } catch {
-      // Try the next candidate endpoint.
-    }
-  }
-
-  return null;
-}
-
-export async function embedRawTexts(texts: string[]): Promise<number[][]> {
-  const nonEmpty = texts.filter((c) => c?.trim());
+  const nonEmpty = chunks.filter((c) => c?.trim());
   if (nonEmpty.length === 0) return [];
 
-  const selfHosted = await embedWithSelfHostedApi(nonEmpty);
-  if (selfHosted && selfHosted.length > 0) {
-    return selfHosted;
-  }
+  const stripped = nonEmpty.map((c) => stripMarkdown(c));
 
-  // Fallback to Cohere only if configured; local Ollama is preferred
-  const apiKey = process.env.COHERE_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "No embedding API available: set EMBEDDING_API_URL + EMBEDDING_MODEL for local, or COHERE_API_KEY for Cohere"
+  try {
+    const vectors = await defaultEmbeddingProvider.embedBatch(stripped);
+    return nonEmpty.map((chunk, i) => ({
+      chunk,
+      vector: vectors[i],
+    }));
+  } catch (err) {
+    console.warn(
+      `Self-hosted embed failed: ${err instanceof Error ? err.message : err}`,
     );
+    throw err;
   }
+}
 
-  const vectors: number[][] = [];
+async function embedViaCohere(
+  chunks: string[],
+): Promise<{ chunk: string; vector: number[] }[]> {
+  const apiKey = process.env.COHERE_API_KEY;
+  if (!apiKey) throw new Error("COHERE_API_KEY not configured");
+
+  const nonEmpty = chunks.filter((c) => c?.trim());
+  if (nonEmpty.length === 0) return [];
+
+  const results: { chunk: string; vector: number[] }[] = [];
+  const stripped = nonEmpty.map((c) => stripMarkdown(c));
+
   let failures = 0;
 
   for (let i = 0; i < nonEmpty.length; i += BATCH_SIZE) {
-    const batch = nonEmpty.slice(i, i + BATCH_SIZE);
+    const batch = stripped.slice(i, i + BATCH_SIZE);
+    const originalBatch = nonEmpty.slice(i, i + BATCH_SIZE);
     try {
       const res = await fetch(COHERE_URL, {
-        ...buildRequest(apiKey, batch),
+        ...buildCohereRequest(apiKey, batch),
         signal: AbortSignal.timeout(getCohereTimeoutMs()),
       });
       if (!res.ok) {
@@ -148,8 +84,10 @@ export async function embedRawTexts(texts: string[]): Promise<number[][]> {
         continue;
       }
       const json = await res.json();
-      const batchVectors: number[][] = json.embeddings?.float ?? [];
-      vectors.push(...batchVectors);
+      const vectors: number[][] = json.embeddings?.float ?? [];
+      for (let j = 0; j < vectors.length && j < batch.length; j++) {
+        results.push({ chunk: originalBatch[j], vector: vectors[j] });
+      }
     } catch (err) {
       void Metrics.cohereError("embed");
       console.warn(
@@ -165,25 +103,21 @@ export async function embedRawTexts(texts: string[]): Promise<number[][]> {
     );
   }
 
-  return vectors;
+  return results;
 }
 
 export async function embedChunks(
   chunks: string[],
 ): Promise<{ chunk: string; vector: number[] }[]> {
-  const nonEmpty = chunks.filter((c) => c?.trim());
-  if (nonEmpty.length === 0) return [];
-
-  const results: { chunk: string; vector: number[] }[] = [];
-
-  // strip markdown for cleaner embeddings — the original chunk is stored in DB
-  const stripped = nonEmpty.map((c) => stripMarkdown(c));
-  const vectors = await embedRawTexts(stripped);
-
-  for (let i = 0; i < vectors.length && i < nonEmpty.length; i++) {
-    // chunk = original markdown (for LLM context), vector = from stripped text
-    results.push({ chunk: nonEmpty[i], vector: vectors[i] });
+  // try self-hosted first, fall back to Cohere
+  try {
+    return await embedViaSelfHosted(chunks);
+  } catch (err) {
+    console.info(
+      `Self-hosted embeddings unavailable, falling back to Cohere: ${
+        err instanceof Error ? err.message : err
+      }`,
+    );
+    return embedViaCohere(chunks);
   }
-
-  return results;
 }
