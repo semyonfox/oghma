@@ -40,9 +40,10 @@ export const GET = withErrorHandler(
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${cardIds[currentIndex]}::uuid
         `;
-      question = normalizeQuizQuestion(rows[0] ?? null);
-      if (question) {
-        const fsrsCard = cardFromDB(question);
+      const rawRow = rows[0] ?? null;
+      question = normalizeQuizQuestion(rawRow);
+      if (question && rawRow) {
+        const fsrsCard = cardFromDB(rawRow);
         question.intervals = getNextIntervals(fsrsCard);
       }
     }
