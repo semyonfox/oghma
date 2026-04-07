@@ -81,7 +81,7 @@ export const POST = withErrorHandler(async (request) => {
       await sqsClient.send(
         new SendMessageCommand({
           QueueUrl: queueUrl,
-          MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+          MessageBody: JSON.stringify({ type: "canvas-discover", jobId, userId: user.user_id }),
         }),
       );
       sqsOk = true;

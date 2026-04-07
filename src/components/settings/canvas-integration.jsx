@@ -56,6 +56,7 @@ export default function CanvasIntegration() {
   const {
     isImporting,
     setIsImporting,
+    isDiscovering,
     importSummary,
     setImportSummary,
     progress,
@@ -358,6 +359,7 @@ export default function CanvasIntegration() {
           {showProgress && (
             <CanvasProgressPanel
               isImporting={isImporting}
+              isDiscovering={isDiscovering}
               isSyncing={isSyncing}
               progress={progress}
               importSummary={importSummary}
