@@ -6,14 +6,19 @@ const ecsClient = new ECSClient({
 
 const CLUSTER = process.env.ECS_CLUSTER ?? 'oghmanotes';
 const SERVICE = process.env.ECS_SERVICE ?? 'canvas-import-worker';
+const MAX_WORKERS = 5;
+// each worker processes up to 10 files concurrently (CANVAS_GLOBAL_FILE_CONCURRENCY)
+const FILES_PER_WORKER = 10;
 
 // non-fatal — if IAM isn't wired yet the worker DB poll will catch the job
-export async function ensureWorkerRunning() {
+// fileCount: hint for how many workers to start; defaults to 1
+export async function ensureWorkerRunning(fileCount = 1) {
   try {
+    const desired = Math.min(MAX_WORKERS, Math.max(1, Math.ceil(fileCount / FILES_PER_WORKER)));
     await ecsClient.send(new UpdateServiceCommand({
       cluster: CLUSTER,
       service: SERVICE,
-      desiredCount: 1,
+      desiredCount: desired,
     }));
   } catch (err) {
     console.error('ECS scale-up failed:', (err as Error).message);
