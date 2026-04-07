@@ -31,9 +31,9 @@
 % ── Hyperref config ───────────────────────────────────────────────
 \hypersetup{
     colorlinks=true,
-    linkcolor=oghmablue,
-    urlcolor=linkblue,
-    citecolor=oghmablue,
+    linkcolor=black,
+    urlcolor=oghmablue,
+    citecolor=black,
     pdfauthor={Semyon Fox, Samuel Regan, Shreyansh Singh},
     pdftitle={OghmaNotes -- CT216 Project Report},
 }
@@ -60,7 +60,7 @@
     basicstyle=\small\ttfamily,
     breaklines=true,
     frame=single,
-    rulecolor=\color{oghmaaccent},
+    rulecolor=\color{gray},
     numbers=left,
     numberstyle=\tiny\color{gray},
     tabsize=2,
@@ -177,7 +177,7 @@ The team comprised three members, each responsible for distinct areas of the pro
 Served as technical lead responsible for system architecture, infrastructure decisions, and the majority of feature development. Key contributions include:
 
 \begin{itemize}[leftmargin=1.5em]
-    \item \textbf{Architecture \& Infrastructure:} Designed and implemented AWS infrastructure including Amplify hosting, SQS job queues, ECS Fargate workers, and ElastiCache. Made all major architectural decisions including the BullMQ to SQS migration and Cohere embedding integration.
+    \item \textbf{Architecture \& Infrastructure:} Designed and implemented AWS infrastructure including Amplify hosting, SQS job queues, ECS Fargate workers, and ElastiCache. Made all major architectural decisions including the BullMQ to SQS migration and embedding pipeline iterations.
     \item \textbf{Frontend:} Built the VSCode-style note editor UI, file tree, command palette, settings page, Canvas import UI, and AI chat interface. Implemented internationalisation across 12 languages.
     \item \textbf{Backend:} Developed API routes for notes CRUD, file upload, AI chat with RAG, and auth middleware with rate limiting.
     \item \textbf{DevOps:} Configured Amplify CI/CD pipeline, ECS Fargate worker deployment, and environment management across dev/main/production branches.
@@ -189,7 +189,7 @@ Contributed to the authentication system, RAG pipeline, and frontend:
 \begin{itemize}[leftmargin=1.5em]
     \item \textbf{Authentication:} Built the login and registration UI, implemented password reset with Nodemailer (later migrated to AWS SES), and developed JWT-based session tokens with middleware-based route protection across the application.
     \item \textbf{Database:} Designed the original schema for the embeddings and chunks tables, later extended this to track worker state.
-    \item \textbf{RAG Pipeline:} Implemented the full ingestion flow including PDF text extraction, text chunking, embedding generation, and pgvector similarity search with Cohere embeddings. Designed an asynchronous job queue with a PostgreSQL jobs table to separate document ingestion from the upload request to avoid without timeout failures on large imports. The chat prompt construction and HNSW indexing were later extended by the rest of the team.
+    \item \textbf{RAG Pipeline:} Implemented the full ingestion flow including PDF text extraction, text chunking, embedding generation, and pgvector similarity search. Designed an asynchronous job queue with a PostgreSQL jobs table to separate document ingestion from the upload request to avoid without timeout failures on large imports. The chat prompt construction and HNSW indexing were later extended by the rest of the team.
     \item \textbf{Frontend:} Contributed targeted fixes to the file rename and zoom functionality.
 \end{itemize}
 
@@ -272,7 +272,7 @@ Once connected, users can browse their Canvas courses and select which ones to i
     \item An ECS Fargate worker picks up the SQS message and begins processing.
     \item The worker retrieves courses, modules, files, and assignments from the Canvas API.
     \item Downloaded files are uploaded to S3, with metadata stored in PostgreSQL.
-    \item PDFs undergo OCR/text extraction (via Marker API with \tech{pdf-parse} fallback), chunking, and Cohere embedding generation.
+    \item PDFs undergo OCR/text extraction (via Marker API with \tech{pdf-parse} fallback), chunking, and embedding generation.
     \item Embeddings are stored in pgvector for RAG search.
     \item The worker self-scales to zero after an idle period, minimising costs.
 \end{enumerate}
@@ -289,7 +289,7 @@ The AI chat interface allows users to ask natural-language questions about their
 
 \subsubsection{How It Works}
 
-When a user sends a message, the system generates an embedding of the query using Cohere's \tech{embed-multilingual-v3.0} model. This embedding is compared against stored document chunks using pgvector's approximate nearest-neighbour search (HNSW index). The top-$k$ most relevant chunks are retrieved and injected into a prompt, which is sent to the LLM (Kimi K2.5 via Moonshot AI). The response is streamed back to the chat interface.
+When a user sends a message, the system generates an embedding of the query using a self-hosted embedding model (4096 dimensions, served via the project's homelab infrastructure). This embedding is compared against stored document chunks using pgvector's cosine similarity search. The top-$k$ most relevant chunks are retrieved and injected into a prompt, which is sent to the LLM (Kimi K2.5 via Moonshot AI). The response is streamed back to the chat interface.
 
 \subsubsection{Context Scoping}
 
@@ -299,11 +299,11 @@ Chat sessions persist across visits, allowing users to return to previous conver
 
 \subsubsection{Technical Pipeline}
 
-The RAG pipeline combines several components to deliver accurate, source-grounded answers. User queries are embedded with Cohere's \tech{embed-multilingual-v3.0} model (1024 dimensions) using asymmetric input types: \tech{search\_document} for indexing and \tech{search\_query} for queries, which improves retrieval quality by accounting for the stylistic difference between documents and questions.
+The RAG pipeline combines several components to deliver accurate, source-grounded answers. User queries are embedded using a self-hosted \tech{qwen3-embedding:8b} model producing 4096-dimensional vectors, served from the team's homelab via a Cloudflare Tunnel. The embedding service uses asymmetric input types: \tech{search\_document} for indexing and \tech{search\_query} for queries, which improves retrieval quality by accounting for the stylistic difference between documents and questions.
 
 Before embedding, all markdown syntax is stripped from note content --- headers, emphasis markers, links, code fences, and HTML tags are removed to prevent formatting tokens from diluting the semantic signal in the vector space. Text is then split into sentence-aligned chunks of approximately 500 characters with no overlap, splitting on sentence boundaries (\tech{/(?<=[.?!])$\backslash$s+/}).
 
-At query time, pgvector's HNSW index performs approximate nearest-neighbour search using the \tech{<=>} cosine distance operator, retrieving up to 20 candidates within a maximum distance of 0.75. These candidates are then reranked by Cohere's \tech{rerank-multilingual-v3.0} model, which applies cross-attention scoring to the query--document pairs. Chunks scoring below a 0.15 relevance threshold are discarded, and the top 5 are retained.
+At query time, pgvector performs exact cosine similarity search using the \tech{<=>} operator, retrieving up to 20 candidates within a maximum distance of 0.75. At 4096 dimensions, the full sequential scan trades index efficiency for higher-fidelity vector comparisons --- acceptable at current data volumes. These candidates are then reranked using a self-hosted reranker model, which applies cross-attention scoring to the query--document pairs. Chunks scoring below a 0.15 relevance threshold are discarded, and the top 5 are retained.
 
 The surviving chunks are grouped by source note in the prompt, with a 1200-character limit per note block, and the LLM is instructed to cite sources by note title. The production LLM is Kimi K2.5 (Moonshot AI) accessed via an OpenAI-compatible API, configured with a 2048-token generation limit. Responses are streamed to the client via server-sent events with idle timeout reset to maintain connection liveness.
 
@@ -327,7 +327,7 @@ The settings page provides account management and application configuration:
 
 OghmaNotes includes a flashcard-based quiz system that uses the FSRS (Free Spaced Repetition Scheduler) algorithm via the \tech{ts-fsrs} library. Users can create flashcards from their notes and study them with scientifically-backed scheduling that optimises long-term retention. The system tracks quiz sessions, individual card reviews, and maintains streak data to encourage consistent study habits.
 
-\screenshotplaceholder{Quiz System --- Flashcard review interface with spaced repetition scheduling}
+\screenshot{diagram-quiz-flow}{Quiz flow: FSRS card scheduling, difficulty rating, and interval update}
 
 \subsection{Productivity Tools}
 
@@ -356,7 +356,7 @@ OghmaNotes supports 12 languages: English, Arabic, German, Spanish, French, Iris
 
 OghmaNotes follows a serverless-first architecture deployed entirely on AWS. The application consists of three main runtime components: the Next.js frontend and API (hosted on AWS Amplify), the PostgreSQL database (AWS RDS), and the Canvas import worker (AWS ECS Fargate). These are connected through a set of AWS services that handle storage (S3), messaging (SQS), caching (ElastiCache), and email (SES).
 
-\screenshotplaceholder{System Architecture Diagram --- AWS services and data flow between components}
+\screenshot{diagram-architecture}{System Architecture --- AWS infrastructure, homelab inference services, and external API dependencies}
 
 \subsection{Technology Stack}
 
@@ -377,11 +377,11 @@ Worker          & AWS ECS Fargate                             & Self-scaling imp
 Email           & AWS SES                                     & Password reset, notifications \\
 CI/CD           & AWS Amplify Gen 2                           & Build, deploy, CDN, SSR Lambda \\
 Auth            & NextAuth v5 + Custom JWT                   & OAuth (Google/GitHub) + AES-256-GCM encryption \\
-Embeddings      & Cohere embed-multilingual-v3.0 (1024 dims)  & Migrated from Ollama (4096 dims) \\
-Reranking       & Cohere rerank-multilingual-v3.0              & Relevance reranking for RAG \\
+Embeddings      & \tech{qwen3-embedding:8b} (homelab, 4096 dims) & Self-hosted via Ollama; Cohere used temporarily \\
+Reranking       & Self-hosted (Cohere fallback)                & Purpose-built relevance scoring for RAG \\
 LLM             & Kimi K2.5 (Moonshot AI)                    & Production LLM via OpenAI-compatible API \\
-OCR             & Marker (self-hosted EC2 ASG, g5.xlarge) + Datalab fallback & PDF/DOCX/PPTX text extraction \\
-GPU Compute     & AWS EC2 (g5.xlarge, NVIDIA A10G, spot \textasciitilde\$0.35/hr) & Marker OCR via ASG, scales to zero \\
+OCR             & Marker (self-hosted EC2 ASG, g4dn.xlarge) + Datalab fallback & PDF/DOCX/PPTX text extraction \\
+GPU Compute     & AWS EC2 (g4dn.xlarge, NVIDIA T4, spot \textasciitilde\$0.35/hr) & Marker OCR via ASG, scales to zero \\
 LMS             & Canvas LMS REST API                         & Course/file import pipeline \\
 i18n            & Custom locale system                        & 12 languages \\
 \bottomrule
@@ -407,62 +407,19 @@ The production infrastructure runs in the \tech{eu-north-1} (Stockholm) region. 
 
 \textbf{AWS ElastiCache} (Valkey 8.2) provides in-memory caching for session data.
 
-\textbf{AWS EC2} runs a \tech{g5.xlarge} GPU instance (NVIDIA A10G) hosting the Marker OCR server for document text extraction. The instance runs within an Auto Scaling Group (ASG) behind an Application Load Balancer, using spot pricing at approximately \$0.35/hour. The ASG scales to zero when idle, with a 4--7 minute cold start when documents need processing. The instance supports PDF, DOCX, DOC, PPTX, PPT, PNG, and JPG formats. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API as an external OCR service.
+\textbf{AWS EC2} runs a \tech{g4dn.xlarge} GPU instance (NVIDIA T4) hosting the Marker OCR server for document text extraction. The instance runs within an Auto Scaling Group (ASG) behind an Application Load Balancer, using spot pricing at approximately \$0.35/hour. The ASG scales to zero when idle, with a 4--7 minute cold start when documents need processing. The instance supports PDF, DOCX, DOC, PPTX, PPT, PNG, and JPG formats. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API as an external OCR service.
 
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 6: REST API
 % ══════════════════════════════════════════════════════════════════
-\section{REST API Documentation}
+\section{REST API}
 
-The OghmaNotes backend exposes a REST API through Next.js API Routes. All endpoints are prefixed with \tech{/api/} and follow RESTful conventions. Authentication is enforced via JWT middleware on protected routes, with rate limiting applied to sensitive endpoints.
-
-\subsection{API Route Structure}
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabularx}{\textwidth}{llX}
-\toprule
-\textbf{Route Group} & \textbf{Methods} & \textbf{Description} \\
-\midrule
-\tech{/api/auth/*}        & POST, GET     & Registration, login, logout, password reset, email verification, OAuth callbacks \\
-\tech{/api/notes/*}       & GET, POST, PUT, DELETE & CRUD operations for notes and folders, metadata, sharing \\
-\tech{/api/tree/*}        & GET           & File tree structure, children, status \\
-\tech{/api/upload}        & POST          & File upload with S3 presigned URLs \\
-\tech{/api/canvas/*}      & GET, POST     & Canvas connection, course listing, import trigger, status, logs \\
-\tech{/api/chat/*}        & POST, GET, DELETE & AI chat message sending, session management \\
-\tech{/api/search}        & GET           & Full-text and vector similarity search \\
-\tech{/api/extract}       & POST          & PDF text extraction and OCR \\
-\tech{/api/settings}      & GET, PUT      & User preferences and configuration \\
-\tech{/api/quiz/*}        & GET, POST, PUT & Flashcard quiz sessions, spaced repetition, streaks \\
-\tech{/api/pomodoro}      & GET, POST     & Pomodoro timer session tracking \\
-\tech{/api/time-blocks/*} & GET, POST, PUT, DELETE & Time block scheduling \\
-\tech{/api/assignments/*} & GET, POST     & Canvas assignment sync and tracking \\
-\tech{/api/pdf/annotations} & GET, POST   & PDF annotation storage and retrieval \\
-\tech{/api/vault/*}       & GET, POST     & Data export/import for portability \\
-\tech{/api/import-export} & GET, POST     & Notes import/export \\
-\tech{/api/health}        & GET           & Health check endpoint \\
-\bottomrule
-\end{tabularx}
-\caption{API Route Groups}
-\end{table}
+The OghmaNotes backend exposes a REST API through Next.js API Routes, with all endpoints prefixed under \tech{/api/}. The API comprises 16 route groups covering authentication (registration, login, OAuth callbacks, password reset), notes CRUD, file tree operations, S3-backed file upload, Canvas connection and import management, AI chat with session persistence, vector and full-text search, PDF extraction, user settings, quiz/flashcard management, Pomodoro and time-block tracking, Canvas assignment sync, and data portability (vault export/import). A health check endpoint is also exposed for monitoring.
 
 \subsection{Authentication Middleware}
 
 All protected routes use a custom JWT middleware that extracts the token from HTTP-only cookies, verifies the signature, and attaches the decoded user object to the request context. Unauthenticated requests receive a 401 response. Rate limiting is implemented using a sliding-window counter pattern, with stricter limits on authentication endpoints (login, register, password reset) to prevent brute-force attacks.
-
-\subsection{Example: Notes CRUD}
-
-The notes API supports the full lifecycle of note management:
-
-\begin{itemize}[leftmargin=1.5em]
-    \item \tech{GET /api/notes} --- List all notes for the authenticated user.
-    \item \tech{POST /api/notes} --- Create a new note or folder. Accepts \tech{title}, \tech{content}, \tech{parent\_id}, and \tech{type} (file or folder).
-    \item \tech{GET /api/notes/:id} --- Retrieve a single note by ID, including content from S3 if stored externally.
-    \item \tech{PUT /api/notes/:id} --- Update note title, content, or parent (for moving within the tree).
-    \item \tech{DELETE /api/notes/:id} --- Soft-delete a note (moves to trash).
-\end{itemize}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -482,7 +439,7 @@ The authentication system supports two parallel paths that converge on a shared 
 
 \textbf{Token Refresh:} JWTs have a configurable expiry. The \tech{/api/auth/me} endpoint checks token validity and issues a refreshed token when needed.
 
-\screenshotplaceholder{Authentication Flow Diagram --- Email/password and OAuth paths converging on JWT issuance}
+\screenshot{diagram-auth-flow}{Authentication Flow --- Email/password, registration with email verification, and OAuth paths}
 
 \subsection{Canvas Import Pipeline}
 
@@ -494,30 +451,30 @@ The Canvas import pipeline is the most architecturally complex flow in the syste
     \item \textbf{Worker Activation:} The ECS Fargate worker, which polls SQS on a loop, receives the message and begins processing.
     \item \textbf{Canvas API Calls:} The worker uses the Canvas REST API to enumerate courses, modules, files, and assignments. Each file is downloaded to a temporary buffer.
     \item \textbf{S3 Upload:} Downloaded files are uploaded to S3 under a user-specific key prefix, with metadata recorded in the \tech{canvas\_imports} table.
-    \item \textbf{Text Extraction:} PDFs (and DOCX/PPTX files) are sent to a self-hosted Marker instance running on an EC2 \tech{g5.xlarge} GPU instance (NVIDIA A10G) within an Auto Scaling Group. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API. Markdown syntax is stripped before embedding to reduce noise in the vector space.
-    \item \textbf{Chunking \& Embedding:} Extracted text is split into sentence-aligned, non-overlapping chunks of approximately 500 characters. Each chunk is sent to Cohere's \tech{embed-multilingual-v3.0} API, producing a 1024-dimensional embedding vector.
-    \item \textbf{Vector Storage:} Embeddings are stored in the \tech{note\_chunks} table using pgvector, with an HNSW index for efficient approximate nearest-neighbour search.
+    \item \textbf{Text Extraction:} PDFs (and DOCX/PPTX files) are sent to a self-hosted Marker instance running on an EC2 \tech{g4dn.xlarge} GPU instance (NVIDIA T4) within an Auto Scaling Group. If the EC2 instance is unavailable, the system falls back to the Datalab Convert API. Markdown syntax is stripped before embedding to reduce noise in the vector space.
+    \item \textbf{Chunking \& Embedding:} Extracted text is split into sentence-aligned, non-overlapping chunks of approximately 500 characters. Each chunk is sent to the self-hosted embedding service, producing a 4096-dimensional vector.
+    \item \textbf{Vector Storage:} Embeddings are stored in the \tech{note\_chunks} table using pgvector with cosine distance search.
     \item \textbf{Completion:} The job status is updated to \tech{complete} (or \tech{failed} with error details). The worker returns to polling and scales to zero after an idle timeout.
 \end{enumerate}
 
-\screenshotplaceholder{Canvas Import Pipeline Diagram --- SQS, ECS Fargate, S3, and pgvector data flow}
+\screenshot{diagram-canvas-pipeline}{Canvas Import Pipeline --- SQS job dispatch, ECS Fargate worker processing, and pgvector storage}
 
 \subsection{RAG Query Flow}
 
 When a user sends a message in the AI chat interface, the following pipeline executes:
 
 \begin{enumerate}[leftmargin=1.5em]
-    \item \textbf{Query Embedding:} The user's message is sent to Cohere's embedding API, producing a 1024-dimensional query vector.
-    \item \textbf{Vector Search:} The query vector is compared against stored chunk embeddings using pgvector's \tech{<=>} (cosine distance) operator with an HNSW index. The top-$k$ most similar chunks are retrieved (filtered to a maximum cosine distance of 0.75), optionally scoped to the user's selected context (specific files or folders).
-    \item \textbf{Reranking:} Retrieved chunks are passed through Cohere's \tech{rerank-multilingual-v3.0} model, which rescores them by relevance to the original query. Chunks below a minimum relevance threshold (0.15) are discarded. This step significantly improves precision over raw vector similarity alone.
+    \item \textbf{Query Embedding:} The user's message is sent to the self-hosted embedding service, producing a 4096-dimensional query vector.
+    \item \textbf{Vector Search:} The query vector is compared against stored chunk embeddings using pgvector's \tech{<=>} (cosine distance) operator. The top-$k$ most similar chunks are retrieved (filtered to a maximum cosine distance of 0.75), optionally scoped to the user's selected context (specific files or folders).
+    \item \textbf{Reranking:} Retrieved chunks are passed through a self-hosted reranker model, which rescores them by relevance to the original query. Chunks below a minimum relevance threshold (0.15) are discarded. This step significantly improves precision over raw vector similarity alone.
     \item \textbf{Prompt Construction:} The reranked chunks are injected into a system prompt that instructs the LLM to answer based on the provided context, cite sources, and indicate when information is not available.
     \item \textbf{LLM Generation:} The prompt is sent to the LLM (Kimi K2.5 via Moonshot AI's OpenAI-compatible API). The response is streamed back to the client using server-sent events for a responsive user experience.
     \item \textbf{Session Persistence:} The message and response are stored in the \tech{chat\_messages} table, linked to the user's chat session for future reference.
 \end{enumerate}
 
-The pipeline includes several optimisation decisions driven by empirical testing. The 20-candidate retrieval with reranking to 5 was chosen because raw vector similarity alone produces false positives --- semantically adjacent but topically irrelevant chunks. The Cohere reranker provides a cross-attention score that considers the query--document pair holistically, significantly improving precision. The 0.75 cosine distance threshold and 0.15 relevance floor were tuned against a test set of university lecture queries to balance recall and noise. Markdown syntax is stripped before embedding (removing headers, emphasis markers, code fences, and HTML tags) because formatting tokens dilute the semantic signal in the vector space.
+The pipeline includes several optimisation decisions driven by empirical testing. The 20-candidate retrieval with reranking to 5 was chosen because raw vector similarity alone produces false positives --- semantically adjacent but topically irrelevant chunks. The self-hosted reranker provides a cross-attention score that considers the query--document pair holistically, significantly improving precision. The 0.75 cosine distance threshold and 0.15 relevance floor were tuned against a test set of university lecture queries to balance recall and noise. Markdown syntax is stripped before embedding (removing headers, emphasis markers, code fences, and HTML tags) because formatting tokens dilute the semantic signal in the vector space.
 
-\screenshotplaceholder{RAG Query Flow Diagram --- Embedding, vector search, LLM generation pipeline}
+\screenshot{diagram-rag-flow}{RAG Query Pipeline --- Query embedding, pgvector cosine search, self-hosted reranking, and LLM streaming}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -531,48 +488,15 @@ The database uses PostgreSQL~17.4 with the \tech{pgvector} extension, hosted on 
 
 \subsection{Core Tables}
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabularx}{\textwidth}{lX}
-\toprule
-\textbf{Table} & \textbf{Purpose} \\
-\midrule
-\tech{app.login}                & User accounts with hashed credentials, profile data, preferences, Canvas token \\
-\tech{app.oauth\_accounts}     & Linked OAuth providers (Google and GitHub) per user \\
-\tech{app.notes}               & Note and folder metadata, S3 keys, parent references for tree structure \\
-\tech{app.tree\_items}         & File tree structure nodes with hierarchical relationships \\
-\tech{app.attachments}         & File ownership records mapping S3 objects to notes \\
-\tech{app.chunks}              & RAG text chunks linked to source documents \\
-\tech{app.embeddings}          & 1024-dim vector embeddings (pgvector) linked to chunks \\
-\tech{app.chat\_sessions}      & AI chat conversation threads per user \\
-\tech{app.chat\_messages}      & Individual messages within chat sessions \\
-\tech{app.canvas\_import\_jobs} & Import job tracking (queued/running/complete/failed) \\
-\tech{app.canvas\_imports}     & Individual file import records within a job \\
-\tech{app.assignments}         & Canvas assignment metadata synced from LMS \\
-\tech{app.quiz\_cards}         & Flashcard content for spaced-repetition quiz system \\
-\tech{app.quiz\_sessions}      & Quiz session tracking with FSRS scheduling \\
-\tech{app.pomodoro\_sessions}  & Pomodoro timer session records \\
-\tech{app.time\_blocks}        & Time block scheduling entries \\
-\tech{app.pdf\_annotations}    & User annotations on PDF documents \\
-\tech{app.rate\_limit\_log}    & Rate limiting records for API endpoints \\
-\tech{app.schema\_migrations}  & Migration version tracking \\
-\bottomrule
-\end{tabularx}
-\caption{Database Tables and Purposes}
-\end{table}
-
-\subsection{Key Relationships}
-
-The schema's relationships follow a user-centric model. Each user (in \tech{app.login}) owns notes (one-to-many), chat sessions (one-to-many), and stores their encrypted Canvas API token directly as a column. Notes form a tree structure through the \tech{app.tree\_items} table with parent references enabling nested folders. Each note can have multiple text chunks (one-to-many via \tech{app.chunks}), each with a corresponding embedding row in \tech{app.embeddings} (one-to-one). Canvas import jobs contain multiple individual file imports (one-to-many). Users can also have quiz cards, pomodoro sessions, time blocks, and assignments linked to their account.
+The schema contains 19 tables under the \tech{app} namespace, organised around a user-centric model. The primary tables are \tech{app.login} (user accounts and credentials), \tech{app.notes} and \tech{app.tree\_items} (note content and hierarchical file structure), \tech{app.chunks} and \tech{app.embeddings} (RAG text chunks and their 4096-dimensional vectors), and \tech{app.chat\_sessions}/\tech{app.chat\_messages} (AI conversation persistence). Supporting tables handle OAuth account linking, Canvas import job tracking, quiz flashcards with FSRS scheduling, Pomodoro sessions, time blocks, PDF annotations, and rate limiting. A \tech{schema\_migrations} table tracks the 8+ migrations applied over the project lifetime.
 
 \screenshotplaceholder{Entity-Relationship Diagram --- Database schema relationships}
 
 \subsection{Vector Storage Design}
 
-The \tech{app.chunks} and \tech{app.embeddings} tables are central to the RAG system. Each chunk row contains the text, its source document ID, and user ownership. A corresponding row in \tech{app.embeddings} stores the 1024-dimensional vector embedding, linked via \tech{chunk\_id}. The table uses a pgvector HNSW index for approximate nearest-neighbour queries, providing O(log~n) lookup performance.
+The \tech{app.chunks} and \tech{app.embeddings} tables are central to the RAG system. Each chunk row contains the text, its source document ID, and user ownership. A corresponding row in \tech{app.embeddings} stores the 4096-dimensional vector embedding, linked via \tech{chunk\_id}. Similarity search uses pgvector's \tech{<=>} cosine distance operator with a full sequential scan.
 
-The choice of 1024 dimensions was driven by a practical constraint: pgvector's HNSW index has a 2000-dimension limit. The project initially used Ollama's \tech{qwen3-embedding} model at 4096 dimensions, which forced brute-force O(n) scanning. Migrating to Cohere's \tech{embed-multilingual-v3.0} at 1024 dimensions enabled HNSW indexing, dramatically improving search performance. This pivot is discussed further in Section~\ref{sec:pivots}.
+The embedding pipeline iterated through multiple providers before settling on the current configuration (see Section~\ref{sec:pivots}). The production setup uses \tech{qwen3-embedding:8b} at full 4096 dimensions for maximum semantic fidelity. While 4096 dimensions exceeds pgvector's HNSW index limit of 2000 and precludes approximate nearest-neighbour indexing, the sequential scan is acceptable at current data volumes and preserves retrieval quality.
 
 \subsection{Migration History}
 
@@ -604,7 +528,7 @@ The repository follows a two-branch model. The \tech{dev} branch serves as the i
 
 The Canvas import worker runs as a separate ECS Fargate service. Its container image is built from a Dockerfile in the repository and pushed to Amazon ECR. The ECS task definition specifies resource limits, environment variables, and the SQS queue URL. The service is configured with a desired count of zero by default, scaling up when SQS messages are detected.
 
-\screenshotplaceholder{CI/CD Pipeline Diagram --- GitHub to Amplify to production flow}
+\screenshot{diagram-cicd}{CI/CD Pipeline --- GitHub push to AWS Amplify build, deploy, and infrastructure update}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -633,9 +557,9 @@ The Canvas import job queue was initially implemented using BullMQ backed by Ela
 
 \subsection{Pivot 4: Local Ollama to Cohere Embeddings}
 
-The initial embedding pipeline used a self-hosted Ollama instance running \tech{qwen3-embedding}, which produced 4096-dimensional vectors. This exceeded pgvector's HNSW index limit of 2000 dimensions, forcing the system to use brute-force O(n) sequential scanning for every similarity query. The team migrated to Cohere's \tech{embed-multilingual-v3.0} API, which produces 1024-dimensional vectors compatible with HNSW indexing, reducing search complexity to O(log~n).
+The initial embedding pipeline used a self-hosted Ollama instance running \tech{qwen3-embedding:8b}, served over a Cloudflare Tunnel. While the model itself performed well, the Cloudflare Tunnel introduced network-level instability --- embedding requests during Canvas imports would intermittently time out, causing ingestion jobs to fail mid-batch. Rather than debug the tunnel reliability, the team migrated to Cohere's \tech{embed-multilingual-v3.0} API, which provided a stable external endpoint with consistent latency. As a secondary benefit, Cohere's 1024-dimensional output was also compatible with pgvector's HNSW index limit.
 
-\textbf{Lesson:} Embedding dimension choice has non-obvious downstream performance implications. The choice of model directly constrains what indexing strategies are available.
+\textbf{Lesson:} Infrastructure reliability is as important as model quality. A locally-hosted model routed through a tunnelled connection introduces failure modes that a direct API call does not.
 
 \subsection{Pivot 5: OpenWebUI Auth Layer to Direct LLM API}
 
@@ -644,6 +568,12 @@ The RAG pipeline initially routed LLM requests through OpenWebUI as an authentic
 \subsection{Pivot 6: pnpm to npm}
 
 A mid-project package manager switch from pnpm to npm was necessitated by compatibility issues with the Amplify build environment. While pnpm offers faster installs and stricter dependency resolution, its workspace features conflicted with Amplify's build process. The switch to npm resolved build failures with minimal disruption.
+
+\subsection{Pivot 7: Cohere Embeddings Back to Self-Hosted Homelab}
+
+After migrating to Cohere (Pivot~4), the team encountered aggressive rate limiting on Cohere's free-tier embedding API during Canvas imports, where hundreds of chunks required embedding in rapid succession. Rather than upgrade to a paid tier, the team resolved the underlying Cloudflare Tunnel reliability issues and migrated back to the self-hosted \tech{qwen3-embedding:8b} model on the project lead's homelab. This eliminated rate limits and external API costs entirely. With the tunnel now stable, the team also took the opportunity to restore the original 4096-dimensional vectors for higher semantic fidelity, accepting the trade-off of sequential pgvector scanning at current data scale. The reranker was similarly moved to self-hosted infrastructure.
+
+\textbf{Lesson:} External API dependencies introduce constraints beyond cost --- rate limits can silently degrade user experience. Self-hosting critical pipeline components provides control over throughput at the cost of operational responsibility.
 
 \subsection{Budget Constraints}
 
@@ -654,8 +584,6 @@ The project operated within an AWS education credits budget. This constraint dir
 % SECTION 11: TESTING
 % ══════════════════════════════════════════════════════════════════
 \section{Testing}
-
-\todo{Expand this section with specific test details and coverage metrics.}
 
 \subsection{Testing Approach}
 
@@ -729,7 +657,7 @@ The most technically demanding work was the AWS infrastructure. Debugging why Am
 
 Managing a three-person team while being the primary implementer created an inherent tension. I wanted to empower my teammates to own their contributions, but the interconnected nature of the system meant that integration work often fell to me. In retrospect, I should have invested more time in documentation and interface contracts early on, so that components could be developed more independently.
 
-The key lesson from this project is that architecture decisions made under time pressure have long-lasting consequences. The BullMQ-to-SQS migration, the Ollama-to-Cohere embedding switch, and the monorepo collapse each cost days of rework. Building a proof-of-concept for each integration point before committing to it would have saved significant time.
+The key lesson from this project is that architecture decisions made under time pressure have long-lasting consequences. The BullMQ-to-SQS migration, the embedding pipeline iterations (Ollama to Cohere to self-hosted), and the monorepo collapse each cost days of rework. Building a proof-of-concept for each integration point before committing to it would have saved significant time.
 
 \subsection{Samuel Regan}
 
@@ -757,79 +685,42 @@ The key takeaway from this project was that real-world software engineering is a
 % ══════════════════════════════════════════════════════════════════
 \section{Future Work}
 
-Several improvements and features are planned or under consideration for future development:
-
-\textbf{Mobile Application:} The current application is responsive but not optimised for mobile workflows. A dedicated mobile application (or Progressive Web App) would better serve students who want to review notes on the go.
-
-\textbf{Improved RAG Pipeline:} Future iterations could include hybrid search (combining vector similarity with keyword search) and support for additional document formats beyond the current set (PDF, DOCX, PPTX, images).
-
-\textbf{Collaborative Editing:} Real-time collaborative editing would allow study groups to work on shared notes simultaneously, similar to Google Docs but integrated with the RAG system.
-
-\textbf{Expanded LMS Support:} While Canvas LMS is currently supported, adding integrations for Moodle, Blackboard, and other popular learning management systems would broaden the platform's applicability.
-
 \textbf{Hybrid Search:} Combining vector similarity with BM25 keyword search would improve retrieval for queries containing technical terms or proper nouns that benefit from exact matching alongside semantic understanding.
 
-\textbf{Multi-Modal RAG:} Extending the embedding pipeline to handle images, diagrams, and handwritten notes (via OCR) would capture knowledge that exists outside text-heavy lecture slides.
+\textbf{Collaborative Editing:} Real-time collaborative editing would allow study groups to work on shared notes simultaneously, integrated with the RAG system.
 
-\textbf{BYOK (Bring Your Own Key):} Allowing students to connect their own LLM API keys (OpenAI, Anthropic, Google) would provide model choice and reduce platform costs. The settings UI stub already exists.
+\textbf{Expanded LMS Support:} Adding integrations for Moodle, Blackboard, and other learning management systems would broaden the platform's applicability beyond Canvas.
+
+\textbf{BYOK (Bring Your Own Key):} Allowing students to connect their own LLM API keys would provide model choice and reduce platform costs. The settings UI stub already exists.
 
 \textbf{Offline Support (PWA):} Implementing a Progressive Web App with IndexedDB caching would allow students to review notes and flashcards without an internet connection, syncing changes when reconnected.
-
-\textbf{Analytics Dashboard:} Tracking study patterns (time spent per module, quiz performance trends, RAG query frequency) would provide students with actionable insights into their learning habits.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 3: AI DISCLOSURE
 % ══════════════════════════════════════════════════════════════════
 \section{AI-Assisted Development Disclosure}
 
-This project used multiple AI coding assistants throughout development. This section provides a transparent account of how AI tools were used, what role they played, and quantitative telemetry from local session logs.
-
-\subsection{Tools Used}
-
-The primary AI tools were:
-
-\begin{itemize}[leftmargin=1.5em]
-    \item \textbf{Claude Code (Anthropic):} The primary development assistant, used for the majority of implementation, debugging, and refactoring work.
-    \item \textbf{OpenCode:} Used for targeted build/deploy sessions and batch file operations.
-    \item \textbf{Codex (OpenAI):} Used briefly for exploratory tasks.
-    \item \textbf{Gemini / Antigravity:} Evaluated but no persistent session transcripts were generated.
-\end{itemize}
-
-\subsection{Quantitative Telemetry}
-
-An audit of local AI session stores (performed March~30, 2026) produced the following metrics:
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabularx}{\textwidth}{lrrrX}
-\toprule
-\textbf{Tool} & \textbf{Sessions} & \textbf{User Msgs} & \textbf{Asst Msgs} & \textbf{Notes} \\
-\midrule
-Claude Code  & 5,293 & 17,148 & 26,775 & Top tools: Bash, Read, Edit, Grep \\
-OpenCode     & 80    & 525    & 4,442  & 36 sessions with file-change summaries; 1,476 files touched, 92k additions, 28k deletions \\
-Codex        & 4     & 11     & 17     & Exploratory use only \\
-Gemini       & 0     & ---    & ---    & Config artifacts only, no conversation transcripts \\
-\bottomrule
-\end{tabularx}
-\caption{AI Tool Usage Telemetry (audited 2026-03-30)}
-\end{table}
-
-These numbers represent the total volume of interaction across the full project lifetime. Not all sessions resulted in committed code --- many were debugging sessions, research queries, or exploratory conversations that informed design decisions without producing direct output.
+This project used AI coding assistants --- primarily Claude Code (Anthropic), with supplementary use of OpenCode and Codex --- throughout development. This section describes the relationship between the developers and these tools.
 
 \subsection{How AI Was Used}
 
-The developers directed all architectural decisions, feature priorities, and design choices. AI was used as an implementation accelerator: given high-level specifications and architectural context, it would generate code which was then reviewed, tested, and modified before committing. Frequent request categories across the session logs include: debugging and fixes, Git workflow and branch management, infrastructure and deployment troubleshooting, UI/UX refinement, documentation and planning, and automation via task/subagent workflows.
-
-AI also assisted with debugging complex AWS configuration issues (VPC networking, IAM permissions, SQS message formats), generating boilerplate for repetitive patterns (API routes, database migrations, i18n translation files), and producing documentation.
+AI served as an implementation accelerator. The developers defined all architectural decisions, feature priorities, and design constraints; AI tools generated code against those specifications, which was then reviewed, tested, and modified before committing. Common use cases included generating boilerplate for repetitive patterns (API routes, database migrations, i18n translation files), debugging complex AWS configuration issues, and UI refinement.
 
 \subsection{What AI Did Not Do}
 
-AI did not make architectural decisions. For example, the migration from BullMQ to SQS was driven by a real networking constraint the developer encountered at runtime --- Amplify's Lambda functions could not reach ElastiCache without VPC configuration. The developers identified the problem, decided on SQS as the solution, and directed the implementation. AI did not replace understanding: the developers maintained full comprehension of the codebase and could explain every design decision from first principles.
+AI did not make architectural decisions. Every significant pivot documented in Section~\ref{sec:pivots} was driven by a constraint the developers encountered at runtime and diagnosed themselves:
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{BullMQ to SQS:} The developer discovered that Amplify's Lambda functions could not reach ElastiCache without VPC configuration. AI did not surface this --- the failure occurred in production and was diagnosed through CloudWatch logs and AWS networking documentation.
+    \item \textbf{Ollama to Cohere to self-hosted embeddings:} The initial self-hosted embedding pipeline failed under load due to Cloudflare Tunnel instability causing request timeouts. Cohere resolved reliability but introduced rate limiting during bulk Canvas imports. The final pivot back to self-hosted (with tunnel issues resolved) restored full throughput and preserved 4096-dimensional embeddings for higher retrieval fidelity.
+    \item \textbf{Marker cold-start fix:} The developer diagnosed that the EC2 GPU instance was pip-installing \tech{marker-pdf} on every boot (causing 15-minute cold starts) and resolved it by pre-baking a Docker image with dependencies installed.
+\end{itemize}
+
+In each case, the developer identified the problem, chose the solution, and directed the implementation. AI accelerated the execution but did not replace the engineering judgement required to navigate these decisions.
 
 \subsection{Reflection}
 
-AI-assisted development significantly accelerated implementation velocity but introduced a tendency to overscope. The ability to implement ambitious features quickly made it tempting to add more than was necessary. The key learning was that AI assistance shifts the bottleneck from ``can I implement this?'' to ``should I implement this now?'' --- a lesson in scope management that proved as valuable as any technical skill gained during the project.
+AI-assisted development significantly accelerated implementation velocity but introduced a tendency to overscope. The ability to implement features quickly made it tempting to add more than was necessary. The key learning was that AI assistance shifts the bottleneck from ``can I implement this?'' to ``should I implement this now?'' --- a lesson in scope management that proved as valuable as any technical skill gained during the project.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 15: RESOURCES & LINKS
