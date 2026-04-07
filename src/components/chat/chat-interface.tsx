@@ -17,10 +17,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { parseSseBlocks } from "@/lib/chat/sse";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
-import {
-  CompactMessageBubble,
-  FullMessageBubble,
-} from "./message-bubble";
+import { CompactMessageBubble, FullMessageBubble } from "./message-bubble";
 
 export interface SearchContextData {
   scopeSize: number | null; // null = searched all notes
@@ -32,6 +29,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   sources?: { id: string; title: string }[];
   retrieval?: {
     scopeMode: "global" | "scoped";
@@ -251,6 +249,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ? {
                   ...m,
                   content: data.reply || "",
+                  thinking: data.thinking || undefined,
                   sources: Array.isArray(data.sources) ? data.sources : [],
                   retrieval: data.retrieval,
                   searchContext: data.searchContext ?? undefined,
@@ -330,40 +329,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               continue;
             }
 
-            if (frame.event === "search") {
+            if (frame.event === "thinking") {
+              const text = typeof payload.text === "string" ? payload.text : "";
+              if (!text) continue;
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? {
-                        ...m,
-                        searchContext: {
-                          scopeSize: payload.scopeSize ?? null,
-                          resultsFound: payload.resultsFound ?? 0,
-                          results: Array.isArray(payload.results)
-                            ? payload.results
-                            : [],
-                        },
-                      }
-                    : m,
-                ),
-              );
-              continue;
-            }
-
-            if (frame.event === "search") {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        searchContext: {
-                          scopeSize: payload.scopeSize ?? null,
-                          resultsFound: payload.resultsFound ?? 0,
-                          results: Array.isArray(payload.results)
-                            ? payload.results
-                            : [],
-                        },
-                      }
+                    ? { ...m, thinking: `${m.thinking ?? ""}${text}` }
                     : m,
                 ),
               );
