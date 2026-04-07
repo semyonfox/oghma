@@ -34,6 +34,7 @@ import {
   MAX_EXTRACTION_RETRIES,
 } from "./extraction-retry.ts";
 import { extractContentFromBuffer } from "../ingestion/extraction-core.ts";
+import logger from "../logger.ts";
 
 const PROCESSABLE_TYPES = new Set([
   "application/pdf",
@@ -98,6 +99,48 @@ const CANVAS_EMBED_CONCURRENCY = parseEnvConcurrency(
   3,
 );
 const CANVAS_PREWARM_MARKER = parseEnvEnabled("CANVAS_PREWARM_MARKER", true);
+
+/**
+ * Helper to measure and log phase timing.
+ * Logs start/end of a phase with duration and metadata to CloudWatch.
+ * @param {string} phase - Phase name (e.g., "discovery", "extraction", "embedding")
+ * @param {string} jobId - Job ID for correlation
+ * @param {Function} fn - Async function to measure
+ * @param {object} metadata - Additional fields to log (fileCount, filename, etc.)
+ */
+async function measurePhase(phase, jobId, fn, metadata = {}) {
+  const startTime = Date.now();
+  try {
+    logger.info("canvas-import-phase-start", {
+      phase,
+      jobId,
+      ...metadata,
+    });
+    const result = await fn();
+    const elapsedMs = Date.now() - startTime;
+    const elapsedSecs = (elapsedMs / 1000).toFixed(2);
+    logger.info("canvas-import-phase-complete", {
+      phase,
+      jobId,
+      elapsedMs,
+      elapsedSecs: parseFloat(elapsedSecs),
+      ...metadata,
+    });
+    return result;
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const elapsedSecs = (elapsedMs / 1000).toFixed(2);
+    logger.error("canvas-import-phase-error", {
+      phase,
+      jobId,
+      error: error.message,
+      elapsedMs,
+      elapsedSecs: parseFloat(elapsedSecs),
+      ...metadata,
+    });
+    throw error;
+  }
+}
 
 const globalFileLimiter = createAsyncLimiter(CANVAS_GLOBAL_FILE_CONCURRENCY);
 const ocrLimiter = createAsyncLimiter(CANVAS_OCR_CONCURRENCY);
@@ -244,8 +287,9 @@ async function processRagPipeline(
   buffer,
   ragOpts,
 ) {
-  const { filename, mimeType, s3Key = null, attempt = 0 } = ragOpts;
+  const { filename, mimeType, s3Key = null, attempt = 0, jobId } = ragOpts;
   try {
+    const extractionStart = Date.now();
     const extraction = await ocrLimiter(() =>
       extractContentFromBuffer({
         buffer,
@@ -253,6 +297,7 @@ async function processRagPipeline(
         mimeType,
       }),
     );
+    const extractionElapsedMs = Date.now() - extractionStart;
 
     const {
       rawText,
@@ -262,6 +307,15 @@ async function processRagPipeline(
       markerMetadata = null,
     } = extraction;
     const isText = source === "text";
+
+    logger.info("canvas-import-file-extracted", {
+      jobId,
+      filename,
+      source,
+      chunkCount: chunks.length,
+      elapsedMs: extractionElapsedMs,
+      elapsedSecs: (extractionElapsedMs / 1000).toFixed(2),
+    });
 
     if (source === "text") {
       console.log(
@@ -297,7 +351,18 @@ async function processRagPipeline(
         SET extracted_text = ${searchText}, updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
       `;
+      const embeddingStart = Date.now();
       const count = await replaceEmbeddings(noteId, userId, chunks);
+      const embeddingElapsedMs = Date.now() - embeddingStart;
+
+      logger.info("canvas-import-file-embedded", {
+        jobId,
+        filename,
+        chunkCount: count,
+        elapsedMs: embeddingElapsedMs,
+        elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
+      });
+
       console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
       return { noteId, chunksStored: count };
     }
@@ -329,7 +394,17 @@ async function processRagPipeline(
       WHERE note_id = ${mdNoteId}::uuid
     `;
 
+    const embeddingStart = Date.now();
     const count = await replaceEmbeddings(mdNoteId, userId, chunks);
+    const embeddingElapsedMs = Date.now() - embeddingStart;
+
+    logger.info("canvas-import-file-embedded", {
+      jobId,
+      filename,
+      chunkCount: count,
+      elapsedMs: embeddingElapsedMs,
+      elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
+    });
 
     if (attempt > 0) {
       await sql`
@@ -425,9 +500,12 @@ async function _runFileImport(importRecordId, file, opts) {
     return { skipped: true };
   }
 
+  const downloadStart = Date.now();
   const { buffer, forbidden: dlForbidden } = await client.downloadFile(
     file.url,
   );
+  const downloadElapsedMs = Date.now() - downloadStart;
+
   if (dlForbidden || !buffer) {
     console.log(`Download forbidden: ${file.display_name}`);
     await setImportStatus(importRecordId, "forbidden", {
@@ -435,6 +513,14 @@ async function _runFileImport(importRecordId, file, opts) {
     });
     return;
   }
+
+  logger.info("canvas-import-file-downloaded", {
+    jobId: opts.jobId,
+    filename: file.display_name,
+    fileSizeBytes: buffer.length,
+    elapsedMs: downloadElapsedMs,
+    elapsedSecs: (downloadElapsedMs / 1000).toFixed(2),
+  });
 
   const s3Key = `${s3Prefix}/${file.filename}`;
   await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
@@ -456,6 +542,7 @@ async function _runFileImport(importRecordId, file, opts) {
 
   await setImportStatus(importRecordId, "indexing", { noteId });
 
+  const ragStart = Date.now();
   const ragResult = await processRagPipeline(
     noteId,
     userId,
@@ -465,12 +552,22 @@ async function _runFileImport(importRecordId, file, opts) {
       filename: file.display_name,
       mimeType: resolvedMimeType,
       s3Key,
+      jobId: opts.jobId,
     },
   );
+  const ragElapsedMs = Date.now() - ragStart;
 
   if (ragResult === null) {
     return;
   }
+
+  logger.info("canvas-import-file-processed", {
+    jobId: opts.jobId,
+    filename: file.display_name,
+    ragElapsedMs,
+    ragElapsedSecs: (ragElapsedMs / 1000).toFixed(2),
+    chunksStored: ragResult.chunksStored,
+  });
 
   if (await isJobCancelled(opts.jobId)) {
     await setImportStatus(importRecordId, "cancelled");
@@ -1054,12 +1151,29 @@ export async function processDiscoverJob(jobId) {
         .catch((err) => console.warn(`Marker prewarm skipped: ${err.message}`));
     }
 
+    const startTime = job.started_at ? new Date(job.started_at) : new Date();
+    const elapsedMs = Date.now() - startTime.getTime();
+    const elapsedSecs = (elapsedMs / 1000).toFixed(2);
+
+    logger.info("canvas-import-discovery-complete", {
+      jobId,
+      totalFiles: total,
+      pendingFiles: pendingRecords.length,
+      elapsedMs,
+      elapsedSecs: parseFloat(elapsedSecs),
+      userId: job.user_id,
+    });
+
     console.log(
       `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} queued for job ${jobId}`,
     );
     return true;
   } catch (error) {
     console.error(`Discovery failed: ${jobId}`, error);
+    logger.error("canvas-import-discovery-error", {
+      jobId,
+      error: error.message,
+    });
     await sql`
       UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW()
       WHERE id = ${jobId}
