@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, useMemo } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import useSearchStore from "@/lib/notes/state/search";
@@ -17,23 +24,74 @@ export default function SearchModal() {
   const router = useRouter();
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSemanticLoading, setIsSemanticLoading] = useState(false);
+  const semanticAbortRef = useRef<AbortController | null>(null);
+  const searchSeqRef = useRef(0);
 
   // Memoize search results and only update when the search query actually changes
   const debouncedSearch = useMemo(
     () =>
       debounce(async (searchKeyword: string) => {
+        const seq = ++searchSeqRef.current;
+        semanticAbortRef.current?.abort();
+
         if (!searchKeyword.trim()) {
           setSearchResults([]);
           setIsSearching(false);
+          setIsSemanticLoading(false);
           return;
         }
 
         setIsSearching(true);
         try {
-          const results = await filterNotes();
-          setSearchResults(results || []);
-        } finally {
+          // Stage 1: instant local keyword search.
+          const keywordResults = await filterNotes(searchKeyword);
+          if (searchSeqRef.current !== seq) return;
+
+          const baseResults = keywordResults || [];
+          setSearchResults(baseResults);
           setIsSearching(false);
+
+          // Stage 2: async semantic enrichment.
+          setIsSemanticLoading(true);
+          const controller = new AbortController();
+          semanticAbortRef.current = controller;
+          const exclude = baseResults
+            .map((r: any) => r?.id)
+            .filter(Boolean)
+            .join(",");
+          const url = `/api/search?q=${encodeURIComponent(searchKeyword)}&mode=semantic${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ""}`;
+          const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) return;
+
+          const data = await res.json();
+          if (searchSeqRef.current !== seq) return;
+
+          const semanticResults = (data?.results ?? []).map((r: any) => ({
+            id: r.note_id,
+            title: r.title,
+            snippet: r.snippet,
+          }));
+
+          if (semanticResults.length > 0) {
+            const seen = new Set(baseResults.map((r: any) => r?.id));
+            const merged = [
+              ...baseResults,
+              ...semanticResults.filter((r: any) => {
+                if (!r?.id || seen.has(r.id)) return false;
+                seen.add(r.id);
+                return true;
+              }),
+            ];
+            setSearchResults(merged);
+          }
+        } catch (err: any) {
+          if (err?.name === "AbortError") return;
+        } finally {
+          if (searchSeqRef.current === seq) {
+            setIsSearching(false);
+            setIsSemanticLoading(false);
+          }
         }
       }, 500),
     [filterNotes],
@@ -43,11 +101,18 @@ export default function SearchModal() {
     if (search.visible) {
       debouncedSearch(keyword);
     } else {
+      semanticAbortRef.current?.abort();
       setSearchResults([]);
+      setIsSemanticLoading(false);
     }
   }, [keyword, search.visible, debouncedSearch]);
 
+  useEffect(() => {
+    return () => semanticAbortRef.current?.abort();
+  }, []);
+
   const handleClose = useCallback(() => {
+    semanticAbortRef.current?.abort();
     search.close();
     setKeyword("");
   }, [search, setKeyword]);
@@ -145,6 +210,15 @@ export default function SearchModal() {
                       <p className="mt-3">{t("Searching notes...")}</p>
                     </div>
                   )}
+
+                  {keyword &&
+                    !isSearching &&
+                    searchResults.length > 0 &&
+                    isSemanticLoading && (
+                      <div className="px-4 py-2 text-xs text-text-tertiary border-b border-border-subtle">
+                        {t("Refining with semantic search...")}
+                      </div>
+                    )}
 
                   {keyword && !isSearching && searchResults.length === 0 && (
                     <div className="px-4 py-8 text-center text-text-tertiary">

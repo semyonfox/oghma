@@ -195,45 +195,196 @@ export const TypingDots: FC = () => (
   </div>
 );
 
+// compact search context (sidebar variant) — collapsible single-line summary
+const CompactSearchContext: FC<{ context: SearchContextData }> = ({
+  context,
+}) => {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const uniqueResults = dedupeResults(context.results);
+  const hasResults = uniqueResults.length > 0;
+
+  return (
+    <div className="bg-surface border border-border-subtle rounded-md rounded-bl-sm px-2 py-1.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 text-left"
+      >
+        <MagnifyingGlassIcon className="w-3 h-3 text-primary-400 flex-shrink-0" />
+        <span className="text-[10px] text-text-tertiary truncate flex-1">
+          {hasResults
+            ? t("chat.search_found", {
+                count: String(uniqueResults.length),
+                scope: context.scopeSize
+                  ? t("chat.search_scope_n", {
+                      n: String(context.scopeSize),
+                    })
+                  : t("chat.search_scope_all"),
+              })
+            : t("chat.search_no_results")}
+        </span>
+        <ChevronDownIcon
+          className={`w-2.5 h-2.5 text-text-tertiary transition-transform flex-shrink-0 ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {expanded && hasResults && (
+        <div className="mt-1.5 space-y-1">
+          {uniqueResults.map((r) => {
+            const rel = relevanceLabel(r.distance);
+            return (
+              <a
+                key={r.noteId}
+                href={`/notes/${r.noteId}`}
+                className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-subtle/50 border border-border-subtle hover:border-primary-500/30 transition-colors"
+              >
+                <DocumentTextIcon className="w-3 h-3 text-text-tertiary flex-shrink-0" />
+                <span className="flex-1 text-[10px] text-text-secondary truncate">
+                  {r.title}
+                </span>
+                <span
+                  className={`text-[9px] uppercase tracking-wide ${rel.color} flex-shrink-0`}
+                >
+                  {rel.label}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {expanded && !hasResults && (
+        <p className="mt-1 text-[10px] text-text-tertiary">
+          {t("chat.search_no_matches_detail")}
+        </p>
+      )}
+    </div>
+  );
+};
+
+// compact retrieval summary (sidebar variant) — collapsible 3-stage pipeline
+const CompactRetrievalSummary: FC<{
+  retrieval: NonNullable<Message["retrieval"]>;
+}> = ({ retrieval }) => {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-surface border border-border-subtle rounded-md rounded-bl-sm px-2 py-1.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-1.5 text-left"
+      >
+        <DocumentTextIcon className="w-3 h-3 text-primary-400 flex-shrink-0" />
+        <span className="text-[10px] text-text-tertiary truncate flex-1">
+          {retrieval.availableCount} {t("chat.retrieval.available_to_search").toLowerCase()}
+          {" · "}
+          {retrieval.semanticHits.length} {t("chat.retrieval.semantic_found").toLowerCase()}
+          {" · "}
+          {retrieval.usedFiles.length} {t("chat.retrieval.used_in_answer").toLowerCase()}
+        </span>
+        <ChevronDownIcon
+          className={`w-2.5 h-2.5 text-text-tertiary transition-transform flex-shrink-0 ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {expanded && (
+        <div className="mt-1.5 space-y-1.5">
+          <RetrievalSection
+            label={`${t("chat.retrieval.available_to_search")} (${retrieval.availableCount})`}
+            sources={retrieval.availableFiles}
+            helper={
+              retrieval.scopeMode === "global"
+                ? t("chat.retrieval.available_global_helper")
+                : undefined
+            }
+          />
+          <RetrievalSection
+            label={`${t("chat.retrieval.semantic_found")} (${retrieval.semanticHits.length})`}
+            sources={retrieval.semanticHits}
+            helper={t("chat.retrieval.semantic_empty")}
+          />
+          <RetrievalSection
+            label={`${t("chat.retrieval.used_in_answer")} (${retrieval.usedFiles.length})`}
+            sources={retrieval.usedFiles}
+            helper={t("chat.retrieval.used_empty")}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 // compact message bubble (sidebar variant)
 export const CompactMessageBubble: FC<{ message: Message }> = ({
   message: m,
-}) => (
-  <div
-    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-  >
+}) => {
+  const hasSearchContext =
+    m.role === "assistant" &&
+    m.searchContext &&
+    m.searchContext.results.length > 0;
+  const hasRetrieval = m.role === "assistant" && !!m.retrieval;
+
+  return (
     <div
-      className={`max-w-[85%] px-2.5 py-1.5 rounded-md text-xs leading-relaxed ${
-        m.role === "user"
-          ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
-          : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
-      }`}
+      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      {m.role === "assistant" ? (
-        m.content.trim() ? (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-              code: ({ children }) => (
-                <code className="bg-subtle px-1 rounded text-xs">
-                  {children}
-                </code>
-              ),
-            }}
-          >
-            {m.content}
-          </ReactMarkdown>
-        ) : (
-          <TypingDots />
-        )
-      ) : (
-        m.content
-      )}
-      {m.sources && m.sources.length > 0 && <SourceChips sources={m.sources} />}
+      <div className="max-w-[85%] space-y-1">
+        {/* search context (compact) */}
+        {hasSearchContext && (
+          <CompactSearchContext context={m.searchContext!} />
+        )}
+
+        {/* retrieval pipeline summary (compact) */}
+        {hasRetrieval && (
+          <CompactRetrievalSummary retrieval={m.retrieval!} />
+        )}
+
+        {/* message bubble */}
+        <div
+          className={`px-2.5 py-1.5 rounded-md text-xs leading-relaxed ${
+            m.role === "user"
+              ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
+              : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
+          }`}
+        >
+          {m.role === "assistant" ? (
+            m.content.trim() ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p: ({ children }) => (
+                    <p className="mb-1 last:mb-0">{children}</p>
+                  ),
+                  code: ({ children }) => (
+                    <code className="bg-subtle px-1 rounded text-xs">
+                      {children}
+                    </code>
+                  ),
+                }}
+              >
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              <TypingDots />
+            )
+          ) : (
+            m.content
+          )}
+          {m.sources && m.sources.length > 0 && (
+            <SourceChips sources={m.sources} />
+          )}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // full-page message bubble with double-bubble layout for assistant
 export const FullMessageBubble: FC<{ message: Message }> = ({
@@ -266,6 +417,7 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
   const hasSearchContext =
     m.searchContext && m.searchContext.results.length > 0;
   const hasSources = m.sources && m.sources.length > 0;
+  const hasContent = m.content.trim().length > 0;
 
   return (
     <div className="flex gap-3 justify-start">
@@ -307,53 +459,59 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
 
         {/* bubble 2: answer + source file boxes */}
         <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => (
-                <p className="mb-2 last:mb-0">{children}</p>
-              ),
-              ul: ({ children }) => (
-                <ul className="list-disc list-inside mb-2 space-y-0.5">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-inside mb-2 space-y-0.5">
-                  {children}
-                </ol>
-              ),
-              code: ({ children, className: cls }) => {
-                const isBlock = cls?.includes("language-");
-                return isBlock ? (
-                  <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+          {hasContent ? (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => (
+                  <p className="mb-2 last:mb-0">{children}</p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside mb-2 space-y-0.5">
                     {children}
-                  </code>
-                ) : (
-                  <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside mb-2 space-y-0.5">
                     {children}
-                  </code>
-                );
-              },
-              strong: ({ children }) => (
-                <strong className="font-semibold text-text">
-                  {children}
-                </strong>
-              ),
-              h3: ({ children }) => (
-                <h3 className="font-semibold text-text mt-3 mb-1">
-                  {children}
-                </h3>
-              ),
-              h4: ({ children }) => (
-                <h4 className="font-medium text-text mt-2 mb-1">
-                  {children}
-                </h4>
-              ),
-            }}
-          >
-            {m.content}
-          </ReactMarkdown>
+                  </ol>
+                ),
+                code: ({ children, className: cls }) => {
+                  const isBlock = cls?.includes("language-");
+                  return isBlock ? (
+                    <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+                      {children}
+                    </code>
+                  );
+                },
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-text">
+                    {children}
+                  </strong>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="font-semibold text-text mt-3 mb-1">
+                    {children}
+                  </h3>
+                ),
+                h4: ({ children }) => (
+                  <h4 className="font-medium text-text mt-2 mb-1">
+                    {children}
+                  </h4>
+                ),
+              }}
+            >
+              {m.content}
+            </ReactMarkdown>
+          ) : (
+            <p className="text-text-tertiary">
+              I couldn&apos;t generate an answer this time. Please try again.
+            </p>
+          )}
 
           {/* source file boxes inside the answer bubble */}
           {hasSources && <SourceFileBoxes sources={m.sources!} />}

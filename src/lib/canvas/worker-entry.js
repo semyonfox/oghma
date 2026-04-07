@@ -16,6 +16,8 @@ import {
 import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
 import {
   processImportJob,
+  processDiscoverJob,
+  processCanvasFile,
   processExtractionRetry,
   processDirectExtraction,
 } from "./import-worker.js";
@@ -49,7 +51,7 @@ async function failStuckJobs() {
   const stuck = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
-    WHERE status = 'processing' AND started_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
+    WHERE status IN ('processing', 'discovering') AND started_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval
     RETURNING id
   `;
   if (stuck.length > 0) {
@@ -59,24 +61,38 @@ async function failStuckJobs() {
   }
 }
 
-// DB safety-net: claim orphaned jobs SQS missed
-// uses FOR UPDATE SKIP LOCKED so multiple workers don't grab the same job
+// DB safety-net: reclaim jobs that SQS missed or whose worker crashed.
+// queued orphans are claimed atomically via UPDATE to avoid races.
+// discovering orphans (SQS message lost after mid-discovery crash) are re-queued
+// only after a generous timeout so legitimate slow discoveries aren't interrupted.
 async function claimOrphanedJobs() {
-  const orphaned = await sql`
-    SELECT id FROM app.canvas_import_jobs
+  // atomic claim: transition queued → discovering in a single statement,
+  // so only one worker can claim each job (no FOR UPDATE race)
+  const queuedOrphans = await sql`
+    UPDATE app.canvas_import_jobs
+    SET status = 'discovering', started_at = NOW()
     WHERE status = 'queued'
       AND created_at < NOW() - INTERVAL '15 seconds'
-    ORDER BY created_at
-    LIMIT ${MAX_CONCURRENT_JOBS}
-    FOR UPDATE SKIP LOCKED
+    RETURNING id
   `;
+
+  // jobs stuck in 'discovering' for longer than the stuck-job threshold
+  // — the canvas-discover SQS message was lost; safe to retry discovery
+  const discoveringOrphans = await sql`
+    SELECT id FROM app.canvas_import_jobs
+    WHERE status = 'discovering'
+      AND started_at < NOW() - ${STUCK_JOB_THRESHOLD}::interval / 2
+    LIMIT ${MAX_CONCURRENT_JOBS}
+  `;
+
+  const orphaned = [...queuedOrphans, ...discoveringOrphans];
   if (orphaned.length === 0) return false;
 
   console.log(
     `[${new Date().toISOString()}] DB poll: found ${orphaned.length} orphaned job(s)`,
   );
   const results = await Promise.allSettled(
-    orphaned.map((row) => processImportJob(row.id)),
+    orphaned.map((row) => processDiscoverJob(row.id)),
   );
   for (const r of results) {
     if (r.status === "rejected") {
@@ -110,6 +126,13 @@ async function processAndDelete(message, queueUrl) {
   );
 
   switch (type) {
+    case "canvas-discover":
+      await processDiscoverJob(body.jobId);
+      break;
+    case "canvas-file":
+      await processCanvasFile(body);
+      break;
+    // legacy message type — kept for any in-flight messages during deploy
     case "canvas-import":
       await processImportJob(body.jobId);
       break;

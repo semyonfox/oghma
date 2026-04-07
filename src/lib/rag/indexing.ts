@@ -48,24 +48,32 @@ export async function replaceNoteEmbeddings(
     return 0;
   }
 
-  const chunkRows = await sql`
-    INSERT INTO app.chunks (document_id, user_id, text)
-    SELECT * FROM UNNEST(
-      ${embeddings.map(() => noteId)}::uuid[],
-      ${embeddings.map(() => userId)}::uuid[],
-      ${embeddings.map((entry) => entry.chunk)}::text[]
-    )
-    RETURNING id
-  `;
+  // atomic: insert new chunks+embeddings and delete old ones in one transaction
+  // prevents orphaned chunks if the embedding INSERT fails mid-flight
+  await sql.begin(async (tx: any) => {
+    const chunkRows = await tx`
+      INSERT INTO app.chunks (document_id, user_id, text)
+      SELECT * FROM UNNEST(
+        ${embeddings.map(() => noteId)}::uuid[],
+        ${embeddings.map(() => userId)}::uuid[],
+        ${embeddings.map((entry) => entry.chunk)}::text[]
+      )
+      RETURNING id
+    `;
 
-  await sql`
-    INSERT INTO app.embeddings (chunk_id, embedding)
-    SELECT * FROM UNNEST(
-      ${chunkRows.map((row: ChunkRow) => row.id)}::uuid[],
-      ${embeddings.map((entry) => JSON.stringify(entry.vector))}::vector[]
-    )
-  `;
+    await tx`
+      INSERT INTO app.embeddings (chunk_id, embedding)
+      SELECT * FROM UNNEST(
+        ${chunkRows.map((row: ChunkRow) => row.id)}::uuid[],
+        ${embeddings.map((entry) => JSON.stringify(entry.vector))}::vector[]
+      )
+    `;
 
-  await deleteChunkSet(oldChunkIds);
+    if (oldChunkIds.length > 0) {
+      await tx`DELETE FROM app.embeddings WHERE chunk_id = ANY(${oldChunkIds}::uuid[])`;
+      await tx`DELETE FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])`;
+    }
+  });
+
   return embeddings.length;
 }

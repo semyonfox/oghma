@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useRef } from "react";
 import usePomodoroStore from '@/lib/notes/state/pomodoro.zustand'
+import { triggerCelebration } from "@/lib/celebration";
 import PomodoroBar from './pomodoro/PomodoroBar'
 
 /**
@@ -26,6 +28,14 @@ export default function PomodoroIntegration() {
     skip,
     stop,
   } = usePomodoroStore()
+  const prevCompletedRef = useRef(completedFocusSessions);
+
+  useEffect(() => {
+    if (completedFocusSessions > prevCompletedRef.current) {
+      void triggerCelebration("pomodoro");
+    }
+    prevCompletedRef.current = completedFocusSessions;
+  }, [completedFocusSessions]);
 
   if (phase === 'idle') return null
 

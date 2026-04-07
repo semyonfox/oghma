@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import sql from "@/database/pgsql.js";
 
 export const GET = withErrorHandler(
@@ -22,6 +23,6 @@ export const GET = withErrorHandler(
 
     if (!rows[0]) return tracedError("Card not found", 404);
 
-    return NextResponse.json({ question: rows[0] });
+    return NextResponse.json({ question: normalizeQuizQuestion(rows[0]) });
   },
 );
