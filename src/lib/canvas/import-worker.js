@@ -27,6 +27,7 @@ import {
 } from "./canvas-folders.js";
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
+import { ensureWorkerRunning } from "../ecs.ts";
 import { ensureMarkerRunning } from "../marker-ec2.ts";
 import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import {
@@ -1143,6 +1144,12 @@ export async function processDiscoverJob(jobId) {
       SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'
     `;
     await sendFileMessages(pendingRecords, jobId, job.user_id);
+
+    // scale workers based on how many files need processing — already running in
+    // this task, so this adds siblings up to the configured max
+    Promise.resolve()
+      .then(() => ensureWorkerRunning(pendingRecords.length))
+      .catch((err) => console.warn(`Worker scale-up skipped: ${err.message}`));
 
     if (CANVAS_PREWARM_MARKER) {
       Promise.resolve()
