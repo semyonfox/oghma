@@ -1,0 +1,16 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#333333", "lineColor": "#555555", "clusterBkg": "#f5f5f5"}, "flowchart": {"useMaxWidth": true, "curve": "linear"}}%%
+flowchart LR
+    Q(["Query"])
+    E["Embed<br/>4096 dims"]
+    S["Vector search<br/>top 20"]
+    R["Rerank<br/>top 5"]
+    P["Build prompt<br/>+ context"]
+    L["LLM: Kimi K2.5"]
+    O(["Response"])
+
+    Q --> E --> S --> R --> P --> L --> O
+
+    classDef io fill:#f0f0f0,stroke:#333333
+    classDef process fill:#ffffff,stroke:#555555
+    class Q,O io
+    class E,S,R,P,L process
