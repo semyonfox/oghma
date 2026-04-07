@@ -45,7 +45,8 @@ export default function CourseList({
           <button
             key={course.courseId}
             onClick={() => onSelectCourse(course.courseId)}
-            className="glass-card-interactive rounded-radius-lg p-3 flex items-center gap-3 transition-colors text-left w-full"
+            disabled={course.totalCards === 0}
+            className="glass-card-interactive rounded-radius-lg p-3 flex items-center gap-3 transition-colors text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex-1 min-w-0">
               <div className="text-text text-sm font-medium truncate">
