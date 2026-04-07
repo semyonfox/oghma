@@ -1,0 +1,53 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#111111", "lineColor": "#333333", "secondaryColor": "#f0f0f0", "tertiaryColor": "#e8e8e8", "clusterBkg": "#f5f5f5", "clusterBorder": "#555555", "edgeLabelBackground": "#ffffff", "fontFamily": "Georgia, serif", "fontSize": "14px"}}}%%
+flowchart TD
+    Browser(["User Browser"])
+
+    subgraph aws["AWS  eu-north-1"]
+        subgraph amplify["AWS Amplify Gen 2"]
+            FE["Next.js Frontend\nCDN + Lambda@Edge"]
+            API["API Routes\nServerless Lambda"]
+        end
+        RDS[("PostgreSQL 17.4\ndb.t3.micro")]
+        S3[("S3: oghma-notes-store\noghmanotes-email")]
+        CIMP["SQS: canvas-import"]
+        CRETRY["SQS: extract-retry"]
+        Cache[("ElastiCache Valkey 8.2\ncache.t3.micro")]
+        ECS["ECS Fargate\ncanvas-import-worker"]
+    end
+
+    subgraph homelab["Homelab via Cloudflare Tunnel"]
+        Embed["qwen3-embedding:8b\n4096 dims"]
+        Rerank["Self-hosted Reranker"]
+    end
+
+    subgraph external["External Services"]
+        LLM["Kimi K2.5\nMoonshot AI"]
+        Canvas["Canvas LMS API"]
+        SES["AWS SES"]
+        Marker["Marker OCR\nEC2 ASG g4dn.xlarge\nNVIDIA T4"]
+    end
+
+    Browser --> FE
+    FE --> API
+    API --> RDS
+    API --> S3
+    API --> Cache
+    API --> CIMP
+    CIMP --> ECS
+    ECS --> S3
+    ECS --> RDS
+    ECS --> Marker
+    ECS --> CRETRY
+    CRETRY --> ECS
+    API --> Embed
+    ECS --> Embed
+    API --> Rerank
+    API --> LLM
+    API --> Canvas
+    API --> SES
+
+    classDef plain fill:#ffffff,color:#111111,stroke:#111111
+    classDef shaded fill:#e8e8e8,color:#111111,stroke:#111111
+    classDef endpoint fill:#f0f0f0,color:#111111,stroke:#333333,font-weight:bold
+    class CIMP,CRETRY,ECS shaded
+    class Browser endpoint
