@@ -21,6 +21,7 @@ export const GET = withErrorHandler(async () => {
         JOIN app.notes n ON qq.note_id = n.note_id
         WHERE qq.user_id = ${userId}::uuid
           AND n.canvas_course_id IS NOT NULL
+          AND n.deleted = 0
         GROUP BY n.canvas_course_id
         ORDER BY due_count DESC
     `;
