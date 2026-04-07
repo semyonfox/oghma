@@ -33,6 +33,7 @@ export default function useCanvasImport({
   t,
 }: UseCanvasImportParams) {
   const [isImporting, setIsImporting] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [importSummary, setImportSummary] = useState<{
     imported: number;
     forbidden: number;
@@ -66,6 +67,7 @@ export default function useCanvasImport({
         const data = await res.json();
         if (!res.ok) return;
 
+        setIsDiscovering(data.activeJob?.phase === "discovering");
         setProgress(data.progress);
         setMarkerColdStarting(Boolean(data.markerColdStarting));
         const logs = data.recentLogs ?? [];
@@ -91,6 +93,7 @@ export default function useCanvasImport({
         if (!data.activeJob) {
           stopPolling();
           setIsImporting(false);
+          setIsDiscovering(false);
           setMarkerColdStarting(false);
           localStorage.removeItem(LS_ACTIVE_JOB);
           if (data.progress) {
@@ -127,6 +130,7 @@ export default function useCanvasImport({
     if (selectedCourseIds.length === 0) return;
 
     setIsImporting(true);
+    setIsDiscovering(true);
     setImportSummary(null);
     setProgress({
       percent: 0,
@@ -230,6 +234,7 @@ export default function useCanvasImport({
         }),
       );
       setIsImporting(true);
+      setIsDiscovering(true);
       setProgress({
         percent: 0,
         completed: 0,
@@ -252,6 +257,7 @@ export default function useCanvasImport({
       if (res.ok && data.cancelled) {
         stopPolling();
         setIsImporting(false);
+        setIsDiscovering(false);
         setMarkerColdStarting(false);
         localStorage.removeItem(LS_ACTIVE_JOB);
         setImportSummary(null);
@@ -264,6 +270,8 @@ export default function useCanvasImport({
   return {
     isImporting,
     setIsImporting,
+    isDiscovering,
+    setIsDiscovering,
     importSummary,
     setImportSummary,
     progress,

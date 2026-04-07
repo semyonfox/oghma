@@ -30,11 +30,13 @@ export const GET = withErrorHandler(async () => {
   `;
 
   const job = activeJobs?.[0] ?? null;
-  const isActive = job && ["queued", "processing"].includes(job.status);
+  const isActive = job && ["queued", "discovering", "processing"].includes(job.status);
   const activeJob = isActive
     ? {
         jobId: job.id,
         status: job.status,
+        // phase lets the UI differentiate "discovering files" from "importing files"
+        phase: job.status === "discovering" || job.status === "queued" ? "discovering" : "processing",
         jobType: job.job_type,
         startedAt: job.started_at,
         createdAt: job.created_at,
