@@ -5,7 +5,7 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useMemo, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
@@ -26,12 +26,24 @@ const SidebarList = () => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId } =
+  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId, refreshTree } =
     useNoteTreeStore();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshTree = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshTree();
+    } catch (error) {
+      console.error("Failed to refresh filetree:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshTree]);
 
   const treeData = useTreeData();
 
@@ -169,6 +181,24 @@ const SidebarList = () => {
                 strokeWidth="1.5"
               >
                 <path d="M4 8l6-4 6 4M4 12l6 4 6-4" />
+              </svg>
+            </button>
+            <button
+              onClick={handleRefreshTree}
+              disabled={isRefreshing}
+              className={`p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
+                isRefreshing ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+              title={t("Refresh filetree")}
+            >
+              <svg
+                className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M4 10a6 6 0 1010.5-5.5M10 3V1m0 2V1" />
               </svg>
             </button>
             <button
