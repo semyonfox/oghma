@@ -6,6 +6,9 @@ import {
   LS_SYNCED,
 } from "./canvas-helpers";
 import { toFriendlyCanvasError } from "@/lib/friendly-errors";
+import useNoteTreeStore from "@/lib/notes/state/tree";
+import useNoteStore from "@/lib/notes/state/note";
+import useLayoutStore from "@/lib/notes/state/layout.zustand";
 
 interface UseCanvasImportParams {
   selectedCourseIds: number[];
@@ -108,6 +111,26 @@ export default function useCanvasImport({
             for (const id of selectedCourseIds) newSynced[String(id)] = true;
             setSyncedCourses(newSynced);
             localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
+
+            // auto-refresh filetree and open notes after sync completes
+            const treeStore = useNoteTreeStore.getState();
+            const noteStore = useNoteStore.getState();
+            const layoutStore = useLayoutStore.getState();
+
+            // refresh filetree to show new imported notes
+            await treeStore.refreshTree();
+
+            // refresh any open notes in editor panes
+            const paneA = layoutStore.paneA;
+            const paneB = layoutStore.paneB;
+            const refreshPromises = [];
+            if (paneA?.fileId && paneA.fileType === "note") {
+              refreshPromises.push(noteStore.fetchNote(paneA.fileId));
+            }
+            if (paneB?.fileId && paneB.fileType === "note") {
+              refreshPromises.push(noteStore.fetchNote(paneB.fileId));
+            }
+            await Promise.allSettled(refreshPromises);
           }
         }
       } catch {
