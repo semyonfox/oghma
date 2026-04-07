@@ -12,6 +12,7 @@ import { toFriendlyCanvasLogMessage } from "@/lib/friendly-errors";
 
 export default function CanvasProgressPanel({
   isImporting,
+  isDiscovering,
   isSyncing,
   progress,
   importSummary,
@@ -73,12 +74,14 @@ export default function CanvasProgressPanel({
           )}
           <span className="text-sm font-medium text-text-secondary">
             {isImporting
-              ? `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
+              ? isDiscovering
+                ? t("Discovering files...")
+                : `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
               : t("Import complete")}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {isImporting && progress?.estimatedSecsRemaining && (
+          {isImporting && !isDiscovering && progress?.estimatedSecsRemaining && (
             <span className="text-xs text-text-tertiary tabular-nums">
               {formatTime(progress.estimatedSecsRemaining)} left
             </span>
@@ -109,11 +112,16 @@ export default function CanvasProgressPanel({
       </div>
 
       {/* progress bar */}
-      <div className="h-1.5 w-full bg-white/10">
-        <div
-          className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : "bg-green-500"}`}
-          style={{ width: `${progress.percent ?? 0}%` }}
-        />
+      <div className="h-1.5 w-full bg-white/10 overflow-hidden">
+        {isDiscovering ? (
+          // pulsing full bar while total is unknown
+          <div className="h-full w-full bg-primary-500/50 animate-pulse" />
+        ) : (
+          <div
+            className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : "bg-green-500"}`}
+            style={{ width: `${progress.percent ?? 0}%` }}
+          />
+        )}
       </div>
 
       {isImporting && markerColdStarting && (
@@ -123,8 +131,8 @@ export default function CanvasProgressPanel({
         </div>
       )}
 
-      {/* log panels */}
-      {recentLogs.length > 0 && (
+      {/* log panels — hidden during discovery since no files are processing yet */}
+      {recentLogs.length > 0 && !isDiscovering && (
         <div className="border-t border-border-subtle divide-y divide-border-subtle/50">
           {/* in-progress files */}
           {activeLogs.length > 0 && (

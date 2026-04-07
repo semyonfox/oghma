@@ -14,6 +14,7 @@
 
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
+import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import { CanvasClient } from "./client.js";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
@@ -413,7 +414,7 @@ async function _runFileImport(importRecordId, file, opts) {
       INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, job_id)
       VALUES (${importRecordId}::uuid, ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int, ${file.id}::int, ${file.display_name}, ${resolvedMimeType}, 'downloading', ${opts.jobId ?? null})
       ON CONFLICT (user_id, canvas_file_id)
-      DO UPDATE SET id = ${importRecordId}::uuid, status = 'downloading', job_id = ${opts.jobId ?? null},
+      DO UPDATE SET status = 'downloading', job_id = ${opts.jobId ?? null},
                     filename = ${file.display_name}, mime_type = ${resolvedMimeType}, created_at = NOW()
       WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
     `;
@@ -782,6 +783,349 @@ export async function processImportJob(jobId) {
   } catch (error) {
     console.error(`Job failed: ${jobId}`, error);
     await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW() WHERE id = ${jobId}`;
+    return false;
+  }
+}
+
+// ── Two-phase import: discovery + per-file processing ─────────────────────
+
+const _workerSqsClient = new SQSClient({ region: process.env.AWS_REGION ?? "eu-north-1" });
+
+// batch-send per-file SQS messages (up to 10 per SendMessageBatch call)
+async function sendFileMessages(records, jobId, userId) {
+  const queueUrl = process.env.SQS_QUEUE_URL;
+  if (!queueUrl) {
+    console.warn(`[sendFileMessages] SQS_QUEUE_URL not set — ${records.length} file messages skipped`);
+    return;
+  }
+  for (let i = 0; i < records.length; i += 10) {
+    const batch = records.slice(i, i + 10);
+    await _workerSqsClient.send(
+      new SendMessageBatchCommand({
+        QueueUrl: queueUrl,
+        Entries: batch.map((record, idx) => ({
+          Id: String(idx),
+          MessageBody: JSON.stringify({
+            type: "canvas-file",
+            importRecordId: record.id,
+            jobId,
+            userId,
+          }),
+        })),
+      }),
+    );
+  }
+}
+
+// upsert a processable file into canvas_imports as 'pending'.
+// skips non-processable mime types and files already in a terminal state.
+async function insertPendingFile(userId, file, jobId, courseId, moduleId, parentFolderId, s3Prefix) {
+  const resolvedMimeType = resolveMimeType(file.display_name, file.content_type);
+  if (!PROCESSABLE_TYPES.has(resolvedMimeType)) return;
+
+  const moduleIdVal = moduleId ?? -1;
+  await sql`
+    INSERT INTO app.canvas_imports (
+      id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
+      filename, mime_type, status, job_id, parent_folder_id, s3_prefix
+    )
+    VALUES (
+      gen_random_uuid(), ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int,
+      ${file.id}::int, ${file.display_name}, ${resolvedMimeType},
+      'pending', ${jobId}::uuid, ${parentFolderId}::uuid, ${s3Prefix}
+    )
+    ON CONFLICT (user_id, canvas_file_id)
+    DO UPDATE SET
+      status           = 'pending',
+      job_id           = EXCLUDED.job_id,
+      canvas_course_id = EXCLUDED.canvas_course_id,
+      canvas_module_id = EXCLUDED.canvas_module_id,
+      filename         = EXCLUDED.filename,
+      mime_type        = EXCLUDED.mime_type,
+      parent_folder_id = EXCLUDED.parent_folder_id,
+      s3_prefix        = EXCLUDED.s3_prefix,
+      error_message    = NULL,
+      updated_at       = NOW()
+    WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
+  `;
+}
+
+async function discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx) {
+  const { client, jobId } = ctx;
+  const { data: modules } = await fetchResource(
+    (id) => client.getModules(id),
+    courseId, userId, courseTitle, "modules", jobId,
+  );
+  if (!modules) return;
+
+  await pooled(
+    modules.map((module) => async () => {
+      const { data: items } = await client.getModuleItems(courseId, module.id);
+      if (!items) return;
+
+      const fileItems = items.filter((item) => item.type === "File");
+      if (fileItems.length === 0) return;
+
+      // create folder now so parent_folder_id is stable before per-file processing
+      const folderId = await findOrCreateFolder(userId, module.name, courseFolderId, {
+        canvasCourseId: Number(courseId),
+        canvasModuleId: module.id,
+      });
+      const s3Prefix = `canvas/${userId}/${courseId}/${module.id}`;
+
+      await pooled(
+        fileItems.map((item) => async () => {
+          const { data: file, forbidden: fileForbidden } = await client.getFile(courseId, item.content_id);
+          if (fileForbidden || !file) return;
+          await insertPendingFile(userId, file, jobId, Number(courseId), module.id, folderId, s3Prefix);
+        }),
+        FILE_CONCURRENCY,
+      );
+    }),
+    FILE_CONCURRENCY,
+  );
+}
+
+async function discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx) {
+  const { client, jobId } = ctx;
+  const { data: assignments, forbidden } = await fetchResource(
+    (id) => client.getAssignments(id),
+    courseId, userId, courseTitle, "assignments", jobId,
+  );
+  if (forbidden || !assignments || assignments.length === 0) return;
+
+  const assignmentsWithFiles = assignments.filter((a) =>
+    (a.attachments ?? []).some((att) =>
+      PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type)),
+    ),
+  );
+  if (assignmentsWithFiles.length === 0) return;
+
+  const assignmentsFolderId = await findOrCreateFolder(userId, "Assignments", courseFolderId, {
+    canvasCourseId: Number(courseId),
+    canvasModuleId: ASSIGNMENTS_PARENT_MODULE_ID,
+  });
+
+  await pooled(
+    assignmentsWithFiles.map((assignment) => async () => {
+      const attachments = (assignment.attachments ?? []).filter((att) =>
+        PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type)),
+      );
+      const assignmentFolderId = await findOrCreateFolder(userId, assignment.name, assignmentsFolderId, {
+        canvasCourseId: Number(courseId),
+        canvasAssignmentId: assignment.id,
+      });
+      const s3Prefix = `canvas/${userId}/${courseId}/assignments/${assignment.id}`;
+      for (const att of attachments) {
+        await insertPendingFile(userId, att, jobId, Number(courseId), null, assignmentFolderId, s3Prefix);
+      }
+    }),
+    FILE_CONCURRENCY,
+  );
+}
+
+async function discoverCourse(course, userId, ctx) {
+  const courseId = String(course.id);
+  const { title: courseTitle, academicYear } = cleanCourseName(
+    course.course_code, course.name, course.term,
+  );
+  console.log(`Discovering course: ${courseTitle}`);
+
+  const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
+    canvasCourseId: course.id,
+    canvasAcademicYear: academicYear,
+  });
+
+  await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
+  await discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx);
+
+  try {
+    const { synced, errors } = await syncAssignmentMetadata(courseId, userId, courseTitle, ctx.client);
+    if (synced > 0 || errors > 0) {
+      console.log(`[sync-assignments] course ${courseTitle}: ${synced} synced, ${errors} errors`);
+    }
+  } catch (err) {
+    console.warn(`[sync-assignments] skipped for course ${courseTitle}: ${err.message}`);
+  }
+}
+
+// marks a job complete when all its canvas_imports rows are in terminal states.
+// the count check and status update share the same transaction to avoid TOCTOU.
+// pending_retry counts as in-flight since the retry queue will eventually resolve it.
+async function checkAndCompleteJob(jobId, userId) {
+  let weCompleted = false;
+  await sql.begin(async (tx) => {
+    const [{ count }] = await tx`
+      SELECT COUNT(*) as count FROM app.canvas_imports
+      WHERE job_id = ${jobId}::uuid
+        AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
+    `;
+    if (parseInt(count, 10) > 0) return;
+
+    const rows = await tx`
+      SELECT id FROM app.canvas_import_jobs
+      WHERE id = ${jobId}::uuid AND status = 'processing'
+      FOR UPDATE SKIP LOCKED
+    `;
+    if (rows.length === 0) return;
+    await tx`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
+    weCompleted = true;
+  });
+
+  if (!weCompleted) return;
+
+  console.log(`[${new Date().toISOString()}] Job completed: ${jobId}`);
+  try {
+    const chunks = await sql`
+      SELECT c.id FROM app.chunks c
+      JOIN app.canvas_imports ci ON ci.note_id = c.document_id
+      WHERE ci.job_id = ${jobId}::uuid AND c.user_id = ${userId}::uuid
+    `;
+    const chunkIds = chunks.map((r) => r.id);
+    if (chunkIds.length > 0) {
+      const { seedQuestionsAfterImport } = await import("../quiz/generate-background.ts");
+      const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
+      console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
+    }
+  } catch (seedErr) {
+    console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);
+  }
+}
+
+export async function processDiscoverJob(jobId) {
+  console.log(`[${new Date().toISOString()}] Starting discovery for job: ${jobId}`);
+  try {
+    const [job] = await sql`SELECT * FROM app.canvas_import_jobs WHERE id = ${jobId}`;
+    if (!job) { console.error(`Job not found: ${jobId}`); return false; }
+    if (job.status === "cancelled") { console.log(`Job ${jobId} cancelled`); return false; }
+    if (!["queued", "discovering"].includes(job.status)) {
+      console.log(`Job ${jobId} is ${job.status}, skipping discovery`);
+      return false;
+    }
+
+    // COALESCE preserves the original started_at when recovering a discovering orphan
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'discovering', started_at = COALESCE(started_at, NOW())
+      WHERE id = ${jobId}
+    `;
+
+    const [creds] = await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${job.user_id}`;
+    if (!creds) throw new Error("Canvas credentials not found");
+    const plainToken = decrypt(creds.canvas_token, job.user_id);
+    const client = new CanvasClient(creds.canvas_domain, plainToken);
+
+    await pooled(
+      parseJobCourses(job).map((course) => () => discoverCourse(course, job.user_id, { client, jobId })),
+      3,
+    );
+
+    if (await isJobCancelled(jobId)) {
+      console.log(`Job ${jobId} cancelled during discovery`);
+      return false;
+    }
+
+    // count every canvas_imports row for this job (pending + forbidden from course restrictions)
+    const [{ count }] = await sql`SELECT COUNT(*) as count FROM app.canvas_imports WHERE job_id = ${jobId}::uuid`;
+    const total = parseInt(count, 10);
+
+    await sql`UPDATE app.canvas_import_jobs SET status = 'processing', expected_total = ${total} WHERE id = ${jobId}`;
+
+    if (total === 0) {
+      await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
+      console.log(`Job ${jobId}: no processable files found, completed immediately`);
+      return true;
+    }
+
+    const pendingRecords = await sql`
+      SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'
+    `;
+    await sendFileMessages(pendingRecords, jobId, job.user_id);
+
+    if (CANVAS_PREWARM_MARKER) {
+      Promise.resolve()
+        .then(() => ensureMarkerRunning())
+        .then(() => console.log("Marker prewarm complete"))
+        .catch((err) => console.warn(`Marker prewarm skipped: ${err.message}`));
+    }
+
+    console.log(
+      `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} queued for job ${jobId}`,
+    );
+    return true;
+  } catch (error) {
+    console.error(`Discovery failed: ${jobId}`, error);
+    await sql`
+      UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW()
+      WHERE id = ${jobId}
+    `;
+    return false;
+  }
+}
+
+export async function processCanvasFile({ importRecordId, jobId, userId }) {
+  const ts = () => new Date().toISOString();
+  console.log(`[${ts()}] Processing canvas file: ${importRecordId}`);
+  try {
+    const [record] = await sql`SELECT * FROM app.canvas_imports WHERE id = ${importRecordId}::uuid`;
+    if (!record) {
+      console.error(`[${ts()}] Import record not found: ${importRecordId}`);
+      return false;
+    }
+
+    // idempotency — SQS at-least-once may redeliver
+    if (["complete", "forbidden", "error", "cancelled", "pending_retry"].includes(record.status)) {
+      console.log(`[${ts()}] Record ${importRecordId} already terminal: ${record.status}`);
+      return true;
+    }
+
+    if (await isJobCancelled(jobId)) {
+      await sql`UPDATE app.canvas_imports SET status = 'cancelled', updated_at = NOW() WHERE id = ${importRecordId}::uuid`;
+      await checkAndCompleteJob(jobId, userId);
+      return false;
+    }
+
+    const [creds] = await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
+    if (!creds) throw new Error("Canvas credentials not found");
+    const plainToken = decrypt(creds.canvas_token, userId);
+    const client = new CanvasClient(creds.canvas_domain, plainToken);
+    const storage = getStorageProvider();
+
+    // re-fetch a fresh download URL — avoids any session-tied URL expiry between phases
+    const { data: file, forbidden: fileForbidden } = await client.getFile(
+      String(record.canvas_course_id),
+      record.canvas_file_id,
+    );
+    if (fileForbidden || !file) {
+      await setImportStatus(importRecordId, "forbidden", { message: "File access denied by lecturer" });
+      await checkAndCompleteJob(jobId, userId);
+      return false;
+    }
+
+    await _runFileImport(importRecordId, file, {
+      userId,
+      courseId: String(record.canvas_course_id),
+      moduleId: record.canvas_module_id > 0 ? record.canvas_module_id : null,
+      parentFolderId: record.parent_folder_id,
+      client,
+      storage,
+      jobId,
+      s3Prefix: record.s3_prefix,
+    });
+
+    await checkAndCompleteJob(jobId, userId);
+    return true;
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] Canvas file error (${importRecordId}):`, err.message);
+    try {
+      await sql`
+        UPDATE app.canvas_imports
+        SET status = 'error', error_message = ${err.message}, updated_at = NOW()
+        WHERE id = ${importRecordId}::uuid
+          AND status NOT IN ('complete', 'forbidden', 'cancelled')
+      `;
+    } catch {}
+    await checkAndCompleteJob(jobId, userId);
     return false;
   }
 }

@@ -103,7 +103,7 @@ export const POST = withErrorHandler(async () => {
     await sqsClient.send(
       new SendMessageCommand({
         QueueUrl: getCanvasImportQueueUrl(),
-        MessageBody: JSON.stringify({ jobId, userId: user.user_id }),
+        MessageBody: JSON.stringify({ type: "canvas-discover", jobId, userId: user.user_id }),
       }),
     );
     await ensureWorkerRunning();
