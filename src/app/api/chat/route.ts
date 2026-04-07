@@ -14,7 +14,7 @@ import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import logger from "@/lib/logger";
 import { streamText, generateText, tool } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
 import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
@@ -132,16 +132,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   await persistMessage(sessionId, "user", message);
 
   // run RAG pipeline
-  const {
-    searchResults,
-    semanticMatches,
-    embeddingAvailable,
-    ragFailed,
-  } = await runRagPipeline(
-    userId,
-    message,
-    scopedNoteIds,
-  );
+  const { searchResults, semanticMatches, embeddingAvailable, ragFailed } =
+    await runRagPipeline(userId, message, scopedNoteIds);
 
   const systemPrompt = buildSystemPrompt(searchResults);
   const uniqueSources = [...new Set(searchResults.map((r) => r.note_id))].map(
@@ -229,17 +221,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const llmApiUrl = process.env.LLM_API_URL;
   const llmApiKey = process.env.LLM_API_KEY;
 
-  const openai = llmApiUrl && llmApiKey
-    ? createOpenAI({
-        baseURL: llmApiUrl.replace(/\/$/, ""),
-        apiKey: llmApiKey,
-      })
-    : null;
+  // @ai-sdk/openai-compatible uses Chat Completions API by default and
+  // natively handles reasoning_content (thinking) from providers like Moonshot
+  const provider =
+    llmApiUrl && llmApiKey
+      ? createOpenAICompatible({
+          name: "moonshot",
+          baseURL: llmApiUrl.replace(/\/$/, ""),
+          apiKey: llmApiKey,
+        })
+      : null;
 
-  // use .chat() to force Chat Completions API (/v1/chat/completions)
-  // @ai-sdk/openai v3 defaults to Responses API (/v1/responses) which most
-  // OpenAI-compatible providers (Moonshot, etc.) do not support
-  const model = openai ? openai.chat(getLlmModel()) : null;
+  const model = provider ? provider(getLlmModel()) : null;
 
   const toolInstruction =
     "Tool available: makeMDNote({ text, parentID?, title? }). " +
@@ -399,17 +392,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
               const t0 = Date.now();
               let reply = "";
+              let _thinking = "";
               const result = streamText({
                 model: model!,
                 messages: chatMessages,
                 maxOutputTokens: getLlmMaxTokens(),
                 tools: { makeMDNote },
               });
-              for await (const token of result.textStream) {
-                reply += token;
-                controller.enqueue(
-                  encoder.encode(toSseEvent("token", { text: token })),
-                );
+              for await (const part of result.fullStream) {
+                if (part.type === "reasoning-delta") {
+                  _thinking += part.text;
+                  controller.enqueue(
+                    encoder.encode(toSseEvent("thinking", { text: part.text })),
+                  );
+                } else if (part.type === "text-delta") {
+                  reply += part.text;
+                  controller.enqueue(
+                    encoder.encode(toSseEvent("token", { text: part.text })),
+                  );
+                }
               }
               void Metrics.llmLatency(Date.now() - t0);
 
@@ -497,7 +498,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
-    const { text: reply } = await generateText({
+    const { text: reply, reasoningText } = await generateText({
       model,
       messages: chatMessages,
       maxOutputTokens: getLlmMaxTokens(),
@@ -508,6 +509,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     await persistMessage(sessionId, "assistant", reply, uniqueSources);
     return NextResponse.json({
       reply,
+      thinking: reasoningText || undefined,
       sources: uniqueSources,
       retrieval,
       llmAvailable: true,
