@@ -28,7 +28,7 @@ const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const IDLE_POLLS_BEFORE_SHUTDOWN = 30; // 30 × 20s = ~10 min idle
-const MAX_CONCURRENT_JOBS = 3;
+const MAX_CONCURRENT_JOBS = 10; // SQS max per batch; actual concurrency is controlled by globalFileLimiter in import-worker
 
 const idlePollsBeforeShutdownEnv = Number.parseInt(
   process.env.WORKER_IDLE_POLLS_BEFORE_SHUTDOWN ?? "",
@@ -161,12 +161,35 @@ async function processAndDelete(message, queueUrl) {
   console.log(`[${ts()}] Done, message deleted`);
 }
 
+// tracks all in-flight processing promises so the main loop can maintain a
+// sliding window of concurrent work rather than blocking on each batch
+const inFlight = new Set();
+
+function launchProcessing(message, queueUrl) {
+  const p = processAndDelete(message, queueUrl)
+    .catch((err) => {
+      console.error(
+        `[${new Date().toISOString()}] Job processing error:`,
+        err?.message,
+      );
+    })
+    .finally(() => inFlight.delete(p));
+  inFlight.add(p);
+}
+
+// polls for up to (MAX_CONCURRENT_JOBS - inFlight) messages and launches them
+// without waiting for them to finish — returns true if any messages were received
 async function pollQueue() {
+  if (!QUEUE_URL) return false;
+  const capacity = MAX_CONCURRENT_JOBS - inFlight.size;
+  if (capacity <= 0) return false;
+
   const res = await sqsClient.send(
     new ReceiveMessageCommand({
       QueueUrl: QUEUE_URL,
-      MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
-      WaitTimeSeconds: 20,
+      MaxNumberOfMessages: Math.min(10, capacity),
+      // long-poll only when fully idle so we don't burn 20s when there's work to do
+      WaitTimeSeconds: inFlight.size === 0 ? 20 : 0,
       VisibilityTimeout: 3600,
     }),
   );
@@ -174,29 +197,23 @@ async function pollQueue() {
   const messages = res.Messages ?? [];
   if (messages.length === 0) return false;
 
-  const results = await Promise.allSettled(
-    messages.map((m) => processAndDelete(m, QUEUE_URL)),
-  );
-  for (const r of results) {
-    if (r.status === "rejected") {
-      console.error(
-        `[${new Date().toISOString()}] Job processing error:`,
-        r.reason?.message,
-      );
-    }
+  for (const m of messages) {
+    launchProcessing(m, QUEUE_URL);
   }
   return true;
 }
 
-// drains the extraction retry queue (non-blocking, short poll)
+// drains the extraction retry queue (short poll, non-blocking)
 async function pollRetryQueue() {
   if (!RETRY_QUEUE_URL) return false;
+  const capacity = MAX_CONCURRENT_JOBS - inFlight.size;
+  if (capacity <= 0) return false;
 
   const res = await sqsClient.send(
     new ReceiveMessageCommand({
       QueueUrl: RETRY_QUEUE_URL,
-      MaxNumberOfMessages: MAX_CONCURRENT_JOBS,
-      WaitTimeSeconds: 0, // short poll — don't block the main loop
+      MaxNumberOfMessages: Math.min(10, capacity),
+      WaitTimeSeconds: 0,
       VisibilityTimeout: 300,
     }),
   );
@@ -204,16 +221,8 @@ async function pollRetryQueue() {
   const messages = res.Messages ?? [];
   if (messages.length === 0) return false;
 
-  const results = await Promise.allSettled(
-    messages.map((m) => processAndDelete(m, RETRY_QUEUE_URL)),
-  );
-  for (const r of results) {
-    if (r.status === "rejected") {
-      console.error(
-        `[${new Date().toISOString()}] Retry processing error:`,
-        r.reason?.message,
-      );
-    }
+  for (const m of messages) {
+    launchProcessing(m, RETRY_QUEUE_URL);
   }
   return true;
 }
@@ -238,9 +247,27 @@ let idlePolls = 0;
 
 while (true) {
   try {
+    // if at capacity, yield until one slot frees before polling again
+    if (inFlight.size >= MAX_CONCURRENT_JOBS) {
+      await Promise.race(inFlight);
+      continue;
+    }
+
     const hadWork = await pollQueue();
     const hadRetries = await pollRetryQueue();
-    idlePolls = hadWork || hadRetries ? 0 : idlePolls + 1;
+
+    // only count as idle when there's nothing in-flight and both queues were empty
+    const isIdle = !hadWork && !hadRetries && inFlight.size === 0;
+    idlePolls = isIdle ? idlePolls + 1 : 0;
+
+    // if we launched new work but the queues aren't empty yet, yield briefly so
+    // the next poll can immediately fill capacity without a 20s long-poll delay
+    if (!isIdle && inFlight.size > 0 && !hadWork && !hadRetries) {
+      await Promise.race([
+        Promise.race(inFlight),
+        new Promise((r) => setTimeout(r, 500)),
+      ]);
+    }
 
     if (idlePolls >= effectiveIdlePollsBeforeShutdown) {
       // final DB check before scaling down
