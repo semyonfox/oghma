@@ -6,6 +6,7 @@ import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
   ChevronDownIcon,
+  LightBulbIcon,
 } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,10 +28,7 @@ function relevanceLabel(distance: number): {
 function dedupeResults(
   results: SearchContextData["results"],
 ): SearchContextData["results"] {
-  const best = new Map<
-    string,
-    SearchContextData["results"][number]
-  >();
+  const best = new Map<string, SearchContextData["results"][number]>();
   for (const r of results) {
     const existing = best.get(r.noteId);
     if (!existing || r.distance < existing.distance) {
@@ -39,6 +37,63 @@ function dedupeResults(
   }
   return [...best.values()].sort((a, b) => a.distance - b.distance);
 }
+
+// collapsible thinking/reasoning bubble — shows the model's chain-of-thought
+const ThinkingBubble: FC<{ text: string; compact?: boolean }> = ({
+  text,
+  compact = false,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!text) return null;
+
+  if (compact) {
+    return (
+      <div className="bg-amber-500/5 border border-amber-500/15 rounded-md px-2 py-1">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-[10px] text-amber-400/80 hover:text-amber-400 transition-colors w-full"
+        >
+          <LightBulbIcon className="w-3 h-3 flex-shrink-0" />
+          <span className="font-medium">Thinking</span>
+          <ChevronDownIcon
+            className={`w-2.5 h-2.5 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
+        {expanded && (
+          <p className="text-[10px] text-text-tertiary mt-1 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+            {text}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-2.5 bg-amber-500/5 border-amber-500/15">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs text-amber-400/80 hover:text-amber-400 transition-colors w-full"
+      >
+        <LightBulbIcon className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="font-medium">Thinking</span>
+        <span className="text-text-tertiary">
+          (
+          {text.length > 200 ? `${Math.ceil(text.length / 4)} tokens` : "brief"}
+          )
+        </span>
+        <ChevronDownIcon
+          className={`w-3 h-3 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <p className="text-xs text-text-tertiary mt-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto border-t border-amber-500/10 pt-2">
+          {text}
+        </p>
+      )}
+    </div>
+  );
+};
 
 // search context bubble — shows what files were searched and what was found
 const SearchContextBubble: FC<{ context: SearchContextData }> = ({
@@ -281,11 +336,14 @@ const CompactRetrievalSummary: FC<{
       >
         <DocumentTextIcon className="w-3 h-3 text-primary-400 flex-shrink-0" />
         <span className="text-[10px] text-text-tertiary truncate flex-1">
-          {retrieval.availableCount} {t("chat.retrieval.available_to_search").toLowerCase()}
+          {retrieval.availableCount}{" "}
+          {t("chat.retrieval.available_to_search").toLowerCase()}
           {" · "}
-          {retrieval.semanticHits.length} {t("chat.retrieval.semantic_found").toLowerCase()}
+          {retrieval.semanticHits.length}{" "}
+          {t("chat.retrieval.semantic_found").toLowerCase()}
           {" · "}
-          {retrieval.usedFiles.length} {t("chat.retrieval.used_in_answer").toLowerCase()}
+          {retrieval.usedFiles.length}{" "}
+          {t("chat.retrieval.used_in_answer").toLowerCase()}
         </span>
         <ChevronDownIcon
           className={`w-2.5 h-2.5 text-text-tertiary transition-transform flex-shrink-0 ${
@@ -342,8 +400,11 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         {/* retrieval pipeline summary (compact) */}
-        {hasRetrieval && (
-          <CompactRetrievalSummary retrieval={m.retrieval!} />
+        {hasRetrieval && <CompactRetrievalSummary retrieval={m.retrieval!} />}
+
+        {/* thinking (compact) */}
+        {m.role === "assistant" && m.thinking && (
+          <ThinkingBubble text={m.thinking} compact />
         )}
 
         {/* message bubble */}
@@ -387,9 +448,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
 };
 
 // full-page message bubble with double-bubble layout for assistant
-export const FullMessageBubble: FC<{ message: Message }> = ({
-  message: m,
-}) => {
+export const FullMessageBubble: FC<{ message: Message }> = ({ message: m }) => {
   const { t } = useI18n();
 
   // user messages stay as a single right-aligned bubble
@@ -428,9 +487,7 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
 
       <div className="max-w-2xl space-y-2">
         {/* bubble 1: search context */}
-        {hasSearchContext && (
-          <SearchContextBubble context={m.searchContext!} />
-        )}
+        {hasSearchContext && <SearchContextBubble context={m.searchContext!} />}
 
         {/* retrieval sections */}
         {m.retrieval && (
@@ -456,6 +513,9 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
             />
           </div>
         )}
+
+        {/* thinking bubble (full) */}
+        {m.thinking && <ThinkingBubble text={m.thinking} />}
 
         {/* bubble 2: answer + source file boxes */}
         <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
@@ -507,6 +567,8 @@ export const FullMessageBubble: FC<{ message: Message }> = ({
             >
               {m.content}
             </ReactMarkdown>
+          ) : m.thinking ? (
+            <TypingDots />
           ) : (
             <p className="text-text-tertiary">
               I couldn&apos;t generate an answer this time. Please try again.
