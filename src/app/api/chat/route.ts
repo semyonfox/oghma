@@ -236,7 +236,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       })
     : null;
 
-  const model = openai ? openai(getLlmModel()) : null;
+  // use .chat() to force Chat Completions API (/v1/chat/completions)
+  // @ai-sdk/openai v3 defaults to Responses API (/v1/responses) which most
+  // OpenAI-compatible providers (Moonshot, etc.) do not support
+  const model = openai ? openai.chat(getLlmModel()) : null;
 
   const toolInstruction =
     "Tool available: makeMDNote({ text, parentID?, title? }). " +
