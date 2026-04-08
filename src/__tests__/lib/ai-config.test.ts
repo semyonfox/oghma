@@ -13,7 +13,7 @@ describe("ai-config", () => {
     const env = {} as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
-    expect(getLlmMaxTokens(env)).toBe(2_048);
+    expect(getLlmMaxTokens(env)).toBe(8_192);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 
@@ -25,7 +25,7 @@ describe("ai-config", () => {
     } as unknown as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
-    expect(getLlmMaxTokens(env)).toBe(2_048);
+    expect(getLlmMaxTokens(env)).toBe(8_192);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 
@@ -37,7 +37,7 @@ describe("ai-config", () => {
     } as unknown as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(600_000);
-    expect(getLlmMaxTokens(env)).toBe(4_096);
+    expect(getLlmMaxTokens(env)).toBe(32_768);
     expect(getCohereTimeoutMs(env)).toBe(20_000);
   });
 
