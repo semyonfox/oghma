@@ -17,7 +17,8 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
   constructor(apiUrl?: string, apiKey?: string, model?: string) {
     this.apiUrl = apiUrl || process.env.EMBEDDING_API_URL || "";
     this.apiKey = apiKey || process.env.EMBEDDING_API_KEY || "";
-    this.model = model || process.env.EMBEDDING_MODEL || "qwen3-embedding:8b";
+    this.model =
+      model || process.env.EMBEDDING_MODEL || "mxbai-embed-large:latest";
   }
 
   isConfigured(): boolean {
