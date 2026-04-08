@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} 到期",
+  "quiz.courses.all_scheduled": "所有卡片已安排",
   "quiz.courses.generate_prompt": "生成题目",
   "quiz.courses.no_content": "暂无测验内容。请先从 Canvas 导入笔记。",
   "quiz.courses.no_matches": "没有匹配的课程。",
