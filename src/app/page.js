@@ -37,14 +37,21 @@ function FadeIn({ children, delay = 0, className }) {
 // screenshot of the actual notes editor
 function HeroMockup() {
   return (
-    <div className="relative mt-16 sm:mt-24 rounded-2xl ring-1 ring-white/10 shadow-2xl overflow-hidden">
+    <div className="relative mt-16 sm:mt-24 rounded-3xl ring-1 ring-white/10 shadow-2xl overflow-hidden">
       <img
         src="/notes-screenshot.png"
         alt="OghmaNotes editor with file tree, rich text editing, and AI chat"
-        className="w-full h-auto"
+        className="w-full h-auto block"
       />
-      {/* soft fade-out at the bottom so the screenshot blends into the page */}
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[var(--color-background)] to-transparent pointer-events-none" />
+      {/* smooth fade-out blending into the page */}
+      <div
+        className="absolute inset-x-0 bottom-0 pointer-events-none"
+        style={{
+          height: "45%",
+          background:
+            "linear-gradient(to top, var(--color-background) 0%, var(--color-background) 15%, transparent 100%)",
+        }}
+      />
     </div>
   );
 }
