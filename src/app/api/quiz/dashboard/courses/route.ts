@@ -12,18 +12,33 @@ export const GET = withErrorHandler(async () => {
     const courses = await sql`
         SELECT
             n.canvas_course_id,
-            MAX(n.title) as course_name,
+            COALESCE(
+                (SELECT f.title FROM app.notes f
+                 WHERE f.user_id = ${userId}::uuid
+                   AND f.canvas_course_id = n.canvas_course_id
+                   AND f.is_folder = true
+                   AND f.canvas_module_id IS NULL
+                   AND f.canvas_assignment_id IS NULL
+                   AND f.deleted = 0
+                 ORDER BY f.created_at ASC
+                 LIMIT 1),
+                MAX(n.title)
+            ) as course_name,
             COUNT(DISTINCT qc.id)::int as total_cards,
             COUNT(DISTINCT qc.id) FILTER (WHERE qc.due <= now())::int as due_count,
             COUNT(DISTINCT qc.id) FILTER (WHERE qc.state = 'review' AND qc.stability > 7)::int as mastered_count
-        FROM app.quiz_questions qq
-        JOIN app.quiz_cards qc ON qc.question_id = qq.id
-        JOIN app.notes n ON qq.note_id = n.note_id
-        WHERE qq.user_id = ${userId}::uuid
+        FROM app.notes n
+        LEFT JOIN app.quiz_questions qq ON qq.note_id = n.note_id AND qq.user_id = ${userId}::uuid
+        LEFT JOIN app.quiz_cards qc ON qc.question_id = qq.id
+        WHERE n.user_id = ${userId}::uuid
           AND n.canvas_course_id IS NOT NULL
           AND n.deleted = 0
+          AND EXISTS (
+              SELECT 1 FROM app.chunks c
+              WHERE c.document_id = n.note_id AND c.user_id = ${userId}::uuid
+          )
         GROUP BY n.canvas_course_id
-        ORDER BY due_count DESC
+        ORDER BY due_count DESC, total_cards DESC
     `;
 
     const result = courses.map((c: any) => ({

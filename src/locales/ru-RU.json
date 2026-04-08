@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} к повторению",
+  "quiz.courses.generate_prompt": "Генерировать вопросы",
   "quiz.courses.no_content": "Пока нет содержимого для викторин. Сначала импортируйте заметки из Canvas.",
   "quiz.courses.no_matches": "Нет подходящих курсов.",
   "quiz.courses.search_placeholder": "Искать темы...",

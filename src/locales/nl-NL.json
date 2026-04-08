@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} te herhalen",
+  "quiz.courses.generate_prompt": "Vragen genereren",
   "quiz.courses.no_content": "Nog geen quizinhoud. Importeer eerst notities van Canvas.",
   "quiz.courses.no_matches": "Geen overeenkomende cursussen.",
   "quiz.courses.search_placeholder": "Onderwerpen zoeken...",
