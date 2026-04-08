@@ -109,12 +109,4 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-export function createEmbeddingProvider(
-  apiUrl?: string,
-  apiKey?: string,
-  model?: string,
-): EmbeddingProvider {
-  return new SelfHostedEmbeddingProvider(apiUrl, apiKey, model);
-}
-
 export const defaultEmbeddingProvider = new SelfHostedEmbeddingProvider();

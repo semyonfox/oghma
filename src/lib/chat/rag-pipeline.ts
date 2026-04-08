@@ -26,35 +26,31 @@ export async function semanticSearch(
   limit = 8,
 ): Promise<SearchResult[]> {
   const vectorStr = `[${queryVector.join(",")}]`;
-
-  if (scopedNoteIds && scopedNoteIds.length > 0) {
-    // strict scope when notes/folders are selected
-    const pinned = await sql`
-      SELECT n.note_id, n.title, c.text AS chunk_text,
-             (e.embedding <=> ${vectorStr}::vector) AS distance
-      FROM app.embeddings e
-      JOIN app.chunks c ON c.id = e.chunk_id
-      JOIN app.notes n ON n.note_id = c.document_id
-      WHERE c.user_id = ${userId}::uuid
-        AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-        AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-      ORDER BY e.embedding <=> ${vectorStr}::vector
-      LIMIT ${limit}
-    `;
-    return pinned as SearchResult[];
-  }
-
-  const rows = await sql`
-    SELECT n.note_id, n.title, c.text AS chunk_text,
-           (e.embedding <=> ${vectorStr}::vector) AS distance
-    FROM app.embeddings e
-    JOIN app.chunks c ON c.id = e.chunk_id
-    JOIN app.notes n ON n.note_id = c.document_id
-    WHERE c.user_id = ${userId}::uuid
-      AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-    ORDER BY e.embedding <=> ${vectorStr}::vector
-    LIMIT ${limit}
-  `;
+  const scoped = scopedNoteIds && scopedNoteIds.length > 0;
+  const rows = scoped
+    ? await sql`
+        SELECT n.note_id, n.title, c.text AS chunk_text,
+               (e.embedding <=> ${vectorStr}::vector) AS distance
+        FROM app.embeddings e
+        JOIN app.chunks c ON c.id = e.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id
+        WHERE c.user_id = ${userId}::uuid
+          AND c.document_id = ANY(${scopedNoteIds}::uuid[])
+          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
+        ORDER BY e.embedding <=> ${vectorStr}::vector
+        LIMIT ${limit}
+      `
+    : await sql`
+        SELECT n.note_id, n.title, c.text AS chunk_text,
+               (e.embedding <=> ${vectorStr}::vector) AS distance
+        FROM app.embeddings e
+        JOIN app.chunks c ON c.id = e.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id
+        WHERE c.user_id = ${userId}::uuid
+          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
+        ORDER BY e.embedding <=> ${vectorStr}::vector
+        LIMIT ${limit}
+      `;
   return rows as SearchResult[];
 }
 

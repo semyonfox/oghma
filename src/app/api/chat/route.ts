@@ -26,7 +26,6 @@ import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 
-import { type ChatMessage } from "@/lib/chat/llm-caller";
 import {
   normalizeUuidList,
   resolveScopedNoteIds,
@@ -35,6 +34,7 @@ import {
 } from "@/lib/chat/rag-pipeline";
 import { embedText } from "@/lib/embedText";
 import {
+  type ChatMessage,
   persistMessage,
   resolveSession,
   loadHistory,
@@ -158,35 +158,37 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (scopedNoteIds && scopedNoteIds.length > 0) {
     scopeMode = "scoped";
-    const scopedRows = await sql`
-      SELECT n.note_id, n.title
-      FROM app.notes n
-      JOIN (
-        SELECT DISTINCT c.document_id
+    const [scopedRows, scopedCountRows] = await Promise.all([
+      sql`
+        SELECT n.note_id, n.title
+        FROM app.notes n
+        JOIN (
+          SELECT DISTINCT c.document_id
+          FROM app.chunks c
+          WHERE c.user_id = ${userId}::uuid
+            AND c.document_id = ANY(${scopedNoteIds}::uuid[])
+        ) indexed ON indexed.document_id = n.note_id
+        WHERE n.user_id = ${userId}::uuid
+          AND n.is_folder = false
+          AND n.deleted = 0
+          AND n.deleted_at IS NULL
+        ORDER BY n.title ASC
+        LIMIT 24
+      `,
+      sql`
+        SELECT COUNT(DISTINCT c.document_id)::int AS total
         FROM app.chunks c
+        JOIN app.notes n ON n.note_id = c.document_id
         WHERE c.user_id = ${userId}::uuid
           AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-      ) indexed ON indexed.document_id = n.note_id
-      WHERE n.user_id = ${userId}::uuid
-        AND n.is_folder = false
-        AND n.deleted = 0
-        AND n.deleted_at IS NULL
-      ORDER BY n.title ASC
-      LIMIT 24
-    `;
+          AND n.is_folder = false
+          AND n.deleted = 0
+          AND n.deleted_at IS NULL
+      `,
+    ]);
     availableFiles = (scopedRows as { note_id: string; title: string }[]).map(
       (r) => ({ id: r.note_id, title: r.title }),
     );
-    const scopedCountRows = await sql`
-      SELECT COUNT(DISTINCT c.document_id)::int AS total
-      FROM app.chunks c
-      JOIN app.notes n ON n.note_id = c.document_id
-      WHERE c.user_id = ${userId}::uuid
-        AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-        AND n.is_folder = false
-        AND n.deleted = 0
-        AND n.deleted_at IS NULL
-    `;
     availableCount = Number(
       (scopedCountRows as { total: number }[])[0]?.total ?? 0,
     );
@@ -498,6 +500,20 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  // shared config for both streaming and non-streaming LLM calls
+  const thinkingConfig = buildProviderThinking(thinkingMode);
+  const llmCallOptions = {
+    messages: chatMessages,
+    maxOutputTokens: getLlmMaxTokens(),
+    // Kimi K2.5 requires temperature=1 when thinking is enabled
+    ...(thinkingMode !== "off" && { temperature: 1 }),
+    stopWhen: stepCountIs(5),
+    tools: { getChunks, readNote, findFolder, makeMDNote },
+    ...(thinkingConfig && {
+      providerOptions: { moonshot: { thinking: thinkingConfig } },
+    }),
+  };
+
   // ── Streaming response ──────────────────────────────────────────────────────
   if (stream) {
     const encoder = new TextEncoder();
@@ -551,19 +567,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
               const t0 = Date.now();
               let reply = "";
-              const thinkingConfig = buildProviderThinking(thinkingMode);
-              const result = streamText({
-                model: model!,
-                messages: chatMessages,
-                maxOutputTokens: getLlmMaxTokens(),
-                // Kimi K2.5 requires temperature=1 when thinking is enabled
-                ...(thinkingMode !== "off" && { temperature: 1 }),
-                stopWhen: stepCountIs(5),
-                tools: { getChunks, readNote, findFolder, makeMDNote },
-                ...(thinkingConfig && {
-                  providerOptions: { moonshot: { thinking: thinkingConfig } },
-                }),
-              });
+              const result = streamText({ model: model!, ...llmCallOptions });
               for await (const part of result.fullStream) {
                 if (part.type === "reasoning-delta") {
                   controller.enqueue(
@@ -573,6 +577,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   reply += part.text;
                   controller.enqueue(
                     encoder.encode(toSseEvent("token", { text: part.text })),
+                  );
+                } else if (part.type === "tool-call") {
+                  controller.enqueue(
+                    encoder.encode(
+                      toSseEvent("tool-call", { toolName: part.toolName }),
+                    ),
                   );
                 }
               }
@@ -664,19 +674,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
-    const thinkingConfig = buildProviderThinking(thinkingMode);
-    const { text: reply, reasoningText } = await generateText({
-      model,
-      messages: chatMessages,
-      maxOutputTokens: getLlmMaxTokens(),
-      // Kimi K2.5 requires temperature=1 when thinking is enabled
-      ...(thinkingMode !== "off" && { temperature: 1 }),
-      stopWhen: stepCountIs(5),
-      tools: { getChunks, readNote, findFolder, makeMDNote },
-      ...(thinkingConfig && {
-        providerOptions: { moonshot: { thinking: thinkingConfig } },
-      }),
-    });
+    const { text: reply, reasoningText } = await generateText({ model, ...llmCallOptions });
     void Metrics.llmLatency(Date.now() - t0);
 
     await persistMessage(sessionId, "assistant", reply, uniqueSources);

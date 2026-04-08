@@ -3,7 +3,11 @@
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
 import sql from "@/database/pgsql.js";
-import type { ChatMessage } from "./llm-caller";
+
+export interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
 
 export async function persistMessage(
   sessionId: string,

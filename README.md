@@ -8,11 +8,15 @@ Features:
 - PDF uploads to S3
 - Soft delete (notes are recoverable for 7 days)
 - JWT-based sessions
+- Search / command palette (Cmd+K)
+- AI chat with RAG (semantic search over your notes)
+- Canvas LMS import (PDF extraction + embedding pipeline)
+- Quiz generation with spaced repetition (FSRS)
 
 Planned:
-- Fuzzy search
-- AI chat with your notes (RAG)
-- Quiz generation
+- Note export (markdown/PDF)
+- OAuth providers (Google, GitHub)
+- Payments (Student/Pro tiers)
 
 ## Quick start
 
@@ -33,6 +37,10 @@ Visit `http://localhost:3000`.
 - AWS S3 (file storage)
 - Zustand (state)
 - Lexical (rich text editor)
+- Cohere (embeddings + reranking)
+- Redis (rate limiting, caching)
+- AWS SQS + ECS (async Canvas import worker)
+- Marker OCR on GPU EC2 (PDF extraction)
 
 ## Setup
 
