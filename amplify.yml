@@ -78,6 +78,9 @@ frontend:
             unset "$var"
           done
         - npm run build
+        # copy .env.production into the standalone dir so the Next.js server finds
+        # it regardless of which CWD Amplify uses when starting the compute process
+        - cp .env.production .next/standalone/.env.production
   artifacts:
     baseDirectory: .next
     files:

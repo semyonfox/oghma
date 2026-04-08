@@ -16,6 +16,34 @@ export async function register() {
       // log but don't crash — app can still start with existing env vars
       console.error("[instrumentation] failed to load secrets:", err);
     }
+
+    // fallback: Amplify WEB_COMPUTE doesn't expose IAM credential metadata so the
+    // AWS SDK credential chain fails even when computeRoleArn has the right policy.
+    // Read .env.production directly so vars are available regardless of credential setup.
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const candidates = [
+        path.join(process.cwd(), ".env.production"),
+        path.join(process.cwd(), "..", ".env.production"),
+      ];
+      for (const envPath of candidates) {
+        if (!fs.existsSync(envPath)) continue;
+        const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+          const eq = trimmed.indexOf("=");
+          const key = trimmed.slice(0, eq).trim();
+          const val = trimmed.slice(eq + 1).trim();
+          if (key && !process.env[key]) process.env[key] = val;
+        }
+        console.log("[instrumentation] loaded env fallback from", envPath);
+        break;
+      }
+    } catch (envErr) {
+      console.error("[instrumentation] fallback .env.production load failed:", envErr);
+    }
   }
 
   // validate required env vars after secrets are loaded
