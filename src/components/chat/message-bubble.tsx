@@ -2,242 +2,125 @@
 
 import { FC, useState } from "react";
 import {
-  SparklesIcon,
-  DocumentTextIcon,
-  MagnifyingGlassIcon,
   ChevronDownIcon,
-  LightBulbIcon,
+  HandThumbUpIcon,
+  HandThumbDownIcon,
 } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import useI18n from "@/lib/notes/hooks/use-i18n";
-import type { Message, SearchContextData } from "./chat-interface";
+import type { Message } from "./chat-interface";
 
 // relevance level from cosine distance
-// lower distance = higher relevance
-function relevanceLabel(distance: number): {
-  label: string;
-  color: string;
-} {
+function relevanceLabel(distance: number): { label: string; color: string } {
   if (distance < 0.3) return { label: "high", color: "text-green-400" };
   if (distance < 0.5) return { label: "medium", color: "text-yellow-400" };
   return { label: "low", color: "text-text-tertiary" };
 }
 
-// deduplicate search results by noteId, keeping the best (lowest) distance
-function dedupeResults(
-  results: SearchContextData["results"],
-): SearchContextData["results"] {
-  const best = new Map<string, SearchContextData["results"][number]>();
-  for (const r of results) {
-    const existing = best.get(r.noteId);
-    if (!existing || r.distance < existing.distance) {
-      best.set(r.noteId, r);
-    }
-  }
-  return [...best.values()].sort((a, b) => a.distance - b.distance);
-}
-
-// collapsible thinking/reasoning bubble — shows the model's chain-of-thought
-const ThinkingBubble: FC<{ text: string; compact?: boolean }> = ({
-  text,
-  compact = false,
-}) => {
+// collapsible thinking block — ChatGPT style
+const ThinkingBlock: FC<{
+  text: string;
+  isStreaming?: boolean;
+  duration?: number;
+}> = ({ text, isStreaming = false, duration }) => {
   const [expanded, setExpanded] = useState(false);
-
   if (!text) return null;
 
-  if (compact) {
-    return (
-      <div className="bg-amber-500/5 border border-amber-500/15 rounded-md px-2 py-1">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-[10px] text-amber-400/80 hover:text-amber-400 transition-colors w-full"
-        >
-          <LightBulbIcon className="w-3 h-3 flex-shrink-0" />
-          <span className="font-medium">Thinking</span>
-          <ChevronDownIcon
-            className={`w-2.5 h-2.5 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-        </button>
-        {expanded && (
-          <p className="text-[10px] text-text-tertiary mt-1 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-            {text}
-          </p>
-        )}
-      </div>
-    );
-  }
+  const label = isStreaming
+    ? "Thinking…"
+    : duration != null && duration > 0
+      ? `Thought for ${duration}s`
+      : "Thought for a moment";
 
   return (
-    <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-2.5 bg-amber-500/5 border-amber-500/15">
+    <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface/50">
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-xs text-amber-400/80 hover:text-amber-400 transition-colors w-full"
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-subtle/50 transition-colors"
       >
-        <LightBulbIcon className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="font-medium">Thinking</span>
-        <span className="text-text-tertiary">
-          (
-          {text.length > 200 ? `${Math.ceil(text.length / 4)} tokens` : "brief"}
-          )
-        </span>
+        {isStreaming ? (
+          <span className="w-3.5 h-3.5 border-2 border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin flex-shrink-0" />
+        ) : (
+          <span className="text-text-tertiary text-xs flex-shrink-0">◆</span>
+        )}
+        <span className="text-sm text-text-tertiary italic">{label}</span>
         <ChevronDownIcon
-          className={`w-3 h-3 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`w-3 h-3 text-text-tertiary ml-auto flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
         />
       </button>
       {expanded && (
-        <p className="text-xs text-text-tertiary mt-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto border-t border-amber-500/10 pt-2">
+        <div className="px-4 pb-3 pt-2 text-sm text-text-tertiary leading-relaxed border-t border-border-subtle italic whitespace-pre-wrap max-h-72 overflow-y-auto">
           {text}
-        </p>
+        </div>
       )}
     </div>
   );
 };
 
-// search context bubble — shows what files were searched and what was found
-const SearchContextBubble: FC<{ context: SearchContextData }> = ({
-  context,
-}) => {
-  const { t } = useI18n();
+// collapsible sources block — clean list, full note titles
+const SourcesBlock: FC<{
+  sources: { id: string; title: string }[];
+  retrieval?: Message["retrieval"];
+}> = ({ sources, retrieval }) => {
   const [expanded, setExpanded] = useState(false);
-  const uniqueResults = dedupeResults(context.results);
-  const hasResults = uniqueResults.length > 0;
+  if (!sources || sources.length === 0) return null;
+
+  // build relevance map from retrieval data
+  const relMap = new Map<string, number>();
+  if (retrieval) {
+    for (const f of retrieval.usedFiles) relMap.set(f.id, 0.1);
+    for (const f of retrieval.semanticHits) {
+      if (!relMap.has(f.id)) relMap.set(f.id, 0.4);
+    }
+  }
+
+  const count = sources.length;
 
   return (
-    <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm">
-      {/* header row */}
+    <div className="border border-border-subtle rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 text-left group"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-surface/50 hover:bg-subtle/50 transition-colors text-left"
       >
-        <MagnifyingGlassIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
-        <span className="text-text-secondary text-xs">
-          {hasResults
-            ? t("chat.search_found", {
-                count: String(uniqueResults.length),
-                scope: context.scopeSize
-                  ? t("chat.search_scope_n", {
-                      n: String(context.scopeSize),
-                    })
-                  : t("chat.search_scope_all"),
-              })
-            : t("chat.search_no_results")}
+        <span className="text-sm text-text-tertiary">
+          <span className="font-medium text-text-secondary">{count} {count === 1 ? "source" : "sources"}</span> used
         </span>
         <ChevronDownIcon
-          className={`w-3 h-3 text-text-tertiary ml-auto transition-transform ${
-            expanded ? "rotate-180" : ""
-          }`}
+          className={`w-3 h-3 text-text-tertiary flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
         />
       </button>
-
-      {/* expanded: show each result as a file row */}
-      {expanded && hasResults && (
-        <div className="mt-2.5 space-y-1.5">
-          {uniqueResults.map((r) => {
-            const rel = relevanceLabel(r.distance);
+      {expanded && (
+        <div className="border-t border-border-subtle">
+          {sources.map((s) => {
+            const distance = relMap.get(s.id);
+            const rel = distance != null ? relevanceLabel(distance) : null;
             return (
               <a
-                key={r.noteId}
-                href={`/notes/${r.noteId}`}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-subtle/50 border border-border-subtle hover:border-primary-500/30 hover:bg-subtle transition-colors group"
+                key={s.id}
+                href={`/notes/${s.id}`}
+                className="flex items-center gap-3 px-4 py-2 hover:bg-subtle/50 transition-colors border-b border-border-subtle last:border-b-0"
               >
-                <DocumentTextIcon className="w-3.5 h-3.5 text-text-tertiary group-hover:text-primary-400 flex-shrink-0 transition-colors" />
-                <span className="flex-1 text-xs text-text-secondary truncate">
-                  {r.title}
+                <span className="w-1.5 h-1.5 rounded-full bg-border-subtle flex-shrink-0" />
+                <span className="flex-1 text-sm text-text-secondary truncate">
+                  {s.title || "Untitled"}
                 </span>
-                <span
-                  className={`text-[10px] uppercase tracking-wide ${rel.color} flex-shrink-0`}
-                >
-                  {rel.label}
-                </span>
+                {rel && (
+                  <span className={`text-xs ${rel.color} flex-shrink-0`}>
+                    {rel.label}
+                  </span>
+                )}
               </a>
             );
           })}
         </div>
       )}
-
-      {/* expanded but no results */}
-      {expanded && !hasResults && (
-        <p className="mt-2 text-xs text-text-tertiary">
-          {t("chat.search_no_matches_detail")}
-        </p>
-      )}
     </div>
   );
 };
 
-// file box cards for sources used in the answer
-const SourceFileBoxes: FC<{
-  sources: { id: string; title: string }[];
-}> = ({ sources }) => {
-  const { t } = useI18n();
-  if (!Array.isArray(sources) || !sources.length) return null;
-
-  return (
-    <div className="mt-3">
-      <p className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5 ml-0.5">
-        {t("chat.used_in_answer")}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {sources.map((s) => (
-          <a
-            key={s.id}
-            href={`/notes/${s.id}`}
-            className="group flex items-start gap-2 px-3 py-2 rounded-xl bg-subtle/60 border border-border-subtle hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors min-w-[120px] max-w-[200px]"
-          >
-            <DocumentTextIcon className="w-4 h-4 text-text-tertiary group-hover:text-primary-400 flex-shrink-0 mt-0.5 transition-colors" />
-            <span className="text-xs text-text-secondary group-hover:text-text leading-snug line-clamp-2 transition-colors">
-              {s.title || t("Untitled")}
-            </span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// compact source chips (used in sidebar variant, kept minimal)
-export const SourceChips: FC<{
-  sources: { id: string; title: string }[];
-}> = ({ sources }) => {
-  const { t } = useI18n();
-  if (!Array.isArray(sources) || !sources.length) return null;
-  return (
-    <div className="flex flex-wrap gap-1 mt-2">
-      {sources.map((s) => (
-        <a
-          key={s.id}
-          href={`/notes/${s.id}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-subtle border border-border-subtle text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-        >
-          <DocumentTextIcon className="w-2.5 h-2.5 flex-shrink-0" />
-          <span className="max-w-[120px] truncate">
-            {s.title || t("Untitled")}
-          </span>
-        </a>
-      ))}
-    </div>
-  );
-};
-
-const RetrievalSection: FC<{
-  label: string;
-  sources: { id: string; title: string }[];
-  helper?: string;
-}> = ({ label, sources, helper }) => (
-  <div className="mt-2">
-    <p className="text-[11px] text-text-tertiary mb-1">{label}</p>
-    {sources.length > 0 ? (
-      <SourceChips sources={sources} />
-    ) : helper ? (
-      <p className="text-[11px] text-text-tertiary/80">{helper}</p>
-    ) : null}
-  </div>
-);
-
-// typing animation dots
+// typing animation dots — shown while waiting for first token
 export const TypingDots: FC = () => (
   <div className="flex items-center gap-1 px-1 py-0.5">
     {[0, 150, 300].map((delay) => (
@@ -250,131 +133,134 @@ export const TypingDots: FC = () => (
   </div>
 );
 
-// compact search context (sidebar variant) — collapsible single-line summary
-const CompactSearchContext: FC<{ context: SearchContextData }> = ({
-  context,
-}) => {
-  const { t } = useI18n();
-  const [expanded, setExpanded] = useState(false);
-  const uniqueResults = dedupeResults(context.results);
-  const hasResults = uniqueResults.length > 0;
-
-  return (
-    <div className="bg-surface border border-border-subtle rounded-md rounded-bl-sm px-2 py-1.5">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1.5 text-left"
-      >
-        <MagnifyingGlassIcon className="w-3 h-3 text-primary-400 flex-shrink-0" />
-        <span className="text-[10px] text-text-tertiary truncate flex-1">
-          {hasResults
-            ? t("chat.search_found", {
-                count: String(uniqueResults.length),
-                scope: context.scopeSize
-                  ? t("chat.search_scope_n", {
-                      n: String(context.scopeSize),
-                    })
-                  : t("chat.search_scope_all"),
-              })
-            : t("chat.search_no_results")}
-        </span>
-        <ChevronDownIcon
-          className={`w-2.5 h-2.5 text-text-tertiary transition-transform flex-shrink-0 ${
-            expanded ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-
-      {expanded && hasResults && (
-        <div className="mt-1.5 space-y-1">
-          {uniqueResults.map((r) => {
-            const rel = relevanceLabel(r.distance);
-            return (
-              <a
-                key={r.noteId}
-                href={`/notes/${r.noteId}`}
-                className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-subtle/50 border border-border-subtle hover:border-primary-500/30 transition-colors"
-              >
-                <DocumentTextIcon className="w-3 h-3 text-text-tertiary flex-shrink-0" />
-                <span className="flex-1 text-[10px] text-text-secondary truncate">
-                  {r.title}
-                </span>
-                <span
-                  className={`text-[9px] uppercase tracking-wide ${rel.color} flex-shrink-0`}
-                >
-                  {rel.label}
-                </span>
-              </a>
-            );
-          })}
-        </div>
-      )}
-
-      {expanded && !hasResults && (
-        <p className="mt-1 text-[10px] text-text-tertiary">
-          {t("chat.search_no_matches_detail")}
-        </p>
-      )}
-    </div>
-  );
+// shared markdown renderer config
+const markdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-2 last:mb-0">{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>
+  ),
+  code: ({
+    children,
+    className: cls,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+  }) => {
+    const isBlock = cls?.includes("language-");
+    return isBlock ? (
+      <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
+        {children}
+      </code>
+    ) : (
+      <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
+        {children}
+      </code>
+    );
+  },
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-text">{children}</strong>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="font-semibold text-text mt-3 mb-1">{children}</h3>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <h4 className="font-medium text-text mt-2 mb-1">{children}</h4>
+  ),
 };
 
-// compact retrieval summary (sidebar variant) — collapsible 3-stage pipeline
-const CompactRetrievalSummary: FC<{
-  retrieval: NonNullable<Message["retrieval"]>;
-}> = ({ retrieval }) => {
-  const { t } = useI18n();
-  const [expanded, setExpanded] = useState(false);
+// full-page message bubble
+export const FullMessageBubble: FC<{
+  message: Message;
+  sessionId?: string | null;
+}> = ({ message: m, sessionId }) => {
+  const [rating, setRating] = useState<number | null>(m.rating ?? null);
+
+  const handleRating = async (value: 1 | -1) => {
+    if (!sessionId || m.id === "welcome") return;
+    const next = rating === value ? null : value;
+    setRating(next);
+    await fetch(`/api/chat/sessions/${sessionId}/messages/${m.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating: next }),
+    });
+  };
+
+  if (m.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-lg">
+          <div className="px-4 py-3 rounded-2xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
+            <p>{m.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isThinkingStreaming = !!m.thinking && !m.content.trim();
+  const hasContent = m.content.trim().length > 0;
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
-    <div className="bg-surface border border-border-subtle rounded-md rounded-bl-sm px-2 py-1.5">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-1.5 text-left"
-      >
-        <DocumentTextIcon className="w-3 h-3 text-primary-400 flex-shrink-0" />
-        <span className="text-[10px] text-text-tertiary truncate flex-1">
-          {retrieval.availableCount}{" "}
-          {t("chat.retrieval.available_to_search").toLowerCase()}
-          {" · "}
-          {retrieval.semanticHits.length}{" "}
-          {t("chat.retrieval.semantic_found").toLowerCase()}
-          {" · "}
-          {retrieval.usedFiles.length}{" "}
-          {t("chat.retrieval.used_in_answer").toLowerCase()}
-        </span>
-        <ChevronDownIcon
-          className={`w-2.5 h-2.5 text-text-tertiary transition-transform flex-shrink-0 ${
-            expanded ? "rotate-180" : ""
-          }`}
+    <div className="space-y-3">
+      {m.thinking && (
+        <ThinkingBlock
+          text={m.thinking}
+          isStreaming={isThinkingStreaming}
+          duration={m.thinkingDuration}
         />
-      </button>
-
-      {expanded && (
-        <div className="mt-1.5 space-y-1.5">
-          <RetrievalSection
-            label={`${t("chat.retrieval.available_to_search")} (${retrieval.availableCount})`}
-            sources={retrieval.availableFiles}
-            helper={
-              retrieval.scopeMode === "global"
-                ? t("chat.retrieval.available_global_helper")
-                : undefined
-            }
-          />
-          <RetrievalSection
-            label={`${t("chat.retrieval.semantic_found")} (${retrieval.semanticHits.length})`}
-            sources={retrieval.semanticHits}
-            helper={t("chat.retrieval.semantic_empty")}
-          />
-          <RetrievalSection
-            label={`${t("chat.retrieval.used_in_answer")} (${retrieval.usedFiles.length})`}
-            sources={retrieval.usedFiles}
-            helper={t("chat.retrieval.used_empty")}
-          />
-        </div>
       )}
+
+      <div className="text-sm leading-relaxed text-text">
+        {hasContent ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {m.content}
+          </ReactMarkdown>
+        ) : !m.thinking ? (
+          <TypingDots />
+        ) : null}
+      </div>
+
+      {hasSources && <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />}
+
+      <div className="flex items-center gap-2">
+        <p className="text-xs text-text-tertiary opacity-60">
+          {new Date(m.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+        {sessionId && m.id !== "welcome" && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void handleRating(1)}
+              className="p-0.5 transition-colors"
+              title="Helpful"
+            >
+              <HandThumbUpIcon
+                className={`w-4 h-4 ${rating === 1 ? "text-primary-400" : "text-text-tertiary opacity-60 hover:opacity-100"}`}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRating(-1)}
+              className="p-0.5 transition-colors"
+              title="Not helpful"
+            >
+              <HandThumbDownIcon
+                className={`w-4 h-4 ${rating === -1 ? "text-primary-400" : "text-text-tertiary opacity-60 hover:opacity-100"}`}
+              />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -383,31 +269,20 @@ const CompactRetrievalSummary: FC<{
 export const CompactMessageBubble: FC<{ message: Message }> = ({
   message: m,
 }) => {
-  const hasSearchContext =
-    m.role === "assistant" &&
-    m.searchContext &&
-    m.searchContext.results.length > 0;
-  const hasRetrieval = m.role === "assistant" && !!m.retrieval;
+  const isThinkingStreaming = !!m.thinking && !m.content.trim();
+  const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
-    <div
-      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-    >
-      <div className="max-w-[85%] space-y-1">
-        {/* search context (compact) */}
-        {hasSearchContext && (
-          <CompactSearchContext context={m.searchContext!} />
-        )}
-
-        {/* retrieval pipeline summary (compact) */}
-        {hasRetrieval && <CompactRetrievalSummary retrieval={m.retrieval!} />}
-
-        {/* thinking (compact) */}
+    <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+      <div className="max-w-[85%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
-          <ThinkingBubble text={m.thinking} compact />
+          <ThinkingBlock
+            text={m.thinking}
+            isStreaming={isThinkingStreaming}
+            duration={m.thinkingDuration}
+          />
         )}
 
-        {/* message bubble */}
         <div
           className={`px-2.5 py-1.5 rounded-md text-xs leading-relaxed ${
             m.role === "user"
@@ -420,13 +295,9 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: ({ children }) => (
-                    <p className="mb-1 last:mb-0">{children}</p>
-                  ),
+                  p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
                   code: ({ children }) => (
-                    <code className="bg-subtle px-1 rounded text-xs">
-                      {children}
-                    </code>
+                    <code className="bg-subtle px-1 rounded text-xs">{children}</code>
                   ),
                 }}
               >
@@ -438,154 +309,11 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
           ) : (
             m.content
           )}
-          {m.sources && m.sources.length > 0 && (
-            <SourceChips sources={m.sources} />
-          )}
         </div>
-      </div>
-    </div>
-  );
-};
 
-// full-page message bubble with double-bubble layout for assistant
-export const FullMessageBubble: FC<{ message: Message }> = ({ message: m }) => {
-  const { t } = useI18n();
-
-  // user messages stay as a single right-aligned bubble
-  if (m.role === "user") {
-    return (
-      <div className="flex gap-3 justify-end">
-        <div className="max-w-lg">
-          <div className="px-4 py-3 rounded-2xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
-            <p>{m.content}</p>
-          </div>
-          <p className="text-xs text-text-tertiary opacity-60 mt-1 mr-1 text-right">
-            {new Date(m.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // assistant: double-bubble layout
-  // bubble 1: search context (what was searched, what was found)
-  // bubble 2: answer content + source file boxes
-  const hasSearchContext =
-    m.searchContext && m.searchContext.results.length > 0;
-  const hasSources = m.sources && m.sources.length > 0;
-  const hasContent = m.content.trim().length > 0;
-
-  return (
-    <div className="flex gap-3 justify-start">
-      {/* avatar */}
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500/15 border border-primary-500/25 flex items-center justify-center mt-0.5">
-        <SparklesIcon className="w-3.5 h-3.5 text-primary-400" />
-      </div>
-
-      <div className="max-w-2xl space-y-2">
-        {/* bubble 1: search context */}
-        {hasSearchContext && <SearchContextBubble context={m.searchContext!} />}
-
-        {/* retrieval sections */}
-        {m.retrieval && (
-          <div className="mt-2 ml-1">
-            <RetrievalSection
-              label={`${t("chat.retrieval.available_to_search")} (${m.retrieval.availableCount})`}
-              sources={m.retrieval.availableFiles}
-              helper={
-                m.retrieval.scopeMode === "global"
-                  ? t("chat.retrieval.available_global_helper")
-                  : undefined
-              }
-            />
-            <RetrievalSection
-              label={`${t("chat.retrieval.semantic_found")} (${m.retrieval.semanticHits.length})`}
-              sources={m.retrieval.semanticHits}
-              helper={t("chat.retrieval.semantic_empty")}
-            />
-            <RetrievalSection
-              label={`${t("chat.retrieval.used_in_answer")} (${m.retrieval.usedFiles.length})`}
-              sources={m.retrieval.usedFiles}
-              helper={t("chat.retrieval.used_empty")}
-            />
-          </div>
+        {m.role === "assistant" && hasSources && (
+          <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
         )}
-
-        {/* thinking bubble (full) */}
-        {m.thinking && <ThinkingBubble text={m.thinking} />}
-
-        {/* bubble 2: answer + source file boxes */}
-        <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
-          {hasContent ? (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => (
-                  <p className="mb-2 last:mb-0">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc list-inside mb-2 space-y-0.5">
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal list-inside mb-2 space-y-0.5">
-                    {children}
-                  </ol>
-                ),
-                code: ({ children, className: cls }) => {
-                  const isBlock = cls?.includes("language-");
-                  return isBlock ? (
-                    <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
-                      {children}
-                    </code>
-                  ) : (
-                    <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
-                      {children}
-                    </code>
-                  );
-                },
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-text">
-                    {children}
-                  </strong>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="font-semibold text-text mt-3 mb-1">
-                    {children}
-                  </h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="font-medium text-text mt-2 mb-1">
-                    {children}
-                  </h4>
-                ),
-              }}
-            >
-              {m.content}
-            </ReactMarkdown>
-          ) : m.thinking ? (
-            <TypingDots />
-          ) : (
-            <p className="text-text-tertiary">
-              I couldn&apos;t generate an answer this time. Please try again.
-            </p>
-          )}
-
-          {/* source file boxes inside the answer bubble */}
-          {hasSources && <SourceFileBoxes sources={m.sources!} />}
-        </div>
-
-        {/* timestamp */}
-        <p className="text-xs text-text-tertiary opacity-60 ml-1">
-          {new Date(m.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
       </div>
     </div>
   );
