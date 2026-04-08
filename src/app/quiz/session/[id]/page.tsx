@@ -225,6 +225,7 @@ export default function QuizSessionPage() {
     sessionCompleted,
     fatigueWarning,
     startSession,
+    setCurrentQuestion,
     advanceQuestion,
     setFatigueWarning,
     completeSession,
@@ -240,12 +241,29 @@ export default function QuizSessionPage() {
       fetch(`/api/quiz/sessions/${sessionId}`)
         .then((r) => r.json())
         .then((data) => {
-          if (data.cardIds) {
-            startSession(sessionId, data.cardIds, data.question);
+          if (Array.isArray(data.cardIds) && data.cardIds.length > 0) {
+            startSession(sessionId, data.cardIds, data.question ?? null);
+          } else if (data.cardIds !== undefined) {
+            // session exists but all cards answered — mark complete
+            completeSession();
           }
         });
     }
-  }, [sessionId, cardIds.length, startSession]);
+  }, [sessionId, cardIds.length, startSession, completeSession]);
+
+  // if the store has card IDs but no question (e.g. first question lookup failed), fetch it directly
+  useEffect(() => {
+    if (cardIds.length > 0 && !currentQuestion && !sessionCompleted) {
+      const cardId = cardIds[currentIndex] ?? cardIds[0];
+      fetch(`/api/quiz/cards/${cardId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.question) setCurrentQuestion(data.question);
+          else completeSession();
+        })
+        .catch(() => completeSession());
+    }
+  }, [cardIds, currentQuestion, currentIndex, sessionCompleted, setCurrentQuestion, completeSession]);
 
   // fetch streak for progress bar
   useEffect(() => {

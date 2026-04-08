@@ -17,6 +17,7 @@ interface ResultItem {
 async function keywordSearch(
   userId: string,
   query: string,
+  course?: string,
   limit = 20,
 ): Promise<ResultItem[]> {
   const pattern = `%${query}%`;
@@ -30,6 +31,7 @@ async function keywordSearch(
         WHERE user_id = ${userId}::uuid
           AND deleted = 0
           AND (title ILIKE ${pattern} OR content ILIKE ${pattern})
+          ${course ? sql`AND canvas_course_id = ${course}` : sql``}
         ORDER BY
             CASE WHEN title ILIKE ${pattern} THEN 0 ELSE 1 END,
             updated_at DESC
@@ -49,6 +51,7 @@ async function semanticSearch(
   userId: string,
   query: string,
   excludeIds: string[] = [],
+  course?: string,
   limit = 10,
 ): Promise<ResultItem[]> {
   const vector = await embedText(query);
@@ -66,6 +69,7 @@ async function semanticSearch(
         WHERE c.user_id = ${userId}::uuid
           AND n.deleted = 0
           AND n.note_id != ALL(${excluded}::uuid[])
+          ${course ? sql`AND n.canvas_course_id = ${course}` : sql``}
         ORDER BY n.note_id, e.embedding <=> ${vectorStr}::vector
     `;
 
@@ -91,6 +95,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim();
   const mode = url.searchParams.get("mode") || "keyword";
+  const course = url.searchParams.get("course") || undefined;
 
   if (!query || query.length < 2) {
     return NextResponse.json({ results: [] });
@@ -99,7 +104,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const userId = user.user_id;
 
   if (mode === "keyword") {
-    const results = await keywordSearch(userId, query);
+    const results = await keywordSearch(userId, query, course);
     return NextResponse.json({ results });
   }
 
@@ -111,7 +116,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       : [];
 
     try {
-      const results = await semanticSearch(userId, query, excludeIds);
+      const results = await semanticSearch(userId, query, excludeIds, course);
       return NextResponse.json({ results });
     } catch (err) {
       logger.error("semantic search failed", err);

@@ -27,6 +27,9 @@ export default function SearchModal() {
   const [isSemanticLoading, setIsSemanticLoading] = useState(false);
   const semanticAbortRef = useRef<AbortController | null>(null);
   const searchSeqRef = useRef(0);
+  const [courses, setCourses] = useState<{ courseId: string; courseName: string }[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const selectedCourseRef = useRef<string | null>(null);
 
   // Memoize search results and only update when the search query actually changes
   const debouncedSearch = useMemo(
@@ -44,11 +47,27 @@ export default function SearchModal() {
 
         setIsSearching(true);
         try {
-          // Stage 1: instant local keyword search.
-          const keywordResults = await filterNotes(searchKeyword);
+          // Stage 1: keyword search — local cache when no course filter, API when filtered
+          let baseResults: any[] = [];
+          if (selectedCourseRef.current) {
+            const courseParam = `&course=${encodeURIComponent(selectedCourseRef.current)}`;
+            const kwRes = await fetch(
+              `/api/search?q=${encodeURIComponent(searchKeyword)}&mode=keyword${courseParam}`,
+            );
+            if (searchSeqRef.current !== seq) return;
+            const kwData = kwRes.ok ? await kwRes.json() : { results: [] };
+            baseResults = (kwData.results ?? []).map((r: any) => ({
+              id: r.note_id,
+              title: r.title,
+              snippet: r.snippet,
+            }));
+          } else {
+            const keywordResults = await filterNotes(searchKeyword);
+            if (searchSeqRef.current !== seq) return;
+            baseResults = keywordResults || [];
+          }
           if (searchSeqRef.current !== seq) return;
 
-          const baseResults = keywordResults || [];
           setSearchResults(baseResults);
           setIsSearching(false);
 
@@ -60,7 +79,10 @@ export default function SearchModal() {
             .map((r: any) => r?.id)
             .filter(Boolean)
             .join(",");
-          const url = `/api/search?q=${encodeURIComponent(searchKeyword)}&mode=semantic${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ""}`;
+          const courseParam = selectedCourseRef.current
+            ? `&course=${encodeURIComponent(selectedCourseRef.current)}`
+            : "";
+          const url = `/api/search?q=${encodeURIComponent(searchKeyword)}&mode=semantic${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ""}${courseParam}`;
           const res = await fetch(url, { signal: controller.signal });
           if (!res.ok) return;
 
@@ -98,6 +120,13 @@ export default function SearchModal() {
   );
 
   useEffect(() => {
+    selectedCourseRef.current = selectedCourse;
+    if (search.visible && keyword) {
+      debouncedSearch(keyword);
+    }
+  }, [selectedCourse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (search.visible) {
       debouncedSearch(keyword);
     } else {
@@ -109,6 +138,13 @@ export default function SearchModal() {
 
   useEffect(() => {
     return () => semanticAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/quiz/dashboard/courses")
+      .then((r) => r.json())
+      .then((data) => setCourses(data?.courses ?? []))
+      .catch(() => {});
   }, []);
 
   const handleClose = useCallback(() => {
@@ -184,6 +220,38 @@ export default function SearchModal() {
                     <XMarkIcon className="h-5 w-5" />
                   </button>
                 </div>
+
+                {courses.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap px-4 py-2 border-b border-border-subtle">
+                    <button
+                      onClick={() => setSelectedCourse(null)}
+                      className={`text-xs rounded-full px-2 py-0.5 border transition-colors ${
+                        selectedCourse === null
+                          ? "border-primary-400 text-primary-400 bg-primary-400/10"
+                          : "border-border-subtle text-text-tertiary hover:text-text hover:border-border"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {courses.map((c) => (
+                      <button
+                        key={c.courseId}
+                        onClick={() =>
+                          setSelectedCourse(
+                            selectedCourse === c.courseId ? null : c.courseId,
+                          )
+                        }
+                        className={`text-xs rounded-full px-2 py-0.5 border transition-colors ${
+                          selectedCourse === c.courseId
+                            ? "border-primary-400 text-primary-400 bg-primary-400/10"
+                            : "border-border-subtle text-text-tertiary hover:text-text hover:border-border"
+                        }`}
+                      >
+                        {c.courseName}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="max-h-96 overflow-y-auto">
                   {!keyword && (

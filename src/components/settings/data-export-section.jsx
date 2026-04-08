@@ -2,11 +2,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
+import { ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { cn } from "./settings-utils";
 
 export default function DataExportSection() {
   const { t } = useI18n();
+
+  // calendar subscription state
+  const [calendarToken, setCalendarToken] = useState(null);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarRegenerating, setCalendarRegenerating] = useState(false);
 
   // vault import/export state
   const [importStatus, setImportStatus] = useState(null);
@@ -17,6 +23,38 @@ export default function DataExportSection() {
   const [exportJobId, setExportJobId] = useState(null);
   const [exportDownloadUrl, setExportDownloadUrl] = useState(null);
   const importFileRef = useRef(null);
+
+  // fetch calendar token on mount
+  useEffect(() => {
+    fetch("/api/calendar/token")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.token) setCalendarToken(data.token); })
+      .catch(() => {})
+      .finally(() => setCalendarLoading(false));
+  }, []);
+
+  async function handleRegenerateToken() {
+    if (!confirm(t("This will invalidate your current subscription URL. Any calendar apps using the old URL will stop syncing. Continue?"))) return;
+    setCalendarRegenerating(true);
+    try {
+      const res = await fetch("/api/calendar/token", { method: "POST" });
+      if (!res.ok) throw new Error();
+      const { token } = await res.json();
+      setCalendarToken(token);
+      toast.success(t("Calendar subscription URL regenerated"));
+    } catch {
+      toast.error(t("Failed to regenerate token"));
+    } finally {
+      setCalendarRegenerating(false);
+    }
+  }
+
+  function handleCopyCalendarUrl() {
+    const url = `${window.location.origin}/api/calendar/ical/${calendarToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success(t("Copied to clipboard"));
+    });
+  }
 
   // vault import handler
   async function handleVaultImport(e) {
@@ -390,6 +428,49 @@ export default function DataExportSection() {
                 ? t("Exporting...")
                 : t("Export vault")}
             </button>
+          </div>
+
+          {/* calendar subscription */}
+          <div className="border-t border-border pt-6">
+            <h3 className="text-sm/6 font-medium text-text mb-1">
+              {t("Calendar Subscription")}
+            </h3>
+            <p className="text-sm text-text-tertiary mb-4">
+              {t("Subscribe to your assignments and study blocks in Google Calendar, Apple Calendar, Outlook, or any app that supports iCal feeds.")}
+            </p>
+
+            {calendarLoading ? (
+              <p className="text-sm text-text-tertiary">{t("Loading...")}</p>
+            ) : calendarToken ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/calendar/ical/${calendarToken}`}
+                    className="flex-1 rounded-radius-md glass-card px-3 py-2 text-xs text-text-secondary font-mono truncate focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyCalendarUrl}
+                    className="shrink-0 glass-card-interactive rounded-radius-md p-2 text-text-tertiary hover:text-text-secondary"
+                    title={t("Copy URL")}
+                  >
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRegenerateToken}
+                  disabled={calendarRegenerating}
+                  className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary disabled:opacity-50"
+                >
+                  <ArrowPathIcon className={`h-3.5 w-3.5 ${calendarRegenerating ? "animate-spin" : ""}`} />
+                  {t("Regenerate URL")}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-error-400">{t("Failed to load subscription URL")}</p>
+            )}
           </div>
         </div>
       </div>

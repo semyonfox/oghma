@@ -14,7 +14,7 @@ import {
 import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import logger from "@/lib/logger";
-import { streamText, generateText, tool } from "ai";
+import { streamText, generateText, tool, stepCountIs } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
@@ -33,6 +33,7 @@ import {
   buildSystemPrompt,
   runRagPipeline,
 } from "@/lib/chat/rag-pipeline";
+import { embedText } from "@/lib/embedText";
 import {
   persistMessage,
   resolveSession,
@@ -235,9 +236,37 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const model = provider ? provider(getLlmModel()) : null;
 
+  // resolve parent folder of scoped notes so the LLM doesn't need to ask
+  let scopedParentHint = "";
+  if (scopedInputNoteIds.length > 0) {
+    const parentRows = await sql`
+      SELECT DISTINCT ti.parent_id, n.note_id, n.title
+      FROM app.tree_items ti
+      JOIN app.notes n ON n.note_id = ti.parent_id::uuid
+      WHERE ti.note_id = ANY(${scopedInputNoteIds}::uuid[])
+        AND ti.parent_id IS NOT NULL
+        AND n.is_folder = true
+        AND n.deleted = 0
+      LIMIT 5
+    `;
+    if ((parentRows as any[]).length > 0) {
+      const hints = (parentRows as { note_id: string; title: string }[])
+        .map((r) => `"${r.title}" (id: ${r.note_id})`)
+        .join(", ");
+      scopedParentHint =
+        `\nThe current note's parent folder(s): ${hints}. ` +
+        "Use the most relevant folder's id as parentID when creating a note — no need to call findFolder.";
+    }
+  }
+
   const toolInstruction =
-    "Tool available: makeMDNote({ text, parentID?, title? }). " +
-    "When the user asks to create/save/write a markdown note, call this tool instead of pretending it was saved.";
+    "Tools available:\n" +
+    "- getChunks({ query, mode? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. Returns chunk text + noteId per hit.\n" +
+    "- readNote({ noteId }) — read the full markdown content of a note. Use after getChunks confirms the right note.\n" +
+    "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
+    "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
+    "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first." +
+    scopedParentHint;
 
   const chatMessages: ChatMessage[] = [
     { role: "system", content: `${systemPrompt}\n\n${toolInstruction}` },
@@ -340,6 +369,135 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     },
   });
 
+  const findFolder = tool({
+    description:
+      "Search for a folder in the user's notes by name or course keyword. " +
+      "Returns matching folders with their IDs. Use this to find parentID before creating a note.",
+    inputSchema: z.object({
+      query: z.string().min(1).max(200),
+    }),
+    execute: async ({ query }) => {
+      const rows = await sql`
+        SELECT note_id, title
+        FROM app.notes
+        WHERE user_id = ${userId}::uuid
+          AND is_folder = true
+          AND deleted = 0
+          AND deleted_at IS NULL
+          AND title ILIKE ${"%" + query.replace(/%/g, "\\%").replace(/_/g, "\\_") + "%"}
+        ORDER BY title ASC
+        LIMIT 10
+      `;
+      return {
+        folders: (rows as { note_id: string; title: string }[]).map((r) => ({
+          id: r.note_id,
+          title: r.title,
+        })),
+      };
+    },
+  });
+
+  const getChunks = tool({
+    description:
+      "Search the user's notes for relevant chunks. " +
+      "Use mode='semantic' (default) for conceptual/topic queries. " +
+      "Use mode='exact' when looking for a specific term, name, formula, or phrase the user likely wrote verbatim. " +
+      "Use mode='both' to run both and merge results. " +
+      "Returns matching chunks with their noteId and title — call readNote if you need the full note.",
+    inputSchema: z.object({
+      query: z.string().min(1).max(300),
+      mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
+    }),
+    execute: async ({ query, mode }) => {
+      type ChunkHit = { noteId: string; title: string; chunkId: string; text: string; source: string };
+      const seen = new Set<string>();
+      const results: ChunkHit[] = [];
+
+      const add = (noteId: string, title: string, chunkId: string, text: string, source: string) => {
+        if (seen.has(chunkId)) return;
+        seen.add(chunkId);
+        results.push({ noteId, title, chunkId, text: text.slice(0, 400), source });
+      };
+
+      if (mode === "semantic" || mode === "both") {
+        try {
+          const vec = await embedText(query);
+          const vectorStr = `[${vec.join(",")}]`;
+          const scope = scopedNoteIds && scopedNoteIds.length > 0;
+          const rows: any[] = scope
+            ? await sql`
+                SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
+                FROM app.embeddings e
+                JOIN app.chunks c ON c.id = e.chunk_id
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND c.document_id = ANY(${scopedNoteIds}::uuid[])
+                  AND (e.embedding <=> ${vectorStr}::vector) < 0.75
+                ORDER BY e.embedding <=> ${vectorStr}::vector
+                LIMIT 10
+              `
+            : await sql`
+                SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
+                FROM app.embeddings e
+                JOIN app.chunks c ON c.id = e.chunk_id
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND (e.embedding <=> ${vectorStr}::vector) < 0.75
+                ORDER BY e.embedding <=> ${vectorStr}::vector
+                LIMIT 10
+              `;
+          for (const r of rows) add(r.note_id, r.title, r.chunk_id, r.chunk_text, "semantic");
+        } catch {
+          // embedding unavailable
+        }
+      }
+
+      if (mode === "exact" || mode === "both") {
+        const safe = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
+        const rows: any[] = await sql`
+          SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
+          FROM app.chunks c
+          JOIN app.notes n ON n.note_id = c.document_id
+          WHERE c.user_id = ${userId}::uuid
+            AND n.is_folder = false
+            AND n.deleted = 0
+            AND n.deleted_at IS NULL
+            AND c.text ILIKE ${"%" + safe + "%"}
+          LIMIT 10
+        `;
+        for (const r of rows) add(r.note_id, r.title, r.chunk_id, r.chunk_text, "exact");
+      }
+
+      return { results: results.slice(0, 12) };
+    },
+  });
+
+  const readNote = tool({
+    description:
+      "Read the full content of a note by ID. Use this once getChunks has identified the right note " +
+      "and you need the complete text. Returns the raw markdown content.",
+    inputSchema: z.object({
+      noteId: z.string().uuid(),
+    }),
+    execute: async ({ noteId }) => {
+      const [row] = await sql`
+        SELECT title, content, extracted_text
+        FROM app.notes
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND is_folder = false
+          AND deleted = 0
+          AND deleted_at IS NULL
+      `;
+      if (!row) return { error: "Note not found" };
+      return {
+        noteId,
+        title: row.title,
+        content: (row.content || row.extracted_text || "").slice(0, 50_000),
+      };
+    },
+  });
+
   // ── Streaming response ──────────────────────────────────────────────────────
   if (stream) {
     const encoder = new TextEncoder();
@@ -398,7 +556,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 model: model!,
                 messages: chatMessages,
                 maxOutputTokens: getLlmMaxTokens(),
-                tools: { makeMDNote },
+                // Kimi K2.5 requires temperature=1 when thinking is enabled
+                ...(thinkingMode !== "off" && { temperature: 1 }),
+                stopWhen: stepCountIs(5),
+                tools: { getChunks, readNote, findFolder, makeMDNote },
                 ...(thinkingConfig && {
                   providerOptions: { moonshot: { thinking: thinkingConfig } },
                 }),
@@ -473,6 +634,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache, no-transform",
           Connection: "keep-alive",
+          // prevent nginx/ALB from buffering the SSE stream
+          "X-Accel-Buffering": "no",
         },
       },
     );
@@ -506,7 +669,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       model,
       messages: chatMessages,
       maxOutputTokens: getLlmMaxTokens(),
-      tools: { makeMDNote },
+      // Kimi K2.5 requires temperature=1 when thinking is enabled
+      ...(thinkingMode !== "off" && { temperature: 1 }),
+      stopWhen: stepCountIs(5),
+      tools: { getChunks, readNote, findFolder, makeMDNote },
       ...(thinkingConfig && {
         providerOptions: { moonshot: { thinking: thinkingConfig } },
       }),

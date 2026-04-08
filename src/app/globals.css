@@ -354,7 +354,6 @@ body {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* landing page gradient background */
 .bg-landing {
   background: radial-gradient(
     ellipse at top,

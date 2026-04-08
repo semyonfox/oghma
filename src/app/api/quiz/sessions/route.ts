@@ -19,8 +19,12 @@ import {
   validateBody,
 } from "@/lib/validations/schemas";
 
-const AI_GENERATION_PER_MODULE = 5;
-const AI_GENERATION_BATCH_SIZE = 25;
+// per-module question generation limits
+// SYNC: how many to generate inline (blocking) — kept small to stay within gateway timeout
+// TOTAL: how many to generate per module across sync + background
+const AI_GENERATION_SYNC_BATCH = 5;  // at most 5 LLM calls per session start (~10-15s)
+const AI_GENERATION_PER_MODULE = 5;  // target 5 questions per module total
+const AI_GENERATION_BATCH_SIZE = 25; // upper bound for background pass
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -63,55 +67,103 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   );
 
   // generate questions for uncovered chunks (on-demand)
-  // always try to generate a small batch so sessions organically fill until all chunks are covered
+  // split into sync (blocking, feeds this session) and background (fire-and-forget)
   const generatedQuestionIds: string[] = [];
-  const uncoveredChunkMeta = await sql`
-        SELECT c.id, COALESCE(n.canvas_module_id, -1) AS module_id
-        FROM app.chunks c
-        JOIN app.notes n ON c.document_id = n.note_id
-        WHERE c.id = ANY(${uncoveredChunkIds}::uuid[])
-        ORDER BY random()
-    `;
 
-  const generationChunkIds: string[] = [];
-  const moduleCounts = new Map<number, number>();
-  for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: number }>) {
-    const moduleId = Number(row.module_id);
-    const used = moduleCounts.get(moduleId) ?? 0;
-    if (used >= AI_GENERATION_PER_MODULE) continue;
-    generationChunkIds.push(row.id);
-    moduleCounts.set(moduleId, used + 1);
-    if (generationChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
-  }
-  for (const chunkId of generationChunkIds) {
-    const [chunk] = await sql`
-            SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-            FROM app.chunks c
-            JOIN app.notes n ON c.document_id = n.note_id
-            WHERE c.id = ${chunkId}::uuid
-        `;
-    if (!chunk) continue;
+  if (uncoveredChunkIds.length > 0) {
+    const uncoveredChunkMeta = await sql`
+          SELECT c.id, COALESCE(n.canvas_module_id, -1) AS module_id
+          FROM app.chunks c
+          JOIN app.notes n ON c.document_id = n.note_id
+          WHERE c.id = ANY(${uncoveredChunkIds}::uuid[])
+          ORDER BY random()
+      `;
 
-    const reviews = await sql`
-            SELECT qq.bloom_level, qr.was_correct
-            FROM app.quiz_reviews qr
-            JOIN app.quiz_questions qq ON qr.question_id = qq.id
-            WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-            ORDER BY qr.created_at ASC
-        `;
-    const bloomLevel = getCurrentBloomLevel(reviews);
-    const questionType = pickQuestionType(bloomLevel);
+    // split all eligible chunks into sync vs background buckets
+    const syncChunkIds: string[] = [];
+    const bgChunkIds: string[] = [];
+    const moduleCounts = new Map<number, number>();
+    for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: number }>) {
+      const moduleId = Number(row.module_id);
+      const used = moduleCounts.get(moduleId) ?? 0;
+      if (used >= AI_GENERATION_PER_MODULE) continue;
+      if (syncChunkIds.length < AI_GENERATION_SYNC_BATCH) {
+        syncChunkIds.push(row.id);
+      } else if (bgChunkIds.length + syncChunkIds.length < AI_GENERATION_BATCH_SIZE) {
+        bgChunkIds.push(row.id);
+      }
+      moduleCounts.set(moduleId, used + 1);
+      if (syncChunkIds.length + bgChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
+    }
 
-    const question = await generateQuestion(
-      userId,
-      chunk.document_id,
-      chunkId,
-      chunk.text,
-      chunk.title || "Unknown Module",
-      bloomLevel,
-      questionType,
-    );
-    if (question) generatedQuestionIds.push(question.id);
+    // sync: await these so the generated cards are available for this session
+    for (const chunkId of syncChunkIds) {
+      const [chunk] = await sql`
+              SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+              FROM app.chunks c
+              JOIN app.notes n ON c.document_id = n.note_id
+              WHERE c.id = ${chunkId}::uuid
+          `;
+      if (!chunk) continue;
+
+      const reviews = await sql`
+              SELECT qq.bloom_level, qr.was_correct
+              FROM app.quiz_reviews qr
+              JOIN app.quiz_questions qq ON qr.question_id = qq.id
+              WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+              ORDER BY qr.created_at ASC
+          `;
+      const bloomLevel = getCurrentBloomLevel(reviews);
+      const questionType = pickQuestionType(bloomLevel);
+
+      const question = await generateQuestion(
+        userId,
+        chunk.document_id,
+        chunkId,
+        chunk.text,
+        chunk.title || "Unknown Module",
+        bloomLevel,
+        questionType,
+      );
+      if (question) generatedQuestionIds.push(question.id);
+    }
+
+    // background: fire-and-forget so the remaining chunks are covered for next sessions
+    if (bgChunkIds.length > 0) {
+      void (async () => {
+        for (const chunkId of bgChunkIds) {
+          try {
+            const [chunk] = await sql`
+                    SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+                    FROM app.chunks c
+                    JOIN app.notes n ON c.document_id = n.note_id
+                    WHERE c.id = ${chunkId}::uuid
+                `;
+            if (!chunk) continue;
+            const reviews = await sql`
+                    SELECT qq.bloom_level, qr.was_correct
+                    FROM app.quiz_reviews qr
+                    JOIN app.quiz_questions qq ON qr.question_id = qq.id
+                    WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+                    ORDER BY qr.created_at ASC
+                `;
+            const bloomLevel = getCurrentBloomLevel(reviews);
+            const questionType = pickQuestionType(bloomLevel);
+            await generateQuestion(
+              userId,
+              chunk.document_id,
+              chunkId,
+              chunk.text,
+              chunk.title || "Unknown Module",
+              bloomLevel,
+              questionType,
+            );
+          } catch {
+            // don't crash the background task
+          }
+        }
+      })();
+    }
   }
 
   // collect all card IDs for this session
@@ -124,6 +176,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     const newCards = await sql`
             SELECT id FROM app.quiz_cards
             WHERE question_id = ANY(${generatedQuestionIds}::uuid[])
+              AND user_id = ${userId}::uuid
         `;
     prioritizedCardIds.unshift(...newCards.map((c: any) => c.id));
   }
