@@ -8,11 +8,7 @@ import {
   KeyboardEvent,
   FormEvent,
 } from "react";
-import {
-  PaperAirplaneIcon,
-  SparklesIcon,
-  ArrowPathIcon,
-} from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { parseSseBlocks } from "@/lib/chat/sse";
 import type { LlmThinkingMode } from "@/lib/ai-config";
@@ -30,6 +26,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   thinking?: string;
+  thinkingDuration?: number; // seconds from first thinking token to first content token
   sources?: { id: string; title: string }[];
   retrieval?: {
     scopeMode: "global" | "scoped";
@@ -40,6 +37,7 @@ export interface Message {
   };
   searchContext?: SearchContextData;
   timestamp: number;
+  rating?: number | null;
 }
 
 interface ChatInterfaceProps {
@@ -96,6 +94,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const [restored, setRestored] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const thinkingStartRef = useRef<number | null>(null);
 
   // restore messages for an existing session
   useEffect(() => {
@@ -119,6 +118,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               content: string;
               sources?: { id: string; title: string }[];
               created_at?: string;
+              rating?: number | null;
             }) => ({
               id: m.id,
               role: m.role as "user" | "assistant",
@@ -127,6 +127,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               timestamp: m.created_at
                 ? new Date(m.created_at).getTime()
                 : Date.now(),
+              rating: m.rating ?? null,
             }),
           );
           setMessages([
@@ -166,20 +167,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
   }, [thinkingMode]);
 
-  const cycleThinkingMode = () => {
-    setThinkingMode((current) => {
-      if (current === "auto") return "on";
-      if (current === "on") return "off";
-      return "auto";
-    });
+  const toggleThinking = () => {
+    setThinkingMode((current) => (current === "off" ? "on" : "off"));
   };
 
-  const thinkingLabel =
-    thinkingMode === "on"
-      ? "thinking on"
-      : thinkingMode === "off"
-        ? "thinking off"
-        : "thinking auto";
+  const thinkingActive = thinkingMode !== "off";
 
   const send = async () => {
     const text = input.trim();
@@ -187,6 +179,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
     setError(null);
     setInput("");
+    thinkingStartRef.current = null;
 
     const userMsg: Message = {
       id: makeId(),
@@ -332,6 +325,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             if (frame.event === "thinking") {
               const text = typeof payload.text === "string" ? payload.text : "";
               if (!text) continue;
+              if (!thinkingStartRef.current) {
+                thinkingStartRef.current = Date.now();
+              }
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
@@ -346,10 +342,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               const token =
                 typeof payload.text === "string" ? payload.text : "";
               if (!token) continue;
+              const duration = thinkingStartRef.current
+                ? Math.round((Date.now() - thinkingStartRef.current) / 1000)
+                : undefined;
+              if (thinkingStartRef.current) thinkingStartRef.current = null;
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? { ...m, content: `${m.content}${token}` }
+                    ? {
+                        ...m,
+                        content: `${m.content}${token}`,
+                        thinkingDuration: m.thinkingDuration ?? duration,
+                      }
                     : m,
                 ),
               );
@@ -414,17 +418,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         </div>
 
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-2">
-          <div className="mb-2 flex justify-end">
-            <button
-              type="button"
-              onClick={cycleThinkingMode}
-              className="text-xs uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
-              title="Toggle LLM thinking mode"
-            >
-              {thinkingLabel}
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1.5 focus-within:border-primary-500/50 transition-colors">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -433,14 +427,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               disabled={loading}
-              className="flex-1 min-w-0 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-1.5 text-xs text-text-secondary placeholder-text-tertiary focus:outline-none focus:border-primary-500/50 disabled:opacity-50"
+              className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder-text-tertiary focus:outline-none disabled:opacity-50"
             />
+            <button
+              type="button"
+              onClick={toggleThinking}
+              className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-medium px-1.5 py-1 rounded border transition-colors ${
+                thinkingActive
+                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
+                  : "text-text-tertiary border-border-subtle hover:text-text-secondary"
+              }`}
+              title={thinkingActive ? "Thinking on" : "Thinking off"}
+            >
+              ◆ {thinkingActive ? "Thinking" : "Think"}
+            </button>
             <button
               onClick={send}
               disabled={loading || !input.trim()}
-              className="p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded transition-colors flex-shrink-0"
+              className="p-1 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-lg transition-colors flex-shrink-0"
             >
-              <PaperAirplaneIcon className="w-3.5 h-3.5" />
+              <PaperAirplaneIcon className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -451,32 +457,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   // full-page variant
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* context banner */}
-      {(noteId || noteTitle) && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border-subtle bg-subtle text-xs text-text-tertiary">
-          <SparklesIcon className="w-3.5 h-3.5 text-primary-400 flex-shrink-0" />
-          <span>{t("chat.context_label")} </span>
-          <a
-            href={`/notes/${noteId}`}
-            className="text-primary-300 hover:text-primary-200 truncate transition-colors"
-          >
-            {noteTitle || t("chat.selected_note")}
-          </a>
-          <button
-            onClick={clear}
-            className="ml-auto flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors"
-            title={t("chat.clear_conversation")}
-          >
-            <ArrowPathIcon className="w-3.5 h-3.5" />
-            <span>{t("chat.clear")}</span>
-          </button>
-        </div>
-      )}
 
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
         {messages.map((m) => (
-          <FullMessageBubble key={m.id} message={m} />
+          <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
         ))}
 
         {error && (
@@ -490,24 +475,35 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         <div ref={bottomRef} />
       </div>
 
-      {/* input bar */}
+      {/* input area */}
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-12 py-4">
         <div className="max-w-3xl mx-auto">
+          {/* context badge — shown when a note/scope is active */}
+          {(noteId || noteTitle || selectedNoteIds.length > 0 || selectedFolderIds.length > 0) && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <button
+                type="button"
+                onClick={clear}
+                className="inline-flex items-center gap-1.5 text-xs text-text-tertiary bg-surface border border-border-subtle rounded-md px-2.5 py-1 hover:border-border hover:text-text-secondary transition-colors"
+                title="Clear context and start a new conversation"
+              >
+                {noteTitle
+                  ? noteTitle
+                  : selectedNoteIds.length > 0
+                    ? `${selectedNoteIds.length} note${selectedNoteIds.length > 1 ? "s" : ""}`
+                    : "Selected folder"}
+                <span className="opacity-50 ml-0.5">×</span>
+              </button>
+            </div>
+          )}
+
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               void send();
             }}
-            className="flex items-end gap-3 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
+            className="flex items-center gap-2 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
           >
-            <button
-              type="button"
-              onClick={cycleThinkingMode}
-              className="mb-0.5 text-xs uppercase tracking-wide px-2 py-1 rounded border border-border-subtle text-text-tertiary hover:text-text-secondary hover:border-border transition-colors"
-              title="Toggle LLM thinking mode"
-            >
-              {thinkingLabel}
-            </button>
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
               value={input}
@@ -524,13 +520,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               style={{ minHeight: "24px", maxHeight: "120px" }}
             />
             <button
+              type="button"
+              onClick={toggleThinking}
+              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                thinkingActive
+                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+                  : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
+              }`}
+              title={thinkingActive ? "Thinking on — click to disable" : "Thinking off — click to enable"}
+            >
+              ◆ {thinkingActive ? "Thinking" : "Think"}
+            </button>
+            <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="flex-shrink-0 p-2 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-xl transition-colors mb-0.5"
+              className="flex-shrink-0 p-2 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-xl transition-colors"
             >
               <PaperAirplaneIcon className="w-4 h-4" />
             </button>
           </form>
+
           <p className="text-center text-xs text-text-tertiary opacity-50 mt-2">
             {t("chat.disclaimer")}
           </p>
