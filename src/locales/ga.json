@@ -718,6 +718,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} dlite",
+  "quiz.courses.generate_prompt": "Ceisteanna a ghiniúint",
   "quiz.courses.no_content": "Níl aon ábhar tráth na gceist fós. Iompórtáil nótaí ó Canvas ar dtús.",
   "quiz.courses.no_matches": "Níl aon chúrsaí comhoiriúnacha.",
   "quiz.courses.search_placeholder": "Cuardaigh topaicí...",

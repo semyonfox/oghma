@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} बाकी",
+  "quiz.courses.generate_prompt": "प्रश्न उत्पन्न करें",
   "quiz.courses.no_content": "अभी तक कोई क्विज़ सामग्री नहीं। पहले Canvas से नोट्स आयात करें।",
   "quiz.courses.no_matches": "कोई मिलान पाठ्यक्रम नहीं।",
   "quiz.courses.search_placeholder": "विषय खोजें...",

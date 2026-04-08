@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import StatsRow from "./stats-row";
@@ -20,6 +21,7 @@ export default function QuizDashboard() {
     startSession,
   } = useQuizStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const [startingSession, setStartingSession] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -46,6 +48,7 @@ export default function QuizDashboard() {
             weekAccuracy: 0,
             currentStreak: 0,
             longestStreak: 0,
+            hasContent: false,
           });
         }
         setDashboardLoading(false);
@@ -55,17 +58,30 @@ export default function QuizDashboard() {
   }, [setDashboard, setCourses, setDashboardLoading]);
 
   const startReview = async (filterType: string, filterValue?: unknown) => {
-    const res = await fetch("/api/quiz/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filterType, filterValue }),
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.cardIds && data.question) {
-      startSession(data.sessionId, data.cardIds, data.question);
+    const key = filterValue != null ? String(filterValue) : "all";
+    if (startingSession) return;
+    setStartingSession(key);
+    try {
+      const res = await fetch("/api/quiz/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filterType, filterValue }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(body.error || "Could not start quiz session. Please try again.");
+        return;
+      }
+      const data = await res.json();
+      if (data.cardIds && data.question) {
+        startSession(data.sessionId, data.cardIds, data.question);
+      }
+      router.push(`/quiz/session/${data.sessionId}`);
+    } catch {
+      toast.error("Could not start quiz session. Please check your connection.");
+    } finally {
+      setStartingSession(null);
     }
-    router.push(`/quiz/session/${data.sessionId}`);
   };
 
   if (dashboardLoading || !dashboardData) {
@@ -92,10 +108,14 @@ export default function QuizDashboard() {
         </div>
         <button
           onClick={() => startReview("all")}
-          disabled={dashboardData.dueCount === 0}
+          disabled={
+            !!startingSession ||
+            (dashboardData.dueCount === 0 &&
+              (dashboardData.totalCards > 0 || !dashboardData.hasContent))
+          }
           className="bg-secondary-500 text-white px-4 py-2 rounded-radius-lg text-sm font-semibold hover:bg-secondary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {t("Start Review")}
+          {startingSession === "all" ? t("quiz.loading") : t("Start Review")}
         </button>
       </div>
 
@@ -113,6 +133,7 @@ export default function QuizDashboard() {
           onSelectCourse={(courseId) => startReview("course", courseId)}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          loadingCourseId={startingSession !== "all" ? startingSession : null}
         />
       </div>
     </div>

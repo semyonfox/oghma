@@ -11,6 +11,7 @@ interface QuizState {
     weekAccuracy: number;
     currentStreak: number;
     longestStreak: number;
+    hasContent: boolean;
   } | null;
   courses: {
     courseId: number;
