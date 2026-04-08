@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} att repetera",
+  "quiz.courses.all_scheduled": "Alla kort schemalagda",
   "quiz.courses.generate_prompt": "Generera frågor",
   "quiz.courses.no_content": "Inget quizinnehåll ännu. Importera anteckningar från Canvas först.",
   "quiz.courses.no_matches": "Inga matchande kurser.",

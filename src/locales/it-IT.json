@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} in scadenza",
+  "quiz.courses.all_scheduled": "Tutte le schede pianificate",
   "quiz.courses.generate_prompt": "Genera domande",
   "quiz.courses.no_content": "Nessun contenuto quiz ancora. Importa prima le note da Canvas.",
   "quiz.courses.no_matches": "Nessun corso corrispondente.",
