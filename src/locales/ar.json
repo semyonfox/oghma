@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} مستحقة",
+  "quiz.courses.all_scheduled": "جميع البطاقات مجدولة",
   "quiz.courses.generate_prompt": "توليد الأسئلة",
   "quiz.courses.no_content": "لا يوجد محتوى اختبار بعد. قم باستيراد الملاحظات من Canvas أولاً.",
   "quiz.courses.no_matches": "لا توجد دورات مطابقة.",

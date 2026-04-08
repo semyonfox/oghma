@@ -156,8 +156,10 @@ export async function resolveChunkIds(
     }
     case "all": {
       const rows = await sql`
-                SELECT id FROM app.chunks
-                WHERE user_id = ${userId}::uuid
+                SELECT c.id FROM app.chunks c
+                JOIN app.notes n ON c.document_id = n.note_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND n.deleted = 0
             `;
       return rows.map((r: any) => r.id);
     }

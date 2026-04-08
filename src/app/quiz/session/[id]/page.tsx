@@ -239,15 +239,21 @@ export default function QuizSessionPage() {
   useEffect(() => {
     if (!cardIds.length) {
       fetch(`/api/quiz/sessions/${sessionId}`)
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
           if (Array.isArray(data.cardIds) && data.cardIds.length > 0) {
-            startSession(sessionId, data.cardIds, data.question ?? null);
-          } else if (data.cardIds !== undefined) {
-            // session exists but all cards answered — mark complete
+            startSession(
+              sessionId,
+              data.cardIds,
+              data.question ?? null,
+              data.currentIndex ?? 0,
+            );
+          } else {
+            // session gone, completed, or malformed — exit
             completeSession();
           }
-        });
+        })
+        .catch(() => completeSession());
     }
   }, [sessionId, cardIds.length, startSession, completeSession]);
 

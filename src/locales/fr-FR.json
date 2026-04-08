@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} dues",
+  "quiz.courses.all_scheduled": "Toutes les cartes planifiées",
   "quiz.courses.generate_prompt": "Générer des questions",
   "quiz.courses.no_content": "Pas encore de contenu de quiz. Importez d'abord des notes depuis Canvas.",
   "quiz.courses.no_matches": "Aucun cours correspondant.",
