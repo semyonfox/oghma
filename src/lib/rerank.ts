@@ -110,11 +110,9 @@ export async function rerankChunks(
       const results = await defaultRerankProvider.rerank(query, chunks, topN);
       return results as RerankResult[];
     } catch (err) {
-      console.info(
-        `Self-hosted rerank unavailable, falling back to Cohere: ${
-          err instanceof Error ? err.message : err
-        }`,
-      );
+      logger.info("self-hosted rerank unavailable, falling back to Cohere", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

@@ -4,6 +4,7 @@
 import { Metrics } from "@/lib/metrics";
 import { getCohereTimeoutMs } from "@/lib/ai-config";
 import { defaultEmbeddingProvider } from "@/lib/providers/self-hosted-embeddings";
+import logger from "@/lib/logger";
 
 const COHERE_URL = "https://api.cohere.com/v2/embed";
 const COHERE_MODEL = "embed-multilingual-v3.0";
@@ -49,11 +50,9 @@ export async function embedText(text: string): Promise<number[]> {
       return await defaultEmbeddingProvider.embedSingle(text);
     }
   } catch (err) {
-    console.info(
-      `Self-hosted embed unavailable, falling back to Cohere: ${
-        err instanceof Error ? err.message : err
-      }`,
-    );
+    logger.info("self-hosted embed unavailable, falling back to Cohere", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return embedViaCohere(text);

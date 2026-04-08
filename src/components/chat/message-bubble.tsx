@@ -158,6 +158,9 @@ const markdownComponents = {
       </code>
     );
   },
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-text-tertiary/80">{children}</em>
+  ),
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-semibold text-text">{children}</strong>
   ),
