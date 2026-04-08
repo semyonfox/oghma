@@ -1,5 +1,5 @@
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
-const DEFAULT_LLM_MAX_TOKENS = 2_048;
+const DEFAULT_LLM_MAX_TOKENS = 8_192;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 const DEFAULT_LLM_MODEL = "kimi-k2.5";
 
@@ -12,9 +12,6 @@ const LLM_MODEL_ALIASES: Record<string, string> = {
 
 export type LlmThinkingMode = "auto" | "on" | "off";
 
-interface ProviderThinkingConfig {
-  type: "enabled" | "disabled";
-}
 
 function readBoundedInt(
   value: string | undefined,
@@ -63,13 +60,13 @@ export function getLlmThinkingMode(
 
 export function buildProviderThinking(
   mode: LlmThinkingMode,
-): ProviderThinkingConfig | undefined {
+): Record<string, string> | undefined {
   if (mode === "auto") return undefined;
   return { type: mode === "on" ? "enabled" : "disabled" };
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
-  return readBoundedInt(env.LLM_MAX_TOKENS, DEFAULT_LLM_MAX_TOKENS, 128, 4_096);
+  return readBoundedInt(env.LLM_MAX_TOKENS, DEFAULT_LLM_MAX_TOKENS, 128, 32_768);
 }
 
 export function getCohereTimeoutMs(
