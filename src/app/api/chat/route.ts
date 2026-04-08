@@ -581,7 +581,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 } else if (part.type === "tool-call") {
                   controller.enqueue(
                     encoder.encode(
-                      toSseEvent("tool-call", { toolName: part.toolName, args: part.args }),
+                      toSseEvent("tool-call", { toolName: part.toolName }),
                     ),
                   );
                 }
