@@ -42,20 +42,26 @@ psql -h <endpoint> -U <user> -d <database> < database/schema.sql
 
 ### Environment Variables
 
-Set these in AWS Amplify console:
+Set these in AWS Amplify console (see `.env.example` for the full list):
 - `DATABASE_URL` - PostgreSQL connection string
 - `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET` - S3 credentials
 - `AWS_SES_REGION`, `AWS_SES_ACCESS_KEY_ID`, `AWS_SES_SECRET_ACCESS_KEY` - Email (SES)
-- `JWT_SECRET` - Generate with `openssl rand -base64 32`
+- `JWT_SECRET`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, `SERVER_ENCRYPTION_SECRET` - Generate with `openssl rand -base64 32`
 - `NEXT_PUBLIC_APP_URL` - Your domain
+- `REDIS_HOST`, `REDIS_PORT` - Redis/ElastiCache
+- `SQS_QUEUE_URL` - Canvas import job queue
+- `COHERE_API_KEY` - Embeddings + reranking
+- `LLM_API_URL`, `LLM_API_KEY` - AI chat
+- `MARKER_ASG_NAME`, `MARKER_API_URL` - PDF extraction (GPU worker)
 
 ### Deploy
 
 ```bash
-git push origin production
-```
+# Push to dev — Amplify auto-deploys to dev.oghmanotes.ie
+git push origin dev
 
-Amplify watches the `production` branch and deploys automatically.
+# To deploy to production (oghmanotes.ie), open a PR from dev → main
+```
 
 ## Common Issues
 
