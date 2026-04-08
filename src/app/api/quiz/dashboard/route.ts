@@ -44,6 +44,12 @@ export const GET = withErrorHandler(async () => {
     `;
     const streak = streakRows[0] || { current_streak: 0, longest_streak: 0 };
 
+    const [{ has_content }] = await sql`
+        SELECT EXISTS(
+            SELECT 1 FROM app.chunks WHERE user_id = ${userId}::uuid LIMIT 1
+        ) as has_content
+    `;
+
     return NextResponse.json({
         dueCount,
         totalCards,
@@ -52,5 +58,6 @@ export const GET = withErrorHandler(async () => {
         weekAccuracy,
         currentStreak: streak.current_streak,
         longestStreak: streak.longest_streak,
+        hasContent: has_content,
     });
 });
