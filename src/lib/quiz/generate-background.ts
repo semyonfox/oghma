@@ -75,7 +75,7 @@ export async function generateBatch(
 ): Promise<number> {
   let generated = 0;
 
-  for (const chunkId of chunkIds) {
+  for (const [i, chunkId] of chunkIds.entries()) {
     try {
       const [chunk] = await sql`
         SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
@@ -110,7 +110,7 @@ export async function generateBatch(
       if (question) generated++;
 
       // rate limit between LLM calls
-      if (chunkIds.indexOf(chunkId) < chunkIds.length - 1) {
+      if (i < chunkIds.length - 1) {
         await sleep(INTER_QUESTION_DELAY_MS);
       }
     } catch (err) {
