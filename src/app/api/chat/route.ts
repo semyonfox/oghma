@@ -5,6 +5,7 @@ import { isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import {
+  buildProviderThinking,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
@@ -392,16 +393,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
               const t0 = Date.now();
               let reply = "";
-              let _thinking = "";
+              const thinkingConfig = buildProviderThinking(thinkingMode);
               const result = streamText({
                 model: model!,
                 messages: chatMessages,
                 maxOutputTokens: getLlmMaxTokens(),
                 tools: { makeMDNote },
+                ...(thinkingConfig && {
+                  providerOptions: { moonshot: { thinking: thinkingConfig } },
+                }),
               });
               for await (const part of result.fullStream) {
                 if (part.type === "reasoning-delta") {
-                  _thinking += part.text;
                   controller.enqueue(
                     encoder.encode(toSseEvent("thinking", { text: part.text })),
                   );
@@ -498,11 +501,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
+    const thinkingConfig = buildProviderThinking(thinkingMode);
     const { text: reply, reasoningText } = await generateText({
       model,
       messages: chatMessages,
       maxOutputTokens: getLlmMaxTokens(),
       tools: { makeMDNote },
+      ...(thinkingConfig && {
+        providerOptions: { moonshot: { thinking: thinkingConfig } },
+      }),
     });
     void Metrics.llmLatency(Date.now() - t0);
 
