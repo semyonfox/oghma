@@ -1,11 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
-import {
-  ChevronDownIcon,
-  HandThumbUpIcon,
-  HandThumbDownIcon,
-} from "@heroicons/react/24/outline";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "./chat-interface";
@@ -177,20 +173,7 @@ const markdownComponents = {
 export const FullMessageBubble: FC<{
   message: Message;
   sessionId?: string | null;
-}> = ({ message: m, sessionId }) => {
-  const [rating, setRating] = useState<number | null>(m.rating ?? null);
-
-  const handleRating = async (value: 1 | -1) => {
-    if (!sessionId || m.id === "welcome") return;
-    const next = rating === value ? null : value;
-    setRating(next);
-    await fetch(`/api/chat/sessions/${sessionId}/messages/${m.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: next }),
-    });
-  };
-
+}> = ({ message: m }) => {
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
@@ -229,38 +212,12 @@ export const FullMessageBubble: FC<{
 
       {hasSources && <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />}
 
-      <div className="flex items-center gap-2">
-        <p className="text-xs text-text-tertiary opacity-60">
-          {new Date(m.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-        {sessionId && m.id !== "welcome" && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => void handleRating(1)}
-              className="p-0.5 transition-colors"
-              title="Helpful"
-            >
-              <HandThumbUpIcon
-                className={`w-4 h-4 ${rating === 1 ? "text-primary-400" : "text-text-tertiary opacity-60 hover:opacity-100"}`}
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleRating(-1)}
-              className="p-0.5 transition-colors"
-              title="Not helpful"
-            >
-              <HandThumbDownIcon
-                className={`w-4 h-4 ${rating === -1 ? "text-primary-400" : "text-text-tertiary opacity-60 hover:opacity-100"}`}
-              />
-            </button>
-          </div>
-        )}
-      </div>
+      <p className="text-xs text-text-tertiary opacity-60">
+        {new Date(m.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </p>
     </div>
   );
 };
