@@ -73,8 +73,9 @@ export default function QuizDashboard() {
         return;
       }
       const data = await res.json();
-      if (data.cardIds && data.question) {
-        startSession(data.sessionId, data.cardIds, data.question);
+      // always seed the store so the session page doesn't have to re-fetch on first load
+      if (data.sessionId && Array.isArray(data.cardIds)) {
+        startSession(data.sessionId, data.cardIds, data.question ?? null);
       }
       router.push(`/quiz/session/${data.sessionId}`);
     } catch {

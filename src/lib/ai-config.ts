@@ -61,8 +61,11 @@ export function getLlmThinkingMode(
 export function buildProviderThinking(
   mode: LlmThinkingMode,
 ): Record<string, string> | undefined {
-  if (mode === "auto") return undefined;
-  return { type: mode === "on" ? "enabled" : "disabled" };
+  // "auto" and "on" both enable thinking — Kimi K2.5 requires an explicit
+  // thinking config to emit reasoning_content; without it nothing appears
+  if (mode === "off") return { type: "disabled" };
+  if (mode === "on" || mode === "auto") return { type: "enabled" };
+  return undefined;
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {

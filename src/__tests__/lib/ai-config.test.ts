@@ -73,7 +73,8 @@ describe("ai-config", () => {
   });
 
   it("builds provider thinking payload from thinking mode", () => {
-    expect(buildProviderThinking("auto")).toBeUndefined();
+    // "auto" and "on" both enable thinking (Kimi K2.5 requires explicit config)
+    expect(buildProviderThinking("auto")).toEqual({ type: "enabled" });
     expect(buildProviderThinking("on")).toEqual({ type: "enabled" });
     expect(buildProviderThinking("off")).toEqual({ type: "disabled" });
   });
