@@ -217,7 +217,7 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="text-sm leading-relaxed text-text">
+      <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
         {hasContent ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {m.content}
