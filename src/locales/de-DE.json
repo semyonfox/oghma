@@ -681,6 +681,7 @@
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
   "quiz.courses.due_count": "{count} fällig",
+  "quiz.courses.generate_prompt": "Fragen generieren",
   "quiz.courses.no_content": "Noch kein Quiz-Inhalt. Importiere zuerst Notizen aus Canvas.",
   "quiz.courses.no_matches": "Keine passenden Kurse.",
   "quiz.courses.search_placeholder": "Themen suchen...",
