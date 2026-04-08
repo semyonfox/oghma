@@ -32,7 +32,7 @@
 \section{Introduction}
 %==============================================================================
 
-OghmaNotes is a web-based learning platform for students to take markdown notes, upload and extract text from PDFs, search their materials intelligently, and ask AI questions with answers backed by their own course materials (Retrieval-Augmented Generation).
+OghmaNotes is a web-based learning platform for students to take markdown notes, upload and extract text from PDFs, search their materials, and ask AI questions grounded in their own course content (Retrieval-Augmented Generation).
 
 \subsection{Purpose}
 
@@ -742,18 +742,18 @@ last\_review & timestamptz & NULL \\
 
 \textbf{Rationale:}
 \begin{itemize}
-    \item Simplified onboarding (no API key setup required)
-    \item Consistent model selection and quality control
-    \item Centralised usage monitoring and cost management
-    \item Ability to switch providers without user impact
+    \item No API key setup required for users
+    \item Consistent model selection across all users
+    \item Centralised cost monitoring and usage tracking
+    \item Providers can be swapped without any user-facing changes
 \end{itemize}
 
 \textbf{Implementation:}
 \begin{itemize}
-    \item Cohere API key configured as server environment variable for embeddings and reranking
-    \item LLM API key (Kimi K2.5) configured as server environment variable
-    \item All inference requests proxied through backend API routes
-    \item BYOK (Bring Your Own Key) planned as future optional feature
+    \item Cohere API key stored as a server environment variable for embeddings and reranking
+    \item LLM API key (Kimi K2.5) stored as a server environment variable
+    \item All inference requests go through backend API routes
+    \item BYOK (Bring Your Own Key) planned as a future optional feature
 \end{itemize}
 
 \subsection{Note Storage Architecture}
@@ -765,7 +765,7 @@ last\_review & timestamptz & NULL \\
     \item S3 scales independently from database
     \item Simpler backup and disaster recovery
     \item Better versioning and audit trail support
-    \item Natural compatibility with PWA offline storage
+    \item Works well with PWA offline storage
 \end{itemize}
 
 \subsection{UUID v7 for All IDs}
@@ -798,7 +798,7 @@ last\_review & timestamptz & NULL \\
 \textbf{Rationale:}
 \begin{itemize}
     \item Simplifies architecture (no WebSockets, CRDT, conflict resolution)
-    \item Reduces scope and time-to-market
+    \item Reduces scope and development time
     \item Sufficient for individual student use case
     \item Can be added later if needed
 \end{itemize}
@@ -855,7 +855,7 @@ The system is ready to ship when:
 
 \subsection{Phase 1: Foundation (Sep--Nov 2025)}
 
-Initial project setup and core infrastructure.
+Project setup and core infrastructure.
 
 \begin{itemize}
     \item Next.js project setup with TypeScript and Tailwind CSS
@@ -867,7 +867,7 @@ Initial project setup and core infrastructure.
 
 \subsection{Phase 2: Core Build (Dec 2025 -- Feb 2026)}
 
-Core features and deployment pipeline.
+Core features, editor, and deployment pipeline.
 
 \begin{itemize}
     \item Rich-text editor integration (Lexical)
@@ -880,7 +880,7 @@ Core features and deployment pipeline.
 
 \subsection{Phase 3: Feature Sprint (Mar 2026)}
 
-Rapid feature delivery across all modules.
+Feature delivery across all modules.
 
 \begin{itemize}
     \item Canvas import system with SQS queue and ECS Fargate worker
@@ -894,7 +894,7 @@ Rapid feature delivery across all modules.
 
 \subsection{Phase 4: Hardening (Apr 2026)}
 
-Stability, compliance, and infrastructure improvements.
+Stability, compliance, and infrastructure work.
 
 \begin{itemize}
     \item GDPR-compliant account deletion (30-day grace period)

@@ -360,6 +360,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               continue;
             }
 
+            if (frame.event === "tool-call") {
+              const toolName =
+                typeof payload.toolName === "string" ? payload.toolName : "";
+              const labels: Record<string, string> = {
+                getChunks: "Searching notes",
+                readNote: "Reading note",
+                findFolder: "Looking up folder",
+                makeMDNote: "Creating note",
+              };
+              const label = labels[toolName] ?? toolName;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: `${m.content}\n\n*${label}…*\n\n` }
+                    : m,
+                ),
+              );
+              continue;
+            }
+
             if (frame.event === "error") {
               throw new Error(
                 payload?.message || t("error.something_went_wrong"),
