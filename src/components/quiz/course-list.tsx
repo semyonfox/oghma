@@ -46,11 +46,13 @@ export default function CourseList({
         {filtered.map((course) => {
           const isLoading = loadingCourseId === String(course.courseId);
           const hasCards = course.totalCards > 0;
+          // disable when all existing cards are scheduled for the future and nothing new to generate
+          const nothingDue = hasCards && course.dueCount === 0;
           return (
             <button
               key={course.courseId}
               onClick={() => onSelectCourse(course.courseId)}
-              disabled={!!loadingCourseId}
+              disabled={!!loadingCourseId || nothingDue}
               className="glass-card-interactive rounded-radius-lg p-3 flex items-center gap-3 transition-colors text-left w-full disabled:cursor-not-allowed"
             >
               <div className="flex-1 min-w-0">
@@ -61,7 +63,9 @@ export default function CourseList({
                   {hasCards ? (
                     <>
                       <span className="text-text-tertiary">
-                        {t("quiz.courses.due_count", { count: course.dueCount })}
+                        {nothingDue
+                          ? t("quiz.courses.all_scheduled")
+                          : t("quiz.courses.due_count", { count: course.dueCount })}
                       </span>
                       <span className="text-text-tertiary">
                         {t("quiz.courses.total_count", { count: course.totalCards })}
