@@ -94,11 +94,4 @@ class SelfHostedRerankProvider implements RerankProvider {
   }
 }
 
-export function createRerankProvider(
-  apiUrl?: string,
-  apiKey?: string,
-): RerankProvider {
-  return new SelfHostedRerankProvider(apiUrl, apiKey);
-}
-
 export const defaultRerankProvider = new SelfHostedRerankProvider();
