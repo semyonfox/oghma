@@ -190,6 +190,7 @@ function QuestionView({
               wasCorrect={lastAnswer.wasCorrect}
               explanation={question.explanation}
               correctAnswer={question.correct_answer}
+              questionId={question.id}
             />
             {isLeech && (
               <p className="text-text-tertiary text-xs">
@@ -295,7 +296,10 @@ export default function QuizSessionPage() {
         return;
       }
       const data = await res.json();
-      advanceQuestion(data.question, sessionProgress);
+      advanceQuestion(data.question, {
+        ...sessionProgress,
+        answered: sessionProgress.answered + 1,
+      });
     } catch {
       completeSession();
     }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { BloomLevel } from "@/lib/quiz/types";
+import QuizMarkdown from "./quiz-markdown";
 
 interface QuestionCardProps {
   question: {
@@ -97,9 +98,9 @@ export default function QuestionCard({
       </div>
 
       {/* question text */}
-      <h2 className="text-text text-lg font-medium leading-relaxed">
-        {question.question_text}
-      </h2>
+      <div className="text-text text-base font-medium leading-relaxed">
+        <QuizMarkdown>{question.question_text}</QuizMarkdown>
+      </div>
 
       {/* MCQ / True-False options */}
       {hasOptions && (
@@ -153,7 +154,7 @@ export default function QuestionCard({
                         : "text-text-secondary"
                   }
                 >
-                  {option.text}
+                  <QuizMarkdown>{option.text}</QuizMarkdown>
                 </span>
               </button>
             );
