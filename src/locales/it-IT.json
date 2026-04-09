@@ -680,6 +680,7 @@
   "quiz.complete.score": "{correct} of {total} correct",
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
+  "quiz.courses.all_notes": "All My Notes",
   "quiz.courses.due_count": "{count} in scadenza",
   "quiz.courses.all_scheduled": "Tutte le schede pianificate",
   "quiz.courses.generate_prompt": "Genera domande",

@@ -717,6 +717,7 @@
   "quiz.complete.score": "{correct} of {total} correct",
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
+  "quiz.courses.all_notes": "All My Notes",
   "quiz.courses.due_count": "{count} dlite",
   "quiz.courses.all_scheduled": "Gach cárta sceidealaithe",
   "quiz.courses.generate_prompt": "Ceisteanna a ghiniúint",

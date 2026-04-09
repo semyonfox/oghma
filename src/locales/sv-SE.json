@@ -680,6 +680,7 @@
   "quiz.complete.score": "{correct} of {total} correct",
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
+  "quiz.courses.all_notes": "All My Notes",
   "quiz.courses.due_count": "{count} att repetera",
   "quiz.courses.all_scheduled": "Alla kort schemalagda",
   "quiz.courses.generate_prompt": "Generera frågor",
