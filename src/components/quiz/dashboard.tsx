@@ -61,28 +61,57 @@ export default function QuizDashboard() {
     const key = filterValue != null ? String(filterValue) : "all";
     if (startingSession) return;
     setStartingSession(key);
-    try {
-      const res = await fetch("/api/quiz/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filterType, filterValue }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.error || "Could not start quiz session. Please try again.");
+
+    const MAX_RETRIES = 5;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch("/api/quiz/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filterType, filterValue }),
+        });
+
+        if (res.status === 202) {
+          // questions are being generated in the background — retry after delay
+          const data = await res.json().catch(() => ({}));
+          if (attempt < MAX_RETRIES) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, (data.retryAfter ?? 3) * 1000),
+            );
+            continue;
+          }
+          toast.error(
+            "Questions are still being generated. Please try again in a moment.",
+          );
+          setStartingSession(null);
+          return;
+        }
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          toast.error(
+            body.error || "Could not start quiz session. Please try again.",
+          );
+          setStartingSession(null);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.sessionId && Array.isArray(data.cardIds)) {
+          startSession(data.sessionId, data.cardIds, data.question ?? null);
+        }
+        router.push(`/quiz/session/${data.sessionId}`);
+        return;
+      } catch {
+        toast.error(
+          "Could not start quiz session. Please check your connection.",
+        );
+        setStartingSession(null);
         return;
       }
-      const data = await res.json();
-      // always seed the store so the session page doesn't have to re-fetch on first load
-      if (data.sessionId && Array.isArray(data.cardIds)) {
-        startSession(data.sessionId, data.cardIds, data.question ?? null);
-      }
-      router.push(`/quiz/session/${data.sessionId}`);
-    } catch {
-      toast.error("Could not start quiz session. Please check your connection.");
-    } finally {
-      setStartingSession(null);
     }
+
+    setStartingSession(null);
   };
 
   if (dashboardLoading || !dashboardData) {
