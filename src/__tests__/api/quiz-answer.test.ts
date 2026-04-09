@@ -35,12 +35,24 @@ import sql from "@/database/pgsql.js";
 
 const MOCK_USER = { user_id: "user-uuid-1", email: "test@example.com" };
 const SESSION_ID = "session-uuid-1";
+const CARD_ID = "card-uuid-1";
+const CORRECT_ANSWER = "O(n log n)";
 
-// a minimal quiz_card row joined with quiz_questions (what the route SELECTs)
+// session row returned by ownership check
+const SESSION_ROW = {
+  id: SESSION_ID,
+  user_id: "user-uuid-1",
+  card_ids: [CARD_ID, "card-uuid-2"],
+  total_questions: 20,
+};
+
+// quiz_card joined with quiz_questions (route SELECTs correct_answer + question_type)
 const CARD_ROW = {
-  id: "card-uuid-1",
+  id: CARD_ID,
   user_id: "user-uuid-1",
   question_id: "question-uuid-1",
+  question_type: "mcq",
+  correct_answer: CORRECT_ANSWER,
   state: "new",
   stability: 0,
   difficulty: 0,
@@ -88,7 +100,18 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
   });
 }
 
-// wire up sequential sql return values for a successful answer submission
+/**
+ * Wire up sequential sql return values for a successful answer submission.
+ * New SQL order:
+ *   1. SELECT quiz_sessions (ownership + card_ids)
+ *   2. SELECT COUNT quiz_reviews (answeredSoFar)
+ *   3. SELECT card (with correct_answer, question_type)
+ *   4. UPDATE quiz_cards
+ *   5. INSERT quiz_reviews
+ *   6. UPDATE quiz_sessions correct_count
+ *   7. SELECT next card (only if includeNextCard)
+ *   8. SELECT session stats
+ */
 function mockSuccessfulAnswer({
   wasCorrect = true,
   includeNextCard = false,
@@ -99,25 +122,27 @@ function mockSuccessfulAnswer({
   answeredCount?: number;
 } = {}) {
   const sqlMock = sql as ReturnType<typeof vi.fn>;
-  // 1. SELECT card
+  // 1. SELECT session (ownership + membership)
+  sqlMock.mockResolvedValueOnce([SESSION_ROW]);
+  // 2. SELECT COUNT reviews (answeredSoFar = answeredCount - 1, since we add 1)
+  sqlMock.mockResolvedValueOnce([{ count: answeredCount - 1 }]);
+  // 3. SELECT card
   sqlMock.mockResolvedValueOnce([CARD_ROW]);
-  // 2. UPDATE quiz_cards
+  // 4. UPDATE quiz_cards
   sqlMock.mockResolvedValueOnce([]);
-  // 3. INSERT quiz_reviews
+  // 5. INSERT quiz_reviews
   sqlMock.mockResolvedValueOnce([]);
-  // 4. UPDATE quiz_sessions correct_count
+  // 6. UPDATE quiz_sessions correct_count
   sqlMock.mockResolvedValueOnce([]);
-  // 5. SELECT next card (only if nextCardId provided)
+  // 7. SELECT next card (only if nextCardId provided)
   if (includeNextCard) {
     sqlMock.mockResolvedValueOnce([NEXT_CARD_ROW]);
   }
-  // 6. SELECT session stats
+  // 8. SELECT session stats
   sqlMock.mockResolvedValueOnce([{
     total_questions: 20,
     correct_count: wasCorrect ? answeredCount : Math.max(0, answeredCount - 1),
   }]);
-  // 7. SELECT COUNT reviews
-  sqlMock.mockResolvedValueOnce([{ count: answeredCount }]);
 }
 
 const routeParams = { params: Promise.resolve({ id: SESSION_ID }) };
@@ -135,33 +160,58 @@ beforeEach(() => {
 describe("POST /api/quiz/sessions/[id]/answer", () => {
   it("returns 401 when not authenticated", async () => {
     (validateSession as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID });
     const res = await POST(req, routeParams);
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when cardId is missing", async () => {
-    const req = makeRequest({ wasCorrect: true });
+    const req = makeRequest({ userAnswer: "something" });
     const res = await POST(req, routeParams);
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when wasCorrect is missing", async () => {
-    const req = makeRequest({ cardId: "card-uuid-1" });
+  it("returns 404 when session does not belong to user", async () => {
+    (sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // session not found
+    const req = makeRequest({ cardId: CARD_ID });
     const res = await POST(req, routeParams);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when card does not belong to this session", async () => {
+    const sqlMock = sql as ReturnType<typeof vi.fn>;
+    // session exists but card_ids does not include our cardId
+    sqlMock.mockResolvedValueOnce([{ ...SESSION_ROW, card_ids: ["other-card-uuid"] }]);
+    const req = makeRequest({ cardId: CARD_ID });
+    const res = await POST(req, routeParams);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 409 when session is already fully answered", async () => {
+    const sqlMock = sql as ReturnType<typeof vi.fn>;
+    // session with total_questions: 5
+    sqlMock.mockResolvedValueOnce([{ ...SESSION_ROW, total_questions: 5 }]);
+    // answeredSoFar = 5 (>= total_questions)
+    sqlMock.mockResolvedValueOnce([{ count: 5 }]);
+    const req = makeRequest({ cardId: CARD_ID });
+    const res = await POST(req, routeParams);
+    expect(res.status).toBe(409);
   });
 
   it("returns 404 when card does not exist for user", async () => {
-    (sql as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]); // no card found
-    const req = makeRequest({ cardId: "nonexistent", wasCorrect: true });
+    const sqlMock = sql as ReturnType<typeof vi.fn>;
+    sqlMock.mockResolvedValueOnce([SESSION_ROW]); // session found
+    sqlMock.mockResolvedValueOnce([{ count: 0 }]); // no prior answers
+    sqlMock.mockResolvedValueOnce([]); // card not found
+    const req = makeRequest({ cardId: CARD_ID });
     const res = await POST(req, routeParams);
     expect(res.status).toBe(404);
   });
 
   it("returns 200 with success:true on correct answer", async () => {
     mockSuccessfulAnswer({ wasCorrect: true });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    // userAnswer matches CARD_ROW.correct_answer → wasCorrect computed as true
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     const res = await POST(req, routeParams);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -170,24 +220,35 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
 
   it("returns 200 with success:true on incorrect answer", async () => {
     mockSuccessfulAnswer({ wasCorrect: false, answeredCount: 5 });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: false });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: "wrong answer" });
     const res = await POST(req, routeParams);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
   });
 
-  it("updates card via DB (UPDATE is called)", async () => {
+  it("computes wasCorrect server-side — ignores client-supplied value", async () => {
+    mockSuccessfulAnswer({ wasCorrect: false, answeredCount: 3 });
+    // client claims wasCorrect: true, but userAnswer does not match correct_answer
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: "wrong", wasCorrect: true });
+    const res = await POST(req, routeParams);
+    expect(res.status).toBe(200);
+    // sessionProgress.correct should reflect server-computed value (wasCorrect=false → lower correct count)
+    const body = await res.json();
+    expect(body.sessionProgress.correct).toBe(2); // Math.max(0, answeredCount - 1) = 2
+  });
+
+  it("updates card via DB (multiple SQL calls)", async () => {
     mockSuccessfulAnswer({ wasCorrect: true });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     await POST(req, routeParams);
-    // sql is called at least 4 times: SELECT card, UPDATE card, INSERT review, UPDATE session
-    expect((sql as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(4);
+    // at minimum: session, count, card, UPDATE card, INSERT review, UPDATE session, stats
+    expect((sql as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(7);
   });
 
   it("returns sessionProgress with answered count", async () => {
     mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 5 });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     const res = await POST(req, routeParams);
     const body = await res.json();
     expect(body.sessionProgress).toBeDefined();
@@ -198,8 +259,8 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
   it("returns nextQuestion when nextCardId is provided", async () => {
     mockSuccessfulAnswer({ wasCorrect: true, includeNextCard: true });
     const req = makeRequest({
-      cardId: "card-uuid-1",
-      wasCorrect: true,
+      cardId: CARD_ID,
+      userAnswer: CORRECT_ANSWER,
       nextCardId: "card-uuid-2",
     });
     const res = await POST(req, routeParams);
@@ -213,7 +274,7 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
 
   it("returns nextQuestion:null when no nextCardId is given", async () => {
     mockSuccessfulAnswer({ wasCorrect: true });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     const res = await POST(req, routeParams);
     const body = await res.json();
     expect(body.nextQuestion).toBeNull();
@@ -223,7 +284,7 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
     mockSuccessfulAnswer({ wasCorrect: true });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     await POST(req, routeParams);
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
@@ -231,27 +292,32 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
 
   it("triggers fatigue warning after 5+ answers with >40% wrong", async () => {
     const sqlMock = sql as ReturnType<typeof vi.fn>;
-    // card SELECT
+    // 1. session
+    sqlMock.mockResolvedValueOnce([SESSION_ROW]);
+    // 2. answeredSoFar = 6 (this will be the 7th answer; answered = 7)
+    // actually: answeredSoFar = 6 → answered = 7, but let's use 5 → 6
+    // 6 answered, 3 correct = 3 wrong, 50% > 40% → fatigueWarning
+    sqlMock.mockResolvedValueOnce([{ count: 5 }]); // answeredSoFar
+    // 3. card
     sqlMock.mockResolvedValueOnce([CARD_ROW]);
-    // UPDATE card, INSERT review, UPDATE session
+    // 4-6. UPDATE card, INSERT review, UPDATE session
     sqlMock.mockResolvedValueOnce([]);
     sqlMock.mockResolvedValueOnce([]);
     sqlMock.mockResolvedValueOnce([]);
-    // session stats: 3 correct out of 6 answered = 50% wrong > 40% threshold
+    // 7. session stats: 3 correct out of 6 answered = 50% wrong > 40% threshold
     sqlMock.mockResolvedValueOnce([{ total_questions: 20, correct_count: 3 }]);
-    // review count
-    sqlMock.mockResolvedValueOnce([{ count: 6 }]);
 
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: false });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: "wrong answer" });
     const res = await POST(req, routeParams);
     const body = await res.json();
     expect(body.fatigueWarning).toBe(true);
   });
 
   it("does not trigger fatigue warning when accuracy is acceptable", async () => {
-    // 4 answered, 3 correct = 25% wrong, under 40% threshold
+    // 4 correct out of 4 answered = 0% wrong, under 40% threshold
+    // but answered <= 4, so fatigueWarning is also suppressed by the > 4 guard
     mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 4 });
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: true });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     const res = await POST(req, routeParams);
     const body = await res.json();
     expect(body.fatigueWarning).toBe(false);
@@ -260,14 +326,20 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
   it("reports isLeech when card lapses reach the threshold (4)", async () => {
     const lapsedCard = { ...CARD_ROW, lapses: 4 };
     const sqlMock = sql as ReturnType<typeof vi.fn>;
+    // 1. session
+    sqlMock.mockResolvedValueOnce([SESSION_ROW]);
+    // 2. answeredSoFar
+    sqlMock.mockResolvedValueOnce([{ count: 2 }]);
+    // 3. lapsed card
     sqlMock.mockResolvedValueOnce([lapsedCard]);
+    // 4-6. UPDATE card, INSERT review, UPDATE session
     sqlMock.mockResolvedValueOnce([]);
     sqlMock.mockResolvedValueOnce([]);
     sqlMock.mockResolvedValueOnce([]);
+    // 7. session stats
     sqlMock.mockResolvedValueOnce([{ total_questions: 20, correct_count: 2 }]);
-    sqlMock.mockResolvedValueOnce([{ count: 3 }]);
 
-    const req = makeRequest({ cardId: "card-uuid-1", wasCorrect: false });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: "wrong" });
     const res = await POST(req, routeParams);
     const body = await res.json();
     expect(body.isLeech).toBe(true);

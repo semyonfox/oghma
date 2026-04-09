@@ -49,7 +49,7 @@ export function selectCards(
     retentionCount -= reduceFromRetention;
     const reduceFromNew = Math.min(overflow - reduceFromRetention, newCount);
     newCount -= reduceFromNew;
-    dueCount -= overflow - reduceFromRetention - reduceFromNew;
+    dueCount = Math.max(0, dueCount - (overflow - reduceFromRetention - reduceFromNew));
     total = dueCount + newCount + retentionCount;
   }
 
@@ -136,10 +136,13 @@ export async function resolveChunkIds(
     }
     case "chat_session": {
       const sessionId = filterValue as string;
+      // join through chat_sessions to enforce ownership (C3)
       const messages = await sql`
-                SELECT sources FROM app.chat_messages
-                WHERE session_id = ${sessionId}::uuid
-                  AND sources IS NOT NULL
+                SELECT cm.sources FROM app.chat_messages cm
+                JOIN app.chat_sessions cs ON cs.id = cm.session_id
+                WHERE cm.session_id = ${sessionId}::uuid
+                  AND cm.sources IS NOT NULL
+                  AND cs.user_id = ${userId}::uuid
             `;
       const noteIds = new Set<string>();
       for (const msg of messages) {

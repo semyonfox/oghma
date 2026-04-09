@@ -84,9 +84,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             // clean S3 objects before removing DB rows (best-effort)
             const storage = getStorageProvider();
             const s3Rows = await sql`
-                SELECT s3_key FROM app.notes WHERE note_id = ${id}::uuid AND s3_key IS NOT NULL
+                SELECT s3_key FROM app.notes WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid AND s3_key IS NOT NULL
                 UNION ALL
-                SELECT s3_key FROM app.attachments WHERE note_id = ${id}::uuid AND s3_key IS NOT NULL
+                SELECT s3_key FROM app.attachments WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid AND s3_key IS NOT NULL
             `;
             await Promise.all(s3Rows.map(async (r: { s3_key: string }) => {
                 try { await storage.deleteObject(r.s3_key); }
@@ -94,8 +94,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             }));
 
             // clean up embeddings and chunks for this note
-            await sql`DELETE FROM app.embeddings WHERE chunk_id IN (SELECT id FROM app.chunks WHERE document_id = ${id}::uuid)`;
-            await sql`DELETE FROM app.chunks WHERE document_id = ${id}::uuid`;
+            await sql`DELETE FROM app.embeddings WHERE chunk_id IN (SELECT id FROM app.chunks WHERE document_id = ${id}::uuid AND user_id = ${user.user_id}::uuid)`;
+            await sql`DELETE FROM app.chunks WHERE document_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;
 
             await sql`DELETE FROM app.pdf_annotations WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;
             await sql`DELETE FROM app.attachments WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid`;

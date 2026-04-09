@@ -41,6 +41,7 @@ interface QuizState {
     cardIds: string[],
     question: any,
     currentIndex?: number,
+    correctCount?: number,
   ) => void;
   setCurrentQuestion: (question: any) => void;
   advanceQuestion: (
@@ -69,13 +70,13 @@ const useQuizStore = create<QuizState>((set) => ({
   setDashboard: (data) => set({ dashboardData: data }),
   setCourses: (courses) => set({ courses }),
   setDashboardLoading: (loading) => set({ dashboardLoading: loading }),
-  startSession: (sessionId, cardIds, question, currentIndex = 0) =>
+  startSession: (sessionId, cardIds, question, currentIndex = 0, correctCount = 0) =>
     set({
       sessionId,
       cardIds,
       currentIndex,
       currentQuestion: question,
-      sessionProgress: { answered: currentIndex, total: cardIds.length, correct: 0 },
+      sessionProgress: { answered: currentIndex, total: cardIds.length, correct: correctCount },
       fatigueWarning: false,
       sessionStartTime: Date.now(),
       sessionEndTime: 0,

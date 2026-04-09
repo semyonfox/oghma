@@ -21,6 +21,12 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "s3Key is required");
   }
 
+  // enforce that the s3Key belongs to this user's upload prefix (I3)
+  const expectedPrefix = `vault-uploads/${user.user_id}/`;
+  if (!s3Key.startsWith(expectedPrefix)) {
+    throw new ApiError(403, "s3Key does not belong to your upload session");
+  }
+
   // cancel any existing active vault jobs for this user
   const job = await sql.begin(async (tx: any) => {
     await tx`

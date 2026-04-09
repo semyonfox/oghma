@@ -247,6 +247,7 @@ export default function QuizSessionPage() {
               data.cardIds,
               data.question ?? null,
               data.currentIndex ?? 0,
+              data.correct_count ?? 0,
             );
           } else {
             // session gone, completed, or malformed — exit

@@ -112,7 +112,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     // exclude note_ids the client already has from keyword/local results
     const excludeParam = url.searchParams.get("exclude") || "";
     const excludeIds = excludeParam
-      ? excludeParam.split(",").filter(Boolean)
+      ? excludeParam.split(",").filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim()))
       : [];
 
     try {
