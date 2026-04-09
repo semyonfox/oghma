@@ -131,10 +131,22 @@ export default function QuizDashboard() {
       <div className="mt-6">
         <CourseList
           courses={courses}
-          onSelectCourse={(courseId) => startReview("course", courseId)}
+          onSelectCourse={(courseId) => {
+            if (courseId === 0) startReview("all");
+            else startReview("course", courseId);
+          }}
+          allNotesStats={
+            dashboardData.totalCards > 0
+              ? {
+                  totalCards: dashboardData.totalCards,
+                  dueCount: dashboardData.dueCount,
+                  mastery: dashboardData.mastery,
+                }
+              : null
+          }
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          loadingCourseId={startingSession !== "all" ? startingSession : null}
+          loadingCourseId={startingSession}
         />
       </div>
     </div>
