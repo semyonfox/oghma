@@ -34,10 +34,12 @@ export const GET = withErrorHandler(async (_req: NextRequest, { params }: { para
         }
 
         const messages = await sql`
-            SELECT id, role, content, sources, created_at
-            FROM app.chat_messages
-            WHERE session_id = ${id}::uuid
-            ORDER BY created_at
+            SELECT m.id, m.role, m.content, m.sources, m.created_at
+            FROM app.chat_messages m
+            JOIN app.chat_sessions s ON s.id = m.session_id
+            WHERE m.session_id = ${id}::uuid
+              AND s.user_id = ${user.user_id}::uuid
+            ORDER BY m.created_at
         `;
 
         return NextResponse.json({ session: sessions[0], messages });

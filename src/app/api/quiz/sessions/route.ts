@@ -96,35 +96,39 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       if (syncChunkIds.length + bgChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
     }
 
-    // sync: await these so the generated cards are available for this session
-    for (const chunkId of syncChunkIds) {
-      const [chunk] = await sql`
-              SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-              FROM app.chunks c
-              JOIN app.notes n ON c.document_id = n.note_id
-              WHERE c.id = ${chunkId}::uuid
-          `;
-      if (!chunk) continue;
+    // sync: run all in parallel so total time ~= slowest single call, not sum of all
+    const syncResults = await Promise.all(
+      syncChunkIds.map(async (chunkId) => {
+        const [chunk] = await sql`
+                SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+                FROM app.chunks c
+                JOIN app.notes n ON c.document_id = n.note_id
+                WHERE c.id = ${chunkId}::uuid
+            `;
+        if (!chunk) return null;
 
-      const reviews = await sql`
-              SELECT qq.bloom_level, qr.was_correct
-              FROM app.quiz_reviews qr
-              JOIN app.quiz_questions qq ON qr.question_id = qq.id
-              WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-              ORDER BY qr.created_at ASC
-          `;
-      const bloomLevel = getCurrentBloomLevel(reviews);
-      const questionType = pickQuestionType(bloomLevel);
+        const reviews = await sql`
+                SELECT qq.bloom_level, qr.was_correct
+                FROM app.quiz_reviews qr
+                JOIN app.quiz_questions qq ON qr.question_id = qq.id
+                WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+                ORDER BY qr.created_at ASC
+            `;
+        const bloomLevel = getCurrentBloomLevel(reviews);
+        const questionType = pickQuestionType(bloomLevel);
 
-      const question = await generateQuestion(
-        userId,
-        chunk.document_id,
-        chunkId,
-        chunk.text,
-        chunk.title || "Unknown Module",
-        bloomLevel,
-        questionType,
-      );
+        return generateQuestion(
+          userId,
+          chunk.document_id,
+          chunkId,
+          chunk.text,
+          chunk.title || "Unknown Module",
+          bloomLevel,
+          questionType,
+        );
+      }),
+    );
+    for (const question of syncResults) {
       if (question) generatedQuestionIds.push(question.id);
     }
 

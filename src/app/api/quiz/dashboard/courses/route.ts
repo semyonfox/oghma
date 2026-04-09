@@ -29,7 +29,7 @@ export const GET = withErrorHandler(async () => {
             COUNT(DISTINCT qc.id) FILTER (WHERE qc.state = 'review' AND qc.stability > 7)::int as mastered_count
         FROM app.notes n
         LEFT JOIN app.quiz_questions qq ON qq.note_id = n.note_id AND qq.user_id = ${userId}::uuid
-        LEFT JOIN app.quiz_cards qc ON qc.question_id = qq.id
+        LEFT JOIN app.quiz_cards qc ON qc.question_id = qq.id AND qc.user_id = ${userId}::uuid
         WHERE n.user_id = ${userId}::uuid
           AND n.canvas_course_id IS NOT NULL
           AND n.deleted = 0

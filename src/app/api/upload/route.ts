@@ -177,7 +177,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (createdNewNote) {
     try {
-      await sql`UPDATE app.notes SET s3_key = ${storagePath}, updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+      await sql`UPDATE app.notes SET s3_key = ${storagePath}, updated_at = NOW() WHERE note_id = ${noteId}::uuid AND user_id = ${session.user_id}::uuid`;
     } catch (updateError) {
       logger.warn("failed to update note with s3_key", { error: updateError });
     }
