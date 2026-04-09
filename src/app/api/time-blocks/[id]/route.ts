@@ -21,6 +21,17 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
     pomodoroCount = Math.max(1, Math.ceil(durationMins / 30));
   }
 
+  // verify new assignment_id belongs to the caller before linking (I3)
+  if (assignment_id) {
+    const [owned] = await sql`
+      SELECT 1 FROM app.assignments
+      WHERE id = ${assignment_id}::uuid AND user_id = ${user.user_id}::uuid
+    `;
+    if (!owned) {
+      return tracedError('assignment_id does not belong to you', 403);
+    }
+  }
+
   const result = await sql`
     UPDATE app.time_blocks SET
       starts_at = COALESCE(${starts_at ?? null}, starts_at),

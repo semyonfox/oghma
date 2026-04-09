@@ -121,6 +121,20 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     RETURNING note_id
   `;
 
+  // verify targetParentId belongs to the target user before placing the clone
+  if (targetParentId) {
+    const parentCheck = await sql`
+      SELECT note_id FROM app.notes
+      WHERE note_id = ${targetParentId}::uuid
+        AND user_id = ${targetUserId}::uuid
+        AND is_folder = true
+        AND deleted = 0 AND deleted_at IS NULL
+    `;
+    if (!parentCheck.length) {
+      throw new ApiError(400, 'targetParentId is not a valid folder for the target user');
+    }
+  }
+
   // Add clone to target user's tree
   await addNoteToTree(targetUserId, cloned[0].note_id, targetParentId || null);
 
