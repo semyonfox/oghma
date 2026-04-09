@@ -7,8 +7,7 @@ import {
   getSessionCandidates,
   selectCards,
 } from "@/lib/quiz/select";
-import { generateQuestion } from "@/lib/quiz/generate";
-import { getCurrentBloomLevel, pickQuestionType } from "@/lib/quiz/bloom";
+import { generateBatch } from "@/lib/quiz/generate-background";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
@@ -20,9 +19,8 @@ import {
 } from "@/lib/validations/schemas";
 
 // generation limits — all generation is background-only (never blocks the response)
-const AI_GENERATION_PER_MODULE = 5;   // max questions generated per module per trigger
-const AI_GENERATION_BATCH_SIZE = 25;  // upper bound for total background pass
-const BACKGROUND_PARALLEL = 5;       // how many LLM calls run in parallel within after()
+const AI_GENERATION_PER_MODULE = 5;  // max questions generated per module per trigger
+const AI_GENERATION_BATCH_SIZE = 25; // upper bound for total background pass
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -86,77 +84,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     if (bgChunkIds.length > 0) {
-      after(async () => {
-        // first batch runs in parallel for faster initial coverage
-        const parallel = bgChunkIds.slice(0, BACKGROUND_PARALLEL);
-        const sequential = bgChunkIds.slice(BACKGROUND_PARALLEL);
-
-        await Promise.allSettled(
-          parallel.map(async (chunkId) => {
-            try {
-              const [chunk] = await sql`
-                      SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-                      FROM app.chunks c
-                      JOIN app.notes n ON c.document_id = n.note_id
-                      WHERE c.id = ${chunkId}::uuid
-                  `;
-              if (!chunk) return;
-              const reviews = await sql`
-                      SELECT qq.bloom_level, qr.was_correct
-                      FROM app.quiz_reviews qr
-                      JOIN app.quiz_questions qq ON qr.question_id = qq.id
-                      WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-                      ORDER BY qr.created_at ASC
-                  `;
-              const bloomLevel = getCurrentBloomLevel(reviews);
-              const questionType = pickQuestionType(bloomLevel);
-              await generateQuestion(
-                userId,
-                chunk.document_id,
-                chunkId,
-                chunk.text,
-                chunk.title || "Unknown Module",
-                bloomLevel,
-                questionType,
-              );
-            } catch {
-              // don't crash the background task
-            }
-          }),
-        );
-
-        for (const chunkId of sequential) {
-          try {
-            const [chunk] = await sql`
-                    SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-                    FROM app.chunks c
-                    JOIN app.notes n ON c.document_id = n.note_id
-                    WHERE c.id = ${chunkId}::uuid
-                `;
-            if (!chunk) continue;
-            const reviews = await sql`
-                    SELECT qq.bloom_level, qr.was_correct
-                    FROM app.quiz_reviews qr
-                    JOIN app.quiz_questions qq ON qr.question_id = qq.id
-                    WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-                    ORDER BY qr.created_at ASC
-                `;
-            const bloomLevel = getCurrentBloomLevel(reviews);
-            const questionType = pickQuestionType(bloomLevel);
-            await generateQuestion(
-              userId,
-              chunk.document_id,
-              chunkId,
-              chunk.text,
-              chunk.title || "Unknown Module",
-              bloomLevel,
-              questionType,
-            );
-          } catch {
-            // don't crash the background task
-          }
-        }
-      });
+      after(() => generateBatch(userId, bgChunkIds));
     }
   }
 

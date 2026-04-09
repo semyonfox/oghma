@@ -4,6 +4,7 @@ import ThemeProvider from "@/components/providers/ThemeProvider";
 import CanvasIntegration from "@/components/CanvasIntegration";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 // Import react-pdf styles globally so they're available for all PDF viewers
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
