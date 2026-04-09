@@ -183,9 +183,21 @@ async function createNote(userId, title, parentId, opts = {}) {
   const s3Key = opts.s3Key ?? null;
   const isFolder = opts.isFolder ?? false;
   const content = opts.content ?? "";
+  const canvasCourseId = opts.canvasCourseId ?? null;
+  const canvasModuleId = opts.canvasModuleId ?? null;
+  const canvasAssignmentId = opts.canvasAssignmentId ?? null;
+  const canvasAcademicYear = opts.canvasAcademicYear ?? null;
   await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder}, 0, NOW(), NOW())
+    INSERT INTO app.notes (
+      note_id, user_id, title, content, s3_key, is_folder, deleted,
+      canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
+      created_at, updated_at
+    )
+    VALUES (
+      ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder}, 0,
+      ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear},
+      NOW(), NOW()
+    )
   `;
   await addNoteToTree(userId, noteId, parentId ?? null);
   return noteId;
@@ -205,8 +217,21 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
       AND t.parent_id = ${parentId}::uuid
     LIMIT 1
   `;
-  if (existing.length > 0)
-    return { noteId: existing[0].note_id, created: false };
+  if (existing.length > 0) {
+    const noteId = existing[0].note_id;
+    // backfill canvas metadata on re-import if not already set
+    if (opts.canvasCourseId != null) {
+      await sql`
+        UPDATE app.notes
+        SET canvas_course_id    = COALESCE(canvas_course_id,    ${opts.canvasCourseId}),
+            canvas_module_id    = COALESCE(canvas_module_id,    ${opts.canvasModuleId ?? null}),
+            canvas_assignment_id = COALESCE(canvas_assignment_id, ${opts.canvasAssignmentId ?? null}),
+            updated_at          = NOW()
+        WHERE note_id = ${noteId}::uuid AND canvas_course_id IS NULL
+      `;
+    }
+    return { noteId, created: false };
+  }
   try {
     const noteId = await createNote(userId, title, parentId, opts);
     return { noteId, created: true };
@@ -288,7 +313,10 @@ async function processRagPipeline(
   buffer,
   ragOpts,
 ) {
-  const { filename, mimeType, s3Key = null, attempt = 0, jobId } = ragOpts;
+  const {
+    filename, mimeType, s3Key = null, attempt = 0, jobId,
+    canvasCourseId = null, canvasModuleId = null, canvasAssignmentId = null,
+  } = ragOpts;
   try {
     const extractionStart = Date.now();
     const extraction = await ocrLimiter(() =>
@@ -374,7 +402,7 @@ async function processRagPipeline(
       userId,
       mdTitle,
       parentFolderId,
-      { content: rawText },
+      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId },
     );
     const storage = getStorageProvider();
     const markerAssets = await persistMarkerAssetsForNote({
@@ -527,11 +555,23 @@ async function _runFileImport(importRecordId, file, opts) {
   await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
   await setImportStatus(importRecordId, "processing");
 
+  // resolve canvas metadata: module files have moduleId set; assignment files do not,
+  // so look up canvas_assignment_id from the parent assignment folder
+  const canvasCourseId = courseId ? Number(courseId) : null;
+  const canvasModuleId = moduleId ?? null;
+  let canvasAssignmentId = null;
+  if (!moduleId && parentFolderId) {
+    const [parentFolder] = await sql`
+      SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${parentFolderId}::uuid LIMIT 1
+    `;
+    canvasAssignmentId = parentFolder?.canvas_assignment_id ?? null;
+  }
+
   const { noteId } = await findOrCreateNote(
     userId,
     file.display_name,
     parentFolderId,
-    { s3Key },
+    { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
   );
 
   // create attachment record so the upload GET handler can verify ownership
@@ -554,6 +594,9 @@ async function _runFileImport(importRecordId, file, opts) {
       mimeType: resolvedMimeType,
       s3Key,
       jobId: opts.jobId,
+      canvasCourseId,
+      canvasModuleId,
+      canvasAssignmentId,
     },
   );
   const ragElapsedMs = Date.now() - ragStart;
