@@ -35,7 +35,7 @@ export async function resolveSession(
       WHERE id = ${requestedSessionId}::uuid AND user_id = ${userId}::uuid
     `;
     if (rows.length > 0) {
-      await sql`UPDATE app.chat_sessions SET updated_at = NOW() WHERE id = ${requestedSessionId}::uuid`;
+      await sql`UPDATE app.chat_sessions SET updated_at = NOW() WHERE id = ${requestedSessionId}::uuid AND user_id = ${userId}::uuid`;
       return requestedSessionId;
     }
   }

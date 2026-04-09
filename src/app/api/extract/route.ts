@@ -134,6 +134,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, "url and documentId are required");
   if (!isAllowedUrl(url)) throw new ApiError(400, "Invalid or disallowed URL");
 
+  // verify documentId belongs to the authenticated user before extraction
+  const [ownedNote] = await sql`
+    SELECT 1 FROM app.notes
+    WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
+    LIMIT 1
+  `;
+  if (!ownedNote) throw new ApiError(404, "Note not found");
+
   const s3Key = new URL(url).pathname.replace(/^\//, "");
   const mimeType = "application/pdf";
 

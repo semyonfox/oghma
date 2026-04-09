@@ -249,6 +249,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         AND ti.parent_id IS NOT NULL
         AND n.is_folder = true
         AND n.deleted = 0
+        AND n.user_id = ${userId}::uuid
       LIMIT 5
     `;
     if ((parentRows as any[]).length > 0) {

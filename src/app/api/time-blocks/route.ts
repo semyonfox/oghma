@@ -20,7 +20,7 @@ export const GET = withErrorHandler(async (request) => {
   const rows = await sql`
     SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color
     FROM app.time_blocks tb
-    LEFT JOIN app.assignments a ON a.id = tb.assignment_id
+    LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${user.user_id}::uuid
     WHERE tb.user_id = ${user.user_id}::uuid
       AND tb.starts_at < ${end}::timestamptz
       AND tb.ends_at > ${start}::timestamptz
@@ -50,6 +50,15 @@ export const POST = withErrorHandler(async (request) => {
 
   if (durationMins <= 0) {
     throw new ApiError(400, 'End must be after start');
+  }
+
+  // verify assignment_id belongs to the caller before linking (I3)
+  if (assignment_id) {
+    const [owned] = await sql`
+      SELECT 1 FROM app.assignments
+      WHERE id = ${assignment_id}::uuid AND user_id = ${user.user_id}::uuid
+    `;
+    if (!owned) throw new ApiError(403, 'assignment_id does not belong to you');
   }
 
   // 30-min blocks (25 focus + 5 break)
