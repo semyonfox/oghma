@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -19,12 +19,10 @@ import {
   validateBody,
 } from "@/lib/validations/schemas";
 
-// per-module question generation limits
-// SYNC: how many to generate inline (blocking) — kept small to stay within gateway timeout
-// TOTAL: how many to generate per module across sync + background
-const AI_GENERATION_SYNC_BATCH = 5;  // at most 5 LLM calls per session start (~10-15s)
-const AI_GENERATION_PER_MODULE = 5;  // target 5 questions per module total
-const AI_GENERATION_BATCH_SIZE = 25; // upper bound for background pass
+// generation limits — all generation is background-only (never blocks the response)
+const AI_GENERATION_PER_MODULE = 5;   // max questions generated per module per trigger
+const AI_GENERATION_BATCH_SIZE = 25;  // upper bound for total background pass
+const BACKGROUND_PARALLEL = 5;       // how many LLM calls run in parallel within after()
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -66,10 +64,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     masteredCards,
   );
 
-  // generate questions for uncovered chunks (on-demand)
-  // split into sync (blocking, feeds this session) and background (fire-and-forget)
-  const generatedQuestionIds: string[] = [];
-
+  // schedule background generation for uncovered chunks — never blocks the response
   if (uncoveredChunkIds.length > 0) {
     const uncoveredChunkMeta = await sql`
           SELECT c.id, COALESCE(n.canvas_module_id, -1) AS module_id
@@ -79,63 +74,58 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           ORDER BY random()
       `;
 
-    // split all eligible chunks into sync vs background buckets
-    const syncChunkIds: string[] = [];
     const bgChunkIds: string[] = [];
     const moduleCounts = new Map<number, number>();
     for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: number }>) {
       const moduleId = Number(row.module_id);
       const used = moduleCounts.get(moduleId) ?? 0;
       if (used >= AI_GENERATION_PER_MODULE) continue;
-      if (syncChunkIds.length < AI_GENERATION_SYNC_BATCH) {
-        syncChunkIds.push(row.id);
-      } else if (bgChunkIds.length + syncChunkIds.length < AI_GENERATION_BATCH_SIZE) {
-        bgChunkIds.push(row.id);
-      }
+      bgChunkIds.push(row.id);
       moduleCounts.set(moduleId, used + 1);
-      if (syncChunkIds.length + bgChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
+      if (bgChunkIds.length >= AI_GENERATION_BATCH_SIZE) break;
     }
 
-    // sync: run all in parallel so total time ~= slowest single call, not sum of all
-    const syncResults = await Promise.all(
-      syncChunkIds.map(async (chunkId) => {
-        const [chunk] = await sql`
-                SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-                FROM app.chunks c
-                JOIN app.notes n ON c.document_id = n.note_id
-                WHERE c.id = ${chunkId}::uuid
-            `;
-        if (!chunk) return null;
-
-        const reviews = await sql`
-                SELECT qq.bloom_level, qr.was_correct
-                FROM app.quiz_reviews qr
-                JOIN app.quiz_questions qq ON qr.question_id = qq.id
-                WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-                ORDER BY qr.created_at ASC
-            `;
-        const bloomLevel = getCurrentBloomLevel(reviews);
-        const questionType = pickQuestionType(bloomLevel);
-
-        return generateQuestion(
-          userId,
-          chunk.document_id,
-          chunkId,
-          chunk.text,
-          chunk.title || "Unknown Module",
-          bloomLevel,
-          questionType,
-        );
-      }),
-    );
-    for (const question of syncResults) {
-      if (question) generatedQuestionIds.push(question.id);
-    }
-
-    // background: fire-and-forget so the remaining chunks are covered for next sessions
     if (bgChunkIds.length > 0) {
-      void (async () => {
-        for (const chunkId of bgChunkIds) {
+      after(async () => {
+        // first batch runs in parallel for faster initial coverage
+        const parallel = bgChunkIds.slice(0, BACKGROUND_PARALLEL);
+        const sequential = bgChunkIds.slice(BACKGROUND_PARALLEL);
+
+        await Promise.allSettled(
+          parallel.map(async (chunkId) => {
+            try {
+              const [chunk] = await sql`
+                      SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+                      FROM app.chunks c
+                      JOIN app.notes n ON c.document_id = n.note_id
+                      WHERE c.id = ${chunkId}::uuid
+                  `;
+              if (!chunk) return;
+              const reviews = await sql`
+                      SELECT qq.bloom_level, qr.was_correct
+                      FROM app.quiz_reviews qr
+                      JOIN app.quiz_questions qq ON qr.question_id = qq.id
+                      WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+                      ORDER BY qr.created_at ASC
+                  `;
+              const bloomLevel = getCurrentBloomLevel(reviews);
+              const questionType = pickQuestionType(bloomLevel);
+              await generateQuestion(
+                userId,
+                chunk.document_id,
+                chunkId,
+                chunk.text,
+                chunk.title || "Unknown Module",
+                bloomLevel,
+                questionType,
+              );
+            } catch {
+              // don't crash the background task
+            }
+          }),
+        );
+
+        for (const chunkId of sequential) {
           try {
             const [chunk] = await sql`
                     SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
@@ -166,28 +156,26 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             // don't crash the background task
           }
         }
-      })();
+      });
     }
   }
 
-  // collect all card IDs for this session
-  const prioritizedCardIds = [
-    ...selection.due.map((c) => c.id),
-    ...selection.retention.map((c) => c.id),
-  ];
-
-  if (generatedQuestionIds.length > 0) {
-    const newCards = await sql`
-            SELECT id FROM app.quiz_cards
-            WHERE question_id = ANY(${generatedQuestionIds}::uuid[])
-              AND user_id = ${userId}::uuid
-        `;
-    prioritizedCardIds.unshift(...newCards.map((c: any) => c.id));
-  }
-
-  const allCardIds = [...new Set(prioritizedCardIds)].slice(0, maxQuestions);
+  // collect existing card IDs only — no blocking LLM calls in the response path
+  const allCardIds = [
+    ...new Set([
+      ...selection.due.map((c) => c.id),
+      ...selection.retention.map((c) => c.id),
+    ]),
+  ].slice(0, maxQuestions);
 
   if (allCardIds.length === 0) {
+    // no existing cards yet — generation kicked off in background, tell client to retry
+    if (uncoveredChunkIds.length > 0) {
+      return NextResponse.json(
+        { generating: true, retryAfter: 3 },
+        { status: 202 },
+      );
+    }
     return tracedError(
       "Could not prepare quiz questions right now. Please try again in a moment.",
       503,
