@@ -680,6 +680,7 @@
   "quiz.complete.score": "{correct} of {total} correct",
   "quiz.complete.time": "Time Taken",
   "quiz.complete.title": "Session Complete",
+  "quiz.courses.all_notes": "All My Notes",
   "quiz.courses.due_count": "{count} बाकी",
   "quiz.courses.all_scheduled": "सभी कार्ड निर्धारित",
   "quiz.courses.generate_prompt": "प्रश्न उत्पन्न करें",
