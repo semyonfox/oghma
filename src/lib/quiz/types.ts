@@ -1,4 +1,4 @@
-export type QuestionType = 'mcq' | 'true_false' | 'fill_in' | 'free_response';
+export type QuestionType = 'mcq' | 'true_false' | 'fill_in';
 export type BloomLevel = 1 | 2 | 3 | 4;
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type FilterType = 'course' | 'module' | 'note' | 'search' | 'chat_session' | 'all';

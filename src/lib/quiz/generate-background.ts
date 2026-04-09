@@ -4,7 +4,8 @@ import { getCurrentBloomLevel, pickQuestionType } from "./bloom";
 import logger from "@/lib/logger";
 
 const BATCH_SIZE = 5;
-const INTER_QUESTION_DELAY_MS = 300;
+const PARALLEL = 3;
+const INTER_BATCH_DELAY_MS = 300;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -75,50 +76,76 @@ export async function generateBatch(
 ): Promise<number> {
   let generated = 0;
 
-  for (const [i, chunkId] of chunkIds.entries()) {
-    try {
-      const [chunk] = await sql`
-        SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
-        FROM app.chunks c
-        JOIN app.notes n ON c.document_id = n.note_id
-        WHERE c.id = ${chunkId}::uuid
-      `;
-      if (!chunk) continue;
+  async function generateForChunk(chunkId: string): Promise<void> {
+    const [chunk] = await sql`
+      SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
+      FROM app.chunks c
+      JOIN app.notes n ON c.document_id = n.note_id
+      WHERE c.id = ${chunkId}::uuid
+    `;
+    if (!chunk) return;
 
-      // check review history for adaptive bloom level
-      const reviews = await sql`
-        SELECT qq.bloom_level, qr.was_correct
-        FROM app.quiz_reviews qr
-        JOIN app.quiz_questions qq ON qr.question_id = qq.id
-        WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
-        ORDER BY qr.created_at ASC
-      `;
-      const bloomLevel = getCurrentBloomLevel(reviews);
-      const questionType = pickQuestionType(bloomLevel);
+    // fetch neighboring chunks (1 before, 1 after) for broader topic context
+    const neighbors = await sql`
+      WITH ordered AS (
+        SELECT id, text,
+          ROW_NUMBER() OVER (ORDER BY page_number ASC NULLS LAST, created_at ASC) AS rn
+        FROM app.chunks
+        WHERE document_id = ${chunk.document_id}::uuid
+          AND user_id = ${userId}::uuid
+      ),
+      target_rn AS (SELECT rn FROM ordered WHERE id = ${chunkId}::uuid)
+      SELECT o.text
+      FROM ordered o
+      CROSS JOIN target_rn t
+      WHERE o.rn BETWEEN t.rn - 1 AND t.rn + 1
+      ORDER BY o.rn
+    `;
+    const contextText =
+      neighbors.length > 1
+        ? neighbors.map((n: any) => n.text).join("\n\n")
+        : chunk.text;
 
-      const question = await generateQuestion(
-        userId,
-        chunk.document_id,
-        chunkId,
-        chunk.text,
-        chunk.title || "Unknown Module",
-        bloomLevel,
-        questionType,
-        chunk.canvas_course_id,
-      );
+    // check review history for adaptive bloom level
+    const reviews = await sql`
+      SELECT qq.bloom_level, qr.was_correct
+      FROM app.quiz_reviews qr
+      JOIN app.quiz_questions qq ON qr.question_id = qq.id
+      WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
+      ORDER BY qr.created_at ASC
+    `;
+    const bloomLevel = getCurrentBloomLevel(reviews);
+    const questionType = pickQuestionType(bloomLevel);
 
-      if (question) generated++;
+    const question = await generateQuestion(
+      userId,
+      chunk.document_id,
+      chunkId,
+      contextText,
+      chunk.title || "Unknown Module",
+      bloomLevel,
+      questionType,
+      chunk.canvas_course_id,
+    );
 
-      // rate limit between LLM calls
-      if (i < chunkIds.length - 1) {
-        await sleep(INTER_QUESTION_DELAY_MS);
+    if (question) generated++;
+  }
+
+  // process in parallel batches to balance throughput vs LLM rate limits
+  for (let i = 0; i < chunkIds.length; i += PARALLEL) {
+    const batch = chunkIds.slice(i, i + PARALLEL);
+    const results = await Promise.allSettled(
+      batch.map((id) => generateForChunk(id)),
+    );
+    for (const r of results) {
+      if (r.status === "rejected") {
+        logger.error("background quiz generation failed for chunk", {
+          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+        });
       }
-    } catch (err) {
-      logger.error("background quiz generation failed for chunk", {
-        chunkId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // continue with next chunk, don't fail the whole batch
+    }
+    if (i + PARALLEL < chunkIds.length) {
+      await sleep(INTER_BATCH_DELAY_MS);
     }
   }
 
@@ -153,42 +180,3 @@ export async function seedQuestionsAfterImport(
   return generateBatch(userId, uncovered);
 }
 
-/**
- * Ensure a minimum buffer of pre-generated questions exists for a user's scope.
- * Called from quiz API routes (Next.js) to keep questions ahead of the user.
- *
- * Returns immediately if buffer is sufficient. Generates more if below threshold.
- * This is meant to be called fire-and-forget (non-blocking).
- */
-export async function ensureQuestionBuffer(
-  userId: string,
-  opts?: { courseId?: number; filterChunkIds?: string[] },
-  minBuffer: number = 3,
-): Promise<void> {
-  const uncovered = await getUncoveredChunkIds(userId, {
-    chunkIds: opts?.filterChunkIds,
-    courseId: opts?.courseId,
-    limit: BATCH_SIZE,
-  });
-
-  if (uncovered.length === 0) return; // all chunks covered
-
-  // check how many unreviewed (new) cards exist
-  const [{ count }] = await sql`
-    SELECT COUNT(*)::int as count
-    FROM app.quiz_cards qc
-    WHERE qc.user_id = ${userId}::uuid
-      AND qc.state = 'new'
-  `;
-
-  if (count >= minBuffer) return; // buffer is sufficient
-
-  logger.info("quiz buffer: generating more questions", {
-    userId,
-    currentBuffer: count,
-    minBuffer,
-    generating: uncovered.length,
-  });
-
-  await generateBatch(userId, uncovered);
-}
