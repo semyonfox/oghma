@@ -238,18 +238,18 @@ OghmaNotes supports email/password registration (with SES-based email verificati
 
 The editor builds on the Notea foundation (S3-backed markdown storage), modernised and extended as described in Section~\ref{sec:pivot-1}. It uses a VSCode-inspired three-panel layout: a file tree sidebar (Obsidian-style with indent guides), a main editor pane (Lexical rich-text with CodeMirror for markdown source), and an optional split-pane PDF viewer for side-by-side study. File management covers create, rename, delete, duplicate, drag-and-drop upload, breadcrumb navigation, and a keyboard-accessible command palette.
 
-\screenshotplaceholder{Notes Editor --- File tree sidebar with split-pane editor and PDF viewer}
+\screenshot{notes-editor}{Notes Editor --- VSCode-inspired layout with Canvas course file tree and icon navigation}
 
-\screenshotplaceholder{Notes Editor --- Command palette overlay}
+\screenshot{search-modal}{Notes Editor --- Search modal with keyword and semantic results across imported notes}
 
 \subsection{Canvas LMS Integration}
 \label{sec:feat-canvas}
 
 Users enter their Canvas API token and institution URL in settings. The token is encrypted at rest and decrypted at runtime for Canvas REST API calls. Users browse their courses and pick which to import; the import runs asynchronously via SQS and an ECS Fargate worker (see Section~\ref{sec:flow-canvas}).
 
-\screenshotplaceholder{Canvas Import --- Settings page with API token configuration}
+\screenshot{canvas-settings}{Canvas Integration --- Settings page with API token configuration and connected institution}
 
-\screenshotplaceholder{Canvas Import --- Course selection and import progress}
+\screenshot{canvas-import}{Canvas Import --- Course selection with active import progress and per-course status}
 
 \subsection{Search}
 
@@ -260,13 +260,13 @@ Notes and imported documents are searchable via two complementary modes. Keyword
 
 Users ask natural-language questions about their notes and imported documents. The system embeds the query, retrieves relevant chunks via pgvector, reranks them, and streams a cited answer from the LLM. Search can be scoped to specific files or folders, sessions persist across visits, and responses can be rated with a thumbs up or down. The full pipeline is in Section~\ref{sec:flow-rag}.
 
-\screenshotplaceholder{AI Chat --- Chat interface with RAG-powered responses and context attachments}
+\screenshot{chat}{AI Chat --- RAG-powered chat with cited responses, thinking mode, and session history}
 
 \subsection{Settings}
 
 The settings page provides profile management, dark mode, language selection (13 locales), Canvas API token configuration, OAuth account linking, and full vault export. The vault export streams all notes as Markdown files in a ZIP archive, preserving the folder hierarchy, with no proprietary format lock-in.
 
-\screenshotplaceholder{Settings Page --- Profile, theme, language, and Canvas configuration}
+\screenshot{settings}{Settings Page --- Profile, dark theme, language selection, Canvas configuration, and data export}
 
 \subsection{Quiz System (Spaced Repetition)}
 \label{sec:feat-quiz}
@@ -328,11 +328,15 @@ OghmaNotes includes a flashcard quiz system using the FSRS (Free Spaced Repetiti
 
 Additional features include a Pomodoro timer with session tracking, a time-blocking calendar with Canvas assignment display and a subscribable iCal feed (authenticated via a per-user secret token stored in \texttt{app.login.calendar\_export\_token}, allowing direct subscription in any calendar client), and in-viewer PDF annotations.
 
-\screenshotplaceholder{Productivity Tools --- Pomodoro timer, time blocks, and calendar view}
+\screenshot{calendar}{Productivity Tools --- Time-blocking calendar with Canvas assignment integration and iCal subscription}
 
 \subsection{Internationalisation}
 
 OghmaNotes supports 12 languages via a custom locale framework with JSON translation files. The active locale is stored in user preferences and applied across all UI strings.
+
+\screenshot{i18n-language-dropdown}{Language Selector --- All 12 supported locales with flag emojis; Gaeilge (Irish) shown as the active language}
+
+\screenshot{i18n-notes-irish}{Notes Interface in Irish (Gaeilge) --- Navigation, folder tree, and status bar fully localised}
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -984,7 +988,7 @@ Task tracking ran through GitHub Issues and Pull Requests. The repository accumu
 
 Open issues at project close include centralising RAG pipeline constants, converting worker files to TypeScript, adding CloudWatch metrics for the embedding pipeline, and addressing remaining security advisories. An honest backlog of known technical debt.
 
-\screenshotplaceholder{GitHub Issues --- Issue tracker showing feature categorisation and resolution}
+\screenshot{github-issues}{GitHub Issues --- Feature tracking with labels for enhancement, security, infrastructure, and bug categories}
 
 \subsection{Timeline}
 
@@ -1022,13 +1026,7 @@ Most of the work happened in February and March 2026, with the RAG pipeline, Can
 
 \subsection{Semyon Fox}
 
-As technical lead, my biggest challenge was scope management. The combination of AI-assisted development and genuine ambition created a feedback loop: every feature felt achievable, so we kept adding them. The project grew from a simple notes app to a full-stack platform with RAG, Canvas integration, spaced repetition, and a GPU-backed OCR pipeline --- all within a university project timeline.
-
-The most technically demanding work was the AWS infrastructure. Debugging why Amplify's Lambda functions couldn't reach ElastiCache (VPC networking), why SQS messages weren't being consumed (IAM permissions), and why Marker's GPU instance took 15 minutes to cold-start (pip installing marker-pdf on every boot, solved by pre-baking a Docker image) each consumed entire days. These problems don't appear in tutorials or documentation --- they emerge from the specific intersection of services in your architecture.
-
-My role was more glue than solo builder. Major architectural decisions were discussed as a group, and AI-assisted development meant features that would otherwise have taken weeks could be scoped and prototyped quickly. That speed was a double-edged sword --- it made the project's ambition feel achievable but compressed the time available for the kind of documentation and interface contracts that would have made integration smoother for everyone.
-
-The key lesson from this project is that architecture decisions made under time pressure have long-lasting consequences. The BullMQ-to-SQS migration, the embedding pipeline iterations (Ollama to Cohere to self-hosted), and the monorepo collapse each cost days of rework. Building a proof-of-concept for each integration point before committing to it would have saved significant time.
+My biggest challenge was scope management. AI-assisted development made every feature feel achievable, which created a feedback loop that grew the project from a simple notes app into a full-stack platform with RAG, Canvas integration, spaced repetition, and a GPU-backed OCR pipeline within a university timeline. Acting as the integrator rather than a solo builder meant a lot of my time went into unblocking teammates, reviewing cross-boundary bugs, and keeping the CI/CD pipeline and deployment infrastructure in shape. The most demanding work by far was AWS: I went in with no meaningful cloud experience and came out having debugged VPC subnet mismatches, IAM permission gaps on SQS consumers, and a GPU instance that cold-started in 15 minutes because it was reinstalling dependencies on every boot. None of those problems appear in any tutorial; they only emerge from the specific combination of services in your architecture. The speed AI provided was genuinely useful but it compressed the time available for the interface contracts and documentation that would have made integration smoother, and the resulting technical debt landed on the whole team. The lesson I am taking forward is to prototype each integration point before committing to it, because architectural decisions made under pressure, like the BullMQ-to-SQS migration and the three embedding pipeline iterations, cost far more time to unpick than they saved.
 
 \subsection{Samuel Regan}
 
@@ -1080,19 +1078,27 @@ The key takeaway from this project was that real-world software engineering is a
 \section{AI-Assisted Development Disclosure}
 \label{sec:ai}
 
-This project used AI coding assistants throughout development, primarily Claude Code (Anthropic) with some use of OpenCode and Codex. This section describes how the team worked with these tools.
+This project used AI coding assistants throughout development, primarily Claude Code (Anthropic) with some use of OpenCode and Codex. AI produced code across many parts of the project and helped with debugging --- suggesting fixes, explaining error output, and helping navigate unfamiliar APIs. This section is an honest account of how that collaboration worked in practice and what it actually meant for our development.
 
-\subsection{How AI Was Used}
+\subsection{Scope of AI Involvement}
 
-AI was used as an implementation accelerator. Developers defined all architectural decisions, feature priorities, and design constraints; AI tools generated code against those specs, which was then reviewed, tested, and adjusted before committing. Common uses included boilerplate for repetitive patterns (API routes, database migrations, i18n translation files), working through AWS configuration issues, and UI refinement.
+AI was used as an implementation aid throughout the project. Boilerplate-heavy work --- API route scaffolding, database migrations, i18n translation files, repetitive UI patterns --- was a common target. Beyond code generation, AI assisted in debugging sessions: interpreting AWS error messages, identifying misconfigured IAM policies, and tracing SSR prerendering failures through Next.js build output.
 
-\subsection{What AI Did Not Do}
+\subsection{What That Required From Developers}
 
-AI did not make architectural decisions. Every pivot in Section~\ref{sec:pivots}, from VPC networking failures to embedding model right-sizing, was diagnosed by the developers through production logs, hardware profiling, and AWS documentation. AI generated code; humans debugged it, fixed what broke in production, and made the judgment calls that shaped the system. Diagnosing failures AI couldn't see (cloud networking, GPU memory splits, rate-limit edge cases) turned out to be the most valuable learning experience of the project.
+Using AI as a coding aid creates its own problems. Code suggestions still had to be read, understood, and verified before committing --- and in practice they frequently required correction. More significantly, AI tends to solve the immediate problem without considering the wider codebase, which accumulated technical debt that developers had to consciously identify and pay down. Integration bugs, state management inconsistencies, and misaligned abstractions were common byproducts that required hands-on diagnosis rather than further AI prompting.
+
+No architectural decision was delegated. Every pivot described in Section~\ref{sec:pivots} --- from VPC networking failures to embedding model right-sizing to the pnpm-to-npm switch --- was diagnosed by developers through production logs, hardware profiling, and documentation. AI cannot observe a cloud environment, hold context across weeks of iteration, or weigh trade-offs against deployment constraints and budget. Those judgments remained entirely human.
+
+\subsection{Learning Through Ownership}
+
+The most important consequence of this workflow was that developers could not treat AI output as a black box. Understanding code well enough to review it, debug it when it failed in production, and refactor it when it accumulated debt forced genuine engagement with every layer of the stack.
+
+AWS is the clearest example. At the start of the project, none of the team had meaningful AWS experience. AI could suggest IAM policy JSON and Amplify configuration stubs, but it could not explain \textit{why} a VPC subnet needed to be in the same availability zone as an ECS task, or why ElastiCache required a VPC peering change that then broke RDS connectivity. Working through those failures --- reading CloudWatch logs, consulting AWS documentation, and iterating on broken infrastructure --- produced a working mental model that survived into production. By the end of the project, AWS infrastructure felt navigable rather than opaque. That arc from zero familiarity to confident operation would not have happened if AI had simply produced correct configuration on the first attempt.
 
 \subsection{Reflection}
 
-AI-assisted development shifts the bottleneck from ``can I implement this?'' to ``should I implement this now?'' Shipping features quickly made scope management the hardest discipline. AI is a force multiplier for execution, but architecture, debugging, and constraint navigation are still fundamentally human work.
+AI-assisted development shifts the bottleneck from ``can I implement this?'' to ``do I understand what was just implemented?'' The discipline required is not prompt engineering --- it is critical review, technical debt management, and the willingness to dig into failures that AI cannot reach. Used that way, it accelerates execution without replacing the understanding that makes a system maintainable. The learning came from the breakage, not the generation.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 15: RESOURCES & LINKS
