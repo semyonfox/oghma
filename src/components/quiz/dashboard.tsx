@@ -74,6 +74,12 @@ export default function QuizDashboard() {
         if (res.status === 202) {
           // questions are being generated in the background — retry after delay
           const data = await res.json().catch(() => ({}));
+          if (attempt === 1) {
+            toast.info(
+              t("quiz.generating_questions"),
+              { duration: (data.retryAfter ?? 3) * 1000 * MAX_RETRIES },
+            );
+          }
           if (attempt < MAX_RETRIES) {
             await new Promise((resolve) =>
               setTimeout(resolve, (data.retryAfter ?? 3) * 1000),
@@ -81,7 +87,7 @@ export default function QuizDashboard() {
             continue;
           }
           toast.error(
-            "Questions are still being generated. Please try again in a moment.",
+            t("quiz.generating_timeout"),
           );
           setStartingSession(null);
           return;
