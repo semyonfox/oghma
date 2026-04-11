@@ -35,7 +35,7 @@ import {
   buildSystemPrompt,
   runRagPipeline,
 } from "@/lib/chat/rag-pipeline";
-import { embedText } from "@/lib/embedText";
+import { searchChatChunks } from "@/lib/chat/chunk-search";
 import {
   type ChatMessage,
   persistMessage,
@@ -424,86 +424,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
     }),
     execute: async ({ query, mode }) => {
-      type ChunkHit = {
-        noteId: string;
-        title: string;
-        chunkId: string;
-        text: string;
-        source: string;
-      };
-      const seen = new Set<string>();
-      const results: ChunkHit[] = [];
+      const results = await searchChatChunks({
+        userId,
+        query,
+        mode,
+        scopedNoteIds,
+      });
 
-      const add = (
-        noteId: string,
-        title: string,
-        chunkId: string,
-        text: string,
-        source: string,
-      ) => {
-        if (seen.has(chunkId)) return;
-        seen.add(chunkId);
-        results.push({
-          noteId,
-          title,
-          chunkId,
-          text: text.slice(0, 400),
-          source,
-        });
-      };
-
-      if (mode === "semantic" || mode === "both") {
-        try {
-          const vec = await embedText(query);
-          const vectorStr = `[${vec.join(",")}]`;
-          const scope = scopedNoteIds && scopedNoteIds.length > 0;
-          const rows: any[] = scope
-            ? await sql`
-                SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-                FROM app.embeddings e
-                JOIN app.chunks c ON c.id = e.chunk_id
-                JOIN app.notes n ON n.note_id = c.document_id
-                WHERE c.user_id = ${userId}::uuid
-                  AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-                  AND (e.embedding <=> ${vectorStr}::vector) < 0.75
-                ORDER BY e.embedding <=> ${vectorStr}::vector
-                LIMIT 10
-              `
-            : await sql`
-                SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-                FROM app.embeddings e
-                JOIN app.chunks c ON c.id = e.chunk_id
-                JOIN app.notes n ON n.note_id = c.document_id
-                WHERE c.user_id = ${userId}::uuid
-                  AND (e.embedding <=> ${vectorStr}::vector) < 0.75
-                ORDER BY e.embedding <=> ${vectorStr}::vector
-                LIMIT 10
-              `;
-          for (const r of rows)
-            add(r.note_id, r.title, r.chunk_id, r.chunk_text, "semantic");
-        } catch {
-          // embedding unavailable
-        }
-      }
-
-      if (mode === "exact" || mode === "both") {
-        const safe = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
-        const rows: any[] = await sql`
-          SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-          FROM app.chunks c
-          JOIN app.notes n ON n.note_id = c.document_id
-          WHERE c.user_id = ${userId}::uuid
-            AND n.is_folder = false
-            AND n.deleted = 0
-            AND n.deleted_at IS NULL
-            AND c.text ILIKE ${"%" + safe + "%"}
-          LIMIT 10
-        `;
-        for (const r of rows)
-          add(r.note_id, r.title, r.chunk_id, r.chunk_text, "exact");
-      }
-
-      return { results: results.slice(0, 12) };
+      return { results };
     },
   });
 
