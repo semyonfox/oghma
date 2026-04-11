@@ -12,6 +12,34 @@ const LLM_MODEL_ALIASES: Record<string, string> = {
 
 export type LlmThinkingMode = "auto" | "on" | "off";
 
+function normalizeOptionalString(
+  value: string | undefined,
+): string | undefined {
+  const trimmed = (value ?? "").trim();
+  return trimmed || undefined;
+}
+
+function normalizeLlmApiUrl(value: string | undefined): string | undefined {
+  const trimmed = normalizeOptionalString(value);
+  if (!trimmed) return undefined;
+
+  try {
+    const url = new URL(trimmed);
+    url.pathname = url.pathname.replace(/\/+$/, "");
+
+    // Moonshot official base URL includes /v1. Accept bare host and fix it.
+    if (
+      url.hostname === "api.moonshot.ai" &&
+      (!url.pathname || url.pathname === "/")
+    ) {
+      url.pathname = "/v1";
+    }
+
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+}
 
 function readBoundedInt(
   value: string | undefined,
@@ -52,6 +80,18 @@ export function getLlmModel(env: NodeJS.ProcessEnv = process.env): string {
   return normalizeLlmModel(env.LLM_MODEL);
 }
 
+export function getLlmApiUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  return normalizeLlmApiUrl(env.LLM_API_URL ?? env.MOONSHOT_API_URL);
+}
+
+export function getLlmApiKey(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  return normalizeOptionalString(env.LLM_API_KEY ?? env.MOONSHOT_API_KEY);
+}
+
 export function getLlmThinkingMode(
   env: NodeJS.ProcessEnv = process.env,
 ): LlmThinkingMode {
@@ -69,7 +109,12 @@ export function buildProviderThinking(
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
-  return readBoundedInt(env.LLM_MAX_TOKENS, DEFAULT_LLM_MAX_TOKENS, 128, 32_768);
+  return readBoundedInt(
+    env.LLM_MAX_TOKENS,
+    DEFAULT_LLM_MAX_TOKENS,
+    128,
+    32_768,
+  );
 }
 
 export function getCohereTimeoutMs(

@@ -3,6 +3,8 @@ import type { BloomLevel, QuestionType, QuizQuestion } from "./types";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
   buildProviderThinking,
+  getLlmApiKey,
+  getLlmApiUrl,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
@@ -11,8 +13,6 @@ import {
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 
-const LLM_URL = process.env.LLM_API_URL;
-const LLM_API_KEY = process.env.LLM_API_KEY;
 const MAX_CHUNK_CHARS = 4000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -98,13 +98,13 @@ Return ONLY valid JSON. Either:
 or if the content is not suitable:
 {"skip": true}
 ${
-    existingQuestions && existingQuestions.length > 0
-      ? `
+  existingQuestions && existingQuestions.length > 0
+    ? `
 IMPORTANT: Avoid generating questions similar to these existing questions for this course:
 ${existingQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 Ask about a DIFFERENT concept or aspect of the material.`
-      : ""
-  }`;
+    : ""
+}`;
 }
 
 interface ParsedQuestion {
@@ -131,7 +131,11 @@ export function isSkipSignal(raw: string): boolean {
 
 export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
   const parsed = extractJSON(raw) as any;
-  if (!parsed || !parsed.question_text?.trim() || !parsed.correct_answer?.trim()) {
+  if (
+    !parsed ||
+    !parsed.question_text?.trim() ||
+    !parsed.correct_answer?.trim()
+  ) {
     return null;
   }
   return {
@@ -143,7 +147,9 @@ export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
 }
 
 async function callLLM(prompt: string): Promise<string> {
-  if (!LLM_API_KEY || !LLM_URL) throw new Error("LLM not configured");
+  const llmApiUrl = getLlmApiUrl();
+  const llmApiKey = getLlmApiKey();
+  if (!llmApiKey || !llmApiUrl) throw new Error("LLM not configured");
 
   const thinking = buildProviderThinking(getLlmThinkingMode());
 
@@ -156,11 +162,11 @@ async function callLLM(prompt: string): Promise<string> {
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`${LLM_URL}/chat/completions`, {
+      const res = await fetch(`${llmApiUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${LLM_API_KEY}`,
+          Authorization: `Bearer ${llmApiKey}`,
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(getLlmTimeoutMs()),

@@ -1,7 +1,11 @@
 "use client";
 
 import { FC, useState } from "react";
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ClipboardDocumentIcon,
+} from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "./chat-interface";
@@ -81,7 +85,10 @@ const SourcesBlock: FC<{
         className="w-full flex items-center justify-between px-4 py-2.5 bg-surface/50 hover:bg-subtle/50 transition-colors text-left"
       >
         <span className="text-sm text-text-tertiary">
-          <span className="font-medium text-text-secondary">{count} {count === 1 ? "source" : "sources"}</span> used
+          <span className="font-medium text-text-secondary">
+            {count} {count === 1 ? "source" : "sources"}
+          </span>{" "}
+          used
         </span>
         <ChevronDownIcon
           className={`w-3 h-3 text-text-tertiary flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -128,6 +135,54 @@ export const TypingDots: FC = () => (
     ))}
   </div>
 );
+
+const CopyMessageButton: FC<{
+  content: string;
+  variant:
+    | "full-user"
+    | "full-assistant"
+    | "compact-user"
+    | "compact-assistant";
+}> = ({ content, variant }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!content.trim() || !navigator.clipboard?.writeText) return;
+
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const className =
+    variant === "full-user"
+      ? "absolute right-2 top-2 rounded-md p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
+      : variant === "full-assistant"
+        ? "absolute right-2 top-2 rounded-md p-1 text-text-tertiary hover:bg-subtle hover:text-text transition-colors"
+        : variant === "compact-user"
+          ? "absolute right-1.5 top-1.5 rounded p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
+          : "absolute right-1.5 top-1.5 rounded p-1 text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors";
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={className}
+      aria-label="Copy message"
+      title={copied ? "Copied" : "Copy message"}
+    >
+      {copied ? (
+        <CheckIcon className="w-3.5 h-3.5" />
+      ) : (
+        <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+      )}
+    </button>
+  );
+};
 
 // shared markdown renderer config
 const markdownComponents = {
@@ -177,11 +232,16 @@ export const FullMessageBubble: FC<{
   message: Message;
   sessionId?: string | null;
 }> = ({ message: m }) => {
+  const hasContent = m.content.trim().length > 0;
+
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
         <div className="max-w-lg">
-          <div className="px-4 py-3 rounded-2xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
+          <div className="relative px-4 py-3 pr-12 rounded-2xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
+            {hasContent && (
+              <CopyMessageButton content={m.content} variant="full-user" />
+            )}
             <p>{m.content}</p>
           </div>
         </div>
@@ -190,7 +250,6 @@ export const FullMessageBubble: FC<{
   }
 
   const isThinkingStreaming = !!m.thinking && !m.content.trim();
-  const hasContent = m.content.trim().length > 0;
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
@@ -203,9 +262,15 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="glass-card rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed text-text">
+      <div className="glass-card relative rounded-2xl rounded-bl-sm px-4 py-3 pr-12 text-sm leading-relaxed text-text">
+        {hasContent && (
+          <CopyMessageButton content={m.content} variant="full-assistant" />
+        )}
         {hasContent ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
             {m.content}
           </ReactMarkdown>
         ) : !m.thinking ? (
@@ -213,7 +278,9 @@ export const FullMessageBubble: FC<{
         ) : null}
       </div>
 
-      {hasSources && <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />}
+      {hasSources && (
+        <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
+      )}
 
       <p className="text-xs text-text-tertiary opacity-60">
         {new Date(m.timestamp).toLocaleTimeString([], {
@@ -230,10 +297,13 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
   message: m,
 }) => {
   const isThinkingStreaming = !!m.thinking && !m.content.trim();
+  const hasContent = m.content.trim().length > 0;
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
-    <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+    >
       <div className="max-w-[85%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
           <ThinkingBlock
@@ -244,20 +314,30 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         <div
-          className={`px-2.5 py-1.5 rounded-md text-xs leading-relaxed ${
+          className={`relative px-2.5 py-1.5 pr-8 rounded-md text-xs leading-relaxed ${
             m.role === "user"
               ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
               : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
           }`}
         >
+          {hasContent && (
+            <CopyMessageButton
+              content={m.content}
+              variant={m.role === "user" ? "compact-user" : "compact-assistant"}
+            />
+          )}
           {m.role === "assistant" ? (
-            m.content.trim() ? (
+            hasContent ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                  p: ({ children }) => (
+                    <p className="mb-1 last:mb-0">{children}</p>
+                  ),
                   code: ({ children }) => (
-                    <code className="bg-subtle px-1 rounded text-xs">{children}</code>
+                    <code className="bg-subtle px-1 rounded text-xs">
+                      {children}
+                    </code>
                   ),
                 }}
               >
