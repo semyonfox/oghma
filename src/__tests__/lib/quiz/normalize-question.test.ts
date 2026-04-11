@@ -33,7 +33,12 @@ describe("normalizeQuizOptions", () => {
     ]);
     const result = normalizeQuizOptions(raw);
     expect(result).toHaveLength(2);
-    expect(result![0]).toEqual({ text: "A", is_correct: true });
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { text: "A", is_correct: true },
+        { text: "B", is_correct: false },
+      ]),
+    );
   });
 
   it("returns null for an empty JSON array string", () => {
@@ -53,7 +58,12 @@ describe("normalizeQuizOptions", () => {
     };
     const result = normalizeQuizOptions(input);
     expect(result).toHaveLength(2);
-    expect(result![1]).toEqual({ text: "Y", is_correct: true });
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { text: "X", is_correct: false },
+        { text: "Y", is_correct: true },
+      ]),
+    );
   });
 
   it("unwraps options from a JSON string of wrapped object", () => {
@@ -96,10 +106,7 @@ describe("normalizeQuizOptions", () => {
   });
 
   it("returns null when all entries are invalid", () => {
-    const input = [
-      { text: 1, is_correct: "no" },
-      null,
-    ];
+    const input = [{ text: 1, is_correct: "no" }, null];
     expect(normalizeQuizOptions(input)).toBeNull();
   });
 
