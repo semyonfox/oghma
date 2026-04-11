@@ -52,6 +52,8 @@ interface ChatInterfaceProps {
   selectedFolderIds?: string[];
   /** Called when a new session is created server-side (id, title) */
   onSessionCreated?: (sessionId: string, title: string) => void;
+  /** Called when the user clears the current scope */
+  onClearContext?: () => void;
   /** Optional extra class on the wrapper */
   className?: string;
 }
@@ -73,6 +75,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   selectedNoteIds = [],
   selectedFolderIds = [],
   onSessionCreated,
+  onClearContext,
   className = "",
 }) => {
   const { t } = useI18n();
@@ -412,6 +415,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   };
 
   const clear = () => {
+    if (onClearContext) {
+      onClearContext();
+      return;
+    }
+
     setMessages([
       {
         id: "welcome",
@@ -477,7 +485,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   // full-page variant
   return (
     <div className={`flex flex-col h-full ${className}`}>
-
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
         {messages.map((m) => (
@@ -499,7 +506,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-12 py-4">
         <div className="max-w-3xl mx-auto">
           {/* context badge — shown when a note/scope is active */}
-          {(noteId || noteTitle || selectedNoteIds.length > 0 || selectedFolderIds.length > 0) && (
+          {(noteId ||
+            noteTitle ||
+            selectedNoteIds.length > 0 ||
+            selectedFolderIds.length > 0) && (
             <div className="flex items-center gap-2 mb-2 px-1">
               <button
                 type="button"
@@ -547,7 +557,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
               }`}
-              title={thinkingActive ? "Thinking on — click to disable" : "Thinking off — click to enable"}
+              title={
+                thinkingActive
+                  ? "Thinking on — click to disable"
+                  : "Thinking off — click to enable"
+              }
             >
               ◆ {thinkingActive ? "Thinking" : "Think"}
             </button>

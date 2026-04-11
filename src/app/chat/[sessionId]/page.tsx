@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { SparklesIcon } from "@heroicons/react/24/outline";
 
-import ChatPageClient from "./chat-page-client";
+import ChatPageClient from "../chat-page-client";
 
-export default function ChatPage() {
+export default function ChatSessionPage() {
   return (
     <Suspense
       fallback={
