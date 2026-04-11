@@ -168,6 +168,16 @@ function ChatPageInner() {
     setSelectedFolders([]);
   };
 
+  const chatInstanceKey =
+    activeId ??
+    [
+      "new",
+      paramNoteId ?? "",
+      paramFolderId ?? "",
+      selectedNotes.map((note) => note.id).join(","),
+      selectedFolders.map((folder) => folder.id).join(","),
+    ].join(":");
+
   return (
     <div className="h-screen w-screen flex bg-app-page text-text overflow-hidden">
       {/* ── icon navigation rail (48px fixed) ───────────────────────── */}
@@ -348,7 +358,7 @@ function ChatPageInner() {
 
         {/* chat — key forces a fresh component when conversation changes */}
         <ChatInterface
-          key={activeId ?? "new"}
+          key={chatInstanceKey}
           sessionId={activeId ?? undefined}
           noteId={
             selectedNotes.length === 1 && selectedFolders.length === 0

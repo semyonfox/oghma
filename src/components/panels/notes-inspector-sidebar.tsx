@@ -241,6 +241,7 @@ export default function NotesInspectorSidebar() {
             )}
             {activeFile?.fileId ? (
               <ChatInterface
+                key={activeFile.fileId}
                 compact
                 noteId={activeFile.fileId}
                 noteTitle={activeFile.title}
