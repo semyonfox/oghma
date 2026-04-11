@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildProviderThinking,
   getCohereTimeoutMs,
+  getLlmApiKey,
+  getLlmApiUrl,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
@@ -51,6 +53,24 @@ describe("ai-config", () => {
     expect(getLlmModel({ LLM_MODEL: "" } as unknown as NodeJS.ProcessEnv)).toBe(
       "kimi-k2.5",
     );
+  });
+
+  it("normalizes Moonshot API URL and supports official env aliases", () => {
+    expect(
+      getLlmApiUrl({
+        LLM_API_URL: "https://api.moonshot.ai",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("https://api.moonshot.ai/v1");
+    expect(
+      getLlmApiUrl({
+        MOONSHOT_API_URL: "https://api.moonshot.ai/v1/",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("https://api.moonshot.ai/v1");
+    expect(
+      getLlmApiKey({
+        MOONSHOT_API_KEY: " secret-key ",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("secret-key");
   });
 
   it("resolves thinking mode defaults and aliases", () => {

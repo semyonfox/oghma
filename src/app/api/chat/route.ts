@@ -6,9 +6,12 @@ import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import {
   buildProviderThinking,
+  getLlmApiKey,
+  getLlmApiUrl,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
+  getLlmTimeoutMs,
   type LlmThinkingMode,
 } from "@/lib/ai-config";
 import { toSseEvent } from "@/lib/chat/sse";
@@ -222,8 +225,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
         : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
 
-  const llmApiUrl = process.env.LLM_API_URL;
-  const llmApiKey = process.env.LLM_API_KEY;
+  const llmApiUrl = getLlmApiUrl();
+  const llmApiKey = getLlmApiKey();
+  const llmTimeoutMs = getLlmTimeoutMs();
 
   // @ai-sdk/openai-compatible uses Chat Completions API by default and
   // natively handles reasoning_content (thinking) from providers like Moonshot
@@ -231,8 +235,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     llmApiUrl && llmApiKey
       ? createOpenAICompatible({
           name: "moonshot",
-          baseURL: llmApiUrl.replace(/\/$/, ""),
+          baseURL: llmApiUrl,
           apiKey: llmApiKey,
+          fetch: (input, init) => {
+            const timeoutSignal = AbortSignal.timeout(llmTimeoutMs);
+            const signal = init?.signal
+              ? AbortSignal.any([init.signal, timeoutSignal])
+              : timeoutSignal;
+
+            return fetch(input, { ...init, signal });
+          },
         })
       : null;
 
@@ -412,14 +424,32 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
     }),
     execute: async ({ query, mode }) => {
-      type ChunkHit = { noteId: string; title: string; chunkId: string; text: string; source: string };
+      type ChunkHit = {
+        noteId: string;
+        title: string;
+        chunkId: string;
+        text: string;
+        source: string;
+      };
       const seen = new Set<string>();
       const results: ChunkHit[] = [];
 
-      const add = (noteId: string, title: string, chunkId: string, text: string, source: string) => {
+      const add = (
+        noteId: string,
+        title: string,
+        chunkId: string,
+        text: string,
+        source: string,
+      ) => {
         if (seen.has(chunkId)) return;
         seen.add(chunkId);
-        results.push({ noteId, title, chunkId, text: text.slice(0, 400), source });
+        results.push({
+          noteId,
+          title,
+          chunkId,
+          text: text.slice(0, 400),
+          source,
+        });
       };
 
       if (mode === "semantic" || mode === "both") {
@@ -449,7 +479,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 ORDER BY e.embedding <=> ${vectorStr}::vector
                 LIMIT 10
               `;
-          for (const r of rows) add(r.note_id, r.title, r.chunk_id, r.chunk_text, "semantic");
+          for (const r of rows)
+            add(r.note_id, r.title, r.chunk_id, r.chunk_text, "semantic");
         } catch {
           // embedding unavailable
         }
@@ -468,7 +499,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
             AND c.text ILIKE ${"%" + safe + "%"}
           LIMIT 10
         `;
-        for (const r of rows) add(r.note_id, r.title, r.chunk_id, r.chunk_text, "exact");
+        for (const r of rows)
+          add(r.note_id, r.title, r.chunk_id, r.chunk_text, "exact");
       }
 
       return { results: results.slice(0, 12) };
@@ -675,7 +707,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
-    const { text: reply, reasoningText } = await generateText({ model, ...llmCallOptions });
+    const { text: reply, reasoningText } = await generateText({
+      model,
+      ...llmCallOptions,
+    });
     void Metrics.llmLatency(Date.now() - t0);
 
     await persistMessage(sessionId, "assistant", reply, uniqueSources);

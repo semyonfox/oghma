@@ -31,7 +31,10 @@ function loadEnv() {
       const eq = trimmed.indexOf("=");
       if (eq === -1) continue;
       const key = trimmed.slice(0, eq).trim();
-      const val = trimmed.slice(eq + 1).trim().replace(/^['"]|['"]$/g, "");
+      const val = trimmed
+        .slice(eq + 1)
+        .trim()
+        .replace(/^['"]|['"]$/g, "");
       if (key && !process.env[key]) process.env[key] = val;
     }
   }
@@ -54,7 +57,9 @@ const sql = postgres(DB_URL, { ssl: "require", max: 3, connect_timeout: 15 });
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function bloomName(level: number): string {
-  return ["", "Remember", "Understand", "Apply", "Analyze"][level] ?? "Remember";
+  return (
+    ["", "Remember", "Understand", "Apply", "Analyze"][level] ?? "Remember"
+  );
 }
 
 function bloomDesc(level: number): string {
@@ -79,12 +84,20 @@ function pickType(level: number): string {
 }
 
 function buildFallback(chunkText: string, moduleName: string, qtype: string) {
-  const sentence = chunkText.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/)[0]?.slice(0, 240) ?? chunkText.slice(0, 240);
+  const sentence =
+    chunkText
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(/(?<=[.!?])\s+/)[0]
+      ?.slice(0, 240) ?? chunkText.slice(0, 240);
   const answer = sentence || "Review the selected content.";
   if (qtype === "true_false") {
     return {
       question_text: `True or False: ${answer}`,
-      options: JSON.stringify([{ text: "True", is_correct: true }, { text: "False", is_correct: false }]),
+      options: JSON.stringify([
+        { text: "True", is_correct: true },
+        { text: "False", is_correct: false },
+      ]),
       correct_answer: "True",
       explanation: `Generated from ${moduleName} notes.`,
     };
@@ -114,16 +127,21 @@ async function callLLM(prompt: string): Promise<string> {
   if (!LLM_URL || !LLM_KEY) throw new Error("LLM not configured");
   const res = await fetch(`${LLM_URL}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_KEY}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LLM_KEY}`,
+    },
     body: JSON.stringify({
-      model: process.env.LLM_MODEL || "kimi-k2-5",
+      model: process.env.LLM_MODEL || "kimi-k2.5",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 512,
     }),
     signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
-  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
   return data.choices?.[0]?.message?.content ?? "";
 }
 
@@ -143,7 +161,11 @@ async function main() {
 
   if (!userId) {
     const [first] = await sql`SELECT user_id FROM app.login LIMIT 1`;
-    if (!first) { console.error("no users in database"); await sql.end(); process.exit(1); }
+    if (!first) {
+      console.error("no users in database");
+      await sql.end();
+      process.exit(1);
+    }
     userId = first.user_id;
     console.log(`no user_id provided — using first user: ${userId}`);
   }
@@ -168,18 +190,33 @@ async function main() {
     return;
   }
 
-  console.log(`found ${chunks.length} uncovered chunk(s) — generating questions…\n`);
+  console.log(
+    `found ${chunks.length} uncovered chunk(s) — generating questions…\n`,
+  );
 
   let generated = 0;
 
-  for (const chunk of chunks as unknown as Array<{ id: string; text: string; document_id: string; title: string; canvas_course_id: number | null }>) {
+  for (const chunk of chunks as unknown as Array<{
+    id: string;
+    text: string;
+    document_id: string;
+    title: string;
+    canvas_course_id: number | null;
+  }>) {
     const bloomLevel = 1; // always start new chunks at Remember
     const qtype = pickType(bloomLevel);
     const moduleName = chunk.title || "Unknown Module";
 
-    console.log(`  chunk ${chunk.id.slice(0, 8)}…  module="${moduleName}"  type=${qtype}`);
+    console.log(
+      `  chunk ${chunk.id.slice(0, 8)}…  module="${moduleName}"  type=${qtype}`,
+    );
 
-    let questionData: { question_text: string; options: string | null; correct_answer: string; explanation: string };
+    let questionData: {
+      question_text: string;
+      options: string | null;
+      correct_answer: string;
+      explanation: string;
+    };
 
     try {
       const prompt = `You are generating a study question from university lecture notes.
@@ -207,7 +244,9 @@ Return ONLY valid JSON: {"question_text":"...","options":[...],"correct_answer":
           correct_answer: parsed.correct_answer,
           explanation: parsed.explanation ?? "",
         };
-        console.log(`    ✓ LLM generated: "${questionData.question_text.slice(0, 70)}…"`);
+        console.log(
+          `    ✓ LLM generated: "${questionData.question_text.slice(0, 70)}…"`,
+        );
       } else {
         throw new Error("invalid LLM response");
       }
@@ -244,9 +283,13 @@ Return ONLY valid JSON: {"question_text":"...","options":[...],"correct_answer":
         VALUES (${cardId}::uuid, ${userId}::uuid, ${questionId}::uuid)
       `;
       generated++;
-      console.log(`    ✓ saved (question ${questionId.slice(0, 8)}…, card ${cardId.slice(0, 8)}…)`);
+      console.log(
+        `    ✓ saved (question ${questionId.slice(0, 8)}…, card ${cardId.slice(0, 8)}…)`,
+      );
     } catch (err) {
-      console.error(`    ✗ DB error: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `    ✗ DB error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
