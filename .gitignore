@@ -73,3 +73,6 @@ database/schema-current.json
 # worktrees
 .worktrees/
 .serena/
+
+# lambda build output
+infra/chat-lambda/dist/

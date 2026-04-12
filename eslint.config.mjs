@@ -16,6 +16,7 @@ export default [
       ".archive/**",
       "public/**",
       ".worktrees/**",
+      "infra/**/dist/**",
     ],
   },
   {
