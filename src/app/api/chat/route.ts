@@ -27,6 +27,8 @@ import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 
+export const maxDuration = 120;
+
 import {
   normalizeUuidList,
   resolveScopedNoteIds,
