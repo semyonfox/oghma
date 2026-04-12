@@ -242,6 +242,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         body: JSON.stringify({
           message: text,
           noteId,
+          noteTitle,
           noteIds: selectedNotes.map((note) => note.id),
           folderIds: selectedFolders.map((folder) => folder.id),
           selectedNotes,
