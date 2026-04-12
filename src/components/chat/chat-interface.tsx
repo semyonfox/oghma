@@ -419,6 +419,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         }
 
         if (done) break;
+
+        // yield to the macrotask queue so React can flush pending renders;
+        // without this, rapid reader.read() microtask resolution causes
+        // all setState calls to batch into a single render at the end
+        await new Promise<void>((r) => setTimeout(r, 0));
       }
     } catch (err) {
       const errMsg =
