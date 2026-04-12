@@ -1,3 +1,6 @@
+import { createMoonshotAI } from "@ai-sdk/moonshotai";
+import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
+
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
@@ -11,35 +14,6 @@ const LLM_MODEL_ALIASES: Record<string, string> = {
 };
 
 export type LlmThinkingMode = "auto" | "on" | "off";
-
-function normalizeOptionalString(
-  value: string | undefined,
-): string | undefined {
-  const trimmed = (value ?? "").trim();
-  return trimmed || undefined;
-}
-
-function normalizeLlmApiUrl(value: string | undefined): string | undefined {
-  const trimmed = normalizeOptionalString(value);
-  if (!trimmed) return undefined;
-
-  try {
-    const url = new URL(trimmed);
-    url.pathname = url.pathname.replace(/\/+$/, "");
-
-    // Moonshot official base URL includes /v1. Accept bare host and fix it.
-    if (
-      url.hostname === "api.moonshot.ai" &&
-      (!url.pathname || url.pathname === "/")
-    ) {
-      url.pathname = "/v1";
-    }
-
-    return url.toString().replace(/\/+$/, "");
-  } catch {
-    return trimmed.replace(/\/+$/, "");
-  }
-}
 
 function readBoundedInt(
   value: string | undefined,
@@ -80,32 +54,18 @@ export function getLlmModel(env: NodeJS.ProcessEnv = process.env): string {
   return normalizeLlmModel(env.LLM_MODEL);
 }
 
-export function getLlmApiUrl(
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  return normalizeLlmApiUrl(env.LLM_API_URL ?? env.MOONSHOT_API_URL);
-}
-
-export function getLlmApiKey(
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  return normalizeOptionalString(env.LLM_API_KEY ?? env.MOONSHOT_API_KEY);
-}
-
 export function getLlmThinkingMode(
   env: NodeJS.ProcessEnv = process.env,
 ): LlmThinkingMode {
   return normalizeThinkingMode(env.LLM_THINKING);
 }
 
-export function buildProviderThinking(
+// build the SDK-native thinking option from our env-based mode
+export function buildThinkingOptions(
   mode: LlmThinkingMode,
-): Record<string, string> | undefined {
-  // "auto" and "on" both enable thinking — Kimi K2.5 requires an explicit
-  // thinking config to emit reasoning_content; without it nothing appears
+): MoonshotAILanguageModelOptions["thinking"] {
   if (mode === "off") return { type: "disabled" };
-  if (mode === "on" || mode === "auto") return { type: "enabled" };
-  return undefined;
+  return { type: "enabled" };
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
@@ -126,4 +86,25 @@ export function getCohereTimeoutMs(
     1_000,
     20_000,
   );
+}
+
+// create the Moonshot provider, or null if no API key is configured
+export function createLlmProvider(env: NodeJS.ProcessEnv = process.env) {
+  const apiKey = (env.LLM_API_KEY ?? env.MOONSHOT_API_KEY ?? "").trim();
+  if (!apiKey) return null;
+
+  const baseURL = (env.LLM_API_URL ?? "").trim() || undefined;
+  const timeoutMs = getLlmTimeoutMs(env);
+
+  return createMoonshotAI({
+    apiKey,
+    ...(baseURL && { baseURL }),
+    fetch: (input, init) => {
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const signal = init?.signal
+        ? AbortSignal.any([init.signal, timeoutSignal])
+        : timeoutSignal;
+      return fetch(input, { ...init, signal });
+    },
+  });
 }

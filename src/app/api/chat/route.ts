@@ -5,20 +5,18 @@ import { isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import {
-  buildProviderThinking,
-  getLlmApiKey,
-  getLlmApiUrl,
+  buildThinkingOptions,
+  createLlmProvider,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
-  getLlmTimeoutMs,
   type LlmThinkingMode,
 } from "@/lib/ai-config";
+import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
 import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import logger from "@/lib/logger";
 import { streamText, generateText, tool, stepCountIs } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
 import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
@@ -349,29 +347,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
         : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
 
-  const llmApiUrl = getLlmApiUrl();
-  const llmApiKey = getLlmApiKey();
-  const llmTimeoutMs = getLlmTimeoutMs();
-
-  // @ai-sdk/openai-compatible uses Chat Completions API by default and
-  // natively handles reasoning_content (thinking) from providers like Moonshot
-  const provider =
-    llmApiUrl && llmApiKey
-      ? createOpenAICompatible({
-          name: "moonshot",
-          baseURL: llmApiUrl,
-          apiKey: llmApiKey,
-          fetch: (input, init) => {
-            const timeoutSignal = AbortSignal.timeout(llmTimeoutMs);
-            const signal = init?.signal
-              ? AbortSignal.any([init.signal, timeoutSignal])
-              : timeoutSignal;
-
-            return fetch(input, { ...init, signal });
-          },
-        })
-      : null;
-
+  const provider = createLlmProvider();
   const model = provider ? provider(getLlmModel()) : null;
 
   // resolve parent folder of scoped notes so the LLM doesn't need to ask
@@ -635,7 +611,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   });
 
   // shared config for both streaming and non-streaming LLM calls
-  const thinkingConfig = buildProviderThinking(thinkingMode);
+  const thinkingOptions = buildThinkingOptions(thinkingMode);
+  const moonshotOptions: MoonshotAILanguageModelOptions = {
+    thinking: thinkingOptions,
+  };
   const llmCallOptions = {
     messages: chatMessages,
     maxOutputTokens: getLlmMaxTokens(),
@@ -643,9 +622,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     ...(thinkingMode !== "off" && { temperature: 1 }),
     stopWhen: stepCountIs(5),
     tools: { getChunks, readNote, findFolder, makeMDNote },
-    ...(thinkingConfig && {
-      providerOptions: { moonshot: { thinking: thinkingConfig } },
-    }),
+    providerOptions: { moonshotai: moonshotOptions },
   };
 
   // ── Streaming response ──────────────────────────────────────────────────────

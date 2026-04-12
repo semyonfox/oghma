@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildProviderThinking,
+  buildThinkingOptions,
+  createLlmProvider,
   getCohereTimeoutMs,
-  getLlmApiKey,
-  getLlmApiUrl,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
@@ -55,24 +54,6 @@ describe("ai-config", () => {
     );
   });
 
-  it("normalizes Moonshot API URL and supports official env aliases", () => {
-    expect(
-      getLlmApiUrl({
-        LLM_API_URL: "https://api.moonshot.ai",
-      } as unknown as NodeJS.ProcessEnv),
-    ).toBe("https://api.moonshot.ai/v1");
-    expect(
-      getLlmApiUrl({
-        MOONSHOT_API_URL: "https://api.moonshot.ai/v1/",
-      } as unknown as NodeJS.ProcessEnv),
-    ).toBe("https://api.moonshot.ai/v1");
-    expect(
-      getLlmApiKey({
-        MOONSHOT_API_KEY: " secret-key ",
-      } as unknown as NodeJS.ProcessEnv),
-    ).toBe("secret-key");
-  });
-
   it("resolves thinking mode defaults and aliases", () => {
     expect(getLlmThinkingMode({} as unknown as NodeJS.ProcessEnv)).toBe("auto");
     expect(
@@ -92,10 +73,31 @@ describe("ai-config", () => {
     ).toBe("off");
   });
 
-  it("builds provider thinking payload from thinking mode", () => {
-    // "auto" and "on" both enable thinking (Kimi K2.5 requires explicit config)
-    expect(buildProviderThinking("auto")).toEqual({ type: "enabled" });
-    expect(buildProviderThinking("on")).toEqual({ type: "enabled" });
-    expect(buildProviderThinking("off")).toEqual({ type: "disabled" });
+  it("builds SDK-native thinking options from thinking mode", () => {
+    expect(buildThinkingOptions("auto")).toEqual({ type: "enabled" });
+    expect(buildThinkingOptions("on")).toEqual({ type: "enabled" });
+    expect(buildThinkingOptions("off")).toEqual({ type: "disabled" });
+  });
+
+  it("returns null provider when no API key is set", () => {
+    expect(createLlmProvider({} as NodeJS.ProcessEnv)).toBeNull();
+    expect(
+      createLlmProvider({ LLM_API_KEY: "" } as unknown as NodeJS.ProcessEnv),
+    ).toBeNull();
+    expect(
+      createLlmProvider({ LLM_API_KEY: "  " } as unknown as NodeJS.ProcessEnv),
+    ).toBeNull();
+  });
+
+  it("creates provider from LLM_API_KEY or MOONSHOT_API_KEY", () => {
+    const p1 = createLlmProvider({
+      LLM_API_KEY: "sk-test",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(p1).not.toBeNull();
+
+    const p2 = createLlmProvider({
+      MOONSHOT_API_KEY: "sk-test",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(p2).not.toBeNull();
   });
 });

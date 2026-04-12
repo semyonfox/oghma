@@ -2,31 +2,18 @@ import { BLOOM_NAMES, BLOOM_DESCRIPTIONS } from "./types";
 import type { BloomLevel, QuestionType, QuizQuestion } from "./types";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
-  buildProviderThinking,
-  getLlmApiKey,
-  getLlmApiUrl,
+  buildThinkingOptions,
+  createLlmProvider,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
-  getLlmTimeoutMs,
 } from "@/lib/ai-config";
+import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
+import { generateText } from "ai";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 
 const MAX_CHUNK_CHARS = 4000;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function isRetryableLlmError(message: string): boolean {
-  return (
-    message.includes("timeout") ||
-    message.includes("aborted") ||
-    message.includes("overloaded") ||
-    message.includes("429") ||
-    message.includes("502") ||
-    message.includes("503")
-  );
-}
 
 export function buildGenerationPrompt(
   chunkText: string,
@@ -147,54 +134,24 @@ export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
 }
 
 async function callLLM(prompt: string): Promise<string> {
-  const llmApiUrl = getLlmApiUrl();
-  const llmApiKey = getLlmApiKey();
-  if (!llmApiKey || !llmApiUrl) throw new Error("LLM not configured");
+  const provider = createLlmProvider();
+  if (!provider) throw new Error("LLM not configured");
 
-  const thinking = buildProviderThinking(getLlmThinkingMode());
-
-  const body: Record<string, unknown> = {
-    model: getLlmModel(),
-    messages: [{ role: "user", content: prompt }],
-    max_tokens: getLlmMaxTokens(),
+  const thinkingMode = getLlmThinkingMode();
+  const moonshotOptions: MoonshotAILanguageModelOptions = {
+    thinking: buildThinkingOptions(thinkingMode),
   };
-  if (thinking) body.thinking = thinking;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const res = await fetch(`${llmApiUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${llmApiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(getLlmTimeoutMs()),
-      });
+  const { text } = await generateText({
+    model: provider(getLlmModel()),
+    prompt,
+    maxOutputTokens: getLlmMaxTokens(),
+    ...(thinkingMode !== "off" && { temperature: 1 }),
+    maxRetries: 3,
+    providerOptions: { moonshotai: moonshotOptions },
+  });
 
-      if (!res.ok) {
-        const responseBody = await res.text().catch(() => "");
-        const message = `LLM error (${res.status}): ${responseBody.slice(0, 200)}`;
-        if (attempt < 3 && isRetryableLlmError(message.toLowerCase())) {
-          await sleep(500 * attempt);
-          continue;
-        }
-        throw new Error(message);
-      }
-
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content ?? "";
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (attempt < 3 && isRetryableLlmError(message.toLowerCase())) {
-        await sleep(500 * attempt);
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw new Error("LLM request failed after retries");
+  return text;
 }
 
 // generate a question for a chunk and save it to DB
