@@ -217,9 +217,28 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       .map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const res = await fetch("/api/chat", {
+      const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL;
+      let chatEndpoint = "/api/chat";
+      let chatHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // when a Lambda function URL is configured, get a short-lived token
+      // and call the Lambda directly (bypasses Amplify's 30s timeout)
+      if (chatFunctionUrl) {
+        const tokenRes = await fetch("/api/chat/token", { method: "POST" });
+        if (!tokenRes.ok) {
+          const data = await tokenRes.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to get chat token");
+        }
+        const { token } = await tokenRes.json();
+        chatEndpoint = chatFunctionUrl;
+        chatHeaders["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(chatEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: chatHeaders,
         body: JSON.stringify({
           message: text,
           noteId,
