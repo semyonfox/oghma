@@ -20,8 +20,12 @@ interface Conversation {
   title: string;
   noteId?: string;
   noteTitle?: string;
-  folderId?: string;
-  folderTitle?: string;
+  context?: {
+    scope?: {
+      notes?: ContextItem[];
+      folders?: ContextItem[];
+    };
+  };
   messageCount: number;
   createdAt: number;
 }
@@ -53,6 +57,7 @@ export default function ChatPageClient() {
   const paramNoteTitle = paramNoteTitles[0] ?? undefined;
   const paramFolderId = paramFolderIds[0] ?? undefined;
   const paramFolderTitle = paramFolderTitles[0] ?? undefined;
+  const hasRouteScope = paramNoteIds.length > 0 || paramFolderIds.length > 0;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
@@ -78,6 +83,12 @@ export default function ChatPageClient() {
     setSelectedNotes(notes);
     setSelectedFolders(folders);
   }, [paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles]);
+
+  useEffect(() => {
+    if (!activeId || hasRouteScope || !activeConv?.context?.scope) return;
+    setSelectedNotes(activeConv.context.scope.notes ?? []);
+    setSelectedFolders(activeConv.context.scope.folders ?? []);
+  }, [activeConv, activeId, hasRouteScope]);
 
   const draftRouteContext = useMemo(
     () => ({
@@ -118,6 +129,32 @@ export default function ChatPageClient() {
         ? buildChatSessionHref(activeId, nextContext)
         : buildNewChatHref(nextContext);
 
+      if (activeId) {
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.id === activeId
+              ? {
+                  ...conversation,
+                  noteId:
+                    nextNotes.length === 1 && nextFolders.length === 0
+                      ? nextNotes[0].id
+                      : undefined,
+                  noteTitle:
+                    nextNotes.length === 1 && nextFolders.length === 0
+                      ? nextNotes[0].title
+                      : undefined,
+                  context: {
+                    scope: {
+                      notes: nextNotes,
+                      folders: nextFolders,
+                    },
+                  },
+                }
+              : conversation,
+          ),
+        );
+      }
+
       router.replace(href);
     },
     [
@@ -141,6 +178,7 @@ export default function ChatPageClient() {
           title: s.title,
           noteId: s.note_id ?? undefined,
           noteTitle: s.note_title ?? undefined,
+          context: s.context ?? undefined,
           messageCount: s.message_count ?? 0,
           createdAt: new Date(s.created_at).getTime(),
         }));
@@ -177,11 +215,20 @@ export default function ChatPageClient() {
           {
             id: sessionId,
             title,
-            noteId: paramNoteId,
+            noteId:
+              selectedNotes.length === 1 && selectedFolders.length === 0
+                ? selectedNotes[0].id
+                : paramNoteId,
             noteTitle:
               selectedNotes.length === 1 && selectedFolders.length === 0
                 ? selectedNotes[0].title
                 : paramNoteTitle,
+            context: {
+              scope: {
+                notes: selectedNotes,
+                folders: selectedFolders,
+              },
+            },
             messageCount: 1,
             createdAt: Date.now(),
           },
@@ -429,15 +476,19 @@ export default function ChatPageClient() {
           noteId={
             selectedNotes.length === 1 && selectedFolders.length === 0
               ? selectedNotes[0].id
-              : (activeConv?.noteId ?? paramNoteId)
+              : !activeId
+                ? paramNoteId
+                : undefined
           }
           noteTitle={
             selectedNotes.length === 1 && selectedFolders.length === 0
               ? selectedNotes[0].title
-              : (activeConv?.noteTitle ?? paramNoteTitle)
+              : !activeId
+                ? paramNoteTitle
+                : undefined
           }
-          selectedNoteIds={selectedNotes.map((n) => n.id)}
-          selectedFolderIds={selectedFolders.map((f) => f.id)}
+          selectedNotes={selectedNotes}
+          selectedFolders={selectedFolders}
           onSessionCreated={handleSessionCreated}
           onClearContext={clearContextAndStartNewChat}
           className="flex-1 min-h-0"
