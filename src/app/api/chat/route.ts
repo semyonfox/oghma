@@ -620,7 +620,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     maxOutputTokens: getLlmMaxTokens(),
     // Kimi K2.5 requires temperature=1 when thinking is enabled
     ...(thinkingMode !== "off" && { temperature: 1 }),
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(50),
     tools: { getChunks, readNote, findFolder, makeMDNote },
     providerOptions: { moonshotai: moonshotOptions },
   };
