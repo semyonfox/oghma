@@ -114,7 +114,7 @@
     \textcolor{oghmaaccent}{\rule{0.6\textwidth}{1.5pt}}
     \vspace{1.5cm}
 
-    {\Large\textbf{CT216 --- Software Engineering I}}\\[0.3cm]
+    {\Large\textbf{CT216: Software Engineering I}}\\[0.3cm]
     {\large Project Report}\\[0.3cm]
     {\large Academic Year 2025/2026}
 
@@ -157,7 +157,7 @@
 
 \subsection{Problem Statement}
 
-University students' course content is scattered across LMS platforms, local folders, and personal notes. Tools like Notion and Obsidian have strong editors but treat uploaded documents as opaque files: users can't query their content semantically. Dedicated AI tools can answer questions but lack persistent knowledge bases scoped to a student's own materials. Nothing bridges the gap between a personal note-taking workspace and AI-powered retrieval over lecture content, integrated with the institution's LMS.
+University students' course content is scattered across LMS platforms, local folders, and personal notes. Tools like Notion and Obsidian have strong editors but treat uploaded documents as opaque files: users can't query their content semantically. Dedicated AI tools can answer questions but lack persistent knowledge bases scoped to a student's own materials. In practice this means searching through dozens of lecture PDFs to find a single concept, cross-referencing handwritten notes against slides in a separate window, or hunting for an assignment brief buried somewhere in a Canvas module. Nothing bridges the gap between a personal note-taking workspace and AI-powered retrieval over lecture content, integrated with the institution's LMS.
 
 \subsection{Our Solution}
 
@@ -167,7 +167,7 @@ The platform is built with Next.js~16.2 on the frontend, a PostgreSQL database w
 
 \subsection{Key Differentiators}
 
-What sets it apart: (1)~RAG-powered search over notes and PDFs using semantic retrieval rather than keyword matching; (2)~direct Canvas LMS integration with one-click course import handled by a self-scaling worker; and (3)~a full AWS production stack built to real-world cloud engineering standards. The app also supports 12 languages through a custom internationalisation system.
+What sets it apart is RAG-powered search over notes and PDFs using semantic retrieval rather than keyword matching, direct Canvas LMS integration with one-click course import handled by a self-scaling worker, and a full AWS production stack built to real-world cloud engineering standards. The app also supports 12 languages through a custom internationalisation system.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -227,7 +227,7 @@ The landing page at \url{https://oghmanotes.ie} features a hero section, feature
 \subsection{Authentication}
 \label{sec:feat-auth}
 
-OghmaNotes supports email/password registration (with SES-based email verification and password reset) and OAuth~2.0 via Google and GitHub using Auth.js. Accounts are deduplicated by email, and rate limiting is applied to all auth endpoints. The full authentication flow is detailed in Section~\ref{sec:flow-auth}.
+OghmaNotes supports email/password registration (with SES-based email verification and password reset) and OAuth~2.0 via Google and GitHub using Auth.js. Email verification is required before access is granted --- the platform runs a live AI pipeline with real inference costs, so unverified throwaway accounts would expose it to abuse. Accounts are deduplicated by email, and rate limiting is applied to all auth endpoints. The full authentication flow is detailed in Section~\ref{sec:flow-auth}.
 
 \screenshot{login}{Login Page --- Email/password form with Google and GitHub OAuth}
 
@@ -245,7 +245,7 @@ The editor builds on the Notea foundation (S3-backed markdown storage), modernis
 \subsection{Canvas LMS Integration}
 \label{sec:feat-canvas}
 
-Users enter their Canvas API token and institution URL in settings. The token is encrypted at rest and decrypted at runtime for Canvas REST API calls. Users browse their courses and pick which to import; the import runs asynchronously via SQS and an ECS Fargate worker (see Section~\ref{sec:flow-canvas}).
+Users enter their Canvas API token and institution URL in settings. The token is encrypted at rest and decrypted at runtime for Canvas REST API calls. Users browse their courses and pick which to import. The import runs asynchronously via SQS and an ECS Fargate worker (see Section~\ref{sec:flow-canvas}).
 
 \screenshot{canvas-settings}{Canvas Integration --- Settings page with API token configuration and connected institution}
 
@@ -322,6 +322,25 @@ OghmaNotes includes a flashcard quiz system using the FSRS (Free Spaced Repetiti
 }
 \caption{Quiz flow: FSRS card scheduling, difficulty rating, and interval update}
 \label{fig:quiz-flow}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+  \includegraphics[width=\linewidth]{screenshots/quiz-question}
+  \caption*{True/false question generated from CT216 notes}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+  \includegraphics[width=\linewidth]{screenshots/quiz-answer}
+  \caption*{Answer revealed with source-grounded explanation}
+\end{minipage}
+\vspace{0.8em}
+\begin{center}
+  \includegraphics[width=0.72\textwidth]{screenshots/quiz-dashboard}
+  \captionof*{figure}{Dashboard: per-course mastery, streak, and due-card counts}
+\end{center}
+\caption{Quiz system: question view, answer feedback, and course dashboard}
+\label{fig:quiz-screenshots}
 \end{figure}
 
 \subsection{Productivity Tools}
@@ -518,7 +537,7 @@ i18n            & Custom locale system                        & 12 languages \\
 
 \subsection{AWS Infrastructure}
 
-Production runs in \tech{eu-north-1} (Stockholm). Table~\ref{tab:tech-stack} lists each service. Key details: RDS uses a \tech{db.t3.micro} with SSL, all tables under the \tech{app} schema; S3 uses presigned URLs for client-side uploads; SQS decouples the API from the long-running Canvas import worker; ECS Fargate scales to zero when idle; a \tech{g4dn.xlarge} GPU instance (NVIDIA T4, spot pricing) hosts the Marker OCR server behind an Auto Scaling Group that also scales to zero, with the Datalab Convert API as fallback.
+Production runs in \tech{eu-north-1} (Stockholm). Table~\ref{tab:tech-stack} lists each service. RDS uses a \tech{db.t3.micro} with SSL and all tables under the \tech{app} schema. S3 uses presigned URLs for client-side uploads. SQS decouples the API from the long-running Canvas import worker. ECS Fargate scales to zero when idle. A \tech{g4dn.xlarge} GPU instance (NVIDIA T4, spot pricing) hosts the Marker OCR server behind an Auto Scaling Group that also scales to zero, with the Datalab Convert API as fallback.
 
 
 % ══════════════════════════════════════════════════════════════════
@@ -806,7 +825,7 @@ The repository uses two branches. \tech{dev} is where features are built and tes
 \subsection{Containerised Infrastructure}
 
 \begin{sloppypar}
-The repository has three Dockerfiles, each for a distinct runtime: the Next.js production app (three-stage Alpine build with standalone output), the Canvas import worker (\tech{Dockerfile.worker}, Node 22 with \tech{tsx}), and the Marker OCR service (\tech{Dockerfile.marker}, Python 3.11 with GPU support). Worker and Marker images are pushed to Amazon ECR; ECS Fargate pulls the worker image on demand, scaling from zero when SQS messages arrive.
+The repository has three Dockerfiles, each for a distinct runtime: the Next.js production app (three-stage Alpine build with standalone output), the Canvas import worker (\tech{Dockerfile.worker}, Node 22 with \tech{tsx}), and the Marker OCR service (\tech{Dockerfile.marker}, Python 3.11 with GPU support). Worker and Marker images are pushed to Amazon ECR. ECS Fargate pulls the worker image on demand, scaling from zero when SQS messages arrive.
 
 A Husky~v9 pre-commit hook enforces quality gates on every commit: full ESLint linting and the Vitest test suite (blocking), \tech{Dockerfile.marker} syntax validation via \tech{docker build --dry-run}, and \tech{shellcheck} on infrastructure shell scripts. For the Marker OCR instance, a custom AMI baking script (\tech{bake-ami.sh}) pre-installs Python dependencies and the CUDA runtime into a machine image, cutting cold-start time from 5--7~minutes to around 90~seconds. The baked AMI is deployed via a Launch Template inside an Auto Scaling Group behind an Application Load Balancer, with IAM roles granting ECR pull access.
 \end{sloppypar}
@@ -900,9 +919,9 @@ The team made several architectural pivots during development, each driven by co
 \subsection{Pivot 1: Notea Fork to Modern Next.js Application}
 \label{sec:pivot-1}
 
-The project started from Notea, an MIT-licensed, unmaintained note-taking app that stored markdown on S3 --- a useful backbone to scaffold from. Notea's codebase ran on outdated dependencies throughout the stack. Modernising it meant upgrading through three major React versions (16~$\to$~19), where APIs were deprecated or removed, replacing the legacy editor with Lexical and CodeMirror, and swapping unmaintained packages for supported alternatives. That upgrade work was heavy, but it left the team with a production-ready S3-backed markdown foundation to build RAG, Canvas integration, and the full AWS infrastructure on top of.
+The project started from Notea, an MIT-licensed, unmaintained note-taking app that stored markdown on S3, a useful backbone to scaffold from. Notea's codebase ran on outdated dependencies throughout the stack. Modernising it meant upgrading through three major React versions (16~$\to$~19), where APIs were deprecated or removed, replacing the legacy editor with Lexical and CodeMirror, and swapping unmaintained packages for supported alternatives. That upgrade work was heavy, but it left the team with a production-ready S3-backed markdown foundation to build RAG, Canvas integration, and the full AWS infrastructure on top of.
 
-\textbf{Lesson:} Forking saves initial scaffolding time, but inheriting an unmaintained dependency tree creates upgrade debt that compounds with each major framework version.
+In hindsight, forking saved early scaffolding time but the unmaintained dependency tree created upgrade debt that compounded with every major framework version.
 
 \subsection{Pivot 2: Monorepo to Single Application}
 \label{sec:pivot-2}
@@ -914,16 +933,16 @@ The project started as a monorepo with separate packages under an \tech{apps/web
 
 The Canvas import job queue started as BullMQ backed by ElastiCache (Valkey/Redis). It worked locally but broke in production: Amplify's Lambda functions couldn't reach ElastiCache without VPC configuration, and the Lambda runtime's 29-second timeout was incompatible with long-running import jobs. Migrating to AWS SQS fixed both problems. SQS uses IAM authentication (no VPC needed) and fully decouples the API from the worker.
 
-\textbf{Lesson:} Cloud networking constraints shape architecture more than theoretical best practices. SQS was the pragmatic choice given the deployment environment.
+Cloud networking constraints ended up shaping the architecture more than any theoretical best practice would have.
 
 \subsection{Pivot 4: Local Ollama to Cohere Embeddings}
 \label{sec:pivot-4}
 
 \begin{sloppypar}
-The initial embedding pipeline used a self-hosted Ollama instance running \tech{qwen3-embedding:8b}, served over a Cloudflare Tunnel. The model was fine; the tunnel wasn't. Embedding requests during Canvas imports would intermittently time out, causing ingestion jobs to fail mid-batch. Rather than debug the tunnel, the team migrated to Cohere's \tech{embed-multilingual-v3.0} API, which gave a stable endpoint with consistent latency. Cohere's 1024-dimensional output was also compatible with pgvector's HNSW index limit.
+The initial embedding pipeline used a self-hosted Ollama instance running \tech{qwen3-embedding:8b}, served over a Cloudflare Tunnel. The model was fine. The tunnel was not. Embedding requests during Canvas imports would intermittently time out, causing ingestion jobs to fail mid-batch. Rather than debug the tunnel, the team migrated to Cohere's \tech{embed-multilingual-v3.0} API, which gave a stable endpoint with consistent latency. Cohere's 1024-dimensional output was also compatible with pgvector's HNSW index limit.
 \end{sloppypar}
 
-\textbf{Lesson:} Infrastructure reliability is as important as model quality. A locally-hosted model routed through a tunnelled connection introduces failure modes that a direct API call does not.
+Infrastructure reliability turned out to matter as much as model quality --- a tunnelled connection introduces failure modes that a direct API call simply does not have.
 
 \subsection{Pivot 5: OpenWebUI as Secure Model Gateway}
 \label{sec:pivot-5}
@@ -940,7 +959,7 @@ A mid-project switch from pnpm to npm was forced by compatibility issues with th
 
 After migrating to Cohere (Section~\ref{sec:pivot-4}), the team hit aggressive rate limiting on Cohere's free-tier embedding API during Canvas imports, where hundreds of chunks needed embedding in quick succession. Rather than pay for a higher tier, the team fixed the underlying Cloudflare Tunnel reliability issues and moved back to the self-hosted \tech{qwen3-embedding:8b} model on the project lead's homelab. That eliminated rate limits and external API costs. With the tunnel stable, the team also restored the original 4096-dimensional vectors for better semantic fidelity, accepting sequential pgvector scanning at current data scale. The reranker moved to self-hosted infrastructure at the same time.
 
-\textbf{Lesson:} External API dependencies introduce constraints beyond cost. Rate limits can silently degrade user experience. Self-hosting critical pipeline components gives control over throughput at the cost of operational responsibility.
+External APIs introduce constraints beyond just cost --- rate limits can silently degrade the user experience in ways that are hard to debug, and self-hosting trades that unpredictability for operational responsibility.
 
 \subsection{Pivot 8: qwen3-embedding:8b to mxbai-embed-large (Right-Sizing for Hardware)}
 \label{sec:pivot-8}
@@ -949,7 +968,7 @@ After restoring self-hosted embeddings (Section~\ref{sec:pivot-7}), the team hit
 
 Running it entirely on CPU would have been worse. Instead, the team switched to \tech{mxbai-embed-large}, a 335M-parameter model that fits within the 4\,GB VRAM budget. The migration required changing the schema from \tech{vector(4096)} to \tech{vector(1024)}, clearing all existing embeddings, and re-embedding everything. A secondary benefit: 1024~dimensions falls within pgvector's HNSW index limit of 2000, enabling approximate nearest-neighbour indexing that wasn't possible at 4096 dimensions.
 
-\textbf{Lesson:} Model selection needs to account for the full inference environment, not just benchmark quality. A smaller model running entirely on GPU will consistently outperform a larger one partially offloaded to CPU. Right-sizing to the available hardware eliminated the erratic latency and improved embedding throughput by roughly 10$\times$.
+A smaller model running entirely on GPU will consistently beat a larger one partially offloaded to CPU --- benchmark quality means nothing if the inference environment can't support it. Right-sizing to the available hardware eliminated the erratic latency and improved embedding throughput by roughly 10$\times$.
 
 \subsection{Budget Constraints}
 \label{sec:budget}
@@ -984,11 +1003,11 @@ The team used an agile-inspired approach without locking into any specific frame
 
 \subsection{GitHub Projects}
 
-Task tracking ran through GitHub Issues and Pull Requests. The repository accumulated 117 issues (96 closed, 21 open) and 54 pull requests over the project lifetime. Issues were categorised by feature area (authentication, editor, Canvas integration, RAG, infrastructure) and assigned to team members. Pull requests required code review before merging to \tech{main}, with notable PRs including security hardening (PR~\#155), the quiz system (PR~\#135), and a batch sprint (PR~\#133 resolving 37 issues).
+Task tracking ran through GitHub Issues and Pull Requests, with issues categorised by feature area and assigned to team members. Pull requests required review before merging to \tech{main}.
 
-Open issues at project close include centralising RAG pipeline constants, converting worker files to TypeScript, adding CloudWatch metrics for the embedding pipeline, and addressing remaining security advisories. An honest backlog of known technical debt.
+\screenshot{github-project-board}{GitHub Project Board --- CT216-Project-Planning Kanban with Backlog, Ready, In Progress, In Review, and Done columns}
 
-\screenshot{github-issues}{GitHub Issues --- Feature tracking with labels for enhancement, security, infrastructure, and bug categories}
+\screenshot{github-issues}{GitHub Issues --- Open issues with labels for enhancement, security, and infrastructure}
 
 \subsection{Timeline}
 
@@ -1012,11 +1031,6 @@ Mar 26 -- Apr 3 & Report \& Hardening & Documentation, report writing, GDPR acco
 \caption{Development Timeline}
 \label{tab:timeline}
 \end{table}
-
-\subsection{Commit Activity}
-
-Most of the work happened in February and March 2026, with the RAG pipeline, Canvas import worker, and quiz system all landing within a six-week window. Earlier months were spent on infrastructure setup and the bigger architectural decisions; the final weeks were mostly hardening, docs, and compliance. Dependabot kept a trickle of dependency updates coming throughout.
-
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 13: CHALLENGES & REFLECTIONS
@@ -1060,7 +1074,7 @@ The key takeaway from this project was that real-world software engineering is a
 
 \textbf{Note Tagging and Bidirectional Linking:} Arbitrary tags and wiki-style \texttt{[[Note Title]]} links with backlink display and a knowledge graph would improve note discoverability and reflect the original SRS scope.
 
-\textbf{Analytics Dashboard:} A dashboard showing study time trends, quiz score history, and weak topic identification would give students more insight into their learning patterns. The current quiz dashboard has a summary widget (streak, mastery percentage, cards due today); full time-series analytics are a planned next step.
+\textbf{Analytics Dashboard:} A dashboard showing study time trends, quiz score history, and weak topic identification would give students more insight into their learning patterns. The current quiz dashboard has a summary widget covering streak, mastery percentage, and cards due today. Full time-series analytics are a planned next step.
 
 \textbf{Auto-Scheduling Study Sessions:} Auto-generating time blocks from Canvas assignment due dates and FSRS review schedules would close the loop between the LMS integration and the productivity tools.
 
@@ -1072,33 +1086,17 @@ The key takeaway from this project was that real-world software engineering is a
 
 \textbf{Offline Support (PWA):} A Progressive Web App with IndexedDB caching would let students review notes and flashcards without a connection, syncing when they're back online.
 
+The application is already live at \url{https://oghmanotes.ie} and the team is considering continuing development beyond the course with a view to a proper production release.
+
 % ══════════════════════════════════════════════════════════════════
 % SECTION 3: AI DISCLOSURE
 % ══════════════════════════════════════════════════════════════════
 \section{AI-Assisted Development Disclosure}
 \label{sec:ai}
 
-This project used AI coding assistants throughout development, primarily Claude Code (Anthropic) with some use of OpenCode and Codex. AI produced code across many parts of the project and helped with debugging --- suggesting fixes, explaining error output, and helping navigate unfamiliar APIs. This section is an honest account of how that collaboration worked in practice and what it actually meant for our development.
+AI coding assistants were used throughout the project as a development aid. In practice this meant faster code generation for well-defined tasks, help identifying security vulnerabilities and code quality issues, and research assistance when navigating unfamiliar APIs or services.
 
-\subsection{Scope of AI Involvement}
-
-AI was used as an implementation aid throughout the project. Boilerplate-heavy work --- API route scaffolding, database migrations, i18n translation files, repetitive UI patterns --- was a common target. Beyond code generation, AI assisted in debugging sessions: interpreting AWS error messages, identifying misconfigured IAM policies, and tracing SSR prerendering failures through Next.js build output.
-
-\subsection{What That Required From Developers}
-
-Using AI as a coding aid creates its own problems. Code suggestions still had to be read, understood, and verified before committing --- and in practice they frequently required correction. More significantly, AI tends to solve the immediate problem without considering the wider codebase, which accumulated technical debt that developers had to consciously identify and pay down. Integration bugs, state management inconsistencies, and misaligned abstractions were common byproducts that required hands-on diagnosis rather than further AI prompting.
-
-No architectural decision was delegated. Every pivot described in Section~\ref{sec:pivots} --- from VPC networking failures to embedding model right-sizing to the pnpm-to-npm switch --- was diagnosed by developers through production logs, hardware profiling, and documentation. AI cannot observe a cloud environment, hold context across weeks of iteration, or weigh trade-offs against deployment constraints and budget. Those judgments remained entirely human.
-
-\subsection{Learning Through Ownership}
-
-The most important consequence of this workflow was that developers could not treat AI output as a black box. Understanding code well enough to review it, debug it when it failed in production, and refactor it when it accumulated debt forced genuine engagement with every layer of the stack.
-
-AWS is the clearest example. At the start of the project, none of the team had meaningful AWS experience. AI could suggest IAM policy JSON and Amplify configuration stubs, but it could not explain \textit{why} a VPC subnet needed to be in the same availability zone as an ECS task, or why ElastiCache required a VPC peering change that then broke RDS connectivity. Working through those failures --- reading CloudWatch logs, consulting AWS documentation, and iterating on broken infrastructure --- produced a working mental model that survived into production. By the end of the project, AWS infrastructure felt navigable rather than opaque. That arc from zero familiarity to confident operation would not have happened if AI had simply produced correct configuration on the first attempt.
-
-\subsection{Reflection}
-
-AI-assisted development shifts the bottleneck from ``can I implement this?'' to ``do I understand what was just implemented?'' The discipline required is not prompt engineering --- it is critical review, technical debt management, and the willingness to dig into failures that AI cannot reach. Used that way, it accelerates execution without replacing the understanding that makes a system maintainable. The learning came from the breakage, not the generation.
+What AI did not replace: every piece of generated code was read, reviewed, and modified by the developer responsible for that area. Team members deliberately read the relevant documentation and familiarised themselves with what the code was doing rather than treating AI output as a black box. Debugging production issues, making architectural decisions, and understanding why something worked or failed remained entirely human work. The learning happened through that process, not despite it.
 
 % ══════════════════════════════════════════════════════════════════
 % SECTION 15: RESOURCES & LINKS

@@ -40,6 +40,11 @@ export interface Message {
   rating?: number | null;
 }
 
+export interface ChatContextItem {
+  id: string;
+  title: string;
+}
+
 interface ChatInterfaceProps {
   /** Compact mode for the inspector sidebar mini-chat */
   compact?: boolean;
@@ -48,8 +53,8 @@ interface ChatInterfaceProps {
   /** Pre-select a note as the chat context */
   noteId?: string;
   noteTitle?: string;
-  selectedNoteIds?: string[];
-  selectedFolderIds?: string[];
+  selectedNotes?: ChatContextItem[];
+  selectedFolders?: ChatContextItem[];
   /** Called when a new session is created server-side (id, title) */
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** Called when the user clears the current scope */
@@ -72,8 +77,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   sessionId: controlledSessionId,
   noteId,
   noteTitle,
-  selectedNoteIds = [],
-  selectedFolderIds = [],
+  selectedNotes = [],
+  selectedFolders = [],
   onSessionCreated,
   onClearContext,
   className = "",
@@ -218,8 +223,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         body: JSON.stringify({
           message: text,
           noteId,
-          noteIds: selectedNoteIds,
-          folderIds: selectedFolderIds,
+          noteIds: selectedNotes.map((note) => note.id),
+          folderIds: selectedFolders.map((folder) => folder.id),
+          selectedNotes,
+          selectedFolders,
           sessionId,
           history,
           stream: true,
@@ -508,8 +515,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           {/* context badge — shown when a note/scope is active */}
           {(noteId ||
             noteTitle ||
-            selectedNoteIds.length > 0 ||
-            selectedFolderIds.length > 0) && (
+            selectedNotes.length > 0 ||
+            selectedFolders.length > 0) && (
             <div className="flex items-center gap-2 mb-2 px-1">
               <button
                 type="button"
@@ -519,8 +526,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               >
                 {noteTitle
                   ? noteTitle
-                  : selectedNoteIds.length > 0
-                    ? `${selectedNoteIds.length} note${selectedNoteIds.length > 1 ? "s" : ""}`
+                  : selectedNotes.length > 0
+                    ? `${selectedNotes.length} note${selectedNotes.length > 1 ? "s" : ""}`
                     : "Selected folder"}
                 <span className="opacity-50 ml-0.5">×</span>
               </button>
