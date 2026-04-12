@@ -167,16 +167,31 @@ function sseWriter(stream: any) {
   };
 }
 
+// ── CORS ────────────────────────────────────────────────────────────────────
+
+const ALLOWED_ORIGINS = new Set([
+  "https://oghmanotes.ie",
+  "https://dev.oghmanotes.ie",
+  "http://localhost:3000",
+]);
+
+function resolveOrigin(event: any): string {
+  const origin = event.headers?.origin || "";
+  return ALLOWED_ORIGINS.has(origin) ? origin : "https://oghmanotes.ie";
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 
 export const handler = awslambda.streamifyResponse(
   async (event: any, responseStream: any, _context: any) => {
+    const origin = resolveOrigin(event);
+
     const httpStream = awslambda.HttpResponseStream.from(responseStream, {
       statusCode: 200,
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
-        "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://oghmanotes.ie",
+        "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
       },
@@ -184,7 +199,8 @@ export const handler = awslambda.streamifyResponse(
 
     const sse = sseWriter(httpStream);
 
-    // handle CORS preflight
+    // preflight is handled by the Function URL CORS config,
+    // but handle it here as a safety net
     if (event.requestContext?.http?.method === "OPTIONS") {
       httpStream.end();
       return;
