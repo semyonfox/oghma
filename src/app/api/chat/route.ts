@@ -38,8 +38,14 @@ import {
 import { searchChatChunks } from "@/lib/chat/chunk-search";
 import {
   type ChatMessage,
+  type ChatSessionContext,
+  type ChatSessionContextItem,
   persistMessage,
+  loadSessionContext,
+  recordSessionAccesses,
+  recordSessionCreatedNote,
   resolveSession,
+  setSessionScope,
   loadHistory,
 } from "@/lib/chat/session";
 
@@ -62,6 +68,68 @@ function sanitizeFileName(raw: string): string {
     .substring(0, 255);
 }
 
+function normalizeScopeItems(value: unknown): ChatSessionContextItem[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const items: ChatSessionContextItem[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const item = entry as { id?: unknown; title?: unknown };
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!isValidUUID(id) || seen.has(id)) continue;
+    seen.add(id);
+    items.push({
+      id,
+      title:
+        typeof item.title === "string" && item.title.trim()
+          ? item.title.trim().slice(0, 200)
+          : "Untitled",
+    });
+  }
+
+  return items;
+}
+
+function buildSessionMemoryPrompt(context: ChatSessionContext): string {
+  const lines: string[] = [];
+
+  const scopeNotes = context.scope.notes.slice(0, 4);
+  const scopeFolders = context.scope.folders.slice(0, 4);
+  if (scopeNotes.length > 0 || scopeFolders.length > 0) {
+    const parts: string[] = [];
+    if (scopeNotes.length > 0) {
+      parts.push(
+        `notes: ${scopeNotes.map((note) => `"${note.title}" (id: ${note.id})`).join(", ")}`,
+      );
+    }
+    if (scopeFolders.length > 0) {
+      parts.push(
+        `folders: ${scopeFolders.map((folder) => `"${folder.title}" (id: ${folder.id})`).join(", ")}`,
+      );
+    }
+    lines.push(`Active session scope -> ${parts.join("; ")}`);
+  }
+
+  const recentAccesses = context.recentAccesses.slice(0, 6);
+  if (recentAccesses.length > 0) {
+    lines.push(
+      `Recent notes touched -> ${recentAccesses
+        .map((access) => `${access.kind}: "${access.title}"`)
+        .join(", ")}`,
+    );
+  }
+
+  if (context.lastFolder) {
+    lines.push(
+      `Last folder used for note creation -> "${context.lastFolder.title}" (id: ${context.lastFolder.id})`,
+    );
+  }
+
+  return lines.length > 0 ? `SESSION MEMORY:\n${lines.join("\n")}` : "";
+}
+
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
@@ -74,8 +142,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const {
     message,
     noteId,
+    noteTitle,
     noteIds = [],
     folderIds = [],
+    selectedNotes = [],
+    selectedFolders = [],
     sessionId: requestedSessionId,
     history: requestHistory = [],
     stream = false,
@@ -83,8 +154,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }: {
     message: string;
     noteId?: string;
+    noteTitle?: string;
     noteIds?: string[];
     folderIds?: string[];
+    selectedNotes?: { id: string; title: string }[];
+    selectedFolders?: { id: string; title: string }[];
     sessionId?: string;
     history?: ChatMessage[];
     stream?: boolean;
@@ -102,21 +176,46 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (message.length > 2000)
     return tracedError("message too long (max 2000 characters)", 400);
 
-  // resolve scoped note IDs for RAG context
+  const hasExplicitScope =
+    Object.prototype.hasOwnProperty.call(body, "noteId") ||
+    Object.prototype.hasOwnProperty.call(body, "noteIds") ||
+    Object.prototype.hasOwnProperty.call(body, "folderIds") ||
+    Object.prototype.hasOwnProperty.call(body, "selectedNotes") ||
+    Object.prototype.hasOwnProperty.call(body, "selectedFolders");
+
+  const explicitScopedNotes = normalizeScopeItems(selectedNotes);
+  const explicitScopedFolders = normalizeScopeItems(selectedFolders);
+
   const validNoteId = noteId && isValidUUID(noteId) ? noteId : undefined;
   const dedupedNoteIds = normalizeUuidList(noteIds);
-  if (validNoteId) dedupedNoteIds.push(validNoteId);
-  const scopedInputNoteIds = [...new Set(dedupedNoteIds)];
-  const scopedInputFolderIds = normalizeUuidList(folderIds);
-  const scopedNoteIds = await resolveScopedNoteIds(
-    userId,
-    scopedInputNoteIds,
-    scopedInputFolderIds,
-  );
+  if (
+    validNoteId &&
+    !explicitScopedNotes.some((item) => item.id === validNoteId)
+  ) {
+    explicitScopedNotes.push({
+      id: validNoteId,
+      title: noteTitle ?? "Untitled",
+    });
+  }
+
+  for (const id of dedupedNoteIds) {
+    if (!explicitScopedNotes.some((item) => item.id === id)) {
+      explicitScopedNotes.push({
+        id,
+        title: id === validNoteId ? (noteTitle ?? "Untitled") : "Untitled",
+      });
+    }
+  }
+
+  for (const id of normalizeUuidList(folderIds)) {
+    if (!explicitScopedFolders.some((item) => item.id === id)) {
+      explicitScopedFolders.push({ id, title: "Folder" });
+    }
+  }
 
   const sessionNoteId =
-    scopedInputFolderIds.length === 0 && scopedInputNoteIds.length === 1
-      ? scopedInputNoteIds[0]
+    explicitScopedFolders.length === 0 && explicitScopedNotes.length === 1
+      ? explicitScopedNotes[0].id
       : undefined;
 
   const sessionId = await resolveSession(
@@ -124,6 +223,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     requestedSessionId,
     sessionNoteId,
     message,
+  );
+
+  const persistedSessionContext = await loadSessionContext(sessionId);
+  const effectiveScope = hasExplicitScope
+    ? {
+        notes: explicitScopedNotes,
+        folders: explicitScopedFolders,
+      }
+    : persistedSessionContext.scope;
+
+  const effectiveSessionContext = hasExplicitScope
+    ? await setSessionScope(
+        sessionId,
+        effectiveScope.notes,
+        effectiveScope.folders,
+      )
+    : persistedSessionContext;
+
+  const scopedInputNoteIds = effectiveScope.notes.map((item) => item.id);
+  const scopedInputFolderIds = effectiveScope.folders.map((item) => item.id);
+  const scopedNoteIds = await resolveScopedNoteIds(
+    userId,
+    scopedInputNoteIds,
+    scopedInputFolderIds,
   );
 
   // load conversation history
@@ -141,6 +264,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     await runRagPipeline(userId, message, scopedNoteIds);
 
   const systemPrompt = buildSystemPrompt(searchResults);
+  const sessionMemoryPrompt = buildSessionMemoryPrompt(effectiveSessionContext);
   const uniqueSources = [...new Set(searchResults.map((r) => r.note_id))].map(
     (id) => {
       const r = searchResults.find((s) => s.note_id === id)!;
@@ -273,19 +397,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         "Use the most relevant folder's id as parentID when creating a note — no need to call findFolder.";
     }
   }
+  if (!scopedParentHint && effectiveSessionContext.lastFolder) {
+    scopedParentHint =
+      `\nLast folder used for note creation: "${effectiveSessionContext.lastFolder.title}" ` +
+      `(id: ${effectiveSessionContext.lastFolder.id}). Use that parentID directly when it fits.`;
+  }
 
   const toolInstruction =
     "Tools available:\n" +
-    "- getChunks({ query, mode? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. Returns chunk text + noteId per hit.\n" +
+    "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
     "- readNote({ noteId }) — read the full markdown content of a note. Use after getChunks confirms the right note.\n" +
     "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
     "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
-    "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first." +
+    "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
     scopedParentHint;
 
   const chatMessages: ChatMessage[] = [
-    { role: "system", content: `${systemPrompt}\n\n${toolInstruction}` },
-    ...history.slice(-8),
+    {
+      role: "system",
+      content: [systemPrompt, sessionMemoryPrompt, toolInstruction]
+        .filter(Boolean)
+        .join("\n\n"),
+    },
+    ...history.slice(-20),
     { role: "user", content: message },
   ];
 
@@ -301,9 +435,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       const trimmed = text.trim();
       if (!trimmed) throw new Error("text cannot be empty");
 
+      let parentFolder: ChatSessionContextItem | null = null;
+
       if (parentID) {
         const parentRows = await sql`
-          SELECT note_id, is_folder
+          SELECT note_id, title, is_folder
           FROM app.notes
           WHERE note_id = ${parentID}::uuid
             AND user_id = ${userId}::uuid
@@ -317,6 +453,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         if (!parentRows[0].is_folder) {
           throw new Error("parentID must reference a folder");
         }
+        parentFolder = {
+          id: parentID,
+          title: parentRows[0].title || "Folder",
+        };
       }
 
       const resolvedTitle = (title?.trim() || inferNoteTitle(trimmed)).slice(
@@ -373,6 +513,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         cacheKeys.note(userId, noteId),
       );
 
+      await recordSessionCreatedNote(
+        sessionId,
+        { id: noteId, title: resolvedTitle },
+        parentFolder,
+      );
+
       return {
         noteId,
         attachmentId,
@@ -418,18 +564,36 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       "Use mode='semantic' (default) for conceptual/topic queries. " +
       "Use mode='exact' when looking for a specific term, name, formula, or phrase the user likely wrote verbatim. " +
       "Use mode='both' to run both and merge results. " +
+      "Use scope='session' to stay inside the current chat context, or scope='all' to search the full note library when needed. " +
       "Returns matching chunks with their noteId and title — call readNote if you need the full note.",
     inputSchema: z.object({
       query: z.string().min(1).max(300),
       mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
+      scope: z.enum(["session", "all"]).default("session"),
     }),
-    execute: async ({ query, mode }) => {
+    execute: async ({ query, mode, scope }) => {
       const results = await searchChatChunks({
         userId,
         query,
         mode,
-        scopedNoteIds,
+        scopedNoteIds: scope === "all" ? null : scopedNoteIds,
       });
+
+      await recordSessionAccesses(
+        sessionId,
+        [
+          ...new Map(
+            results.map((result) => [
+              result.noteId,
+              {
+                id: result.noteId,
+                title: result.title || "Untitled",
+                kind: "search-hit" as const,
+              },
+            ]),
+          ).values(),
+        ].slice(0, 6),
+      );
 
       return { results };
     },
@@ -453,10 +617,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           AND deleted_at IS NULL
       `;
       if (!row) return { error: "Note not found" };
+
+      await recordSessionAccesses(sessionId, [
+        {
+          id: noteId,
+          title: row.title || "Untitled",
+          kind: "read",
+        },
+      ]);
+
       return {
         noteId,
         title: row.title,
-        content: (row.content || row.extracted_text || "").slice(0, 50_000),
+        content: (row.content || row.extracted_text || "").slice(0, 20_000),
       };
     },
   });
