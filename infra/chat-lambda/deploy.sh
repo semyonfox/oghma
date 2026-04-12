@@ -38,7 +38,13 @@ npx esbuild "$SCRIPT_DIR/handler.ts" \
 
 echo "==> creating zip..."
 cd "$DIST_DIR"
-zip -q function.zip index.mjs
+if command -v zip &>/dev/null; then
+  zip -q function.zip index.mjs
+elif command -v 7z &>/dev/null; then
+  7z a -tzip function.zip index.mjs >/dev/null
+else
+  echo "error: zip or 7z required" && exit 1
+fi
 cd "$PROJECT_ROOT"
 
 # create IAM role if it doesn't exist
@@ -95,8 +101,7 @@ else
     --memory-size "$MEMORY" \
     --zip-file "fileb://$DIST_DIR/function.zip" \
     --region "$REGION" \
-    --environment "Variables={NODE_OPTIONS=--enable-source-maps}" \
-    --invoke-mode RESPONSE_STREAM
+    --environment "Variables={NODE_OPTIONS=--enable-source-maps}"
 
   aws lambda wait function-active --function-name "$FUNCTION_NAME" --region "$REGION"
 fi
@@ -121,7 +126,7 @@ if [ -z "$FUNCTION_URL" ] || [ "$FUNCTION_URL" = "None" ]; then
     --invoke-mode RESPONSE_STREAM \
     --cors '{
       "AllowOrigins": ["https://oghmanotes.ie", "https://dev.oghmanotes.ie", "http://localhost:3000"],
-      "AllowMethods": ["POST", "OPTIONS"],
+      "AllowMethods": ["POST"],
       "AllowHeaders": ["Content-Type", "Authorization"],
       "MaxAge": 86400
     }' \
@@ -129,12 +134,20 @@ if [ -z "$FUNCTION_URL" ] || [ "$FUNCTION_URL" = "None" ]; then
     --query 'FunctionUrl' --output text)
 
   # allow public invoke (auth is handled by the JWT token, not IAM)
+  # both permissions required since Oct 2025
   aws lambda add-permission \
     --function-name "$FUNCTION_NAME" \
-    --statement-id "AllowPublicInvoke" \
+    --statement-id "AllowPublicInvokeFunctionUrl" \
     --action "lambda:InvokeFunctionUrl" \
     --principal "*" \
     --function-url-auth-type NONE \
+    --region "$REGION" 2>/dev/null || true
+
+  aws lambda add-permission \
+    --function-name "$FUNCTION_NAME" \
+    --statement-id "AllowPublicInvokeFunction" \
+    --action "lambda:InvokeFunction" \
+    --principal "*" \
     --region "$REGION" 2>/dev/null || true
 fi
 
