@@ -9,28 +9,16 @@ import TreeActions, {
   TreeModel,
 } from "@/lib/notes/types/tree";
 import noteCache from "../cache/note";
-import { NOTE_DELETED, NOTE_SHARED, NOTE_PINNED } from "@/lib/notes/types/meta";
+import { NOTE_DELETED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { uiCache } from "../cache";
+import {
+  findParentTreeItems,
+  checkAncestorsExpanded,
+  buildTreeItemFromApi,
+} from "./tree-utils";
 
 const TREE_CACHE_KEY = "tree";
-
-const findParentTreeItems = (tree: TreeModel, note: NoteModel) => {
-  const parents = [] as TreeItemModel[];
-
-  let tempNote = note;
-  while (tempNote.pid && tempNote.pid !== ROOT_ID) {
-    const curData = tree.items[tempNote.pid];
-    if (curData?.data) {
-      tempNote = curData.data;
-      parents.push(curData);
-    } else {
-      break;
-    }
-  }
-
-  return parents;
-};
 
 export interface NoteTreeState {
   tree: TreeModel;
@@ -157,25 +145,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       const rootChildren: string[] = [];
 
       for (const item of items) {
-        const treeItem: TreeItemModel = {
-          id: item.id,
-          children: [], // loaded lazily on folder expand
-          isExpanded: item.isExpanded ?? false,
-          isChildrenLoading: false,
-          isFolder: item.isFolder ?? false,
-          // use the title + metadata already returned by the tree children API
-          // so the sidebar renders instantly without N individual note fetches
-          data: {
-            id: item.id,
-            title: item.title ?? "Untitled",
-            isFolder: item.isFolder ?? false,
-            s3Key: item.s3Key ?? undefined,
-            deleted: NOTE_DELETED.NORMAL,
-            shared: NOTE_SHARED.PRIVATE,
-            pinned: item.pinned ?? NOTE_PINNED.UNPINNED,
-          },
-        };
-        newTree.items[item.id] = treeItem;
+        newTree.items[item.id] = buildTreeItemFromApi(item);
         rootChildren.push(item.id);
       }
 
@@ -230,24 +200,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const childIds: string[] = [];
 
         for (const item of childrenResponse.items) {
-          const treeItem: TreeItemModel = {
-            id: item.id,
-            children: [], // Children of children will be loaded on their expansion
-            isExpanded: item.isExpanded ?? false,
-            isChildrenLoading: false,
-            isFolder: item.isFolder ?? false,
-            // use the title + metadata already returned by the tree children API
-            data: {
-              id: item.id,
-              title: item.title ?? "Untitled",
-              isFolder: item.isFolder ?? false,
-              s3Key: item.s3Key ?? undefined,
-              deleted: NOTE_DELETED.NORMAL,
-              shared: NOTE_SHARED.PRIVATE,
-              pinned: item.pinned ?? NOTE_PINNED.UNPINNED,
-            },
-          };
-          newTree.items[item.id] = treeItem;
+          newTree.items[item.id] = buildTreeItemFromApi(item);
           childIds.push(item.id);
         }
 
@@ -466,9 +419,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   },
 
   checkItemIsShown: (note: NoteModel) => {
-    const currentTree = get().tree;
-    const parents = findParentTreeItems(currentTree, note);
-    return parents.reduce((value, item) => value && !!item.isExpanded, true);
+    return checkAncestorsExpanded(get().tree, note);
   },
 
   collapseAllItems: () => {

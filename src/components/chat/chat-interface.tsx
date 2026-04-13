@@ -1,49 +1,18 @@
 "use client";
 
-import {
-  FC,
-  useState,
-  useRef,
-  useEffect,
-  KeyboardEvent,
-  FormEvent,
-} from "react";
+import { FC, useState, useRef, useEffect, KeyboardEvent, FormEvent } from "react";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { parseSseBlocks } from "@/lib/chat/sse";
-import type { LlmThinkingMode } from "@/lib/ai-config";
-import { toFriendlyChatError } from "@/lib/friendly-errors";
+import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
+import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
 import { CompactMessageBubble, FullMessageBubble } from "./message-bubble";
 
-export interface SearchContextData {
-  scopeSize: number | null; // null = searched all notes
-  resultsFound: number;
-  results: { noteId: string; title: string; distance: number }[];
-}
-
-export interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  thinking?: string;
-  thinkingDuration?: number; // seconds from first thinking token to first content token
-  sources?: { id: string; title: string }[];
-  retrieval?: {
-    scopeMode: "global" | "scoped";
-    availableCount: number;
-    availableFiles: { id: string; title: string }[];
-    semanticHits: { id: string; title: string }[];
-    usedFiles: { id: string; title: string }[];
-  };
-  searchContext?: SearchContextData;
-  timestamp: number;
-  rating?: number | null;
-}
-
-export interface ChatContextItem {
-  id: string;
-  title: string;
-}
+// re-export types so existing consumers keep working
+export type {
+  Message,
+  SearchContextData,
+  ChatContextItem,
+} from "@/lib/chat/types";
 
 interface ChatInterfaceProps {
   /** Compact mode for the inspector sidebar mini-chat */
@@ -53,8 +22,8 @@ interface ChatInterfaceProps {
   /** Pre-select a note as the chat context */
   noteId?: string;
   noteTitle?: string;
-  selectedNotes?: ChatContextItem[];
-  selectedFolders?: ChatContextItem[];
+  selectedNotes?: { id: string; title: string }[];
+  selectedFolders?: { id: string; title: string }[];
   /** Called when a new session is created server-side (id, title) */
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** Called when the user clears the current scope */
@@ -63,13 +32,12 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
-// i18n keys for welcome messages
+// i18n keys
 const WELCOME_COMPACT_KEY = "chat.welcome_compact";
 const WELCOME_FULL_KEY = "chat.welcome_full";
-const THINKING_MODE_KEY = "chat-thinking-mode";
 
-function makeId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function makeWelcomeMessage(t: (key: string) => string, compact: boolean): string {
+  return compact ? t(WELCOME_COMPACT_KEY) : t(WELCOME_FULL_KEY);
 }
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
@@ -84,480 +52,99 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   className = "",
 }) => {
   const { t } = useI18n();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: compact ? t(WELCOME_COMPACT_KEY) : t(WELCOME_FULL_KEY),
-      timestamp: Date.now(),
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(
-    controlledSessionId ?? null,
-  );
-  const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
-  const [restored, setRestored] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const thinkingStartRef = useRef<number | null>(null);
+  const welcomeMessage = makeWelcomeMessage(t, compact);
 
-  // refs to avoid stale closures in beforeunload / visibilitychange handlers
-  const messagesRef = useRef<Message[]>(messages);
-  messagesRef.current = messages;
-  const sessionIdRef = useRef<string | null>(sessionId);
-  sessionIdRef.current = sessionId;
-  const loadingRef = useRef(false);
-  loadingRef.current = loading;
+  const {
+    thinkingMode,
+    toggleThinking,
+    restoredMessages,
+    restored,
+    updateRefs,
+  } = useChatPersistence({
+    compact,
+    controlledSessionId,
+    welcomeMessage,
+  });
 
-  // restore messages for an existing session
+  const {
+    messages,
+    setMessages,
+    sessionId,
+    setSessionId,
+    loading,
+    error,
+    setError,
+    send,
+  } = useChatStream({
+    t,
+    noteId,
+    noteTitle,
+    selectedNotes,
+    selectedFolders,
+    thinkingMode,
+    onSessionCreated,
+  });
+
+  // initialize messages with the welcome message
+  const initialized = useRef(false);
   useEffect(() => {
-    if (restored) return;
-    if (!controlledSessionId) {
-      setRestored(true);
-      return;
+    if (initialized.current) return;
+    initialized.current = true;
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content: welcomeMessage,
+        timestamp: Date.now(),
+      },
+    ]);
+  }, [welcomeMessage, setMessages]);
+
+  // apply restored session messages when available
+  useEffect(() => {
+    if (!restoredMessages) return;
+    if (controlledSessionId) {
+      setSessionId(controlledSessionId);
     }
+    setMessages(restoredMessages);
+  }, [restoredMessages, controlledSessionId, setMessages, setSessionId]);
 
-    const restore = async () => {
-      try {
-        const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data.messages) && data.messages.length) {
-          setSessionId(controlledSessionId);
-          const restored: Message[] = data.messages.map(
-            (m: {
-              id: string;
-              role: string;
-              content: string;
-              sources?: { id: string; title: string }[];
-              created_at?: string;
-              rating?: number | null;
-            }) => ({
-              id: m.id,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              sources: Array.isArray(m.sources) ? m.sources : [],
-              timestamp: m.created_at
-                ? new Date(m.created_at).getTime()
-                : Date.now(),
-              rating: m.rating ?? null,
-            }),
-          );
-          // check sessionStorage for a partial assistant message saved on unload
-          const draftKey = `chat-draft:${controlledSessionId}`;
-          let draftMsg: Message | null = null;
-          try {
-            const raw = sessionStorage.getItem(draftKey);
-            if (raw) {
-              const draft = JSON.parse(raw) as {
-                content: string;
-                thinking?: string;
-                sources?: { id: string; title: string }[];
-                timestamp: number;
-              };
-              // only use the draft if the server messages don't already
-              // contain an assistant message with the same (or newer) timestamp
-              const alreadyHas = restored.some(
-                (m) =>
-                  m.role === "assistant" && m.timestamp >= draft.timestamp,
-              );
-              if (!alreadyHas && draft.content) {
-                draftMsg = {
-                  id: `draft-${Date.now()}`,
-                  role: "assistant",
-                  content: `${draft.content}\n\n*[partial — response was interrupted]*`,
-                  thinking: draft.thinking,
-                  sources: draft.sources ?? [],
-                  timestamp: draft.timestamp,
-                };
-              }
-              sessionStorage.removeItem(draftKey);
-            }
-          } catch {
-            // malformed draft or storage unavailable -- ignore
-          }
+  // keep persistence refs in sync for unload handlers
+  useEffect(() => {
+    updateRefs({ messages, sessionId, loading });
+  }, [messages, sessionId, loading, updateRefs]);
 
-          setMessages([
-            {
-              id: "welcome",
-              role: "assistant",
-              content: compact ? t(WELCOME_COMPACT_KEY) : t(WELCOME_FULL_KEY),
-              timestamp: Date.now(),
-            },
-            ...restored,
-            ...(draftMsg ? [draftMsg] : []),
-          ]);
-        }
-      } catch {
-        // silently fail -- fresh session is fine
-      } finally {
-        setRestored(true);
-      }
-    };
-    void restore();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlledSessionId, compact, restored]);
-
+  // auto-scroll
+  const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(THINKING_MODE_KEY);
-    if (saved === "on" || saved === "off" || saved === "auto") {
-      setThinkingMode(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
-  }, [thinkingMode]);
-
-  // persist partial assistant message when the page is unloaded or hidden
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const saveDraft = () => {
-      if (!loadingRef.current) return; // only save mid-stream, not completed responses
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      const msgs = messagesRef.current;
-      const last = msgs[msgs.length - 1];
-      if (!last || last.role !== "assistant" || !last.content) return;
-
-      const draft = {
-        content: last.content,
-        thinking: last.thinking,
-        sources: last.sources,
-        timestamp: last.timestamp,
-      };
-      try {
-        sessionStorage.setItem(`chat-draft:${sid}`, JSON.stringify(draft));
-      } catch {
-        // sessionStorage quota exceeded or unavailable -- nothing to do
-      }
-    };
-
-    const handleBeforeUnload = () => saveDraft();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") saveDraft();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-
-  const toggleThinking = () => {
-    setThinkingMode((current) => (current === "off" ? "on" : "off"));
-  };
+  // input state (local to this component -- not worth extracting)
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const thinkingActive = thinkingMode !== "off";
 
-  const send = async () => {
+  const handleSend = () => {
     const text = input.trim();
     if (!text || loading) return;
 
-    setError(null);
     setInput("");
-    thinkingStartRef.current = null;
 
-    const userMsg: Message = {
-      id: makeId(),
-      role: "user",
-      content: text,
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setLoading(true);
-
-    const assistantId = makeId();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        sources: [],
-        timestamp: Date.now(),
-      },
-    ]);
-
-    // build history for context (skip welcome message)
+    // build history (skip welcome message)
     const history = messages
       .filter((m) => m.id !== "welcome")
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    try {
-      const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL;
-      if (
-        !chatFunctionUrl &&
-        typeof window !== "undefined" &&
-        window.location.hostname !== "localhost"
-      ) {
-        console.warn(
-          "[chat] NEXT_PUBLIC_CHAT_URL not set — falling back to /api/chat (no streaming on Amplify)",
-        );
-      }
-      let chatEndpoint = "/api/chat";
-      let chatHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      // when a Lambda function URL is configured, get a short-lived token
-      // and call the Lambda directly (bypasses Amplify's 30s timeout)
-      if (chatFunctionUrl) {
-        const tokenRes = await fetch("/api/chat/token", { method: "POST" });
-        if (!tokenRes.ok) {
-          const data = await tokenRes.json().catch(() => ({}));
-          throw new Error(data.error || "Failed to get chat token");
-        }
-        const { token } = await tokenRes.json();
-        chatEndpoint = chatFunctionUrl;
-        chatHeaders["Authorization"] = `Bearer ${token}`;
-      }
-
-      const res = await fetch(chatEndpoint, {
-        method: "POST",
-        headers: chatHeaders,
-        body: JSON.stringify({
-          message: text,
-          noteId,
-          noteTitle,
-          noteIds: selectedNotes.map((note) => note.id),
-          folderIds: selectedFolders.map((folder) => folder.id),
-          selectedNotes,
-          selectedFolders,
-          sessionId,
-          history,
-          stream: true,
-          thinkingMode,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Server error ${res.status}`);
-      }
-
-      const contentType = res.headers.get("Content-Type") || "";
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        if (data.sessionId && data.sessionId !== sessionId) {
-          setSessionId(data.sessionId);
-          onSessionCreated?.(data.sessionId, text.slice(0, 60));
-        }
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: data.reply || "",
-                  thinking: data.thinking || undefined,
-                  sources: Array.isArray(data.sources) ? data.sources : [],
-                  retrieval: data.retrieval,
-                  searchContext: data.searchContext ?? undefined,
-                }
-              : m,
-          ),
-        );
-
-        // non-streaming response completed -- clear any saved draft
-        const sid = data.sessionId || sessionId;
-        if (sid) {
-          try {
-            sessionStorage.removeItem(`chat-draft:${sid}`);
-          } catch {
-            // ignore
-          }
-        }
-        return;
-      }
-
-      if (!res.body) {
-        throw new Error("Missing stream body");
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      const parseState = { buffer: "" };
-
-      while (true) {
-        const { value, done } = await reader.read();
-        const chunk = done
-          ? decoder.decode()
-          : decoder.decode(value, { stream: true });
-
-        if (chunk) {
-          for (const frame of parseSseBlocks(chunk, parseState)) {
-            let payload: any = {};
-            try {
-              payload = JSON.parse(frame.data);
-            } catch {
-              payload = {};
-            }
-
-            if (frame.event === "meta") {
-              if (payload.sessionId && payload.sessionId !== sessionId) {
-                setSessionId(payload.sessionId);
-                onSessionCreated?.(payload.sessionId, text.slice(0, 60));
-              }
-              if (Array.isArray(payload.sources)) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, sources: payload.sources }
-                      : m,
-                  ),
-                );
-              }
-              if (payload.retrieval) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, retrieval: payload.retrieval }
-                      : m,
-                  ),
-                );
-              }
-              continue;
-            }
-
-            if (frame.event === "search") {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        searchContext: {
-                          scopeSize: payload.scopeSize ?? null,
-                          resultsFound: payload.resultsFound ?? 0,
-                          results: Array.isArray(payload.results)
-                            ? payload.results
-                            : [],
-                        },
-                      }
-                    : m,
-                ),
-              );
-              continue;
-            }
-
-            if (frame.event === "thinking") {
-              const text = typeof payload.text === "string" ? payload.text : "";
-              if (!text) continue;
-              if (!thinkingStartRef.current) {
-                thinkingStartRef.current = Date.now();
-              }
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, thinking: `${m.thinking ?? ""}${text}` }
-                    : m,
-                ),
-              );
-              continue;
-            }
-
-            if (frame.event === "token") {
-              const token =
-                typeof payload.text === "string" ? payload.text : "";
-              if (!token) continue;
-              const duration = thinkingStartRef.current
-                ? Math.round((Date.now() - thinkingStartRef.current) / 1000)
-                : undefined;
-              if (thinkingStartRef.current) thinkingStartRef.current = null;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        content: `${m.content}${token}`,
-                        thinkingDuration: m.thinkingDuration ?? duration,
-                      }
-                    : m,
-                ),
-              );
-              continue;
-            }
-
-            if (frame.event === "tool-call") {
-              const toolName =
-                typeof payload.toolName === "string" ? payload.toolName : "";
-              const labels: Record<string, string> = {
-                getChunks: "Searching notes",
-                readNote: "Reading note",
-                findFolder: "Looking up folder",
-                makeMDNote: "Creating note",
-                canvas_list_courses: "Reading Canvas courses",
-                canvas_list_modules: "Reading Canvas modules",
-                canvas_list_assignments: "Reading Canvas assignments",
-                canvas_list_module_items: "Reading Canvas module items",
-                canvas_get_file: "Reading Canvas file metadata",
-              };
-              const label = labels[toolName] ?? toolName;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: `${m.content}\n\n*${label}…*\n\n` }
-                    : m,
-                ),
-              );
-              continue;
-            }
-
-            if (frame.event === "error") {
-              throw new Error(
-                payload?.message || t("error.something_went_wrong"),
-              );
-            }
-          }
-        }
-
-        if (done) break;
-
-        // yield to the macrotask queue so React can flush pending renders;
-        // without this, rapid reader.read() microtask resolution causes
-        // all setState calls to batch into a single render at the end
-        await new Promise<void>((r) => setTimeout(r, 0));
-      }
-
-      // stream completed normally -- clear any saved draft
-      const completedSid = sessionIdRef.current;
-      if (completedSid) {
-        try {
-          sessionStorage.removeItem(`chat-draft:${completedSid}`);
-        } catch {
-          // ignore
-        }
-      }
-    } catch (err) {
-      const errMsg =
-        err instanceof Error ? err.message : t("error.something_went_wrong");
-      const friendlyMessage = toFriendlyChatError(errMsg);
-      setError(
-        friendlyMessage.includes("temporarily unavailable")
-          ? t("error.ai_unavailable")
-          : t("error.something_went_wrong"),
-      );
-    } finally {
-      setLoading(false);
-    }
+    void send(text, history);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void send();
+      handleSend();
     }
   };
 
@@ -580,7 +167,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {
         id: "welcome",
         role: "assistant",
-        content: compact ? t(WELCOME_COMPACT_KEY) : t(WELCOME_FULL_KEY),
+        content: welcomeMessage,
         timestamp: Date.now(),
       },
     ]);
@@ -588,7 +175,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setError(null);
   };
 
-  // compact (sidebar) variant
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
@@ -626,7 +212,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ◆ {thinkingActive ? "Thinking" : "Think"}
             </button>
             <button
-              onClick={send}
+              onClick={handleSend}
               disabled={loading || !input.trim()}
               className="p-1 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-lg transition-colors flex-shrink-0"
             >
@@ -661,7 +247,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {/* input area */}
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-12 py-4">
         <div className="max-w-3xl mx-auto">
-          {/* context badge — shown when a note/scope is active */}
+          {/* context badge -- shown when a note/scope is active */}
           {(noteId ||
             noteTitle ||
             selectedNotes.length > 0 ||
@@ -686,7 +272,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
-              void send();
+              handleSend();
             }}
             className="flex items-center gap-2 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
           >
