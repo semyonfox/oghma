@@ -26,13 +26,13 @@ import {
   isAccountLocked,
   getLockoutMinutesRemaining,
 } from "@/lib/loginLockout.js";
-import { decrypt } from "@/lib/crypto";
 import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
+import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
 export const POST = withErrorHandler(async (request) => {
   // 1. Parse and validate request body
@@ -154,14 +154,8 @@ export const POST = withErrorHandler(async (request) => {
  * Called fire-and-forget after login — never throws to the caller.
  */
 async function queueCanvasSync(userId) {
-  const credRows = await sql`
-    SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}
-  `;
-  const { canvas_token, canvas_domain } = credRows[0] ?? {};
-  if (!canvas_token || !canvas_domain) return;
-
-  // decrypt the BYOK-encrypted token before using it
-  const plainToken = decrypt(canvas_token, userId);
+  const credentials = await loadCanvasCredentials(userId);
+  if (!credentials) return;
 
   const prevCourseRows = await sql`
     SELECT DISTINCT canvas_course_id FROM app.canvas_imports WHERE user_id = ${userId}
@@ -172,7 +166,7 @@ async function queueCanvasSync(userId) {
     prevCourseRows.map((r) => String(r.canvas_course_id)),
   );
 
-  const client = new CanvasClient(canvas_domain, plainToken);
+  const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: allCourses } = await client.getCourses();
 
   const courses = (allCourses ?? [])
