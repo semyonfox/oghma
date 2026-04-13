@@ -40,7 +40,8 @@ export const GET = withErrorHandler(async (request) => {
             n.title,
             n.is_folder as "isFolder",
             ti.is_expanded as "isExpanded",
-            n.s3_key as "s3Key"
+            n.s3_key as "s3Key",
+            n.pinned
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -55,7 +56,8 @@ export const GET = withErrorHandler(async (request) => {
             n.title,
             n.is_folder as "isFolder",
             ti.is_expanded as "isExpanded",
-            n.s3_key as "s3Key"
+            n.s3_key as "s3Key",
+            n.pinned
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
@@ -67,12 +69,13 @@ export const GET = withErrorHandler(async (request) => {
 
     const body = {
       parentId: parentId || 'root',
-      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null }) => ({
+      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null; pinned: number }) => ({
         id: row.id,
         title: row.title,
         isFolder: row.isFolder,
         isExpanded: row.isExpanded,
         s3Key: row.s3Key || null,
+        pinned: row.pinned ?? 0,
       })),
     };
 

@@ -11,6 +11,8 @@ interface TreeItem {
   title: string;
   isFolder: boolean;
   isExpanded: boolean;
+  s3Key: string | null;
+  pinned: number;
 }
 
 interface FetchChildrenResponse {
