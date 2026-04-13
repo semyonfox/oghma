@@ -11,6 +11,7 @@ export interface Settings {
   lastName?: string;
   timezone?: string;
   editorsize?: "small" | "large";
+  ai_canvas_access?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -18,4 +19,5 @@ export const DEFAULT_SETTINGS: Settings = {
   split_sizes: [200, 800],
   locale: Locale.EN,
   theme: "system",
+  ai_canvas_access: false,
 };

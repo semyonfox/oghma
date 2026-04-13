@@ -26,6 +26,8 @@ import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
+import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
+import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 
 import {
   normalizeUuidList,
@@ -444,6 +446,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   `(id: ${effectiveSessionContext.lastFolder.id}). Use that parentID directly when it fits.`;
               }
 
+              const appOrigin = resolveAppOrigin({
+                requestOrigin: request.nextUrl.origin,
+                referer: request.headers.get("referer"),
+              });
+              const {
+                client: canvasMcpClient,
+                tools: canvasTools,
+                instruction: canvasInstruction,
+              } = await getOptionalCanvasTooling({
+                userId,
+                appOrigin,
+              });
+
               const toolInstruction =
                 "Tools available:\n" +
                 "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
@@ -451,7 +466,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
                 "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
                 "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
-                scopedParentHint;
+                scopedParentHint +
+                (canvasInstruction ? `\n\n${canvasInstruction}` : "");
 
               // ── tool definitions ──────────────────────────────────────────
               const makeMDNote = tool({
@@ -700,31 +716,43 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 maxOutputTokens: getLlmMaxTokens(),
                 ...(thinkingMode !== "off" && { temperature: 1 }),
                 stopWhen: stepCountIs(50),
-                tools: { getChunks, readNote, findFolder, makeMDNote },
+                tools: {
+                  getChunks,
+                  readNote,
+                  findFolder,
+                  makeMDNote,
+                  ...canvasTools,
+                },
                 providerOptions: { moonshotai: moonshotOptions },
               };
 
               // ── stream LLM ────────────────────────────────────────────────
               const t0 = Date.now();
               let reply = "";
-              const result = streamText({ model: model!, ...llmCallOptions });
-              for await (const part of result.fullStream) {
-                if (part.type === "reasoning-delta") {
-                  controller.enqueue(
-                    encoder.encode(toSseEvent("thinking", { text: part.text })),
-                  );
-                } else if (part.type === "text-delta") {
-                  reply += part.text;
-                  controller.enqueue(
-                    encoder.encode(toSseEvent("token", { text: part.text })),
-                  );
-                } else if (part.type === "tool-call") {
-                  controller.enqueue(
-                    encoder.encode(
-                      toSseEvent("tool-call", { toolName: part.toolName }),
-                    ),
-                  );
+              try {
+                const result = streamText({ model: model!, ...llmCallOptions });
+                for await (const part of result.fullStream) {
+                  if (part.type === "reasoning-delta") {
+                    controller.enqueue(
+                      encoder.encode(
+                        toSseEvent("thinking", { text: part.text }),
+                      ),
+                    );
+                  } else if (part.type === "text-delta") {
+                    reply += part.text;
+                    controller.enqueue(
+                      encoder.encode(toSseEvent("token", { text: part.text })),
+                    );
+                  } else if (part.type === "tool-call") {
+                    controller.enqueue(
+                      encoder.encode(
+                        toSseEvent("tool-call", { toolName: part.toolName }),
+                      ),
+                    );
+                  }
                 }
+              } finally {
+                await canvasMcpClient?.close().catch(() => {});
               }
               void Metrics.llmLatency(Date.now() - t0);
 
@@ -993,6 +1021,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       `(id: ${effectiveSessionContext.lastFolder.id}). Use that parentID directly when it fits.`;
   }
 
+  const appOrigin = resolveAppOrigin({
+    requestOrigin: request.nextUrl.origin,
+    referer: request.headers.get("referer"),
+  });
+  const {
+    client: canvasMcpClient,
+    tools: canvasTools,
+    instruction: canvasInstruction,
+  } = await getOptionalCanvasTooling({
+    userId,
+    appOrigin,
+  });
+
   const toolInstruction =
     "Tools available:\n" +
     "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
@@ -1000,7 +1041,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
     "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
     "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
-    scopedParentHint;
+    scopedParentHint +
+    (canvasInstruction ? `\n\n${canvasInstruction}` : "");
 
   const chatMessages: ChatMessage[] = [
     {
@@ -1233,11 +1275,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     maxOutputTokens: getLlmMaxTokens(),
     ...(thinkingMode !== "off" && { temperature: 1 }),
     stopWhen: stepCountIs(50),
-    tools: { getChunks, readNote, findFolder, makeMDNote },
+    tools: {
+      getChunks,
+      readNote,
+      findFolder,
+      makeMDNote,
+      ...canvasTools,
+    },
     providerOptions: { moonshotai: moonshotOptions },
   };
 
   if (!model) {
+    await canvasMcpClient?.close().catch(() => {});
     await persistMessage(sessionId, "assistant", fallbackReply, uniqueSources);
     return NextResponse.json({
       reply: fallbackReply,
@@ -1259,10 +1308,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
-    const { text: reply, reasoningText } = await generateText({
-      model,
-      ...llmCallOptions,
-    });
+    const { text: reply, reasoningText } = await (async () => {
+      try {
+        return await generateText({
+          model,
+          ...llmCallOptions,
+        });
+      } finally {
+        await canvasMcpClient?.close().catch(() => {});
+      }
+    })();
     void Metrics.llmLatency(Date.now() - t0);
 
     await persistMessage(sessionId, "assistant", reply, uniqueSources);

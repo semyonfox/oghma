@@ -34,6 +34,7 @@ export const POST = withErrorHandler(async (request) => {
       "lastName",
       "timezone",
       "editorsize",
+      "ai_canvas_access",
     ]);
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(body)) {
