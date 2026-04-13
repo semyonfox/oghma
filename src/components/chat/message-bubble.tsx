@@ -282,7 +282,7 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <p className="text-xs text-text-tertiary opacity-60">
+      <p className="text-xs text-text-tertiary opacity-60" suppressHydrationWarning>
         {new Date(m.timestamp).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
