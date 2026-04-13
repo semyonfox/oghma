@@ -9,7 +9,7 @@ import TreeActions, {
   TreeModel,
 } from "@/lib/notes/types/tree";
 import noteCache from "../cache/note";
-import { NOTE_DELETED } from "@/lib/notes/types/meta";
+import { NOTE_DELETED, NOTE_SHARED, NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { uiCache } from "../cache";
 
@@ -163,32 +163,23 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
           isExpanded: item.isExpanded ?? false,
           isChildrenLoading: false,
           isFolder: item.isFolder ?? false,
+          // use the title + metadata already returned by the tree children API
+          // so the sidebar renders instantly without N individual note fetches
+          data: {
+            id: item.id,
+            title: item.title ?? "Untitled",
+            isFolder: item.isFolder ?? false,
+            s3Key: item.s3Key ?? undefined,
+            deleted: NOTE_DELETED.NORMAL,
+            shared: NOTE_SHARED.PRIVATE,
+            pinned: item.pinned ?? NOTE_PINNED.UNPINNED,
+          },
         };
         newTree.items[item.id] = treeItem;
         rootChildren.push(item.id);
       }
 
       newTree.items[ROOT_ID].children = rootChildren;
-
-      if (items.length > 0) {
-        // Fetch note data for all root items in parallel
-        const noteResults = await Promise.all(
-          items.map((item: any) =>
-            noteAPI
-              .fetch(item.id)
-              .then((noteData: NoteModel) => ({ id: item.id, data: noteData }))
-              .catch((e: any) => {
-                console.error(`Failed to fetch note ${item.id}:`, e);
-                return null;
-              }),
-          ),
-        );
-        for (const result of noteResults) {
-          if (result && newTree.items[result.id]) {
-            newTree.items[result.id].data = result.data;
-          }
-        }
-      }
 
       set({ tree: newTree, initLoaded: true });
 
@@ -245,6 +236,16 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             isExpanded: item.isExpanded ?? false,
             isChildrenLoading: false,
             isFolder: item.isFolder ?? false,
+            // use the title + metadata already returned by the tree children API
+            data: {
+              id: item.id,
+              title: item.title ?? "Untitled",
+              isFolder: item.isFolder ?? false,
+              s3Key: item.s3Key ?? undefined,
+              deleted: NOTE_DELETED.NORMAL,
+              shared: NOTE_SHARED.PRIVATE,
+              pinned: item.pinned ?? NOTE_PINNED.UNPINNED,
+            },
           };
           newTree.items[item.id] = treeItem;
           childIds.push(item.id);
@@ -257,27 +258,6 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             children: childIds,
             childrenLoaded: true,
           };
-        }
-
-        // Fetch note data for children
-        const notePromises = childrenResponse.items.map((item: any) =>
-          noteAPI
-            .fetch(item.id)
-            .then((noteData: NoteModel) => ({
-              id: item.id,
-              data: noteData,
-            }))
-            .catch((e: any) => {
-              console.error(`Failed to fetch note ${item.id}:`, e);
-              return null;
-            }),
-        );
-
-        const noteResults = await Promise.all(notePromises);
-        for (const result of noteResults) {
-          if (result && newTree.items[result.id]) {
-            newTree.items[result.id].data = result.data;
-          }
         }
 
         set({ tree: newTree });
