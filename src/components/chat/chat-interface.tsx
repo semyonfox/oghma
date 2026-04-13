@@ -104,6 +104,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const thinkingStartRef = useRef<number | null>(null);
 
+  // refs to avoid stale closures in beforeunload / visibilitychange handlers
+  const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
+  const sessionIdRef = useRef<string | null>(sessionId);
+  sessionIdRef.current = sessionId;
+  const loadingRef = useRef(false);
+  loadingRef.current = loading;
+
   // restore messages for an existing session
   useEffect(() => {
     if (restored) return;
@@ -138,6 +146,40 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               rating: m.rating ?? null,
             }),
           );
+          // check sessionStorage for a partial assistant message saved on unload
+          const draftKey = `chat-draft:${controlledSessionId}`;
+          let draftMsg: Message | null = null;
+          try {
+            const raw = sessionStorage.getItem(draftKey);
+            if (raw) {
+              const draft = JSON.parse(raw) as {
+                content: string;
+                thinking?: string;
+                sources?: { id: string; title: string }[];
+                timestamp: number;
+              };
+              // only use the draft if the server messages don't already
+              // contain an assistant message with the same (or newer) timestamp
+              const alreadyHas = restored.some(
+                (m) =>
+                  m.role === "assistant" && m.timestamp >= draft.timestamp,
+              );
+              if (!alreadyHas && draft.content) {
+                draftMsg = {
+                  id: `draft-${Date.now()}`,
+                  role: "assistant",
+                  content: `${draft.content}\n\n*[partial — response was interrupted]*`,
+                  thinking: draft.thinking,
+                  sources: draft.sources ?? [],
+                  timestamp: draft.timestamp,
+                };
+              }
+              sessionStorage.removeItem(draftKey);
+            }
+          } catch {
+            // malformed draft or storage unavailable -- ignore
+          }
+
           setMessages([
             {
               id: "welcome",
@@ -146,6 +188,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               timestamp: Date.now(),
             },
             ...restored,
+            ...(draftMsg ? [draftMsg] : []),
           ]);
         }
       } catch {
@@ -174,6 +217,44 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
   }, [thinkingMode]);
+
+  // persist partial assistant message when the page is unloaded or hidden
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const saveDraft = () => {
+      if (!loadingRef.current) return; // only save mid-stream, not completed responses
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+      const msgs = messagesRef.current;
+      const last = msgs[msgs.length - 1];
+      if (!last || last.role !== "assistant" || !last.content) return;
+
+      const draft = {
+        content: last.content,
+        thinking: last.thinking,
+        sources: last.sources,
+        timestamp: last.timestamp,
+      };
+      try {
+        sessionStorage.setItem(`chat-draft:${sid}`, JSON.stringify(draft));
+      } catch {
+        // sessionStorage quota exceeded or unavailable -- nothing to do
+      }
+    };
+
+    const handleBeforeUnload = () => saveDraft();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") saveDraft();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   const toggleThinking = () => {
     setThinkingMode((current) => (current === "off" ? "on" : "off"));
@@ -289,6 +370,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               : m,
           ),
         );
+
+        // non-streaming response completed -- clear any saved draft
+        const sid = data.sessionId || sessionId;
+        if (sid) {
+          try {
+            sessionStorage.removeItem(`chat-draft:${sid}`);
+          } catch {
+            // ignore
+          }
+        }
         return;
       }
 
@@ -434,6 +525,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         // all setState calls to batch into a single render at the end
         await new Promise<void>((r) => setTimeout(r, 0));
       }
+
+      // stream completed normally -- clear any saved draft
+      const completedSid = sessionIdRef.current;
+      if (completedSid) {
+        try {
+          sessionStorage.removeItem(`chat-draft:${completedSid}`);
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       const errMsg =
         err instanceof Error ? err.message : t("error.something_went_wrong");
@@ -459,6 +560,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (onClearContext) {
       onClearContext();
       return;
+    }
+
+    // clean up any saved draft for the current session
+    if (sessionId) {
+      try {
+        sessionStorage.removeItem(`chat-draft:${sessionId}`);
+      } catch {
+        // ignore
+      }
     }
 
     setMessages([
