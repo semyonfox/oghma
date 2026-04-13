@@ -206,17 +206,30 @@ async function createNote(userId, title, parentId, opts = {}) {
 // find an existing note by title under a parent, or create a new one
 // handles concurrent inserts by catching unique-violation and re-fetching
 async function findOrCreateNote(userId, title, parentId, opts = {}) {
-  const existing = await sql`
-    SELECT n.note_id FROM app.notes n
-    JOIN app.tree_items t ON t.note_id = n.note_id
-    WHERE n.user_id = ${userId}::uuid
-      AND t.user_id = ${userId}::uuid
-      AND n.title = ${title}
-      AND n.is_folder = false
-      AND n.deleted = 0
-      AND t.parent_id = ${parentId}::uuid
-    LIMIT 1
-  `;
+  // SQL `= NULL` is always unknown — split query for null vs non-null parent
+  const existing = parentId
+    ? await sql`
+        SELECT n.note_id FROM app.notes n
+        JOIN app.tree_items t ON t.note_id = n.note_id
+        WHERE n.user_id = ${userId}::uuid
+          AND t.user_id = ${userId}::uuid
+          AND n.title = ${title}
+          AND n.is_folder = false
+          AND n.deleted = 0
+          AND t.parent_id = ${parentId}::uuid
+        LIMIT 1
+      `
+    : await sql`
+        SELECT n.note_id FROM app.notes n
+        JOIN app.tree_items t ON t.note_id = n.note_id
+        WHERE n.user_id = ${userId}::uuid
+          AND t.user_id = ${userId}::uuid
+          AND n.title = ${title}
+          AND n.is_folder = false
+          AND n.deleted = 0
+          AND t.parent_id IS NULL
+        LIMIT 1
+      `;
   if (existing.length > 0) {
     const noteId = existing[0].note_id;
     // backfill canvas metadata on re-import if not already set
@@ -238,17 +251,29 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
   } catch (err) {
     // concurrent insert won the race — re-fetch the winner
     if (err.code === "23505") {
-      const [row] = await sql`
-        SELECT n.note_id FROM app.notes n
-        JOIN app.tree_items t ON t.note_id = n.note_id
-        WHERE n.user_id = ${userId}::uuid
-          AND t.user_id = ${userId}::uuid
-          AND n.title = ${title}
-          AND n.is_folder = false
-          AND n.deleted = 0
-          AND t.parent_id = ${parentId}::uuid
-        LIMIT 1
-      `;
+      const [row] = parentId
+        ? await sql`
+            SELECT n.note_id FROM app.notes n
+            JOIN app.tree_items t ON t.note_id = n.note_id
+            WHERE n.user_id = ${userId}::uuid
+              AND t.user_id = ${userId}::uuid
+              AND n.title = ${title}
+              AND n.is_folder = false
+              AND n.deleted = 0
+              AND t.parent_id = ${parentId}::uuid
+            LIMIT 1
+          `
+        : await sql`
+            SELECT n.note_id FROM app.notes n
+            JOIN app.tree_items t ON t.note_id = n.note_id
+            WHERE n.user_id = ${userId}::uuid
+              AND t.user_id = ${userId}::uuid
+              AND n.title = ${title}
+              AND n.is_folder = false
+              AND n.deleted = 0
+              AND t.parent_id IS NULL
+            LIMIT 1
+          `;
       if (row) return { noteId: row.note_id, created: false };
     }
     throw err;
