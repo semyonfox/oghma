@@ -380,7 +380,7 @@ export default function ChatPageClient() {
                   <span className="truncate">{conv.noteTitle}</span>
                 </div>
               )}
-              <p className="text-text-tertiary opacity-60 mt-0.5">
+              <p className="text-text-tertiary opacity-60 mt-0.5" suppressHydrationWarning>
                 {new Date(conv.createdAt).toLocaleDateString([], {
                   month: "short",
                   day: "numeric",
