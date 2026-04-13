@@ -198,7 +198,7 @@ export default function About() {
                   <div className="ml-auto w-44 flex-none space-y-8 pt-32 sm:ml-0 sm:pt-80 lg:order-last lg:pt-36 xl:order-0 xl:pt-80">
                     <div className="relative">
                       <Image
-                        alt=""
+                        alt="Students collaborating on a group project"
                         src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
@@ -210,7 +210,7 @@ export default function About() {
                   <div className="mr-auto w-44 flex-none space-y-8 sm:mr-0 sm:pt-52 lg:pt-36">
                     <div className="relative">
                       <Image
-                        alt=""
+                        alt="University lecture hall during a class"
                         src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
@@ -220,7 +220,7 @@ export default function About() {
                     </div>
                     <div className="relative">
                       <Image
-                        alt=""
+                        alt="Teacher writing on a classroom whiteboard"
                         src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
@@ -232,7 +232,7 @@ export default function About() {
                   <div className="w-44 flex-none space-y-8 pt-32 sm:pt-0">
                     <div className="relative">
                       <Image
-                        alt=""
+                        alt="Students studying together outdoors"
                         src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
@@ -242,7 +242,7 @@ export default function About() {
                     </div>
                     <div className="relative">
                       <Image
-                        alt=""
+                        alt="Graduates celebrating at commencement"
                         src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
@@ -300,7 +300,7 @@ export default function About() {
         {/* Image section */}
         <div className="mt-32 sm:mt-40 xl:mx-auto xl:max-w-7xl xl:px-8">
           <Image
-            alt=""
+            alt="Stack of books on a library desk"
             src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1400&q=80"
             width={1400}
             height={560}
@@ -568,7 +568,7 @@ export default function About() {
                 className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
               >
                 <Image
-                  alt=""
+                  alt={post.title}
                   src={post.imageUrl}
                   fill
                   sizes="(max-width: 1024px) 100vw, 33vw"

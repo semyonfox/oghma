@@ -7,10 +7,12 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import I18nProvider from "@/lib/i18n/provider";
 import { useLocaleLoader } from "@/lib/hooks/useLocaleLoader";
 import { Locale } from "@/locales";
-import SearchModal from "@/components/notes/search-modal";
-import TrashModal from "@/components/notes/trash-modal";
-import PreviewModal from "@/components/notes/preview-modal";
-import LinkToolbar from "@/components/notes/link-toolbar";
+import dynamic from "next/dynamic";
+
+const SearchModal = dynamic(() => import("@/components/notes/search-modal"), { ssr: false });
+const TrashModal = dynamic(() => import("@/components/notes/trash-modal"), { ssr: false });
+const PreviewModal = dynamic(() => import("@/components/notes/preview-modal"), { ssr: false });
+const LinkToolbar = dynamic(() => import("@/components/notes/link-toolbar"), { ssr: false });
 
 interface NotesProvidersProps {
   children: ReactNode;

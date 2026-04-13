@@ -132,7 +132,7 @@ export default function RegisterPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -153,7 +153,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={pwd}
                   onChange={(e) => setPwd(e.target.value)}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
               <p className="mt-1 text-xs text-text-tertiary">
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={confirmPwd}
                   onChange={(e) => setConfirmPwd(e.target.value)}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:bg-primary-800 disabled:text-primary-300 disabled:cursor-not-allowed"
               >
                 {loading ? t("Creating account...") : t("Create account")}
               </button>
