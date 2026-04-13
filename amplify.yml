@@ -69,7 +69,7 @@ frontend:
             GOOGLE_ID GOOGLE_SECRET GITHUB_ID GITHUB_SECRET \
             ENABLE_CREDENTIALS_AUTH SERVER_ENCRYPTION_SECRET COHERE_API_KEY \
             SES_REGION SES_ACCESS_KEY_ID SES_SECRET_ACCESS_KEY SES_FROM_EMAIL"
-          ALL_VARS="$RUNTIME_VARS NEXT_PUBLIC_API_URL NEXT_PUBLIC_APP_URL SECRETS_ID"
+          ALL_VARS="$RUNTIME_VARS NEXT_PUBLIC_API_URL NEXT_PUBLIC_APP_URL NEXT_PUBLIC_CHAT_URL SECRETS_ID"
           for var in $ALL_VARS; do
             [ -n "${!var}" ] && echo "${var}=${!var}" >> .env.production || true
           done
@@ -79,6 +79,18 @@ frontend:
             unset "$var"
           done
         - npm run build
+        # verify the Lambda chat URL was inlined into the client bundle
+        - |
+          if [ -n "$NEXT_PUBLIC_CHAT_URL" ]; then
+            if grep -r "$NEXT_PUBLIC_CHAT_URL" .next/static/ >/dev/null 2>&1; then
+              echo "OK: NEXT_PUBLIC_CHAT_URL found in client bundle"
+            else
+              echo "ERROR: NEXT_PUBLIC_CHAT_URL not inlined into client bundle"
+              exit 1
+            fi
+          else
+            echo "WARN: NEXT_PUBLIC_CHAT_URL not set — chat streaming disabled"
+          fi
         # copy .env.production into the standalone dir so the Next.js server finds
         # it regardless of which CWD Amplify uses when starting the compute process
         - cp .env.production .next/standalone/.env.production
