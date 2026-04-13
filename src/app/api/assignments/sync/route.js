@@ -3,8 +3,7 @@ import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import { syncAssignmentMetadata } from "@/lib/canvas/sync-assignments.js";
 import { cleanCourseName } from "@/lib/canvas/canvas-folders.js";
-import sql from "@/database/pgsql.js";
-import { decrypt } from "@/lib/crypto";
+import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
 /**
  * POST /api/assignments/sync
@@ -15,22 +14,15 @@ import { decrypt } from "@/lib/crypto";
 export const POST = withErrorHandler(async () => {
   const user = await requireAuth();
 
-  const credRows = await sql`
-    SELECT canvas_token, canvas_domain
-    FROM app.login
-    WHERE user_id = ${user.user_id}
-  `;
-  const { canvas_token, canvas_domain } = credRows[0] ?? {};
-
-  if (!canvas_token || !canvas_domain) {
+  const credentials = await loadCanvasCredentials(user.user_id);
+  if (!credentials) {
     return NextResponse.json({
       synced: false,
       reason: "No Canvas account connected",
     });
   }
 
-  const plainToken = decrypt(canvas_token, user.user_id);
-  const client = new CanvasClient(canvas_domain, plainToken);
+  const client = new CanvasClient(credentials.domain, credentials.token);
 
   const { data: allCourses, error } = await client.getCourses();
   if (error || !allCourses) {
