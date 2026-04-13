@@ -34,6 +34,8 @@ export const GET = withErrorHandler(
       JOIN app.chunks c ON c.id = e.chunk_id
       JOIN app.notes n ON n.note_id = c.document_id
       WHERE c.user_id = ${userId}::uuid
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
         AND c.id != ${question.chunk_id}::uuid
         AND (e.embedding <=> (
           SELECT embedding FROM app.embeddings WHERE chunk_id = ${question.chunk_id}::uuid LIMIT 1
