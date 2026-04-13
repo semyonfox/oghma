@@ -10,9 +10,11 @@ export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
   const url = new URL(request.url);
-  const status = url.searchParams.get("status");
-  const course = url.searchParams.get("course");
-  const includeAll = url.searchParams.get("all") === "1";
+  const searchParams = url.searchParams;
+  const status = searchParams.get("status");
+  const course = searchParams.get("course");
+  const includeAll = searchParams.get("all") === "1";
+  const includeArchived = searchParams.get("includeArchived") === "1";
   const windowDaysParam = Number(url.searchParams.get("windowDays") ?? "120");
   const windowDays = Number.isFinite(windowDaysParam)
     ? Math.min(Math.max(windowDaysParam, 1), 730)
@@ -36,8 +38,12 @@ export const GET = withErrorHandler(async (request) => {
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
   const rows = await sql`
-    SELECT * FROM app.assignments
+    SELECT a.* FROM app.assignments a
+    LEFT JOIN app.user_course_settings ucs 
+      ON ucs.user_id = ${user.user_id}::uuid 
+      AND ucs.canvas_course_id = a.canvas_course_id
     WHERE ${where}
+    ${!includeArchived ? sql`AND (ucs.is_active IS NULL OR ucs.is_active = true)` : sql``}
     ORDER BY due_at ASC NULLS LAST, created_at DESC
   `;
 
