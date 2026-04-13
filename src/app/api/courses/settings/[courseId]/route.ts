@@ -4,12 +4,16 @@ import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
 
 export const PATCH = withErrorHandler(
-  async (request: Request, { params }: { params: { courseId: string } }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ courseId: string }> },
+  ) => {
     const user = await validateSession();
     if (!user) return tracedError("Unauthorized", 401);
 
     const userId = user.user_id;
-    const courseId = parseInt(params.courseId, 10);
+    const { courseId: courseIdStr } = await params;
+    const courseId = parseInt(courseIdStr, 10);
     if (isNaN(courseId)) return tracedError("Invalid course ID", 400);
 
     const body = await request.json();
@@ -39,16 +43,20 @@ export const PATCH = withErrorHandler(
     }
 
     return NextResponse.json(setting[0]);
-  }
+  },
 );
 
 export const DELETE = withErrorHandler(
-  async (_request: Request, { params }: { params: { courseId: string } }) => {
+  async (
+    _request: Request,
+    { params }: { params: Promise<{ courseId: string }> },
+  ) => {
     const user = await validateSession();
     if (!user) return tracedError("Unauthorized", 401);
 
     const userId = user.user_id;
-    const courseId = parseInt(params.courseId, 10);
+    const { courseId: courseIdStr } = await params;
+    const courseId = parseInt(courseIdStr, 10);
     if (isNaN(courseId)) return tracedError("Invalid course ID", 400);
 
     await sql`
@@ -57,5 +65,5 @@ export const DELETE = withErrorHandler(
     `;
 
     return NextResponse.json({ success: true });
-  }
+  },
 );
