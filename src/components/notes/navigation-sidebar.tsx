@@ -68,8 +68,6 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
               title={section.label}
               aria-label={section.label}
               aria-current={isActive ? "page" : undefined}
-              role="menuitem"
-              aria-pressed={isActive}
             >
               <Icon className="w-6 h-6" />
 
@@ -105,8 +103,6 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
         title={t("Settings")}
         aria-label={t("Settings")}
         aria-current={activeSection === "settings" ? "page" : undefined}
-        role="menuitem"
-        aria-pressed={activeSection === "settings"}
       >
         <Cog6ToothIcon className="w-6 h-6" />
 

@@ -10,8 +10,16 @@ import useLayoutStore, {
 } from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
-import ChatInterface from "@/components/chat/chat-interface";
-import AssignmentTracker from "@/components/panels/assignment-tracker";
+import dynamic from "next/dynamic";
+
+const ChatInterface = dynamic(
+  () => import("@/components/chat/chat-interface"),
+  { ssr: false }
+);
+const AssignmentTracker = dynamic(
+  () => import("@/components/panels/assignment-tracker"),
+  { ssr: false }
+);
 
 interface InspectorNote {
   id: string;
