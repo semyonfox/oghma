@@ -41,7 +41,9 @@ export async function proxy(request: NextRequest) {
     }
 
     // redirect unauthenticated users to login for protected routes
-    if (!isAuthenticated) {
+    // (skip auth pages to avoid redirect loops)
+    const isAuthPage = pathname === "/login" || pathname === "/register";
+    if (!isAuthenticated && !isAuthPage) {
         const response = NextResponse.redirect(new URL("/login", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
