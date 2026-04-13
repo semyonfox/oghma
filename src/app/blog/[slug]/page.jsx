@@ -53,7 +53,7 @@ export default function BlogPost({ params }) {
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
               {t(post.title)}
             </h1>
-            <div className="mt-6 flex items-center gap-x-4 text-sm text-gray-400">
+            <div className="mt-6 flex items-center gap-x-4 text-sm text-gray-300">
               <a
                 href={post.author.linkedin}
                 className="flex items-center gap-x-2 text-gray-300 hover:text-white"
@@ -69,7 +69,7 @@ export default function BlogPost({ params }) {
                 />
                 <div>
                   <p className="font-semibold text-white">{post.author.name}</p>
-                  <p className="text-xs text-gray-400">{t(post.authorRole)}</p>
+                  <p className="text-xs text-gray-300">{t(post.authorRole)}</p>
                 </div>
               </a>
               <span>•</span>
@@ -79,10 +79,10 @@ export default function BlogPost({ params }) {
 
           <p className="mt-6 text-xl/8">{t(post.intro)}</p>
 
-          <div className="mt-10 max-w-2xl text-gray-400">
+          <div className="mt-10 max-w-2xl text-gray-300">
             <p className="whitespace-pre-line">{t(post.content)}</p>
 
-            <ul role="list" className="mt-8 max-w-xl space-y-8 text-gray-400">
+            <ul role="list" className="mt-8 max-w-xl space-y-8 text-gray-300">
               {post.highlights.map((item, idx) => (
                 <li key={idx} className="flex gap-x-3">
                   <CheckCircleIcon
@@ -112,7 +112,7 @@ export default function BlogPost({ params }) {
               </blockquote>
               <figcaption className="mt-6 flex gap-x-4">
                 <Image
-                  alt=""
+                  alt={post.testimonial.author}
                   src={post.testimonial.image}
                   width={24}
                   height={24}
@@ -132,13 +132,13 @@ export default function BlogPost({ params }) {
 
           <figure className="mt-16">
             <Image
-              alt=""
+              alt={t(post.title)}
               src={post.imageUrl}
               width={800}
               height={450}
               className="aspect-video rounded-xl bg-gray-800 object-cover"
             />
-            <figcaption className="mt-4 flex gap-x-2 text-sm/6 text-gray-400">
+            <figcaption className="mt-4 flex gap-x-2 text-sm/6 text-gray-300">
               <InformationCircleIcon
                 aria-hidden="true"
                 className="mt-0.5 size-5 flex-none text-gray-600"
@@ -147,7 +147,7 @@ export default function BlogPost({ params }) {
             </figcaption>
           </figure>
 
-          <div className="mt-16 max-w-2xl text-gray-400 border-t border-white/10 pt-8">
+          <div className="mt-16 max-w-2xl text-gray-300 border-t border-white/10 pt-8">
             <h2 className="text-3xl font-semibold tracking-tight text-pretty text-white">
               {t("blog.cta.title")}
             </h2>

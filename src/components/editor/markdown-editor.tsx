@@ -13,7 +13,14 @@ import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-import PreviewRenderer from "./preview-renderer";
+const PreviewRenderer = dynamic(() => import("./preview-renderer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+      Loading preview...
+    </div>
+  ),
+});
 import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
