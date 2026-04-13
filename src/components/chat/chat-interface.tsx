@@ -498,6 +498,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 readNote: "Reading note",
                 findFolder: "Looking up folder",
                 makeMDNote: "Creating note",
+                canvas_list_courses: "Reading Canvas courses",
+                canvas_list_modules: "Reading Canvas modules",
+                canvas_list_assignments: "Reading Canvas assignments",
+                canvas_list_module_items: "Reading Canvas module items",
+                canvas_get_file: "Reading Canvas file metadata",
               };
               const label = labels[toolName] ?? toolName;
               setMessages((prev) =>
