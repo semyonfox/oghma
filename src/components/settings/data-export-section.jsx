@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { ClipboardDocumentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { cn } from "./settings-utils";
+import { usePollingJob } from "@/lib/hooks/use-polling-job";
 
 export default function DataExportSection() {
   const { t } = useI18n();
@@ -146,68 +147,69 @@ export default function DataExportSection() {
   }
 
   // poll import status
-  useEffect(() => {
-    if (
-      !importJobId ||
-      importStatus === "complete" ||
-      importStatus === "failed"
-    )
-      return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch("/api/vault/status?type=vault-import");
-        if (!res.ok) return;
-        const { job, progress } = await res.json();
-        if (!job) return;
-        if (job.status === "complete") {
-          setImportStatus("complete");
-          setImportProgress(progress);
-          toast.success(t("Vault import complete!"));
-          clearInterval(interval);
-        } else if (job.status === "failed") {
-          setImportStatus("failed");
-          toast.error(job.error || t("Import failed"));
-          clearInterval(interval);
-        } else if (progress) {
-          setImportProgress(progress);
-        }
-      } catch {
-        /* ignore poll errors */
+  const importPollingActive =
+    !!importJobId && importStatus !== "complete" && importStatus !== "failed";
+
+  const handleImportPollData = useCallback(
+    (data) => {
+      const { job, progress } = data;
+      if (!job) return false;
+      if (job.status === "complete") {
+        setImportStatus("complete");
+        setImportProgress(progress);
+        toast.success(t("Vault import complete!"));
+        return true;
       }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [importJobId, importStatus, t]);
+      if (job.status === "failed") {
+        setImportStatus("failed");
+        toast.error(job.error || t("Import failed"));
+        return true;
+      }
+      if (progress) {
+        setImportProgress(progress);
+      }
+      return false;
+    },
+    [t],
+  );
+
+  usePollingJob({
+    url: "/api/vault/status?type=vault-import",
+    interval: 3000,
+    enabled: importPollingActive,
+    onData: handleImportPollData,
+  });
 
   // poll export status
-  useEffect(() => {
-    if (
-      !exportJobId ||
-      exportStatus === "complete" ||
-      exportStatus === "failed"
-    )
-      return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch("/api/vault/status?type=vault-export");
-        if (!res.ok) return;
-        const { job, downloadUrl } = await res.json();
-        if (!job) return;
-        if (job.status === "complete" && downloadUrl) {
-          setExportStatus("complete");
-          setExportDownloadUrl(downloadUrl);
-          toast.success(t("Vault export ready!"));
-          clearInterval(interval);
-        } else if (job.status === "failed") {
-          setExportStatus("failed");
-          toast.error(job.error || t("Export failed"));
-          clearInterval(interval);
-        }
-      } catch {
-        /* ignore poll errors */
+  const exportPollingActive =
+    !!exportJobId && exportStatus !== "complete" && exportStatus !== "failed";
+
+  const handleExportPollData = useCallback(
+    (data) => {
+      const { job, downloadUrl } = data;
+      if (!job) return false;
+      if (job.status === "complete" && downloadUrl) {
+        setExportStatus("complete");
+        setExportDownloadUrl(downloadUrl);
+        toast.success(t("Vault export ready!"));
+        return true;
       }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [exportJobId, exportStatus, t]);
+      if (job.status === "failed") {
+        setExportStatus("failed");
+        toast.error(job.error || t("Export failed"));
+        return true;
+      }
+      return false;
+    },
+    [t],
+  );
+
+  usePollingJob({
+    url: "/api/vault/status?type=vault-export",
+    interval: 3000,
+    enabled: exportPollingActive,
+    onData: handleExportPollData,
+  });
 
   // check for existing vault jobs on mount
   useEffect(() => {
