@@ -1,59 +1,9 @@
-// embeds a single query via self-hosted (preferred) or Cohere fallback
-// uses input_type=search_query (asymmetric to search_document used at index time)
+// embeds a single query string for semantic search
+// uses the same provider as batch embedding (OpenRouter / any OpenAI-compatible API)
 
-import { Metrics } from "@/lib/metrics";
-import { getCohereTimeoutMs } from "@/lib/ai-config";
 import { defaultEmbeddingProvider } from "@/lib/providers/self-hosted-embeddings";
-import logger from "@/lib/logger";
-
-const COHERE_URL = "https://api.cohere.com/v2/embed";
-const COHERE_MODEL = "embed-multilingual-v3.0";
-
-async function embedViaCohere(text: string): Promise<number[]> {
-  const apiKey = process.env.COHERE_API_KEY;
-  const timeoutMs = getCohereTimeoutMs();
-  if (!apiKey) throw new Error("COHERE_API_KEY not configured");
-
-  const res = await fetch(COHERE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      texts: [text],
-      model: COHERE_MODEL,
-      input_type: "search_query",
-      embedding_types: ["float"],
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    void Metrics.cohereError("embed");
-    throw new Error(
-      `Cohere embed failed (${res.status}): ${body.slice(0, 200)}`,
-    );
-  }
-
-  const json = await res.json();
-  const vectors: number[][] = json.embeddings?.float ?? [];
-  if (vectors.length === 0) throw new Error("Cohere returned no embeddings");
-  return vectors[0];
-}
 
 export async function embedText(text: string): Promise<number[]> {
-  // try self-hosted first, fall back to Cohere
-  try {
-    if (defaultEmbeddingProvider.isConfigured()) {
-      return await defaultEmbeddingProvider.embedSingle(text);
-    }
-  } catch (err) {
-    logger.info("self-hosted embed unavailable, falling back to Cohere", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  return embedViaCohere(text);
+  const prefixed = `Instruct: Represent this query for retrieval\nQuery: ${text}`;
+  return defaultEmbeddingProvider.embedSingle(prefixed);
 }
