@@ -15,10 +15,14 @@ interface Course {
 interface CourseListProps {
   courses: Course[];
   onSelectCourse: (courseId: number) => void;
-  allNotesStats?: { totalCards: number; dueCount: number; mastery: number } | null;
+  allNotesStats?: {
+    totalCards: number;
+    dueCount: number;
+    mastery: number;
+  } | null;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  loadingCourseId?: string | null;
+  loadingCourseId?: number | string | null;
   showArchived: boolean;
   onToggleArchived: () => void;
   onArchiveCourse: (courseId: number, courseName: string) => void;
@@ -61,7 +65,9 @@ function CourseButton({
         disabled={disabled || nothingDue}
         className="flex-1 min-w-0 text-left"
       >
-        <div className="text-text text-sm font-medium truncate">{courseName}</div>
+        <div className="text-text text-sm font-medium truncate">
+          {courseName}
+        </div>
         <div className="flex gap-3 mt-1 text-xs">
           {hasCards ? (
             <>
@@ -76,7 +82,9 @@ function CourseButton({
             </>
           ) : (
             <span className="text-text-tertiary italic">
-              {isLoading ? t("quiz.loading") : t("quiz.courses.generate_prompt")}
+              {isLoading
+                ? t("quiz.loading")
+                : t("quiz.courses.generate_prompt")}
             </span>
           )}
         </div>
@@ -87,7 +95,9 @@ function CourseButton({
         ) : hasCards ? (
           <>
             <div>
-              <div className="text-text-secondary text-sm font-medium">{mastery}%</div>
+              <div className="text-text-secondary text-sm font-medium">
+                {mastery}%
+              </div>
               <div className="w-12 h-1 bg-surface-elevated rounded-full mt-1">
                 <div
                   className="h-full rounded-full bg-text-tertiary"
@@ -102,6 +112,7 @@ function CourseButton({
                 disabled={disabled}
                 className="p-1.5 text-text-tertiary hover:text-primary-500 hover:bg-primary-500/10 rounded-radius transition-colors"
                 title={t("quiz.courses.unarchive")}
+                aria-label={t("Unarchive course")}
               >
                 <EyeIcon className="w-4 h-4" />
               </button>
@@ -111,6 +122,7 @@ function CourseButton({
                 disabled={disabled}
                 className="p-1.5 text-text-tertiary hover:text-primary-500 hover:bg-primary-500/10 rounded-radius transition-colors"
                 title={t("quiz.courses.archive")}
+                aria-label={t("Archive course")}
               >
                 <EyeSlashIcon className="w-4 h-4" />
               </button>
@@ -202,11 +214,16 @@ export default function CourseList({
             totalCards={course.totalCards}
             dueCount={course.dueCount}
             mastery={course.mastery}
-            isLoading={loadingCourseId === String(course.courseId)}
+            isLoading={
+              loadingCourseId === course.courseId ||
+              loadingCourseId === String(course.courseId)
+            }
             disabled={anyLoading}
             isArchived={false}
             onClick={() => onSelectCourse(course.courseId)}
-            onArchive={() => onArchiveCourse(course.courseId, course.courseName)}
+            onArchive={() =>
+              onArchiveCourse(course.courseId, course.courseName)
+            }
           />
         ))}
 
@@ -225,7 +242,10 @@ export default function CourseList({
                 totalCards={course.totalCards}
                 dueCount={course.dueCount}
                 mastery={course.mastery}
-                isLoading={loadingCourseId === String(course.courseId)}
+                isLoading={
+                  loadingCourseId === course.courseId ||
+                  loadingCourseId === String(course.courseId)
+                }
                 disabled={anyLoading}
                 isArchived={true}
                 onClick={() => onSelectCourse(course.courseId)}
@@ -235,18 +255,23 @@ export default function CourseList({
           </>
         )}
 
-        {filteredActive.length === 0 && filteredArchived.length === 0 && !allNotesStats && (
-          <div className="text-text-tertiary text-sm text-center py-8">
-            {courses.length === 0
-              ? t("quiz.courses.no_content")
-              : t("quiz.courses.no_matches")}
-          </div>
-        )}
-        {filteredActive.length === 0 && filteredArchived.length === 0 && allNotesStats && searchQuery && (
-          <div className="text-text-tertiary text-sm text-center py-4">
-            {t("quiz.courses.no_matches")}
-          </div>
-        )}
+        {filteredActive.length === 0 &&
+          filteredArchived.length === 0 &&
+          !allNotesStats && (
+            <div className="text-text-tertiary text-sm text-center py-8">
+              {courses.length === 0
+                ? t("quiz.courses.no_content")
+                : t("quiz.courses.no_matches")}
+            </div>
+          )}
+        {filteredActive.length === 0 &&
+          filteredArchived.length === 0 &&
+          allNotesStats &&
+          searchQuery && (
+            <div className="text-text-tertiary text-sm text-center py-4">
+              {t("quiz.courses.no_matches")}
+            </div>
+          )}
       </div>
     </div>
   );
