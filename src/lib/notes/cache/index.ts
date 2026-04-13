@@ -1,19 +1,35 @@
 // extracted from Notea (MIT License)
 import { NoteModel } from '@/lib/notes/types/note';
-import { openDB, IDBPDatabase } from 'idb';
+import { openDB, deleteDB, IDBPDatabase } from 'idb';
 
 let uiDb: IDBPDatabase | null = null;
 let noteCacheDb: IDBPDatabase | null = null;
 
-// Initialize IndexedDB with lazy loading
+// Initialize IndexedDB with lazy loading.
+// After clearing site data some browsers (notably Firefox) leave
+// the database metadata at version 1 but drop the object stores.
+// When that happens the upgrade callback never fires and the 'data'
+// store is missing.  Detect the broken state, delete, and retry.
 const initDb = async (name: string): Promise<IDBPDatabase> => {
-    return openDB(name, 1, {
+    let db = await openDB(name, 1, {
         upgrade(db) {
             if (!db.objectStoreNames.contains('data')) {
                 db.createObjectStore('data');
             }
         },
     });
+
+    if (!db.objectStoreNames.contains('data')) {
+        db.close();
+        await deleteDB(name);
+        db = await openDB(name, 1, {
+            upgrade(db) {
+                db.createObjectStore('data');
+            },
+        });
+    }
+
+    return db;
 };
 
 const getDb = async (dbName: 'ui' | 'note'): Promise<IDBPDatabase> => {
