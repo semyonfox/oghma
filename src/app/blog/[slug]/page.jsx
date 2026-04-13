@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   InformationCircleIcon,
 } from "@heroicons/react/20/solid";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@/components/header";
@@ -59,9 +60,11 @@ export default function BlogPost({ params }) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <img
+                <Image
                   alt={post.author.name}
                   src={post.author.imageUrl}
+                  width={32}
+                  height={32}
                   className="size-8 rounded-full bg-gray-800"
                 />
                 <div>
@@ -108,9 +111,11 @@ export default function BlogPost({ params }) {
                 <p>"{t(post.testimonial.quote)}"</p>
               </blockquote>
               <figcaption className="mt-6 flex gap-x-4">
-                <img
+                <Image
                   alt=""
                   src={post.testimonial.image}
+                  width={24}
+                  height={24}
                   className="size-6 flex-none rounded-full bg-gray-800"
                 />
                 <div className="text-sm/6">
@@ -126,9 +131,11 @@ export default function BlogPost({ params }) {
           </div>
 
           <figure className="mt-16">
-            <img
+            <Image
               alt=""
               src={post.imageUrl}
+              width={800}
+              height={450}
               className="aspect-video rounded-xl bg-gray-800 object-cover"
             />
             <figcaption className="mt-4 flex gap-x-2 text-sm/6 text-gray-400">
