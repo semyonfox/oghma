@@ -117,7 +117,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   } else {
     const exists = await sql`
       SELECT 1 FROM app.notes
-      WHERE note_id = ${noteId}::uuid AND user_id = ${session.user_id}::uuid
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${session.user_id}::uuid
+        AND deleted = 0
+        AND deleted_at IS NULL
       LIMIT 1
     `;
     if (!exists.length) return tracedError("Note not found", 404);
