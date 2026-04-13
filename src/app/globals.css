@@ -534,6 +534,20 @@ html.light .markdown-preview .hljs-function .hljs-title {
   color: #4078f2;
 }
 
+/* accessible touch target — expands hit area to 44px minimum without changing visual size */
+.touch-target-44 {
+  position: relative;
+}
+.touch-target-44::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

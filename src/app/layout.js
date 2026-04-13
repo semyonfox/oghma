@@ -1,13 +1,8 @@
 import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
-import CanvasIntegration from "@/components/CanvasIntegration";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
 import "./globals.css";
-import "katex/dist/katex.min.css";
-// Import react-pdf styles globally so they're available for all PDF viewers
-import "react-pdf/dist/Page/TextLayer.css";
-import "react-pdf/dist/Page/AnnotationLayer.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -24,8 +19,35 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata = {
-  title: "OghmaNotes",
-  description: "AI-enhanced study & learning hub",
+  title: {
+    default: "OghmaNotes",
+    template: "%s | OghmaNotes",
+  },
+  description:
+    "AI-enhanced study platform with semantic notes, RAG chat, adaptive quizzes, and Canvas LMS sync. Built for university students.",
+  metadataBase: new URL("https://oghmanotes.ie"),
+  openGraph: {
+    title: "OghmaNotes",
+    description:
+      "AI-enhanced study platform with semantic notes, RAG chat, and adaptive quizzes.",
+    url: "https://oghmanotes.ie",
+    siteName: "OghmaNotes",
+    type: "website",
+    images: [
+      {
+        url: "/notes-screenshot.png",
+        width: 1440,
+        height: 900,
+        alt: "OghmaNotes editor interface",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OghmaNotes",
+    description: "AI-enhanced study platform for students.",
+    images: ["/notes-screenshot.png"],
+  },
 };
 
 // static script to apply theme class before first paint (prevents FOUC)
@@ -46,7 +68,6 @@ export default function RootLayout({ children }) {
       <body className="font-sans antialiased bg-background text-text">
         <I18nRootProvider>
           <ThemeProvider>
-            <CanvasIntegration />
             <PomodoroIntegration />
             {children}
           </ThemeProvider>

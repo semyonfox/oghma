@@ -32,7 +32,6 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
   const treeWidth = useLayoutStore((s) => s.treeWidth);
   const rightPanelWidth = useLayoutStore((s) => s.rightPanelWidth);
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
-  const paneB = useLayoutStore((s) => s.paneB);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   // read paneA.fileId only (not the full object) to avoid re-renders on title/editMode changes
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
@@ -108,25 +107,26 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     if (initLoaded) schedulePrefetch();
   }, [initLoaded]);
 
-  // Global keyboard shortcuts - optimized to prevent constant re-attachment
+  // Global keyboard shortcuts — reads state from store directly so the
+  // listener never needs re-attaching on pane/panel changes
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const state = useLayoutStore.getState();
       // Tab to switch panes (when split view is active)
-      if (e.key === "Tab" && paneB && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      if (e.key === "Tab" && state.paneB && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
-        const state = useLayoutStore.getState();
         state.setActivePane(state.activePane === "A" ? "B" : "A");
       }
       // Escape to close right panel
-      if (e.key === "Escape" && rightPanelOpen) {
+      if (e.key === "Escape" && state.rightPanelOpen) {
         e.preventDefault();
-        useLayoutStore.getState().toggleRightPanel();
+        state.toggleRightPanel();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [paneB, rightPanelOpen]);
+  }, []);
 
   return (
     <div className="relative h-screen w-screen flex flex-col bg-background">

@@ -33,7 +33,7 @@ export default function BlogPage() {
             <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
               {t("blog.title")}
             </h2>
-            <p className="mt-2 text-lg leading-8 text-gray-400">
+            <p className="mt-2 text-lg leading-8 text-gray-300">
               {t("blog.subtitle")}
             </p>
           </div>
@@ -46,7 +46,7 @@ export default function BlogPage() {
                 <div className="relative w-full">
                   <Image
                     src={post.imageUrl}
-                    alt=""
+                    alt={t(post.title)}
                     width={800}
                     height={450}
                     className="aspect-video w-full rounded-2xl bg-gray-100 object-cover sm:aspect-square lg:aspect-video"
@@ -72,7 +72,7 @@ export default function BlogPage() {
                         {t(post.title)}
                       </Link>
                     </h3>
-                    <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-400">
+                    <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-300">
                       {t(post.excerpt)}
                     </p>
                   </div>
@@ -94,7 +94,7 @@ export default function BlogPage() {
                         <p className="font-semibold text-white">
                           {post.author.name}
                         </p>
-                        <p className="text-gray-400">{t(post.authorRole)}</p>
+                        <p className="text-gray-300">{t(post.authorRole)}</p>
                       </div>
                     </a>
                   </div>

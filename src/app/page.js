@@ -11,8 +11,8 @@ import {
   EnvelopeIcon,
   PhoneIcon,
 } from "@heroicons/react/24/outline";
+import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
-import { motion } from "motion/react";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import TestimonialSection from "@/components/testimonial-section";
@@ -22,16 +22,37 @@ import { useHomeFeatures } from "@/lib/hooks/useHomeFeatures";
 import { useHomeFAQs } from "@/lib/hooks/useHomeFAQs";
 
 function FadeIn({ children, delay = 0, className }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: "-50px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+    <div
+      ref={ref}
       className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(20px)",
+        transition: `opacity 0.5s ease-out ${delay}s, transform 0.5s ease-out ${delay}s`,
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -44,6 +65,7 @@ function HeroMockup() {
         alt="OghmaNotes editor with file tree, rich text editing, and AI chat"
         width={1440}
         height={900}
+        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1280px"
         className="w-full h-auto block"
         priority
       />
@@ -91,7 +113,7 @@ export default function Home() {
                 </h1>
               </FadeIn>
               <FadeIn delay={0.1}>
-                <p className="mt-8 text-lg font-medium text-pretty text-gray-400 sm:text-xl/8">
+                <p className="mt-8 text-lg font-medium text-pretty text-gray-300 sm:text-xl/8">
                   {t(
                     "Upload PDFs. Ask questions with cited answers. Generate adaptive quizzes. Master your materials with spaced-repetition flashcards and Canvas sync. Offline-first learning, designed for busy students.",
                   )}
@@ -145,10 +167,10 @@ export default function Home() {
               {t("Everything you need for RAG-powered learning")}
             </p>
           </FadeIn>
-          <dl className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
+          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {features.map((feature, i) => (
               <FadeIn key={feature.name} delay={i * 0.05}>
-                <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-6 transition-all duration-200 hover:bg-white/[0.07] hover:ring-white/20">
+                <dl className="rounded-xl bg-white/5 ring-1 ring-white/10 p-6 transition-all duration-200 hover:bg-white/[0.07] hover:ring-white/20">
                   <dt>
                     <div className="bg-primary-500/10 rounded-lg p-2 w-fit mb-4">
                       <feature.icon
@@ -160,13 +182,13 @@ export default function Home() {
                       {t(feature.name)}
                     </span>
                   </dt>
-                  <dd className="mt-2 text-base/7 text-gray-400">
+                  <dd className="mt-2 text-base/7 text-gray-300">
                     {t(feature.description)}
                   </dd>
-                </div>
+                </dl>
               </FadeIn>
             ))}
-          </dl>
+          </div>
         </div>
       </div>
 
@@ -238,7 +260,7 @@ export default function Home() {
                 <h2 className="font-serif text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
                   {t("Get in touch")}
                 </h2>
-                <p className="mt-6 text-lg/8 text-gray-400">
+                <p className="mt-6 text-lg/8 text-gray-300">
                   {t(
                     "Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we'll get back to you.",
                   )}
@@ -250,7 +272,7 @@ export default function Home() {
                     <span className="sr-only">{t("Address")}</span>
                     <BuildingOffice2Icon
                       aria-hidden="true"
-                      className="h-7 w-6 text-gray-400"
+                      className="h-7 w-6 text-gray-300"
                     />
                   </dt>
                   <dd>
@@ -264,7 +286,7 @@ export default function Home() {
                     <span className="sr-only">{t("Telephone")}</span>
                     <PhoneIcon
                       aria-hidden="true"
-                      className="h-7 w-6 text-gray-400"
+                      className="h-7 w-6 text-gray-300"
                     />
                   </dt>
                   <dd>
@@ -278,7 +300,7 @@ export default function Home() {
                     <span className="sr-only">{t("Email")}</span>
                     <EnvelopeIcon
                       aria-hidden="true"
-                      className="h-7 w-6 text-gray-400"
+                      className="h-7 w-6 text-gray-300"
                     />
                   </dt>
                   <dd>
@@ -335,7 +357,7 @@ export default function Home() {
                     </DisclosureButton>
                   </dt>
                   <DisclosurePanel as="dd" className="mt-2 pr-12">
-                    <p className="text-base/7 text-gray-400">{faq.answer}</p>
+                    <p className="text-base/7 text-gray-300">{faq.answer}</p>
                   </DisclosurePanel>
                 </Disclosure>
               ))}
