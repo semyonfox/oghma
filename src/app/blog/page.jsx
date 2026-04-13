@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
@@ -43,9 +44,11 @@ export default function BlogPage() {
                 className="flex flex-col items-start justify-between"
               >
                 <div className="relative w-full">
-                  <img
+                  <Image
                     src={post.imageUrl}
                     alt=""
+                    width={800}
+                    height={450}
                     className="aspect-video w-full rounded-2xl bg-gray-100 object-cover sm:aspect-square lg:aspect-video"
                   />
                   <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gray-900/10" />
@@ -80,9 +83,11 @@ export default function BlogPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <img
+                      <Image
                         alt={post.author.name}
                         src={post.author.imageUrl}
+                        width={40}
+                        height={40}
                         className="h-10 w-10 rounded-full bg-gray-800"
                       />
                       <div>

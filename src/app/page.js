@@ -11,6 +11,7 @@ import {
   EnvelopeIcon,
   PhoneIcon,
 } from "@heroicons/react/24/outline";
+import Image from "next/image";
 import { motion } from "motion/react";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
@@ -38,10 +39,13 @@ function FadeIn({ children, delay = 0, className }) {
 function HeroMockup() {
   return (
     <div className="relative mt-16 sm:mt-24 rounded-3xl ring-1 ring-white/10 shadow-2xl overflow-hidden">
-      <img
+      <Image
         src="/notes-screenshot.png"
         alt="OghmaNotes editor with file tree, rich text editing, and AI chat"
+        width={1440}
+        height={900}
         className="w-full h-auto block"
+        priority
       />
       {/* smooth fade-out blending into the page */}
       <div

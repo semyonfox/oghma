@@ -25,7 +25,7 @@ const blogPosts = [
     excerpt: 'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
     date: 'Jan 15, 2025',
     datetime: '2025-01-15',
-    imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=3603&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80',
     intro: 'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
     content: `The Cornell Method is one of the most effective note-taking systems ever developed. Combined with OghmaNotes AI, you can take your studying to the next level.
 
@@ -78,7 +78,7 @@ The platform is designed specifically for students who want to maximize their le
     excerpt: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
     date: 'Jan 10, 2025',
     datetime: '2025-01-10',
-    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=3270&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
     intro: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
     content: `Manual assignment tracking across multiple courses is exhausting. With OghmaNotes Canvas integration, all your assignments, deadlines, and course materials sync automatically.
 
@@ -126,7 +126,7 @@ Never switch between apps again. Everything you need is in OghmaNotes.`,
     excerpt: 'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
     date: 'Jan 5, 2025',
     datetime: '2025-01-05',
-    imageUrl: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=3270&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
     intro: 'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
     content: `Top-performing students don't study harder—they study smarter. Here are the strategies that successful students are using with OghmaNotes.
 
