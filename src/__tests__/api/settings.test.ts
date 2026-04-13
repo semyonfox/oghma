@@ -62,4 +62,26 @@ describe("POST /api/settings", () => {
       editorsize: "small",
     });
   });
+
+  it("persists the Canvas AI access flag", async () => {
+    const request = new NextRequest("http://localhost/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ai_canvas_access: true,
+      }),
+    });
+
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(saveSettingsToS3).toHaveBeenCalledWith("user-123", {
+      locale: "en",
+      ai_canvas_access: true,
+    });
+    expect(body).toMatchObject({
+      ai_canvas_access: true,
+    });
+  });
 });
