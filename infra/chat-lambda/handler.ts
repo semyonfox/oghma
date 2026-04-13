@@ -29,6 +29,8 @@ import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
+import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
+import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 
 import {
   normalizeUuidList,
@@ -427,6 +429,19 @@ export const handler = awslambda.streamifyResponse(
           `\nLast folder used for note creation: "${effectiveSessionContext.lastFolder.title}" ` +
           `(id: ${effectiveSessionContext.lastFolder.id}). Use that parentID directly when it fits.`;
 
+      const appOrigin = resolveAppOrigin({
+        requestOrigin: event.headers?.origin,
+        referer: event.headers?.referer,
+      });
+      const {
+        client: canvasMcpClient,
+        tools: canvasTools,
+        instruction: canvasInstruction,
+      } = await getOptionalCanvasTooling({
+        userId,
+        appOrigin,
+      });
+
       const toolInstruction =
         "Tools available:\n" +
         "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
@@ -434,7 +449,8 @@ export const handler = awslambda.streamifyResponse(
         "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
         "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
         "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
-        scopedParentHint;
+        scopedParentHint +
+        (canvasInstruction ? `\n\n${canvasInstruction}` : "");
 
       // ── tool definitions ────────────────────────────────────────────────
 
@@ -537,19 +553,29 @@ export const handler = awslambda.streamifyResponse(
         maxOutputTokens: getLlmMaxTokens(),
         ...(thinkingMode !== "off" && { temperature: 1 }),
         stopWhen: stepCountIs(50),
-        tools: { getChunks, readNote, findFolder, makeMDNote },
+        tools: {
+          getChunks,
+          readNote,
+          findFolder,
+          makeMDNote,
+          ...canvasTools,
+        },
         providerOptions: { moonshotai: moonshotOptions },
       });
 
-      for await (const part of result.fullStream) {
-        if (part.type === "reasoning-delta") {
-          sse.event("thinking", { text: part.text });
-        } else if (part.type === "text-delta") {
-          reply += part.text;
-          sse.event("token", { text: part.text });
-        } else if (part.type === "tool-call") {
-          sse.event("tool-call", { toolName: part.toolName });
+      try {
+        for await (const part of result.fullStream) {
+          if (part.type === "reasoning-delta") {
+            sse.event("thinking", { text: part.text });
+          } else if (part.type === "text-delta") {
+            reply += part.text;
+            sse.event("token", { text: part.text });
+          } else if (part.type === "tool-call") {
+            sse.event("tool-call", { toolName: part.toolName });
+          }
         }
+      } finally {
+        await canvasMcpClient?.close().catch(() => {});
       }
       void Metrics.llmLatency(Date.now() - t0);
 

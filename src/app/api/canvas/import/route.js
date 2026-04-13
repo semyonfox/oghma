@@ -5,8 +5,8 @@ import sql from "@/database/pgsql.js";
 import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
-import { decrypt } from "@/lib/crypto";
 import logger from "@/lib/logger";
+import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
 /**
  * POST /api/canvas/import
@@ -27,23 +27,13 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "courseIds array is required");
   }
 
-  const rows = await sql`
-    SELECT canvas_token, canvas_domain
-    FROM app.login
-    WHERE user_id = ${user.user_id}
-  `;
-
-  const { canvas_token, canvas_domain } = rows[0] ?? {};
-
-  if (!canvas_token || !canvas_domain) {
+  const credentials = await loadCanvasCredentials(user.user_id);
+  if (!credentials) {
     throw new ApiError(400, "No Canvas account connected");
   }
 
-  // decrypt the stored token before using it
-  const plainToken = decrypt(canvas_token, user.user_id);
-
   // Validate the token is still live before queuing
-  const client = new CanvasClient(canvas_domain, plainToken);
+  const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: courses, error: coursesError } = await client.getCourses();
   if (!courses && coursesError) {
     throw new ApiError(401, "Canvas token is invalid or expired");
