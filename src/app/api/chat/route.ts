@@ -396,7 +396,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map((r) => `"${r.title || "Untitled"}"`))].join(", ")}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
                   : embeddingAvailable
                     ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
-                    : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
+                    : "Embedding service unavailable. Check EMBEDDING_API_URL/KEY/MODEL configuration.";
 
               if (!llmAvailable) {
                 controller.enqueue(
@@ -960,7 +960,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ? `Found ${searchResults.length} relevant chunk(s) from: ${[...new Set(searchResults.map((r) => `"${r.title || "Untitled"}"`))].join(", ")}. Connect an LLM (set LLM_API_URL) to get AI-generated answers.`
       : embeddingAvailable
         ? "No relevant notes found. Try uploading a PDF to build your knowledge base."
-        : "Embedding service unavailable. Set COHERE_API_KEY to enable semantic search.";
+        : "Embedding service unavailable. Check EMBEDDING_API_URL/KEY/MODEL configuration.";
 
   const provider = createLlmProvider();
   const model = provider ? provider(getLlmModel()) : null;
