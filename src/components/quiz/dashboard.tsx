@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
+import useCourseStore from "@/lib/notes/state/courses.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
@@ -23,19 +24,32 @@ export default function QuizDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [startingSession, setStartingSession] = useState<string | null>(null);
 
+  const {
+    showArchived,
+    fetchSettings,
+    toggleShowArchived,
+    archiveCourse,
+    unarchiveCourse,
+  } = useCourseStore();
+
   useEffect(() => {
     async function load() {
       setDashboardLoading(true);
       try {
-        const [dashRes, coursesRes] = await Promise.all([
-          fetch("/api/quiz/dashboard"),
-          fetch("/api/quiz/dashboard/courses"),
+        await Promise.all([
+          (async () => {
+            const [dashRes, coursesRes] = await Promise.all([
+              fetch("/api/quiz/dashboard"),
+              fetch("/api/quiz/dashboard/courses"),
+            ]);
+            if (dashRes.ok) setDashboard(await dashRes.json());
+            if (coursesRes.ok) {
+              const data = await coursesRes.json();
+              setCourses(data.courses);
+            }
+          })(),
+          fetchSettings(),
         ]);
-        if (dashRes.ok) setDashboard(await dashRes.json());
-        if (coursesRes.ok) {
-          const data = await coursesRes.json();
-          setCourses(data.courses);
-        }
       } catch {
         // network or parse error — fallback handled below
       } finally {
@@ -55,7 +69,7 @@ export default function QuizDashboard() {
       }
     }
     load();
-  }, [setDashboard, setCourses, setDashboardLoading]);
+  }, [setDashboard, setCourses, setDashboardLoading, fetchSettings]);
 
   const startReview = async (filterType: string, filterValue?: unknown) => {
     const key = filterValue != null ? String(filterValue) : "all";
@@ -182,6 +196,10 @@ export default function QuizDashboard() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           loadingCourseId={startingSession}
+          showArchived={showArchived}
+          onToggleArchived={toggleShowArchived}
+          onArchiveCourse={archiveCourse}
+          onUnarchiveCourse={unarchiveCourse}
         />
       </div>
     </div>
