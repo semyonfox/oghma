@@ -218,6 +218,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
     try {
       const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL;
+      if (
+        !chatFunctionUrl &&
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost"
+      ) {
+        console.warn(
+          "[chat] NEXT_PUBLIC_CHAT_URL not set — falling back to /api/chat (no streaming on Amplify)",
+        );
+      }
       let chatEndpoint = "/api/chat";
       let chatHeaders: Record<string, string> = {
         "Content-Type": "application/json",
