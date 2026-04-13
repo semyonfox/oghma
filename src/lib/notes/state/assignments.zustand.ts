@@ -28,7 +28,10 @@ interface AssignmentState {
   activeTab: AssignmentTab;
   includeAll: boolean;
 
-  fetchAssignments: (opts?: { all?: boolean }) => Promise<void>;
+  fetchAssignments: (opts?: {
+    all?: boolean;
+    includeArchived?: boolean;
+  }) => Promise<void>;
   createAssignment: (data: Partial<Assignment>) => Promise<Assignment | null>;
   updateAssignment: (id: string, data: Partial<Assignment>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
@@ -51,9 +54,12 @@ const useAssignmentStore = create<AssignmentState>()(
         set({ loading: true });
         try {
           const all = opts?.all ?? get().includeAll;
-          const res = await fetch(
-            all ? "/api/assignments?all=1" : "/api/assignments",
-          );
+          const includeArchived = opts?.includeArchived;
+          const params = new URLSearchParams();
+          if (all) params.set("all", "1");
+          if (includeArchived) params.set("includeArchived", "1");
+          const query = params.toString() ? `?${params.toString()}` : "";
+          const res = await fetch(`/api/assignments${query}`);
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
           set({ assignments: data, loading: false });
