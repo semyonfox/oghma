@@ -19,31 +19,32 @@ export const GET = withErrorHandler(async (request) => {
   const windowDays = Number.isFinite(windowDaysParam)
     ? Math.min(Math.max(windowDaysParam, 1), 730)
     : 120;
-  const cutoffIso = new Date(
-    Date.now() - windowDays * 86400000,
-  ).toISOString();
+  const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString();
 
   // build WHERE dynamically instead of 8 separate query branches
-  const conditions = [sql`user_id = ${user.user_id}::uuid`];
-  if (status) conditions.push(sql`status = ${status}`);
-  if (course) conditions.push(sql`course_name = ${course}`);
+  // note: ucs.is_active IS NULL means the course has no settings row (visible by default)
+  const conditions = [sql`a.user_id = ${user.user_id}::uuid`];
+  if (status) conditions.push(sql`a.status = ${status}`);
+  if (course) conditions.push(sql`a.course_name = ${course}`);
   if (!includeAll) {
     conditions.push(sql`(
-      source <> 'canvas'
-      OR status IN ('upcoming', 'in_progress')
-      OR due_at >= ${cutoffIso}::timestamptz
-      OR submitted_at >= ${cutoffIso}::timestamptz
+      a.source <> 'canvas'
+      OR a.status IN ('upcoming', 'in_progress')
+      OR a.due_at >= ${cutoffIso}::timestamptz
+      OR a.submitted_at >= ${cutoffIso}::timestamptz
     )`);
+  }
+  if (!includeArchived) {
+    conditions.push(sql`(ucs.is_active IS NULL OR ucs.is_active = true)`);
   }
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
   const rows = await sql`
     SELECT a.* FROM app.assignments a
-    LEFT JOIN app.user_course_settings ucs 
-      ON ucs.user_id = ${user.user_id}::uuid 
+    LEFT JOIN app.user_course_settings ucs
+      ON ucs.user_id = ${user.user_id}::uuid
       AND ucs.canvas_course_id = a.canvas_course_id
     WHERE ${where}
-    ${!includeArchived ? sql`AND (ucs.is_active IS NULL OR ucs.is_active = true)` : sql``}
     ORDER BY due_at ASC NULLS LAST, created_at DESC
   `;
 
