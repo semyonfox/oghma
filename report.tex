@@ -793,7 +793,12 @@ The query is embedded (self-hosted \tech{mxbai-embed-large}, 1024d), searched ag
 PostgreSQL~17.4 with \tech{pgvector}, hosted on AWS RDS. All 19 tables sit under the \tech{app} schema. Core tables: \tech{app.login} (users), \tech{app.notes}/\tech{app.tree\_items} (content and file hierarchy), \tech{app.chunks}/\tech{app.embeddings} (RAG vectors), and \tech{app.chat\_sessions}/\tech{app.chat\_messages} (conversations). Supporting tables cover OAuth linking, Canvas imports, quiz flashcards, Pomodoro sessions, time blocks, PDF annotations, and rate limiting. The schema went through 23 tracked versions in \tech{app.schema\_migrations}, covering the embedding dimension change (Section~\ref{sec:pivot-8}), two-phase Canvas import, rate limit audit logging, quiz infrastructure, chat message rating, and per-user calendar export tokens.
 \end{sloppypar}
 
-\screenshotplaceholder{Entity-Relationship Diagram --- Database schema relationships}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/diagram-schema-overview.png}
+\caption{Entity-Relationship Diagram --- Database schema relationships}
+\label{fig:database-schema}
+\end{figure}
 
 \subsection{Vector Storage}
 
