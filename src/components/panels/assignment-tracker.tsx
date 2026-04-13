@@ -19,6 +19,7 @@ import useAssignmentStore, {
   type Assignment,
   type AssignmentTab,
 } from "@/lib/notes/state/assignments.zustand";
+import useCourseStore from "@/lib/notes/state/courses.zustand";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
@@ -177,10 +178,11 @@ export default function AssignmentTracker() {
   const pomodoroStart = usePomodoroStore((s) => s.start);
   const [showNewTask, setShowNewTask] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   useEffect(() => {
-    fetchAssignments({ all: includeAll });
-  }, [fetchAssignments, includeAll]);
+    fetchAssignments({ all: includeAll, includeArchived });
+  }, [fetchAssignments, includeAll, includeArchived]);
 
   // build course list for filter dropdown
   const courses = useMemo(() => {
@@ -313,6 +315,19 @@ export default function AssignmentTracker() {
             className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
           />
         </button>
+      </div>
+
+      {/* archived toggle */}
+      <div className="px-3 pb-2">
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
+            className="rounded border-border-subtle"
+          />
+          {t("Show archived courses")}
+        </label>
       </div>
 
       {/* per-course completion rings */}
