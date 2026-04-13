@@ -3,14 +3,16 @@ import { rerankChunks } from "@/lib/rerank";
 
 describe("rerankChunks", () => {
   beforeEach(() => {
-    process.env.COHERE_API_KEY = "fake-key";
+    process.env.RERANK_API_URL = "https://test.api";
+    process.env.RERANK_API_KEY = "fake-key";
+    process.env.RERANK_MODEL = "test-reranker";
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("returns stable source indices from Cohere results", async () => {
+  it("returns stable source indices from rerank results", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -33,8 +35,10 @@ describe("rerankChunks", () => {
     ]);
   });
 
-  it("includes indices in fallback mode without API key", async () => {
-    delete process.env.COHERE_API_KEY;
+  it("falls back to vector order without rerank config", async () => {
+    delete process.env.RERANK_API_URL;
+    delete process.env.RERANK_API_KEY;
+    delete process.env.RERANK_MODEL;
     const reranked = await rerankChunks("query", ["a", "b", "c"], 2);
 
     expect(reranked).toEqual([
