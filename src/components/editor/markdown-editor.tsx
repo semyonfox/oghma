@@ -59,10 +59,25 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // keep isDirtyRef in sync so the event listener always reads current value
+  // keep refs in sync so event listeners always read current values
+  const localContentRef = useRef(localContent);
   useEffect(() => {
     isDirtyRef.current = isDirty;
-  }, [isDirty]);
+    localContentRef.current = localContent;
+  }, [isDirty, localContent]);
+
+  // flush draft and warn on page close to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return;
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      // fire-and-forget flush — IDB write is fast enough to land before teardown
+      writeDraft(currentFileId.current, localContentRef.current).catch(() => {});
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   // load note content when file changes.
   // priority: draft (if newer) > API > IDB cache
