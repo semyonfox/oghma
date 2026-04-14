@@ -38,6 +38,7 @@ const useCourseStore = create<CourseState>()(
           set({ settings: data.settings, loading: false });
         } catch {
           set({ loading: false });
+          throw new Error("fetch failed");
         }
       },
 
@@ -52,7 +53,7 @@ const useCourseStore = create<CourseState>()(
               isActive: false,
             }),
           });
-          if (!res.ok) return;
+          if (!res.ok) throw new Error("archive failed");
           const setting = await res.json();
           set((s) => ({
             settings: [
@@ -61,7 +62,7 @@ const useCourseStore = create<CourseState>()(
             ],
           }));
         } catch {
-          // silent
+          throw new Error("archive failed");
         }
       },
 
@@ -72,7 +73,7 @@ const useCourseStore = create<CourseState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ isActive: true }),
           });
-          if (!res.ok) return;
+          if (!res.ok) throw new Error("unarchive failed");
           const setting = await res.json();
           set((s) => ({
             settings: [
@@ -81,7 +82,7 @@ const useCourseStore = create<CourseState>()(
             ],
           }));
         } catch {
-          // silent
+          throw new Error("unarchive failed");
         }
       },
 

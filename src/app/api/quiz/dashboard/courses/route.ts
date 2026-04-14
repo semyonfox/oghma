@@ -3,11 +3,12 @@ import { validateSession } from '@/lib/auth';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (request) => {
     const user = await validateSession();
     if (!user) return tracedError('Unauthorized', 401);
 
     const userId = user.user_id;
+    const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "1";
 
     const courses = await sql`
         SELECT
@@ -37,6 +38,7 @@ export const GET = withErrorHandler(async () => {
         WHERE n.user_id = ${userId}::uuid
           AND n.canvas_course_id IS NOT NULL
           AND n.deleted = 0
+          ${includeArchived ? sql`` : sql`AND (ucs.is_active IS NULL OR ucs.is_active = true)`}
           AND EXISTS (
               SELECT 1 FROM app.chunks c
               WHERE c.document_id = n.note_id AND c.user_id = ${userId}::uuid

@@ -29,7 +29,7 @@ export async function cleanupNoteDependencies(
   `;
 
   // delete all DB dependencies in a single transaction
-  await sql.begin(async (tx) => {
+  await sql.begin(async (tx: any) => {
     await tx`
       DELETE FROM app.chat_messages
       WHERE session_id IN (
