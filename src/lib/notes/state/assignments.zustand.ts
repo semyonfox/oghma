@@ -27,6 +27,7 @@ interface AssignmentState {
   courseFilter: string | null;
   activeTab: AssignmentTab;
   includeAll: boolean;
+  includeArchived: boolean;
 
   fetchAssignments: (opts?: {
     all?: boolean;
@@ -39,6 +40,7 @@ interface AssignmentState {
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
   setIncludeAll: (all: boolean) => void;
+  setIncludeArchived: (value: boolean) => void;
 }
 
 const useAssignmentStore = create<AssignmentState>()(
@@ -49,6 +51,7 @@ const useAssignmentStore = create<AssignmentState>()(
       courseFilter: null,
       activeTab: "upcoming",
       includeAll: false,
+      includeArchived: false,
 
       fetchAssignments: async (opts) => {
         set({ loading: true });
@@ -131,6 +134,7 @@ const useAssignmentStore = create<AssignmentState>()(
       setCourseFilter: (course) => set({ courseFilter: course }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setIncludeAll: (all) => set({ includeAll: all }),
+      setIncludeArchived: (value) => set({ includeArchived: value }),
     }),
     {
       name: "oghma-assignments",
@@ -138,6 +142,7 @@ const useAssignmentStore = create<AssignmentState>()(
         courseFilter: state.courseFilter,
         activeTab: state.activeTab,
         includeAll: state.includeAll,
+        includeArchived: state.includeArchived,
       }),
     },
   ),
