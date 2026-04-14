@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
   SwatchIcon,
   KeyIcon,
   AcademicCapIcon,
+  ArchiveBoxIcon,
   ArrowDownTrayIcon,
   SparklesIcon,
   ExclamationTriangleIcon,
@@ -20,18 +21,47 @@ import { cn } from "@/components/settings/settings-utils";
 
 import dynamic from "next/dynamic";
 import AccountSection from "@/components/settings/account-section";
+import CourseVisibilityManager, {
+  mergeCourseVisibilityItems,
+} from "@/components/course-visibility/manager";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
+import useCourseStore from "@/lib/notes/state/courses.zustand";
 
-const CanvasSection = dynamic(() => import("@/components/settings/canvas-section"));
+const CanvasSection = dynamic(
+  () => import("@/components/settings/canvas-section"),
+);
 const AISection = dynamic(() => import("@/components/settings/ai-section"));
-const DataExportSection = dynamic(() => import("@/components/settings/data-export-section"));
-const DangerSection = dynamic(() => import("@/components/settings/danger-section"));
+const DataExportSection = dynamic(
+  () => import("@/components/settings/data-export-section"),
+);
+const DangerSection = dynamic(
+  () => import("@/components/settings/danger-section"),
+);
+
+function mapQuizCourses(courses) {
+  return courses.map((course) => ({
+    courseId: course.courseId,
+    courseName: course.courseName,
+    isActive: course.isActive,
+    contextText:
+      course.totalCards > 0
+        ? `${course.dueCount} due · ${course.totalCards} cards`
+        : "No quiz cards yet",
+    hasDueItems: course.dueCount > 0,
+  }));
+}
 
 export default function SettingsPage() {
   const router = useRouter();
   const { t } = useI18n();
   const { settings: _settings, setSettings } = useSettingsStore();
+  const {
+    settings: courseSettings,
+    fetchSettings,
+    archiveCourse,
+    unarchiveCourse,
+  } = useCourseStore();
   const [formState, setFormState] = useState({
     firstName: "",
     lastName: "",
@@ -46,6 +76,9 @@ export default function SettingsPage() {
   const [savingSection, setSavingSection] = useState(null);
   const [activeSection, setActiveSection] = useState("account");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [quizCourses, setQuizCourses] = useState([]);
+  const [courseVisibilityLoading, setCourseVisibilityLoading] = useState(true);
+  const [courseVisibilityError, setCourseVisibilityError] = useState(false);
 
   const navigation = [
     { name: t("Account"), id: "account", icon: UserCircleIcon },
@@ -53,9 +86,35 @@ export default function SettingsPage() {
     { name: t("Password"), id: "password", icon: KeyIcon },
     { name: t("Canvas"), id: "canvas", icon: AcademicCapIcon },
     { name: t("AI Settings"), id: "ai", icon: SparklesIcon },
+    {
+      name: t("Course visibility"),
+      id: "course-visibility",
+      icon: ArchiveBoxIcon,
+    },
     { name: t("Data & Export"), id: "data", icon: ArrowDownTrayIcon },
     { name: t("Danger Zone"), id: "danger", icon: ExclamationTriangleIcon },
   ];
+
+  const loadCourseVisibility = useCallback(async () => {
+    setCourseVisibilityError(false);
+
+    const [coursesResponse] = await Promise.all([
+      fetch("/api/quiz/dashboard/courses?includeArchived=1"),
+      fetchSettings(),
+    ]);
+
+    if (!coursesResponse.ok) {
+      throw new Error("Failed to load course visibility settings");
+    }
+
+    const data = await coursesResponse.json();
+    setQuizCourses(mapQuizCourses(data.courses || []));
+  }, [fetchSettings]);
+
+  const courseVisibilityItems = useMemo(
+    () => mergeCourseVisibilityItems(quizCourses, courseSettings),
+    [courseSettings, quizCourses],
+  );
 
   // load user profile and settings on mount
   useEffect(() => {
@@ -99,6 +158,22 @@ export default function SettingsPage() {
     };
     loadUserData();
   }, [setSettings]);
+
+  useEffect(() => {
+    const loadVisibility = async () => {
+      setCourseVisibilityLoading(true);
+      try {
+        await loadCourseVisibility();
+      } catch (error) {
+        console.error("Failed to load course visibility:", error);
+        setCourseVisibilityError(true);
+      } finally {
+        setCourseVisibilityLoading(false);
+      }
+    };
+
+    void loadVisibility();
+  }, [loadCourseVisibility]);
 
   // track active section on scroll
   useEffect(() => {
@@ -148,6 +223,21 @@ export default function SettingsPage() {
       toast.error(t("Failed to sign out"));
       setIsSigningOut(false);
     }
+  };
+
+  const handleSetCourseVisibility = async (item, nextActive) => {
+    if (nextActive) {
+      await unarchiveCourse(item.courseId);
+    } else {
+      await archiveCourse(item.courseId, item.courseName);
+    }
+
+    await loadCourseVisibility();
+  };
+
+  const handleRestoreArchivedCourses = async (items) => {
+    await Promise.all(items.map((item) => unarchiveCourse(item.courseId)));
+    await loadCourseVisibility();
   };
 
   return (
@@ -254,6 +344,40 @@ export default function SettingsPage() {
           />
           <CanvasSection />
           <AISection />
+          <section
+            className="grid grid-cols-1 gap-x-8 gap-y-10 py-12 md:grid-cols-3"
+            id="course-visibility"
+          >
+            <div>
+              <h2 className="text-base/7 font-semibold text-text">
+                {t("Course visibility")}
+              </h2>
+              <p className="mt-1 text-sm/6 text-text-tertiary">
+                {t(
+                  "Hide archived courses from daily counts and restore them here when you need them again.",
+                )}
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              {courseVisibilityLoading ? (
+                <div className="rounded-radius-lg border border-border-subtle bg-surface/60 px-4 py-4 text-sm text-text-tertiary">
+                  {t("Loading...")}
+                </div>
+              ) : courseVisibilityError ? (
+                <div className="rounded-radius-lg border border-error-500/20 bg-error-500/5 px-4 py-4 text-sm text-text-tertiary">
+                  {t("Could not load course visibility settings.")}
+                </div>
+              ) : (
+                <CourseVisibilityManager
+                  inline
+                  items={courseVisibilityItems}
+                  onToggleCourse={handleSetCourseVisibility}
+                  onRestoreAll={handleRestoreArchivedCourses}
+                />
+              )}
+            </div>
+          </section>
           <DataExportSection />
           <DangerSection />
         </main>
