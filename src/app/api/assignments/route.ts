@@ -10,33 +10,40 @@ export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
   const url = new URL(request.url);
-  const status = url.searchParams.get("status");
-  const course = url.searchParams.get("course");
-  const includeAll = url.searchParams.get("all") === "1";
+  const searchParams = url.searchParams;
+  const status = searchParams.get("status");
+  const course = searchParams.get("course");
+  const includeAll = searchParams.get("all") === "1";
+  const includeArchived = searchParams.get("includeArchived") === "1";
   const windowDaysParam = Number(url.searchParams.get("windowDays") ?? "120");
   const windowDays = Number.isFinite(windowDaysParam)
     ? Math.min(Math.max(windowDaysParam, 1), 730)
     : 120;
-  const cutoffIso = new Date(
-    Date.now() - windowDays * 86400000,
-  ).toISOString();
+  const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString();
 
   // build WHERE dynamically instead of 8 separate query branches
-  const conditions = [sql`user_id = ${user.user_id}::uuid`];
-  if (status) conditions.push(sql`status = ${status}`);
-  if (course) conditions.push(sql`course_name = ${course}`);
+  // note: ucs.is_active IS NULL means the course has no settings row (visible by default)
+  const conditions = [sql`a.user_id = ${user.user_id}::uuid`];
+  if (status) conditions.push(sql`a.status = ${status}`);
+  if (course) conditions.push(sql`a.course_name = ${course}`);
   if (!includeAll) {
     conditions.push(sql`(
-      source <> 'canvas'
-      OR status IN ('upcoming', 'in_progress')
-      OR due_at >= ${cutoffIso}::timestamptz
-      OR submitted_at >= ${cutoffIso}::timestamptz
+      a.source <> 'canvas'
+      OR a.status IN ('upcoming', 'in_progress')
+      OR a.due_at >= ${cutoffIso}::timestamptz
+      OR a.submitted_at >= ${cutoffIso}::timestamptz
     )`);
+  }
+  if (!includeArchived) {
+    conditions.push(sql`(ucs.is_active IS NULL OR ucs.is_active = true)`);
   }
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
   const rows = await sql`
-    SELECT * FROM app.assignments
+    SELECT a.* FROM app.assignments a
+    LEFT JOIN app.user_course_settings ucs
+      ON ucs.user_id = ${user.user_id}::uuid
+      AND ucs.canvas_course_id = a.canvas_course_id
     WHERE ${where}
     ORDER BY due_at ASC NULLS LAST, created_at DESC
   `;

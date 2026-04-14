@@ -203,8 +203,14 @@ export async function getSessionCandidates(
         SELECT qc.id, qc.due, qc.state, qc.question_id, qq.chunk_id
         FROM app.quiz_cards qc
         JOIN app.quiz_questions qq ON qc.question_id = qq.id
+        JOIN app.chunks c ON c.id = qq.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id
+        LEFT JOIN app.user_course_settings ucs
+          ON ucs.user_id = ${userId}::uuid
+          AND ucs.canvas_course_id = n.canvas_course_id
         WHERE qc.user_id = ${userId}::uuid
           AND qq.chunk_id = ANY(${chunkIds}::uuid[])
+          AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `;
 
   const now = new Date();

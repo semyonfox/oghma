@@ -19,6 +19,7 @@ interface QuizState {
     totalCards: number;
     dueCount: number;
     mastery: number;
+    isActive?: boolean;
   }[];
 
   // active session
