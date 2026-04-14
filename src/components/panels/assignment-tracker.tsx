@@ -19,7 +19,6 @@ import useAssignmentStore, {
   type Assignment,
   type AssignmentTab,
 } from "@/lib/notes/state/assignments.zustand";
-import useCourseStore from "@/lib/notes/state/courses.zustand";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
