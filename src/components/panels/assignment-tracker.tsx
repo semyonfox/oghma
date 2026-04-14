@@ -168,21 +168,22 @@ export default function AssignmentTracker() {
     courseFilter,
     activeTab,
     includeAll,
+    includeArchived,
     fetchAssignments,
     syncFromCanvas,
     setCourseFilter,
     setActiveTab,
     setIncludeAll,
+    setIncludeArchived,
     updateAssignment,
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((s) => s.start);
   const [showNewTask, setShowNewTask] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [includeArchived, setIncludeArchived] = useState(false);
 
   useEffect(() => {
     fetchAssignments({ all: includeAll, includeArchived });
-  }, [fetchAssignments, includeAll, includeArchived]);
+  }, [fetchAssignments, includeAll]);
 
   // build course list for filter dropdown
   const courses = useMemo(() => {
