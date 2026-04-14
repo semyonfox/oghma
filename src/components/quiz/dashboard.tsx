@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import {
+  CourseVisibilityDialog,
+  mergeCourseVisibilityItems,
+  type CourseVisibilityItem,
+} from "@/components/course-visibility/manager";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
 
@@ -23,8 +28,10 @@ export default function QuizDashboard() {
   } = useQuizStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [startingSession, setStartingSession] = useState<string | null>(null);
+  const [managerOpen, setManagerOpen] = useState(false);
 
   const {
+    settings,
     showArchived,
     fetchSettings,
     toggleShowArchived,
@@ -32,24 +39,33 @@ export default function QuizDashboard() {
     unarchiveCourse,
   } = useCourseStore();
 
+  const loadServerData = useCallback(async () => {
+    const courseQuery = showArchived ? "?includeArchived=1" : "";
+    const [dashRes, coursesRes] = await Promise.all([
+      fetch("/api/quiz/dashboard"),
+      fetch(`/api/quiz/dashboard/courses${courseQuery}`),
+    ]);
+
+    if (dashRes.ok) setDashboard(await dashRes.json());
+    if (coursesRes.ok) {
+      const data = await coursesRes.json();
+      setCourses(data.courses);
+    }
+  }, [showArchived, setCourses, setDashboard]);
+
+  const refreshCourseData = async () => {
+    await Promise.all([loadServerData(), fetchSettings()]);
+  };
+
+  useEffect(() => {
+    void fetchSettings().catch(() => {});
+  }, [fetchSettings]);
+
   useEffect(() => {
     async function load() {
       setDashboardLoading(true);
       try {
-        await Promise.all([
-          (async () => {
-            const [dashRes, coursesRes] = await Promise.all([
-              fetch("/api/quiz/dashboard"),
-              fetch("/api/quiz/dashboard/courses"),
-            ]);
-            if (dashRes.ok) setDashboard(await dashRes.json());
-            if (coursesRes.ok) {
-              const data = await coursesRes.json();
-              setCourses(data.courses);
-            }
-          })(),
-          fetchSettings(),
-        ]);
+        await loadServerData();
       } catch {
         // network or parse error — fallback handled below
       } finally {
@@ -68,8 +84,50 @@ export default function QuizDashboard() {
         setDashboardLoading(false);
       }
     }
-    load();
-  }, [setDashboard, setCourses, setDashboardLoading, fetchSettings]);
+    void load();
+  }, [loadServerData, setDashboard, setDashboardLoading]);
+
+  const visibilityItems = useMemo(
+    () =>
+      mergeCourseVisibilityItems(
+        courses.map((course) => ({
+          courseId: course.courseId,
+          courseName: course.courseName,
+          isActive: course.isActive,
+          contextText:
+            course.totalCards > 0
+              ? `${course.dueCount} due · ${course.totalCards} cards`
+              : "No quiz cards yet",
+          hasDueItems: course.dueCount > 0,
+        })),
+        settings,
+      ),
+    [courses, settings],
+  );
+
+  const handleSetCourseVisibility = async (
+    item: CourseVisibilityItem,
+    nextActive: boolean,
+  ) => {
+    if (nextActive) {
+      await unarchiveCourse(item.courseId);
+    } else {
+      await archiveCourse(item.courseId, item.courseName);
+    }
+    await refreshCourseData();
+  };
+
+  const handleArchiveNoDueCourses = async (items: CourseVisibilityItem[]) => {
+    await Promise.all(
+      items.map((item) => archiveCourse(item.courseId, item.courseName)),
+    );
+    await refreshCourseData();
+  };
+
+  const handleRestoreArchivedCourses = async (items: CourseVisibilityItem[]) => {
+    await Promise.all(items.map((item) => unarchiveCourse(item.courseId)));
+    await refreshCourseData();
+  };
 
   const startReview = async (filterType: string, filterValue?: unknown) => {
     const key = filterValue != null ? String(filterValue) : "all";
@@ -198,10 +256,18 @@ export default function QuizDashboard() {
           loadingCourseId={startingSession}
           showArchived={showArchived}
           onToggleArchived={toggleShowArchived}
-          onArchiveCourse={archiveCourse}
-          onUnarchiveCourse={unarchiveCourse}
+          onOpenManager={() => setManagerOpen(true)}
         />
       </div>
+
+      <CourseVisibilityDialog
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+        items={visibilityItems}
+        onToggleCourse={handleSetCourseVisibility}
+        onArchiveAllNoDue={handleArchiveNoDueCourses}
+        onRestoreAll={handleRestoreArchivedCourses}
+      />
     </div>
   );
 }

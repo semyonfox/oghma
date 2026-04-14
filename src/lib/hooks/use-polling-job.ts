@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 export interface PollingJobOptions {
   /** URL to poll */
@@ -32,8 +32,11 @@ export function usePollingJob({
   // keep callbacks in refs so the interval closure always sees the latest
   const onDataRef = useRef(onData);
   const onErrorRef = useRef(onError);
-  onDataRef.current = onData;
-  onErrorRef.current = onError;
+
+  useEffect(() => {
+    onDataRef.current = onData;
+    onErrorRef.current = onError;
+  }, [onData, onError]);
 
   // track whether we've self-stopped so we don't keep firing
   const stoppedRef = useRef(false);

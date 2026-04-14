@@ -1,6 +1,5 @@
 "use client";
 
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface Course {
@@ -25,8 +24,7 @@ interface CourseListProps {
   loadingCourseId?: number | string | null;
   showArchived: boolean;
   onToggleArchived: () => void;
-  onArchiveCourse: (courseId: number, courseName: string) => void;
-  onUnarchiveCourse: (courseId: number) => void;
+  onOpenManager: () => void;
 }
 
 function CourseButton({
@@ -38,8 +36,6 @@ function CourseButton({
   disabled,
   isArchived,
   onClick,
-  onArchive,
-  onUnarchive,
 }: {
   courseName: string;
   totalCards: number;
@@ -49,8 +45,6 @@ function CourseButton({
   disabled: boolean;
   isArchived?: boolean;
   onClick: () => void;
-  onArchive?: () => void;
-  onUnarchive?: () => void;
 }) {
   const { t } = useI18n();
   const hasCards = totalCards > 0;
@@ -69,6 +63,11 @@ function CourseButton({
           {courseName}
         </div>
         <div className="flex gap-3 mt-1 text-xs">
+          {isArchived && (
+            <span className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-tertiary">
+              {t("Archived")}
+            </span>
+          )}
           {hasCards ? (
             <>
               <span className="text-text-tertiary">
@@ -93,41 +92,17 @@ function CourseButton({
         {isLoading ? (
           <div className="w-4 h-4 border-2 border-text-tertiary border-t-transparent rounded-full animate-spin" />
         ) : hasCards ? (
-          <>
-            <div>
-              <div className="text-text-secondary text-sm font-medium">
-                {mastery}%
-              </div>
-              <div className="w-12 h-1 bg-surface-elevated rounded-full mt-1">
-                <div
-                  className="h-full rounded-full bg-text-tertiary"
-                  style={{ width: `${mastery}%` }}
-                />
-              </div>
+          <div>
+            <div className="text-text-secondary text-sm font-medium">
+              {mastery}%
             </div>
-            {/* Archive/Unarchive button */}
-            {isArchived ? (
-              <button
-                onClick={onUnarchive}
-                disabled={disabled}
-                className="p-1.5 text-text-tertiary hover:text-primary-500 hover:bg-primary-500/10 rounded-radius transition-colors"
-                title={t("quiz.courses.unarchive")}
-                aria-label={t("Unarchive course")}
-              >
-                <EyeIcon className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={onArchive}
-                disabled={disabled}
-                className="p-1.5 text-text-tertiary hover:text-primary-500 hover:bg-primary-500/10 rounded-radius transition-colors"
-                title={t("quiz.courses.archive")}
-                aria-label={t("Archive course")}
-              >
-                <EyeSlashIcon className="w-4 h-4" />
-              </button>
-            )}
-          </>
+            <div className="w-12 h-1 bg-surface-elevated rounded-full mt-1">
+              <div
+                className="h-full rounded-full bg-text-tertiary"
+                style={{ width: `${mastery}%` }}
+              />
+            </div>
+          </div>
         ) : (
           <div className="text-text-tertiary text-xs">→</div>
         )}
@@ -145,8 +120,7 @@ export default function CourseList({
   loadingCourseId,
   showArchived,
   onToggleArchived,
-  onArchiveCourse,
-  onUnarchiveCourse,
+  onOpenManager,
 }: CourseListProps) {
   const { t } = useI18n();
   const anyLoading = !!loadingCourseId;
@@ -168,13 +142,22 @@ export default function CourseList({
     <div>
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-text font-semibold text-sm">{t("Courses")}</h2>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={t("quiz.courses.search_placeholder")}
-          className="bg-surface border border-border-subtle rounded-radius-md px-3 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50 w-48"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={t("quiz.courses.search_placeholder")}
+            className="bg-surface border border-border-subtle rounded-radius-md px-3 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/50 w-48"
+          />
+          <button
+            type="button"
+            onClick={onOpenManager}
+            className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-white/[0.07]"
+          >
+            {t("Manage")}
+          </button>
+        </div>
       </div>
 
       {/* show archived toggle */}
@@ -221,9 +204,6 @@ export default function CourseList({
             disabled={anyLoading}
             isArchived={false}
             onClick={() => onSelectCourse(course.courseId)}
-            onArchive={() =>
-              onArchiveCourse(course.courseId, course.courseName)
-            }
           />
         ))}
 
@@ -246,10 +226,9 @@ export default function CourseList({
                   loadingCourseId === course.courseId ||
                   loadingCourseId === String(course.courseId)
                 }
-                disabled={anyLoading}
+                disabled={true}
                 isArchived={true}
                 onClick={() => onSelectCourse(course.courseId)}
-                onUnarchive={() => onUnarchiveCourse(course.courseId)}
               />
             ))}
           </>

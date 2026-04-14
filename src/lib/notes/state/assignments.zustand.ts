@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export interface Assignment {
   id: string;
+  canvas_course_id: number | null;
   title: string;
   description: string | null;
   course_name: string | null;
@@ -40,7 +41,7 @@ interface AssignmentState {
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
   setIncludeAll: (all: boolean) => void;
-  setIncludeArchived: (value: boolean) => void;
+  setIncludeArchived: (value: boolean) => Promise<void>;
 }
 
 const useAssignmentStore = create<AssignmentState>()(
@@ -57,7 +58,7 @@ const useAssignmentStore = create<AssignmentState>()(
         set({ loading: true });
         try {
           const all = opts?.all ?? get().includeAll;
-          const includeArchived = opts?.includeArchived;
+          const includeArchived = opts?.includeArchived ?? get().includeArchived;
           const params = new URLSearchParams();
           if (all) params.set("all", "1");
           if (includeArchived) params.set("includeArchived", "1");
@@ -134,7 +135,13 @@ const useAssignmentStore = create<AssignmentState>()(
       setCourseFilter: (course) => set({ courseFilter: course }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setIncludeAll: (all) => set({ includeAll: all }),
-      setIncludeArchived: (value) => set({ includeArchived: value }),
+      setIncludeArchived: async (value) => {
+        set({ includeArchived: value });
+        await get().fetchAssignments({
+          all: get().includeAll,
+          includeArchived: value,
+        });
+      },
     }),
     {
       name: "oghma-assignments",
