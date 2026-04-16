@@ -131,8 +131,14 @@ function buildToolInstruction(
     "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
     "- moveNote({ noteId, targetFolderId }) — move a note or folder into a different parent folder. Use findFolder first if needed.\n" +
     "- renameNote({ noteId, newTitle }) — rename a note or folder.\n" +
-    "- addTimeBlock({ title, startsAt, endsAt, assignmentId? }) — create a study time block on the calendar. Times are ISO 8601.\n" +
-    "- completeTimeBlock({ blockId }) — mark a time block as completed.\n" +
+    "- addTimeBlock({ title, startsAt, endsAt, assignmentId? }) — add a time block to the calendar for studying/scheduling. This is NOT a note — it appears on the calendar as a scheduled block with pomodoro tracking. Times are ISO 8601.\n" +
+    "- completeTimeBlock({ blockId }) — mark a calendar time block as completed.\n" +
+    "\nTool selection rules:\n" +
+    "- 'study block', 'schedule', 'time block', 'calendar block', 'plan a session' → use addTimeBlock (calendar), NOT makeMDNote.\n" +
+    "- 'create a note', 'write up', 'save this', 'make a document' → use makeMDNote.\n" +
+    "- 'move this note to', 'put it in the X folder', 'reorganize' → use moveNote.\n" +
+    "- 'rename this to', 'change the title' → use renameNote.\n" +
+    "- 'mark as done', 'finished that block', 'complete the block' → use completeTimeBlock.\n" +
     "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
