@@ -158,7 +158,7 @@ async function queueCanvasSync(userId) {
   if (!credentials) return;
 
   const prevCourseRows = await sql`
-    SELECT DISTINCT canvas_course_id FROM app.canvas_imports WHERE user_id = ${userId}
+    SELECT DISTINCT canvas_course_id FROM app.canvas_imports WHERE user_id = ${userId} LIMIT 200
   `;
   if (prevCourseRows.length === 0) return;
 

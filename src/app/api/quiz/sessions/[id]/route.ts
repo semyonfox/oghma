@@ -15,7 +15,8 @@ export const GET = withErrorHandler(
 
     const { id } = await params;
     const [session] = await sql`
-        SELECT * FROM app.quiz_sessions
+        SELECT id, card_ids, total_questions, correct_count, filter_type, filter_value, started_at, completed_at
+        FROM app.quiz_sessions
         WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
     `;
 
