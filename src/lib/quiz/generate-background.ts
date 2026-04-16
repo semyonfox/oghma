@@ -23,8 +23,11 @@ export async function getUncoveredChunkIds(
     // scoped to specific chunks (e.g. from an import job)
     const rows = await sql`
       SELECT c.id FROM app.chunks c
+      JOIN app.notes n ON n.note_id = c.document_id
       WHERE c.user_id = ${userId}::uuid
         AND c.id = ANY(${opts.chunkIds}::uuid[])
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM app.quiz_questions qq
           WHERE qq.chunk_id = c.id AND qq.user_id = ${userId}::uuid
@@ -42,6 +45,8 @@ export async function getUncoveredChunkIds(
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.user_id = ${userId}::uuid
         AND n.canvas_course_id = ${opts.courseId}
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM app.quiz_questions qq
           WHERE qq.chunk_id = c.id AND qq.user_id = ${userId}::uuid
@@ -55,7 +60,10 @@ export async function getUncoveredChunkIds(
   // all uncovered chunks for user
   const rows = await sql`
     SELECT c.id FROM app.chunks c
+    JOIN app.notes n ON n.note_id = c.document_id
     WHERE c.user_id = ${userId}::uuid
+      AND n.deleted = 0
+      AND n.deleted_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM app.quiz_questions qq
         WHERE qq.chunk_id = c.id AND qq.user_id = ${userId}::uuid
@@ -82,6 +90,9 @@ export async function generateBatch(
       FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.id = ${chunkId}::uuid
+        AND c.user_id = ${userId}::uuid
+        AND n.deleted = 0
+        AND n.deleted_at IS NULL
     `;
     if (!chunk) return;
 

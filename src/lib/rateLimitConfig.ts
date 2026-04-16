@@ -11,6 +11,7 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   // tier 1 — expensive external API calls
   'chat':           { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   'extract':        { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
+  'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
 
   // tier 2 — auth security (public endpoints)
   'register':       { limit: 5,   windowSeconds: 3600,  keyType: 'ip' },

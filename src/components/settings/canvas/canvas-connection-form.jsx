@@ -6,8 +6,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 export default function CanvasConnectionForm({
   domain,
   setDomain,
-  token,
-  setToken,
+  tokenInputRef,
   isConnecting,
   connectionError,
   connectionWarning,
@@ -107,11 +106,13 @@ export default function CanvasConnectionForm({
         </label>
         <div className="mt-2">
           <input
+            ref={tokenInputRef}
             id="canvas-token"
             type="password"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
             placeholder={t("Paste your Canvas API token here")}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
             className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
           />
         </div>
@@ -126,7 +127,7 @@ export default function CanvasConnectionForm({
 
       <button
         type="button"
-        disabled={!domain || !token || isConnecting}
+        disabled={!domain || isConnecting}
         onClick={onConnect}
         className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
       >

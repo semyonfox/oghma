@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PlayIcon,
   PlusIcon,
@@ -19,9 +19,15 @@ import useAssignmentStore, {
   type Assignment,
   type AssignmentTab,
 } from "@/lib/notes/state/assignments.zustand";
+import useCourseStore from "@/lib/notes/state/courses.zustand";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
+import {
+  CourseVisibilityDialog,
+  mergeCourseVisibilityItems,
+  type CourseVisibilityItem,
+} from "@/components/course-visibility/manager";
 import NewTaskModal from "./new-task-modal";
 
 // -- concentric activity rings ---------------------------------------------
@@ -167,20 +173,37 @@ export default function AssignmentTracker() {
     courseFilter,
     activeTab,
     includeAll,
+    includeArchived,
     fetchAssignments,
     syncFromCanvas,
     setCourseFilter,
     setActiveTab,
     setIncludeAll,
+    setIncludeArchived,
     updateAssignment,
   } = useAssignmentStore();
   const pomodoroStart = usePomodoroStore((s) => s.start);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showCourseManager, setShowCourseManager] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const previousIncludeArchived = useRef(includeArchived);
+  const {
+    settings,
+    fetchSettings: fetchCourseSettings,
+    archiveCourse,
+    unarchiveCourse,
+  } = useCourseStore();
 
   useEffect(() => {
-    fetchAssignments({ all: includeAll });
-  }, [fetchAssignments, includeAll]);
+    const includeArchivedChanged = previousIncludeArchived.current !== includeArchived;
+    previousIncludeArchived.current = includeArchived;
+    if (includeArchivedChanged) return;
+    fetchAssignments({ all: includeAll, includeArchived });
+  }, [fetchAssignments, includeAll, includeArchived]);
+
+  useEffect(() => {
+    void fetchCourseSettings().catch(() => {});
+  }, [fetchCourseSettings]);
 
   // build course list for filter dropdown
   const courses = useMemo(() => {
@@ -259,6 +282,62 @@ export default function AssignmentTracker() {
     { key: "late", label: t("Late") },
   ];
 
+  const courseVisibilityItems = useMemo(
+    () =>
+      mergeCourseVisibilityItems(
+        Array.from(
+          assignments.reduce((map, assignment) => {
+            if (!assignment.canvas_course_id || !assignment.course_name) {
+              return map;
+            }
+
+            const current = map.get(assignment.canvas_course_id) ?? {
+              courseId: assignment.canvas_course_id,
+              courseName: assignment.course_name,
+              count: 0,
+            };
+
+            map.set(assignment.canvas_course_id, {
+              ...current,
+              count: current.count + 1,
+            });
+
+            return map;
+          }, new Map<number, { courseId: number; courseName: string; count: number }>()),
+        ).map(([, item]) => ({
+          courseId: item.courseId,
+          courseName: item.courseName,
+          contextText: `${item.count} visible ${item.count === 1 ? "assignment" : "assignments"}`,
+        })),
+        settings,
+      ),
+    [assignments, settings],
+  );
+
+  const refreshAssignmentsAndSettings = async () => {
+    await Promise.all([
+      fetchCourseSettings(),
+      fetchAssignments({ all: includeAll, includeArchived }),
+    ]);
+  };
+
+  const handleSetCourseVisibility = async (
+    item: CourseVisibilityItem,
+    nextActive: boolean,
+  ) => {
+    if (nextActive) {
+      await unarchiveCourse(item.courseId);
+    } else {
+      await archiveCourse(item.courseId, item.courseName);
+    }
+    await refreshAssignmentsAndSettings();
+  };
+
+  const handleRestoreArchivedCourses = async (items: CourseVisibilityItem[]) => {
+    await Promise.all(items.map((item) => unarchiveCourse(item.courseId)));
+    await refreshAssignmentsAndSettings();
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* header row: course filter + sync */}
@@ -304,6 +383,13 @@ export default function AssignmentTracker() {
           {includeAll ? t("All") : t("Get all")}
         </button>
         <button
+          type="button"
+          onClick={() => setShowCourseManager(true)}
+          className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-white/[0.07]"
+        >
+          {t("Manage")}
+        </button>
+        <button
           onClick={handleSync}
           disabled={syncing}
           className="rounded-radius-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07] transition-colors disabled:opacity-40"
@@ -313,6 +399,19 @@ export default function AssignmentTracker() {
             className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
           />
         </button>
+      </div>
+
+      {/* archived toggle */}
+      <div className="px-3 pb-2">
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
+            className="rounded border-border-subtle"
+          />
+          {t("Show archived courses")}
+        </label>
       </div>
 
       {/* per-course completion rings */}
@@ -472,6 +571,13 @@ export default function AssignmentTracker() {
         open={showNewTask}
         onClose={() => setShowNewTask(false)}
         courses={courses}
+      />
+      <CourseVisibilityDialog
+        open={showCourseManager}
+        onClose={() => setShowCourseManager(false)}
+        items={courseVisibilityItems}
+        onToggleCourse={handleSetCourseVisibility}
+        onRestoreAll={handleRestoreArchivedCourses}
       />
     </div>
   );

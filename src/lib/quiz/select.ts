@@ -99,6 +99,7 @@ export async function resolveChunkIds(
                 WHERE c.user_id = ${userId}::uuid
                   AND n.canvas_course_id = ${filterValue as number}
                   AND n.deleted = 0
+                  AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
     }
@@ -109,15 +110,20 @@ export async function resolveChunkIds(
                 WHERE c.user_id = ${userId}::uuid
                   AND n.canvas_module_id = ${filterValue as number}
                   AND n.deleted = 0
+                  AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
     }
     case "note": {
       const noteIds = filterValue as string[];
       const rows = await sql`
-                SELECT id FROM app.chunks
-                WHERE user_id = ${userId}::uuid
-                  AND document_id = ANY(${noteIds}::uuid[])
+                SELECT c.id
+                FROM app.chunks c
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND c.document_id = ANY(${noteIds}::uuid[])
+                  AND n.deleted = 0
+                  AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
     }
@@ -128,7 +134,10 @@ export async function resolveChunkIds(
                 SELECT c.id
                 FROM app.embeddings e
                 JOIN app.chunks c ON c.id = e.chunk_id
+                JOIN app.notes n ON n.note_id = c.document_id
                 WHERE c.user_id = ${userId}::uuid
+                  AND n.deleted = 0
+                  AND n.deleted_at IS NULL
                 ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
                 LIMIT 30
             `;
@@ -151,9 +160,13 @@ export async function resolveChunkIds(
       }
       if (noteIds.size === 0) return [];
       const rows = await sql`
-                SELECT id FROM app.chunks
-                WHERE user_id = ${userId}::uuid
-                  AND document_id = ANY(${[...noteIds]}::uuid[])
+                SELECT c.id
+                FROM app.chunks c
+                JOIN app.notes n ON n.note_id = c.document_id
+                WHERE c.user_id = ${userId}::uuid
+                  AND c.document_id = ANY(${[...noteIds]}::uuid[])
+                  AND n.deleted = 0
+                  AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
     }
@@ -163,6 +176,7 @@ export async function resolveChunkIds(
                 JOIN app.notes n ON c.document_id = n.note_id
                 WHERE c.user_id = ${userId}::uuid
                   AND n.deleted = 0
+                  AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
     }
@@ -189,8 +203,14 @@ export async function getSessionCandidates(
         SELECT qc.id, qc.due, qc.state, qc.question_id, qq.chunk_id
         FROM app.quiz_cards qc
         JOIN app.quiz_questions qq ON qc.question_id = qq.id
+        JOIN app.chunks c ON c.id = qq.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id
+        LEFT JOIN app.user_course_settings ucs
+          ON ucs.user_id = ${userId}::uuid
+          AND ucs.canvas_course_id = n.canvas_course_id
         WHERE qc.user_id = ${userId}::uuid
           AND qq.chunk_id = ANY(${chunkIds}::uuid[])
+          AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `;
 
   const now = new Date();

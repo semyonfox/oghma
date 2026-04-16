@@ -12,7 +12,12 @@ export const GET = withErrorHandler(async (_request, context: any) => {
   requireValidId(id);
 
   const [row] = await sql`
-    SELECT * FROM app.assignments
+    SELECT id, user_id, canvas_course_id, canvas_assignment_id,
+           title, description, course_name, course_color,
+           due_at, estimated_hours, source, status,
+           submitted_at, score, points_possible,
+           created_at, updated_at
+    FROM app.assignments
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
   `;
 
@@ -32,30 +37,30 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
 
   const body = await request.json();
   const allowed = ['title', 'description', 'status', 'estimated_hours', 'course_color', 'due_at', 'course_name'];
-  const updates: string[] = [];
-  const values: any[] = [];
+  const updates: Record<string, any> = {};
 
   for (const key of allowed) {
     if (key in body) {
-      updates.push(key);
-      values.push(body[key]);
+      updates[key] = body[key];
     }
   }
 
-  if (updates.length === 0) {
+  if (Object.keys(updates).length === 0) {
     throw new ApiError(400, 'No valid fields to update');
   }
 
-  // build dynamic SET clause
-  const setClauses = updates.map((col, i) => `${col} = $${i + 3}`).join(', ');
-  const query = `
-    UPDATE app.assignments
-    SET ${setClauses}, updated_at = NOW()
-    WHERE id = $1::uuid AND user_id = $2::uuid
-    RETURNING *
-  `;
+  updates.updated_at = new Date();
 
-  const result = await sql.unsafe(query, [id, user.user_id, ...values]);
+  const result = await sql`
+    UPDATE app.assignments
+    SET ${sql(updates, ...Object.keys(updates))}
+    WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+    RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
+              title, description, course_name, course_color,
+              due_at, estimated_hours, source, status,
+              submitted_at, score, points_possible,
+              created_at, updated_at
+  `;
   if (result.length === 0) return tracedError('Not found', 404);
 
   return NextResponse.json(result[0]);

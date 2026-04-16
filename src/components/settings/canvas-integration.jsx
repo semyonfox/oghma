@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
@@ -29,9 +29,9 @@ export default function CanvasIntegration() {
 
   // Connection form state
   const [domain, setDomain] = useState("");
-  const [token, setToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const tokenInputRef = useRef(null);
 
   // Post-connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -200,12 +200,18 @@ export default function CanvasIntegration() {
   }, [selectedCourseIds]);
 
   const handleConnect = async () => {
-    if (!domain || !token) return;
+    const rawToken = tokenInputRef.current?.value?.trim() ?? "";
+    if (!domain || !rawToken) return;
 
     setIsConnecting(true);
     setConnectionError(null);
 
     try {
+      const token = rawToken;
+      if (tokenInputRef.current) {
+        tokenInputRef.current.value = "";
+      }
+
       const res = await fetch("/api/canvas/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -247,7 +253,9 @@ export default function CanvasIntegration() {
       setRecentLogs([]);
       setMarkerColdStarting(false);
       setDomain("");
-      setToken("");
+      if (tokenInputRef.current) {
+        tokenInputRef.current.value = "";
+      }
       localStorage.removeItem(LS_SELECTED);
       localStorage.removeItem(LS_ERRORS);
       localStorage.removeItem(LS_ACTIVE_JOB);
@@ -324,8 +332,7 @@ export default function CanvasIntegration() {
         <CanvasConnectionForm
           domain={domain}
           setDomain={setDomain}
-          token={token}
-          setToken={setToken}
+          tokenInputRef={tokenInputRef}
           isConnecting={isConnecting}
           connectionError={connectionError}
           connectionWarning={connectionWarning}

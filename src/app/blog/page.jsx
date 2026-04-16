@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
@@ -32,7 +33,7 @@ export default function BlogPage() {
             <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
               {t("blog.title")}
             </h2>
-            <p className="mt-2 text-lg leading-8 text-gray-400">
+            <p className="mt-2 text-lg leading-8 text-gray-300">
               {t("blog.subtitle")}
             </p>
           </div>
@@ -43,9 +44,11 @@ export default function BlogPage() {
                 className="flex flex-col items-start justify-between"
               >
                 <div className="relative w-full">
-                  <img
+                  <Image
                     src={post.imageUrl}
-                    alt=""
+                    alt={t(post.title)}
+                    width={800}
+                    height={450}
                     className="aspect-video w-full rounded-2xl bg-gray-100 object-cover sm:aspect-square lg:aspect-video"
                   />
                   <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gray-900/10" />
@@ -69,7 +72,7 @@ export default function BlogPage() {
                         {t(post.title)}
                       </Link>
                     </h3>
-                    <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-400">
+                    <p className="mt-5 line-clamp-3 text-sm leading-6 text-gray-300">
                       {t(post.excerpt)}
                     </p>
                   </div>
@@ -80,16 +83,18 @@ export default function BlogPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <img
+                      <Image
                         alt={post.author.name}
                         src={post.author.imageUrl}
+                        width={40}
+                        height={40}
                         className="h-10 w-10 rounded-full bg-gray-800"
                       />
                       <div>
                         <p className="font-semibold text-white">
                           {post.author.name}
                         </p>
-                        <p className="text-gray-400">{t(post.authorRole)}</p>
+                        <p className="text-gray-300">{t(post.authorRole)}</p>
                       </div>
                     </a>
                   </div>

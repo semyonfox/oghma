@@ -10,6 +10,7 @@ const MAX_WORKERS = 5;
 // each worker processes up to 10 files concurrently (CANVAS_GLOBAL_FILE_CONCURRENCY)
 const FILES_PER_WORKER = 10;
 
+// trigger rebuild: 2026-04-16 - force new deployment after AWS migration
 // non-fatal — if IAM isn't wired yet the worker DB poll will catch the job
 // fileCount: hint for how many workers to start; defaults to 1
 export async function ensureWorkerRunning(fileCount = 1) {

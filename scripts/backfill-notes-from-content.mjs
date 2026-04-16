@@ -124,7 +124,7 @@ async function main() {
           CASE WHEN s3_key IS NULL THEN NULLIF(TRIM(content), '') END
         ) AS text
       FROM app.notes
-      WHERE (deleted = 0 OR deleted IS NULL) AND is_folder = false
+      WHERE deleted_at IS NULL AND is_folder = false
         AND (
           (extracted_text IS NOT NULL AND length(extracted_text) > 100)
           OR (s3_key IS NULL AND content IS NOT NULL AND length(content) > 100)

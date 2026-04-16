@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import { aboutBlogCards, authors } from "@/lib/blog-data";
@@ -196,9 +197,11 @@ export default function About() {
                 <div className="mt-14 flex justify-end gap-8 sm:-mt-44 sm:justify-start sm:pl-20 lg:mt-0 lg:pl-0">
                   <div className="ml-auto w-44 flex-none space-y-8 pt-32 sm:ml-0 sm:pt-80 lg:order-last lg:pt-36 xl:order-0 xl:pt-80">
                     <div className="relative">
-                      <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&h=528&q=80"
+                      <Image
+                        alt="Students collaborating on a group project"
+                        src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -206,17 +209,21 @@ export default function About() {
                   </div>
                   <div className="mr-auto w-44 flex-none space-y-8 sm:mr-0 sm:pt-52 lg:pt-36">
                     <div className="relative">
-                      <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&h=528&q=80"
+                      <Image
+                        alt="University lecture hall during a class"
+                        src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
                     </div>
                     <div className="relative">
-                      <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=396&h=528&q=80"
+                      <Image
+                        alt="Teacher writing on a classroom whiteboard"
+                        src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -224,17 +231,21 @@ export default function About() {
                   </div>
                   <div className="w-44 flex-none space-y-8 pt-32 sm:pt-0">
                     <div className="relative">
-                      <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=400&h=528&q=80"
+                      <Image
+                        alt="Students studying together outdoors"
+                        src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
                     </div>
                     <div className="relative">
-                      <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&h=528&q=80"
+                      <Image
+                        alt="Graduates celebrating at commencement"
+                        src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
                         className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
                       />
                       <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
@@ -288,9 +299,11 @@ export default function About() {
 
         {/* Image section */}
         <div className="mt-32 sm:mt-40 xl:mx-auto xl:max-w-7xl xl:px-8">
-          <img
-            alt=""
-            src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=2832&q=80"
+          <Image
+            alt="Stack of books on a library desk"
+            src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1400&q=80"
+            width={1400}
+            height={560}
             className="aspect-5/2 w-full object-cover outline-1 -outline-offset-1 outline-white/10 xl:rounded-3xl"
           />
         </div>
@@ -418,9 +431,11 @@ export default function About() {
                   key={img.name}
                   className="col-span-1 overflow-hidden rounded-xl"
                 >
-                  <img
+                  <Image
                     alt={img.name}
                     src={img.src}
+                    width={600}
+                    height={400}
                     className="aspect-3/2 w-full object-cover"
                   />
                 </div>
@@ -457,9 +472,11 @@ export default function About() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <img
+                    <Image
                       alt={person.name}
                       src={person.imageUrl}
+                      width={224}
+                      height={224}
                       className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
                     />
                   </a>
@@ -550,10 +567,12 @@ export default function About() {
                 key={post.slug}
                 className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
               >
-                <img
-                  alt=""
+                <Image
+                  alt={post.title}
                   src={post.imageUrl}
-                  className="absolute inset-0 -z-10 size-full object-cover"
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 33vw"
+                  className="absolute inset-0 -z-10 object-cover"
                 />
                 <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
                 <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-white/10" />
@@ -575,9 +594,11 @@ export default function About() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <img
+                      <Image
                         alt={post.author.name}
                         src={post.author.imageUrl}
+                        width={24}
+                        height={24}
                         className="size-6 flex-none rounded-full bg-gray-800/10"
                       />
                       <span>{post.author.name}</span>

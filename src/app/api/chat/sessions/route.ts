@@ -17,7 +17,11 @@ export const GET = withErrorHandler(async () => {
             SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context, s.created_at, s.updated_at,
                    COUNT(m.id)::int AS message_count
             FROM app.chat_sessions s
-            LEFT JOIN app.notes n ON n.note_id = s.note_id AND n.user_id = s.user_id
+            LEFT JOIN app.notes n
+              ON n.note_id = s.note_id
+             AND n.user_id = s.user_id
+             AND n.deleted = 0
+             AND n.deleted_at IS NULL
             LEFT JOIN app.chat_messages m ON m.session_id = s.id
             WHERE s.user_id = ${user.user_id}::uuid
             GROUP BY s.id, n.title

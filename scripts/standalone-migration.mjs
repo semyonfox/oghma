@@ -92,7 +92,6 @@ CREATE TABLE app.notes (
     content     TEXT,
     s3_key      TEXT,
     is_folder   BOOLEAN NOT NULL DEFAULT false,
-    deleted     SMALLINT NOT NULL DEFAULT 0,
     deleted_at  TIMESTAMPTZ,
     pinned      SMALLINT NOT NULL DEFAULT 0,
     shared      SMALLINT NOT NULL DEFAULT 0,
@@ -107,21 +106,21 @@ CREATE TABLE app.notes (
 );
 
 CREATE INDEX idx_notes_user_active ON app.notes(user_id, created_at DESC)
-    WHERE deleted = 0 AND deleted_at IS NULL;
+    WHERE deleted_at IS NULL;
 
 CREATE INDEX idx_notes_trash ON app.notes(user_id, deleted_at DESC)
     WHERE deleted_at IS NOT NULL;
 
 CREATE INDEX idx_notes_pinned ON app.notes(user_id, created_at DESC)
-    WHERE pinned = 1 AND deleted = 0;
+    WHERE pinned = 1 AND deleted_at IS NULL;
 
 CREATE INDEX idx_notes_shared ON app.notes(shared, created_at DESC)
-    WHERE shared = 1 AND deleted = 0;
+    WHERE shared = 1 AND deleted_at IS NULL;
 
 CREATE INDEX idx_notes_s3_key ON app.notes(s3_key);
 
 CREATE INDEX idx_notes_search_vector ON app.notes USING GIN(to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(content, '')))
-    WHERE deleted = 0 AND deleted_at IS NULL;
+    WHERE deleted_at IS NULL;
 
 -- ============================================================================
 -- TABLE: app.tree_items (Per-user File Tree)

@@ -5,8 +5,8 @@ import sql from "@/database/pgsql.js";
 import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
-import { decrypt } from "@/lib/crypto";
 import logger from "@/lib/logger";
+import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
 /**
  * POST /api/canvas/sync
@@ -21,27 +21,20 @@ import logger from "@/lib/logger";
 export const POST = withErrorHandler(async () => {
   const user = await requireAuth();
 
-  const credRows = await sql`
-    SELECT canvas_token, canvas_domain
-    FROM app.login
-    WHERE user_id = ${user.user_id}
-  `;
-  const { canvas_token, canvas_domain } = credRows[0] ?? {};
-
-  if (!canvas_token || !canvas_domain) {
+  const credentials = await loadCanvasCredentials(user.user_id);
+  if (!credentials) {
     return NextResponse.json({
       queued: false,
       reason: "No Canvas account connected",
     });
   }
 
-  const plainToken = decrypt(canvas_token, user.user_id);
-
   // Derive the set of course IDs previously imported by this user
   const prevCourseRows = await sql`
     SELECT DISTINCT canvas_course_id
     FROM app.canvas_imports
     WHERE user_id = ${user.user_id}
+    LIMIT 200
   `;
 
   if (prevCourseRows.length === 0) {
@@ -56,7 +49,7 @@ export const POST = withErrorHandler(async () => {
   );
 
   // Fetch current course list from Canvas to get up-to-date name / course_code
-  const client = new CanvasClient(canvas_domain, plainToken);
+  const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: allCourses } = await client.getCourses();
 
   const courses = (allCourses ?? [])
@@ -125,8 +118,8 @@ export const POST = withErrorHandler(async () => {
 export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
-  const [credRows, prevCourseRows, activeJobRows] = await Promise.all([
-    sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${user.user_id}`,
+  const [credentials, prevCourseRows, activeJobRows] = await Promise.all([
+    loadCanvasCredentials(user.user_id),
     sql`SELECT COUNT(DISTINCT canvas_course_id)::int AS count FROM app.canvas_imports WHERE user_id = ${user.user_id}`,
     sql`
       SELECT id, status, created_at FROM app.canvas_import_jobs
@@ -134,12 +127,10 @@ export const GET = withErrorHandler(async () => {
       ORDER BY created_at DESC LIMIT 1
     `,
   ]);
-
-  const { canvas_token } = credRows[0] ?? {};
   const courseCount = prevCourseRows[0]?.count ?? 0;
 
   return NextResponse.json({
-    available: !!(canvas_token && courseCount > 0),
+    available: !!(credentials && courseCount > 0),
     courseCount,
     activeJob: activeJobRows[0] ?? null,
   });
