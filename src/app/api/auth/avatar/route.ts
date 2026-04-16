@@ -95,7 +95,8 @@ export async function GET() {
       return NextResponse.json({ avatarUrl: null });
     }
 
-    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
+    // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
+    const avatarUrl = `/api/proxy/avatar`;
     return NextResponse.json({ avatarUrl });
   } catch (error) {
     logger.error("error fetching avatar", { error });
@@ -148,7 +149,8 @@ export async function POST(request: NextRequest) {
     const currentSettings = await getSettingsFromS3(userId as number);
     await saveSettingsToS3(userId as number, { ...currentSettings, avatarKey });
 
-    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
+    // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
+    const avatarUrl = `/api/proxy/avatar`;
 
     return NextResponse.json({ success: true, avatarUrl, avatarKey });
   } catch (error) {
