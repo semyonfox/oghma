@@ -72,7 +72,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         if (body.action === 'restore') {
             await sql`
                 UPDATE app.notes
-                SET deleted = 0, deleted_at = NULL, updated_at = NOW()
+                SET deleted_at = NULL, updated_at = NOW()
                 WHERE note_id = ${id}::uuid AND user_id = ${user.user_id}::uuid
             `;
             await addNoteToTree(user.user_id, id, null);

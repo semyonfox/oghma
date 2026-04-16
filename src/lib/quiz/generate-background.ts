@@ -26,7 +26,6 @@ export async function getUncoveredChunkIds(
       JOIN app.notes n ON n.note_id = c.document_id
       WHERE c.user_id = ${userId}::uuid
         AND c.id = ANY(${opts.chunkIds}::uuid[])
-        AND n.deleted = 0
         AND n.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM app.quiz_questions qq
@@ -45,7 +44,6 @@ export async function getUncoveredChunkIds(
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.user_id = ${userId}::uuid
         AND n.canvas_course_id = ${opts.courseId}
-        AND n.deleted = 0
         AND n.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM app.quiz_questions qq
@@ -62,7 +60,6 @@ export async function getUncoveredChunkIds(
     SELECT c.id FROM app.chunks c
     JOIN app.notes n ON n.note_id = c.document_id
     WHERE c.user_id = ${userId}::uuid
-      AND n.deleted = 0
       AND n.deleted_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM app.quiz_questions qq
@@ -91,7 +88,6 @@ export async function generateBatch(
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.id = ${chunkId}::uuid
         AND c.user_id = ${userId}::uuid
-        AND n.deleted = 0
         AND n.deleted_at IS NULL
     `;
     if (!chunk) return;

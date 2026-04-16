@@ -23,7 +23,7 @@ export async function getTreeFromPG(userId) {
       FROM app.tree_items ti
       LEFT JOIN app.notes n ON ti.note_id = n.note_id
       WHERE ti.user_id = ${userId}::uuid
-        AND (ti.note_id IS NULL OR (n.deleted = 0 AND n.deleted_at IS NULL))
+        AND (ti.note_id IS NULL OR n.deleted_at IS NULL)
       ORDER BY ti.parent_id, n.title ASC
     `;
 
@@ -169,9 +169,8 @@ export async function syncTreeWithNotes(userId) {
       WHERE user_id = ${userId}::uuid
         AND note_id IS NOT NULL
         AND note_id NOT IN (
-          SELECT note_id FROM app.notes 
-          WHERE user_id = ${userId}::uuid 
-            AND deleted = 0 
+          SELECT note_id FROM app.notes
+          WHERE user_id = ${userId}::uuid
             AND deleted_at IS NULL
         )
     `;
@@ -190,7 +189,6 @@ export async function getOrphanedNotes(userId) {
       SELECT note_id
       FROM app.notes
       WHERE user_id = ${userId}::uuid
-        AND deleted = 0
         AND deleted_at IS NULL
         AND note_id NOT IN (
           SELECT note_id FROM app.tree_items WHERE user_id = ${userId}::uuid AND note_id IS NOT NULL

@@ -60,7 +60,7 @@ export async function findOrCreateVaultFolder(userId, title, parentId) {
     WHERE n.user_id = ${userId}::uuid
       AND n.title = ${title}
       AND n.is_folder = true
-      AND n.deleted = 0
+      AND n.deleted_at IS NULL
       AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
     LIMIT 1
   `;
@@ -69,8 +69,8 @@ export async function findOrCreateVaultFolder(userId, title, parentId) {
   const noteId = uuidv4();
   try {
     await sql`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, '', true, 0, NOW(), NOW())
+      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+      Values (${noteId}::uuid, ${userId}::uuid, ${title}, '', true, NOW(), NOW())
     `;
     await addNoteToTree(userId, noteId, parentId ?? null);
     return noteId;
@@ -83,7 +83,7 @@ export async function findOrCreateVaultFolder(userId, title, parentId) {
         WHERE n.user_id = ${userId}::uuid
           AND n.title = ${title}
           AND n.is_folder = true
-          AND n.deleted = 0
+          AND n.deleted_at IS NULL
           AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
         LIMIT 1
       `;
@@ -148,7 +148,7 @@ export async function buildExportPathMap(userId) {
     FROM app.tree_items t
     JOIN app.notes n ON n.note_id = t.note_id AND n.user_id = t.user_id
     WHERE t.user_id = ${userId}::uuid
-      AND n.deleted = 0
+      AND n.deleted_at IS NULL
     ORDER BY n.title
   `;
 
