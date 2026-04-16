@@ -1,12 +1,17 @@
-import { NextResponse } from 'next/server';
-import { withErrorHandler, requireAuth, requireValidId, ApiError } from '@/lib/api-error';
-import { checkRateLimit } from '@/lib/rateLimiter';
-import { isValidUUID } from '@/lib/utils/uuid';
-import { generateUUID } from '@/lib/utils/uuid';
-import { addNoteToTree } from '@/lib/notes/storage/pg-tree.js';
-import { getStorageProvider } from '@/lib/storage/init';
-import sql from '@/database/pgsql.js';
-import logger from '@/lib/logger';
+import { NextResponse } from "next/server";
+import {
+  withErrorHandler,
+  requireAuth,
+  requireValidId,
+  ApiError,
+} from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rateLimiter";
+import { isValidUUID } from "@/lib/utils/uuid";
+import { generateUUID } from "@/lib/utils/uuid";
+import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
+import { getStorageProvider } from "@/lib/storage/init";
+import sql from "@/database/pgsql.js";
+import logger from "@/lib/logger";
 
 /**
  * POST /api/notes/:id/share
@@ -22,26 +27,29 @@ import logger from '@/lib/logger';
 export const POST = withErrorHandler(async (request: Request, context: any) => {
   const user = await requireAuth();
 
-  const limited = await checkRateLimit('share', user.user_id);
+  const limited = await checkRateLimit("share", user.user_id);
   if (limited) return limited;
 
   const { id } = await context.params;
-  const sourceNoteId = requireValidId(id, 'note ID');
+  const sourceNoteId = requireValidId(id, "note ID");
 
   const body = await request.json();
   const { targetUserId, targetParentId } = body;
 
   if (!targetUserId || !isValidUUID(targetUserId)) {
-    throw new ApiError(400, 'Invalid or missing targetUserId');
+    throw new ApiError(400, "Invalid or missing targetUserId");
   }
 
   if (targetParentId && !isValidUUID(targetParentId)) {
-    throw new ApiError(400, 'Invalid targetParentId');
+    throw new ApiError(400, "Invalid targetParentId");
   }
 
   // cannot share to yourself
   if (targetUserId === user.user_id) {
-    throw new ApiError(400, 'Cannot share a note with yourself. Use duplicate instead.');
+    throw new ApiError(
+      400,
+      "Cannot share a note with yourself. Use duplicate instead.",
+    );
   }
 
   // verify target user exists and is active
@@ -51,7 +59,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       AND is_active = true AND deleted_at IS NULL
   `;
   if (!targetUser.length) {
-    throw new ApiError(404, 'Target user not found');
+    throw new ApiError(404, "Target user not found");
   }
 
   // only the owner can share their own note
@@ -64,7 +72,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
   `;
 
   if (!sourceNote.length) {
-    throw new ApiError(404, 'Source note not found');
+    throw new ApiError(404, "Source note not found");
   }
 
   const note = sourceNote[0];
@@ -78,18 +86,18 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
   if (note.s3_key) {
     try {
       const storage = getStorageProvider();
-      const originalContent = await storage.getObject(note.s3_key);
-      if (originalContent) {
-        const filename = note.s3_key.split('/').pop() ?? 'file';
-        clonedS3Key = `notes/${cloneId}/${filename}`;
-        await storage.putObject(clonedS3Key, originalContent, {
-          contentType: 'application/octet-stream',
-        });
-      }
+      const filename = note.s3_key.split("/").pop() ?? "file";
+      clonedS3Key = `notes/${cloneId}/${filename}`;
+      await storage.copyObject(note.s3_key, clonedS3Key, {});
     } catch (err) {
-      logger.warn('failed to copy S3 object for share, clone will have no file', {
-        sourceKey: note.s3_key, error: err,
-      });
+      logger.warn(
+        "failed to copy S3 object for share, clone will have no file",
+        {
+          sourceKey: note.s3_key,
+          error: err,
+        },
+      );
+      clonedS3Key = null;
     }
   }
 
@@ -108,7 +116,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     ) VALUES (
       ${cloneId}::uuid,
       ${targetUserId}::uuid,
-      ${note.title + ' (shared)'},
+      ${note.title + " (shared)"},
       ${note.content},
       ${clonedS3Key},
       ${note.is_folder},
@@ -129,16 +137,22 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
         AND deleted_at IS NULL
     `;
     if (!parentCheck.length) {
-      throw new ApiError(400, 'targetParentId is not a valid folder for the target user');
+      throw new ApiError(
+        400,
+        "targetParentId is not a valid folder for the target user",
+      );
     }
   }
 
   // Add clone to target user's tree
   await addNoteToTree(targetUserId, cloned[0].note_id, targetParentId || null);
 
-  return NextResponse.json({
-    success: true,
-    clonedNoteId: cloned[0].note_id,
-    message: 'Note cloned to target user',
-  }, { status: 201 });
+  return NextResponse.json(
+    {
+      success: true,
+      clonedNoteId: cloned[0].note_id,
+      message: "Note cloned to target user",
+    },
+    { status: 201 },
+  );
 });
