@@ -80,7 +80,7 @@ export const POST = withErrorHandler(async () => {
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
     `;
     const [inserted] = await sql`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
@@ -123,7 +123,7 @@ export const GET = withErrorHandler(async () => {
     sql`SELECT COUNT(DISTINCT canvas_course_id)::int AS count FROM app.canvas_imports WHERE user_id = ${user.user_id}`,
     sql`
       SELECT id, status, created_at FROM app.canvas_import_jobs
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
       ORDER BY created_at DESC LIMIT 1
     `,
   ]);

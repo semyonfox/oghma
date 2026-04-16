@@ -191,7 +191,7 @@ async function queueCanvasSync(userId) {
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${userId} AND status IN ('queued', 'processing')
+      WHERE user_id = ${userId} AND status IN ('queued', 'discovering', 'processing')
     `;
     const [inserted] = await sql`
       INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status, job_type)
