@@ -45,7 +45,7 @@ export const POST = withErrorHandler(async (request) => {
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
     `;
     const [inserted] = await sql`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status)
@@ -113,7 +113,7 @@ export const DELETE = withErrorHandler(async () => {
   const cancelled = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'cancelled', completed_at = NOW()
-    WHERE user_id = ${user.user_id} AND status IN ('queued', 'processing')
+    WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
     RETURNING id
   `;
 
@@ -130,7 +130,7 @@ export const DELETE = withErrorHandler(async () => {
   await sql`
     UPDATE app.canvas_imports
     SET status = 'cancelled', error_message = 'Cancelled by user', updated_at = NOW()
-    WHERE job_id = ${jobId}::uuid AND status IN ('downloading', 'processing', 'indexing')
+    WHERE job_id = ${jobId}::uuid AND status IN ('pending', 'downloading', 'processing', 'indexing')
   `;
 
   return NextResponse.json({ success: true, cancelled: true, jobId });
