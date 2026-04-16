@@ -78,8 +78,10 @@ export const POST = withErrorHandler(
       String(card.correct_answer ?? ""),
     );
 
-    // auto-rate: correct = Good (3), incorrect = Again (1)
-    const rating = wasCorrect ? 3 : 1;
+    // auto-rate using response time as confidence proxy
+    // wrong → Again(1), correct + slow → Hard(2), normal → Good(3), fast → Easy(4)
+    const ms = responseTimeMs ?? 0;
+    const rating = !wasCorrect ? 1 : ms > 20000 ? 2 : ms < 5000 && ms > 0 ? 4 : 3;
 
     // run FSRS
     const fsrsCard = cardFromDB(card);
