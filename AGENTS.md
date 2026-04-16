@@ -30,8 +30,11 @@
 - **`dev`** is the development branch — deployed to dev.oghmanotes.ie
 - deploy flow: `dev` → `main` (via PR)
 - never push directly to `main` — always go through PR with required status checks
-- **Amplify app**: `d22kmou82nb1c5` in `eu-north-1`, auto-builds on push to `main` and `dev`
+- **Amplify app**: `d3nmhn9o8j3uf3` in `eu-west-1`, auto-builds on push to `main` and `dev`
 - **Build env**: runtime-only env vars (DATABASE_URL, NEXTAUTH_URL, etc.) are unset before `npm run build` to prevent empty-string values from crashing SSR prerendering — they are written to `.env.production` for runtime use only
+- **Migrations**: auto-applied during Amplify build via `amplify.yml` → `npm run migrate` (runs before env vars are unset). Add new `.sql` files to `database/migrations/` — they apply on next deploy
+- **Migrator credentials**: `oghmanotes/migrator` secret in Secrets Manager (eu-west-1), uses `oghma_admin` role. The prebuild script (`scripts/prebuild-migrate.mjs`) pulls this secret at build time — credentials never touch env or disk at runtime
+- **Migration tracking**: `app.schema_migrations` table. Migrations 001-017 are legacy (pre-tracking, seeded by the prebuild bootstrap). New migrations use sequential numbering from 018+
 
 ### 5. Code Changes
 

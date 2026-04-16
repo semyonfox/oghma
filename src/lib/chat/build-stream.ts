@@ -5,7 +5,10 @@ import type { ToolSet } from "ai";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
 import { generateUUID } from "@/lib/utils/uuid";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
+import {
+  addNoteToTree,
+  moveNoteInTree,
+} from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
@@ -126,6 +129,10 @@ function buildToolInstruction(
     "- readNote({ noteId }) — read the full markdown content of a note. Use after getChunks confirms the right note.\n" +
     "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
     "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
+    "- moveNote({ noteId, targetFolderId }) — move a note or folder into a different parent folder. Use findFolder first if needed.\n" +
+    "- renameNote({ noteId, newTitle }) — rename a note or folder.\n" +
+    "- addTimeBlock({ title, startsAt, endsAt, assignmentId? }) — create a study time block on the calendar. Times are ISO 8601.\n" +
+    "- completeTimeBlock({ blockId }) — mark a time block as completed.\n" +
     "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
@@ -349,12 +356,162 @@ function createChatTools(
     },
   });
 
+  const moveNote = tool({
+    description:
+      "Move a note or folder into a different parent folder. " +
+      "Use findFolder first if you don't already know the targetFolderId.",
+    inputSchema: z.object({
+      noteId: z.string().uuid(),
+      targetFolderId: z.string().uuid(),
+    }),
+    execute: async ({ noteId: moveNoteId, targetFolderId }) => {
+      const [note] = await sql`
+        SELECT note_id, title FROM app.notes
+        WHERE note_id = ${moveNoteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!note) throw new Error("Note not found");
+
+      const [folder] = await sql`
+        SELECT note_id, title, is_folder FROM app.notes
+        WHERE note_id = ${targetFolderId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!folder) throw new Error("Target folder not found");
+      if (!folder.is_folder) throw new Error("Target must be a folder");
+
+      // get old parent for cache invalidation
+      const [treeItem] = await sql`
+        SELECT parent_id FROM app.tree_items
+        WHERE note_id = ${moveNoteId}::uuid AND user_id = ${userId}::uuid
+      `;
+      const oldParentId = treeItem?.parent_id || null;
+
+      await moveNoteInTree(userId, moveNoteId, targetFolderId);
+
+      await cacheInvalidate(
+        cacheKeys.treeChildren(userId, oldParentId),
+        cacheKeys.treeChildren(userId, targetFolderId),
+        cacheKeys.treeFull(userId),
+      );
+
+      return {
+        noteId: moveNoteId,
+        newParentId: targetFolderId,
+        folderTitle: folder.title,
+      };
+    },
+  });
+
+  const renameNote = tool({
+    description:
+      "Rename a note or folder. Changes the title displayed in the tree.",
+    inputSchema: z.object({
+      noteId: z.string().uuid(),
+      newTitle: z.string().min(1).max(500),
+    }),
+    execute: async ({ noteId: renameNoteId, newTitle }) => {
+      const [note] = await sql`
+        SELECT note_id, title FROM app.notes
+        WHERE note_id = ${renameNoteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!note) throw new Error("Note not found");
+
+      const oldTitle = note.title;
+      await sql`
+        UPDATE app.notes
+        SET title = ${newTitle.trim()}, updated_at = NOW()
+        WHERE note_id = ${renameNoteId}::uuid AND user_id = ${userId}::uuid
+      `;
+
+      await cacheInvalidate(
+        cacheKeys.treeFull(userId),
+        cacheKeys.note(userId, renameNoteId),
+        cacheKeys.notesList(userId, 0, undefined),
+      );
+
+      return { noteId: renameNoteId, oldTitle, newTitle: newTitle.trim() };
+    },
+  });
+
+  const addTimeBlock = tool({
+    description:
+      "Create a study time block on the calendar. Optionally link it to an assignment. " +
+      "Times must be ISO 8601 strings (e.g. '2026-04-17T15:00:00Z').",
+    inputSchema: z.object({
+      title: z.string().min(1).max(200),
+      startsAt: z.string(),
+      endsAt: z.string(),
+      assignmentId: z.string().uuid().optional(),
+    }),
+    execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
+      const start = new Date(startsAt);
+      const end = new Date(endsAt);
+      const durationMins = (end.getTime() - start.getTime()) / 60000;
+      if (durationMins <= 0) throw new Error("End must be after start");
+
+      if (assignmentId) {
+        const [owned] = await sql`
+          SELECT 1 FROM app.assignments
+          WHERE id = ${assignmentId}::uuid AND user_id = ${userId}::uuid
+        `;
+        if (!owned) throw new Error("Assignment not found");
+      }
+
+      const pomodoroCount = Math.max(1, Math.ceil(durationMins / 30));
+
+      const [row] = await sql`
+        INSERT INTO app.time_blocks (
+          user_id, assignment_id, title, starts_at, ends_at, pomodoro_count
+        ) VALUES (
+          ${userId}::uuid, ${assignmentId ?? null},
+          ${blockTitle}, ${startsAt}, ${endsAt}, ${pomodoroCount}
+        )
+        RETURNING id, title, starts_at, ends_at, pomodoro_count
+      `;
+
+      return {
+        blockId: row.id,
+        title: row.title,
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+        pomodoroCount: row.pomodoro_count,
+      };
+    },
+  });
+
+  const completeTimeBlock = tool({
+    description: "Mark a time block as completed.",
+    inputSchema: z.object({
+      blockId: z.string().uuid(),
+    }),
+    execute: async ({ blockId }) => {
+      const [row] = await sql`
+        UPDATE app.time_blocks
+        SET completed = true
+        WHERE id = ${blockId}::uuid AND user_id = ${userId}::uuid
+        RETURNING id, completed
+      `;
+      if (!row) throw new Error("Time block not found");
+
+      return { blockId: row.id, completed: true };
+    },
+  });
+
   return {
     tools: {
       getChunks,
       readNote,
       findFolder,
       makeMDNote,
+      moveNote,
+      renameNote,
+      addTimeBlock,
+      completeTimeBlock,
       ...canvasTools,
     },
   };
