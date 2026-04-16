@@ -124,22 +124,12 @@ function buildToolInstruction(
   canvasInstruction: string,
 ): string {
   return (
-    "Tools available:\n" +
-    "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
-    "- readNote({ noteId }) — read the full markdown content of a note. Use after getChunks confirms the right note.\n" +
-    "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
-    "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
-    "- moveNote({ noteId, targetFolderId }) — move a note or folder into a different parent folder. Use findFolder first if needed.\n" +
-    "- renameNote({ noteId, newTitle }) — rename a note or folder.\n" +
-    "- addTimeBlock({ title, startsAt, endsAt, assignmentId? }) — add a time block to the calendar for studying/scheduling. This is NOT a note — it appears on the calendar as a scheduled block with pomodoro tracking. Times are ISO 8601.\n" +
-    "- completeTimeBlock({ blockId }) — mark a calendar time block as completed.\n" +
-    "\nTool selection rules:\n" +
-    "- 'study block', 'schedule', 'time block', 'calendar block', 'plan a session' → use addTimeBlock (calendar), NOT makeMDNote.\n" +
-    "- 'create a note', 'write up', 'save this', 'make a document' → use makeMDNote.\n" +
-    "- 'move this note to', 'put it in the X folder', 'reorganize' → use moveNote.\n" +
-    "- 'rename this to', 'change the title' → use renameNote.\n" +
-    "- 'mark as done', 'finished that block', 'complete the block' → use completeTimeBlock.\n" +
-    "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
+    "You have 8 tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
+    "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
+    "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
+    "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
+    "CALENDAR: addTimeBlock creates a scheduled study block on the calendar with pomodoro tracking. This is NOT a note. completeTimeBlock marks a block done.\n\n" +
+    "Key distinction: scheduling/study blocks/time blocks/calendar → addTimeBlock. Writing/saving/documenting → makeMDNote. Never create a note when the user wants a calendar block." +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
   );
@@ -153,7 +143,8 @@ function createChatTools(
 ): { tools: ToolSet } {
   const makeMDNote = tool({
     description:
-      "Create a markdown note for the current user. Use parentID to place it under a folder.",
+      "Create a markdown note and save it to the user's library. " +
+      "Use parentID to place it in a folder. Only for written content — for scheduling, use addTimeBlock instead.",
     inputSchema: z.object({
       text: z.string().min(1).max(200_000),
       parentID: z.string().uuid().nullable().optional(),
@@ -260,8 +251,8 @@ function createChatTools(
 
   const findFolder = tool({
     description:
-      "Search for a folder in the user's notes by name or course keyword. " +
-      "Returns matching folders with their IDs. Use this to find parentID before creating a note.",
+      "Search folders by name or course keyword. Returns folder IDs. " +
+      "Use before makeMDNote (to get parentID) or moveNote (to get targetFolderId).",
     inputSchema: z.object({
       query: z.string().min(1).max(200),
     }),
@@ -289,12 +280,10 @@ function createChatTools(
 
   const getChunks = tool({
     description:
-      "Search the user's notes for relevant chunks. " +
-      "Use mode='semantic' (default) for conceptual/topic queries. " +
-      "Use mode='exact' when looking for a specific term, name, formula, or phrase the user likely wrote verbatim. " +
-      "Use mode='both' to run both and merge results. " +
-      "Use scope='session' to stay inside the current chat context, or scope='all' to search the full note library when needed. " +
-      "Returns matching chunks with their noteId and title — call readNote if you need the full note.",
+      "Search notes for relevant chunks. Returns noteId + text per hit. " +
+      "mode: 'semantic' (conceptual), 'exact' (verbatim term/name/formula), 'both'. " +
+      "scope: 'session' (current context, default) or 'all' (full library). " +
+      "Follow up with readNote if you need the full note content.",
     inputSchema: z.object({
       query: z.string().min(1).max(300),
       mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
@@ -330,8 +319,7 @@ function createChatTools(
 
   const readNote = tool({
     description:
-      "Read the full content of a note by ID. Use this once getChunks has identified the right note " +
-      "and you need the complete text. Returns the raw markdown content.",
+      "Read full markdown content of a note by ID. Use after getChunks confirms the right note.",
     inputSchema: z.object({
       noteId: z.string().uuid(),
     }),
@@ -364,8 +352,8 @@ function createChatTools(
 
   const moveNote = tool({
     description:
-      "Move a note or folder into a different parent folder. " +
-      "Use findFolder first if you don't already know the targetFolderId.",
+      "Move a note or folder to a different parent folder. " +
+      "Requires targetFolderId — call findFolder first if unknown.",
     inputSchema: z.object({
       noteId: z.string().uuid(),
       targetFolderId: z.string().uuid(),
@@ -446,8 +434,9 @@ function createChatTools(
 
   const addTimeBlock = tool({
     description:
-      "Create a study time block on the calendar. Optionally link it to an assignment. " +
-      "Times must be ISO 8601 strings (e.g. '2026-04-17T15:00:00Z').",
+      "Add a study/scheduling block to the calendar with automatic pomodoro tracking. " +
+      "NOT a note — this creates a calendar event. Link to an assignment with assignmentId. " +
+      "Times: ISO 8601 (e.g. '2026-04-17T15:00:00Z').",
     inputSchema: z.object({
       title: z.string().min(1).max(200),
       startsAt: z.string(),
