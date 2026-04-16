@@ -101,7 +101,6 @@ export async function searchChatChunks({
           WHERE c.user_id = ${userId}::uuid
             AND n.note_id = ANY(${scopedNoteIds}::uuid[])
             AND n.is_folder = false
-            AND n.deleted = 0
             AND n.deleted_at IS NULL
             AND c.text ILIKE ${pattern}
           LIMIT ${QUERY_LIMIT}
@@ -112,7 +111,6 @@ export async function searchChatChunks({
           JOIN app.notes n ON n.note_id = c.document_id
           WHERE c.user_id = ${userId}::uuid
             AND n.is_folder = false
-            AND n.deleted = 0
             AND n.deleted_at IS NULL
             AND c.text ILIKE ${pattern}
           LIMIT ${QUERY_LIMIT}
@@ -133,7 +131,6 @@ export async function searchChatChunks({
             WHERE user_id = ${userId}::uuid
               AND note_id = ANY(${scopedNoteIds}::uuid[])
               AND is_folder = false
-              AND deleted = 0
               AND deleted_at IS NULL
           )
           SELECT
@@ -157,7 +154,6 @@ export async function searchChatChunks({
             FROM app.notes
             WHERE user_id = ${userId}::uuid
               AND is_folder = false
-              AND deleted = 0
               AND deleted_at IS NULL
           )
           SELECT

@@ -50,7 +50,7 @@ export const GET = withErrorHandler(async (request, { params }) => {
 
   // Get note from PostgreSQL (verify ownership)
   const result = await sql`
-     SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
+     SELECT note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at FROM app.notes
      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
    `;
 
@@ -127,7 +127,7 @@ export const PUT = withErrorHandler(async (request, { params }) => {
          content = ${body.content || existingNote.content},
          updated_at = NOW()
      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-     RETURNING note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at
+     RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
    `;
 
   // invalidate cached note; if title changed, tree + list caches too

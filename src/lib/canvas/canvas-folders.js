@@ -70,7 +70,7 @@ function findCanvasFolder(userId, canvas) {
         WHEN ${hasModule}     THEN canvas_module_id = ${canvasModuleId ?? 0}::int
         ELSE canvas_module_id IS NULL AND canvas_assignment_id IS NULL
       END
-      AND is_folder = true AND deleted = 0
+      AND is_folder = true AND deleted_at IS NULL
     LIMIT 1
   `;
 }
@@ -93,11 +93,11 @@ export async function findOrCreateFolder(userId, title, parentId, canvas = {}) {
   try {
     await sql`
       INSERT INTO app.notes (
-        note_id, user_id, title, content, is_folder, deleted,
+        note_id, user_id, title, content, is_folder,
         canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
         created_at, updated_at
       ) VALUES (
-        ${noteId}::uuid, ${userId}::uuid, ${title}, '', true, 0,
+        ${noteId}::uuid, ${userId}::uuid, ${title}, '', true,
         ${canvasCourseId ?? null}, ${canvas.canvasModuleId ?? null},
         ${canvas.canvasAssignmentId ?? null}, ${canvasAcademicYear ?? null},
         NOW(), NOW()

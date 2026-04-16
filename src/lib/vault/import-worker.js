@@ -65,8 +65,8 @@ async function createNote(userId, title, parentId, opts = {}) {
   const s3Key = opts.s3Key ?? null;
   const content = opts.content ?? "";
   await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, deleted, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, false, 0, NOW(), NOW())
+    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, created_at, updated_at)
+    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, false, NOW(), NOW())
   `;
   await addNoteToTree(userId, noteId, parentId ?? null);
   return noteId;
@@ -79,7 +79,7 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
     WHERE n.user_id = ${userId}::uuid
       AND n.title = ${title}
       AND n.is_folder = false
-      AND n.deleted = 0
+      AND n.deleted_at IS NULL
       AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
     LIMIT 1
   `;

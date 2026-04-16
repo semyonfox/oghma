@@ -28,7 +28,7 @@ export const GET = withErrorHandler(async () => {
               ON ucs.user_id = ${userId}::uuid
               AND ucs.canvas_course_id = n.canvas_course_id
             WHERE qc.user_id = ${userId}::uuid
-              AND n.deleted = 0
+              AND n.deleted_at IS NULL
               AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
         `,
         sql`
@@ -45,7 +45,7 @@ export const GET = withErrorHandler(async () => {
               ON ucs.user_id = ${userId}::uuid
               AND ucs.canvas_course_id = n.canvas_course_id
             WHERE qr.user_id = ${userId}::uuid
-              AND n.deleted = 0
+              AND n.deleted_at IS NULL
               AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
         `,
         sql`SELECT current_streak, longest_streak FROM app.user_streaks WHERE user_id = ${userId}::uuid`,

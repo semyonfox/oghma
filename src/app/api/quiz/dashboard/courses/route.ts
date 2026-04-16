@@ -20,7 +20,7 @@ export const GET = withErrorHandler(async (request) => {
                    AND f.is_folder = true
                    AND f.canvas_module_id IS NULL
                    AND f.canvas_assignment_id IS NULL
-                   AND f.deleted = 0
+                   AND f.deleted_at IS NULL
                  ORDER BY f.created_at ASC
                  LIMIT 1),
                 MAX(n.title)
@@ -37,7 +37,7 @@ export const GET = withErrorHandler(async (request) => {
           AND ucs.canvas_course_id = n.canvas_course_id
         WHERE n.user_id = ${userId}::uuid
           AND n.canvas_course_id IS NOT NULL
-          AND n.deleted = 0
+          AND n.deleted_at IS NULL
           ${includeArchived ? sql`` : sql`AND (ucs.is_active IS NULL OR ucs.is_active = true)`}
           AND EXISTS (
               SELECT 1 FROM app.chunks c

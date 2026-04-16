@@ -80,12 +80,12 @@ async function createNote(userId, title, parentId, opts = {}) {
   const canvasAcademicYear = opts.canvasAcademicYear ?? null;
   await sql`
     INSERT INTO app.notes (
-      note_id, user_id, title, content, s3_key, is_folder, deleted,
+      note_id, user_id, title, content, s3_key, is_folder,
       canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
       created_at, updated_at
     )
     VALUES (
-      ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder}, 0,
+      ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder},
       ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear},
       NOW(), NOW()
     )
@@ -106,7 +106,7 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
           AND t.user_id = ${userId}::uuid
           AND n.title = ${title}
           AND n.is_folder = false
-          AND n.deleted = 0
+          AND n.deleted_at IS NULL
           AND t.parent_id = ${parentId}::uuid
         LIMIT 1
       `
@@ -117,7 +117,7 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
           AND t.user_id = ${userId}::uuid
           AND n.title = ${title}
           AND n.is_folder = false
-          AND n.deleted = 0
+          AND n.deleted_at IS NULL
           AND t.parent_id IS NULL
         LIMIT 1
       `;
@@ -150,7 +150,7 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
               AND t.user_id = ${userId}::uuid
               AND n.title = ${title}
               AND n.is_folder = false
-              AND n.deleted = 0
+              AND n.deleted_at IS NULL
               AND t.parent_id = ${parentId}::uuid
             LIMIT 1
           `
@@ -161,7 +161,7 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
               AND t.user_id = ${userId}::uuid
               AND n.title = ${title}
               AND n.is_folder = false
-              AND n.deleted = 0
+              AND n.deleted_at IS NULL
               AND t.parent_id IS NULL
             LIMIT 1
           `;

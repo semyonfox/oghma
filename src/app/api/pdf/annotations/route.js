@@ -36,7 +36,6 @@ export const GET = withErrorHandler(async (request) => {
     SELECT note_id FROM app.notes
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${user.user_id}::uuid
-      AND deleted = 0
       AND deleted_at IS NULL
   `;
 
@@ -90,7 +89,6 @@ export const POST = withErrorHandler(async (request) => {
     SELECT note_id FROM app.notes
     WHERE note_id = ${noteId}::uuid
       AND user_id = ${user.user_id}::uuid
-      AND deleted = 0
       AND deleted_at IS NULL
   `;
 
