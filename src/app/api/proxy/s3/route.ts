@@ -41,9 +41,9 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const storage = getStorageProvider();
-    const stream = await storage.getObject(path);
+    const { buffer } = await storage.getObjectAndMeta(path);
 
-    if (!stream) {
+    if (!buffer) {
       return tracedError("Failed to fetch file from storage", 500);
     }
 
@@ -53,10 +53,10 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       "Content-Disposition": inline
         ? `inline; filename="${attachment.filename}"`
         : `attachment; filename="${attachment.filename}"`,
+      "Content-Length": buffer.byteLength.toString(),
     };
 
-    // Convert stream to Response with proper headers
-    return new NextResponse(stream as any, {
+    return new NextResponse(buffer, {
       status: 200,
       headers,
     });
