@@ -53,6 +53,8 @@ frontend:
         - npm ci --include=dev --legacy-peer-deps
     build:
       commands:
+        # run pending database migrations while DATABASE_URL is still set
+        - npm run migrate
         # write runtime env vars to .env.production for SSR runtime,
         # then UNSET them so empty-string values don't break the build.
         # next-auth crashes with new URL("") if NEXTAUTH_URL is "" at import time.
