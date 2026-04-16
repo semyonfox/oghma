@@ -20,7 +20,6 @@ export const GET = withErrorHandler(async () => {
             LEFT JOIN app.notes n
               ON n.note_id = s.note_id
              AND n.user_id = s.user_id
-             AND n.deleted = 0
              AND n.deleted_at IS NULL
             LEFT JOIN app.chat_messages m ON m.session_id = s.id
             WHERE s.user_id = ${user.user_id}::uuid

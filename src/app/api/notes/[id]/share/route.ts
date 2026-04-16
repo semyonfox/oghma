@@ -60,7 +60,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     FROM app.notes
     WHERE note_id = ${sourceNoteId}::uuid
       AND user_id = ${user.user_id}::uuid
-      AND deleted = 0 AND deleted_at IS NULL
+      AND deleted_at IS NULL
   `;
 
   if (!sourceNote.length) {
@@ -103,7 +103,6 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       s3_key,
       is_folder,
       cloned_from,
-      deleted,
       created_at,
       updated_at
     ) VALUES (
@@ -114,7 +113,6 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       ${clonedS3Key},
       ${note.is_folder},
       ${sourceNoteId}::uuid,
-      0,
       NOW(),
       NOW()
     )
@@ -128,7 +126,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       WHERE note_id = ${targetParentId}::uuid
         AND user_id = ${targetUserId}::uuid
         AND is_folder = true
-        AND deleted = 0 AND deleted_at IS NULL
+        AND deleted_at IS NULL
     `;
     if (!parentCheck.length) {
       throw new ApiError(400, 'targetParentId is not a valid folder for the target user');

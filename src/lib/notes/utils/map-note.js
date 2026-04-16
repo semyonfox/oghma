@@ -12,7 +12,7 @@ export function mapNoteFromDB(dbRow) {
     content: dbRow.content,
     isFolder: dbRow.is_folder,
     s3Key: dbRow.s3_key,
-    deleted: dbRow.deleted,
+    deleted: 0,
     shared: dbRow.shared,
     pinned: dbRow.pinned,
     editorsize: null,

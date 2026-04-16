@@ -113,8 +113,8 @@ export const POST = withErrorHandler(async (request) => {
       `;
 
       await tx`
-        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-        VALUES (${gettingStartedNoteId}::uuid, ${userId}::uuid, ${GETTING_STARTED_TITLE}, ${GETTING_STARTED_CONTENT}, false, 0, NOW(), NOW())
+        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+        VALUES (${gettingStartedNoteId}::uuid, ${userId}::uuid, ${GETTING_STARTED_TITLE}, ${GETTING_STARTED_CONTENT}, false, NOW(), NOW())
       `;
 
       await tx`

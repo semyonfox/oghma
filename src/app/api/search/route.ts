@@ -29,7 +29,7 @@ async function keywordSearch(
                END AS snippet
         FROM app.notes
         WHERE user_id = ${userId}::uuid
-          AND deleted = 0
+          AND deleted_at IS NULL
           AND (title ILIKE ${pattern} OR content ILIKE ${pattern})
           ${course ? sql`AND canvas_course_id = ${course}` : sql``}
         ORDER BY
@@ -67,7 +67,7 @@ async function semanticSearch(
         JOIN app.chunks c ON c.id = e.chunk_id
         JOIN app.notes n ON n.note_id = c.document_id
         WHERE c.user_id = ${userId}::uuid
-          AND n.deleted = 0
+          AND n.deleted_at IS NULL
           AND n.note_id != ALL(${excluded}::uuid[])
           ${course ? sql`AND n.canvas_course_id = ${course}` : sql``}
         ORDER BY n.note_id, e.embedding <=> ${vectorStr}::vector

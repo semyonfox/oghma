@@ -67,7 +67,7 @@ export const GET = withErrorHandler(async (request) => {
       WHERE user_id = ${user.user_id}
         AND created_at >= ${job.created_at}
         AND is_folder = false
-        AND deleted = 0
+        AND deleted_at IS NULL
     `;
     const completed = parseInt(counts?.total ?? "0", 10);
     const total = job.expected_total ?? 0;
