@@ -62,7 +62,9 @@ export const POST = withErrorHandler(
 
     // fetch card with question details for server-side correctness check (I2)
     const [card] = await sql`
-        SELECT qc.*, qq.id as question_id, qq.correct_answer, qq.question_type
+        SELECT qc.id, qc.state, qc.stability, qc.difficulty, qc.elapsed_days,
+               qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review,
+               qq.id as question_id, qq.correct_answer, qq.question_type
         FROM app.quiz_cards qc
         JOIN app.quiz_questions qq ON qc.question_id = qq.id
         WHERE qc.id = ${cardId}::uuid AND qc.user_id = ${userId}::uuid
@@ -84,42 +86,44 @@ export const POST = withErrorHandler(
     const { card: updatedCard } = reviewCard(fsrsCard, rating);
     const dbValues = cardToDB(updatedCard);
 
-    await sql`
-        UPDATE app.quiz_cards
-        SET state = ${dbValues.state},
-            stability = ${dbValues.stability},
-            difficulty = ${dbValues.difficulty},
-            elapsed_days = ${dbValues.elapsed_days},
-            scheduled_days = ${dbValues.scheduled_days},
-            reps = ${dbValues.reps},
-            lapses = ${dbValues.lapses},
-            due = ${dbValues.due}::timestamptz,
-            last_review = ${dbValues.last_review}::timestamptz
-        WHERE id = ${cardId}::uuid
-    `;
-
+    // atomic: card state + review record + session count must be consistent
     const reviewId = generateUUID();
-    await sql`
-        INSERT INTO app.quiz_reviews (id, user_id, card_id, question_id, rating, user_answer, was_correct, response_time_ms, session_id)
-        VALUES (
-            ${reviewId}::uuid,
-            ${userId}::uuid,
-            ${cardId}::uuid,
-            ${card.question_id}::uuid,
-            ${rating},
-            ${userAnswer || ""},
-            ${wasCorrect},
-            ${responseTimeMs || null},
-            ${sessionId}::uuid
-        )
-    `;
+    await sql.begin(async (tx: any) => {
+      await tx`
+          UPDATE app.quiz_cards
+          SET state = ${dbValues.state},
+              stability = ${dbValues.stability},
+              difficulty = ${dbValues.difficulty},
+              elapsed_days = ${dbValues.elapsed_days},
+              scheduled_days = ${dbValues.scheduled_days},
+              reps = ${dbValues.reps},
+              lapses = ${dbValues.lapses},
+              due = ${dbValues.due}::timestamptz,
+              last_review = ${dbValues.last_review}::timestamptz
+          WHERE id = ${cardId}::uuid
+      `;
 
-    // scope session UPDATE to userId (C1)
-    await sql`
-        UPDATE app.quiz_sessions
-        SET correct_count = correct_count + ${wasCorrect ? 1 : 0}
-        WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
-    `;
+      await tx`
+          INSERT INTO app.quiz_reviews (id, user_id, card_id, question_id, rating, user_answer, was_correct, response_time_ms, session_id)
+          VALUES (
+              ${reviewId}::uuid,
+              ${userId}::uuid,
+              ${cardId}::uuid,
+              ${card.question_id}::uuid,
+              ${rating},
+              ${userAnswer || ""},
+              ${wasCorrect},
+              ${responseTimeMs || null},
+              ${sessionId}::uuid
+          )
+      `;
+
+      await tx`
+          UPDATE app.quiz_sessions
+          SET correct_count = correct_count + ${wasCorrect ? 1 : 0}
+          WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
+      `;
+    });
 
     // update streak (fire and forget)
     fetch(new URL("/api/quiz/streak", request.url), {

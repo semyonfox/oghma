@@ -25,14 +25,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthProviders, setOauthProviders] = useState(null);
 
-  // redirect to /notes if already logged in
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => {
-        if (res.ok) router.replace("/notes");
-      })
-      .catch(() => {});
-  }, [router]);
+  // auth redirect is handled by middleware — no client-side check needed
 
   useEffect(() => {
     userRef.current?.focus();
@@ -148,7 +141,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={handleEmailChange}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -169,7 +162,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   value={pwd}
                   onChange={handlePasswordChange}
-                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
+                  className="block w-full rounded-radius-md bg-surface border border-border-subtle px-3 py-1.5 text-sm text-text placeholder:text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50"
                 />
               </div>
             </div>
@@ -206,7 +199,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:bg-primary-800 disabled:text-primary-300 disabled:cursor-not-allowed"
               >
                 {loading ? t("Signing in...") : t("Sign in")}
               </button>

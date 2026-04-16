@@ -7,6 +7,16 @@ const nextConfig = {
     // standalone output generates NFT trace files required by Amplify SSR
     output: 'standalone',
 
+    images: {
+        formats: ['image/avif', 'image/webp'],
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'images.unsplash.com',
+            },
+        ],
+    },
+
     async headers() {
         return [
             {

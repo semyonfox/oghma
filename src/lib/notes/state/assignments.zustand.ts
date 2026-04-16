@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export interface Assignment {
   id: string;
+  canvas_course_id: number | null;
   title: string;
   description: string | null;
   course_name: string | null;
@@ -27,8 +28,12 @@ interface AssignmentState {
   courseFilter: string | null;
   activeTab: AssignmentTab;
   includeAll: boolean;
+  includeArchived: boolean;
 
-  fetchAssignments: (opts?: { all?: boolean }) => Promise<void>;
+  fetchAssignments: (opts?: {
+    all?: boolean;
+    includeArchived?: boolean;
+  }) => Promise<void>;
   createAssignment: (data: Partial<Assignment>) => Promise<Assignment | null>;
   updateAssignment: (id: string, data: Partial<Assignment>) => Promise<void>;
   deleteAssignment: (id: string) => Promise<void>;
@@ -36,6 +41,7 @@ interface AssignmentState {
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
   setIncludeAll: (all: boolean) => void;
+  setIncludeArchived: (value: boolean) => Promise<void>;
 }
 
 const useAssignmentStore = create<AssignmentState>()(
@@ -46,14 +52,18 @@ const useAssignmentStore = create<AssignmentState>()(
       courseFilter: null,
       activeTab: "upcoming",
       includeAll: false,
+      includeArchived: false,
 
       fetchAssignments: async (opts) => {
         set({ loading: true });
         try {
           const all = opts?.all ?? get().includeAll;
-          const res = await fetch(
-            all ? "/api/assignments?all=1" : "/api/assignments",
-          );
+          const includeArchived = opts?.includeArchived ?? get().includeArchived;
+          const params = new URLSearchParams();
+          if (all) params.set("all", "1");
+          if (includeArchived) params.set("includeArchived", "1");
+          const query = params.toString() ? `?${params.toString()}` : "";
+          const res = await fetch(`/api/assignments${query}`);
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
           set({ assignments: data, loading: false });
@@ -125,6 +135,13 @@ const useAssignmentStore = create<AssignmentState>()(
       setCourseFilter: (course) => set({ courseFilter: course }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setIncludeAll: (all) => set({ includeAll: all }),
+      setIncludeArchived: async (value) => {
+        set({ includeArchived: value });
+        await get().fetchAssignments({
+          all: get().includeAll,
+          includeArchived: value,
+        });
+      },
     }),
     {
       name: "oghma-assignments",
@@ -132,6 +149,7 @@ const useAssignmentStore = create<AssignmentState>()(
         courseFilter: state.courseFilter,
         activeTab: state.activeTab,
         includeAll: state.includeAll,
+        includeArchived: state.includeArchived,
       }),
     },
   ),

@@ -119,7 +119,7 @@ const IconNav: FC = () => {
       {/* Logo/Branding */}
       <Link
         href="/"
-        className="flex items-center justify-center w-10 h-10 mb-4 hover:opacity-70 transition-opacity"
+        className="flex items-center justify-center w-10 h-10 min-h-[44px] min-w-[44px] mb-4 hover:opacity-70 transition-opacity"
       >
         <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-6 h-6" />
       </Link>
@@ -135,8 +135,9 @@ const IconNav: FC = () => {
             <button
               key={item.id}
               onClick={() => handleNavClick(item)}
+              aria-describedby={`tooltip-${item.id}`}
               className={`
-                relative w-10 h-10 flex items-center justify-center rounded transition-colors
+                relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition-colors
                 ${
                   isActive
                     ? "bg-subtle text-text-secondary"
@@ -149,7 +150,11 @@ const IconNav: FC = () => {
               <IconComp className="w-5 h-5" />
 
               {/* Hover tooltip */}
-              <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
+              <div
+                id={`tooltip-${item.id}`}
+                role="tooltip"
+                className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+              >
                 {translatedLabel}
               </div>
             </button>
@@ -171,7 +176,8 @@ const IconNav: FC = () => {
             section: "settings",
           })
         }
-        className={`w-10 h-10 flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
+        aria-describedby="tooltip-settings"
+        className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
           derivedActiveSection === "settings"
             ? "bg-subtle text-text-secondary"
             : ""
@@ -179,7 +185,11 @@ const IconNav: FC = () => {
         title={t("Settings")}
       >
         <Cog6ToothIcon className="w-5 h-5" />
-        <div className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle">
+        <div
+          id="tooltip-settings"
+          role="tooltip"
+          className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+        >
           {t("Settings")}
         </div>
       </button>

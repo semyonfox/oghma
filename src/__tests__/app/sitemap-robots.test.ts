@@ -20,7 +20,9 @@ describe("sitemap metadata route", () => {
     expect(urls).not.toContain("https://oghmanotes.ie/login");
     expect(urls).not.toContain("https://oghmanotes.ie/register");
     expect(urls).not.toContain("https://oghmanotes.ie/notes");
-    expect(entries.every((entry) => entry.lastModified instanceof Date)).toBe(true);
+    expect(entries.every((entry) => entry.lastModified instanceof Date)).toBe(
+      true,
+    );
   });
 });
 

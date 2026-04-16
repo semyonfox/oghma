@@ -10,7 +10,8 @@ export const GET = withErrorHandler(async () => {
   if (!user) return tracedError("Unauthorized", 401);
 
   const rows = await sql`
-        SELECT * FROM app.user_streaks WHERE user_id = ${user.user_id}::uuid
+        SELECT current_streak, longest_streak, last_review_date, total_review_days, streak_milestones
+        FROM app.user_streaks WHERE user_id = ${user.user_id}::uuid
     `;
 
   return NextResponse.json(
@@ -32,7 +33,8 @@ export const POST = withErrorHandler(async () => {
   const today = new Date().toISOString().split("T")[0];
 
   const [existing] = await sql`
-        SELECT * FROM app.user_streaks WHERE user_id = ${userId}::uuid
+        SELECT current_streak, longest_streak, last_review_date, total_review_days, streak_milestones
+        FROM app.user_streaks WHERE user_id = ${userId}::uuid
     `;
 
   if (!existing) {

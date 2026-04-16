@@ -34,7 +34,10 @@ export const GET = withErrorHandler(async (request) => {
   // Verify user owns this note
   const noteResult = await sql`
     SELECT note_id FROM app.notes
-    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${user.user_id}::uuid
+      AND deleted = 0
+      AND deleted_at IS NULL
   `;
 
   if (noteResult.length === 0) {
@@ -85,7 +88,10 @@ export const POST = withErrorHandler(async (request) => {
   // Verify user owns this note
   const noteResult = await sql`
     SELECT note_id FROM app.notes
-    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${user.user_id}::uuid
+      AND deleted = 0
+      AND deleted_at IS NULL
   `;
 
   if (noteResult.length === 0) {

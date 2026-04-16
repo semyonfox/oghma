@@ -12,25 +12,13 @@ import noteCache from "../cache/note";
 import { NOTE_DELETED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { uiCache } from "../cache";
+import {
+  findParentTreeItems,
+  checkAncestorsExpanded,
+  buildTreeItemFromApi,
+} from "./tree-utils";
 
 const TREE_CACHE_KEY = "tree";
-
-const findParentTreeItems = (tree: TreeModel, note: NoteModel) => {
-  const parents = [] as TreeItemModel[];
-
-  let tempNote = note;
-  while (tempNote.pid && tempNote.pid !== ROOT_ID) {
-    const curData = tree.items[tempNote.pid];
-    if (curData?.data) {
-      tempNote = curData.data;
-      parents.push(curData);
-    } else {
-      break;
-    }
-  }
-
-  return parents;
-};
 
 export interface NoteTreeState {
   tree: TreeModel;
@@ -157,38 +145,11 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       const rootChildren: string[] = [];
 
       for (const item of items) {
-        const treeItem: TreeItemModel = {
-          id: item.id,
-          children: [], // loaded lazily on folder expand
-          isExpanded: item.isExpanded ?? false,
-          isChildrenLoading: false,
-          isFolder: item.isFolder ?? false,
-        };
-        newTree.items[item.id] = treeItem;
+        newTree.items[item.id] = buildTreeItemFromApi(item);
         rootChildren.push(item.id);
       }
 
       newTree.items[ROOT_ID].children = rootChildren;
-
-      if (items.length > 0) {
-        // Fetch note data for all root items in parallel
-        const noteResults = await Promise.all(
-          items.map((item: any) =>
-            noteAPI
-              .fetch(item.id)
-              .then((noteData: NoteModel) => ({ id: item.id, data: noteData }))
-              .catch((e: any) => {
-                console.error(`Failed to fetch note ${item.id}:`, e);
-                return null;
-              }),
-          ),
-        );
-        for (const result of noteResults) {
-          if (result && newTree.items[result.id]) {
-            newTree.items[result.id].data = result.data;
-          }
-        }
-      }
 
       set({ tree: newTree, initLoaded: true });
 
@@ -239,14 +200,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         const childIds: string[] = [];
 
         for (const item of childrenResponse.items) {
-          const treeItem: TreeItemModel = {
-            id: item.id,
-            children: [], // Children of children will be loaded on their expansion
-            isExpanded: item.isExpanded ?? false,
-            isChildrenLoading: false,
-            isFolder: item.isFolder ?? false,
-          };
-          newTree.items[item.id] = treeItem;
+          newTree.items[item.id] = buildTreeItemFromApi(item);
           childIds.push(item.id);
         }
 
@@ -257,27 +211,6 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
             children: childIds,
             childrenLoaded: true,
           };
-        }
-
-        // Fetch note data for children
-        const notePromises = childrenResponse.items.map((item: any) =>
-          noteAPI
-            .fetch(item.id)
-            .then((noteData: NoteModel) => ({
-              id: item.id,
-              data: noteData,
-            }))
-            .catch((e: any) => {
-              console.error(`Failed to fetch note ${item.id}:`, e);
-              return null;
-            }),
-        );
-
-        const noteResults = await Promise.all(notePromises);
-        for (const result of noteResults) {
-          if (result && newTree.items[result.id]) {
-            newTree.items[result.id].data = result.data;
-          }
         }
 
         set({ tree: newTree });
@@ -486,9 +419,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   },
 
   checkItemIsShown: (note: NoteModel) => {
-    const currentTree = get().tree;
-    const parents = findParentTreeItems(currentTree, note);
-    return parents.reduce((value, item) => value && !!item.isExpanded, true);
+    return checkAncestorsExpanded(get().tree, note);
   },
 
   collapseAllItems: () => {

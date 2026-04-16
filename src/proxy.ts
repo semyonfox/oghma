@@ -30,8 +30,20 @@ export async function proxy(request: NextRequest) {
     // Auth.js v5 uses "authjs." prefix (not "next-auth." which was v4)
     const nextAuthSession = request.cookies.get("authjs.session-token")?.value
         || request.cookies.get("__Secure-authjs.session-token")?.value;
+    const isAuthenticated = !!(session || nextAuthSession);
 
-    if (!session && !nextAuthSession) {
+    // redirect authenticated users away from login/register (skip the page load)
+    const { pathname } = request.nextUrl;
+    if (isAuthenticated && (pathname === "/login" || pathname === "/register")) {
+        const response = NextResponse.redirect(new URL("/notes", request.url));
+        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+        return response;
+    }
+
+    // redirect unauthenticated users to login for protected routes
+    // (skip auth pages to avoid redirect loops)
+    const isAuthPage = pathname === "/login" || pathname === "/register";
+    if (!isAuthenticated && !isAuthPage) {
         const response = NextResponse.redirect(new URL("/login", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
@@ -44,6 +56,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
+        "/login",
+        "/register",
         "/dashboard/:path*",
         "/notes/:path*",
         "/upload/:path*",

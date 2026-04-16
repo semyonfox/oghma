@@ -10,7 +10,6 @@ import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
 
 // Constants
-const NOTE_DELETED = { NORMAL: 0, DELETED: 1 };
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
 const MAX_CONTENT_LENGTH = parseInt(
   process.env.MAX_CONTENT_LENGTH ?? String(5 * 1024 * 1024),
@@ -49,7 +48,7 @@ export const GET = withErrorHandler(async (request) => {
   const notes = await sql`
     SELECT note_id, title, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at
     FROM app.notes
-    WHERE user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
+    WHERE user_id = ${user.user_id}::uuid AND deleted_at IS NULL
     ORDER BY created_at DESC
     LIMIT ${sqlLimit} OFFSET ${skip}
   `;
@@ -94,8 +93,8 @@ export const POST = withErrorHandler(async (request) => {
   // Create new note in PostgreSQL
   const isFolder = body.isFolder === true || body.is_folder === true;
   const result = await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, ${NOTE_DELETED.NORMAL}, NOW(), NOW())
+    INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+    VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, NOW(), NOW())
     RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
   `;
 

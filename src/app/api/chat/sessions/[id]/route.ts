@@ -35,7 +35,11 @@ export const GET = withErrorHandler(
       const sessions = await sql`
             SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context, s.created_at, s.updated_at
             FROM app.chat_sessions s
-            LEFT JOIN app.notes n ON n.note_id = s.note_id AND n.user_id = s.user_id
+            LEFT JOIN app.notes n
+              ON n.note_id = s.note_id
+             AND n.user_id = s.user_id
+             AND n.deleted = 0
+             AND n.deleted_at IS NULL
             WHERE s.id = ${id}::uuid AND s.user_id = ${user.user_id}::uuid
         `;
       if (sessions.length === 0) {

@@ -307,7 +307,7 @@ export default function ChatPageClient() {
         <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
           <Link
             href="/notes"
-            className="p-1.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors"
             title={t("chat.back_to_notes")}
           >
             <ArrowLeftIcon className="w-4 h-4" />
@@ -355,9 +355,8 @@ export default function ChatPageClient() {
                 <p className="font-medium truncate text-sm flex-1">
                   {conv.title}
                 </p>
-                <span
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     void deleteConversation(conv.id);
@@ -368,11 +367,12 @@ export default function ChatPageClient() {
                       void deleteConversation(conv.id);
                     }
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-text-tertiary hover:text-error-400 transition-all flex-shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-error-400 transition-all flex-shrink-0 -mr-1"
                   title={t("chat.delete_conversation")}
+                  aria-label={t("chat.delete_conversation")}
                 >
-                  <TrashIcon className="w-3 h-3" />
-                </span>
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
               </div>
               {conv.noteTitle && (
                 <div className="flex items-center gap-1 mt-0.5 text-text-tertiary">
@@ -436,8 +436,9 @@ export default function ChatPageClient() {
                 <span className="truncate max-w-[120px]">{note.title}</span>
                 <button
                   onClick={() => removeSelectedNote(note.id)}
-                  className="text-text-tertiary hover:text-text-secondary"
+                  className="text-text-tertiary hover:text-text-secondary min-h-[44px] min-w-[44px] flex items-center justify-center"
                   title="Remove file"
+                  aria-label={`Remove ${note.title}`}
                 >
                   ×
                 </button>
@@ -451,8 +452,9 @@ export default function ChatPageClient() {
                 <span className="truncate max-w-[120px]">{folder.title}</span>
                 <button
                   onClick={() => removeSelectedFolder(folder.id)}
-                  className="text-primary-500/70 hover:text-primary-300"
+                  className="text-primary-500/70 hover:text-primary-300 min-h-[44px] min-w-[44px] flex items-center justify-center"
                   title="Remove folder"
+                  aria-label={`Remove ${folder.title}`}
                 >
                   ×
                 </button>
