@@ -55,7 +55,6 @@ export async function buildRetrievalInfo(
         ) indexed ON indexed.document_id = n.note_id
         WHERE n.user_id = ${userId}::uuid
           AND n.is_folder = false
-          AND n.deleted = 0
           AND n.deleted_at IS NULL
         ORDER BY n.title ASC
         LIMIT 24
@@ -67,7 +66,6 @@ export async function buildRetrievalInfo(
         WHERE c.user_id = ${userId}::uuid
           AND c.document_id = ANY(${scopedNoteIds}::uuid[])
           AND n.is_folder = false
-          AND n.deleted = 0
           AND n.deleted_at IS NULL
       `,
     ]);
@@ -84,7 +82,6 @@ export async function buildRetrievalInfo(
       JOIN app.notes n ON n.note_id = c.document_id
       WHERE c.user_id = ${userId}::uuid
         AND n.is_folder = false
-        AND n.deleted = 0
         AND n.deleted_at IS NULL
     `;
     availableCount = Number(

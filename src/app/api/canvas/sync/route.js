@@ -34,6 +34,7 @@ export const POST = withErrorHandler(async () => {
     SELECT DISTINCT canvas_course_id
     FROM app.canvas_imports
     WHERE user_id = ${user.user_id}
+    LIMIT 200
   `;
 
   if (prevCourseRows.length === 0) {

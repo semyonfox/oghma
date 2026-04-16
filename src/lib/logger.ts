@@ -65,7 +65,9 @@ const transports: winston.transport[] = [
   }),
 ];
 
-if (isProduction) {
+const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (isProduction && !isLambda) {
   transports.push(
     new winston.transports.DailyRotateFile({
       filename: "logs/app-%DATE%.log",
@@ -75,11 +77,15 @@ if (isProduction) {
       format: winston.format.json(),
     }),
   );
+}
 
+if (isProduction) {
   transports.push(
     new CloudWatchTransport({
-      logGroupName: "/oghmanotes/app/production",
-      logStreamName: `ecs-${process.env.HOSTNAME ?? "unknown"}`,
+      logGroupName: isLambda ? "/aws/lambda/oghmanotes-chat" : "/oghmanotes/app/production",
+      logStreamName: isLambda
+        ? `lambda-${Date.now()}`
+        : `ecs-${process.env.HOSTNAME ?? "unknown"}`,
       awsRegion: process.env.AWS_REGION ?? "eu-north-1",
       jsonMessage: true,
       retentionInDays: 30,

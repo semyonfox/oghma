@@ -51,7 +51,7 @@ export const GET = withErrorHandler(async (request, { params }) => {
   // Get note from PostgreSQL (verify ownership)
   const result = await sql`
      SELECT note_id, title, content, is_folder, s3_key, deleted, shared, pinned, created_at, updated_at FROM app.notes
-     WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
+     WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
    `;
 
   const dbNote = result[0];
@@ -112,7 +112,7 @@ export const PUT = withErrorHandler(async (request, { params }) => {
   // Get existing note (verify ownership, fetch only fields needed for comparison)
   const result = await sql`
     SELECT note_id, title, content, extracted_text FROM app.notes
-    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
+    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
   `;
 
   const existingNote = result[0];
@@ -181,7 +181,7 @@ export const DELETE = withErrorHandler(async (request, { params }) => {
   // Verify ownership and note exists
   const result = await sql`
     SELECT note_id FROM app.notes
-    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted = 0 AND deleted_at IS NULL
+    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid AND deleted_at IS NULL
   `;
 
   if (result.length === 0) {
@@ -198,7 +198,7 @@ export const DELETE = withErrorHandler(async (request, { params }) => {
   // Soft delete note (set deleted flag and timestamp)
   await sql`
     UPDATE app.notes
-    SET deleted = 1, deleted_at = NOW()
+    SET deleted_at = NOW()
     WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
   `;
 

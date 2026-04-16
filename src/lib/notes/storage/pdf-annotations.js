@@ -6,34 +6,14 @@ import sql from '@/database/pgsql.js';
  */
 export async function saveAnnotations(userId, noteId, attachmentId, annotationData) {
   try {
-    // Check if annotations exist for this note
-    const existing = await sql`
-      SELECT id FROM app.pdf_annotations
-      WHERE user_id = ${userId}::uuid
-        AND note_id = ${noteId}::uuid
-        AND attachment_id = ${attachmentId}::uuid
-      LIMIT 1
+    const result = await sql`
+      INSERT INTO app.pdf_annotations (user_id, note_id, attachment_id, annotation_data)
+      VALUES (${userId}::uuid, ${noteId}::uuid, ${attachmentId}::uuid, ${JSON.stringify(annotationData)})
+      ON CONFLICT (user_id, note_id, attachment_id) DO UPDATE
+      SET annotation_data = EXCLUDED.annotation_data,
+          updated_at = NOW()
+      RETURNING id, user_id, note_id, attachment_id, annotation_data, created_at, updated_at
     `;
-
-    let result;
-    if (existing.length > 0) {
-      // Update existing
-      result = await sql`
-        UPDATE app.pdf_annotations
-        SET annotation_data = ${JSON.stringify(annotationData)},
-            updated_at = NOW()
-        WHERE id = ${existing[0].id}
-        RETURNING *
-      `;
-    } else {
-      // Insert new
-      result = await sql`
-        INSERT INTO app.pdf_annotations
-        (user_id, note_id, attachment_id, annotation_data)
-        VALUES (${userId}::uuid, ${noteId}::uuid, ${attachmentId}, ${JSON.stringify(annotationData)})
-        RETURNING *
-      `;
-    }
 
     return result[0];
   } catch (error) {
@@ -48,7 +28,8 @@ export async function saveAnnotations(userId, noteId, attachmentId, annotationDa
 export async function getAnnotations(userId, noteId, attachmentId) {
   try {
     const rows = await sql`
-      SELECT * FROM app.pdf_annotations
+      SELECT id, note_id, user_id, attachment_id, annotation_data, created_at, updated_at
+      FROM app.pdf_annotations
       WHERE user_id = ${userId}::uuid
         AND note_id = ${noteId}::uuid
         ${attachmentId !== undefined ? sql`AND attachment_id = ${attachmentId}::uuid` : sql``}

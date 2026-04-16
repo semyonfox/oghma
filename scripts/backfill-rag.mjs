@@ -103,7 +103,7 @@ async function requeuePendingRetries() {
     JOIN app.tree_items t ON t.note_id = ci.note_id AND t.user_id = ci.user_id
     WHERE ci.status = 'pending_retry'
       AND ci.mime_type NOT LIKE 'text/%'
-      AND n.deleted = 0
+      AND n.deleted_at IS NULL
       AND n.s3_key IS NOT NULL
   `;
 

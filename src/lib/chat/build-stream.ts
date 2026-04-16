@@ -93,7 +93,7 @@ async function resolveParentFolderHint(
       WHERE ti.note_id = ANY(${scopedInputNoteIds}::uuid[])
         AND ti.parent_id IS NOT NULL
         AND n.is_folder = true
-        AND n.deleted = 0
+        AND n.deleted_at IS NULL
         AND n.user_id = ${userId}::uuid
       LIMIT 5
     `;
@@ -157,7 +157,6 @@ function createChatTools(
           FROM app.notes
           WHERE note_id = ${parentID}::uuid
             AND user_id = ${userId}::uuid
-            AND deleted = 0
             AND deleted_at IS NULL
           LIMIT 1
         `;
@@ -193,8 +192,8 @@ function createChatTools(
       });
 
       await sql`
-        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-        VALUES (${newNoteId}::uuid, ${userId}::uuid, ${resolvedTitle}, ${markdown}, false, 0, NOW(), NOW())
+        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+        VALUES (${newNoteId}::uuid, ${userId}::uuid, ${resolvedTitle}, ${markdown}, false, NOW(), NOW())
       `;
       await addNoteToTree(userId, newNoteId, parentID || null);
       const attachmentId = generateUUID();
@@ -259,7 +258,6 @@ function createChatTools(
         FROM app.notes
         WHERE user_id = ${userId}::uuid
           AND is_folder = true
-          AND deleted = 0
           AND deleted_at IS NULL
           AND title ILIKE ${"%" + query.replace(/%/g, "\\%").replace(/_/g, "\\_") + "%"}
         ORDER BY title ASC
@@ -331,7 +329,6 @@ function createChatTools(
         WHERE note_id = ${readNoteId}::uuid
           AND user_id = ${userId}::uuid
           AND is_folder = false
-          AND deleted = 0
           AND deleted_at IS NULL
       `;
       if (!row) return { error: "Note not found" };

@@ -76,3 +76,6 @@ database/schema-current.json
 
 # lambda build output
 infra/chat-lambda/dist/
+
+# aws migration export
+aws-export/
