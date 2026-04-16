@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "worker": "tsx src/lib/canvas/worker-entry.js",
-    "prebuild": "node scripts/prebuild-migrate.mjs",
     "build": "next build",
+    "migrate": "node scripts/prebuild-migrate.mjs",
     "start": "next start",
     "start:next": "next start",
     "lint": "eslint",
