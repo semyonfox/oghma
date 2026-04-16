@@ -40,7 +40,12 @@ export const GET = withErrorHandler(async (request) => {
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
   const rows = await sql`
-    SELECT a.* FROM app.assignments a
+    SELECT a.id, a.user_id, a.canvas_course_id, a.canvas_assignment_id,
+           a.title, a.description, a.course_name, a.course_color,
+           a.due_at, a.estimated_hours, a.source, a.status,
+           a.submitted_at, a.score, a.points_possible,
+           a.created_at, a.updated_at
+    FROM app.assignments a
     LEFT JOIN app.user_course_settings ucs
       ON ucs.user_id = ${user.user_id}::uuid
       AND ucs.canvas_course_id = a.canvas_course_id
@@ -81,7 +86,11 @@ export const POST = withErrorHandler(async (request) => {
       ${course_name ?? null}, ${course_color ?? null},
       ${due_at ?? null}, ${estimated_hours ?? null}, 'manual'
     )
-    RETURNING *
+    RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
+              title, description, course_name, course_color,
+              due_at, estimated_hours, source, status,
+              submitted_at, score, points_possible,
+              created_at, updated_at
   `;
 
   return NextResponse.json(row, { status: 201 });

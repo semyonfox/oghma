@@ -10,15 +10,14 @@ import logger from '@/lib/logger';
 
 async function fetchTrashItems(userId: string) {
     const rows = await sql`
-        SELECT note_id, title, content, is_folder, deleted_at, created_at, updated_at
+        SELECT note_id, title, is_folder, deleted_at, created_at, updated_at
         FROM app.notes
-        WHERE user_id = ${userId}::uuid AND deleted = 1 AND deleted_at IS NOT NULL
+        WHERE user_id = ${userId}::uuid AND deleted_at IS NOT NULL
         ORDER BY deleted_at DESC
     `;
-    return rows.map((note: { note_id: string; title: string; content: string; is_folder: boolean; deleted_at: string | null; created_at: string | null; updated_at: string | null }) => ({
+    return rows.map((note: { note_id: string; title: string; is_folder: boolean; deleted_at: string | null; created_at: string | null; updated_at: string | null }) => ({
         id: note.note_id,
         title: note.title,
-        content: note.content,
         isFolder: note.is_folder,
         deletedAt: note.deleted_at ? new Date(note.deleted_at).toISOString() : null,
         createdAt: note.created_at ? new Date(note.created_at).toISOString() : undefined,
@@ -29,7 +28,7 @@ async function fetchTrashItems(userId: string) {
 async function requireNoteInTrash(userId: string, id: string): Promise<boolean> {
     const rows = await sql`
         SELECT note_id FROM app.notes
-        WHERE note_id = ${id}::uuid AND user_id = ${userId}::uuid AND deleted = 1 AND deleted_at IS NOT NULL
+        WHERE note_id = ${id}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NOT NULL
     `;
     return rows.length > 0;
 }

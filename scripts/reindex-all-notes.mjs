@@ -40,8 +40,7 @@ async function fetchNotesWithContent(offset, limit) {
     SELECT note_id, user_id, title,
            COALESCE(NULLIF(TRIM(extracted_text), ''), NULLIF(TRIM(content), '')) AS text
     FROM app.notes
-    WHERE deleted = 0
-      AND deleted_at IS NULL
+    WHERE deleted_at IS NULL
       AND is_folder = false
       AND (
         (extracted_text IS NOT NULL AND TRIM(extracted_text) != '')
@@ -70,8 +69,7 @@ async function main() {
   const [{ count }] = await sql`
     SELECT COUNT(*) AS count
     FROM app.notes
-    WHERE deleted = 0
-      AND deleted_at IS NULL
+    WHERE deleted_at IS NULL
       AND is_folder = false
       AND (
         (extracted_text IS NOT NULL AND TRIM(extracted_text) != '')

@@ -203,7 +203,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
     endpoint: string;
     headers: Record<string, string>;
   }> {
-    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL;
+    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "https://zniows5yrf3z5txiqzy5msimlq0jvxwt.lambda-url.eu-north-1.on.aws/";
     if (
       !chatFunctionUrl &&
       typeof window !== "undefined" &&
