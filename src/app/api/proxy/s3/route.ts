@@ -56,7 +56,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       "Content-Length": buffer.byteLength.toString(),
     };
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers,
     });
