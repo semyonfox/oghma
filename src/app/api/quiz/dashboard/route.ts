@@ -48,7 +48,7 @@ export const GET = withErrorHandler(async () => {
               AND n.deleted = 0
               AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
         `,
-        sql`SELECT * FROM app.user_streaks WHERE user_id = ${userId}::uuid`,
+        sql`SELECT current_streak, longest_streak FROM app.user_streaks WHERE user_id = ${userId}::uuid`,
         sql`
             SELECT EXISTS(
                 SELECT 1 FROM app.chunks WHERE user_id = ${userId}::uuid LIMIT 1
