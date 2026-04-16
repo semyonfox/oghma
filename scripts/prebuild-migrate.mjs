@@ -40,19 +40,7 @@ async function bootstrap() {
   });
 
   try {
-    // check if tracking table exists and has entries
-    const rows = await sql`
-      SELECT COUNT(*)::int as count
-      FROM app.schema_migrations
-    `.catch(() => [{ count: 0 }]);
-
-    if (rows[0].count > 0) {
-      await sql.end();
-      return; // already bootstrapped
-    }
-
-    // create table and seed legacy migrations
-    console.log('[prebuild-migrate] bootstrapping schema_migrations with 001-017...');
+    // ensure tracking table exists and all legacy migrations are registered
     await sql`
       CREATE TABLE IF NOT EXISTS app.schema_migrations (
         version  TEXT PRIMARY KEY,
@@ -68,7 +56,6 @@ async function bootstrap() {
         ON CONFLICT (version) DO NOTHING
       `;
     }
-    console.log('[prebuild-migrate] bootstrapped 16 legacy migrations');
   } catch (err) {
     console.warn('[prebuild-migrate] bootstrap failed:', err.message);
   } finally {
