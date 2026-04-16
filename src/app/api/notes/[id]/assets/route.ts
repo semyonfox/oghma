@@ -30,7 +30,6 @@ export const GET = withErrorHandler(
       FROM app.notes
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${session.user_id}::uuid
-        AND deleted = 0
         AND deleted_at IS NULL
       LIMIT 1
     `;
@@ -91,8 +90,9 @@ export const GET = withErrorHandler(
 
     if (!resolvedKey) return tracedError("Asset not found", 404);
 
-    const signedUrl = await storage.getSignUrl(resolvedKey, 300);
-    return NextResponse.redirect(signedUrl, {
+    // Redirect to proxy endpoint instead of direct S3 to avoid CORS issues
+    const proxyUrl = `/api/proxy/s3?path=${encodeURIComponent(resolvedKey)}`;
+    return NextResponse.redirect(proxyUrl, {
       status: 307,
       headers: { "Cache-Control": "private, max-age=60" },
     });

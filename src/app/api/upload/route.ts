@@ -108,8 +108,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     const title = sanitizeFileName(file.name || "unnamed");
     await sql`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, deleted, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${title}, '', false, 0, NOW(), NOW())
+      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${title}, '', false, NOW(), NOW())
     `;
     await addNoteToTree(session.user_id, noteId, null);
   } else if (!isValidUUID(noteId)) {
@@ -119,7 +119,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       SELECT 1 FROM app.notes
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${session.user_id}::uuid
-        AND deleted = 0
         AND deleted_at IS NULL
       LIMIT 1
     `;
@@ -263,7 +262,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   `;
   if (!owned.length) return tracedError("File not found", 404);
 
-  const storage = getStorageProvider();
-  const url = await storage.getSignUrl(path, 300);
-  return NextResponse.json({ success: true, path, url });
+  // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
+  const proxyUrl = `/api/proxy/s3?path=${encodeURIComponent(path)}`;
+  return NextResponse.json({ success: true, path, url: proxyUrl });
 });
