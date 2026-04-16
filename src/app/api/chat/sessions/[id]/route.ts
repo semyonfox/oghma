@@ -38,7 +38,6 @@ export const GET = withErrorHandler(
             LEFT JOIN app.notes n
               ON n.note_id = s.note_id
              AND n.user_id = s.user_id
-             AND n.deleted = 0
              AND n.deleted_at IS NULL
             WHERE s.id = ${id}::uuid AND s.user_id = ${user.user_id}::uuid
         `;

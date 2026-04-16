@@ -46,7 +46,6 @@ export const GET = withErrorHandler(async (request) => {
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
             AND ti.parent_id = ${parentId}::uuid
-            AND n.deleted = 0
             AND n.deleted_at IS NULL
           ORDER BY n.title ASC
         `
@@ -62,7 +61,6 @@ export const GET = withErrorHandler(async (request) => {
           JOIN app.notes n ON ti.note_id = n.note_id
           WHERE ti.user_id = ${user.user_id}::uuid
             AND ti.parent_id IS NULL
-            AND n.deleted = 0
             AND n.deleted_at IS NULL
           ORDER BY n.title ASC
         `;

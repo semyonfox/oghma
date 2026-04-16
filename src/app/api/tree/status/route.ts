@@ -20,7 +20,7 @@ export const GET = withErrorHandler(async () => {
       SELECT COUNT(*) as count
       FROM app.notes n
       WHERE n.user_id = ${user.user_id}::uuid
-        AND n.deleted = 0 AND n.deleted_at IS NULL
+        AND n.deleted_at IS NULL
         AND n.note_id NOT IN (
           SELECT note_id FROM app.tree_items
           WHERE user_id = ${user.user_id}::uuid
@@ -35,7 +35,7 @@ export const GET = withErrorHandler(async () => {
         SUM(CASE WHEN n.is_folder = false THEN 1 ELSE 0 END) as total_files
       FROM app.notes n
       WHERE n.user_id = ${user.user_id}::uuid
-        AND n.deleted = 0 AND n.deleted_at IS NULL
+        AND n.deleted_at IS NULL
     `;
 
     const orphanedCount = Number(orphaned[0]?.count || 0);

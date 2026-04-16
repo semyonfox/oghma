@@ -12,6 +12,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/database/pgsql.js", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
+  // tx mock used inside sql.begin() transactions
+  const txMock = vi.fn();
+  txMock.mockResolvedValue([]);
+  sqlMock.begin = vi.fn(async (cb: (tx: any) => Promise<any>) => cb(txMock));
+  sqlMock.__txMock = txMock;
   return { default: sqlMock };
 });
 
@@ -102,15 +107,15 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
 
 /**
  * Wire up sequential sql return values for a successful answer submission.
- * New SQL order:
- *   1. SELECT quiz_sessions (ownership + card_ids)
- *   2. SELECT COUNT quiz_reviews (answeredSoFar)
- *   3. SELECT card (with correct_answer, question_type)
- *   4. UPDATE quiz_cards
- *   5. INSERT quiz_reviews
- *   6. UPDATE quiz_sessions correct_count
- *   7. SELECT next card (only if includeNextCard)
- *   8. SELECT session stats
+ * SQL order (sql = direct queries, tx = inside sql.begin transaction):
+ *   1. sql: SELECT quiz_sessions (ownership + card_ids)
+ *   2. sql: SELECT COUNT quiz_reviews (answeredSoFar)
+ *   3. sql: SELECT card (with correct_answer, question_type)
+ *   4. tx:  UPDATE quiz_cards
+ *   5. tx:  INSERT quiz_reviews
+ *   6. tx:  UPDATE quiz_sessions correct_count
+ *   7. sql: SELECT next card (only if includeNextCard)
+ *   8. sql: SELECT session stats
  */
 function mockSuccessfulAnswer({
   wasCorrect = true,
@@ -121,19 +126,18 @@ function mockSuccessfulAnswer({
   includeNextCard?: boolean;
   answeredCount?: number;
 } = {}) {
-  const sqlMock = sql as ReturnType<typeof vi.fn>;
+  const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
+  const txMock = sqlMock.__txMock;
   // 1. SELECT session (ownership + membership)
   sqlMock.mockResolvedValueOnce([SESSION_ROW]);
   // 2. SELECT COUNT reviews (answeredSoFar = answeredCount - 1, since we add 1)
   sqlMock.mockResolvedValueOnce([{ count: answeredCount - 1 }]);
   // 3. SELECT card
   sqlMock.mockResolvedValueOnce([CARD_ROW]);
-  // 4. UPDATE quiz_cards
-  sqlMock.mockResolvedValueOnce([]);
-  // 5. INSERT quiz_reviews
-  sqlMock.mockResolvedValueOnce([]);
-  // 6. UPDATE quiz_sessions correct_count
-  sqlMock.mockResolvedValueOnce([]);
+  // 4-6 run inside sql.begin() via tx
+  txMock.mockResolvedValueOnce([]); // UPDATE quiz_cards
+  txMock.mockResolvedValueOnce([]); // INSERT quiz_reviews
+  txMock.mockResolvedValueOnce([]); // UPDATE quiz_sessions correct_count
   // 7. SELECT next card (only if nextCardId provided)
   if (includeNextCard) {
     sqlMock.mockResolvedValueOnce([NEXT_CARD_ROW]);
@@ -150,7 +154,10 @@ const routeParams = { params: Promise.resolve({ id: SESSION_ID }) };
 beforeEach(() => {
   vi.clearAllMocks();
   (validateSession as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_USER);
-  (sql as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn>; begin: ReturnType<typeof vi.fn> };
+  sqlMock.mockResolvedValue([]);
+  sqlMock.__txMock.mockResolvedValue([]);
+  sqlMock.begin.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(sqlMock.__txMock));
   // mock global fetch so streak fire-and-forget doesn't blow up
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
 });
@@ -242,8 +249,11 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
     mockSuccessfulAnswer({ wasCorrect: true });
     const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     await POST(req, routeParams);
-    // at minimum: session, count, card, UPDATE card, INSERT review, UPDATE session, stats
-    expect((sql as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(7);
+    // sql: session, count, card, stats = 4 direct calls
+    // tx (inside sql.begin): UPDATE card, INSERT review, UPDATE session = 3 calls
+    const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
+    expect(sqlMock.mock.calls.length).toBeGreaterThanOrEqual(4);
+    expect(sqlMock.__txMock.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
   it("returns sessionProgress with answered count", async () => {
@@ -291,19 +301,19 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
   });
 
   it("triggers fatigue warning after 5+ answers with >40% wrong", async () => {
-    const sqlMock = sql as ReturnType<typeof vi.fn>;
+    const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
+    const txMock = sqlMock.__txMock;
     // 1. session
     sqlMock.mockResolvedValueOnce([SESSION_ROW]);
-    // 2. answeredSoFar = 6 (this will be the 7th answer; answered = 7)
-    // actually: answeredSoFar = 6 → answered = 7, but let's use 5 → 6
+    // 2. answeredSoFar = 5 → answered = 6
     // 6 answered, 3 correct = 3 wrong, 50% > 40% → fatigueWarning
     sqlMock.mockResolvedValueOnce([{ count: 5 }]); // answeredSoFar
     // 3. card
     sqlMock.mockResolvedValueOnce([CARD_ROW]);
-    // 4-6. UPDATE card, INSERT review, UPDATE session
-    sqlMock.mockResolvedValueOnce([]);
-    sqlMock.mockResolvedValueOnce([]);
-    sqlMock.mockResolvedValueOnce([]);
+    // 4-6. UPDATE card, INSERT review, UPDATE session (inside sql.begin)
+    txMock.mockResolvedValueOnce([]);
+    txMock.mockResolvedValueOnce([]);
+    txMock.mockResolvedValueOnce([]);
     // 7. session stats: 3 correct out of 6 answered = 50% wrong > 40% threshold
     sqlMock.mockResolvedValueOnce([{ total_questions: 20, correct_count: 3 }]);
 
@@ -325,17 +335,18 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
 
   it("reports isLeech when card lapses reach the threshold (4)", async () => {
     const lapsedCard = { ...CARD_ROW, lapses: 4 };
-    const sqlMock = sql as ReturnType<typeof vi.fn>;
+    const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
+    const txMock = sqlMock.__txMock;
     // 1. session
     sqlMock.mockResolvedValueOnce([SESSION_ROW]);
     // 2. answeredSoFar
     sqlMock.mockResolvedValueOnce([{ count: 2 }]);
     // 3. lapsed card
     sqlMock.mockResolvedValueOnce([lapsedCard]);
-    // 4-6. UPDATE card, INSERT review, UPDATE session
-    sqlMock.mockResolvedValueOnce([]);
-    sqlMock.mockResolvedValueOnce([]);
-    sqlMock.mockResolvedValueOnce([]);
+    // 4-6. UPDATE card, INSERT review, UPDATE session (inside sql.begin)
+    txMock.mockResolvedValueOnce([]);
+    txMock.mockResolvedValueOnce([]);
+    txMock.mockResolvedValueOnce([]);
     // 7. session stats
     sqlMock.mockResolvedValueOnce([{ total_questions: 20, correct_count: 2 }]);
 
