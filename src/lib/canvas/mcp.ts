@@ -1,335 +1,149 @@
-import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CanvasClient } from "@/lib/canvas/client.js";
+import type { ZodTypeAny } from "zod";
+import { CanvasClient } from "@/lib/canvas-mcp/src/canvas/client";
+import { allTools } from "@/lib/canvas-mcp/src/tools";
+import type { ToolDef } from "@/lib/canvas-mcp/src/tools/types";
 
-const MAX_RETURNED_ITEMS = 25;
-const MAX_TEXT_LENGTH = 500;
+export const disabledCanvasMcpToolNames = [
+  // course / assignment authoring and grading
+  "canvas_create_course",
+  "canvas_create_assignment",
+  "canvas_update_assignment",
+  "canvas_delete_assignment",
+  "canvas_create_assignment_group",
+  "canvas_bulk_update_assignment_dates",
+  "canvas_assign_peer_review",
+  "canvas_grade_submission",
+  "canvas_bulk_grade_submissions",
+  "canvas_post_submission_comment",
+  "canvas_list_section_submissions",
+  "canvas_submit_grade",
+  "canvas_get_all_students_status",
+  "canvas_get_comprehensive_status",
 
-function trimText(value: unknown, fallback = ""): string {
-  if (typeof value !== "string") return fallback;
-  return value.trim().slice(0, MAX_TEXT_LENGTH);
+  // module / page authoring
+  "canvas_create_module",
+  "canvas_update_module",
+  "canvas_delete_module",
+  "canvas_add_module_item",
+  "canvas_update_module_item",
+  "canvas_delete_module_item",
+  "canvas_toggle_module_publish",
+  "canvas_create_page",
+  "canvas_update_page",
+  "canvas_delete_page",
+  "canvas_revert_page_revision",
+
+  // course-wide announcements and moderation
+  "canvas_create_announcement",
+  "canvas_delete_announcement",
+  "canvas_bulk_delete_announcements",
+  "canvas_create_discussion_topic",
+  "canvas_delete_discussion_topic",
+
+  // admin / privileged file operations
+  "canvas_upload_file",
+  "canvas_delete_file",
+  "canvas_download_file_to_disk",
+
+  // mass messaging and account administration
+  "canvas_send_bulk_messages",
+  "canvas_create_user",
+
+  // quiz and rubric authoring / grading
+  "canvas_create_quiz",
+  "canvas_update_quiz",
+  "canvas_delete_quiz",
+  "canvas_create_quiz_question",
+  "canvas_update_quiz_question",
+  "canvas_delete_quiz_question",
+  "canvas_create_rubric",
+  "canvas_update_rubric",
+  "canvas_delete_rubric",
+  "canvas_associate_rubric",
+  "canvas_grade_with_rubric",
+] as const;
+
+const disabledCanvasMcpToolSet = new Set<string>(disabledCanvasMcpToolNames);
+
+export const canvasMcpStudentTools = allTools.filter(
+  (tool) => !disabledCanvasMcpToolSet.has(tool.name),
+);
+
+export const canvasMcpStudentToolNames = canvasMcpStudentTools.map(
+  (tool) => tool.name,
+);
+
+export const canvasMcpToolSchemas: Record<string, { inputSchema: ZodTypeAny }> =
+  Object.fromEntries(
+    canvasMcpStudentTools.map((tool) => [
+      tool.name,
+      { inputSchema: tool.inputSchema },
+    ]),
+  );
+
+export const canvasToolInstruction =
+  "Canvas student tools are available for course data and student actions.\n" +
+  "Available categories: courses, assignments, submissions, grades, modules, pages, calendar/planner, announcements, discussions, files, messages, notifications, profile, quizzes, rubrics.\n" +
+  "Disabled in this student profile: instructor/admin authoring and grading flows (course/assignment/page/module creation or deletion, quiz/rubric authoring, admin user management).";
+
+function tryParseJson(text: string): unknown | undefined {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
-function clampItems<T>(items: T[], limit = MAX_RETURNED_ITEMS): T[] {
-  return items.slice(0, limit);
+function normalizeToolOutput(
+  toolResult: Awaited<ReturnType<ToolDef["handler"]>>,
+) {
+  const content = toolResult.content.map((entry) => ({
+    type: "text" as const,
+    text: entry.text,
+  }));
+
+  if (toolResult.isError) {
+    const message = content[0]?.text || "Canvas tool execution failed";
+    throw new Error(message);
+  }
+
+  const firstText = content[0]?.text;
+  const structuredContent = firstText ? tryParseJson(firstText) : undefined;
+  if (structuredContent !== undefined) {
+    return { content, structuredContent };
+  }
+
+  return { content };
+}
+
+function registerCanvasTool(
+  server: McpServer,
+  client: CanvasClient,
+  tool: ToolDef,
+) {
+  server.registerTool(
+    tool.name,
+    {
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    },
+    async (args) => {
+      const result = await tool.handler(args as never, { canvas: client });
+      return normalizeToolOutput(result);
+    },
+  );
 }
 
 export function createCanvasMcpServer(client: CanvasClient) {
   const server = new McpServer({
     name: "oghmanotes-canvas",
-    version: "1.0.0",
+    version: "2.0.0",
   });
 
-  server.registerTool(
-    "canvas_list_courses",
-    {
-      description:
-        "List the user's active Canvas courses. Read-only. Use first when you need a course ID.",
-      inputSchema: {
-        limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-      },
-      outputSchema: {
-        courses: z.array(
-          z.object({
-            id: z.string(),
-            name: z.string(),
-            courseCode: z.string(),
-            term: z.string(),
-          }),
-        ),
-      },
-    },
-    async ({ limit }) => {
-      const { data, error } = await client.getCourses();
-      if (error) {
-        throw new Error(error);
-      }
-
-      const courses = clampItems(data ?? [], limit).map((course) => ({
-        id: String(course.id),
-        name: trimText(course.name, String(course.id)),
-        courseCode: trimText(course.course_code),
-        term: trimText(course?.term?.name),
-      }));
-
-      return {
-        content: [{ type: "text", text: JSON.stringify({ courses }, null, 2) }],
-        structuredContent: { courses },
-      };
-    },
-  );
-
-  server.registerTool(
-    "canvas_list_modules",
-    {
-      description:
-        "List modules in a Canvas course. Read-only. Use after selecting a course.",
-      inputSchema: {
-        courseId: z.string().min(1),
-        limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-      },
-      outputSchema: {
-        modules: z.array(
-          z.object({
-            id: z.string(),
-            name: z.string(),
-            itemCount: z.number().int().nonnegative(),
-            unlockAt: z.string().nullable(),
-          }),
-        ),
-      },
-    },
-    async ({ courseId, limit }) => {
-      const { data, error } = await client.getModules(courseId);
-      if (error) {
-        throw new Error(error);
-      }
-
-      const modules = clampItems(data ?? [], limit).map((module) => ({
-        id: String(module.id),
-        name: trimText(module.name, String(module.id)),
-        itemCount: Number(module.items_count ?? 0),
-        unlockAt:
-          typeof module.unlock_at === "string" ? module.unlock_at : null,
-      }));
-
-      return {
-        content: [{ type: "text", text: JSON.stringify({ modules }, null, 2) }],
-        structuredContent: { modules },
-      };
-    },
-  );
-
-  server.registerTool(
-    "canvas_list_assignments",
-    {
-      description:
-        "List assignments in a Canvas course. Read-only. Includes due dates and submission status when available.",
-      inputSchema: {
-        courseId: z.string().min(1),
-        limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-      },
-      outputSchema: {
-        assignments: z.array(
-          z.object({
-            id: z.string(),
-            name: z.string(),
-            dueAt: z.string().nullable(),
-            htmlUrl: z.string().nullable(),
-            submissionState: z.string().nullable(),
-          }),
-        ),
-      },
-    },
-    async ({ courseId, limit }) => {
-      const { data, error } = await client.getAssignments(courseId);
-      if (error) {
-        throw new Error(error);
-      }
-
-      const assignments = clampItems(data ?? [], limit).map((assignment) => ({
-        id: String(assignment.id),
-        name: trimText(assignment.name, String(assignment.id)),
-        dueAt:
-          typeof assignment.due_at === "string" ? assignment.due_at : null,
-        htmlUrl:
-          typeof assignment.html_url === "string"
-            ? assignment.html_url
-            : null,
-        submissionState:
-          typeof assignment?.submission?.workflow_state === "string"
-            ? assignment.submission.workflow_state
-            : null,
-      }));
-
-      return {
-        content: [
-          { type: "text", text: JSON.stringify({ assignments }, null, 2) },
-        ],
-        structuredContent: { assignments },
-      };
-    },
-  );
-
-  server.registerTool(
-    "canvas_list_module_items",
-    {
-      description:
-        "List items inside a Canvas module. Read-only. Helpful for finding files, pages, and assignments inside a module.",
-      inputSchema: {
-        courseId: z.string().min(1),
-        moduleId: z.string().min(1),
-        limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-      },
-      outputSchema: {
-        items: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            type: z.string(),
-            contentId: z.string().nullable(),
-            htmlUrl: z.string().nullable(),
-          }),
-        ),
-      },
-    },
-    async ({ courseId, moduleId, limit }) => {
-      const { data, error } = await client.getModuleItems(courseId, moduleId);
-      if (error) {
-        throw new Error(error);
-      }
-
-      const items = clampItems(data ?? [], limit).map((item) => ({
-        id: String(item.id),
-        title: trimText(item.title, String(item.id)),
-        type: trimText(item.type, "unknown"),
-        contentId:
-          item.content_id === null || item.content_id === undefined
-            ? null
-            : String(item.content_id),
-        htmlUrl:
-          typeof item.html_url === "string" ? item.html_url.slice(0, 1000) : null,
-      }));
-
-      return {
-        content: [{ type: "text", text: JSON.stringify({ items }, null, 2) }],
-        structuredContent: { items },
-      };
-    },
-  );
-
-  server.registerTool(
-    "canvas_get_file",
-    {
-      description:
-        "Get metadata for one Canvas file by course ID and file ID. Read-only. Returns filename, content type, and download URL metadata only.",
-      inputSchema: {
-        courseId: z.string().min(1),
-        fileId: z.string().min(1),
-      },
-      outputSchema: {
-        file: z.object({
-          id: z.string(),
-          displayName: z.string(),
-          contentType: z.string().nullable(),
-          size: z.number().int().nonnegative().nullable(),
-          url: z.string().nullable(),
-          updatedAt: z.string().nullable(),
-        }),
-      },
-    },
-    async ({ courseId, fileId }) => {
-      const { data, error } = await client.getFile(courseId, fileId);
-      if (error) {
-        throw new Error(error);
-      }
-      if (!data) {
-        throw new Error("File not found");
-      }
-
-      const file = {
-        id: String(data.id),
-        displayName: trimText(data.display_name, String(data.id)),
-        contentType:
-          typeof data["content-type"] === "string"
-            ? data["content-type"]
-            : null,
-        size: Number.isFinite(data.size) ? Number(data.size) : null,
-        url: typeof data.url === "string" ? data.url.slice(0, 1000) : null,
-        updatedAt: typeof data.updated_at === "string" ? data.updated_at : null,
-      };
-
-      return {
-        content: [{ type: "text", text: JSON.stringify({ file }, null, 2) }],
-        structuredContent: { file },
-      };
-    },
-  );
+  for (const tool of canvasMcpStudentTools) {
+    registerCanvasTool(server, client, tool);
+  }
 
   return server;
 }
-
-export const canvasMcpToolSchemas = {
-  canvas_list_courses: {
-    inputSchema: z.object({
-      limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-    }),
-    outputSchema: z.object({
-      courses: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          courseCode: z.string(),
-          term: z.string(),
-        }),
-      ),
-    }),
-  },
-  canvas_list_modules: {
-    inputSchema: z.object({
-      courseId: z.string().min(1),
-      limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-    }),
-    outputSchema: z.object({
-      modules: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          itemCount: z.number().int().nonnegative(),
-          unlockAt: z.string().nullable(),
-        }),
-      ),
-    }),
-  },
-  canvas_list_assignments: {
-    inputSchema: z.object({
-      courseId: z.string().min(1),
-      limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-    }),
-    outputSchema: z.object({
-      assignments: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          dueAt: z.string().nullable(),
-          htmlUrl: z.string().nullable(),
-          submissionState: z.string().nullable(),
-        }),
-      ),
-    }),
-  },
-  canvas_list_module_items: {
-    inputSchema: z.object({
-      courseId: z.string().min(1),
-      moduleId: z.string().min(1),
-      limit: z.number().int().min(1).max(MAX_RETURNED_ITEMS).optional(),
-    }),
-    outputSchema: z.object({
-      items: z.array(
-        z.object({
-          id: z.string(),
-          title: z.string(),
-          type: z.string(),
-          contentId: z.string().nullable(),
-          htmlUrl: z.string().nullable(),
-        }),
-      ),
-    }),
-  },
-  canvas_get_file: {
-    inputSchema: z.object({
-      courseId: z.string().min(1),
-      fileId: z.string().min(1),
-    }),
-    outputSchema: z.object({
-      file: z.object({
-        id: z.string(),
-        displayName: z.string(),
-        contentType: z.string().nullable(),
-        size: z.number().int().nonnegative().nullable(),
-        url: z.string().nullable(),
-        updatedAt: z.string().nullable(),
-      }),
-    }),
-  },
-} as const;

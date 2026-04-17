@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import logger from "@/lib/logger";
-import { CanvasClient } from "@/lib/canvas/client.js";
+import { CanvasClient } from "@/lib/canvas-mcp/src/canvas/client";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { createCanvasMcpServer } from "@/lib/canvas/mcp";
 import { verifyInternalMcpToken } from "@/lib/mcp/internal-auth";
@@ -40,7 +40,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  const client = new CanvasClient(credentials.domain, credentials.token);
+  const client = new CanvasClient({
+    domain: credentials.domain,
+    token: credentials.token,
+  });
   const server = createCanvasMcpServer(client);
 
   try {
@@ -51,7 +54,10 @@ export async function POST(request: NextRequest): Promise<Response> {
       userId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json({ error: "Canvas MCP request failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Canvas MCP request failed" },
+      { status: 500 },
+    );
   } finally {
     await transport.close().catch(() => {});
     await server.close().catch(() => {});
