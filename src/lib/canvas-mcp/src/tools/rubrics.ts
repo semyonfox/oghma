@@ -162,7 +162,7 @@ export const rubricTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             assignment_id: z.number().int().positive(),
             user_id: z.number().int().positive(),
-            rubric_assessment: z.record(z.object({
+            rubric_assessment: z.record(z.string(), z.object({
                 points: z.number().optional(),
                 comments: z.string().optional(),
             })),

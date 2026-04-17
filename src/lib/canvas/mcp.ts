@@ -128,9 +128,9 @@ function registerCanvasTool(
       description: tool.description,
       inputSchema: tool.inputSchema,
     },
-    async (args) => {
+    async (args: unknown) => {
       const result = await tool.handler(args as never, { canvas: client });
-      return normalizeToolOutput(result);
+      return normalizeToolOutput(result) as any;
     },
   );
 }

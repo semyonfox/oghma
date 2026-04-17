@@ -192,7 +192,7 @@ export const submissionTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
             assignment_id: z.number().int().positive(),
-            grade_data: z.record(z.object({ posted_grade: z.string() })),
+            grade_data: z.record(z.string(), z.object({ posted_grade: z.string() })),
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.post(

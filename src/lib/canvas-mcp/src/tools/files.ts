@@ -106,7 +106,7 @@ export const fileTools: ToolDef[] = [
             content_type: z.string().optional(),
             parent_folder_path: z.string().optional(),
         }),
-        handler: async (args) => {
+        handler: async (args: any) => {
             return textResult(
                 JSON.stringify(
                     {
