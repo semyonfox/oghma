@@ -1,14 +1,14 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.ts";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.ts";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.ts";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.ts";
+import { Server } from "@modelcontextprotocol/sdk/server/index";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { loadConfig } from "./config.ts";
-import { CanvasClient } from "./canvas/client.ts";
-import { allTools } from "./tools/index.ts";
-import type { ToolContext } from "./tools/types.ts";
+import { loadConfig } from "./config";
+import { CanvasClient } from "./canvas/client";
+import { allTools } from "./tools/index";
+import type { ToolContext } from "./tools/types";
 
 const cfg = loadConfig();
 
