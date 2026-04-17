@@ -17,7 +17,7 @@ export const announcementTools: ToolDef[] = [
     description:
       "List announcements across one or more courses. context_codes is required (e.g. ['course_123']). Optionally filter by date range or active_only.",
     inputSchema: listAnnouncementsSchema,
-    handler: async (args: ListAnnouncementsArgs, { canvas }) => {
+    handler: async (args: any, { canvas }) => {
       const announcements = await canvas.collectPaginated(
         "/api/v1/announcements",
         {
