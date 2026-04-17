@@ -9,8 +9,6 @@ const listAnnouncementsSchema = z.object({
   active_only: z.boolean().optional(),
 });
 
-type ListAnnouncementsArgs = z.infer<typeof listAnnouncementsSchema>;
-
 export const announcementTools: ToolDef[] = [
   {
     name: "canvas_list_announcements",
