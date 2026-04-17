@@ -1,19 +1,19 @@
-import type { ToolDef } from "./types.js";
-import { courseTools } from "./courses.js";
-import { assignmentTools } from "./assignments.js";
-import { submissionTools } from "./submissions.js";
-import { gradeTools } from "./grades.js";
-import { moduleTools } from "./modules.js";
-import { pageTools } from "./pages.js";
-import { calendarTools } from "./calendar.js";
-import { announcementTools } from "./announcements.js";
-import { discussionTools } from "./discussions.js";
-import { fileTools } from "./files.js";
-import { messageTools } from "./messages.js";
-import { notificationTools } from "./notifications.js";
-import { profileTools } from "./profile.js";
-import { quizTools } from "./quizzes.js";
-import { rubricTools } from "./rubrics.js";
+import type { ToolDef } from "./types.ts";
+import { courseTools } from "./courses.ts";
+import { assignmentTools } from "./assignments.ts";
+import { submissionTools } from "./submissions.ts";
+import { gradeTools } from "./grades.ts";
+import { moduleTools } from "./modules.ts";
+import { pageTools } from "./pages.ts";
+import { calendarTools } from "./calendar.ts";
+import { announcementTools } from "./announcements.ts";
+import { discussionTools } from "./discussions.ts";
+import { fileTools } from "./files.ts";
+import { messageTools } from "./messages.ts";
+import { notificationTools } from "./notifications.ts";
+import { profileTools } from "./profile.ts";
+import { quizTools } from "./quizzes.ts";
+import { rubricTools } from "./rubrics.ts";
 
 export const allTools: ToolDef[] = [
     ...courseTools,
