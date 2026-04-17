@@ -10,7 +10,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             search_term: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const quizzes = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/quizzes`,
                 {
@@ -28,7 +28,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const quiz = await canvas.get(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}`,
                 {},
@@ -44,7 +44,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submissions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/submissions`,
                 { per_page: 100 },
@@ -60,7 +60,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/submissions/self`,
                 {},
@@ -85,7 +85,7 @@ export const quizTools: ToolDef[] = [
             allowed_attempts: z.number().int().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, ...fields } = args;
             const quiz = await canvas.post(`/api/v1/courses/${course_id}/quizzes`, {
                 quiz: {
@@ -111,7 +111,7 @@ export const quizTools: ToolDef[] = [
             allowed_attempts: z.number().int().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, quiz_id, ...fields } = args;
             const quiz = await canvas.put(
                 `/api/v1/courses/${course_id}/quizzes/${quiz_id}`,
@@ -135,7 +135,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}`,
             );
@@ -149,7 +149,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const questions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/questions`,
                 { per_page: 100 },
@@ -168,7 +168,7 @@ export const quizTools: ToolDef[] = [
             question_type: z.string(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, quiz_id, question_name, question_text, question_type, points_possible } = args;
             const question = await canvas.post(
                 `/api/v1/courses/${course_id}/quizzes/${quiz_id}/questions`,
@@ -195,7 +195,7 @@ export const quizTools: ToolDef[] = [
             question_text: z.string().optional(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, quiz_id, question_id, question_name, question_text, points_possible } = args;
             const question = await canvas.put(
                 `/api/v1/courses/${course_id}/quizzes/${quiz_id}/questions/${question_id}`,
@@ -218,7 +218,7 @@ export const quizTools: ToolDef[] = [
             quiz_id: z.number().int().positive(),
             question_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/questions/${args.question_id}`,
             );
@@ -232,7 +232,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const groups = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/groups`,
                 { per_page: 100 },
@@ -247,7 +247,7 @@ export const quizTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             quiz_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submission = await canvas.post(
                 `/api/v1/courses/${args.course_id}/quizzes/${args.quiz_id}/submissions`,
             );

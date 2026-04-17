@@ -13,7 +13,7 @@ export const pageTools: ToolDef[] = [
             search_term: z.string().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const pages = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/pages`,
                 {
@@ -34,7 +34,7 @@ export const pageTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             page_url: z.string().min(1),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const page = await canvas.get(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
                 {},
@@ -48,7 +48,7 @@ export const pageTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const page = await canvas.get(
                 `/api/v1/courses/${args.course_id}/front_page`,
                 {},
@@ -63,7 +63,7 @@ export const pageTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             page_url: z.string().min(1),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const revisions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions`,
                 { per_page: 100 },
@@ -81,7 +81,7 @@ export const pageTools: ToolDef[] = [
             revision_id: z.number().int().positive(),
             summary: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const revision = await canvas.get(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
                 {
@@ -107,7 +107,7 @@ export const pageTools: ToolDef[] = [
             published: z.boolean().optional(),
             front_page: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const page = await canvas.post(
                 `/api/v1/courses/${args.course_id}/pages`,
                 {
@@ -133,7 +133,7 @@ export const pageTools: ToolDef[] = [
             published: z.boolean().optional(),
             front_page: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const page = await canvas.put(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
                 {
@@ -155,7 +155,7 @@ export const pageTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             page_url: z.string().min(1),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
             );
@@ -170,7 +170,7 @@ export const pageTools: ToolDef[] = [
             page_url: z.string().min(1),
             revision_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const revision = await canvas.post(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
             );

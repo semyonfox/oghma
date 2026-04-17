@@ -13,7 +13,7 @@ export const fileTools: ToolDef[] = [
             content_types: z.array(z.string()).optional(),
             sort: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const files = await canvas.collectPaginated(`/api/v1/courses/${args.course_id}/files`, {
                 per_page: 100,
                 ...(args.search_term ? { search_term: args.search_term } : {}),
@@ -29,7 +29,7 @@ export const fileTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const folders = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/folders`,
                 { per_page: 100 },
@@ -43,7 +43,7 @@ export const fileTools: ToolDef[] = [
         inputSchema: z.object({
             folder_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const files = await canvas.collectPaginated(`/api/v1/folders/${args.folder_id}/files`, {
                 per_page: 100,
             });
@@ -58,7 +58,7 @@ export const fileTools: ToolDef[] = [
             file_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const file = await canvas.get(`/api/v1/files/${args.file_id}`, {
                 ...(args.include ? { include: args.include } : {}),
             });
@@ -72,7 +72,7 @@ export const fileTools: ToolDef[] = [
         inputSchema: z.object({
             file_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const file = await canvas.get(`/api/v1/files/${args.file_id}`, {});
             return jsonResult({ url: (file as { url: string }).url });
         },
@@ -138,7 +138,7 @@ export const fileTools: ToolDef[] = [
         inputSchema: z.object({
             file_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/files/${args.file_id}`);
             return jsonResult(result);
         },
@@ -158,7 +158,7 @@ export const fileTools: ToolDef[] = [
             file_id: z.number().int().positive(),
             destination_path: z.string(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const file = await canvas.get(`/api/v1/files/${args.file_id}`, {});
             const url = (file as { url: string }).url;
             return textResult(

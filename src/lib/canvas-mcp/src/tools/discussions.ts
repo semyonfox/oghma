@@ -13,7 +13,7 @@ export const discussionTools: ToolDef[] = [
             search_term: z.string().optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const topics = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/discussion_topics`,
                 {
@@ -36,7 +36,7 @@ export const discussionTools: ToolDef[] = [
             topic_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const topic = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}`,
                 {
@@ -54,7 +54,7 @@ export const discussionTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             topic_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const view = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/view`,
                 {},
@@ -69,7 +69,7 @@ export const discussionTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             topic_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const entries = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
                 { per_page: 100 },
@@ -85,7 +85,7 @@ export const discussionTools: ToolDef[] = [
             topic_id: z.number().int().positive(),
             entry_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const entry = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}`,
                 {},
@@ -107,7 +107,7 @@ export const discussionTools: ToolDef[] = [
             message: z.string(),
             discussion_type: z.enum(["side_comment", "threaded"]).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const topic = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics`,
                 {
@@ -127,7 +127,7 @@ export const discussionTools: ToolDef[] = [
             topic_id: z.number().int().positive(),
             message: z.string(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const entry = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
                 { message: args.message },
@@ -144,7 +144,7 @@ export const discussionTools: ToolDef[] = [
             entry_id: z.number().int().positive(),
             message: z.string(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const reply = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}/replies`,
                 { message: args.message },
@@ -159,7 +159,7 @@ export const discussionTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             topic_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}`,
             );

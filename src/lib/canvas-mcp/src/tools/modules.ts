@@ -12,7 +12,7 @@ export const moduleTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             search_term: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const modules = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/modules`,
                 {
@@ -32,7 +32,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const module_ = await canvas.get(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}`,
                 {
@@ -51,7 +51,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const items = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items`,
                 {
@@ -70,7 +70,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             item_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const item = await canvas.get(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items/${args.item_id}`,
                 {},
@@ -87,7 +87,7 @@ export const moduleTools: ToolDef[] = [
             asset_type: z.string(),
             asset_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const sequence = await canvas.get(
                 `/api/v1/courses/${args.course_id}/module_item_sequence`,
                 {
@@ -107,7 +107,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             item_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.post(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items/${args.item_id}/mark_read`,
             );
@@ -123,7 +123,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             item_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items/${args.item_id}/done`,
             );
@@ -145,7 +145,7 @@ export const moduleTools: ToolDef[] = [
             position: z.number().int().positive().optional(),
             unlock_at: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const module_ = await canvas.post(
                 `/api/v1/courses/${args.course_id}/modules`,
                 {
@@ -169,7 +169,7 @@ export const moduleTools: ToolDef[] = [
             position: z.number().int().positive().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const module_ = await canvas.put(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}`,
                 {
@@ -190,7 +190,7 @@ export const moduleTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             module_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}`,
             );
@@ -208,7 +208,7 @@ export const moduleTools: ToolDef[] = [
             title: z.string().optional(),
             position: z.number().int().positive().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const item = await canvas.post(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items`,
                 {
@@ -234,7 +234,7 @@ export const moduleTools: ToolDef[] = [
             position: z.number().int().positive().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const item = await canvas.put(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items/${args.item_id}`,
                 {
@@ -256,7 +256,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             item_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}/items/${args.item_id}`,
             );
@@ -271,7 +271,7 @@ export const moduleTools: ToolDef[] = [
             module_id: z.number().int().positive(),
             published: z.boolean(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const module_ = await canvas.put(
                 `/api/v1/courses/${args.course_id}/modules/${args.module_id}`,
                 { module: { published: args.published } },

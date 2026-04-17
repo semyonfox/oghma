@@ -11,7 +11,7 @@ export const courseTools: ToolDef[] = [
             enrollment_state: z.enum(["active", "invited_or_pending", "completed"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const courses = await canvas.collectPaginated("/api/v1/courses", {
                 per_page: 100,
                 ...(args.enrollment_state ? { enrollment_state: args.enrollment_state } : {}),
@@ -27,7 +27,7 @@ export const courseTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const course = await canvas.get(`/api/v1/courses/${args.course_id}`, {
                 ...(args.include ? { include: args.include } : {}),
             });
@@ -40,7 +40,7 @@ export const courseTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const sections = await canvas.collectPaginated(`/api/v1/courses/${args.course_id}/sections`, {
                 per_page: 100,
             });
@@ -60,7 +60,7 @@ export const courseTools: ToolDef[] = [
             name: z.string(),
             course_code: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const course = await canvas.post(`/api/v1/accounts/${args.account_id}/courses`, {
                 course: {
                     name: args.name,

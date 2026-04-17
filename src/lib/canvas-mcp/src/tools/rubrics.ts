@@ -10,7 +10,7 @@ export const rubricTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const rubrics = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/rubrics`,
                 {
@@ -33,7 +33,7 @@ export const rubricTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             style: z.enum(["full", "comments_only"]).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const rubric = await canvas.get(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
                 {
@@ -53,7 +53,7 @@ export const rubricTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             rubric_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const rubric = await canvas.get(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
                 { include: ["assessments"] },
@@ -69,7 +69,7 @@ export const rubricTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             assignment_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/self`,
                 { include: ["rubric_assessment"] },
@@ -96,7 +96,7 @@ export const rubricTools: ToolDef[] = [
                 criterion_use_range: z.boolean().optional(),
             })).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, ...fields } = args;
             const rubric = await canvas.post(`/api/v1/courses/${course_id}/rubrics`, {
                 rubric: fields,
@@ -113,7 +113,7 @@ export const rubricTools: ToolDef[] = [
             title: z.string().optional(),
             free_form_criterion_comments: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, rubric_id, ...fields } = args;
             const rubric = await canvas.put(
                 `/api/v1/courses/${course_id}/rubrics/${rubric_id}`,
@@ -129,7 +129,7 @@ export const rubricTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             rubric_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
             );
@@ -146,7 +146,7 @@ export const rubricTools: ToolDef[] = [
             association_type: z.enum(["Assignment", "Course", "Account"]),
             purpose: z.enum(["grading", "bookmark"]).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, ...fields } = args;
             const association = await canvas.post(
                 `/api/v1/courses/${course_id}/rubric_associations`,
@@ -167,7 +167,7 @@ export const rubricTools: ToolDef[] = [
                 comments: z.string().optional(),
             })),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { course_id, assignment_id, user_id, rubric_assessment } = args;
             const result = await canvas.put(
                 `/api/v1/courses/${course_id}/assignments/${assignment_id}/submissions/${user_id}`,

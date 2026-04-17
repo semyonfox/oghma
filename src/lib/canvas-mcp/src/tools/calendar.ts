@@ -13,7 +13,7 @@ export const calendarTools: ToolDef[] = [
             end_date: z.string().optional(),
             type: z.enum(["event", "assignment"]).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const events = await canvas.collectPaginated("/api/v1/calendar_events", {
                 per_page: 100,
                 ...(args.context_codes ? { context_codes: args.context_codes } : {}),
@@ -33,7 +33,7 @@ export const calendarTools: ToolDef[] = [
             days: z.number().int().positive().optional(),
             limit: z.number().int().positive().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const events = await canvas.get<Array<Record<string, unknown>>>(
                 "/api/v1/users/self/upcoming_events",
             );
@@ -65,7 +65,7 @@ export const calendarTools: ToolDef[] = [
             end_date: z.string().optional(),
             context_codes: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const items = await canvas.collectPaginated("/api/v1/planner/items", {
                 per_page: 100,
                 ...(args.start_date ? { start_date: args.start_date } : {}),
@@ -102,7 +102,7 @@ export const calendarTools: ToolDef[] = [
             description: z.string().optional(),
             location_name: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const event = await canvas.post("/api/v1/calendar_events", {
                 calendar_event: {
                     context_code: args.context_code,
@@ -126,7 +126,7 @@ export const calendarTools: ToolDef[] = [
             end_at: z.string().optional(),
             description: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const event = await canvas.put(`/api/v1/calendar_events/${args.event_id}`, {
                 calendar_event: {
                     ...(args.title ? { title: args.title } : {}),
@@ -145,7 +145,7 @@ export const calendarTools: ToolDef[] = [
             event_id: z.number().int().positive(),
             cancel_reason: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/calendar_events/${args.event_id}`);
             return jsonResult(result);
         },
@@ -159,7 +159,7 @@ export const calendarTools: ToolDef[] = [
             todo_date: z.string().optional(),
             course_id: z.number().int().positive().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const note = await canvas.post("/api/v1/planner_notes", {
                 title: args.title,
                 ...(args.details ? { details: args.details } : {}),
@@ -178,7 +178,7 @@ export const calendarTools: ToolDef[] = [
             details: z.string().optional(),
             todo_date: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const note = await canvas.put(`/api/v1/planner_notes/${args.note_id}`, {
                 ...(args.title ? { title: args.title } : {}),
                 ...(args.details ? { details: args.details } : {}),
@@ -193,7 +193,7 @@ export const calendarTools: ToolDef[] = [
         inputSchema: z.object({
             note_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/planner_notes/${args.note_id}`);
             return jsonResult(result);
         },
@@ -205,7 +205,7 @@ export const calendarTools: ToolDef[] = [
             override_id: z.number().int().positive(),
             marked_complete: z.boolean(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(`/api/v1/planner/overrides/${args.override_id}`, {
                 marked_complete: args.marked_complete,
             });
