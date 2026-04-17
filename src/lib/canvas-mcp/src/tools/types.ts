@@ -1,5 +1,5 @@
 import type { z, ZodTypeAny } from "zod";
-import type { CanvasClient } from "../canvas/client.js";
+import type { CanvasClient } from "../canvas/client.ts";
 
 export interface ToolContext {
     canvas: CanvasClient;
