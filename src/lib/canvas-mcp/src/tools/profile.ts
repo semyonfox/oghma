@@ -19,7 +19,7 @@ export const profileTools: ToolDef[] = [
         inputSchema: z.object({
             user_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const profile = await canvas.get(`/api/v1/users/${args.user_id}/profile`, {});
             return jsonResult(profile);
         },
@@ -47,7 +47,7 @@ export const profileTools: ToolDef[] = [
             short_name: z.string().optional(),
             bio: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { user_id, ...fields } = args;
             const result = await canvas.put(`/api/v1/users/${user_id}`, { user: fields });
             return jsonResult(result);
@@ -60,7 +60,7 @@ export const profileTools: ToolDef[] = [
             manual_mark_as_read: z.boolean().optional(),
             collapse_global_nav: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put("/api/v1/users/self/settings", args);
             return jsonResult(result);
         },
@@ -73,7 +73,7 @@ export const profileTools: ToolDef[] = [
             name: z.string(),
             login_id: z.string(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const { account_id, ...fields } = args;
             const result = await canvas.post(`/api/v1/accounts/${account_id}/users`, {
                 user: { name: fields.name },

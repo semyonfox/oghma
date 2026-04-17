@@ -15,7 +15,7 @@ export const assignmentTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             search_term: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const assignments = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/assignments`,
                 {
@@ -36,7 +36,7 @@ export const assignmentTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const assignment = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
                 {
@@ -53,7 +53,7 @@ export const assignmentTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const groups = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/assignment_groups`,
                 {
@@ -73,7 +73,7 @@ export const assignmentTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             filter: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const missing = await canvas.get("/api/v1/users/self/missing_submissions", {
                 ...(args.course_ids ? { course_ids: args.course_ids } : {}),
                 ...(args.include ? { include: args.include } : {}),
@@ -98,7 +98,7 @@ export const assignmentTools: ToolDef[] = [
             due_at: z.string().optional(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const assignment = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments`,
                 {
@@ -123,7 +123,7 @@ export const assignmentTools: ToolDef[] = [
             due_at: z.string().optional(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const assignment = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
                 {
@@ -144,7 +144,7 @@ export const assignmentTools: ToolDef[] = [
             course_id: z.number().int().positive(),
             assignment_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
             );
@@ -159,7 +159,7 @@ export const assignmentTools: ToolDef[] = [
             name: z.string(),
             group_weight: z.number().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const group = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignment_groups`,
                 {
@@ -182,7 +182,7 @@ export const assignmentTools: ToolDef[] = [
                 unlock_at: z.string().optional(),
             })),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/bulk_update`,
                 args.assignment_dates,
@@ -199,7 +199,7 @@ export const assignmentTools: ToolDef[] = [
             reviewer_id: z.number().int().positive(),
             reviewee_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const review = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/peer_reviews`,
                 {

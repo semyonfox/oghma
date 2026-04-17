@@ -12,7 +12,7 @@ export const gradeTools: ToolDef[] = [
             state: z.array(z.enum(["active", "invited", "completed", "inactive"])).optional(),
             limit: z.number().int().positive().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const enrollments = await canvas.collectPaginated<Record<string, unknown>>(
                 "/api/v1/users/self/enrollments",
                 {
@@ -34,7 +34,7 @@ export const gradeTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/self`,
                 {
@@ -51,7 +51,7 @@ export const gradeTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const standards = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/grading_standards`,
                 { per_page: 100 },
@@ -75,7 +75,7 @@ export const gradeTools: ToolDef[] = [
             posted_grade: z.string().optional(),
             excuse: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${args.user_id}`,
                 {
@@ -96,7 +96,7 @@ export const gradeTools: ToolDef[] = [
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submissions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/students/submissions`,
                 {
@@ -115,7 +115,7 @@ export const gradeTools: ToolDef[] = [
         inputSchema: z.object({
             course_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const [enrollments, submissions] = await Promise.all([
                 canvas.collectPaginated(`/api/v1/courses/${args.course_id}/enrollments`, {
                     per_page: 100,

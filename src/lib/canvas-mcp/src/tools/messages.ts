@@ -12,7 +12,7 @@ export const messageTools: ToolDef[] = [
             filter: z.array(z.string()).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const conversations = await canvas.collectPaginated("/api/v1/conversations", {
                 per_page: 100,
                 ...(args.scope ? { scope: args.scope } : {}),
@@ -29,7 +29,7 @@ export const messageTools: ToolDef[] = [
             conversation_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const conversation = await canvas.get(`/api/v1/conversations/${args.conversation_id}`, {
                 ...(args.include ? { include: args.include } : {}),
             });
@@ -53,7 +53,7 @@ export const messageTools: ToolDef[] = [
             conversation_id: z.number().int().positive(),
             workflow_state: z.enum(["read", "unread", "archived"]).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const state = args.workflow_state ?? "read";
             const result = await canvas.put(`/api/v1/conversations/${args.conversation_id}`, {
                 conversation: { workflow_state: state },
@@ -75,7 +75,7 @@ export const messageTools: ToolDef[] = [
             body: z.string(),
             context_code: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.post("/api/v1/conversations", {
                 recipients: args.recipients,
                 body: args.body,
@@ -93,7 +93,7 @@ export const messageTools: ToolDef[] = [
             body: z.string(),
             recipients: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.post(
                 `/api/v1/conversations/${args.conversation_id}/add_message`,
                 {
@@ -114,7 +114,7 @@ export const messageTools: ToolDef[] = [
             context_code: z.string().optional(),
             bulk_message: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.post("/api/v1/conversations", {
                 recipients: args.recipients,
                 body: args.body,
@@ -131,7 +131,7 @@ export const messageTools: ToolDef[] = [
         inputSchema: z.object({
             conversation_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/conversations/${args.conversation_id}`);
             return jsonResult(result);
         },

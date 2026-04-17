@@ -12,7 +12,7 @@ export const submissionTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/self`,
                 {
@@ -32,7 +32,7 @@ export const submissionTools: ToolDef[] = [
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submissions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/students/submissions`,
                 {
@@ -54,7 +54,7 @@ export const submissionTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             user_id: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const userId = args.user_id ?? "self";
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${userId}`,
@@ -70,7 +70,7 @@ export const submissionTools: ToolDef[] = [
         description:
             "List peer review todo items for the authenticated student by querying the user todo list and filtering for type=reviewing.",
         inputSchema: z.object({}),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const todo = await canvas.get("/api/v1/users/self/todo", {});
             // filter to reviewing items only; todo may be an array or non-array
             const items = Array.isArray(todo)
@@ -88,7 +88,7 @@ export const submissionTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const reviews = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/peer_reviews`,
                 {
@@ -125,7 +125,7 @@ export const submissionTools: ToolDef[] = [
             body: z.string().optional(),
             url: z.string().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             if (args.submission_type === "online_upload") {
                 return textResult(
                     "online_upload submissions require a multi-step flow: " +
@@ -173,7 +173,7 @@ export const submissionTools: ToolDef[] = [
             posted_grade: z.string().optional(),
             excuse: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${args.user_id}`,
                 {
@@ -194,7 +194,7 @@ export const submissionTools: ToolDef[] = [
             assignment_id: z.number().int().positive(),
             grade_data: z.record(z.object({ posted_grade: z.string() })),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/update_grades`,
                 { grade_data: args.grade_data },
@@ -211,7 +211,7 @@ export const submissionTools: ToolDef[] = [
             user_id: z.number().int().positive(),
             comment: z.string(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${args.user_id}`,
                 {
@@ -230,7 +230,7 @@ export const submissionTools: ToolDef[] = [
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const submissions = await canvas.collectPaginated(
                 `/api/v1/sections/${args.section_id}/students/submissions`,
                 {

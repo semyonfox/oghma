@@ -13,7 +13,7 @@ export const notificationTools: ToolDef[] = [
         inputSchema: z.object({
             only_active_courses: z.boolean().optional(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const stream = await canvas.collectPaginated("/api/v1/users/self/activity_stream", {
                 per_page: 100,
                 ...(args.only_active_courses !== undefined
@@ -54,7 +54,7 @@ export const notificationTools: ToolDef[] = [
         inputSchema: z.object({
             notification_id: z.number().int().positive(),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/accounts/self/account_notifications/${args.notification_id}`,
             );
@@ -70,7 +70,7 @@ export const notificationTools: ToolDef[] = [
             notification: z.string(),
             frequency: z.enum(["immediately", "daily", "weekly", "never"]),
         }),
-        handler: async (args, { canvas }) => {
+        handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/users/self/communication_channels/${args.channel_id}/notification_preferences/${args.notification}`,
                 { notification_preferences: { frequency: args.frequency } },
