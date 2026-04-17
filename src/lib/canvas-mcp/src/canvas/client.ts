@@ -1,5 +1,5 @@
-import { CanvasError } from "./errors.ts";
-import { parseNextLink } from "./pagination.ts";
+import { CanvasError } from "./errors";
+import { parseNextLink } from "./pagination";
 
 export type FetchLike = typeof fetch;
 

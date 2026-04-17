@@ -1,19 +1,19 @@
-import type { ToolDef } from "./types.ts";
-import { courseTools } from "./courses.ts";
-import { assignmentTools } from "./assignments.ts";
-import { submissionTools } from "./submissions.ts";
-import { gradeTools } from "./grades.ts";
-import { moduleTools } from "./modules.ts";
-import { pageTools } from "./pages.ts";
-import { calendarTools } from "./calendar.ts";
-import { announcementTools } from "./announcements.ts";
-import { discussionTools } from "./discussions.ts";
-import { fileTools } from "./files.ts";
-import { messageTools } from "./messages.ts";
-import { notificationTools } from "./notifications.ts";
-import { profileTools } from "./profile.ts";
-import { quizTools } from "./quizzes.ts";
-import { rubricTools } from "./rubrics.ts";
+import type { ToolDef } from "./types";
+import { courseTools } from "./courses";
+import { assignmentTools } from "./assignments";
+import { submissionTools } from "./submissions";
+import { gradeTools } from "./grades";
+import { moduleTools } from "./modules";
+import { pageTools } from "./pages";
+import { calendarTools } from "./calendar";
+import { announcementTools } from "./announcements";
+import { discussionTools } from "./discussions";
+import { fileTools } from "./files";
+import { messageTools } from "./messages";
+import { notificationTools } from "./notifications";
+import { profileTools } from "./profile";
+import { quizTools } from "./quizzes";
+import { rubricTools } from "./rubrics";
 
 export const allTools: ToolDef[] = [
     ...courseTools,

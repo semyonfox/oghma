@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import type { ToolDef } from "./types";
+import { jsonResult } from "./types";
 
 // note: canvas_list_account_notifications is already defined in announcements.ts —
 // skipped here to avoid duplicate tool name registration.
