@@ -27,7 +27,7 @@
 - [ ] Set up AWS billing alerts: $50 / $100 / $200 thresholds
   ```bash
   # quick check if any alarms exist
-  aws cloudwatch describe-alarms --region eu-north-1 --query 'MetricAlarms[*].AlarmName'
+  aws cloudwatch describe-alarms --region eu-west-1 --query 'MetricAlarms[*].AlarmName'
   ```
 
 ---
@@ -39,7 +39,7 @@
 - [ ] **Cookie notice** — do you use any tracking cookies? If yes, consent banner required. If no analytics/tracking, a simple "we use only essential cookies" banner is fine.
 - [ ] **Contact email** listed for data requests (GDPR Article 12) — a real inbox, not a form
 - [ ] **Account deletion actually works** (see section 1) — legally required under GDPR Article 17
-- [ ] Data residency: AWS eu-west-1 (Ireland) for Marker, eu-north-1 (Stockholm) for everything else — both are EU, both are fine
+- [ ] Data residency: AWS eu-west-1 (Ireland) for all services
 
 ---
 
@@ -52,7 +52,7 @@
   SELECT * FROM pg_extension WHERE extname = 'vector';
   ```
 - [ ] All DB migrations applied in order (`database/` folder)
-- [ ] S3 bucket exists in `eu-north-1`, CORS configured for `oghmanotes.ie`
+- [ ] S3 bucket exists in `eu-west-1`, CORS configured for `oghmanotes.ie`
 - [ ] SQS queue exists and worker has IAM permissions to consume it
 - [ ] ECS `canvas-import-worker` service healthy (or scaled to 0 intentionally)
 - [ ] Marker ASG at desired=0 (scale-to-zero confirmed) — **GPU should not be running idle**

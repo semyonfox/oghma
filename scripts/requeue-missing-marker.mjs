@@ -26,7 +26,7 @@ const rows = await sql`
 
 console.log(`pending marker backfill items: ${rows.length}`);
 
-const sqs = new SQSClient({ region: process.env.AWS_REGION || "eu-north-1" });
+const sqs = new SQSClient({ region: process.env.AWS_REGION || "eu-west-1" });
 
 let sent = 0;
 for (let i = 0; i < rows.length; i += 10) {

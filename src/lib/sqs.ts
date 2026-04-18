@@ -1,7 +1,7 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 export const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-north-1",
+  region: process.env.AWS_REGION ?? "eu-west-1",
 });
 
 // lazy getters — read process.env at call time, not module-load time.

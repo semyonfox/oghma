@@ -15,12 +15,19 @@ import logger from "@/lib/logger";
 
 const MAX_CHUNK_CHARS = 4000;
 
+type TrueFalseTarget = "true" | "false";
+
+function pickTrueFalseTarget(): TrueFalseTarget {
+  return Math.random() < 0.5 ? "true" : "false";
+}
+
 export function buildGenerationPrompt(
   chunkText: string,
   moduleName: string,
   bloomLevel: BloomLevel,
   questionType: QuestionType,
   existingQuestions?: string[],
+  trueFalseTarget?: TrueFalseTarget,
 ): string {
   const levelName = BLOOM_NAMES[bloomLevel];
   const levelDesc = BLOOM_DESCRIPTIONS[bloomLevel];
@@ -32,8 +39,9 @@ export function buildGenerationPrompt(
         "Generate a multiple choice question with exactly 4 options. Exactly one option must be correct.";
       break;
     case "true_false":
-      typeInstruction =
-        'Generate a true/false question. Make the statement false approximately half the time — when false, state something a student might plausibly believe but that is incorrect, and mark False as correct. Set options to [{text: "True", is_correct: ...}, {text: "False", is_correct: ...}].';
+      const targetLabel =
+        (trueFalseTarget ?? "false") === "true" ? "True" : "False";
+      typeInstruction = `Generate a true/false question. The correct option MUST be ${targetLabel}. Set options to [{text: "True", is_correct: ...}, {text: "False", is_correct: ...}]. Ensure exactly one option is correct and that the correct_answer field matches ${targetLabel}.`;
       break;
     case "fill_in":
       typeInstruction =
@@ -195,6 +203,7 @@ export async function generateQuestion(
     bloomLevel,
     questionType,
     existingQuestions,
+    questionType === "true_false" ? pickTrueFalseTarget() : undefined,
   );
 
   let raw = "";

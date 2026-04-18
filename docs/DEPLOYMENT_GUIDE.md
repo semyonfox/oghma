@@ -61,7 +61,7 @@ git push origin dev
 The GitHub Actions workflow `.github/workflows/deploy-worker.yml` will:
 
 1. Build Docker image for the worker
-2. Push to ECR (`723920043097.dkr.ecr.eu-north-1.amazonaws.com/oghmanotes-worker`)
+2. Push to ECR (`877013879182.dkr.ecr.eu-west-1.amazonaws.com/oghmanotes-worker`)
 3. Trigger new ECS deployment on the `canvas-import-worker` service
 
 **Deployment time**: ~2–3 minutes (ECR push + ECS task replacement)
@@ -76,7 +76,7 @@ After deployment completes:
    aws ecs describe-services \
      --cluster oghmanotes \
      --services canvas-import-worker \
-     --region eu-north-1 \
+     --region eu-west-1 \
      --query 'services[0].[desiredCount,runningCount,deployments[0].desiredCount]'
    ```
 
@@ -138,7 +138,7 @@ To enable automatic scaling of the worker service based on CPU utilization:
 Run the provided setup script:
 
 ```bash
-AWS_REGION=eu-north-1 \
+AWS_REGION=eu-west-1 \
 CLUSTER_NAME=oghmanotes \
 SERVICE_NAME=canvas-import-worker \
 bash infra/ecs-autoscaling-setup.sh
@@ -260,10 +260,10 @@ If issues occur after production deployment:
 
    ```bash
    # Check ECS service health
-   aws ecs describe-services --cluster oghmanotes --services canvas-import-worker --region eu-north-1
+   aws ecs describe-services --cluster oghmanotes --services canvas-import-worker --region eu-west-1
 
    # Check recent deployments
-   aws ecs describe-services --cluster oghmanotes --services canvas-import-worker --region eu-north-1 \
+   aws ecs describe-services --cluster oghmanotes --services canvas-import-worker --region eu-west-1 \
      --query 'services[0].deployments' --output table
    ```
 
@@ -275,7 +275,7 @@ If issues occur after production deployment:
        --cluster oghmanotes \
        --service canvas-import-worker \
        --force-new-deployment \
-       --region eu-north-1
+       --region eu-west-1
      ```
    - Or manually trigger the deploy workflow on the previous commit
 
@@ -285,7 +285,7 @@ If issues occur after production deployment:
      --cluster oghmanotes \
      --service canvas-import-worker \
      --desired-count 0 \
-     --region eu-north-1
+      --region eu-west-1
    ```
 
 ---
@@ -370,7 +370,7 @@ aws logs tail /aws/ecs/oghmanotes/canvas-import-worker --follow
 
 # Check SQS queue depth
 aws sqs get-queue-attributes \
-  --queue-url https://sqs.eu-north-1.amazonaws.com/723920043097/canvas-import-jobs \
+  --queue-url https://sqs.eu-west-1.amazonaws.com/877013879182/oghmanotes-canvas-import \
   --attribute-names ApproximateNumberOfMessages
 
 # Test Marker health
@@ -381,7 +381,7 @@ aws ecs update-service \
   --cluster oghmanotes \
   --service canvas-import-worker \
   --force-new-deployment \
-  --region eu-north-1
+  --region eu-west-1
 ```
 
 ---
