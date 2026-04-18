@@ -268,9 +268,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-background" onBlur={handleEditorBlur}>
+    <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
         {/* Source / Read toggle */}
         <div className="flex items-center gap-1 glass-panel p-0.5 rounded-radius-md">
           <button
@@ -339,7 +339,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden bg-background">
+      <div className="flex-1 overflow-hidden bg-app-page">
         {mode === "source" ? (
           loaded ? (
             <div className="h-full min-h-0 w-full">
