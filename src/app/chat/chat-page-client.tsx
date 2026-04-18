@@ -39,11 +39,11 @@ function relativeDate(ms: number): string {
   const diff = Date.now() - ms;
   const m = Math.floor(diff / 60_000);
   if (m < 1) return "just now";
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
+  if (d < 7) return `${d}d ago`;
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
@@ -258,7 +258,7 @@ export default function ChatPageClient() {
       paramNoteId,
       paramNoteTitle,
       router,
-      selectedFolders.length,
+      selectedFolders,
       selectedNotes,
     ],
   );
@@ -345,57 +345,55 @@ export default function ChatPageClient() {
 
         <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 obsidian-scrollbar">
           {conversations.map((conv) => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => {
-                setMountKey((prev) => prev + 1);
-                setActiveId(conv.id);
-                router.push(`/chat/${conv.id}`);
-              }}
-              className={`group w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
+              className={`group relative overflow-hidden rounded-lg text-xs transition-colors ${
                 conv.id === activeId
                   ? "glass-card-active text-text-secondary"
                   : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
-              }`}
+              } focus-within:ring-1 focus-within:ring-primary-400/30`}
             >
-              <div className="flex items-center justify-between gap-1">
-                <p className="font-medium truncate text-sm flex-1 min-w-0">
-                  {conv.title}
-                </p>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className="text-[10px] text-text-tertiary opacity-60 group-hover:opacity-0 transition-opacity"
-                    suppressHydrationWarning
-                  >
-                    {relativeDate(conv.createdAt)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteConversation(conv.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                        void deleteConversation(conv.id);
-                      }
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-error-400 transition-all -mr-1"
-                    title={t("chat.delete_conversation")}
-                    aria-label={t("chat.delete_conversation")}
-                  >
-                    <TrashIcon className="w-3.5 h-3.5" />
-                  </button>
+              <Link
+                href={`/chat/${conv.id}`}
+                onClick={() => {
+                  setMountKey((prev) => prev + 1);
+                  setActiveId(conv.id);
+                }}
+                className="block w-full px-3 py-2.5 pr-16 text-left focus-visible:outline-none"
+                aria-current={conv.id === activeId ? "page" : undefined}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{conv.title}</p>
+                  {conv.noteTitle && (
+                    <div className="mt-0.5 flex items-center gap-1 text-text-tertiary">
+                      <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{conv.noteTitle}</span>
+                    </div>
+                  )}
                 </div>
+              </Link>
+
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex w-14 items-center justify-end">
+                <span
+                  className="text-[10px] text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                  suppressHydrationWarning
+                >
+                  {relativeDate(conv.createdAt)}
+                </span>
               </div>
-              {conv.noteTitle && (
-                <div className="flex items-center gap-1 mt-0.5 text-text-tertiary">
-                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{conv.noteTitle}</span>
-                </div>
-              )}
-            </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void deleteConversation(conv.id);
+                }}
+                className="absolute inset-y-0 right-3 flex w-14 items-center justify-center text-text-tertiary opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
+                title={t("chat.delete_conversation")}
+                aria-label={t("chat.delete_conversation")}
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
           ))}
           {loaded && conversations.length === 0 && (
             <p className="text-xs text-text-tertiary text-center py-4">
