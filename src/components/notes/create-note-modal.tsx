@@ -9,7 +9,7 @@ interface CreateNoteModalProps {
   onClose: () => void;
   onCreateNote: (title: string, language: string) => Promise<void>;
   onCreateFolder: () => Promise<void>;
-  onUploadFile: (file: File) => Promise<void>;
+  onUploadFiles: (files: File[]) => Promise<void>;
 }
 
 /**
@@ -20,7 +20,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   onClose,
   onCreateNote,
   onCreateFolder,
-  onUploadFile,
+  onUploadFiles,
 }) => {
   const { t } = useI18n();
   const [mode, setMode] = useState<"upload" | "new" | "folder">("new");
@@ -51,11 +51,11 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
       e.stopPropagation();
       setIsDragging(false);
 
-      const files = e.dataTransfer.files;
-      if (files && files.length > 0) {
+      const files = Array.from(e.dataTransfer.files ?? []);
+      if (files.length > 0) {
         setIsCreating(true);
         try {
-          await onUploadFile(files[0]);
+          await onUploadFiles(files);
           onClose();
         } catch (error) {
           console.error("Upload failed:", error);
@@ -64,16 +64,17 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
         }
       }
     },
-    [onUploadFile, onClose],
+    [onUploadFiles, onClose],
   );
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
+      const files = Array.from(e.target.files ?? []);
+      e.target.value = "";
+      if (files.length > 0) {
         setIsCreating(true);
         try {
-          await onUploadFile(files[0]);
+          await onUploadFiles(files);
           onClose();
         } catch (error) {
           console.error("Upload failed:", error);
@@ -82,7 +83,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
         }
       }
     },
-    [onUploadFile, onClose],
+    [onUploadFiles, onClose],
   );
 
   const handleClickUpload = useCallback(() => {
@@ -215,7 +216,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
             >
               <CloudArrowUpIcon className="w-10 h-10 mx-auto mb-3 text-text-tertiary opacity-50" />
               <p className="text-sm font-medium text-text-secondary mb-2">
-                {t("Drag and drop your file")}
+                {t("Drag and drop your files")}
               </p>
               <p className="text-xs text-text-tertiary mb-4">{t("or")}</p>
               <button
@@ -223,11 +224,12 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                 disabled={isCreating}
                 className="inline-block px-4 py-2 bg-primary-600 hover:bg-primary-700 text-text-on-primary text-sm rounded transition-colors disabled:opacity-50"
               >
-                {t("Choose File")}
+                {t("Choose Files")}
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />

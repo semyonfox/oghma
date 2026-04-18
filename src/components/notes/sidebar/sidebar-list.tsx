@@ -61,7 +61,7 @@ const SidebarList = () => {
     handleCreateFolderFromModal,
     handleQuickNewNote,
     handleQuickNewFolder,
-    handleUploadFile,
+    handleUploadFiles,
     handleCollapseAll,
     handleRename,
     handleDeleteRequest,
@@ -356,7 +356,7 @@ const SidebarList = () => {
         onClose={() => setIsModalOpen(false)}
         onCreateNote={handleCreateNote}
         onCreateFolder={handleCreateFolderFromModal}
-        onUploadFile={handleUploadFile}
+        onUploadFiles={handleUploadFiles}
       />
 
       <NoteContextMenu
