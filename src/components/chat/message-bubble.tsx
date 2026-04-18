@@ -218,7 +218,7 @@ export const FullMessageBubble: FC<{
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {m.thinking && (
         <ThinkingBlock
           text={m.thinking}

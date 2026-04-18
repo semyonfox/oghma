@@ -198,8 +198,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* messages */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-6 lg:px-8 py-4 obsidian-scrollbar">
-        <div className="mx-auto flex w-full max-w-3xl flex-col space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar">
+        <div className="mx-auto flex w-full max-w-xl flex-col space-y-2.5">
           {messages.length === 0 ? (
             <ChatSplash />
           ) : (
@@ -221,14 +221,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       </div>
 
       {/* input area */}
-      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-3 md:px-6 lg:px-8 py-3">
-        <div className="mx-auto max-w-3xl">
+      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
+        <div className="mx-auto max-w-xl">
           {/* context badge -- shown when a note/scope is active */}
           {(noteId ||
             noteTitle ||
             selectedNotes.length > 0 ||
             selectedFolders.length > 0) && (
-            <div className="flex items-center gap-2 mb-1.5 px-1">
+            <div className="flex items-center gap-2 mb-1 px-1">
               <button
                 type="button"
                 onClick={clear}
@@ -245,35 +245,35 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             </div>
           )}
 
-            <form
-              onSubmit={(e: FormEvent) => {
-                e.preventDefault();
-                handleSend();
-              }}
-              className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-3 py-2.5 focus-within:border-primary-500/50 transition-colors"
-            >
-              <textarea
-                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          <form
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              handleSend();
+            }}
+            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
+          >
+            <textarea
+              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
                 e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
               disabled={loading}
               rows={1}
-                className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50 leading-snug"
-                style={{ minHeight: "22px", maxHeight: "104px" }}
-              />
-              <button
-                type="button"
-                onClick={toggleThinking}
-                className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-[5px] rounded-md border transition-colors ${
-                  thinkingActive
-                    ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
-                    : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
+              className="flex-1 bg-transparent text-sm leading-snug text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50"
+              style={{ minHeight: "20px", maxHeight: "96px" }}
+            />
+            <button
+              type="button"
+              onClick={toggleThinking}
+              className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors ${
+                thinkingActive
+                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+                  : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
               }`}
               title={
                 thinkingActive
@@ -283,14 +283,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             >
               ◆ {thinkingActive ? "Thinking" : "Think"}
             </button>
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
-              >
-                <PaperAirplaneIcon className="w-3.5 h-3.5" />
-              </button>
-            </form>
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
+            >
+              <PaperAirplaneIcon className="w-3.5 h-3.5" />
+            </button>
+          </form>
 
           <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-1.5">
             {t("chat.disclaimer")}
