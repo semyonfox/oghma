@@ -37,6 +37,7 @@ interface UseChatStreamResult {
     text: string,
     history: { role: string; content: string }[],
   ) => Promise<void>;
+  cancel: () => void;
 }
 
 /** apply a parsed SSE update to the assistant message being streamed */
@@ -111,6 +112,21 @@ export function useChatStream(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancel = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setLoading(false);
+    // trim trailing empty assistant message if nothing was streamed yet
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === "assistant" && !last.content.trim() && !last.thinking) {
+        return prev.slice(0, -1);
+      }
+      return prev;
+    });
+  }, []);
 
   // stable ref for sessionId so stream handlers see the latest value
   const sessionIdRef = useRef<string | null>(null);
@@ -144,9 +160,13 @@ export function useChatStream(
       try {
         const { endpoint, headers } = await resolveEndpoint();
 
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         const res = await fetch(endpoint, {
           method: "POST",
           headers,
+          signal: controller.signal,
           body: JSON.stringify({
             message: text,
             noteId,
@@ -207,6 +227,7 @@ export function useChatStream(
         clearDraft(sessionIdRef.current);
         onStreamComplete?.();
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         const errMsg =
           err instanceof Error ? err.message : t("error.something_went_wrong");
         const friendlyMessage = toFriendlyChatError(errMsg);
@@ -216,6 +237,7 @@ export function useChatStream(
             : t("error.something_went_wrong"),
         );
       } finally {
+        abortControllerRef.current = null;
         setLoading(false);
       }
     },
@@ -335,5 +357,6 @@ export function useChatStream(
     error,
     setError,
     send,
+    cancel,
   };
 }
