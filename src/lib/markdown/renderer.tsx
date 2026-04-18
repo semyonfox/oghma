@@ -2,6 +2,8 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
@@ -78,8 +80,8 @@ export default function MarkdownRenderer({
   return (
     <div className={wrapperClass}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
-        rehypePlugins={rehypePlugins ?? []}
+        remarkPlugins={[remarkGfm, remarkMath, ...(remarkPlugins ?? [])]}
+        rehypePlugins={[...(rehypePlugins ?? []), rehypeKatex]}
         components={merged}
       >
         {children}

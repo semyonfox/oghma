@@ -53,4 +53,12 @@ describe("PreviewRenderer", () => {
     expect(html).toContain("hljs");
     expect(html).not.toContain("<script>");
   });
+
+  it("renders inline and display math with katex markup", () => {
+    const html = renderPreview("Inline $x^2$ and display $$x^2$$.");
+
+    expect(html).toContain("katex");
+    expect(html).not.toContain("$x^2$");
+    expect(html).not.toContain("$$x^2$$");
+  });
 });
