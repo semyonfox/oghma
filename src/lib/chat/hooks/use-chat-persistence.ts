@@ -128,12 +128,6 @@ export function useChatPersistence(
         }
 
         setRestoredMessages([
-          {
-            id: "welcome",
-            role: "assistant",
-            content: welcomeMessage,
-            timestamp: Date.now(),
-          },
           ...serverMessages,
           ...(draftMsg ? [draftMsg] : []),
         ]);
