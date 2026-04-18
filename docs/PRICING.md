@@ -202,16 +202,16 @@ Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total 
 
 ## 7. Current AWS Infrastructure State (April 2026)
 
-| Resource        | Name / ID                  | Region     | Status                      |
-| --------------- | -------------------------- | ---------- | --------------------------- |
-| Amplify app     | `d22kmou82nb1c5`           | eu-north-1 | Active                      |
-| ECS cluster     | `oghmanotes`               | eu-north-1 | Active                      |
-| ECS service     | `canvas-import-worker`     | eu-north-1 | Scaled per demand           |
-| Marker ASG      | `marker-asg-oghmanotes`    | eu-west-1  | desired=0, spot enabled     |
-| Marker ALB      | `marker-alb-oghmanotes`    | eu-west-1  | Active (costs ~$18/mo idle) |
-| Launch template | `lt-022bacbafcb5a98a8` v22 | eu-west-1  | Spot, g5.xlarge             |
-| RDS             | db.t3.micro (PostgreSQL)   | eu-north-1 | Active                      |
-| Redis           | cache.t3.micro             | eu-north-1 | Active                      |
+| Resource        | Name / ID                  | Region    | Status                      |
+| --------------- | -------------------------- | --------- | --------------------------- |
+| Amplify app     | `d22kmou82nb1c5`           | eu-west-1 | Active                      |
+| ECS cluster     | `oghmanotes`               | eu-west-1 | Active                      |
+| ECS service     | `canvas-import-worker`     | eu-west-1 | Scaled per demand           |
+| Marker ASG      | `marker-asg-oghmanotes`    | eu-west-1 | desired=0, spot enabled     |
+| Marker ALB      | `marker-alb-oghmanotes`    | eu-west-1 | Active (costs ~$18/mo idle) |
+| Launch template | `lt-022bacbafcb5a98a8` v22 | eu-west-1 | Spot, g5.xlarge             |
+| RDS             | db.t3.micro (PostgreSQL)   | eu-west-1 | Active                      |
+| Redis           | cache.t3.micro             | eu-west-1 | Active                      |
 
 ### Scheduled Scaling Actions (marker-asg-oghmanotes)
 

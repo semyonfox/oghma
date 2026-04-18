@@ -112,7 +112,7 @@ async function requeuePendingRetries() {
     return { queued: 0, total: 0 };
   }
 
-  const sqs = new SQSClient({ region: process.env.AWS_REGION || "eu-north-1" });
+  const sqs = new SQSClient({ region: process.env.AWS_REGION || "eu-west-1" });
   let queued = 0;
 
   for (let i = 0; i < rows.length; i += 10) {

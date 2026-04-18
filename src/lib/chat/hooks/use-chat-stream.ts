@@ -31,7 +31,10 @@ interface UseChatStreamResult {
   loading: boolean;
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
-  send: (text: string, history: { role: string; content: string }[]) => Promise<void>;
+  send: (
+    text: string,
+    history: { role: string; content: string }[],
+  ) => Promise<void>;
 }
 
 /** apply a parsed SSE update to the assistant message being streamed */
@@ -87,8 +90,18 @@ function clearDraft(sid: string | null): void {
   }
 }
 
-export function useChatStream(options: UseChatStreamOptions): UseChatStreamResult {
-  const { t, noteId, noteTitle, selectedNotes, selectedFolders, thinkingMode, onSessionCreated } = options;
+export function useChatStream(
+  options: UseChatStreamOptions,
+): UseChatStreamResult {
+  const {
+    t,
+    noteId,
+    noteTitle,
+    selectedNotes,
+    selectedFolders,
+    thinkingMode,
+    onSessionCreated,
+  } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -195,7 +208,15 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [noteId, noteTitle, selectedNotes, selectedFolders, sessionId, thinkingMode, loading],
+    [
+      noteId,
+      noteTitle,
+      selectedNotes,
+      selectedFolders,
+      sessionId,
+      thinkingMode,
+      loading,
+    ],
   );
 
   /** resolve the chat endpoint, fetching a Lambda token when needed */
@@ -203,7 +224,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
     endpoint: string;
     headers: Record<string, string>;
   }> {
-    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "https://zniows5yrf3z5txiqzy5msimlq0jvxwt.lambda-url.eu-north-1.on.aws/";
+    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "";
     if (
       !chatFunctionUrl &&
       typeof window !== "undefined" &&
@@ -237,7 +258,10 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
   }
 
   /** handle session ID from server responses */
-  function handleNewSession(newSessionId: string | undefined, userText: string): void {
+  function handleNewSession(
+    newSessionId: string | undefined,
+    userText: string,
+  ): void {
     if (newSessionId && newSessionId !== sessionIdRef.current) {
       setSessionId(newSessionId);
       onSessionCreated?.(newSessionId, userText.slice(0, 60));
@@ -290,5 +314,14 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
     }
   }
 
-  return { messages, setMessages, sessionId, setSessionId, loading, error, setError, send };
+  return {
+    messages,
+    setMessages,
+    sessionId,
+    setSessionId,
+    loading,
+    error,
+    setError,
+    send,
+  };
 }

@@ -82,11 +82,13 @@ if (isProduction && !isLambda) {
 if (isProduction) {
   transports.push(
     new CloudWatchTransport({
-      logGroupName: isLambda ? "/aws/lambda/oghmanotes-chat" : "/oghmanotes/app/production",
+      logGroupName: isLambda
+        ? "/aws/lambda/oghmanotes-chat"
+        : "/oghmanotes/app/production",
       logStreamName: isLambda
         ? `lambda-${Date.now()}`
         : `ecs-${process.env.HOSTNAME ?? "unknown"}`,
-      awsRegion: process.env.AWS_REGION ?? "eu-north-1",
+      awsRegion: process.env.AWS_REGION ?? "eu-west-1",
       jsonMessage: true,
       retentionInDays: 30,
       uploadRate: 2000,
