@@ -21,6 +21,8 @@ interface UseChatStreamOptions {
   selectedFolders: ChatContextItem[];
   thinkingMode: LlmThinkingMode;
   onSessionCreated?: (sessionId: string, title: string) => void;
+  /** called when a stream completes — useful for refreshing session list order */
+  onStreamComplete?: () => void;
 }
 
 interface UseChatStreamResult {
@@ -101,6 +103,7 @@ export function useChatStream(
     selectedFolders,
     thinkingMode,
     onSessionCreated,
+    onStreamComplete,
   } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -180,11 +183,13 @@ export function useChatStream(
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,
                     searchContext: data.searchContext ?? undefined,
+                    timestamp: Date.now(),
                   }
                 : m,
             ),
           );
           clearDraft(data.sessionId || sessionIdRef.current);
+          onStreamComplete?.();
           return;
         }
 
@@ -193,7 +198,14 @@ export function useChatStream(
         }
 
         await consumeStream(res.body, assistantId, text);
+        const completionTime = Date.now();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, timestamp: completionTime } : m,
+          ),
+        );
         clearDraft(sessionIdRef.current);
+        onStreamComplete?.();
       } catch (err) {
         const errMsg =
           err instanceof Error ? err.message : t("error.something_went_wrong");

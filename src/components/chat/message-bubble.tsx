@@ -6,9 +6,8 @@ import {
   ChevronDownIcon,
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { Message } from "./chat-interface";
+import ChatMarkdown from "./chat-markdown";
 
 // relevance level from cosine distance
 function relevanceLabel(distance: number): { label: string; color: string } {
@@ -184,49 +183,6 @@ const CopyMessageButton: FC<{
   );
 };
 
-// shared markdown renderer config
-const markdownComponents = {
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-2 last:mb-0">{children}</p>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>
-  ),
-  ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>
-  ),
-  code: ({
-    children,
-    className: cls,
-  }: {
-    children?: React.ReactNode;
-    className?: string;
-  }) => {
-    const isBlock = cls?.includes("language-");
-    return isBlock ? (
-      <code className="block bg-black/30 rounded-lg p-3 text-xs font-mono my-2 overflow-x-auto whitespace-pre">
-        {children}
-      </code>
-    ) : (
-      <code className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono">
-        {children}
-      </code>
-    );
-  },
-  em: ({ children }: { children?: React.ReactNode }) => (
-    <em className="italic text-text-tertiary/80">{children}</em>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-text">{children}</strong>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="font-semibold text-text mt-3 mb-1">{children}</h3>
-  ),
-  h4: ({ children }: { children?: React.ReactNode }) => (
-    <h4 className="font-medium text-text mt-2 mb-1">{children}</h4>
-  ),
-};
-
 // full-page message bubble
 export const FullMessageBubble: FC<{
   message: Message;
@@ -237,13 +193,22 @@ export const FullMessageBubble: FC<{
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-lg">
+        <div className="max-w-2xl">
           <div className="relative px-4 py-3 pr-12 rounded-2xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             {hasContent && (
               <CopyMessageButton content={m.content} variant="full-user" />
             )}
             <p>{m.content}</p>
           </div>
+          <p
+            className="text-xs text-text-tertiary opacity-60 mt-1 text-right"
+            suppressHydrationWarning
+          >
+            {new Date(m.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
         </div>
       </div>
     );
@@ -267,12 +232,7 @@ export const FullMessageBubble: FC<{
           <CopyMessageButton content={m.content} variant="full-assistant" />
         )}
         {hasContent ? (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={markdownComponents}
-          >
-            {m.content}
-          </ReactMarkdown>
+          <ChatMarkdown>{m.content}</ChatMarkdown>
         ) : !m.thinking ? (
           <TypingDots />
         ) : null}
@@ -328,21 +288,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
           )}
           {m.role === "assistant" ? (
             hasContent ? (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  p: ({ children }) => (
-                    <p className="mb-1 last:mb-0">{children}</p>
-                  ),
-                  code: ({ children }) => (
-                    <code className="bg-subtle px-1 rounded text-xs">
-                      {children}
-                    </code>
-                  ),
-                }}
-              >
-                {m.content}
-              </ReactMarkdown>
+              <ChatMarkdown>{m.content}</ChatMarkdown>
             ) : (
               <TypingDots />
             )

@@ -432,7 +432,8 @@ html.light .glass-card-active {
 }
 
 /* markdown preview code highlighting (aligned with CodeMirror one-dark/one-light) */
-.markdown-preview pre > code.hljs {
+.markdown-preview pre > code.hljs,
+.md-rendered pre > code.hljs {
   display: block;
   overflow-x: auto;
   border-radius: 0.5rem;
@@ -442,7 +443,9 @@ html.light .glass-card-active {
 }
 
 .markdown-preview .hljs-comment,
-.markdown-preview .hljs-quote {
+.markdown-preview .hljs-quote,
+.md-rendered .hljs-comment,
+.md-rendered .hljs-quote {
   color: #5c6370;
 }
 
@@ -455,7 +458,17 @@ html.light .glass-card-active {
 .markdown-preview .hljs-type,
 .markdown-preview .hljs-attr,
 .markdown-preview .hljs-built_in,
-.markdown-preview .hljs-builtin-name {
+.markdown-preview .hljs-builtin-name,
+.md-rendered .hljs-keyword,
+.md-rendered .hljs-selector-tag,
+.md-rendered .hljs-literal,
+.md-rendered .hljs-name,
+.md-rendered .hljs-doctag,
+.md-rendered .hljs-section,
+.md-rendered .hljs-type,
+.md-rendered .hljs-attr,
+.md-rendered .hljs-built_in,
+.md-rendered .hljs-builtin-name {
   color: #c678dd;
 }
 
@@ -464,7 +477,13 @@ html.light .glass-card-active {
 .markdown-preview .hljs-regexp,
 .markdown-preview .hljs-symbol,
 .markdown-preview .hljs-bullet,
-.markdown-preview .hljs-link {
+.markdown-preview .hljs-link,
+.md-rendered .hljs-string,
+.md-rendered .hljs-title,
+.md-rendered .hljs-regexp,
+.md-rendered .hljs-symbol,
+.md-rendered .hljs-bullet,
+.md-rendered .hljs-link {
   color: #98c379;
 }
 
@@ -472,26 +491,37 @@ html.light .glass-card-active {
 .markdown-preview .hljs-meta,
 .markdown-preview .hljs-variable,
 .markdown-preview .hljs-template-variable,
-.markdown-preview .hljs-addition {
+.markdown-preview .hljs-addition,
+.md-rendered .hljs-number,
+.md-rendered .hljs-meta,
+.md-rendered .hljs-variable,
+.md-rendered .hljs-template-variable,
+.md-rendered .hljs-addition {
   color: #d19a66;
 }
 
-.markdown-preview .hljs-deletion {
+.markdown-preview .hljs-deletion,
+.md-rendered .hljs-deletion {
   color: #e06c75;
 }
 
 .markdown-preview .hljs-title,
-.markdown-preview .hljs-function .hljs-title {
+.markdown-preview .hljs-function .hljs-title,
+.md-rendered .hljs-title,
+.md-rendered .hljs-function .hljs-title {
   color: #61afef;
 }
 
-html.light .markdown-preview pre > code.hljs {
+html.light .markdown-preview pre > code.hljs,
+html.light .md-rendered pre > code.hljs {
   background: #fafafa;
   color: #383a42;
 }
 
 html.light .markdown-preview .hljs-comment,
-html.light .markdown-preview .hljs-quote {
+html.light .markdown-preview .hljs-quote,
+html.light .md-rendered .hljs-comment,
+html.light .md-rendered .hljs-quote {
   color: #a0a1a7;
 }
 
@@ -504,7 +534,17 @@ html.light .markdown-preview .hljs-section,
 html.light .markdown-preview .hljs-type,
 html.light .markdown-preview .hljs-attr,
 html.light .markdown-preview .hljs-built_in,
-html.light .markdown-preview .hljs-builtin-name {
+html.light .markdown-preview .hljs-builtin-name,
+html.light .md-rendered .hljs-keyword,
+html.light .md-rendered .hljs-selector-tag,
+html.light .md-rendered .hljs-literal,
+html.light .md-rendered .hljs-name,
+html.light .md-rendered .hljs-doctag,
+html.light .md-rendered .hljs-section,
+html.light .md-rendered .hljs-type,
+html.light .md-rendered .hljs-attr,
+html.light .md-rendered .hljs-built_in,
+html.light .md-rendered .hljs-builtin-name {
   color: #a626a4;
 }
 
@@ -513,7 +553,13 @@ html.light .markdown-preview .hljs-title,
 html.light .markdown-preview .hljs-regexp,
 html.light .markdown-preview .hljs-symbol,
 html.light .markdown-preview .hljs-bullet,
-html.light .markdown-preview .hljs-link {
+html.light .markdown-preview .hljs-link,
+html.light .md-rendered .hljs-string,
+html.light .md-rendered .hljs-title,
+html.light .md-rendered .hljs-regexp,
+html.light .md-rendered .hljs-symbol,
+html.light .md-rendered .hljs-bullet,
+html.light .md-rendered .hljs-link {
   color: #50a14f;
 }
 
@@ -521,16 +567,24 @@ html.light .markdown-preview .hljs-number,
 html.light .markdown-preview .hljs-meta,
 html.light .markdown-preview .hljs-variable,
 html.light .markdown-preview .hljs-template-variable,
-html.light .markdown-preview .hljs-addition {
+html.light .markdown-preview .hljs-addition,
+html.light .md-rendered .hljs-number,
+html.light .md-rendered .hljs-meta,
+html.light .md-rendered .hljs-variable,
+html.light .md-rendered .hljs-template-variable,
+html.light .md-rendered .hljs-addition {
   color: #986801;
 }
 
-html.light .markdown-preview .hljs-deletion {
+html.light .markdown-preview .hljs-deletion,
+html.light .md-rendered .hljs-deletion {
   color: #e45649;
 }
 
 html.light .markdown-preview .hljs-title,
-html.light .markdown-preview .hljs-function .hljs-title {
+html.light .markdown-preview .hljs-function .hljs-title,
+html.light .md-rendered .hljs-title,
+html.light .md-rendered .hljs-function .hljs-title {
   color: #4078f2;
 }
 
