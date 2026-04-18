@@ -183,6 +183,7 @@ export function useChatStream(
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,
                     searchContext: data.searchContext ?? undefined,
+                    timestamp: Date.now(),
                   }
                 : m,
             ),
@@ -197,6 +198,12 @@ export function useChatStream(
         }
 
         await consumeStream(res.body, assistantId, text);
+        const completionTime = Date.now();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, timestamp: completionTime } : m,
+          ),
+        );
         clearDraft(sessionIdRef.current);
         onStreamComplete?.();
       } catch (err) {
