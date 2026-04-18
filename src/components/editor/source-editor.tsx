@@ -42,9 +42,10 @@ const appTheme = EditorView.theme({
     overflow: "auto",
   },
   ".cm-content": {
-    maxWidth: "82ch",
+    width: "100%",
+    maxWidth: "none",
     margin: "0 auto",
-    padding: "0 clamp(1rem, 4vw, 2.5rem)",
+    padding: "0 clamp(1rem, 2vw, 2.5rem)",
   },
   ".cm-gutters": {
     display: "none",
@@ -154,7 +155,7 @@ export default function CodeMirrorEditor({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full bg-background text-text-secondary"
+      className="h-full w-full bg-transparent text-text-secondary"
     />
   );
 }
