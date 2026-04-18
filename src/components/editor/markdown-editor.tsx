@@ -39,6 +39,8 @@ interface MarkdownEditorProps {
 }
 
 const DRAFT_DEBOUNCE_MS = 1000;
+const canvasShellClass =
+  "mx-auto flex h-full min-h-0 w-full lg:w-[75%] max-w-[88rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 shadow-[0_24px_80px_rgba(0,0,0,0.24)]";
 
 /**
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
@@ -268,10 +270,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div
-      className="h-full flex flex-col bg-background"
-      onBlur={handleEditorBlur}
-    >
+    <div className="h-full flex flex-col bg-background" onBlur={handleEditorBlur}>
       {/* Toolbar */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
         {/* Source / Read toggle */}
@@ -342,37 +341,37 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto flex flex-col items-center bg-background">
-        {mode === "source" ? (
-          loaded ? (
-            <div className="w-full h-full">
-              <SourceEditor
-                value={displayContent}
-                onChange={(val) => {
-                  setLocalContent(val);
-                  setIsDirty(true);
-                  scheduleDraftWrite(val);
-                }}
-                onSave={handleSave}
-                placeholder={t("Start writing...")}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-              Loading...
-            </div>
-          )
-        ) : loaded ? (
-          <div className="w-full max-w-[82ch] mx-auto h-full px-4 md:px-8 lg:px-10">
-            <div className="pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
+      <div className="flex-1 overflow-hidden bg-background px-4 py-4 md:px-6 md:py-6">
+        <div className={canvasShellClass}>
+          {mode === "source" ? (
+            loaded ? (
+              <div className="h-full min-h-0 w-full">
+                <SourceEditor
+                  value={displayContent}
+                  onChange={(val) => {
+                    setLocalContent(val);
+                    setIsDirty(true);
+                    scheduleDraftWrite(val);
+                  }}
+                  onSave={handleSave}
+                  placeholder={t("Start writing...")}
+                />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+                Loading...
+              </div>
+            )
+          ) : loaded ? (
+            <div className="h-full min-h-0 w-full overflow-auto px-6 py-10 md:px-10 md:py-12">
               <PreviewRenderer content={displayContent} noteId={file.fileId} />
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-            Loading...
-          </div>
-        )}
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+              Loading...
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
