@@ -53,7 +53,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     thinkingMode,
     toggleThinking,
     restoredMessages,
-    restored,
     updateRefs,
   } = useChatPersistence({
     compact,
