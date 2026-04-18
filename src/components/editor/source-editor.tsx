@@ -19,7 +19,7 @@ import {
   syntaxHighlighting,
   defaultHighlightStyle,
 } from "@codemirror/language";
-import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
+import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 
 interface CodeMirrorEditorProps {
   value: string;
@@ -121,7 +121,6 @@ export default function CodeMirrorEditor({
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(oneDarkHighlightStyle),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        oneDark,
         appTheme,
         EditorView.lineWrapping,
         cmPlaceholder(placeholder),
