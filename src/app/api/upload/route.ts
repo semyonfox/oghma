@@ -251,6 +251,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const session = await requireAuth();
+  const storage = getStorageProvider();
 
   const path = request.nextUrl.searchParams.get("path");
   if (!path) return tracedError("path query parameter required", 400);
@@ -262,7 +263,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   `;
   if (!owned.length) return tracedError("File not found", 404);
 
-  // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
-  const proxyUrl = `/api/proxy/s3?path=${encodeURIComponent(path)}`;
-  return NextResponse.json({ success: true, path, url: proxyUrl });
+  const url = await storage.getSignUrl(path, 300);
+  return NextResponse.json({ success: true, path, url });
 });

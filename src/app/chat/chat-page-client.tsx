@@ -333,10 +333,10 @@ export default function ChatPageClient() {
           </Link>
         </div>
 
-        <div className="px-3 py-2.5">
+        <div className="px-3 pt-4 pb-2.5">
           <button
             onClick={newConversation}
-            className="flex w-full min-h-[44px] items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary glass-card-interactive hover:text-text-secondary transition-colors"
+            className="flex w-full min-h-[44px] items-center gap-2 rounded-radius-md border border-border-subtle bg-subtle px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle-hover hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
           >
             <PlusIcon className="w-4 h-4" />
             {t("chat.new_conversation")}
