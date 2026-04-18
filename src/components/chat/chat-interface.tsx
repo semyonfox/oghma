@@ -63,7 +63,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   } = useChatPersistence({
     compact,
     controlledSessionId,
-    welcomeMessage,
   });
 
   const {

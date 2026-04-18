@@ -15,7 +15,6 @@ interface PersistenceRefs {
 interface UseChatPersistenceOptions {
   compact: boolean;
   controlledSessionId?: string;
-  welcomeMessage: string;
 }
 
 interface UseChatPersistenceResult {
@@ -34,7 +33,7 @@ interface UseChatPersistenceResult {
 export function useChatPersistence(
   options: UseChatPersistenceOptions,
 ): UseChatPersistenceResult {
-  const { compact, controlledSessionId, welcomeMessage } = options;
+  const { compact, controlledSessionId } = options;
 
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
@@ -138,7 +137,6 @@ export function useChatPersistence(
       }
     };
     void restore();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledSessionId, compact, restored]);
 
   // refs for unload handlers (kept in sync by the consumer)
