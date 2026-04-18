@@ -52,6 +52,7 @@ frontend:
     preBuild:
       commands:
         - npm ci --include=dev --legacy-peer-deps
+        - node scripts/configure-s3-cors.mjs
     build:
       commands:
         # run pending database migrations while DATABASE_URL is still set
