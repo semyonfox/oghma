@@ -61,7 +61,7 @@ git push origin dev
 The GitHub Actions workflow `.github/workflows/deploy-worker.yml` will:
 
 1. Build Docker image for the worker
-2. Push to ECR (`723920043097.dkr.ecr.eu-west-1.amazonaws.com/oghmanotes-worker`)
+2. Push to ECR (`<aws-account-id>.dkr.ecr.eu-west-1.amazonaws.com/oghmanotes-worker`)
 3. Trigger new ECS deployment on the `canvas-import-worker` service
 
 **Deployment time**: ~2–3 minutes (ECR push + ECS task replacement)
@@ -370,7 +370,7 @@ aws logs tail /aws/ecs/oghmanotes/canvas-import-worker --follow
 
 # Check SQS queue depth
 aws sqs get-queue-attributes \
-  --queue-url https://sqs.eu-west-1.amazonaws.com/723920043097/canvas-import-jobs \
+  --queue-url https://sqs.eu-west-1.amazonaws.com/<aws-account-id>/oghmanotes-canvas-import \
   --attribute-names ApproximateNumberOfMessages
 
 # Test Marker health
