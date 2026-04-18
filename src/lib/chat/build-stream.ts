@@ -5,10 +5,7 @@ import type { ToolSet } from "ai";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
 import { generateUUID } from "@/lib/utils/uuid";
-import {
-  addNoteToTree,
-  moveNoteInTree,
-} from "@/lib/notes/storage/pg-tree.js";
+import { addNoteToTree, moveNoteInTree } from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
@@ -124,7 +121,7 @@ function buildToolInstruction(
   canvasInstruction: string,
 ): string {
   return (
-    "You have 8 tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
+    "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
     "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
     "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
     "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
@@ -174,16 +171,15 @@ function createChatTools(
         };
       }
 
-      const resolvedTitle = (
-        title?.trim() || inferNoteTitle(trimmed)
-      ).slice(0, 500);
+      const resolvedTitle = (title?.trim() || inferNoteTitle(trimmed)).slice(
+        0,
+        500,
+      );
       const markdown =
         trimmed.startsWith("#") || trimmed.startsWith("---")
           ? trimmed
           : `# ${resolvedTitle}\n\n${trimmed}`;
-      const fileName = sanitizeFileName(
-        `${resolvedTitle || "AI_Note"}.md`,
-      );
+      const fileName = sanitizeFileName(`${resolvedTitle || "AI_Note"}.md`);
       const markdownBuffer = Buffer.from(markdown, "utf-8");
 
       const newNoteId = generateUUID();
@@ -219,11 +215,7 @@ function createChatTools(
         WHERE note_id = ${newNoteId}::uuid AND user_id = ${userId}::uuid
       `;
 
-      await replaceNoteEmbeddings(
-        newNoteId,
-        userId,
-        chunkText(markdown),
-      );
+      await replaceNoteEmbeddings(newNoteId, userId, chunkText(markdown));
 
       await cacheInvalidate(
         cacheKeys.treeChildren(userId, parentID || null),
@@ -268,12 +260,10 @@ function createChatTools(
         LIMIT 10
       `;
       return {
-        folders: (rows as { note_id: string; title: string }[]).map(
-          (r) => ({
-            id: r.note_id,
-            title: r.title,
-          }),
-        ),
+        folders: (rows as { note_id: string; title: string }[]).map((r) => ({
+          id: r.note_id,
+          title: r.title,
+        })),
       };
     },
   });
@@ -549,7 +539,11 @@ export async function buildLlmCall(
   const chatMessages: ChatMessage[] = [
     {
       role: "system",
-      content: [params.systemPrompt, params.sessionMemoryPrompt, toolInstruction]
+      content: [
+        params.systemPrompt,
+        params.sessionMemoryPrompt,
+        toolInstruction,
+      ]
         .filter(Boolean)
         .join("\n\n"),
     },

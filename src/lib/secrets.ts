@@ -3,18 +3,26 @@
 // keys are normalized to UPPERCASE so snake_case secrets work (e.g. database_url → DATABASE_URL)
 // no-op when SECRETS_ID is unset (local dev continues using .env.local as-is)
 
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from "@aws-sdk/client-secrets-manager";
 
 export async function loadSecrets(): Promise<void> {
-  const raw = process.env.SECRETS_ID ?? '';
-  const secretIds = raw.split(',').map(s => s.trim()).filter(Boolean);
+  const raw = process.env.SECRETS_ID ?? "";
+  const secretIds = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (secretIds.length === 0) return;
 
-  const region = process.env.AWS_REGION ?? 'eu-north-1';
+  const region = process.env.AWS_REGION ?? "eu-west-1";
   const client = new SecretsManagerClient({ region });
 
   for (const secretId of secretIds) {
-    const res = await client.send(new GetSecretValueCommand({ SecretId: secretId }));
+    const res = await client.send(
+      new GetSecretValueCommand({ SecretId: secretId }),
+    );
     if (!res.SecretString) continue;
 
     const secrets = JSON.parse(res.SecretString) as Record<string, string>;

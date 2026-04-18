@@ -1,6 +1,6 @@
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { ToolSet } from "ai";
-import { canvasMcpToolSchemas } from "@/lib/canvas/mcp";
+import { canvasMcpToolSchemas, canvasToolInstruction } from "@/lib/canvas/mcp";
 import { createInternalMcpToken } from "@/lib/mcp/internal-auth";
 import logger from "@/lib/logger";
 
@@ -25,14 +25,7 @@ export function resolveAppOrigin(input: {
   );
 }
 
-export const canvasToolInstruction =
-  "Canvas tools available when course data is needed:\n" +
-  "- canvas_list_courses({ limit? }) — list active Canvas courses to find course IDs.\n" +
-  "- canvas_list_modules({ courseId, limit? }) — list modules in a Canvas course.\n" +
-  "- canvas_list_assignments({ courseId, limit? }) — list assignments with due dates and submission state.\n" +
-  "- canvas_list_module_items({ courseId, moduleId, limit? }) — inspect items inside a module.\n" +
-  "- canvas_get_file({ courseId, fileId }) — fetch Canvas file metadata only.\n" +
-  "Use Canvas tools only when the user asks about Canvas course content, assignments, modules, or files. Prefer note tools first when the answer likely exists in imported notes.";
+export { canvasToolInstruction };
 
 export async function createCanvasMcpTools(args: {
   userId: string;

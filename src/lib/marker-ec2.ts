@@ -131,7 +131,7 @@ async function ensureAsgRunning(): Promise<string> {
 
 // single instance mode (legacy)
 async function ensureSingleInstanceRunning(): Promise<string> {
-  const ec2 = new EC2Client({ region: process.env.AWS_REGION ?? "eu-north-1" });
+  const ec2 = new EC2Client({ region: process.env.AWS_REGION ?? "eu-west-1" });
   const deadline = Date.now() + MAX_TRANSITION_WAIT_MS;
 
   while (true) {
