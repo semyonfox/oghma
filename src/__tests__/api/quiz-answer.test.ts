@@ -290,14 +290,25 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
     expect(body.nextQuestion).toBeNull();
   });
 
-  it("fires streak update as fire-and-forget (fetch called)", async () => {
+  it("fires streak update once the minStreakRound threshold is reached", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
-    mockSuccessfulAnswer({ wasCorrect: true });
+    // answeredCount=10 means answeredSoFar=9, answered=10 — crosses the threshold
+    mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 10 });
     const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
     await POST(req, routeParams);
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+  });
+
+  it("does not fire streak update before the minStreakRound threshold", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    // answeredCount=3 (default) — only 3 answers, well below 10
+    mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 3 });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
+    await POST(req, routeParams);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("triggers fatigue warning after 5+ answers with >40% wrong", async () => {

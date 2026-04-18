@@ -9,7 +9,7 @@ export type NavSection =
   | "chat"
   | "quiz"
   | "settings";
-export type RightPanelTab = "meta" | "tags" | "ai" | "tasks";
+export type RightPanelTab = "meta" | "ai" | "tasks";
 
 interface PaneState {
   fileId: string;
