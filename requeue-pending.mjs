@@ -4,7 +4,7 @@ import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const sqsUrl = process.env.SQS_QUEUE_URL;
-const awsRegion = 'eu-north-1';
+const awsRegion = 'eu-west-1';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const sqs = new SQSClient({ region: awsRegion });

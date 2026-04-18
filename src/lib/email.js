@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 
 // Amplify blocks AWS_ prefixed env vars, so fall back to SES_ prefix
 const sesRegion =
-  process.env.AWS_SES_REGION || process.env.SES_REGION || "eu-north-1";
+  process.env.AWS_SES_REGION || process.env.SES_REGION || "eu-west-1";
 const transporter = nodemailer.createTransport({
   host: `email-smtp.${sesRegion}.amazonaws.com`,
   port: 587,

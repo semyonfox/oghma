@@ -42,7 +42,7 @@ const keepWarmMode =
   String(process.env.WORKER_KEEP_WARM ?? "").toLowerCase() === "true";
 
 const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-north-1",
+  region: process.env.AWS_REGION ?? "eu-west-1",
 });
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 const RETRY_QUEUE_URL = process.env.SQS_EXTRACT_RETRY_QUEUE_URL;
@@ -289,7 +289,7 @@ while (true) {
       );
       try {
         const ecsClient = new ECSClient({
-          region: process.env.AWS_REGION ?? "eu-north-1",
+          region: process.env.AWS_REGION ?? "eu-west-1",
         });
         await ecsClient.send(
           new UpdateServiceCommand({

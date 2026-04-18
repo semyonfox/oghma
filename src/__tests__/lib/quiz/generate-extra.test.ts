@@ -35,6 +35,18 @@ describe("buildGenerationPrompt", () => {
     expect(prompt).toContain("False");
   });
 
+  it("can force true/false questions to have True as correct", () => {
+    const prompt = buildGenerationPrompt(
+      "content",
+      "Mod",
+      1,
+      "true_false",
+      undefined,
+      "true",
+    );
+    expect(prompt).toContain("The correct option MUST be True");
+  });
+
   it("tells LLM to generate fill-in-the-blank with null options", () => {
     const prompt = buildGenerationPrompt("content", "Mod", 1, "fill_in");
     expect(prompt).toMatch(/fill.in.the.blank/i);

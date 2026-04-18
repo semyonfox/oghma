@@ -228,7 +228,7 @@ aws ecs update-service \
   --cluster oghmanotes \
   --service canvas-import-worker \
   --force-new-deployment \
-  --region eu-north-1
+  --region eu-west-1
 ```
 
 ---
@@ -264,4 +264,3 @@ aws ecs update-service \
 - `src/__tests__/lib/canvas/extraction-retry.test.ts` - Retry logic
 - `src/__tests__/lib/rag-indexing.test.ts` - Shared embeddings
 - 283+ existing tests remain passing
-
