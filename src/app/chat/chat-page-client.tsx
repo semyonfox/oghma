@@ -368,7 +368,7 @@ export default function ChatPageClient() {
                   setMountKey((prev) => prev + 1);
                   setActiveId(conv.id);
                 }}
-                className="flex w-full items-start px-3 py-2.5 pr-14 text-left focus-visible:outline-none"
+                className="flex w-full items-start px-3 py-2.5 pr-10 text-left focus-visible:outline-none"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
                 <div className="min-w-0 flex-1">
@@ -382,7 +382,7 @@ export default function ChatPageClient() {
                 </div>
               </Link>
 
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex w-12 items-center justify-end">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end pr-1">
                 <span
                   className="text-[10px] text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                   suppressHydrationWarning

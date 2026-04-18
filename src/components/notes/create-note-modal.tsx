@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useCallback, useRef } from "react";
+import { FC, useState, useCallback, useRef, useEffect } from "react";
 import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -26,7 +26,13 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   const [mode, setMode] = useState<"upload" | "new" | "folder">("new");
   const [isDragging, setIsDragging] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [filename, setFilename] = useState("Untitled");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filenameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (mode === "new") filenameInputRef.current?.select();
+  }, [mode]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -91,16 +97,18 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   }, []);
 
   const handleCreateNew = useCallback(async () => {
+    const name = filename.trim() || "Untitled";
+    const title = name.endsWith(".md") ? name : `${name}.md`;
     setIsCreating(true);
     try {
-      await onCreateNote("Untitled.md", "markdown");
+      await onCreateNote(title, "markdown");
       onClose();
     } catch (error) {
       console.error("Create failed:", error);
     } finally {
       setIsCreating(false);
     }
-  }, [onCreateNote, onClose]);
+  }, [filename, onCreateNote, onClose]);
 
   const handleCreateFolder = useCallback(async () => {
     setIsCreating(true);
@@ -185,10 +193,26 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
 
           {/* New File Mode */}
           {mode === "new" && (
-            <div className="space-y-4">
-              <p className="text-sm text-text-tertiary">
-                {t("Create a new markdown file")}
-              </p>
+            <div className="space-y-3">
+              <label className="block text-xs font-medium text-text-tertiary uppercase tracking-wide">
+                {t("File name")}
+              </label>
+              <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-lg px-3 py-2 focus-within:border-primary-500/50 transition-colors">
+                <input
+                  ref={filenameInputRef}
+                  type="text"
+                  value={filename}
+                  onChange={(e) => setFilename(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleCreateNew();
+                  }}
+                  disabled={isCreating}
+                  autoFocus
+                  className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none disabled:opacity-50"
+                  placeholder="Untitled"
+                />
+                <span className="text-xs text-text-tertiary flex-shrink-0">.md</span>
+              </div>
             </div>
           )}
 

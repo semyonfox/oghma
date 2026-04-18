@@ -127,11 +127,13 @@ export const POST = withErrorHandler(
       `;
     });
 
-    // update streak (fire and forget)
-    fetch(new URL("/api/quiz/streak", request.url), {
-      method: "POST",
-      headers: { cookie: request.headers.get("cookie") || "" },
-    }).catch(() => {});
+    // update streak only after a full round — first time crossing the threshold today
+    if (answeredSoFar + 1 >= SESSION_DEFAULTS.minStreakRound) {
+      fetch(new URL("/api/quiz/streak", request.url), {
+        method: "POST",
+        headers: { cookie: request.headers.get("cookie") || "" },
+      }).catch(() => {});
+    }
 
     // get next question if nextCardId provided — scoped to userId (C2)
     let nextQuestion: any = null;
