@@ -4,6 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
+      - ".github/workflows/deploy-worker.yml"
       - "src/lib/canvas/**"
       - "src/lib/chunking.ts"
       - "src/lib/embeddings.ts"
