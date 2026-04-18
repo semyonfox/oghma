@@ -148,7 +148,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
-        <div className="flex-1 overflow-y-auto px-3 py-1.5 space-y-1.5">
+        <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-[5px]">
           {messages.map((m) => (
             <CompactMessageBubble key={m.id} message={m} />
           ))}
@@ -157,8 +157,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex-shrink-0 border-t border-border-subtle px-2 py-2">
-          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1.5 focus-within:border-primary-500/50 transition-colors">
+        <div className="flex-shrink-0 border-t border-border-subtle px-2 py-1.5">
+          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -167,12 +167,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               disabled={loading}
-              className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder-text-tertiary focus:outline-none disabled:opacity-50"
+              className="flex-1 min-w-0 bg-transparent text-[11px] text-text-secondary placeholder-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               type="button"
               onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-medium px-1.5 py-1 rounded border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-medium px-1.5 py-[3px] rounded border transition-colors ${
                 thinkingActive
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary"
@@ -184,7 +184,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <button
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="p-1 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-lg transition-colors flex-shrink-0"
+              className="p-1 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
             </button>
@@ -198,39 +198,41 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
-        {messages.length === 0 ? (
-          <ChatSplash />
-        ) : (
-          messages.map((m) => (
-            <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
-          ))
-        )}
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 lg:px-8 py-4 obsidian-scrollbar">
+        <div className="mx-auto flex w-full max-w-3xl flex-col space-y-3">
+          {messages.length === 0 ? (
+            <ChatSplash />
+          ) : (
+            messages.map((m) => (
+              <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
+            ))
+          )}
 
-        {error && (
-          <div className="flex justify-center">
-            <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-lg">
-              {error}
-            </p>
-          </div>
-        )}
+          {error && (
+            <div className="flex justify-center">
+              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-lg">
+                {error}
+              </p>
+            </div>
+          )}
 
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* input area */}
-      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-12 py-4">
-        <div className="max-w-3xl mx-auto">
+      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-3 md:px-6 lg:px-8 py-3">
+        <div className="mx-auto max-w-3xl">
           {/* context badge -- shown when a note/scope is active */}
           {(noteId ||
             noteTitle ||
             selectedNotes.length > 0 ||
             selectedFolders.length > 0) && (
-            <div className="flex items-center gap-2 mb-2 px-1">
+            <div className="flex items-center gap-2 mb-1.5 px-1">
               <button
                 type="button"
                 onClick={clear}
-                className="inline-flex items-center gap-1.5 text-xs text-text-tertiary bg-surface border border-border-subtle rounded-md px-2.5 py-1 hover:border-border hover:text-text-secondary transition-colors"
+                className="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary bg-surface border border-border-subtle rounded-md px-2.5 py-1 hover:border-border hover:text-text-secondary transition-colors"
                 title="Clear context and start a new conversation"
               >
                 {noteTitle
@@ -243,15 +245,15 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             </div>
           )}
 
-          <form
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex items-center gap-2 bg-surface border border-border-subtle rounded-2xl px-4 py-3 focus-within:border-primary-500/50 transition-colors"
-          >
-            <textarea
-              ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            <form
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-3 py-2.5 focus-within:border-primary-500/50 transition-colors"
+            >
+              <textarea
+                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
@@ -262,16 +264,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               placeholder={t("chat.ask_placeholder")}
               disabled={loading}
               rows={1}
-              className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50 leading-relaxed"
-              style={{ minHeight: "24px", maxHeight: "120px" }}
-            />
-            <button
-              type="button"
-              onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                thinkingActive
-                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
-                  : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
+                className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50 leading-snug"
+                style={{ minHeight: "22px", maxHeight: "104px" }}
+              />
+              <button
+                type="button"
+                onClick={toggleThinking}
+                className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-[5px] rounded-md border transition-colors ${
+                  thinkingActive
+                    ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+                    : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
               }`}
               title={
                 thinkingActive
@@ -281,16 +283,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             >
               ◆ {thinkingActive ? "Thinking" : "Think"}
             </button>
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="flex-shrink-0 p-2 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-xl transition-colors"
-            >
-              <PaperAirplaneIcon className="w-4 h-4" />
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
+              >
+                <PaperAirplaneIcon className="w-3.5 h-3.5" />
+              </button>
+            </form>
 
-          <p className="text-center text-xs text-text-tertiary opacity-50 mt-2">
+          <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-1.5">
             {t("chat.disclaimer")}
           </p>
         </div>
