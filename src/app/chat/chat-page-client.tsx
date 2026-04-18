@@ -35,6 +35,18 @@ interface ContextItem {
   title: string;
 }
 
+function relativeDate(ms: number): string {
+  const diff = Date.now() - ms;
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function ChatPageClient() {
   const { t } = useI18n();
   const router = useRouter();
@@ -62,6 +74,7 @@ export default function ChatPageClient() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
   const [loaded, setLoaded] = useState(false);
+  const [mountKey, setMountKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState<ContextItem[]>([]);
   const [selectedFolders, setSelectedFolders] = useState<ContextItem[]>([]);
 
@@ -196,11 +209,13 @@ export default function ChatPageClient() {
   }, [loadSessions]);
 
   const newConversation = useCallback(() => {
+    setMountKey((prev) => prev + 1);
     setActiveId(null);
     router.push(draftHref);
   }, [draftHref, router]);
 
   const clearContextAndStartNewChat = useCallback(() => {
+    setMountKey((prev) => prev + 1);
     setSelectedNotes([]);
     setSelectedFolders([]);
     setActiveId(null);
@@ -253,6 +268,7 @@ export default function ChatPageClient() {
     if (!res.ok) return;
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeId === id) {
+      setMountKey((prev) => prev + 1);
       setActiveId(null);
       router.replace(draftHref);
     }
@@ -286,16 +302,6 @@ export default function ChatPageClient() {
     setSelectedFolders([]);
     syncScopeUrl([], []);
   };
-
-  const chatInstanceKey =
-    activeId ??
-    [
-      "new",
-      paramNoteId ?? "",
-      paramFolderId ?? "",
-      selectedNotes.map((note) => note.id).join(","),
-      selectedFolders.map((folder) => folder.id).join(","),
-    ].join(":");
 
   return (
     <div className="h-screen w-screen flex bg-app-page text-text overflow-hidden">
@@ -342,6 +348,7 @@ export default function ChatPageClient() {
             <button
               key={conv.id}
               onClick={() => {
+                setMountKey((prev) => prev + 1);
                 setActiveId(conv.id);
                 router.push(`/chat/${conv.id}`);
               }}
@@ -351,28 +358,36 @@ export default function ChatPageClient() {
                   : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
               }`}
             >
-              <div className="flex items-start justify-between gap-1">
-                <p className="font-medium truncate text-sm flex-1">
+              <div className="flex items-center justify-between gap-1">
+                <p className="font-medium truncate text-sm flex-1 min-w-0">
                   {conv.title}
                 </p>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void deleteConversation(conv.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span
+                    className="text-[10px] text-text-tertiary opacity-60 group-hover:opacity-0 transition-opacity"
+                    suppressHydrationWarning
+                  >
+                    {relativeDate(conv.createdAt)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
                       e.stopPropagation();
                       void deleteConversation(conv.id);
-                    }
-                  }}
-                  className="opacity-0 group-hover:opacity-100 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-error-400 transition-all flex-shrink-0 -mr-1"
-                  title={t("chat.delete_conversation")}
-                  aria-label={t("chat.delete_conversation")}
-                >
-                  <TrashIcon className="w-3.5 h-3.5" />
-                </button>
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                        void deleteConversation(conv.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-error-400 transition-all -mr-1"
+                    title={t("chat.delete_conversation")}
+                    aria-label={t("chat.delete_conversation")}
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
               {conv.noteTitle && (
                 <div className="flex items-center gap-1 mt-0.5 text-text-tertiary">
@@ -380,12 +395,6 @@ export default function ChatPageClient() {
                   <span className="truncate">{conv.noteTitle}</span>
                 </div>
               )}
-              <p className="text-text-tertiary opacity-60 mt-0.5" suppressHydrationWarning>
-                {new Date(conv.createdAt).toLocaleDateString([], {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </p>
             </button>
           ))}
           {loaded && conversations.length === 0 && (
@@ -473,7 +482,7 @@ export default function ChatPageClient() {
         </header>
 
         <ChatInterface
-          key={chatInstanceKey}
+          key={mountKey}
           sessionId={activeId ?? undefined}
           noteId={
             selectedNotes.length === 1 && selectedFolders.length === 0
@@ -493,6 +502,7 @@ export default function ChatPageClient() {
           selectedFolders={selectedFolders}
           onSessionCreated={handleSessionCreated}
           onClearContext={clearContextAndStartNewChat}
+          onStreamComplete={loadSessions}
           className="flex-1 min-h-0"
         />
       </main>
