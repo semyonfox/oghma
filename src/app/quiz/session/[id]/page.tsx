@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
+import type { CelebrationType } from "@/lib/celebration";
 import ProgressBar from "@/components/quiz/progress-bar";
 import QuestionCard from "@/components/quiz/question-card";
 import Feedback from "@/components/quiz/feedback";
@@ -26,9 +27,10 @@ function SessionComplete({
       : 0;
 
   useEffect(() => {
-    if (accuracy === 100 && !confettiRef.current) {
+    if (confettiRef.current) return;
+    if (accuracy >= 80) {
       confettiRef.current = true;
-      void triggerCelebration("quiz_perfect");
+      void triggerCelebration(accuracy === 100 ? "quiz_perfect" : "quiz_good");
     }
   }, [accuracy]);
 
@@ -143,6 +145,14 @@ function QuestionView({
 
     if (data.fatigueWarning) setFatigueWarning(true);
     if (data.isLeech) setIsLeech(true);
+
+    // streak confetti — fires once when the round threshold is crossed
+    if (data.streakResult?.advanced) {
+      const type: CelebrationType = data.streakResult.newMilestone
+        ? "streak_milestone"
+        : "streak";
+      void triggerCelebration(type);
+    }
 
     if (data.nextQuestion) {
       advanceQuestion(data.nextQuestion, data.sessionProgress);

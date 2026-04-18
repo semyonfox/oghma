@@ -127,12 +127,51 @@ export const POST = withErrorHandler(
       `;
     });
 
-    // update streak only after a full round — first time crossing the threshold today
+    // update streak inline once a full round is completed
+    let streakResult: { advanced: boolean; current_streak: number; newMilestone: number | null } | null = null;
     if (answeredSoFar + 1 >= SESSION_DEFAULTS.minStreakRound) {
-      fetch(new URL("/api/quiz/streak", request.url), {
-        method: "POST",
-        headers: { cookie: request.headers.get("cookie") || "" },
-      }).catch(() => {});
+      try {
+        const MILESTONES = [7, 14, 30, 60, 90, 180, 365];
+        const today = new Date().toISOString().split("T")[0];
+        const [existing] = await sql`
+          SELECT current_streak, longest_streak, last_review_date, total_review_days, streak_milestones
+          FROM app.user_streaks WHERE user_id = ${userId}::uuid
+        `;
+        if (!existing) {
+          await sql`
+            INSERT INTO app.user_streaks (user_id, current_streak, longest_streak, last_review_date, total_review_days, streak_milestones)
+            VALUES (${userId}::uuid, 1, 1, ${today}::date, 1, '[]'::jsonb)
+          `;
+          streakResult = { advanced: true, current_streak: 1, newMilestone: null };
+        } else if (existing.last_review_date !== today) {
+          const diffDays = Math.floor(
+            (new Date(today).getTime() - new Date(existing.last_review_date).getTime()) / 86400000,
+          );
+          const newStreak = diffDays === 1 ? existing.current_streak + 1 : 1;
+          const longestStreak = Math.max(newStreak, existing.longest_streak);
+          const existingMilestones = existing.streak_milestones || [];
+          const reachedDays = existingMilestones.map((m: any) => m.days);
+          let newMilestone: number | null = null;
+          for (const m of MILESTONES) {
+            if (newStreak >= m && !reachedDays.includes(m)) {
+              newMilestone = m;
+              existingMilestones.push({ days: m, reached_at: new Date().toISOString() });
+            }
+          }
+          await sql`
+            UPDATE app.user_streaks
+            SET current_streak = ${newStreak}, longest_streak = ${longestStreak},
+                last_review_date = ${today}::date,
+                total_review_days = ${existing.total_review_days + 1},
+                streak_milestones = ${JSON.stringify(existingMilestones)}::jsonb,
+                updated_at = now()
+            WHERE user_id = ${userId}::uuid
+          `;
+          streakResult = { advanced: true, current_streak: newStreak, newMilestone };
+        }
+      } catch {
+        // streak update failing must not break answer submission
+      }
     }
 
     // get next question if nextCardId provided — scoped to userId (C2)
@@ -170,6 +209,7 @@ export const POST = withErrorHandler(
       nextQuestion,
       fatigueWarning,
       isLeech,
+      streakResult,
       sessionProgress: {
         answered,
         total: sessionStats?.total_questions || 0,
