@@ -75,30 +75,45 @@ export function useSidebarActions(deps: {
     }
   }, [createFolder, setRenamingId]);
 
-  // upload file
-  const handleUploadFile = useCallback(
+  // upload one file and create a note for it
+  const uploadFile = useCallback(
     async (file: File) => {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
+      const formData = new FormData();
+      formData.append("file", file);
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        if (!uploadRes.ok) {
-          toast.error("Failed to upload file");
-          return;
+      if (!uploadRes.ok) {
+        throw new Error("upload failed");
+      }
+
+      return uploadRes.json();
+    },
+    [],
+  );
+
+  // upload files
+  const handleUploadFiles = useCallback(
+    async (files: File[]) => {
+      let firstNoteId: string | null = null;
+
+      for (const file of files) {
+        try {
+          const uploadData = await uploadFile(file);
+          if (!firstNoteId) firstNoteId = uploadData.noteId;
+        } catch {
+          toast.error(`Failed to upload ${file.name}`);
         }
+      }
 
-        const uploadData = await uploadRes.json();
-        router.push(`/notes/${uploadData.noteId}`);
-      } catch {
-        toast.error("Failed to upload file");
+      if (firstNoteId) {
+        router.push(`/notes/${firstNoteId}`);
       }
     },
-    [router],
+    [router, uploadFile],
   );
 
   // collapse all tree items
@@ -361,7 +376,7 @@ export function useSidebarActions(deps: {
     handleCreateFolderFromModal,
     handleQuickNewNote,
     handleQuickNewFolder,
-    handleUploadFile,
+    handleUploadFiles,
     handleCollapseAll,
     handleRename,
     handleDeleteRequest,
