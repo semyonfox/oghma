@@ -40,7 +40,7 @@ interface MarkdownEditorProps {
 
 const DRAFT_DEBOUNCE_MS = 1000;
 const canvasShellClass =
-  "mx-auto flex h-full min-h-0 w-full lg:w-[75%] max-w-[88rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 shadow-[0_24px_80px_rgba(0,0,0,0.24)]";
+  "mx-auto flex h-full min-h-0 w-full lg:w-[75%] max-w-[88rem] min-w-0 flex-col overflow-hidden";
 
 /**
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
@@ -341,7 +341,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden bg-background px-4 py-4 md:px-6 md:py-6">
+      <div className="flex-1 overflow-hidden bg-background">
         <div className={canvasShellClass}>
           {mode === "source" ? (
             loaded ? (

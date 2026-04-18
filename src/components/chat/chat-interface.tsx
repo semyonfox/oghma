@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useRef, useEffect, KeyboardEvent, FormEvent } from "react";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, StopCircleIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
 import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
@@ -68,6 +68,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     error,
     setError,
     send,
+    cancel,
   } = useChatStream({
     t,
     noteId,
@@ -110,6 +111,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (!text || loading) return;
 
     setInput("");
+    if (inputRef.current) {
+      (inputRef.current as HTMLTextAreaElement).style.height = "20px";
+    }
 
     const history = messages
       .filter((m) => m.content.trim().length > 0)
@@ -199,7 +203,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     <div className={`flex flex-col h-full ${className}`}>
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar">
-        <div className="mx-auto flex w-full max-w-xl flex-col space-y-2.5">
+        <div className="mx-auto flex w-full max-w-3xl flex-col space-y-2.5">
           {messages.length === 0 ? (
             <ChatSplash />
           ) : (
@@ -222,7 +226,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
       {/* input area */}
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-3xl">
           {/* context badge -- shown when a note/scope is active */}
           {(noteId ||
             noteTitle ||
@@ -283,13 +287,24 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             >
               ◆ {thinkingActive ? "Thinking" : "Think"}
             </button>
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
-            >
-              <PaperAirplaneIcon className="w-3.5 h-3.5" />
-            </button>
+            {loading ? (
+              <button
+                type="button"
+                onClick={cancel}
+                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-md transition-colors"
+                title="Stop generating"
+              >
+                <StopCircleIcon className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
+              >
+                <PaperAirplaneIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
           </form>
 
           <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-1.5">

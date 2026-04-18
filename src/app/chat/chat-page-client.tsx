@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -71,6 +71,7 @@ export default function ChatPageClient() {
   const paramFolderTitle = paramFolderTitles[0] ?? undefined;
   const hasRouteScope = paramNoteIds.length > 0 || paramFolderIds.length > 0;
 
+  const pendingNavRef = useRef<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
   const [loaded, setLoaded] = useState(false);
@@ -251,17 +252,25 @@ export default function ChatPageClient() {
         ];
       });
       setActiveId(sessionId);
-      router.replace(buildChatSessionHref(sessionId, draftRouteContext));
+      // defer URL update to stream completion to avoid remounting mid-stream
+      pendingNavRef.current = buildChatSessionHref(sessionId, draftRouteContext);
     },
     [
       draftRouteContext,
       paramNoteId,
       paramNoteTitle,
-      router,
       selectedFolders,
       selectedNotes,
     ],
   );
+
+  const handleStreamComplete = useCallback(() => {
+    void loadSessions();
+    if (pendingNavRef.current) {
+      router.replace(pendingNavRef.current);
+      pendingNavRef.current = null;
+    }
+  }, [loadSessions, router]);
 
   const deleteConversation = async (id: string) => {
     const res = await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });
@@ -333,7 +342,7 @@ export default function ChatPageClient() {
           </Link>
         </div>
 
-        <div className="px-3 pt-4 pb-2.5">
+        <div className="px-2 pt-5 pb-2.5">
           <button
             onClick={newConversation}
             className="flex w-full min-h-[44px] items-center gap-2 rounded-radius-md border border-border-subtle bg-subtle px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle-hover hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
@@ -387,7 +396,7 @@ export default function ChatPageClient() {
                 onClick={() => {
                   void deleteConversation(conv.id);
                 }}
-                className="absolute inset-y-0 right-3 flex w-12 items-center justify-center text-text-tertiary opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-text-tertiary opacity-0 translate-x-2 pointer-events-none transition-[opacity,transform] duration-150 group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:translate-x-0 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
                 title={t("chat.delete_conversation")}
                 aria-label={t("chat.delete_conversation")}
               >
@@ -500,7 +509,7 @@ export default function ChatPageClient() {
           selectedFolders={selectedFolders}
           onSessionCreated={handleSessionCreated}
           onClearContext={clearContextAndStartNewChat}
-          onStreamComplete={loadSessions}
+          onStreamComplete={handleStreamComplete}
           className="flex-1 min-h-0"
         />
       </main>
