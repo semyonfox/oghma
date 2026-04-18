@@ -39,8 +39,6 @@ interface MarkdownEditorProps {
 }
 
 const DRAFT_DEBOUNCE_MS = 1000;
-const canvasShellClass =
-  "mx-auto flex h-full min-h-0 w-full lg:w-[75%] max-w-[88rem] min-w-0 flex-col overflow-hidden";
 
 /**
  * Markdown editor with Source (raw md) and Read (rendered preview) modes
@@ -342,36 +340,34 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden bg-background">
-        <div className={canvasShellClass}>
-          {mode === "source" ? (
-            loaded ? (
-              <div className="h-full min-h-0 w-full">
-                <SourceEditor
-                  value={displayContent}
-                  onChange={(val) => {
-                    setLocalContent(val);
-                    setIsDirty(true);
-                    scheduleDraftWrite(val);
-                  }}
-                  onSave={handleSave}
-                  placeholder={t("Start writing...")}
-                />
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-                Loading...
-              </div>
-            )
-          ) : loaded ? (
-            <div className="h-full min-h-0 w-full overflow-auto px-6 py-10 md:px-10 md:py-12">
-              <PreviewRenderer content={displayContent} noteId={file.fileId} />
+        {mode === "source" ? (
+          loaded ? (
+            <div className="h-full min-h-0 w-full">
+              <SourceEditor
+                value={displayContent}
+                onChange={(val) => {
+                  setLocalContent(val);
+                  setIsDirty(true);
+                  scheduleDraftWrite(val);
+                }}
+                onSave={handleSave}
+                placeholder={t("Start writing...")}
+              />
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
               Loading...
             </div>
-          )}
-        </div>
+          )
+        ) : loaded ? (
+          <div className="h-full min-h-0 w-full overflow-auto px-6 py-10 md:px-10 md:py-12">
+            <PreviewRenderer content={displayContent} noteId={file.fileId} />
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+            Loading...
+          </div>
+        )}
       </div>
     </div>
   );
