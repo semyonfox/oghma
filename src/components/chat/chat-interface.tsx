@@ -6,6 +6,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
 import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
 import { CompactMessageBubble, FullMessageBubble } from "./message-bubble";
+import ChatSplash from "./chat-splash";
 
 // re-export types so existing consumers keep working
 export type {
@@ -28,16 +29,10 @@ interface ChatInterfaceProps {
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** Called when the user clears the current scope */
   onClearContext?: () => void;
+  /** Called when a stream completes — useful for refreshing session list order */
+  onStreamComplete?: () => void;
   /** Optional extra class on the wrapper */
   className?: string;
-}
-
-// i18n keys
-const WELCOME_COMPACT_KEY = "chat.welcome_compact";
-const WELCOME_FULL_KEY = "chat.welcome_full";
-
-function makeWelcomeMessage(t: (key: string) => string, compact: boolean): string {
-  return compact ? t(WELCOME_COMPACT_KEY) : t(WELCOME_FULL_KEY);
 }
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
@@ -49,21 +44,19 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   selectedFolders = [],
   onSessionCreated,
   onClearContext,
+  onStreamComplete,
   className = "",
 }) => {
   const { t } = useI18n();
-  const welcomeMessage = makeWelcomeMessage(t, compact);
 
   const {
     thinkingMode,
     toggleThinking,
     restoredMessages,
-    restored,
     updateRefs,
   } = useChatPersistence({
     compact,
     controlledSessionId,
-    welcomeMessage,
   });
 
   const {
@@ -83,22 +76,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     selectedFolders,
     thinkingMode,
     onSessionCreated,
+    onStreamComplete,
   });
-
-  // initialize messages with the welcome message
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    setMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: welcomeMessage,
-        timestamp: Date.now(),
-      },
-    ]);
-  }, [welcomeMessage, setMessages]);
 
   // apply restored session messages when available
   useEffect(() => {
@@ -132,9 +111,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
     setInput("");
 
-    // build history (skip welcome message)
     const history = messages
-      .filter((m) => m.id !== "welcome")
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content }));
 
@@ -163,14 +140,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       }
     }
 
-    setMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: welcomeMessage,
-        timestamp: Date.now(),
-      },
-    ]);
+    setMessages([]);
     setSessionId(null);
     setError(null);
   };
@@ -229,9 +199,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     <div className={`flex flex-col h-full ${className}`}>
       {/* messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-12 py-6 space-y-5 obsidian-scrollbar">
-        {messages.map((m) => (
-          <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
-        ))}
+        {messages.length === 0 ? (
+          <ChatSplash />
+        ) : (
+          messages.map((m) => (
+            <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
+          ))
+        )}
 
         {error && (
           <div className="flex justify-center">
