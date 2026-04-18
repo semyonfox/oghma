@@ -304,12 +304,12 @@ export default function ChatPageClient() {
   };
 
   return (
-    <div className="h-screen w-screen flex bg-app-page text-text overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-app-page text-text">
       <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
         <IconNav />
       </div>
 
-      <aside className="w-56 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
+      <aside className="w-64 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-3 border-b border-border-subtle">
           <Link
             href="/notes"
@@ -333,21 +333,21 @@ export default function ChatPageClient() {
           </Link>
         </div>
 
-        <div className="px-2.5 py-2.5">
+        <div className="px-3 py-2.5">
           <button
             onClick={newConversation}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-text-tertiary glass-card-interactive hover:text-text-secondary transition-colors"
+            className="flex w-full min-h-[44px] items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary glass-card-interactive hover:text-text-secondary transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
             {t("chat.new_conversation")}
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-1.5 pb-3 space-y-0.5 obsidian-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 obsidian-scrollbar">
           {conversations.map((conv) => (
             <div
               key={conv.id}
-              className={`group relative overflow-hidden rounded-lg text-xs transition-colors ${
+              className={`group relative overflow-hidden rounded-radius-md text-xs transition-colors ${
                 conv.id === activeId
                   ? "glass-card-active text-text-secondary"
                   : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
@@ -359,21 +359,21 @@ export default function ChatPageClient() {
                   setMountKey((prev) => prev + 1);
                   setActiveId(conv.id);
                 }}
-                className="block w-full px-3 py-2.5 pr-16 text-left focus-visible:outline-none"
+                className="flex w-full items-start px-3 py-2.5 pr-14 text-left focus-visible:outline-none"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{conv.title}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium leading-5">{conv.title}</p>
                   {conv.noteTitle && (
-                    <div className="mt-0.5 flex items-center gap-1 text-text-tertiary">
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-text-tertiary">
                       <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{conv.noteTitle}</span>
+                      <span className="min-w-0 truncate">{conv.noteTitle}</span>
                     </div>
                   )}
                 </div>
               </Link>
 
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex w-14 items-center justify-end">
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex w-12 items-center justify-end">
                 <span
                   className="text-[10px] text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                   suppressHydrationWarning
@@ -387,7 +387,7 @@ export default function ChatPageClient() {
                 onClick={() => {
                   void deleteConversation(conv.id);
                 }}
-                className="absolute inset-y-0 right-3 flex w-14 items-center justify-center text-text-tertiary opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
+                className="absolute inset-y-0 right-3 flex w-12 items-center justify-center text-text-tertiary opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
                 title={t("chat.delete_conversation")}
                 aria-label={t("chat.delete_conversation")}
               >
