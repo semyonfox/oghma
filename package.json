@@ -19,8 +19,7 @@
     "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
     "prepare": "husky",
     "i18n:audit": "node scripts/i18n-audit.mjs",
-    "i18n:extract": "node scripts/extract-i18n.js",
-    "setup:cors": "node scripts/configure-s3-cors.mjs"
+    "i18n:extract": "node scripts/extract-i18n.js"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.36",
