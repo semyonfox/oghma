@@ -602,6 +602,16 @@ html.light .md-rendered .hljs-function .hljs-title {
   min-width: 44px;
 }
 
+/* katex math rendering */
+.katex-display {
+  margin: 1.25em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.katex {
+  font-size: 1.05em;
+}
+
 /* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

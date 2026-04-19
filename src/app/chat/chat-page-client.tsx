@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -39,11 +39,11 @@ function relativeDate(ms: number): string {
   const diff = Date.now() - ms;
   const m = Math.floor(diff / 60_000);
   if (m < 1) return "just now";
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
+  if (d < 7) return `${d}d ago`;
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
@@ -71,6 +71,7 @@ export default function ChatPageClient() {
   const paramFolderTitle = paramFolderTitles[0] ?? undefined;
   const hasRouteScope = paramNoteIds.length > 0 || paramFolderIds.length > 0;
 
+  const pendingNavRef = useRef<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
   const [loaded, setLoaded] = useState(false);
@@ -251,17 +252,25 @@ export default function ChatPageClient() {
         ];
       });
       setActiveId(sessionId);
-      router.replace(buildChatSessionHref(sessionId, draftRouteContext));
+      // defer URL update to stream completion to avoid remounting mid-stream
+      pendingNavRef.current = buildChatSessionHref(sessionId, draftRouteContext);
     },
     [
       draftRouteContext,
       paramNoteId,
       paramNoteTitle,
-      router,
-      selectedFolders.length,
+      selectedFolders,
       selectedNotes,
     ],
   );
+
+  const handleStreamComplete = useCallback(() => {
+    void loadSessions();
+    if (pendingNavRef.current) {
+      router.replace(pendingNavRef.current);
+      pendingNavRef.current = null;
+    }
+  }, [loadSessions, router]);
 
   const deleteConversation = async (id: string) => {
     const res = await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });
@@ -304,13 +313,13 @@ export default function ChatPageClient() {
   };
 
   return (
-    <div className="h-screen w-screen flex bg-app-page text-text overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-app-page text-text">
       <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
         <IconNav />
       </div>
 
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-4 border-b border-border-subtle">
+      <aside className="w-64 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-3 border-b border-border-subtle">
           <Link
             href="/notes"
             className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors"
@@ -333,69 +342,67 @@ export default function ChatPageClient() {
           </Link>
         </div>
 
-        <div className="px-3 py-3">
+        <div className="px-2 pt-3 pb-2.5 border-t border-border-subtle">
           <button
             onClick={newConversation}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-tertiary glass-card-interactive hover:text-text-secondary transition-colors"
+            className="glass-card-interactive flex w-full min-h-[44px] items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
           >
             <PlusIcon className="w-4 h-4" />
             {t("chat.new_conversation")}
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 obsidian-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 obsidian-scrollbar">
           {conversations.map((conv) => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => {
-                setMountKey((prev) => prev + 1);
-                setActiveId(conv.id);
-                router.push(`/chat/${conv.id}`);
-              }}
-              className={`group w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
+              className={`group relative overflow-hidden rounded-radius-md text-xs transition-colors ${
                 conv.id === activeId
                   ? "glass-card-active text-text-secondary"
                   : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
-              }`}
+              } focus-within:ring-1 focus-within:ring-primary-400/30`}
             >
-              <div className="flex items-center justify-between gap-1">
-                <p className="font-medium truncate text-sm flex-1 min-w-0">
-                  {conv.title}
-                </p>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className="text-[10px] text-text-tertiary opacity-60 group-hover:opacity-0 transition-opacity"
-                    suppressHydrationWarning
-                  >
-                    {relativeDate(conv.createdAt)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteConversation(conv.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                        void deleteConversation(conv.id);
-                      }
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-error-400 transition-all -mr-1"
-                    title={t("chat.delete_conversation")}
-                    aria-label={t("chat.delete_conversation")}
-                  >
-                    <TrashIcon className="w-3.5 h-3.5" />
-                  </button>
+              <Link
+                href={`/chat/${conv.id}`}
+                onClick={() => {
+                  setMountKey((prev) => prev + 1);
+                  setActiveId(conv.id);
+                }}
+                className="flex w-full items-start px-3 py-2.5 pr-10 text-left focus-visible:outline-none"
+                aria-current={conv.id === activeId ? "page" : undefined}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium leading-5">{conv.title}</p>
+                  {conv.noteTitle && (
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-text-tertiary">
+                      <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
+                      <span className="min-w-0 truncate">{conv.noteTitle}</span>
+                    </div>
+                  )}
                 </div>
+              </Link>
+
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end pr-1">
+                <span
+                  className="text-[10px] text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                  suppressHydrationWarning
+                >
+                  {relativeDate(conv.createdAt)}
+                </span>
               </div>
-              {conv.noteTitle && (
-                <div className="flex items-center gap-1 mt-0.5 text-text-tertiary">
-                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{conv.noteTitle}</span>
-                </div>
-              )}
-            </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void deleteConversation(conv.id);
+                }}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-text-tertiary opacity-0 translate-x-full pointer-events-none transition-[opacity,transform] duration-150 group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:translate-x-0 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
+                title={t("chat.delete_conversation")}
+                aria-label={t("chat.delete_conversation")}
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
           ))}
           {loaded && conversations.length === 0 && (
             <p className="text-xs text-text-tertiary text-center py-4">
@@ -404,7 +411,7 @@ export default function ChatPageClient() {
           )}
         </nav>
 
-        <div className="flex-shrink-0 border-t border-border-subtle px-4 py-3">
+        <div className="flex-shrink-0 border-t border-border-subtle px-3 py-2.5">
           <Link
             href="/settings"
             className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
@@ -415,70 +422,13 @@ export default function ChatPageClient() {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-b border-border-subtle glass-panel">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-sm font-medium text-text-secondary truncate">
-              {activeConv?.title ??
-                (contextPrefix
-                  ? t("chat.about_context", { context: contextPrefix })
-                  : t("chat.new_conversation"))}
-            </h1>
-            {(activeConv?.noteId || paramNoteId) &&
-              selectedNotes.length === 0 &&
-              selectedFolders.length === 0 && (
-                <a
-                  href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-                >
-                  <DocumentTextIcon className="w-3 h-3" />
-                  <span className="truncate max-w-[150px]">
-                    {activeConv?.noteTitle ?? paramNoteTitle}
-                  </span>
-                </a>
-              )}
-            {selectedNotes.map((note) => (
-              <span
-                key={`note-${note.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
-              >
-                <DocumentTextIcon className="w-3 h-3" />
-                <span className="truncate max-w-[120px]">{note.title}</span>
-                <button
-                  onClick={() => removeSelectedNote(note.id)}
-                  className="text-text-tertiary hover:text-text-secondary min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  title="Remove file"
-                  aria-label={`Remove ${note.title}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {selectedFolders.map((folder) => (
-              <span
-                key={`folder-${folder.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-xs text-primary-400"
-              >
-                <span className="truncate max-w-[120px]">{folder.title}</span>
-                <button
-                  onClick={() => removeSelectedFolder(folder.id)}
-                  className="text-primary-500/70 hover:text-primary-300 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  title="Remove folder"
-                  aria-label={`Remove ${folder.title}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {(selectedNotes.length > 0 || selectedFolders.length > 0) && (
-              <button
-                onClick={clearSelection}
-                className="text-xs text-text-tertiary hover:text-text-secondary"
-                title="Clear selected context"
-              >
-                clear
-              </button>
-            )}
-          </div>
+        <header className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-border-subtle glass-panel">
+          <h1 className="text-sm font-medium text-text-secondary truncate">
+            {activeConv?.title ??
+              (contextPrefix
+                ? t("chat.about_context", { context: contextPrefix })
+                : t("chat.new_conversation"))}
+          </h1>
         </header>
 
         <ChatInterface
@@ -502,7 +452,9 @@ export default function ChatPageClient() {
           selectedFolders={selectedFolders}
           onSessionCreated={handleSessionCreated}
           onClearContext={clearContextAndStartNewChat}
-          onStreamComplete={loadSessions}
+          onStreamComplete={handleStreamComplete}
+          onRemoveNote={removeSelectedNote}
+          onRemoveFolder={removeSelectedFolder}
           className="flex-1 min-h-0"
         />
       </main>

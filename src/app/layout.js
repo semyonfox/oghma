@@ -1,4 +1,5 @@
 import { DM_Sans, Source_Serif_4 } from "next/font/google";
+import "katex/dist/katex.min.css";
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import PomodoroIntegration from "@/components/PomodoroIntegration";

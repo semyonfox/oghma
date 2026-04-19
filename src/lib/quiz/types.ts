@@ -84,4 +84,6 @@ export const SESSION_DEFAULTS = {
     weightDue: 0.7,
     weightNew: 0.2,
     weightRetention: 0.1,
+    // minimum questions answered in a session before the day counts toward streak
+    minStreakRound: 10,
 };

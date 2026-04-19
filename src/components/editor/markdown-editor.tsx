@@ -268,12 +268,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div
-      className="h-full flex flex-col bg-background"
-      onBlur={handleEditorBlur}
-    >
+    <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
         {/* Source / Read toggle */}
         <div className="flex items-center gap-1 glass-panel p-0.5 rounded-radius-md">
           <button
@@ -342,10 +339,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto flex flex-col items-center bg-background">
+      <div className="flex-1 overflow-hidden bg-app-page">
         {mode === "source" ? (
           loaded ? (
-            <div className="w-full h-full">
+            <div className="h-full min-h-0 w-full">
               <SourceEditor
                 value={displayContent}
                 onChange={(val) => {
@@ -358,18 +355,16 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
               />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
               Loading...
             </div>
           )
         ) : loaded ? (
-          <div className="w-full max-w-[82ch] mx-auto h-full px-4 md:px-8 lg:px-10">
-            <div className="pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
-              <PreviewRenderer content={displayContent} noteId={file.fileId} />
-            </div>
+          <div className="h-full min-h-0 w-full overflow-auto px-6 py-10 md:px-10 md:py-12">
+            <PreviewRenderer content={displayContent} noteId={file.fileId} />
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
             Loading...
           </div>
         )}

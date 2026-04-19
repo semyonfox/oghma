@@ -15,11 +15,8 @@ import {
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-} from "@codemirror/language";
-import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
+import { syntaxHighlighting } from "@codemirror/language";
+import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 
 interface CodeMirrorEditorProps {
   value: string;
@@ -28,7 +25,7 @@ interface CodeMirrorEditorProps {
   placeholder?: string;
 }
 
-// custom theme overrides to blend with the app's dark background
+// custom theme — dark: true signals dark mode to CM6 so cursor/selection use dark defaults
 const appTheme = EditorView.theme({
   "&": {
     height: "100%",
@@ -42,9 +39,10 @@ const appTheme = EditorView.theme({
     overflow: "auto",
   },
   ".cm-content": {
-    maxWidth: "82ch",
+    width: "100%",
+    maxWidth: "none",
     margin: "0 auto",
-    padding: "0 clamp(1rem, 4vw, 2.5rem)",
+    padding: "0 clamp(1rem, 2vw, 2.5rem)",
   },
   ".cm-gutters": {
     display: "none",
@@ -70,7 +68,7 @@ const appTheme = EditorView.theme({
   ".cm-strikethrough": { textDecoration: "line-through" },
   ".cm-url": { color: "#60a5fa" },
   ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
-});
+}, { dark: true });
 
 export default function CodeMirrorEditor({
   value,
@@ -80,6 +78,7 @@ export default function CodeMirrorEditor({
 }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const destroyedRef = useRef(false);
   // keep callbacks in refs so extensions don't go stale
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -94,6 +93,7 @@ export default function CodeMirrorEditor({
   // create editor once on mount
   useEffect(() => {
     if (!containerRef.current) return;
+    destroyedRef.current = false;
 
     const saveKeymap = keymap.of([
       {
@@ -119,8 +119,6 @@ export default function CodeMirrorEditor({
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(oneDarkHighlightStyle),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        oneDark,
         appTheme,
         EditorView.lineWrapping,
         cmPlaceholder(placeholder),
@@ -132,6 +130,7 @@ export default function CodeMirrorEditor({
     viewRef.current = view;
 
     return () => {
+      destroyedRef.current = true;
       view.destroy();
       viewRef.current = null;
     };
@@ -142,7 +141,7 @@ export default function CodeMirrorEditor({
   // sync external value changes (e.g. note switch, cross-pane sync)
   useEffect(() => {
     const view = viewRef.current;
-    if (!view) return;
+    if (!view || destroyedRef.current) return;
     const current = view.state.doc.toString();
     if (value !== current) {
       view.dispatch({
@@ -154,7 +153,7 @@ export default function CodeMirrorEditor({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full bg-background text-text-secondary"
+      className="h-full w-full bg-transparent text-text-secondary"
     />
   );
 }

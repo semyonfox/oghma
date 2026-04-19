@@ -100,7 +100,7 @@ export async function resolveScopedNoteIds(
 
 export function buildSystemPrompt(results: SearchResult[]): string {
   if (results.length === 0) {
-    return "You are a helpful study assistant. No relevant notes were found for this question, but you can still help using your general knowledge. Let the user know you didn't find matching notes, then answer as best you can. Be friendly and concise.";
+    return "You are a helpful study assistant. No relevant note content was retrieved for this question — use your tools (getChunks, readNote) to search the attached notes before answering. If the notes truly contain nothing relevant, answer from general knowledge and say so.";
   }
 
   // group chunks by note for cleaner context
@@ -123,6 +123,36 @@ If you go beyond the notes, briefly mention that you're drawing on general knowl
 
 NOTES CONTEXT:
 ${blocks.join("\n\n")}`;
+}
+
+/**
+ * Keyword fallback for when semantic search finds nothing in scoped notes.
+ * Uses chunk-search's exact+note-level ILIKE path so it works even for unindexed notes.
+ * Maps ChatChunkHit → SearchResult so buildSystemPrompt can use the results directly.
+ */
+export async function runKeywordFallback(
+  userId: string,
+  message: string,
+  scopedNoteIds: string[],
+): Promise<SearchResult[]> {
+  if (scopedNoteIds.length === 0) return [];
+  try {
+    const { searchChatChunks } = await import("@/lib/chat/chunk-search");
+    const hits = await searchChatChunks({
+      userId,
+      query: message,
+      mode: "both",
+      scopedNoteIds,
+    });
+    return hits.map((h) => ({
+      note_id: h.noteId,
+      title: h.title,
+      chunk_text: h.text,
+      distance: 0,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export interface RagResult {

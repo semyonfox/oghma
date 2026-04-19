@@ -1,7 +1,5 @@
 "use client";
 
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import MarkdownRenderer from "@/lib/markdown/renderer";
 
@@ -14,8 +12,7 @@ export default function QuizMarkdown({ children, className }: QuizMarkdownProps)
   return (
     <MarkdownRenderer
       className={className}
-      remarkPlugins={[remarkMath]}
-      rehypePlugins={[rehypeKatex, rehypeHighlight]}
+      rehypePlugins={[rehypeHighlight]}
       components={{
         p: ({ children }: any) => (
           <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>
