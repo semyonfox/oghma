@@ -422,61 +422,13 @@ export default function ChatPageClient() {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border-subtle glass-panel">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-sm font-medium text-text-secondary truncate">
-              {activeConv?.title ??
-                (contextPrefix
-                  ? t("chat.about_context", { context: contextPrefix })
-                  : t("chat.new_conversation"))}
-            </h1>
-            {(activeConv?.noteId || paramNoteId) &&
-              selectedNotes.length === 0 &&
-              selectedFolders.length === 0 && (
-                <a
-                  href={`/notes/${activeConv?.noteId ?? paramNoteId}`}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-                >
-                  <DocumentTextIcon className="w-3 h-3" />
-                  <span className="truncate max-w-[150px]">
-                    {activeConv?.noteTitle ?? paramNoteTitle}
-                  </span>
-                </a>
-              )}
-            {selectedNotes.map((note) => (
-              <span
-                key={`note-${note.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
-              >
-                <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate max-w-[120px]">{note.title}</span>
-                <button
-                  onClick={() => removeSelectedNote(note.id)}
-                  className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
-                  title={`Remove ${note.title}`}
-                  aria-label={`Remove ${note.title}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {selectedFolders.map((folder) => (
-              <span
-                key={`folder-${folder.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
-              >
-                <span className="truncate max-w-[120px]">{folder.title}</span>
-                <button
-                  onClick={() => removeSelectedFolder(folder.id)}
-                  className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
-                  title={`Remove ${folder.title}`}
-                  aria-label={`Remove ${folder.title}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
+        <header className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-border-subtle glass-panel">
+          <h1 className="text-sm font-medium text-text-secondary truncate">
+            {activeConv?.title ??
+              (contextPrefix
+                ? t("chat.about_context", { context: contextPrefix })
+                : t("chat.new_conversation"))}
+          </h1>
         </header>
 
         <ChatInterface
@@ -501,6 +453,8 @@ export default function ChatPageClient() {
           onSessionCreated={handleSessionCreated}
           onClearContext={clearContextAndStartNewChat}
           onStreamComplete={handleStreamComplete}
+          onRemoveNote={removeSelectedNote}
+          onRemoveFolder={removeSelectedFolder}
           className="flex-1 min-h-0"
         />
       </main>

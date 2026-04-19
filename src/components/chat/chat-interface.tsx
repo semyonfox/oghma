@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useRef, useEffect, KeyboardEvent, FormEvent } from "react";
-import { PaperAirplaneIcon, StopCircleIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
 import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
@@ -31,6 +31,8 @@ interface ChatInterfaceProps {
   onClearContext?: () => void;
   /** Called when a stream completes — useful for refreshing session list order */
   onStreamComplete?: () => void;
+  onRemoveNote?: (id: string) => void;
+  onRemoveFolder?: (id: string) => void;
   /** Optional extra class on the wrapper */
   className?: string;
 }
@@ -45,6 +47,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   onSessionCreated,
   onClearContext,
   onStreamComplete,
+  onRemoveNote,
+  onRemoveFolder,
   className = "",
 }) => {
   const { t } = useI18n();
@@ -227,6 +231,34 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {/* input area */}
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
         <div className="mx-auto max-w-3xl">
+          {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
+              {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate max-w-[150px]">{noteTitle}</span>
+                </span>
+              )}
+              {selectedNotes.map((note) => (
+                <span key={note.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                  <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate max-w-[120px]">{note.title}</span>
+                  {onRemoveNote && (
+                    <button onClick={() => onRemoveNote(note.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none" title={`Remove ${note.title}`}>×</button>
+                  )}
+                </span>
+              ))}
+              {selectedFolders.map((folder) => (
+                <span key={folder.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                  <FolderIcon className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate max-w-[120px]">{folder.title}</span>
+                  {onRemoveFolder && (
+                    <button onClick={() => onRemoveFolder(folder.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none" title={`Remove ${folder.title}`}>×</button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
