@@ -212,14 +212,16 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
       ref={paneRef}
       className={`h-full flex flex-col bg-background transition-colors ${isDragging ? "opacity-60" : ""}`}
       onMouseDown={() => setActivePane(pane)}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       {/* Pane Header */}
-      <div className="flex-shrink-0 h-9 px-3 border-b border-border-subtle flex items-center justify-between cursor-move">
+      <div
+        className="flex-shrink-0 h-9 px-3 border-b border-border-subtle flex items-center justify-between cursor-move"
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm text-text-secondary truncate">
             {file.title || file.fileId}
