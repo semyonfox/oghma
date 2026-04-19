@@ -12,7 +12,7 @@ import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-
 import logger from "@/lib/logger";
 import { streamText } from "ai";
 import { persistMessage } from "@/lib/chat/session";
-import { runRagPipeline, buildSystemPrompt } from "@/lib/chat/rag-pipeline";
+import { runRagPipeline, buildSystemPrompt, fetchUnindexedNoteContent } from "@/lib/chat/rag-pipeline";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
@@ -158,7 +158,10 @@ export const handler = awslambda.streamifyResponse(
       // ── RAG pipeline ────────────────────────────────────────────────────
 
       const ragResult = await runRagPipeline(userId, message, scope.scopedNoteIds);
-      const systemPrompt = buildSystemPrompt(ragResult.searchResults);
+      const directContent = scope.scopedNoteIds && ragResult.searchResults.length === 0
+        ? await fetchUnindexedNoteContent(userId, scope.scopedNoteIds)
+        : [];
+      const systemPrompt = buildSystemPrompt(ragResult.searchResults, directContent);
       const sessionMemoryPrompt = buildSessionMemoryPrompt(scope.sessionContext);
       const { uniqueSources, retrieval } = await buildRetrievalInfo(
         userId,
