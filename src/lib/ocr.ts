@@ -81,7 +81,7 @@ async function callEc2Marker(
   const mime = mimeFromFilename(filename);
   form.append(
     "file",
-    new Blob([new Uint8Array(buffer)], { type: mime }),
+    new Blob([buffer], { type: mime }),
     filename,
   );
   form.append("output_format", "markdown");

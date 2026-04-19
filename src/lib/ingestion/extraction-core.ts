@@ -49,6 +49,18 @@ export async function extractContentFromBuffer({
     return { rawText, chunks: chunkText(rawText), source: "text" };
   }
 
+  // CANVAS_SKIP_MARKER=true: bypass Marker entirely (e.g. ASG scaled to 0)
+  // PDFs use pdf-parse text layer; other binaries are stored as attachments only
+  if (process.env.CANVAS_SKIP_MARKER === "true") {
+    if (mimeType === "application/pdf") {
+      const fallback = await extractPdfTextLayer(buffer);
+      if (fallback) {
+        return { rawText: fallback.rawText, chunks: fallback.chunks, source: "pdf-parse" };
+      }
+    }
+    return { rawText: "", chunks: [], source: "pdf-parse" };
+  }
+
   try {
     const marker = await extractWithMarker(buffer, filename);
     return {

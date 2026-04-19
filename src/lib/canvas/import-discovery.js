@@ -280,14 +280,10 @@ async function discoverCourse(course, userId, ctx) {
     canvasAcademicYear: academicYear,
   });
 
-  await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
-  await discoverAssignmentFiles(
-    courseId,
-    userId,
-    courseTitle,
-    courseFolderId,
-    ctx,
-  );
+  await Promise.all([
+    discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx),
+    discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx),
+  ]);
 
   try {
     const { synced, errors } = await syncAssignmentMetadata(

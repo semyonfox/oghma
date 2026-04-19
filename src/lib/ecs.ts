@@ -7,8 +7,9 @@ const ecsClient = new ECSClient({
 const CLUSTER = process.env.ECS_CLUSTER ?? "oghmanotes";
 const SERVICE = process.env.ECS_SERVICE ?? "canvas-import-worker";
 const MAX_WORKERS = 5;
-// each worker processes up to 10 files concurrently (CANVAS_GLOBAL_FILE_CONCURRENCY)
-const FILES_PER_WORKER = 10;
+// OCR is the bottleneck — matches CANVAS_OCR_CONCURRENCY in import-embedding.js
+const FILES_PER_WORKER =
+  Number.parseInt(process.env.CANVAS_OCR_CONCURRENCY ?? "2", 10) || 2;
 
 // trigger rebuild: 2026-04-16 - force new deployment after AWS migration
 // non-fatal — if IAM isn't wired yet the worker DB poll will catch the job
