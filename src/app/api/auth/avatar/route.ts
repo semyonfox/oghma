@@ -8,6 +8,7 @@ import {
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
 import logger from "@/lib/logger";
+import { assertTrustedOrigin } from "@/lib/api-error";
 
 /** resolve user_id from either Auth.js (OAuth) or custom JWT session */
 async function resolveUserId(): Promise<string | number | null> {
@@ -108,6 +109,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    assertTrustedOrigin(request);
     const userId = await resolveUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

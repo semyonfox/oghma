@@ -6,6 +6,9 @@
 
 set -e
 
+AWS_REGION="${AWS_REGION:-eu-west-1}"
+DATABASE_SECRET_ID="${DATABASE_SECRET_ID:-oghmanotes/database}"
+
 echo "════════════════════════════════════════════════════"
 echo "  OghmaNotes Database Migration"
 echo "════════════════════════════════════════════════════"
@@ -14,12 +17,12 @@ echo ""
 # build connection string from Secrets Manager if DATABASE_URL not set
 if [ -z "$DATABASE_URL" ] && command -v aws &> /dev/null; then
     echo "Fetching credentials from Secrets Manager..."
-    DATABASE_URL=$(aws secretsmanager get-secret-value --region eu-north-1 \
-        --secret-id oghmanotes/database --query SecretString --output text 2>/dev/null \
-        | python3 -c "import sys,json; print(json.load(sys.stdin)['database_url'])" 2>/dev/null || true)
+    DATABASE_URL=$(aws secretsmanager get-secret-value --region "$AWS_REGION" \
+        --secret-id "$DATABASE_SECRET_ID" --query SecretString --output text 2>/dev/null \
+        | python3 -c "import json,sys; secret=json.load(sys.stdin); print(secret.get('database_url') or secret.get('DATABASE_URL') or secret.get('url') or '')" 2>/dev/null || true)
 fi
 
-DATABASE_URL="${DATABASE_URL:?Set DATABASE_URL or configure oghmanotes/database in Secrets Manager}"
+DATABASE_URL="${DATABASE_URL:?Set DATABASE_URL or configure $DATABASE_SECRET_ID in Secrets Manager}"
 
 # mask credentials in output
 MASKED=$(echo "$DATABASE_URL" | sed 's|://[^@]*@|://***@|')

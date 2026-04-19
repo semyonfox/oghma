@@ -204,7 +204,7 @@ Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total 
 
 | Resource        | Name / ID                  | Region    | Status                      |
 | --------------- | -------------------------- | --------- | --------------------------- |
-| Amplify app     | `d22kmou82nb1c5`           | eu-west-1 | Active                      |
+| Amplify app     | `<amplify-app-id>`           | eu-west-1 | Active                      |
 | ECS cluster     | `oghmanotes`               | eu-west-1 | Active                      |
 | ECS service     | `canvas-import-worker`     | eu-west-1 | Scaled per demand           |
 | Marker ASG      | `<marker-asg>`    | eu-west-1 | desired=0, spot enabled     |

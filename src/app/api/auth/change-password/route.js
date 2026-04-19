@@ -7,9 +7,11 @@ import {
 } from "@/lib/auth.js";
 import { validatePassword } from "@/lib/validation.js";
 import logger from "@/lib/logger";
+import { assertTrustedOrigin } from "@/lib/api-error";
 
 export async function POST(request) {
   try {
+    assertTrustedOrigin(request);
     const user = await validateSession();
     if (!user) {
       return createErrorResponse("Unauthorized", 401);

@@ -1,6 +1,9 @@
 // clears all auth cookies (custom JWT + Auth.js OAuth) to fully terminate the session
-export async function POST() {
+import { assertTrustedOrigin } from "@/lib/api-error";
+
+export async function POST(request) {
   try {
+    assertTrustedOrigin(request);
     const expired = "Thu, 01 Jan 1970 00:00:00 UTC";
 
     // every cookie name that could hold session state

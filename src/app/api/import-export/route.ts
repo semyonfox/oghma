@@ -7,12 +7,15 @@ import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
 import { SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ensureWorkerRunning } from "@/lib/ecs";
 import logger from "@/lib/logger";
+import { assertTrustedOrigin } from "@/lib/api-error";
 
 const ENABLED = process.env.VAULT_JOBS_ENABLED === "true";
 
 // POST /api/import-export?action=export  — queues a vault export job
 // POST /api/import-export?action=import  — queues a vault import job (expects zip upload)
 export async function POST(request: NextRequest) {
+  assertTrustedOrigin(request);
+
   if (!ENABLED) {
     return NextResponse.json(
       { error: "Vault import/export is not yet enabled." },
