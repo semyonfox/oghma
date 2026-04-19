@@ -448,12 +448,12 @@ export default function ChatPageClient() {
                 key={`note-${note.id}`}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
               >
-                <DocumentTextIcon className="w-3 h-3" />
+                <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                 <span className="truncate max-w-[120px]">{note.title}</span>
                 <button
                   onClick={() => removeSelectedNote(note.id)}
-                  className="text-text-tertiary hover:text-text-secondary min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  title="Remove file"
+                  className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
+                  title={`Remove ${note.title}`}
                   aria-label={`Remove ${note.title}`}
                 >
                   ×
@@ -463,28 +463,19 @@ export default function ChatPageClient() {
             {selectedFolders.map((folder) => (
               <span
                 key={`folder-${folder.id}`}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-primary-500/20 bg-primary-500/10 text-xs text-primary-400"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary"
               >
                 <span className="truncate max-w-[120px]">{folder.title}</span>
                 <button
                   onClick={() => removeSelectedFolder(folder.id)}
-                  className="text-primary-500/70 hover:text-primary-300 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  title="Remove folder"
+                  className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
+                  title={`Remove ${folder.title}`}
                   aria-label={`Remove ${folder.title}`}
                 >
                   ×
                 </button>
               </span>
             ))}
-            {(selectedNotes.length > 0 || selectedFolders.length > 0) && (
-              <button
-                onClick={clearSelection}
-                className="text-xs text-text-tertiary hover:text-text-secondary"
-                title="Clear selected context"
-              >
-                clear
-              </button>
-            )}
           </div>
         </header>
 

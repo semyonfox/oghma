@@ -227,28 +227,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       {/* input area */}
       <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
         <div className="mx-auto max-w-3xl">
-          {/* context badge -- shown when a note/scope is active */}
-          {(noteId ||
-            noteTitle ||
-            selectedNotes.length > 0 ||
-            selectedFolders.length > 0) && (
-            <div className="flex items-center gap-2 mb-1 px-1">
-              <button
-                type="button"
-                onClick={clear}
-                className="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary bg-surface border border-border-subtle rounded-md px-2.5 py-1 hover:border-border hover:text-text-secondary transition-colors"
-                title="Clear context and start a new conversation"
-              >
-                {noteTitle
-                  ? noteTitle
-                  : selectedNotes.length > 0
-                    ? `${selectedNotes.length} note${selectedNotes.length > 1 ? "s" : ""}`
-                    : "Selected folder"}
-                <span className="opacity-50 ml-0.5">×</span>
-              </button>
-            </div>
-          )}
-
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
