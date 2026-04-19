@@ -438,7 +438,7 @@ html.light .glass-card-active {
   overflow-x: auto;
   border-radius: 0;
   padding: 1.25rem 1.5rem;
-  background: rgb(40 44 52 / 0.92);
+  background: rgb(23 34 52 / 0.94);
   color: #abb2bf;
 }
 
@@ -514,7 +514,7 @@ html.light .glass-card-active {
 
 html.light .markdown-preview pre > code.hljs,
 html.light .md-rendered pre > code.hljs {
-  background: #f5f5f5;
+  background: #fbfcfe;
   color: #383a42;
 }
 
@@ -593,7 +593,7 @@ html.light .md-rendered .hljs-function .hljs-title {
   position: relative;
 }
 .touch-target-44::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;

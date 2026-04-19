@@ -79,7 +79,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       if (!isDirtyRef.current) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       // fire-and-forget flush — IDB write is fast enough to land before teardown
-      writeDraft(currentFileId.current, localContentRef.current).catch(() => {});
+      writeDraft(currentFileId.current, localContentRef.current).catch(
+        () => {},
+      );
       e.preventDefault();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -117,9 +119,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       if (!draftRestored) {
         try {
           const { noteCacheInstance } = await import("@/lib/notes/cache");
-          const cached = await noteCacheInstance.getItem<{ content?: string; updatedAt?: string }>(
-            file.fileId,
-          );
+          const cached = await noteCacheInstance.getItem<{
+            content?: string;
+            updatedAt?: string;
+          }>(file.fileId);
           if (
             !cancelled &&
             cached?.content != null &&
@@ -143,7 +146,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           // but check if the server version is actually newer (conflict)
           if (draftRestored) {
             const draft = await readDraft(file.fileId);
-            const serverMs = result.updatedAt ? new Date(result.updatedAt).getTime() : 0;
+            const serverMs = result.updatedAt
+              ? new Date(result.updatedAt).getTime()
+              : 0;
             const draftMs = draft?.draftAt ?? 0;
             if (serverMs > draftMs) {
               // server has a newer version than the draft — warn once, don't block
@@ -360,8 +365,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </div>
           )
         ) : loaded ? (
-          <div className="h-full min-h-0 w-full overflow-auto">
-            <div className="px-8 py-10">
+          <div className="h-full min-h-0 w-full overflow-auto px-4 py-10 md:px-8 lg:px-10">
+            <div className="mx-auto w-full max-w-3xl">
               <PreviewRenderer content={displayContent} noteId={file.fileId} />
             </div>
           </div>
