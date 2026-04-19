@@ -602,12 +602,6 @@ html.light .md-rendered .hljs-function .hljs-title {
   min-width: 44px;
 }
 
-/* CodeMirror: punch through oneDark's hardcoded #282c34 so bg-app-page shows */
-.cm-editor,
-.cm-editor .cm-scroller {
-  background-color: transparent !important;
-}
-
 /* katex math rendering */
 .katex-display {
   margin: 1.25em 0;
