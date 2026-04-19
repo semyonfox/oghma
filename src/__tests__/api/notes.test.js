@@ -49,6 +49,7 @@ import { GET as notesGET, POST as notesPOST } from "@/app/api/notes/route.js";
 import {
   GET as noteGET,
   PUT as notePUT,
+  PATCH as notePATCH,
   DELETE as noteDELETE,
 } from "@/app/api/notes/[id]/route.js";
 import { validateSession } from "@/lib/auth.js";
@@ -213,6 +214,24 @@ describe("PUT /api/notes/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.title).toBe("Updated Title");
+  });
+});
+
+describe("PATCH /api/notes/[id]", () => {
+  it("accepts partial note updates through the same handler", async () => {
+    const updatedRow = { ...NOTE_ROW, content: "# Updated" };
+    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([updatedRow]);
+
+    const req = makeRequest("PATCH", "http://localhost/api/notes/note-uuid-1", {
+      content: "# Updated",
+    });
+    const res = await notePATCH(req, {
+      params: Promise.resolve({ id: "note-uuid-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.content).toBe("# Updated");
   });
 });
 
