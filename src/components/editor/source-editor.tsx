@@ -26,49 +26,64 @@ interface CodeMirrorEditorProps {
 }
 
 // custom theme — dark: true signals dark mode to CM6 so cursor/selection use dark defaults
-const appTheme = EditorView.theme({
-  "&": {
-    height: "100%",
-    fontSize: "14px",
-    backgroundColor: "transparent",
+const appTheme = EditorView.theme(
+  {
+    "&": {
+      height: "100%",
+      fontSize: "14px",
+      backgroundColor: "transparent",
+    },
+    ".cm-scroller": {
+      fontFamily:
+        'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+      padding: "3rem 1rem 12rem",
+      overflow: "auto",
+    },
+    ".cm-content": {
+      width: "100%",
+      maxWidth: "48rem",
+      margin: "0 auto",
+      padding: "0",
+    },
+    ".cm-gutters": {
+      display: "none",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-selectionBackground": {
+      backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+    },
+    "&.cm-focused .cm-selectionBackground": {
+      backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "#e2e8f0",
+    },
+    // markdown-specific token styling
+    ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
+    ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
+    ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
+    ".cm-strong": { fontWeight: "700" },
+    ".cm-em": { fontStyle: "italic" },
+    ".cm-strikethrough": { textDecoration: "line-through" },
+    ".cm-url": { color: "#60a5fa" },
+    ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
+    "@media (min-width: 768px)": {
+      ".cm-scroller": {
+        paddingLeft: "2rem",
+        paddingRight: "2rem",
+      },
+    },
+    "@media (min-width: 1024px)": {
+      ".cm-scroller": {
+        paddingLeft: "2.5rem",
+        paddingRight: "2.5rem",
+      },
+    },
   },
-  ".cm-scroller": {
-    fontFamily:
-      'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-    padding: "3rem 0 12rem 0",
-    overflow: "auto",
-  },
-  ".cm-content": {
-    width: "100%",
-    maxWidth: "none",
-    margin: "0 auto",
-    padding: "0 2rem",
-  },
-  ".cm-gutters": {
-    display: "none",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-  },
-  ".cm-selectionBackground": {
-    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
-  },
-  "&.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
-  },
-  ".cm-cursor": {
-    borderLeftColor: "#e2e8f0",
-  },
-  // markdown-specific token styling
-  ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
-  ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
-  ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
-  ".cm-strong": { fontWeight: "700" },
-  ".cm-em": { fontStyle: "italic" },
-  ".cm-strikethrough": { textDecoration: "line-through" },
-  ".cm-url": { color: "#60a5fa" },
-  ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
-}, { dark: true });
+  { dark: true },
+);
 
 export default function CodeMirrorEditor({
   value,
