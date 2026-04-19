@@ -21,6 +21,7 @@ import {
   processCanvasFile,
   processExtractionRetry,
   processDirectExtraction,
+  processMarkerComplete,
 } from "./import-worker.js";
 import { processVaultImport } from "../vault/import-worker.js";
 import { processVaultExport } from "../vault/export-worker.js";
@@ -142,6 +143,9 @@ async function processAndDelete(message, queueUrl) {
       break;
     case "extract-retry":
       await processExtractionRetry(body);
+      break;
+    case "marker-complete":
+      await processMarkerComplete(body);
       break;
     case "vault-export":
       await processVaultExport(body);

@@ -1,8 +1,8 @@
 import { chunkText } from "@/lib/chunking";
-import { extractWithMarker } from "@/lib/ocr";
+import { extractWithMarker, MarkerPendingError } from "@/lib/ocr";
 import type { MarkerImages } from "@/lib/marker-output";
 
-export type ExtractionSource = "text" | "marker" | "pdf-parse";
+export type ExtractionSource = "text" | "marker" | "pdf-parse" | "pending-marker" | "skipped";
 
 export interface ExtractionResult {
   rawText: string;
@@ -62,7 +62,7 @@ export async function extractContentFromBuffer({
   }
 
   try {
-    const marker = await extractWithMarker(buffer, filename);
+    const marker = await extractWithMarker(buffer, filename, { fastPath: true });
     return {
       rawText: marker.text,
       chunks: marker.chunks,
@@ -70,18 +70,17 @@ export async function extractContentFromBuffer({
       markerImages: marker.images ?? {},
       markerMetadata: marker.metadata ?? null,
     };
-  } catch (markerError) {
-    // Keep fallback scoped to PDFs (text-layer only, not OCR).
+  } catch (err) {
+    if (err instanceof MarkerPendingError) {
+      return { rawText: "", chunks: [], source: "pending-marker" };
+    }
+    // hard error — pdf-parse fallback for PDFs, skipped for other binaries
     if (mimeType === "application/pdf") {
       const fallback = await extractPdfTextLayer(buffer);
       if (fallback) {
-        return {
-          rawText: fallback.rawText,
-          chunks: fallback.chunks,
-          source: "pdf-parse",
-        };
+        return { rawText: fallback.rawText, chunks: fallback.chunks, source: "pdf-parse" };
       }
     }
-    throw markerError;
+    return { rawText: "", chunks: [], source: "skipped" };
   }
 }

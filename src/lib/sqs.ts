@@ -15,5 +15,9 @@ export function getExtractRetryQueueUrl(): string {
   return process.env.SQS_EXTRACT_RETRY_QUEUE_URL ?? "";
 }
 
+export function getMarkerQueueUrl(): string {
+  return process.env.SQS_MARKER_QUEUE_URL ?? "";
+}
+
 // removed stale module-level exports — they bake in "" during next build
 // because env vars are unset at build time. use the getter functions above.
