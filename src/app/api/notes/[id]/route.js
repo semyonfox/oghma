@@ -164,6 +164,8 @@ export const PUT = withErrorHandler(async (request, { params }) => {
   return NextResponse.json(mapNoteFromDB(dbNote));
 });
 
+export const PATCH = PUT;
+
 export const DELETE = withErrorHandler(async (request, { params }) => {
   // Get authenticated user
   const user = await validateSession();
