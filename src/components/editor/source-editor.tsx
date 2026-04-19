@@ -15,7 +15,10 @@ import {
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { catppuccinMocha } from "@catppuccin/codemirror";
+import {
+  syntaxHighlighting,
+  defaultHighlightStyle,
+} from "@codemirror/language";
 
 interface CodeMirrorEditorProps {
   value: string;
@@ -24,7 +27,7 @@ interface CodeMirrorEditorProps {
   placeholder?: string;
 }
 
-// custom theme overrides to blend with the app's dark background
+// custom theme — dark: true signals dark mode to CM6 so cursor/selection use dark defaults
 const appTheme = EditorView.theme({
   "&": {
     height: "100%",
@@ -67,7 +70,7 @@ const appTheme = EditorView.theme({
   ".cm-strikethrough": { textDecoration: "line-through" },
   ".cm-url": { color: "#60a5fa" },
   ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
-});
+}, { dark: true });
 
 export default function CodeMirrorEditor({
   value,
@@ -115,7 +118,7 @@ export default function CodeMirrorEditor({
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
-        catppuccinMocha,
+        syntaxHighlighting(defaultHighlightStyle),
         appTheme,
         EditorView.lineWrapping,
         cmPlaceholder(placeholder),
