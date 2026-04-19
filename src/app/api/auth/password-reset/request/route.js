@@ -4,6 +4,7 @@ import { createErrorResponse, parseJsonBody } from "@/lib/auth.js";
 import { generateSecureToken, hashToken } from "@/lib/tokens.js";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
+import { assertTrustedOrigin } from "@/lib/api-error";
 
 function resetAckResponse() {
   return new Response(
@@ -19,6 +20,7 @@ function dummyWork() {
 
 export async function POST(request) {
   try {
+    assertTrustedOrigin(request);
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return parseError;
 
@@ -69,7 +71,7 @@ export async function POST(request) {
     }
     return resetAckResponse();
   } catch (error) {
-      logger.error("password reset request error", { error });
-      return createErrorResponse("Failed to send reset email", 500);
+    logger.error("password reset request error", { error });
+    return createErrorResponse("Failed to send reset email", 500);
   }
 }
