@@ -80,6 +80,7 @@ export default function CodeMirrorEditor({
 }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const destroyedRef = useRef(false);
   // keep callbacks in refs so extensions don't go stale
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -94,6 +95,7 @@ export default function CodeMirrorEditor({
   // create editor once on mount
   useEffect(() => {
     if (!containerRef.current) return;
+    destroyedRef.current = false;
 
     const saveKeymap = keymap.of([
       {
@@ -130,6 +132,7 @@ export default function CodeMirrorEditor({
     viewRef.current = view;
 
     return () => {
+      destroyedRef.current = true;
       view.destroy();
       viewRef.current = null;
     };
@@ -140,7 +143,7 @@ export default function CodeMirrorEditor({
   // sync external value changes (e.g. note switch, cross-pane sync)
   useEffect(() => {
     const view = viewRef.current;
-    if (!view) return;
+    if (!view || destroyedRef.current) return;
     const current = view.state.doc.toString();
     if (value !== current) {
       view.dispatch({
