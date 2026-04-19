@@ -436,8 +436,8 @@ html.light .glass-card-active {
 .md-rendered pre > code.hljs {
   display: block;
   overflow-x: auto;
-  border-radius: 0.5rem;
-  padding: 1rem;
+  border-radius: 0;
+  padding: 1.25rem 1.5rem;
   background: rgb(40 44 52 / 0.92);
   color: #abb2bf;
 }
@@ -514,7 +514,7 @@ html.light .glass-card-active {
 
 html.light .markdown-preview pre > code.hljs,
 html.light .md-rendered pre > code.hljs {
-  background: #fafafa;
+  background: #f5f5f5;
   color: #383a42;
 }
 

@@ -32,10 +32,10 @@ export default function CodeBlock({
   // use dynamic(() => import("./mermaid-block"), { ssr: false }) to keep Mermaid's ~2MB out of the bundle
 
   return (
-    <div className="relative group my-2 rounded-lg overflow-hidden bg-surface/50">
+    <div className="relative group my-4 rounded-lg overflow-hidden border border-border-subtle">
       {language && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border-subtle">
-          <span className="text-[10px] font-mono text-text-tertiary">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-surface border-b border-border-subtle">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-text-secondary">
             {language}
           </span>
           <button

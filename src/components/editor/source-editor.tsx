@@ -42,7 +42,7 @@ const appTheme = EditorView.theme({
     width: "100%",
     maxWidth: "none",
     margin: "0 auto",
-    padding: "0 clamp(1rem, 2vw, 2.5rem)",
+    padding: "0 2rem",
   },
   ".cm-gutters": {
     display: "none",

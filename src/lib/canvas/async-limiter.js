@@ -48,5 +48,11 @@ export async function pooled(tasks, limit) {
     results.push(p);
     if (executing.size >= limit) await Promise.race(executing);
   }
-  return Promise.allSettled(results);
+  const settled = await Promise.allSettled(results);
+  for (const result of settled) {
+    if (result.status === "rejected") {
+      console.error("[pooled] task rejected:", result.reason);
+    }
+  }
+  return settled;
 }
