@@ -207,12 +207,27 @@ export async function getSessionCandidates(
           AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `;
 
+  // exclude cards already answered correctly today so they don't resurface in a new session
+  const correctTodayRows = await sql`
+    SELECT DISTINCT card_id FROM app.quiz_reviews
+    WHERE user_id = ${userId}::uuid
+      AND created_at >= CURRENT_DATE::timestamptz
+      AND was_correct = true
+  `;
+  const correctTodayIds = new Set(correctTodayRows.map((r: any) => r.card_id));
+
   const now = new Date();
   const dueCards = existingCards.filter(
-    (c: any) => new Date(c.due) <= now && c.state !== "new",
+    (c: any) =>
+      new Date(c.due) <= now &&
+      c.state !== "new" &&
+      !correctTodayIds.has(c.id),
   );
   const masteredCards = existingCards.filter(
-    (c: any) => new Date(c.due) > now && c.state === "review",
+    (c: any) =>
+      new Date(c.due) > now &&
+      c.state === "review" &&
+      !correctTodayIds.has(c.id),
   );
   const newCards = existingCards.filter((c: any) => c.state === "new");
 

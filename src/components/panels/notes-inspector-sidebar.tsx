@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   ChevronRightIcon,
   ArrowTopRightOnSquareIcon,
+  XMarkIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import useLayoutStore, {
   type RightPanelTab,
@@ -84,6 +86,53 @@ export default function NotesInspectorSidebar() {
 
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
 
+  // inline tag editing
+  const [newTag, setNewTag] = useState("");
+  const [isSavingTag, setIsSavingTag] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  const addTag = useCallback(async () => {
+    const tag = newTag.trim().replace(/^#/, "");
+    if (!tag || !activeFile?.fileId) return;
+    setIsSavingTag(true);
+    try {
+      const tagLine = `#${tag}`;
+      const updatedContent = note?.content
+        ? `${note.content.trimEnd()}\n${tagLine}\n`
+        : `${tagLine}\n`;
+      await fetch(`/api/notes/${activeFile.fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: updatedContent }),
+      });
+      setNote((prev) =>
+        prev ? { ...prev, content: updatedContent } : prev,
+      );
+      setNewTag("");
+    } finally {
+      setIsSavingTag(false);
+    }
+  }, [newTag, activeFile?.fileId, note?.content]);
+
+  const removeTag = useCallback(
+    async (tagToRemove: string) => {
+      if (!activeFile?.fileId || !note?.content) return;
+      const updatedContent = note.content
+        .split("\n")
+        .filter((line) => line.trim() !== `#${tagToRemove}`)
+        .join("\n");
+      await fetch(`/api/notes/${activeFile.fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: updatedContent }),
+      });
+      setNote((prev) =>
+        prev ? { ...prev, content: updatedContent } : prev,
+      );
+    },
+    [activeFile?.fileId, note?.content],
+  );
+
   const tabClasses = (tab: RightPanelTab) => `
     px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2
     ${
@@ -128,15 +177,6 @@ export default function NotesInspectorSidebar() {
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === "tags"}
-          aria-controls="panel-tags"
-          onClick={() => setRightPanelTab("tags")}
-          className={tabClasses("tags")}
-        >
-          {t("Tags")}
-        </button>
-        <button
-          role="tab"
           aria-selected={activeTab === "ai"}
           aria-controls="panel-ai"
           onClick={() => setRightPanelTab("ai")}
@@ -157,73 +197,99 @@ export default function NotesInspectorSidebar() {
 
       {/* Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Metadata Tab */}
+        {/* Meta Tab — file info + tags */}
         {activeTab === "meta" && (
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
             {loading ? (
               <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
             ) : note ? (
-              <dl className="space-y-3">
+              <>
+                <dl className="space-y-3">
+                  <div>
+                    <dt className="text-xs text-text-tertiary">{t("Title")}</dt>
+                    <dd className="mt-0.5 text-text-secondary text-sm">
+                      {note.title || activeFile?.title || t("Untitled")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-tertiary">{t("Type")}</dt>
+                    <dd className="mt-0.5 text-text-secondary text-sm">
+                      {activeFile.fileType}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-tertiary">{t("Created")}</dt>
+                    <dd className="mt-0.5 text-text-tertiary text-sm">
+                      {note.created_at
+                        ? new Date(note.created_at).toLocaleDateString()
+                        : t("Unknown")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-tertiary">{t("Updated")}</dt>
+                    <dd className="mt-0.5 text-text-tertiary text-sm">
+                      {note.updated_at
+                        ? new Date(note.updated_at).toLocaleDateString()
+                        : t("Unknown")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
+                    <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
+                      {note.note_id || note.id || activeFile.fileId}
+                    </dd>
+                  </div>
+                </dl>
+
+                {/* Tags section */}
                 <div>
-                  <dt className="text-xs text-text-tertiary">{t("Title")}</dt>
-                  <dd className="mt-0.5 text-text-secondary text-sm">
-                    {note.title || activeFile?.title || t("Untitled")}
-                  </dd>
+                  <p className="text-xs text-text-tertiary mb-2">{t("Tags")}</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="group flex items-center gap-1 rounded-full border border-border-subtle bg-subtle pl-2 pr-1 py-0.5 text-xs text-text-tertiary"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => void removeTag(tag)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-error-400 rounded-full"
+                          title={t("Remove tag")}
+                        >
+                          <XMarkIcon className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
+                    <span className="text-text-tertiary text-xs">#</span>
+                    <input
+                      ref={tagInputRef}
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value.replace(/^#/, "").replace(/\s/g, "-"))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void addTag();
+                      }}
+                      disabled={isSavingTag}
+                      placeholder={t("add tag")}
+                      className="flex-1 bg-transparent text-xs text-text placeholder-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void addTag()}
+                      disabled={!newTag.trim() || isSavingTag}
+                      className="flex-shrink-0 text-text-tertiary hover:text-text-secondary disabled:opacity-30 transition-colors"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <dt className="text-xs text-text-tertiary">{t("Type")}</dt>
-                  <dd className="mt-0.5 text-text-secondary text-sm">
-                    {activeFile.fileType}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-tertiary">{t("Created")}</dt>
-                  <dd className="mt-0.5 text-text-tertiary text-sm">
-                    {note.created_at
-                      ? new Date(note.created_at).toLocaleDateString()
-                      : t("Unknown")}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-tertiary">{t("Updated")}</dt>
-                  <dd className="mt-0.5 text-text-tertiary text-sm">
-                    {note.updated_at
-                      ? new Date(note.updated_at).toLocaleDateString()
-                      : t("Unknown")}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
-                  <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
-                    {note.note_id || note.id || activeFile.fileId}
-                  </dd>
-                </div>
-              </dl>
+              </>
             ) : (
               <p className="text-xs text-text-tertiary">
                 {t("Select a note to view metadata.")}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Tags Tab */}
-        {activeTab === "tags" && (
-          <div className="flex-1 overflow-y-auto p-4">
-            {tags.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-border-subtle bg-subtle px-2 py-0.5 text-xs text-text-tertiary"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-text-tertiary">
-                {t("No tags found in this note.")}
               </p>
             )}
           </div>

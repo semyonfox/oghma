@@ -114,17 +114,21 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
  *   4. tx:  UPDATE quiz_cards
  *   5. tx:  INSERT quiz_reviews
  *   6. tx:  UPDATE quiz_sessions correct_count
- *   7. sql: SELECT next card (only if includeNextCard)
- *   8. sql: SELECT session stats
+ *   7. sql: SELECT user_streaks (only if answeredCount >= minStreakRound=10)
+ *   8. sql: UPDATE user_streaks   (only if answeredCount >= 10 and streak row exists)
+ *   9. sql: SELECT next card (only if includeNextCard)
+ *  10. sql: SELECT session stats
  */
 function mockSuccessfulAnswer({
   wasCorrect = true,
   includeNextCard = false,
   answeredCount = 3,
+  mockStreak = false,
 }: {
   wasCorrect?: boolean;
   includeNextCard?: boolean;
   answeredCount?: number;
+  mockStreak?: boolean;
 } = {}) {
   const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
   const txMock = sqlMock.__txMock;
@@ -138,11 +142,20 @@ function mockSuccessfulAnswer({
   txMock.mockResolvedValueOnce([]); // UPDATE quiz_cards
   txMock.mockResolvedValueOnce([]); // INSERT quiz_reviews
   txMock.mockResolvedValueOnce([]); // UPDATE quiz_sessions correct_count
-  // 7. SELECT next card (only if nextCardId provided)
+  // 7-8. streak queries fire when answeredSoFar+1 >= minStreakRound (10)
+  if (mockStreak) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    sqlMock.mockResolvedValueOnce([{
+      current_streak: 3, longest_streak: 5, last_review_date: yesterday,
+      total_review_days: 10, streak_milestones: [],
+    }]);
+    sqlMock.mockResolvedValueOnce([]); // UPDATE user_streaks
+  }
+  // 9. SELECT next card (only if nextCardId provided)
   if (includeNextCard) {
     sqlMock.mockResolvedValueOnce([NEXT_CARD_ROW]);
   }
-  // 8. SELECT session stats
+  // 10. SELECT session stats
   sqlMock.mockResolvedValueOnce([{
     total_questions: 20,
     correct_count: wasCorrect ? answeredCount : Math.max(0, answeredCount - 1),
@@ -290,14 +303,24 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
     expect(body.nextQuestion).toBeNull();
   });
 
-  it("fires streak update as fire-and-forget (fetch called)", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetchMock);
-    mockSuccessfulAnswer({ wasCorrect: true });
+  it("fires streak update once the minStreakRound threshold is reached", async () => {
+    // answeredCount=10 means answeredSoFar=9, answered=10 — crosses the threshold
+    mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 10, mockStreak: true });
     const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
-    await POST(req, routeParams);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+    const res = await POST(req, routeParams);
+    const body = await res.json();
+    // streak logic ran inline and returned result
+    expect(body.streakResult).not.toBeNull();
+    expect(body.streakResult.advanced).toBe(true);
+  });
+
+  it("does not fire streak update before the minStreakRound threshold", async () => {
+    // answeredCount=3 (default) — only 3 answers, well below 10
+    mockSuccessfulAnswer({ wasCorrect: true, answeredCount: 3 });
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: CORRECT_ANSWER });
+    const res = await POST(req, routeParams);
+    const body = await res.json();
+    expect(body.streakResult).toBeNull();
   });
 
   it("triggers fatigue warning after 5+ answers with >40% wrong", async () => {

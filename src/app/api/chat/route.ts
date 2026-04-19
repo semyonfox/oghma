@@ -7,7 +7,7 @@ import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-
 import logger from "@/lib/logger";
 import { streamText, generateText } from "ai";
 
-import { runRagPipeline, buildSystemPrompt } from "@/lib/chat/rag-pipeline";
+import { runRagPipeline, buildSystemPrompt, runKeywordFallback } from "@/lib/chat/rag-pipeline";
 import { persistMessage, type ChatMessage } from "@/lib/chat/session";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
@@ -105,7 +105,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 scope.scopedNoteIds,
               );
 
-              const systemPrompt = buildSystemPrompt(ragResult.searchResults);
+              const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
+                ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+                : [];
+              const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
               const sessionMemoryPrompt = buildSessionMemoryPrompt(
                 scope.sessionContext,
               );
@@ -251,7 +254,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     scope.scopedNoteIds,
   );
 
-  const systemPrompt = buildSystemPrompt(ragResult.searchResults);
+  const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
+    ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+    : [];
+  const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
   const sessionMemoryPrompt = buildSessionMemoryPrompt(scope.sessionContext);
   const { uniqueSources, retrieval } = await buildRetrievalInfo(
     userId,

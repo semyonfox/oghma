@@ -14,6 +14,7 @@ import { xraySubsegment } from "@/lib/xray";
 import { getStorageProvider } from "@/lib/storage/init";
 import logger from "@/lib/logger";
 import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry";
+import { persistMarkerAssetsForNote } from "@/lib/marker-output";
 
 function isAllowedUrl(raw: string): boolean {
   let parsed: URL;
@@ -78,7 +79,7 @@ export async function runExtraction(
       mimeType,
     }),
   );
-  const { rawText, chunks, source } = extracted;
+  const { rawText, chunks, source, markerImages, markerMetadata } = extracted;
 
   if (source === "pdf-parse") {
     logger.warn("Marker unavailable, using pdf-parse fallback", {
@@ -101,10 +102,36 @@ export async function runExtraction(
     });
   }
 
-  const cleanedText = stripMarkdown(rawText);
+  // persist Marker images to S3 and rewrite image paths in the markdown
+  let finalMarkdown = rawText;
+  if (source === "marker" && markerImages && Object.keys(markerImages).length > 0) {
+    try {
+      const storage = getStorageProvider();
+      const markerAssets = await persistMarkerAssetsForNote({
+        storage,
+        userId,
+        noteId: documentId,
+        markdown: rawText,
+        images: markerImages,
+        metadata: markerMetadata ?? null,
+      });
+      finalMarkdown = markerAssets.markdown;
+      logger.info("marker assets persisted", {
+        documentId,
+        imageCount: markerAssets.imageCount,
+      });
+    } catch (assetErr) {
+      logger.warn("failed to persist marker assets (non-fatal)", {
+        documentId,
+        error: assetErr,
+      });
+    }
+  }
+
+  const cleanedText = stripMarkdown(finalMarkdown);
   await sql`
         UPDATE app.notes
-        SET extracted_text = ${cleanedText}, updated_at = NOW()
+        SET content = ${finalMarkdown}, extracted_text = ${cleanedText}, updated_at = NOW()
         WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
     `;
 
