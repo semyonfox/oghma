@@ -5,7 +5,7 @@ import logger from "@/lib/logger";
 import { defaultRerankProvider } from "@/lib/providers/self-hosted-rerank";
 
 const TOP_N = 5;
-const MIN_RELEVANCE = 0.15;
+const MIN_RELEVANCE = 0.25;
 
 interface RerankResult {
   index: number;
@@ -38,11 +38,10 @@ export async function rerankChunks(
     const filtered = results.filter((r) => r.score >= MIN_RELEVANCE);
 
     if (filtered.length === 0 && chunks.length > 0) {
-      logger.warn("rerank: all results below relevance threshold, falling back to vector order", {
+      logger.warn("rerank: all results below relevance threshold, returning empty to force tool use", {
         query: query.slice(0, 50),
         candidateCount: chunks.length,
       });
-      return fallbackTopN(chunks, topN);
     }
 
     return filtered;

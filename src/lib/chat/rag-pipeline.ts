@@ -16,7 +16,7 @@ export interface SearchResult {
 
 // cosine distance threshold — chunks further than this are considered irrelevant
 // Cohere multilingual-v3.0 distances: 0 = identical, ~0.3 = very similar, ~0.7 = weakly related
-const MAX_DISTANCE = 0.75;
+const MAX_DISTANCE = 0.55;
 
 // search chunks+embeddings tables, joining back to notes for metadata
 export async function semanticSearch(
@@ -100,7 +100,7 @@ export async function resolveScopedNoteIds(
 
 export function buildSystemPrompt(results: SearchResult[]): string {
   if (results.length === 0) {
-    return "You are a helpful study assistant. No relevant note content was retrieved for this question — use your tools (getChunks, readNote) to search the attached notes before answering. If the notes truly contain nothing relevant, answer from general knowledge and say so.";
+    return "You are a helpful study assistant. No relevant note content was retrieved for this question. You MUST use your tools (getChunks, readNote) to search before making any claims about what notes exist or what they contain — never invent note titles or content. Only after checking tools should you answer; if nothing is found, say so explicitly.";
   }
 
   // group chunks by note for cleaner context
@@ -118,8 +118,8 @@ export function buildSystemPrompt(results: SearchResult[]): string {
   });
 
   return `You are a helpful study assistant with access to the user's notes.
-The notes below show what the user is currently studying. Use them as helpful context — cite which note your answer draws from when relevant — but you are not limited to them. Feel free to supplement with your broader knowledge, explain concepts in more depth, or reference up-to-date information the notes may not cover.
-If you go beyond the notes, briefly mention that you're drawing on general knowledge so the user knows.
+The notes below were retrieved as relevant context. When answering questions about the user's notes or library, only make claims that are grounded in the retrieved content or in what you have verified via tools (getChunks, readNote). Never invent note titles, note contents, or folder structures — if you are unsure what notes exist, use getChunks or readNote to check before answering.
+You may supplement retrieved note content with broader knowledge to explain concepts in more depth, but always be clear when you're drawing on general knowledge rather than the user's notes.
 
 NOTES CONTEXT:
 ${blocks.join("\n\n")}`;
