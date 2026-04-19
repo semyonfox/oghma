@@ -17,6 +17,58 @@ export class ApiError extends Error {
   }
 }
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedOrigins(request: Request): Set<string> {
+  const origins = new Set<string>([new URL(request.url).origin]);
+
+  for (const value of [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.APP_BASE_URL,
+  ]) {
+    const origin = normalizeOrigin(value);
+    if (origin) origins.add(origin);
+  }
+
+  for (const value of (process.env.CORS_ORIGINS ?? "").split(",")) {
+    const origin = normalizeOrigin(value.trim());
+    if (origin) origins.add(origin);
+  }
+
+  return origins;
+}
+
+export function assertTrustedOrigin(request: Request | NextRequest): void {
+  if (process.env.NODE_ENV === "test") return;
+  if (SAFE_METHODS.has(request.method.toUpperCase())) return;
+
+  const candidate =
+    normalizeOrigin(request.headers.get("origin")) ??
+    normalizeOrigin(request.headers.get("referer"));
+
+  if (!candidate) {
+    throw new ApiError(403, "Invalid request origin", "Missing Origin/Referer");
+  }
+
+  if (!getAllowedOrigins(request).has(candidate)) {
+    throw new ApiError(
+      403,
+      "Invalid request origin",
+      `Origin ${candidate} not allowed`,
+    );
+  }
+}
+
 // ── Error response helpers ───────────────────────────────────────────────────
 
 function extractErrorInfo(error: unknown) {
@@ -66,6 +118,7 @@ export function withErrorHandler(handler: RouteHandler): RouteHandler {
   return (request, context) =>
     withTrace(async () => {
       try {
+        assertTrustedOrigin(request);
         return await handler(request, context);
       } catch (error) {
         return apiErrorResponse(error);

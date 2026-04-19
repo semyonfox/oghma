@@ -6,7 +6,7 @@ set -euo pipefail
 # then update nameservers at your domain registrar
 
 DOMAIN="oghmanotes.ie"
-REGION="eu-north-1"
+REGION="${AWS_REGION:-eu-west-1}"
 COMMENT="oghmanotes.ie - migrated from cloudflare $(date +%Y-%m-%d)"
 
 echo "=== Route 53 DNS Migration for $DOMAIN ==="
