@@ -488,7 +488,7 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
 
     // idempotency -- SQS at-least-once may redeliver
     if (
-      ["complete", "forbidden", "error", "cancelled", "pending_retry"].includes(
+      ["complete", "forbidden", "error", "cancelled", "pending_retry", "pending_marker"].includes(
         record.status,
       )
     ) {
@@ -741,5 +741,78 @@ export async function processExtractionRetry(msg) {
     console.error(
       `[${new Date().toISOString()}] Extraction retry failed for note ${noteId}: ${message}`,
     );
+  }
+}
+
+// ── Marker-complete handler ──────────────────────────────────────────────────
+
+export async function processMarkerComplete(msg) {
+  const { noteId, userId, jobId, filename, mimeType, parentFolderId, resultKey } = msg;
+  const ts = () => new Date().toISOString();
+  console.log(`[${ts()}] processMarkerComplete: note ${noteId}`);
+
+  const [importRow] = await sql`
+    SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1
+  `;
+  if (!importRow || importRow.status === "complete") {
+    console.log(`[${ts()}] Note ${noteId} already complete or missing, skipping marker-complete`);
+    return;
+  }
+
+  const storage = getStorageProvider();
+  const resultBuffer = await storage.getObject(resultKey);
+  if (!resultBuffer) {
+    await sql`UPDATE app.canvas_imports SET status = 'error', error_message = 'Marker result missing from S3', updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+    return;
+  }
+
+  let markerOutput;
+  try {
+    markerOutput = JSON.parse(resultBuffer.toString());
+  } catch {
+    await sql`UPDATE app.canvas_imports SET status = 'error', error_message = 'Marker result JSON parse failed', updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+    return;
+  }
+
+  const { output: rawMarkdown = "", images = {}, metadata = null } = markerOutput;
+
+  const { normalizeMarkerMarkdown } = await import("../marker-output.ts");
+  const { splitMarkdownToChunks } = await import("../ocr.ts");
+
+  const normalizedText = normalizeMarkerMarkdown(rawMarkdown);
+  const chunks = splitMarkdownToChunks(normalizedText);
+
+  try {
+    const result = await processRagPipeline(
+      noteId,
+      userId,
+      parentFolderId ?? null,
+      null,
+      {
+        filename: filename ?? "document",
+        mimeType: mimeType ?? "application/octet-stream",
+        s3Key: null,
+        attempt: 0,
+        jobId: jobId ?? importRow.job_id,
+        extractionOverride: {
+          rawText: normalizedText,
+          chunks,
+          source: "marker",
+          markerImages: images,
+          markerMetadata: metadata,
+        },
+      },
+      findOrCreateNote,
+    );
+
+    if (result) {
+      await sql`UPDATE app.canvas_imports SET status = 'complete', updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+      const effectiveJobId = jobId ?? importRow.job_id;
+      if (effectiveJobId) await checkAndCompleteJob(effectiveJobId, userId);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[${ts()}] processMarkerComplete failed for note ${noteId}: ${message}`);
+    await sql`UPDATE app.canvas_imports SET status = 'error', error_message = ${message}, updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
   }
 }

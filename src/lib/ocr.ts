@@ -2,10 +2,15 @@
 // Marker API: synchronous POST /marker/upload
 
 import { ensureMarkerRunning } from "./marker-ec2";
-import {
-  normalizeMarkerMarkdown,
-} from "./marker-output";
+import { normalizeMarkerMarkdown } from "./marker-output";
 import type { MarkerImages } from "./marker-output";
+
+export class MarkerPendingError extends Error {
+  constructor() {
+    super("Marker did not respond within fast-path timeout");
+    this.name = "MarkerPendingError";
+  }
+}
 
 export interface MarkerResult {
   text: string;
@@ -24,6 +29,8 @@ const TOTAL_TIMEOUT_MS = parsePositiveIntEnv(
   "MARKER_REQUEST_TIMEOUT_MS",
   600_000,
 );
+
+const MARKER_FAST_PATH_MS = parsePositiveIntEnv("MARKER_FAST_PATH_MS", 5_000);
 
 const MIME_MAP: Record<string, string> = {
   pdf: "application/pdf",
@@ -44,6 +51,7 @@ function mimeFromFilename(filename: string): string {
 export async function extractWithMarker(
   buffer: Buffer,
   filename: string,
+  options: { fastPath?: boolean } = {},
 ): Promise<MarkerResult> {
   const hasAsgConfig = Boolean(process.env.MARKER_ASG_NAME);
   const hasInstanceConfig = Boolean(process.env.MARKER_EC2_INSTANCE_ID);
@@ -52,6 +60,22 @@ export async function extractWithMarker(
     throw new Error(
       "Marker is not configured (set MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID)",
     );
+  }
+
+  if (options.fastPath) {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new MarkerPendingError()), MARKER_FAST_PATH_MS),
+    );
+    const markerUrl = await Promise.race([
+      ensureMarkerRunning(),
+      timeoutPromise,
+    ]);
+    const result = await Promise.race([
+      callEc2Marker(`${markerUrl}/marker/upload`, buffer, filename),
+      timeoutPromise,
+    ]);
+    if (!result) throw new Error("Marker returned no result");
+    return { ...result, source: "ec2" };
   }
 
   const markerUrl = await ensureMarkerRunning();
@@ -79,11 +103,9 @@ async function callEc2Marker(
 } | null> {
   const form = new FormData();
   const mime = mimeFromFilename(filename);
-  form.append(
-    "file",
-    new Blob([buffer], { type: mime }),
-    filename,
-  );
+  const fileBytes = new Uint8Array(buffer.length);
+  fileBytes.set(buffer);
+  form.append("file", new Blob([fileBytes], { type: mime }), filename);
   form.append("output_format", "markdown");
   form.append("paginate_output", "false");
 
@@ -115,16 +137,17 @@ async function callEc2Marker(
         ? (json.images as MarkerImages)
         : {};
     const metadata =
-      json.metadata && typeof json.metadata === "object"
-        ? json.metadata
-        : null;
+      json.metadata && typeof json.metadata === "object" ? json.metadata : null;
     return { text, chunks, images, metadata };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function splitMarkdownToChunks(markdown: string, targetSize = 500): string[] {
+export function splitMarkdownToChunks(
+  markdown: string,
+  targetSize = 500,
+): string[] {
   if (!markdown?.trim()) return [];
 
   const pages = markdown.split(/\n-{3,}\n/);
