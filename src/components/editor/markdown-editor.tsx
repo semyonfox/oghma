@@ -361,7 +361,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           )
         ) : loaded ? (
           <div className="h-full min-h-0 w-full overflow-auto">
-            <div className="mx-auto w-[80%] max-w-4xl py-10">
+            <div className="px-8 py-10">
               <PreviewRenderer content={displayContent} noteId={file.fileId} />
             </div>
           </div>
