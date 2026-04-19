@@ -115,4 +115,4 @@ export async function processImportJob(jobId) {
 // ── Re-exports for worker-entry.js ──────────────────────────────────────────
 
 export { processDiscoverJob } from "./import-discovery.js";
-export { processCanvasFile, processDirectExtraction, processExtractionRetry } from "./import-extraction.js";
+export { processCanvasFile, processDirectExtraction, processExtractionRetry, processMarkerComplete } from "./import-extraction.js";
