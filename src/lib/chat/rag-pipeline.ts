@@ -98,44 +98,9 @@ export async function resolveScopedNoteIds(
   return [...scoped];
 }
 
-export interface DirectNoteContent {
-  note_id: string;
-  title: string;
-  content: string;
-}
-
-/** fetch raw note content for notes that have no indexed chunks */
-export async function fetchUnindexedNoteContent(
-  userId: string,
-  scopedNoteIds: string[],
-): Promise<DirectNoteContent[]> {
-  if (scopedNoteIds.length === 0) return [];
-  // only return notes that have no chunks (not yet indexed or too small)
-  const rows = await sql`
-    SELECT n.note_id, n.title, n.content
-    FROM app.notes n
-    WHERE n.user_id = ${userId}::uuid
-      AND n.note_id = ANY(${scopedNoteIds}::uuid[])
-      AND n.is_folder = false
-      AND n.deleted_at IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM app.chunks c
-        WHERE c.document_id = n.note_id AND c.user_id = ${userId}::uuid
-      )
-    LIMIT 8
-  `;
-  return rows as DirectNoteContent[];
-}
-
-export function buildSystemPrompt(
-  results: SearchResult[],
-  directContent: DirectNoteContent[] = [],
-): string {
-  const hasChunks = results.length > 0;
-  const hasDirect = directContent.length > 0;
-
-  if (!hasChunks && !hasDirect) {
-    return "You are a helpful study assistant. No relevant notes were found for this question, but you can still help using your general knowledge. Let the user know you didn't find matching notes, then answer as best you can. Be friendly and concise.";
+export function buildSystemPrompt(results: SearchResult[]): string {
+  if (results.length === 0) {
+    return "You are a helpful study assistant. No relevant note content was retrieved for this question — use your tools (getChunks, readNote) to search the attached notes before answering. If the notes truly contain nothing relevant, answer from general knowledge and say so.";
   }
 
   // group chunks by note for cleaner context
@@ -152,20 +117,42 @@ export function buildSystemPrompt(
     return `--- Note ${i + 1}: "${title}" ---\n${body}`;
   });
 
-  // include direct content for unindexed notes (truncated to avoid huge prompts)
-  const directBlocks = directContent.map((n, i) => {
-    const body = (n.content || "").slice(0, 6000).trim();
-    return `--- Note ${blocks.length + i + 1}: "${n.title || "Untitled"}" ---\n${body}`;
-  });
-
-  const allBlocks = [...blocks, ...directBlocks];
-
   return `You are a helpful study assistant with access to the user's notes.
 The notes below show what the user is currently studying. Use them as helpful context — cite which note your answer draws from when relevant — but you are not limited to them. Feel free to supplement with your broader knowledge, explain concepts in more depth, or reference up-to-date information the notes may not cover.
 If you go beyond the notes, briefly mention that you're drawing on general knowledge so the user knows.
 
 NOTES CONTEXT:
-${allBlocks.join("\n\n")}`;
+${blocks.join("\n\n")}`;
+}
+
+/**
+ * Keyword fallback for when semantic search finds nothing in scoped notes.
+ * Uses chunk-search's exact+note-level ILIKE path so it works even for unindexed notes.
+ * Maps ChatChunkHit → SearchResult so buildSystemPrompt can use the results directly.
+ */
+export async function runKeywordFallback(
+  userId: string,
+  message: string,
+  scopedNoteIds: string[],
+): Promise<SearchResult[]> {
+  if (scopedNoteIds.length === 0) return [];
+  try {
+    const { searchChatChunks } = await import("@/lib/chat/chunk-search");
+    const hits = await searchChatChunks({
+      userId,
+      query: message,
+      mode: "both",
+      scopedNoteIds,
+    });
+    return hits.map((h) => ({
+      note_id: h.noteId,
+      title: h.title,
+      chunk_text: h.text,
+      distance: 0,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export interface RagResult {
