@@ -412,6 +412,14 @@ export async function downloadAndStoreFile(file, opts) {
 // the count check and status update share the same transaction to avoid TOCTOU.
 // pending_retry counts as in-flight since the retry queue will eventually resolve it.
 async function checkAndCompleteJob(jobId, userId) {
+  // fast pre-check: skip the transaction entirely if >1 file is still in-flight
+  const [{ count: pending }] = await sql`
+    SELECT COUNT(*) as count FROM app.canvas_imports
+    WHERE job_id = ${jobId}::uuid
+      AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
+  `;
+  if (parseInt(pending, 10) > 1) return;
+
   let weCompleted = false;
   await sql.begin(async (tx) => {
     const [{ count }] = await tx`
@@ -459,12 +467,24 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
   const ts = () => new Date().toISOString();
   console.log(`[${ts()}] Processing canvas file: ${importRecordId}`);
   try {
-    const [record] =
-      await sql`SELECT * FROM app.canvas_imports WHERE id = ${importRecordId}::uuid`;
-    if (!record) {
+    const [row] = await sql`
+      SELECT
+        ci.*,
+        cij.status AS job_status,
+        l.canvas_token,
+        l.canvas_domain
+      FROM app.canvas_imports ci
+      LEFT JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
+      JOIN app.login l ON l.user_id = ci.user_id
+      WHERE ci.id = ${importRecordId}::uuid
+    `;
+    if (!row) {
       console.error(`[${ts()}] Import record not found: ${importRecordId}`);
       return false;
     }
+
+    // split the joined row into record shape and credentials
+    const { canvas_token, canvas_domain, job_status, ...record } = row;
 
     // idempotency -- SQS at-least-once may redeliver
     if (
@@ -478,17 +498,15 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
       return true;
     }
 
-    if (await isJobCancelled(jobId)) {
+    if (job_status === "cancelled") {
       await sql`UPDATE app.canvas_imports SET status = 'cancelled', updated_at = NOW() WHERE id = ${importRecordId}::uuid`;
       await checkAndCompleteJob(jobId, userId);
       return false;
     }
 
-    const [creds] =
-      await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
-    if (!creds) throw new Error("Canvas credentials not found");
-    const plainToken = decrypt(creds.canvas_token, userId);
-    const client = new CanvasClient(creds.canvas_domain, plainToken);
+    if (!canvas_token || !canvas_domain) throw new Error("Canvas credentials not found");
+    const plainToken = decrypt(canvas_token, userId);
+    const client = new CanvasClient(canvas_domain, plainToken);
     const storage = getStorageProvider();
 
     // re-fetch a fresh download URL -- avoids any session-tied URL expiry between phases
@@ -640,7 +658,7 @@ export async function processExtractionRetry(msg) {
   // for retry messages we still allow processing even when already complete,
   // because retries can be used for enrichment/replacement after fallback text.
   const [importRow] =
-    await sql`SELECT status FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
+    await sql`SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
   if (importRow?.status === "complete" && (attempt ?? 0) <= 0) {
     console.log(`Note ${noteId} already complete, skipping duplicate retry`);
     return;
@@ -660,32 +678,51 @@ export async function processExtractionRetry(msg) {
   }
 
   try {
-    const result = await runRagPipeline(
-      noteId,
-      userId,
-      parentFolderId,
-      buffer,
-      {
-        filename,
-        mimeType,
-        s3Key,
-        attempt,
-      },
-    );
+    await globalFileLimiter(async () => {
+      let timerId;
+      const timer = new Promise((_, reject) => {
+        timerId = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Extraction retry timed out after ${Math.round(FILE_TIMEOUT_MS / 60000)} minutes: ${filename}`,
+              ),
+            ),
+          FILE_TIMEOUT_MS,
+        );
+      });
 
-    if (result) {
-      await sql`
-        UPDATE app.ingestion_jobs
-        SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
-      `;
-    } else {
-      await sql`
-        UPDATE app.ingestion_jobs
-        SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
-      `;
-    }
+      try {
+        const result = await Promise.race([
+          runRagPipeline(noteId, userId, parentFolderId, buffer, {
+            filename,
+            mimeType,
+            s3Key,
+            attempt,
+          }),
+          timer,
+        ]);
+
+        if (result) {
+          await sql`
+            UPDATE app.ingestion_jobs
+            SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
+            WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          `;
+          if (importRow?.job_id) {
+            await checkAndCompleteJob(importRow.job_id, userId);
+          }
+        } else {
+          await sql`
+            UPDATE app.ingestion_jobs
+            SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
+            WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          `;
+        }
+      } finally {
+        clearTimeout(timerId);
+      }
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 

@@ -133,7 +133,8 @@ export async function processRagPipeline(
       console.log(
         `pdf-parse fallback: extracted ${chunks.length} chunks for note ${noteId}`,
       );
-      if (attempt < MAX_EXTRACTION_RETRIES) {
+      // skip retry when Marker is intentionally off — nothing to retry to
+      if (attempt < MAX_EXTRACTION_RETRIES && process.env.CANVAS_SKIP_MARKER !== "true") {
         await queueExtractionRetry({
           noteId,
           userId,
