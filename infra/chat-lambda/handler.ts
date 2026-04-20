@@ -128,6 +128,7 @@ export const handler = awslambda.streamifyResponse(
         history: requestHistory = [],
         thinkingMode: requestedThinkingMode,
         clientNow,
+        timezone,
       } = body;
 
       const thinkingMode: LlmThinkingMode =
@@ -185,6 +186,7 @@ export const handler = awslambda.streamifyResponse(
           sessionMemoryPrompt,
           thinkingMode,
           clientNow: typeof clientNow === "string" ? clientNow : undefined,
+          timezone: typeof timezone === "string" ? timezone : undefined,
           requestOrigin: event.headers?.origin ?? "",
           referer: event.headers?.referer ?? null,
         });
