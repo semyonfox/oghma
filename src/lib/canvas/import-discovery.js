@@ -7,7 +7,6 @@
  */
 
 import sql from "../../database/pgsql.js";
-import { v4 as uuidv4 } from "uuid";
 import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
@@ -128,7 +127,7 @@ async function insertPendingFile(
       s3_prefix        = EXCLUDED.s3_prefix,
       error_message    = NULL,
       updated_at       = NOW()
-    WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
+    WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry', 'pending_marker')
   `;
 }
 

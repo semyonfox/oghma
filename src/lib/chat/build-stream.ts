@@ -120,7 +120,9 @@ function buildToolInstruction(
   scopedParentHint: string,
   canvasInstruction: string,
 ): string {
+  const nowUtc = new Date().toISOString();
   return (
+    `Current UTC date/time: ${nowUtc}\n\n` +
     "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
     "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
     "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n" +
