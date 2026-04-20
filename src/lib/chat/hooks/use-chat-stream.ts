@@ -331,6 +331,14 @@ export function useChatStream(
             handleNewSession(update.sessionId, userText);
           }
 
+          if (
+            update.type === "tool-call" &&
+            (update.toolName === "addTimeBlock" ||
+              update.toolName === "completeTimeBlock")
+          ) {
+            window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
+          }
+
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
