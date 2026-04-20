@@ -62,8 +62,7 @@ export interface BuildLlmCallParams {
   systemPrompt: string;
   sessionMemoryPrompt: string;
   thinkingMode: LlmThinkingMode;
-  clientNow?: string;
-  timezone?: string;
+  clientDateTime?: string;
   requestOrigin: string;
   referer: string | null;
 }
@@ -121,13 +120,11 @@ async function resolveParentFolderHint(
 function buildToolInstruction(
   scopedParentHint: string,
   canvasInstruction: string,
-  clientNow?: string,
-  timezone?: string,
+  clientDateTime?: string,
 ): string {
-  const nowUtc = clientNow ?? new Date().toISOString();
-  const tzLine = timezone ? ` (timezone: ${timezone})` : "";
+  const now = clientDateTime ?? new Date().toISOString();
   return (
-    `Current date/time (user's browser): ${nowUtc}${tzLine}\n\n` +
+    `Current date/time: ${now}\n\n` +
     "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
     "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
     "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n" +
@@ -561,8 +558,7 @@ export async function buildLlmCall(
   const toolInstruction = buildToolInstruction(
     scopedParentHint,
     canvasInstruction,
-    params.clientNow,
-    params.timezone,
+    params.clientDateTime,
   );
 
   const { tools } = createChatTools(
