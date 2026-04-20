@@ -11,7 +11,7 @@ import sql from "@/database/pgsql.js";
  * {
  *   success: true,
  *   activeJob: { jobId, status, createdAt, startedAt } | null,
- *   progress: { total, completed, downloading, processing, percent },
+ *   progress: { total, completed, downloading, processing, pendingMarker, percent },
  *   issues: { forbidden, error },
  *   estimatedSecsRemaining: number | null,
  *   recentLogs: [{ filename, status, errorMessage, updatedAt }],
@@ -30,13 +30,17 @@ export const GET = withErrorHandler(async () => {
   `;
 
   const job = activeJobs?.[0] ?? null;
-  const isActive = job && ["queued", "discovering", "processing"].includes(job.status);
+  const isActive =
+    job && ["queued", "discovering", "processing"].includes(job.status);
   const activeJob = isActive
     ? {
         jobId: job.id,
         status: job.status,
         // phase lets the UI differentiate "discovering files" from "importing files"
-        phase: job.status === "discovering" || job.status === "queued" ? "discovering" : "processing",
+        phase:
+          job.status === "discovering" || job.status === "queued"
+            ? "discovering"
+            : "processing",
         jobType: job.job_type,
         startedAt: job.started_at,
         createdAt: job.created_at,
@@ -56,6 +60,7 @@ export const GET = withErrorHandler(async () => {
         COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
         COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+        COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
         COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
       FROM app.canvas_imports
@@ -84,6 +89,7 @@ export const GET = withErrorHandler(async () => {
     indexing: 0,
     downloading: 0,
     processing: 0,
+    pending_marker: 0,
     forbidden: 0,
     error: 0,
   };
@@ -93,6 +99,7 @@ export const GET = withErrorHandler(async () => {
     indexing,
     downloading,
     processing,
+    pendingMarker,
     forbidden,
     errorCount,
   ] = [
@@ -101,6 +108,7 @@ export const GET = withErrorHandler(async () => {
     "indexing",
     "downloading",
     "processing",
+    "pending_marker",
     "forbidden",
     "error",
   ].map((k) => parseInt(stats[k], 10));
@@ -109,7 +117,7 @@ export const GET = withErrorHandler(async () => {
   // use expected_total from the discovery phase as denominator when available —
   // this prevents the progress bar from jumping backwards as new files are found
   const denominator = job?.expected_total ?? total;
-  const settled = completed + forbidden + errorCount;
+  const settled = completed + pendingMarker + forbidden + errorCount;
   const progressPercent =
     !isActive && denominator > 0
       ? 100
@@ -127,6 +135,7 @@ export const GET = withErrorHandler(async () => {
       indexing,
       downloading,
       processing,
+      pendingMarker,
       percent: progressPercent,
     },
     issues: {
