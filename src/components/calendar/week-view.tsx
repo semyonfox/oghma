@@ -82,6 +82,18 @@ export default function WeekView() {
     fetchTimeBlocks(start, end);
   }, [weekDays, fetchTimeBlocks]);
 
+  // refresh when AI creates/completes a time block
+  useEffect(() => {
+    const refresh = () => {
+      fetchTimeBlocks(
+        weekDays[0].date + "T00:00:00Z",
+        weekDays[6].date + "T23:59:59Z",
+      );
+    };
+    window.addEventListener("oghma:time-block-changed", refresh);
+    return () => window.removeEventListener("oghma:time-block-changed", refresh);
+  }, [weekDays, fetchTimeBlocks]);
+
   // scroll to 8am on mount
   useEffect(() => {
     if (scrollRef.current) {

@@ -128,7 +128,7 @@ function buildToolInstruction(
     "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n" +
     "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
     "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
-    "CALENDAR: addTimeBlock creates a scheduled study block on the calendar with pomodoro tracking. This is NOT a note. completeTimeBlock marks a block done.\n\n" +
+    "CALENDAR: getTimeBlocks lists existing calendar blocks for a date range. addTimeBlock creates a new scheduled study block with pomodoro tracking. completeTimeBlock marks a block done. These are NOT notes.\n\n" +
     "Key distinction: scheduling/study blocks/time blocks/calendar → addTimeBlock. Writing/saving/documenting → makeMDNote. Never create a note when the user wants a calendar block." +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
@@ -425,6 +425,29 @@ function createChatTools(
     },
   });
 
+  const getTimeBlocks = tool({
+    description:
+      "List the user's scheduled time blocks. Use to check what's already on the calendar before adding new blocks, or to confirm a block was created.",
+    inputSchema: z.object({
+      start: z.string().describe("ISO 8601 start of range"),
+      end: z.string().describe("ISO 8601 end of range"),
+    }),
+    execute: async ({ start, end }) => {
+      const rows = await sql`
+        SELECT tb.id, tb.title, tb.starts_at, tb.ends_at, tb.pomodoro_count, tb.completed,
+               a.title AS assignment_title
+        FROM app.time_blocks tb
+        LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${userId}::uuid
+        WHERE tb.user_id = ${userId}::uuid
+          AND tb.starts_at < ${end}::timestamptz
+          AND tb.ends_at > ${start}::timestamptz
+        ORDER BY tb.starts_at ASC
+        LIMIT 50
+      `;
+      return { blocks: rows };
+    },
+  });
+
   const addTimeBlock = tool({
     description:
       "Add a study/scheduling block to the calendar with automatic pomodoro tracking. " +
@@ -437,6 +460,7 @@ function createChatTools(
       assignmentId: z.string().uuid().optional(),
     }),
     execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
+      console.log("[addTimeBlock] called", { blockTitle, startsAt, endsAt, assignmentId, userId });
       const start = new Date(startsAt);
       const end = new Date(endsAt);
       const durationMins = (end.getTime() - start.getTime()) / 60000;
@@ -462,6 +486,7 @@ function createChatTools(
         RETURNING id, title, starts_at, ends_at, pomodoro_count
       `;
 
+      console.log("[addTimeBlock] inserted", { blockId: row.id, title: row.title });
       return {
         blockId: row.id,
         title: row.title,
@@ -498,6 +523,7 @@ function createChatTools(
       makeMDNote,
       moveNote,
       renameNote,
+      getTimeBlocks,
       addTimeBlock,
       completeTimeBlock,
       ...canvasTools,
