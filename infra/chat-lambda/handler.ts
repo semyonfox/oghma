@@ -127,6 +127,7 @@ export const handler = awslambda.streamifyResponse(
         sessionId: requestedSessionId,
         history: requestHistory = [],
         thinkingMode: requestedThinkingMode,
+        clientNow,
       } = body;
 
       const thinkingMode: LlmThinkingMode =
@@ -183,6 +184,7 @@ export const handler = awslambda.streamifyResponse(
           systemPrompt,
           sessionMemoryPrompt,
           thinkingMode,
+          clientNow: typeof clientNow === "string" ? clientNow : undefined,
           requestOrigin: event.headers?.origin ?? "",
           referer: event.headers?.referer ?? null,
         });
