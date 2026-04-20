@@ -217,13 +217,16 @@ export function useChatStream(
           throw new Error("Missing stream body");
         }
 
-        await consumeStream(res.body, assistantId, text);
+        const { timeBlockChanged } = await consumeStream(res.body, assistantId, text);
         const completionTime = Date.now();
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, timestamp: completionTime } : m,
           ),
         );
+        if (timeBlockChanged) {
+          window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
+        }
         clearDraft(sessionIdRef.current);
         onStreamComplete?.();
       } catch (err) {
@@ -307,7 +310,8 @@ export function useChatStream(
     body: ReadableStream<Uint8Array>,
     assistantId: string,
     userText: string,
-  ): Promise<void> {
+  ): Promise<{ timeBlockChanged: boolean }> {
+    let timeBlockChanged = false;
     const reader = body.getReader();
     const decoder = new TextDecoder();
     const parseState = { buffer: "" };
@@ -331,6 +335,14 @@ export function useChatStream(
             handleNewSession(update.sessionId, userText);
           }
 
+          if (
+            update.type === "tool-call" &&
+            (update.toolName === "addTimeBlock" ||
+              update.toolName === "completeTimeBlock")
+          ) {
+            timeBlockChanged = true;
+          }
+
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
@@ -346,6 +358,7 @@ export function useChatStream(
       // yield to the macrotask queue so React can flush pending renders
       await new Promise<void>((r) => setTimeout(r, 0));
     }
+    return { timeBlockChanged };
   }
 
   return {
