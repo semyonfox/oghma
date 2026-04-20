@@ -9,15 +9,15 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes -- SRS (Updated v4)}
+\lhead{OghmaNotes -- SRS}
 
 \title{Software Requirements Specification \\
 \Large OghmaNotes: Learning Platform with AI Chat}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
-\date{April 2026 (Updated v4)}
+\date{February 2026}
 
 \hypersetup{
-    pdftitle={OghmaNotes SRS v4},
+    pdftitle={OghmaNotes SRS},
     pdfauthor={Samuel Regan, Semyon Fox, Shreyansh Singh}
 }
 
@@ -821,14 +821,14 @@ The system is ready to ship when:
         \item Canvas LMS integration (API token, file import, assignment sync)
         \item Analytics basics (overall scores, flashcard mastery, study time)
     \end{itemize}
-    
+
     \item Non-functional requirements validated
     \begin{itemize}
         \item Performance benchmarks met (search \textless5-50ms, RAG \textless3s)
         \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth, AES-256-GCM encryption)
         \item Reliability: 99\% uptime, graceful degradation on API failures
     \end{itemize}
-    
+
 
     \item Complete end-to-end demo works:
     \begin{itemize}
@@ -841,11 +841,11 @@ The system is ready to ship when:
         \item Connect to Canvas and view assignment due dates
         \item View analytics dashboard with basic metrics
     \end{itemize}
-    
+
     \item Automated deployment working (AWS Amplify, GitHub Actions)
-    
+
     \item Documentation complete (README, setup, API docs, architecture)
-    
+
     \item Code quality standards met (ESLint, Prettier, TypeScript strict mode)
 \end{enumerate}
 
