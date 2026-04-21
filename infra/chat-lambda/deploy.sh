@@ -9,7 +9,7 @@ set -euo pipefail
 #   - Node.js + npm available
 #   - the Lambda needs VPC access if RDS/ElastiCache are in a VPC
 
-REGION="eu-north-1"
+REGION="eu-west-1"
 FUNCTION_NAME="oghmanotes-chat"
 ROLE_NAME="oghmanotes-chat-lambda-role"
 TIMEOUT=300        # 5 minutes
