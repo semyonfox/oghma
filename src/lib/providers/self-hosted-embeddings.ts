@@ -31,7 +31,7 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
       throw new Error("Embedding provider not configured (EMBEDDING_API_URL/KEY/MODEL)");
     }
 
-    const res = await fetch(`${apiUrl}/v1/embeddings`, {
+    const res = await fetch(`${apiUrl}/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
