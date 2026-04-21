@@ -15,7 +15,7 @@ export interface SearchResult {
 }
 
 // cosine distance threshold — chunks further than this are considered irrelevant
-// Cohere multilingual-v3.0 distances: 0 = identical, ~0.3 = very similar, ~0.7 = weakly related
+// ~0 = identical, ~0.3 = very similar, ~0.7 = weakly related
 const MAX_DISTANCE = 0.55;
 
 // search chunks+embeddings tables, joining back to notes for metadata

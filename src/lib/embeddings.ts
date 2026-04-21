@@ -1,4 +1,4 @@
-// batch-embeds chunks via the configured embedding provider (OpenRouter, etc.)
+// batch-embeds chunks via the configured embedding provider (SiliconFlow, etc.)
 // strips markdown syntax before embedding — ###, ---, ** etc. are noise in vector space
 // the original markdown chunk text is preserved in chunks.text for LLM RAG context
 

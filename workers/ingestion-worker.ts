@@ -11,6 +11,7 @@
  * workers if you ever need to scale horizontally.
  */
 
+import { loadSecrets } from "../src/lib/secrets";
 import sql from "../src/database/pgsql.js";
 import { runExtraction } from "../src/app/api/extract/route";
 import logger from "../src/lib/logger";
@@ -89,6 +90,9 @@ function sleep(ms: number) {
 }
 
 async function run() {
+    if (process.env.NODE_ENV === "production") {
+        await loadSecrets();
+    }
     logger.info("ingestion-worker: started");
 
     while (true) {
