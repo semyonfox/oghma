@@ -1,5 +1,5 @@
 // embeds a single query string for semantic search
-// uses the same provider as batch embedding (OpenRouter / any OpenAI-compatible API)
+// uses the same provider as batch embedding (SiliconFlow / any OpenAI-compatible API)
 
 import { defaultEmbeddingProvider } from "@/lib/providers/self-hosted-embeddings";
 
