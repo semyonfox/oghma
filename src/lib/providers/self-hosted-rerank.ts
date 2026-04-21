@@ -37,7 +37,7 @@ class RerankAPIProvider implements RerankProvider {
       throw new Error("Rerank provider not configured (RERANK_API_URL/KEY/MODEL)");
     }
 
-    const res = await fetch(`${apiUrl}/v1/rerank`, {
+    const res = await fetch(`${apiUrl}/rerank`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
