@@ -1,4 +1,4 @@
-// embedding provider — calls any OpenAI-compatible endpoint (OpenRouter, ollama, etc.)
+// embedding provider — calls any OpenAI-compatible endpoint (SiliconFlow, ollama, etc.)
 // configured via EMBEDDING_API_URL, EMBEDDING_API_KEY, EMBEDDING_MODEL
 
 export interface EmbeddingProvider {
@@ -31,16 +31,13 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
       throw new Error("Embedding provider not configured (EMBEDDING_API_URL/KEY/MODEL)");
     }
 
-    const nonEmpty = texts.filter((t) => t?.trim());
-    if (nonEmpty.length === 0) return [];
-
     const res = await fetch(`${apiUrl}/v1/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ input: nonEmpty, model }),
+      body: JSON.stringify({ input: texts, model }),
       signal: AbortSignal.timeout(30000),
     });
 
@@ -54,9 +51,9 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
       .map((item: { embedding: number[] }) => item.embedding)
       .filter(Boolean);
 
-    if (embeddings.length !== nonEmpty.length) {
+    if (embeddings.length !== texts.length) {
       throw new Error(
-        `Embedding count mismatch: got ${embeddings.length}, expected ${nonEmpty.length}`,
+        `Embedding count mismatch: got ${embeddings.length}, expected ${texts.length}`,
       );
     }
 

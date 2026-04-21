@@ -50,7 +50,7 @@ export async function register() {
   const { validateEnv } = await import("@/lib/validateEnv");
   validateEnv();
 
-  // enable X-Ray auto-tracing of all outbound HTTPS calls (Cohere, Kimi, etc.)
+  // enable X-Ray auto-tracing of all outbound HTTPS calls (SiliconFlow, OpenRouter, Kimi, etc.)
   // only when active tracing is enabled (_X_AMZN_TRACE_ID is set by Lambda
   // when active tracing is on — without it captureHTTPsGlobal causes errors)
   if (process.env.NODE_ENV === "production" && process.env._X_AMZN_TRACE_ID) {
