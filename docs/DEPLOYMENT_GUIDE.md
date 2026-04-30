@@ -1,4 +1,4 @@
-# Canvas + Vault Import Pipeline Optimization - Deployment Guide
+# Canvas + Vault Import Pipeline Optimization — Deployment Guide
 
 ## Overview
 

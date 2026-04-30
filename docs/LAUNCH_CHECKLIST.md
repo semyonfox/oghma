@@ -2,16 +2,17 @@
 
 > Track progress toward the first real users.
 > Sections are ordered: blockers first, nice-to-haves after.
+> Sister docs: `ROADMAP.md` (timeline + features) · `PRICING.md` (cost model + launch arch). Operational + governance docs are private.
 
 ---
 
 ## 1. Broken Things (Fix Before Anyone Touches It)
 
-- [ ] **Change password** — endpoint exists but UI is not wired up (`settings` page)
-- [ ] **Delete account** — endpoint is a `console.log` stub, no actual deletion
+- [x] **Change password** — UI in `password-section.jsx`, API in `/api/auth/change-password/route.js` ✓
+- [x] **Delete account** — soft-delete with 30-day grace period in `/api/auth/delete-account/route.ts` ✓
 - [ ] **Canvas import end-to-end** — verify a real PDF goes all the way from Canvas → extract → embed → searchable. Never been confirmed in prod.
 - [ ] **SES out of sandbox** — password reset emails only work for verified addresses until you request production access from AWS. Go to SES → Account dashboard → Request production access.
-- [ ] **Stray `1` file in project root** — delete it
+- [x] **Stray `1` file in project root** — delete it (no longer exists)
 
 ---
 
@@ -24,7 +25,7 @@
 - [ ] Redis has TLS enabled in production (`REDIS_TLS=true`)
 - [ ] WAF rules reviewed — currently active and billing (~$19/month)
 - [ ] Rate limiting confirmed working for login (`/api/auth/login`)
-- [ ] Set up AWS billing alerts: $50 / $100 / $200 thresholds
+- [ ] Set up AWS billing alerts at **$50 / $200 / $500 / $1000** (supersedes earlier $50/$100/$200 plan)
   ```bash
   # quick check if any alarms exist
   aws cloudwatch describe-alarms --region eu-west-1 --query 'MetricAlarms[*].AlarmName'
@@ -35,7 +36,7 @@
 ## 3. Legal / Compliance (GDPR — you're in Ireland, this is not optional)
 
 - [ ] **Privacy policy** published at `/privacy` — must cover: what data is collected, stored, how long, user rights (access, deletion, portability)
-- [ ] **Terms of service** published at `/terms`
+- [ ] **Terms of service** published at `/terms` — include the "early experimental" clause: service may have downtime, data loss possible (backups maintained but not guaranteed), features may change without notice — exchange for discounted launch pricing
 - [ ] **Cookie notice** — do you use any tracking cookies? If yes, consent banner required. If no analytics/tracking, a simple "we use only essential cookies" banner is fine.
 - [ ] **Contact email** listed for data requests (GDPR Article 12) — a real inbox, not a form
 - [ ] **Account deletion actually works** (see section 1) — legally required under GDPR Article 17
@@ -99,22 +100,33 @@ Do these yourself end-to-end in production before inviting anyone:
 ## 7. Product Polish (Before Inviting People)
 
 - [ ] Landing page accurately reflects what the product does today (no "coming soon" features listed as ready)
+- [ ] **Early-access banner** on landing page — "Early access — €4.99 launch pricing locked for 12 months. Help us shape the product."
+- [ ] **First-run modal** for new accounts — "this is a launch beta. Expect rough edges. Email [founder@oghmanotes.ie] if anything breaks." Direct line to founder is itself a feature BetterCampus / RemNote can't replicate.
 - [ ] Onboarding — new user lands on an empty workspace with no clue what to do. Add at minimum a welcome note or tooltip pointing at Canvas import
 - [ ] Error states are user-friendly (not raw JSON or blank screens)
-- [ ] Cold-start UX for OCR — when a user triggers a Canvas import and the GPU is cold, show a message like "Processing your files, this may take a few minutes" rather than a spinner with no explanation
+- [ ] Cold-start UX for OCR — with launch arch (`PRICING.md` §1.5) GPU is always-warm, so cold start should not occur. Keep the "Processing your files..." copy as a fallback if Marker is restarting (e.g. post-deploy).
 - [ ] "Coming soon" buttons (note export, import, AI panel actions) — either remove them or disable with a tooltip. Don't show broken buttons to real users.
 
 ---
 
-## 8. Payments (When Ready to Charge)
+## 8. Payments — v1 Stripe Payment Links (defer full automation)
+
+For launch: **manual flow with Stripe Payment Links**, no webhook automation. Cheap, ~30 min/mo admin overhead distributed across the three founders. Wire up webhook automation later when traffic justifies the engineering time.
 
 - [ ] [Stripe](https://stripe.com/ie) account created (Irish entity — use Stripe Ireland)
-- [ ] Products created: Student (€4.99/mo, €39/yr), Pro (€9.99/mo, €79/yr)
-- [ ] Webhook endpoint `/api/stripe/webhook` implemented to handle `checkout.session.completed`, `customer.subscription.deleted`
+- [ ] Products created in Stripe dashboard: Student (€4.99/mo, €39/yr), Pro (€9.99/mo, €79/yr)
+- [ ] Stripe Tax enabled — handles EU VAT automatically (~0.5% fee, required above €10k EU revenue/yr)
+- [ ] Generate **Payment Links** for each tier — paste in `/pricing` page footer / signup flow
 - [ ] User table has `plan` column (`free` | `student` | `pro`) — gate Canvas import and AI search behind it
-- [ ] Pricing page at `/pricing` live
+- [ ] Pricing page at `/pricing` live, with Payment Link buttons
+- [ ] Manual fulfilment process documented: when Stripe sends "subscription created" email → ops person sets `users.plan` in DB. Once a week, audit `users.plan` against Stripe active subscriptions (script in `scripts/`).
 - [ ] Test mode payments work end-to-end before going live
-- [ ] VAT — Irish digital services to EU consumers require VAT. Look into Stripe Tax (handles this automatically)
+
+### v2 (post-launch, when traffic justifies)
+
+- [ ] Webhook endpoint `/api/stripe/webhook` implemented to handle `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed`
+- [ ] Replace manual fulfilment with webhook-driven plan flips
+- [ ] Self-service plan changes from `/settings/billing` (Stripe Customer Portal)
 
 ---
 
@@ -138,14 +150,16 @@ Do these yourself end-to-end in production before inviting anyone:
 
 ## Summary
 
-| Section        | Blockers | Status                       |
-| -------------- | -------- | ---------------------------- |
-| Broken things  | 5        | Fix before launch            |
-| Security       | 8        | Review before launch         |
-| GDPR           | 6        | Required by law              |
-| Infrastructure | 11       | Verify in prod               |
-| Manual QA      | 10       | Do yourself first            |
-| Monitoring     | 5        | Set up before inviting users |
-| Product polish | 5        | Before inviting users        |
-| Payments       | 7        | When ready to charge         |
-| Rollout        | 6        | Day of launch                |
+| Section        | Items | Done | Status                       |
+| -------------- | ----- | ---- | ---------------------------- |
+| Broken things  | 5     | 3    | 2 remaining (SES, Canvas E2E) |
+| Security       | 8     | ?    | Review before launch         |
+| GDPR           | 6     | 1    | Required by law (delete account ✓) |
+| Infrastructure | 11    | ?    | Verify in prod               |
+| Manual QA      | 10    | 0    | Do yourself first            |
+| Monitoring     | 5     | 0    | Set up before inviting users |
+| Product polish | 5     | ?    | Before inviting users        |
+| Payments       | 7     | 0    | When ready to charge         |
+| Rollout        | 6     | 0    | Day of launch                |
+
+> Last verified: 2026-04-30

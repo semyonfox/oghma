@@ -79,3 +79,6 @@ infra/chat-lambda/dist/
 
 # aws migration export
 aws-export/
+
+# private business / internal docs — share via discord / private repo, never commit
+docs/internal/
