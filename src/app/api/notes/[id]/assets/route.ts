@@ -90,9 +90,8 @@ export const GET = withErrorHandler(
 
     if (!resolvedKey) return tracedError("Asset not found", 404);
 
-    // Redirect to proxy endpoint instead of direct S3 to avoid CORS issues
-    const proxyUrl = `/api/proxy/s3?path=${encodeURIComponent(resolvedKey)}`;
-    return NextResponse.redirect(proxyUrl, {
+    const signedUrl = await storage.getSignUrl(resolvedKey, 300);
+    return NextResponse.redirect(signedUrl, {
       status: 307,
       headers: { "Cache-Control": "private, max-age=60" },
     });

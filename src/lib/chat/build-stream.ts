@@ -5,7 +5,7 @@ import type { ToolSet } from "ai";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
 import { generateUUID } from "@/lib/utils/uuid";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
+import { addNoteToTree, moveNoteInTree } from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
@@ -62,6 +62,7 @@ export interface BuildLlmCallParams {
   systemPrompt: string;
   sessionMemoryPrompt: string;
   thinkingMode: LlmThinkingMode;
+  clientDateTime?: string;
   requestOrigin: string;
   referer: string | null;
 }
@@ -119,14 +120,18 @@ async function resolveParentFolderHint(
 function buildToolInstruction(
   scopedParentHint: string,
   canvasInstruction: string,
+  clientDateTime?: string,
 ): string {
+  const now = clientDateTime ?? new Date().toISOString();
   return (
-    "Tools available:\n" +
-    "- getChunks({ query, mode?, scope? }) — search notes for relevant chunks. mode: 'semantic' (default, conceptual match), 'exact' (literal phrase/term), 'both'. scope: 'session' (default, stay in current scope) or 'all' (search across all notes). Returns chunk text + noteId per hit.\n" +
-    "- readNote({ noteId }) — read the full markdown content of a note. Use after getChunks confirms the right note.\n" +
-    "- findFolder({ query }) — search for a folder/course directory by name. Use when parent folder is not already known.\n" +
-    "- makeMDNote({ text, parentID?, title? }) — create a markdown note. Set parentID to place it in the right folder.\n" +
-    "When the user asks to create/save/write a note: if you already know the parentID (from context below), call makeMDNote directly. Otherwise call findFolder first. Prefer session scope first. Only use scope='all' when the user asks to search beyond the current scope or when scoped search clearly isn't enough." +
+    `Current date/time: ${now}\n\n` +
+    "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
+    "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
+    "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n" +
+    "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
+    "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
+    "CALENDAR: getTimeBlocks lists existing calendar blocks for a date range. addTimeBlock creates a new scheduled study block with pomodoro tracking. completeTimeBlock marks a block done. These are NOT notes.\n\n" +
+    "Key distinction: scheduling/study blocks/time blocks/calendar → addTimeBlock. Writing/saving/documenting → makeMDNote. Never create a note when the user wants a calendar block." +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
   );
@@ -140,7 +145,8 @@ function createChatTools(
 ): { tools: ToolSet } {
   const makeMDNote = tool({
     description:
-      "Create a markdown note for the current user. Use parentID to place it under a folder.",
+      "Create a markdown note and save it to the user's library. " +
+      "Use parentID to place it in a folder. Only for written content — for scheduling, use addTimeBlock instead.",
     inputSchema: z.object({
       text: z.string().min(1).max(200_000),
       parentID: z.string().uuid().nullable().optional(),
@@ -170,16 +176,15 @@ function createChatTools(
         };
       }
 
-      const resolvedTitle = (
-        title?.trim() || inferNoteTitle(trimmed)
-      ).slice(0, 500);
+      const resolvedTitle = (title?.trim() || inferNoteTitle(trimmed)).slice(
+        0,
+        500,
+      );
       const markdown =
         trimmed.startsWith("#") || trimmed.startsWith("---")
           ? trimmed
           : `# ${resolvedTitle}\n\n${trimmed}`;
-      const fileName = sanitizeFileName(
-        `${resolvedTitle || "AI_Note"}.md`,
-      );
+      const fileName = sanitizeFileName(`${resolvedTitle || "AI_Note"}.md`);
       const markdownBuffer = Buffer.from(markdown, "utf-8");
 
       const newNoteId = generateUUID();
@@ -215,11 +220,7 @@ function createChatTools(
         WHERE note_id = ${newNoteId}::uuid AND user_id = ${userId}::uuid
       `;
 
-      await replaceNoteEmbeddings(
-        newNoteId,
-        userId,
-        chunkText(markdown),
-      );
+      await replaceNoteEmbeddings(newNoteId, userId, chunkText(markdown));
 
       await cacheInvalidate(
         cacheKeys.treeChildren(userId, parentID || null),
@@ -247,8 +248,8 @@ function createChatTools(
 
   const findFolder = tool({
     description:
-      "Search for a folder in the user's notes by name or course keyword. " +
-      "Returns matching folders with their IDs. Use this to find parentID before creating a note.",
+      "Search folders by name or course keyword. Returns folder IDs. " +
+      "Use before makeMDNote (to get parentID) or moveNote (to get targetFolderId).",
     inputSchema: z.object({
       query: z.string().min(1).max(200),
     }),
@@ -264,24 +265,20 @@ function createChatTools(
         LIMIT 10
       `;
       return {
-        folders: (rows as { note_id: string; title: string }[]).map(
-          (r) => ({
-            id: r.note_id,
-            title: r.title,
-          }),
-        ),
+        folders: (rows as { note_id: string; title: string }[]).map((r) => ({
+          id: r.note_id,
+          title: r.title,
+        })),
       };
     },
   });
 
   const getChunks = tool({
     description:
-      "Search the user's notes for relevant chunks. " +
-      "Use mode='semantic' (default) for conceptual/topic queries. " +
-      "Use mode='exact' when looking for a specific term, name, formula, or phrase the user likely wrote verbatim. " +
-      "Use mode='both' to run both and merge results. " +
-      "Use scope='session' to stay inside the current chat context, or scope='all' to search the full note library when needed. " +
-      "Returns matching chunks with their noteId and title — call readNote if you need the full note.",
+      "Search notes for relevant chunks. Returns noteId + text per hit. " +
+      "mode: 'semantic' (conceptual), 'exact' (verbatim term/name/formula), 'both'. " +
+      "scope: 'session' (current context, default) or 'all' (full library). " +
+      "Follow up with readNote if you need the full note content.",
     inputSchema: z.object({
       query: z.string().min(1).max(300),
       mode: z.enum(["semantic", "exact", "both"]).default("semantic"),
@@ -317,8 +314,7 @@ function createChatTools(
 
   const readNote = tool({
     description:
-      "Read the full content of a note by ID. Use this once getChunks has identified the right note " +
-      "and you need the complete text. Returns the raw markdown content.",
+      "Read full markdown content of a note by ID. Use after getChunks confirms the right note.",
     inputSchema: z.object({
       noteId: z.string().uuid(),
     }),
@@ -349,12 +345,189 @@ function createChatTools(
     },
   });
 
+  const moveNote = tool({
+    description:
+      "Move a note or folder to a different parent folder. " +
+      "Requires targetFolderId — call findFolder first if unknown.",
+    inputSchema: z.object({
+      noteId: z.string().uuid(),
+      targetFolderId: z.string().uuid(),
+    }),
+    execute: async ({ noteId: moveNoteId, targetFolderId }) => {
+      const [note] = await sql`
+        SELECT note_id, title FROM app.notes
+        WHERE note_id = ${moveNoteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!note) throw new Error("Note not found");
+
+      const [folder] = await sql`
+        SELECT note_id, title, is_folder FROM app.notes
+        WHERE note_id = ${targetFolderId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!folder) throw new Error("Target folder not found");
+      if (!folder.is_folder) throw new Error("Target must be a folder");
+
+      // get old parent for cache invalidation
+      const [treeItem] = await sql`
+        SELECT parent_id FROM app.tree_items
+        WHERE note_id = ${moveNoteId}::uuid AND user_id = ${userId}::uuid
+      `;
+      const oldParentId = treeItem?.parent_id || null;
+
+      await moveNoteInTree(userId, moveNoteId, targetFolderId);
+
+      await cacheInvalidate(
+        cacheKeys.treeChildren(userId, oldParentId),
+        cacheKeys.treeChildren(userId, targetFolderId),
+        cacheKeys.treeFull(userId),
+      );
+
+      return {
+        noteId: moveNoteId,
+        newParentId: targetFolderId,
+        folderTitle: folder.title,
+      };
+    },
+  });
+
+  const renameNote = tool({
+    description:
+      "Rename a note or folder. Changes the title displayed in the tree.",
+    inputSchema: z.object({
+      noteId: z.string().uuid(),
+      newTitle: z.string().min(1).max(500),
+    }),
+    execute: async ({ noteId: renameNoteId, newTitle }) => {
+      const [note] = await sql`
+        SELECT note_id, title FROM app.notes
+        WHERE note_id = ${renameNoteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+      `;
+      if (!note) throw new Error("Note not found");
+
+      const oldTitle = note.title;
+      await sql`
+        UPDATE app.notes
+        SET title = ${newTitle.trim()}, updated_at = NOW()
+        WHERE note_id = ${renameNoteId}::uuid AND user_id = ${userId}::uuid
+      `;
+
+      await cacheInvalidate(
+        cacheKeys.treeFull(userId),
+        cacheKeys.note(userId, renameNoteId),
+        cacheKeys.notesList(userId, 0, undefined),
+      );
+
+      return { noteId: renameNoteId, oldTitle, newTitle: newTitle.trim() };
+    },
+  });
+
+  const getTimeBlocks = tool({
+    description:
+      "List the user's scheduled time blocks. Use to check what's already on the calendar before adding new blocks, or to confirm a block was created.",
+    inputSchema: z.object({
+      start: z.string().describe("ISO 8601 start of range"),
+      end: z.string().describe("ISO 8601 end of range"),
+    }),
+    execute: async ({ start, end }) => {
+      const rows = await sql`
+        SELECT tb.id, tb.title, tb.starts_at, tb.ends_at, tb.pomodoro_count, tb.completed,
+               a.title AS assignment_title
+        FROM app.time_blocks tb
+        LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${userId}::uuid
+        WHERE tb.user_id = ${userId}::uuid
+          AND tb.starts_at < ${end}::timestamptz
+          AND tb.ends_at > ${start}::timestamptz
+        ORDER BY tb.starts_at ASC
+        LIMIT 50
+      `;
+      return { blocks: rows };
+    },
+  });
+
+  const addTimeBlock = tool({
+    description:
+      "Add a study/scheduling block to the calendar with automatic pomodoro tracking. " +
+      "NOT a note — this creates a calendar event. Link to an assignment with assignmentId. " +
+      "Times: ISO 8601 (e.g. '2026-04-17T15:00:00Z').",
+    inputSchema: z.object({
+      title: z.string().min(1).max(200),
+      startsAt: z.string(),
+      endsAt: z.string(),
+      assignmentId: z.string().uuid().optional(),
+    }),
+    execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
+      console.log("[addTimeBlock] called", { blockTitle, startsAt, endsAt, assignmentId, userId });
+      const start = new Date(startsAt);
+      const end = new Date(endsAt);
+      const durationMins = (end.getTime() - start.getTime()) / 60000;
+      if (durationMins <= 0) throw new Error("End must be after start");
+
+      if (assignmentId) {
+        const [owned] = await sql`
+          SELECT 1 FROM app.assignments
+          WHERE id = ${assignmentId}::uuid AND user_id = ${userId}::uuid
+        `;
+        if (!owned) throw new Error("Assignment not found");
+      }
+
+      const pomodoroCount = Math.max(1, Math.ceil(durationMins / 30));
+
+      const [row] = await sql`
+        INSERT INTO app.time_blocks (
+          user_id, assignment_id, title, starts_at, ends_at, pomodoro_count
+        ) VALUES (
+          ${userId}::uuid, ${assignmentId ?? null},
+          ${blockTitle}, ${startsAt}, ${endsAt}, ${pomodoroCount}
+        )
+        RETURNING id, title, starts_at, ends_at, pomodoro_count
+      `;
+
+      console.log("[addTimeBlock] inserted", { blockId: row.id, title: row.title });
+      return {
+        blockId: row.id,
+        title: row.title,
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+        pomodoroCount: row.pomodoro_count,
+      };
+    },
+  });
+
+  const completeTimeBlock = tool({
+    description: "Mark a time block as completed.",
+    inputSchema: z.object({
+      blockId: z.string().uuid(),
+    }),
+    execute: async ({ blockId }) => {
+      const [row] = await sql`
+        UPDATE app.time_blocks
+        SET completed = true
+        WHERE id = ${blockId}::uuid AND user_id = ${userId}::uuid
+        RETURNING id, completed
+      `;
+      if (!row) throw new Error("Time block not found");
+
+      return { blockId: row.id, completed: true };
+    },
+  });
+
   return {
     tools: {
       getChunks,
       readNote,
       findFolder,
       makeMDNote,
+      moveNote,
+      renameNote,
+      getTimeBlocks,
+      addTimeBlock,
+      completeTimeBlock,
       ...canvasTools,
     },
   };
@@ -385,6 +558,7 @@ export async function buildLlmCall(
   const toolInstruction = buildToolInstruction(
     scopedParentHint,
     canvasInstruction,
+    params.clientDateTime,
   );
 
   const { tools } = createChatTools(
@@ -397,7 +571,11 @@ export async function buildLlmCall(
   const chatMessages: ChatMessage[] = [
     {
       role: "system",
-      content: [params.systemPrompt, params.sessionMemoryPrompt, toolInstruction]
+      content: [
+        params.systemPrompt,
+        params.sessionMemoryPrompt,
+        toolInstruction,
+      ]
         .filter(Boolean)
         .join("\n\n"),
     },

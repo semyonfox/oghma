@@ -79,7 +79,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       if (!isDirtyRef.current) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       // fire-and-forget flush — IDB write is fast enough to land before teardown
-      writeDraft(currentFileId.current, localContentRef.current).catch(() => {});
+      writeDraft(currentFileId.current, localContentRef.current).catch(
+        () => {},
+      );
       e.preventDefault();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -117,9 +119,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       if (!draftRestored) {
         try {
           const { noteCacheInstance } = await import("@/lib/notes/cache");
-          const cached = await noteCacheInstance.getItem<{ content?: string; updatedAt?: string }>(
-            file.fileId,
-          );
+          const cached = await noteCacheInstance.getItem<{
+            content?: string;
+            updatedAt?: string;
+          }>(file.fileId);
           if (
             !cancelled &&
             cached?.content != null &&
@@ -143,7 +146,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           // but check if the server version is actually newer (conflict)
           if (draftRestored) {
             const draft = await readDraft(file.fileId);
-            const serverMs = result.updatedAt ? new Date(result.updatedAt).getTime() : 0;
+            const serverMs = result.updatedAt
+              ? new Date(result.updatedAt).getTime()
+              : 0;
             const draftMs = draft?.draftAt ?? 0;
             if (serverMs > draftMs) {
               // server has a newer version than the draft — warn once, don't block
@@ -268,12 +273,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div
-      className="h-full flex flex-col bg-background"
-      onBlur={handleEditorBlur}
-    >
+    <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
       {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-background">
+      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
         {/* Source / Read toggle */}
         <div className="flex items-center gap-1 glass-panel p-0.5 rounded-radius-md">
           <button
@@ -342,10 +344,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-auto flex flex-col items-center bg-background">
+      <div className="flex-1 overflow-hidden bg-app-page">
         {mode === "source" ? (
           loaded ? (
-            <div className="w-full h-full">
+            <div className="h-full min-h-0 w-full">
               <SourceEditor
                 value={displayContent}
                 onChange={(val) => {
@@ -358,18 +360,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
               />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
               Loading...
             </div>
           )
         ) : loaded ? (
-          <div className="w-full max-w-[82ch] mx-auto h-full px-4 md:px-8 lg:px-10">
-            <div className="pt-12 pb-48 prose prose-invert prose-headings:font-medium text-text-secondary">
+          <div className="h-full min-h-0 w-full overflow-auto px-4 py-10 md:px-8 lg:px-10">
+            <div className="mx-auto w-full max-w-3xl">
               <PreviewRenderer content={displayContent} noteId={file.fileId} />
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
             Loading...
           </div>
         )}

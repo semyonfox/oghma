@@ -25,14 +25,23 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "File too large (max 10GB)");
   }
 
-  const uploadId = uuidv4();
   const bucket = process.env.STORAGE_BUCKET;
+  if (!bucket) throw new ApiError(503, "Vault storage is not configured");
+
+  const uploadId = uuidv4();
   const prefix = process.env.STORAGE_PREFIX || "oghma";
   const s3Key = `vault-uploads/${user.user_id}/${uploadId}/${filename}`;
   const fullKey = `${prefix}/${s3Key}`;
 
   const s3 = new S3Client({
     region: process.env.STORAGE_REGION || "us-east-1",
+    ...(process.env.STORAGE_ENDPOINT && { endpoint: process.env.STORAGE_ENDPOINT }),
+    ...(process.env.STORAGE_ACCESS_KEY && process.env.STORAGE_SECRET_KEY && {
+      credentials: {
+        accessKeyId: process.env.STORAGE_ACCESS_KEY,
+        secretAccessKey: process.env.STORAGE_SECRET_KEY,
+      },
+    }),
   });
 
   const uploadUrl = await getSignedUrl(

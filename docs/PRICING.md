@@ -1,7 +1,8 @@
 # OghmaNote — Pricing & Commercial Planning
 
-> Last updated: April 2026
-> Based on real AWS billing data (Cost Explorer) and Cohere API pricing.
+> Last updated: 2026-04-30
+> Based on real AWS billing data (Cost Explorer), live AWS pricing API, and Cohere API pricing.
+> Sister docs: `ROADMAP.md` (timeline) · `LAUNCH_CHECKLIST.md` (launch tasks). Operational/governance docs are kept private.
 
 ---
 
@@ -24,26 +25,31 @@ These costs run regardless of user activity:
 | Other (Secrets Manager, ECR, SES, S3) | ~$0.10     | ~$3             |
 | **Floor total**                       | **~$4.40** | **~$149/month** |
 
-### 1.2 Marker GPU (g5.xlarge, eu-west-1)
+### 1.2 GPU instances — live eu-west-1 prices (queried 2026-04-30)
 
-The GPU is the biggest variable cost. Options ranked cheapest to most expensive:
+Spot prices have ~doubled since the early 2026 baseline. Live numbers from `aws ec2 describe-spot-price-history` and `aws pricing get-products`:
 
-| Mode                                  | $/month     | Notes                                |
-| ------------------------------------- | ----------- | ------------------------------------ |
-| Scale-to-zero (off-peak only)         | ~$0 + usage | Cold start 4-7 min when idle         |
-| **Spot, warm window 08:00-23:00 IST** | **~$105**   | **Current config — recommended**     |
-| Spot, always-on (24/7)                | ~$252       | No cold start, overkill for now      |
-| On-demand, warm window                | ~$290       | Never use this                       |
-| On-demand, always-on (24/7)           | **~$725**   | What was running Apr 1-2 — stop this |
+| instance | GPU / VRAM | spot $/hr | on-demand $/hr | on-demand $/mo 24/7 | 1-yr RI no-upfront $/mo | 1-yr RI all-upfront $/mo (upfront $) |
+|---|---|---|---|---|---|---|
+| g4dn.xlarge | T4 16GB | ~$0.27 | $0.587 | ~$429 | ~$292 | not queried |
+| **g5.xlarge** | **A10G 24GB** | **~$0.66** | **$1.123** | **~$820** | **~$516** | **~$482 ($5,784 upfront)** |
+| g5.2xlarge | A10G 24GB | varies | varies | n/a | n/a | n/a |
 
-**Current setup (as of April 2026):**
+**Note**: g6.xlarge (L4 GPU) is **not available in eu-west-1** as of April 2026 — closes off the L4 option for the GDPR-Ireland region.
+
+**GPU specs**:
+
+- A10G (g5): 24GB VRAM, ~62 TFLOPS FP16 dense — processes ~1–3 pages/sec for Marker
+- T4 (g4dn): 16GB VRAM, ~30 TFLOPS FP16 — ~half throughput vs A10G, tight VRAM if running anything else on the same GPU
+
+**Current ASG setup (as of April 2026)**:
 
 - ASG: `<marker-asg>` in eu-west-1
 - Instance: g5.xlarge spot (`<launch-template>`, version 22)
-- No scheduled actions — pure scale-to-zero
-- GPU only runs when an import is triggered, cold start every time (~4-7 min)
+- No scheduled actions — pure scale-to-zero, desired=0 most of April (real spend ~$0 on GPU)
+- GPU only runs when an import is triggered, cold start every time (~4–7 min)
 
-**GPU specs:** NVIDIA A10G, 24GB VRAM, 31.2 TFLOPS FP16 — processes ~1-3 pages/second for Marker.
+**Status**: this ASG-based architecture is being deprecated for the back-to-school launch (see §1.5 below). Marker workload moves onto the launch instance directly.
 
 ### 1.3 Why Not a Bigger GPU?
 
@@ -51,14 +57,50 @@ All g5 variants (xlarge through 4xlarge) use **the same single A10G GPU**. Large
 
 The only bigger GPU option is g5.12xlarge (4x A10G) at ~$16/hr = $11,500/month. Never.
 
-### 1.4 Total Monthly Cost Scenarios
+### 1.4 Total Monthly Cost Scenarios — distributed AWS (legacy shape)
 
-| GPU mode                         | Fixed    | GPU       | **Total**           |
-| -------------------------------- | -------- | --------- | ------------------- |
-| Scale-to-zero                    | $149     | ~$5-20    | **~$154-169/month** |
-| **Warm window (spot) — current** | **$149** | **~$105** | **~$254/month**     |
-| Always-on (spot)                 | $149     | ~$252     | ~$401/month         |
-| Always-on (on-demand)            | $149     | ~$725     | ~$874/month         |
+For the existing distributed architecture (Amplify + RDS + ElastiCache + ASG-based Marker GPU). Numbers updated to reflect live spot/on-demand prices as of 2026-04-30.
+
+| GPU mode                  | fixed | GPU      | **total**       |
+| ------------------------- | ----- | -------- | --------------- |
+| scale-to-zero (current)   | $149  | ~$5–20   | **~$154–169**   |
+| warm window (spot)        | $149  | ~$200    | **~$349**       |
+| always-on (spot)          | $149  | ~$482    | ~$631           |
+| always-on (on-demand)     | $149  | ~$820    | ~$969           |
+
+**This shape is being retired.** The launch architecture (§1.5) collapses to a single self-hosted GPU instance, which is significantly simpler and ~$120/mo cheaper than always-on on-demand at the distributed shape.
+
+### 1.5 Launch Infrastructure — single g5.xlarge, self-hosted (post-homelab)
+
+**Architecture**: one EC2 g5.xlarge in eu-west-1 running the full stack via docker-compose — postgres, valkey, garage/S3, Next.js app, worker, Marker GPU. Mirrors the homelab compose stack so summer-tested config lifts directly onto AWS pre-launch.
+
+**Why this shape won**:
+
+- self-hosted (no marker API at €0.05/page — empirically unsustainable, see §2.2)
+- always-warm GPU (no 4–7 min cold start, no spot eviction during launch demos)
+- one box = mirror of homelab dev environment, minimal new ops surface
+- cheaper than current distributed + on-demand always-on
+
+**Cost stack — launch month onward** (with 1-yr RI all-upfront committed in mid-Aug):
+
+| line item | $/mo | notes |
+|---|---|---|
+| g5.xlarge 1-yr RI all-upfront (amortised) | $482 | $5,784 once → effective $/mo for 12 months |
+| EBS gp3 250GB (postgres + s3-compat + models + logs) | ~$20 | 3,000 IOPS baseline included |
+| EBS snapshots (daily, delta) | ~$5 | first snapshot full size, dailies are deltas |
+| egress (trickle launch volume) | ~$2 | revisit if it climbs, CloudFront in front later |
+| Route53 + SES | ~$0.50 | unchanged from current |
+| **all-in** | **~$510** | with $5,784 upfront on RI commit day |
+
+**RI alternatives**:
+
+| structure | upfront | $/mo running | break-even vs on-demand |
+|---|---|---|---|
+| 1-yr RI all-upfront | $5,784 | $28 | month 4–5 |
+| 1-yr RI no-upfront | $0 | $544 | from day 1 (~$300/mo saving vs on-demand) |
+| on-demand 24/7 | $0 | $848 | n/a |
+
+**RI commit timing**: buy in mid-August, **after** 2 weeks of on-demand smoke-testing on AWS. Premature RI = locking before validating the box works.
 
 ---
 
@@ -77,46 +119,63 @@ Free trial key: ~1,000 calls/month (fine for development and handful of beta use
 
 ### 2.2 Marker OCR — Self-Hosted vs API
 
-| Approach                  | Cost per page | Cost at 1K pages/month |
-| ------------------------- | ------------- | ---------------------- |
-| Self-hosted GPU (current) | ~$0.0006      | ~$0.60                 |
-| Marker API (datalab.to)   | ~$0.04-0.10   | ~$40-100               |
+| approach | cost per page | cost at 1K pages/mo |
+|---|---|---|
+| self-hosted GPU (launch arch §1.5) | ~$0.0006 | ~$0.60 |
+| Marker API (datalab.to) | ~$0.04–0.10 | ~$40–100 |
 
-Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total across all users. Above that, self-hosted is 70-175x cheaper per page.
+**Empirical April 2026 test**: ~€5 burned through ~100 notes on the Marker API. Confirms the per-page rate and rules out the cloud API as a sustainable launch path — at 50 students × 100 notes/semester that's ~€2,500/semester just on OCR, which the €4.99/mo Student tier cannot fund.
+
+**Conclusion**: self-hosted GPU is the only viable launch architecture. Datalab API stays in the codebase as a fallback (`DATALAB_API_KEY` already supported) for emergencies when the GPU instance is down, not as the steady-state path.
+
+Breakeven point is ~30–40 pages/month total — crossed by 4–5 active users. Above that, self-hosted is 70–175× cheaper per page.
 
 ---
 
-## 3. Break-Even Analysis
+## 3. Break-Even Analysis (Launch Architecture, Full Stack)
+
+Old break-even assumed a $254/mo distributed-AWS warm-window config and ignored Stripe fees. Updated for the launch arch (§1.5) at €510/mo with Stripe fees and Cohere baked in.
 
 ### Per-User Variable Cost
 
-| Component                        | Cost/active user/month |
-| -------------------------------- | ---------------------- |
-| Cohere rerank (avg 200 searches) | ~$0.40                 |
-| Cohere embed (new content)       | ~$0.02                 |
-| Marker GPU time (new PDFs)       | ~$0.10-0.50            |
-| S3 + bandwidth                   | ~$0.05                 |
-| ECS (import worker)              | ~$0.02                 |
-| **Total variable**               | **~$0.60-$1.00**       |
+| component | $/active user/mo |
+|---|---|
+| Cohere rerank (avg 200 searches) | ~$0.40 |
+| Cohere embed (new content) | ~$0.02 |
+| Marker GPU time (already in §1.5 fixed) | $0.00 — fixed cost |
+| S3 + bandwidth | ~$0.05 |
+| **total variable** | **~$0.50** |
 
 ### Break-Even at €4.99/month (Student tier)
 
-- Contribution margin: €4.99 - €1.00 ≈ **€3.99/user**
-- Floor cost (warm window config): **~€254/month**
-- Break-even: **~64 paid users**
+- gross revenue/user: €4.99
+- Stripe fees (~8% effective on €4.99): −€0.40
+- Cohere variable: ~−€0.45 (avg user)
+- net contribution/user: ~**€4.14/mo**
+- launch fixed cost: **€480/mo** ($510 ≈ €480)
+- **break-even: ~116 paid Student users**
 
 ### Break-Even at €9.99/month (Pro tier)
 
-- Contribution margin: €9.99 - €1.00 ≈ **€8.99/user**
-- Break-even: **~28 paid users**
+- gross: €9.99
+- Stripe fees: −€0.85
+- Cohere variable (Pro is unlimited search, assume heavier ~€1.20): ~−€1.20
+- net contribution/user: ~**€7.94/mo**
+- **break-even: ~61 paid Pro users**
 
-### Scale-to-Zero Configuration (no warm window)
+### Mixed Cohort Break-Even
 
-- Floor: ~€155/month
-- Break-even at €4.99: **~39 paid users**
-- Break-even at €9.99: **~18 paid users**
+| mix | revenue (gross) | net (after Stripe + Cohere) | net result vs €480 launch fixed |
+|---|---|---|---|
+| 100 Student | €499 | €414 | **−€66** |
+| 120 Student | €599 | €497 | **+€17** |
+| 80 Student + 20 Pro | €599 | €490 | **+€10** |
+| 50 Student + 30 Pro | €549 | €477 | **−€3** |
+| 40 Student + 40 Pro | €600 | €516 | **+€36** |
 
-> Recommendation: use scale-to-zero during the beta phase (0 paid users). Switch to warm window when first paying cohort reaches ~20 users.
+**Realistic break-even target**: ~120 Student or ~55 Pro or ~80/20 mix. Higher than the €254/mo doc's old quote because (a) launch fixed cost is ~2× now and (b) Stripe fees are real.
+
+> Recommendation: pre-launch summer runs on homelab at ~€0.50/mo to preserve the runway fund. AWS launch arch (§1.5) commits in mid-August, RI in mid-August after smoke-test, real spend kicks in September.
 
 ---
 
@@ -139,15 +198,18 @@ Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total 
 - 250 AI semantic searches/month
 - Full spaced repetition
 - 3GB storage
-- Standard OCR queue (accepts cold start)
+- Standard OCR queue (rate-limited if heavy load)
 
 ### Pro — €9.99/month or €79/year
 
 - Unlimited Canvas import
-- Unlimited AI searches
-- Priority OCR (warm GPU — no cold start, 08:00–23:00 IST)
+- Unlimited AI searches (rate-limited to prevent runaway Cohere costs)
+- Priority OCR queue (jumps the queue, no monthly cap)
 - 15GB storage
 - Vault export (Obsidian/Markdown zip)
+- Founder support — direct email line
+
+> Note: launch arch (§1.5) is always-warm for all tiers. The "warm GPU window" differentiator from earlier drafts is gone — Pro differentiates on caps, priority queueing, and direct support, not on GPU availability.
 
 ### University Licence — contact for pricing
 
@@ -159,31 +221,17 @@ Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total 
 
 ---
 
-## 5. Public Release Strategy
+## 5. Cost Trajectory
 
-### Phase 1 — Controlled Beta (now → ~20 users)
+The "scale infra alongside users" phased model in earlier drafts is replaced by a binary trajectory: homelab summer → launch arch September. Once the 1-yr RI is committed in mid-August, fixed cost is locked at €480/mo regardless of user count up to the capacity ceiling of g5.xlarge (well above 200 active users).
 
-- Invite-only, no charge
-- University of Galway first (direct access via CompSoc)
-- Infrastructure: scale-to-zero GPU, no warm window
-- Goal: product feedback, fix cold-start UX, validate Canvas import reliability
-- Cost: ~€155/month (floor only)
+| period | infra | $/mo | notes |
+|---|---|---|---|
+| May–early Aug 2026 | homelab | ~€0.50 | dev + closed beta |
+| mid–late Aug 2026 | AWS provisioning, on-demand smoke-test | ~$50 (partial mo) | overlap with homelab during cutover |
+| ~Sept 2026 onward | AWS launch arch §1.5, 1-yr RI committed | ~€480 | RI commit ~25 Aug = $5,784 once |
 
-### Phase 2 — Soft Launch (20-100 users)
-
-- Stripe + subscription management
-- Enable Free tier publicly
-- Student tier at €4.99/month
-- Keep scale-to-zero GPU (cold start acceptable for free tier)
-- Channels: r/college, r/NUIG, r/ObsidianMD, r/productivity, NUIG CompSoc Discord
-- Product Hunt launch (needs demo video + landing page polish)
-
-### Phase 3 — Paid Cohort Growth (100+ users)
-
-- Enable warm window GPU (08:00-23:00 IST) when ~20 paid users
-- Pro tier at €9.99/month with warm GPU
-- University partnerships (pitch student unions / IT depts)
-- Cost: ~€254/month, self-funding at ~64 Student or ~28 Pro paid users
+**For the product/feature phase plan** (controlled beta → soft launch → paid cohort growth), see `ROADMAP.md`. This doc focuses on cost; the roadmap focuses on what we ship in each phase.
 
 ---
 
@@ -191,27 +239,32 @@ Self-hosted wins at any meaningful scale. Breakeven is ~30-40 pages/month total 
 
 | Risk                       | Severity   | Mitigation                                                                                                                             |
 | -------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **AWS credit expiry**      | High       | Credits cover ~$875/month right now. Know your credit balance and expiry date.                                                         |
-| **Cold-start UX**          | High       | 4-7 min warm-up for OCR kills first impressions. Implement pre-warm on login for paid tier.                                            |
+| **AWS credit expiry**      | Resolved   | Credits expired April 5 2026. Real spend now ~€39/mo, with planned migration to homelab dropping it to ~€0.50/mo.                       |
+| **Cold-start UX**          | Resolved   | Launch arch §1.5 is always-warm. Cold start no longer applies post-cutover.                                                            |
 | **GDPR**                   | High       | Irish jurisdiction, all EU users in scope. Need privacy policy, DPA, data residency docs. AWS eu-west-1 (Ireland) satisfies residency. |
-| **Cost spike**             | Medium     | One viral post → many imports → GPU costs spike. Set AWS billing alerts at $50/$100/$200. Add per-user upload quotas from day one.     |
+| **Cost spike**             | Medium     | One viral post → many imports → GPU saturation rather than cost spike (RI is fixed). Per-user caps + billing alarms in place.                  |
 | **Canvas ToS**             | Medium     | Using OAuth with user credentials is legitimate. Watch for institution-level API restrictions.                                         |
-| **Cohere rerank at scale** | Low-Medium | 500 daily active users each doing 20 searches = $600/month in rerank alone. Cache results where possible.                              |
+| **Cohere rerank at scale** | Medium     | 500 daily active users each doing 20 searches = $600/month in rerank alone. Cache results where possible. Per-tier caps prevent runaway. |
+| **Single-instance blast radius** | Medium | Launch arch §1.5 is one EC2 box — postgres + app + worker + GPU all on one host. Hardware blip = total outage. Daily EBS snapshot + nightly `pg_dump` to S3. Move postgres to RDS multi-AZ post-launch when revenue justifies. |
 
 ---
 
-## 7. Current AWS Infrastructure State (April 2026)
+## 7. Current AWS Infrastructure State (April 2026 — being decommissioned)
 
-| Resource        | Name / ID                  | Region     | Status                      |
-| --------------- | -------------------------- | ---------- | --------------------------- |
-| Amplify app     | `d22kmou82nb1c5`           | eu-north-1 | Active                      |
-| ECS cluster     | `oghmanotes`               | eu-north-1 | Active                      |
-| ECS service     | `canvas-import-worker`     | eu-north-1 | Scaled per demand           |
-| Marker ASG      | `<marker-asg>`    | eu-west-1  | desired=0, spot enabled     |
-| Marker ALB      | `marker-alb-oghmanotes`    | eu-west-1  | Active (costs ~$18/mo idle) |
-| Launch template | `<launch-template>` v22 | eu-west-1  | Spot, g5.xlarge             |
-| RDS             | db.t3.micro (PostgreSQL)   | eu-north-1 | Active                      |
-| Redis           | cache.t3.micro             | eu-north-1 | Active                      |
+This shape is the legacy distributed setup, scheduled for teardown ahead of the launch arch in §1.5.
+
+| Resource        | Name / ID                  | Region    | Status                      | Fate                          |
+| --------------- | -------------------------- | --------- | --------------------------- | ----------------------------- |
+| Amplify app     | `<amplify-app-id>`           | eu-west-1 | Active                      | delete in homelab teardown    |
+| ECS cluster     | `oghmanotes`               | eu-west-1 | Active                      | delete in homelab teardown    |
+| ECS service     | `canvas-import-worker`     | eu-west-1 | Scaled per demand           | delete (worker moves on-box)  |
+| Marker ASG      | `<marker-asg>`    | eu-west-1 | desired=0, spot enabled     | delete (Marker moves on-box)  |
+| Marker ALB      | `marker-alb-oghmanotes`    | eu-west-1 | Active (costs ~$18/mo idle) | delete (caddy on-box replaces)|
+| Launch template | `<launch-template>` v22 | eu-west-1 | Spot, g5.xlarge             | delete                        |
+| RDS             | db.t3.micro (PostgreSQL)   | eu-west-1 | Active                      | delete (postgres in compose)  |
+| Redis           | cache.t3.micro             | eu-west-1 | Active                      | delete (valkey in compose)    |
+| Route53 zone    | `oghmanotes.ie`            | global    | Active                      | **keep** — points to launch IP |
+| SES             | sending identity           | eu-west-1 | Active                      | **keep** — least-priv IAM user|
 
 ### Scheduled Scaling Actions (<marker-asg>)
 

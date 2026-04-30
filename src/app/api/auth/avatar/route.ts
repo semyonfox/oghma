@@ -8,6 +8,7 @@ import {
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
 import logger from "@/lib/logger";
+import { assertTrustedOrigin } from "@/lib/api-error";
 
 /** resolve user_id from either Auth.js (OAuth) or custom JWT session */
 async function resolveUserId(): Promise<string | number | null> {
@@ -95,8 +96,7 @@ export async function GET() {
       return NextResponse.json({ avatarUrl: null });
     }
 
-    // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
-    const avatarUrl = `/api/proxy/avatar`;
+    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
     return NextResponse.json({ avatarUrl });
   } catch (error) {
     logger.error("error fetching avatar", { error });
@@ -109,6 +109,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    assertTrustedOrigin(request);
     const userId = await resolveUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -149,8 +150,7 @@ export async function POST(request: NextRequest) {
     const currentSettings = await getSettingsFromS3(userId as number);
     await saveSettingsToS3(userId as number, { ...currentSettings, avatarKey });
 
-    // Return proxy URL instead of direct S3 signed URL to avoid CORS issues
-    const avatarUrl = `/api/proxy/avatar`;
+    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
 
     return NextResponse.json({ success: true, avatarUrl, avatarKey });
   } catch (error) {

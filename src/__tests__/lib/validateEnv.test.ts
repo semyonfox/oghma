@@ -40,7 +40,7 @@ describe("validateEnv", () => {
       DATABASE_URL: "postgres://localhost/test",
       JWT_SECRET: "test-secret",
       STORAGE_BUCKET: "my-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
     });
 
     const validateEnv = await loadValidateEnv();
@@ -53,7 +53,7 @@ describe("validateEnv", () => {
       DATABASE_URL: undefined,
       JWT_SECRET: "test-secret",
       STORAGE_BUCKET: "my-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
     });
 
     const validateEnv = await loadValidateEnv();
@@ -66,7 +66,7 @@ describe("validateEnv", () => {
       DATABASE_URL: "postgres://localhost/test",
       JWT_SECRET: undefined,
       STORAGE_BUCKET: "my-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
     });
 
     const validateEnv = await loadValidateEnv();
@@ -79,7 +79,7 @@ describe("validateEnv", () => {
       DATABASE_URL: "postgres://localhost/test",
       JWT_SECRET: "test-secret",
       STORAGE_BUCKET: undefined,
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
     });
 
     const validateEnv = await loadValidateEnv();
@@ -120,7 +120,7 @@ describe("validateEnv", () => {
       DATABASE_URL: "",
       JWT_SECRET: "test-secret",
       STORAGE_BUCKET: "my-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
     });
 
     const validateEnv = await loadValidateEnv();
@@ -135,7 +135,7 @@ describe("validateEnv in production", () => {
       DATABASE_URL: "postgres://localhost/prod",
       JWT_SECRET: "prod-secret",
       STORAGE_BUCKET: "prod-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
       SERVER_ENCRYPTION_SECRET: "enc-secret",
     });
 
@@ -149,7 +149,7 @@ describe("validateEnv in production", () => {
       DATABASE_URL: "postgres://localhost/prod",
       JWT_SECRET: "prod-secret",
       STORAGE_BUCKET: "prod-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
       SERVER_ENCRYPTION_SECRET: undefined,
     });
 
@@ -163,7 +163,7 @@ describe("validateEnv in production", () => {
       DATABASE_URL: "postgres://localhost/test",
       JWT_SECRET: "test-secret",
       STORAGE_BUCKET: "my-bucket",
-      STORAGE_REGION: "eu-north-1",
+      STORAGE_REGION: "eu-west-1",
       SERVER_ENCRYPTION_SECRET: undefined,
     });
 

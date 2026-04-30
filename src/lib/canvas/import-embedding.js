@@ -19,6 +19,9 @@ import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import { createAsyncLimiter } from "./async-limiter.js";
 import { parseEnvConcurrency } from "./import-metrics.js";
 import logger from "../logger.ts";
+import { sqsClient, getMarkerQueueUrl, getCanvasImportQueueUrl } from "../sqs";
+import { SendMessageCommand } from "@aws-sdk/client-sqs";
+import { ensureMarkerRunning } from "../marker-ec2.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 
@@ -91,10 +94,11 @@ export async function processRagPipeline(
     canvasCourseId = null,
     canvasModuleId = null,
     canvasAssignmentId = null,
+    extractionOverride = null,
   } = ragOpts;
   try {
     const extractionStart = Date.now();
-    const extraction = await ocrLimiter(() =>
+    const extraction = extractionOverride ?? await ocrLimiter(() =>
       extractContentFromBuffer({
         buffer,
         filename: filename ?? "document.pdf",
@@ -111,6 +115,38 @@ export async function processRagPipeline(
       markerMetadata = null,
     } = extraction;
     const isText = source === "text";
+
+    // pending-marker: Marker timed out on fast-path — queued to Marker SQS by caller
+    // skipped: non-PDF binary with no Marker and no text fallback — stored as attachment only
+    if (source === "pending-marker") {
+      const markerQueueUrl = getMarkerQueueUrl();
+      if (markerQueueUrl && s3Key) {
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: markerQueueUrl,
+          MessageBody: JSON.stringify({
+            noteId,
+            userId,
+            jobId: jobId ?? null,
+            s3Key,
+            filename: filename ?? "document",
+            mimeType: mimeType ?? "application/octet-stream",
+            parentFolderId: parentFolderId ?? null,
+            callbackQueueUrl: getCanvasImportQueueUrl(),
+            resultS3Prefix: "marker-results/",
+          }),
+        }));
+        ensureMarkerRunning().catch(() => {}); // fire-and-forget ASG scale-up
+      }
+      await sql`
+        UPDATE app.canvas_imports
+        SET status = 'pending_marker', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+      `;
+      return null;
+    }
+    if (source === "skipped") {
+      return null;
+    }
 
     logger.info("canvas-import-file-extracted", {
       jobId,
@@ -133,7 +169,8 @@ export async function processRagPipeline(
       console.log(
         `pdf-parse fallback: extracted ${chunks.length} chunks for note ${noteId}`,
       );
-      if (attempt < MAX_EXTRACTION_RETRIES) {
+      // skip retry when Marker is intentionally off — nothing to retry to
+      if (attempt < MAX_EXTRACTION_RETRIES && process.env.CANVAS_SKIP_MARKER !== "true" && source !== "skipped") {
         await queueExtractionRetry({
           noteId,
           userId,

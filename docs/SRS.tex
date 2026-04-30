@@ -5,19 +5,20 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{fancyhdr}
+\usepackage{longtable}
 
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{\thepage}
-\lhead{OghmaNotes -- SRS (Updated v4)}
+\lhead{OghmaNotes -- SRS}
 
 \title{Software Requirements Specification \\
 \Large OghmaNotes: Learning Platform with AI Chat}
 \author{Samuel Regan, Semyon Fox, Shreyansh Singh}
-\date{April 2026 (Updated v4)}
+\date{February 2026}
 
 \hypersetup{
-    pdftitle={OghmaNotes SRS v4},
+    pdftitle={OghmaNotes SRS},
     pdfauthor={Samuel Regan, Semyon Fox, Shreyansh Singh}
 }
 
@@ -36,13 +37,11 @@ OghmaNotes is a web-based learning platform for students to take markdown notes,
 
 \subsection{Purpose}
 
-This document defines the realistic scope, architecture, and features for OghmaNotes. It reflects actual codebase capabilities and planned development phases.
-
-\textbf{Important Note:} All features listed as ``In Scope'' are implemented and deployed as of April 2026. See the Timeline section for development history across four phases.
+This document defines the scope, architecture, and features for OghmaNotes. It reflects the codebase as deployed in April 2026.
 
 \subsection{Audience}
 
-For: Development team, supervisors, stakeholders.
+Development team, supervisors, and module assessors.
 
 %==============================================================================
 \section{Scope}
@@ -57,13 +56,14 @@ For: Development team, supervisors, stakeholders.
     \item \textbf{Note Organization:} Hierarchical folder structure with drag-and-drop support
     \item \textbf{File Storage:} AWS S3 for notes and files
     \item \textbf{PDF Upload:} Store PDFs up to 100MB per file
+    \item \textbf{PDF Annotations:} Page-level annotation storage linked to attachments
 \end{itemize}
 
 \subsubsection{Search System}
 
 \begin{itemize}
-    \item \textbf{Fuzzy Keyword Search:} Fast full-text search across notes and PDFs (\textless5ms)
-    \item \textbf{Semantic Search:} Vector-based similarity search using embeddings (\textless50ms)
+    \item \textbf{Fuzzy Keyword Search:} Full-text search across notes and PDFs
+    \item \textbf{Semantic Search:} Vector-based similarity search using embeddings
     \item \textbf{Search UI:} Command palette (Cmd+K) with filters and snippets
     \item \textbf{Note Extraction:} Text extraction from PDFs with metadata preservation
 \end{itemize}
@@ -71,12 +71,13 @@ For: Development team, supervisors, stakeholders.
 \subsubsection{AI-Powered Features}
 
 \begin{itemize}
-    \item \textbf{RAG Chat:} Ask questions about your notes and PDFs, receive AI answers with citations
+    \item \textbf{RAG Chat:} Users can ask questions about their notes and PDFs and receive AI answers with cited source material
     \item \textbf{PDF Chunking:} Automatic text segmentation (approximately 500 characters per chunk, sentence-aligned with no overlap)
-    \item \textbf{Vector Embeddings:} 1024-dimensional embeddings (Cohere embed-multilingual-v3.0)
-    \item \textbf{Reranking:} Cohere rerank-multilingual-v3.0 for precision improvement
+    \item \textbf{Vector Embeddings:} 1024-dimensional embeddings via an external embedding API
+    \item \textbf{Reranking:} External reranking API for relevance precision
     \item \textbf{Streaming Responses:} Token-by-token response generation
     \item \textbf{Source Citations:} Clickable links to source PDF locations and notes
+    \item \textbf{Chat Sessions:} Persistent chat history with per-message source attribution and rating
 \end{itemize}
 
 \subsubsection{Learning Tools}
@@ -84,50 +85,52 @@ For: Development team, supervisors, stakeholders.
 \begin{itemize}
     \item \textbf{Quiz Generation:} Auto-generate quizzes from notes and PDFs
     \item \textbf{Quiz Types:} Multiple choice, short answer, true/false
-    \item \textbf{Difficulty Levels:} Easy, medium, hard
-    \item \textbf{Flashcard System:} Spaced repetition using FSRS (Free Spaced Repetition Scheduler) algorithm via ts-fsrs
-    \item \textbf{Flashcard Deck Management:} Create, review, and track progress
-    \item \textbf{Analytics (Basics):} Overall quiz scores, flashcard mastery, study time tracking (Phase 3, Weeks 8--12)
+    \item \textbf{Bloom Levels:} Questions tagged with Bloom's taxonomy level
+    \item \textbf{Flashcard System:} Spaced repetition using the FSRS (Free Spaced Repetition Scheduler) algorithm via \texttt{ts-fsrs}
+    \item \textbf{Review History:} Per-review tracking including response time and AI-generated feedback
+    \item \textbf{Study Streaks:} Daily review streak tracking with milestone records
 \end{itemize}
 
 \subsubsection{Canvas LMS Integration}
 
 \begin{itemize}
-    \item \textbf{API Token Connection:} Secure encrypted token storage (AES-256-GCM) for Canvas REST API access
+    \item \textbf{API Token Connection:} Secure encrypted token storage for Canvas REST API access
     \item \textbf{Assignment Sync:} Auto-import assignments and due dates
-    \item \textbf{Calendar Mapping:} Display Canvas due dates on assignment calendar
-    \item \textbf{Daily Sync:} Automatic sync of new assignments (with manual refresh option)
+    \item \textbf{Course Settings:} Per-course activation, archival, and display preferences
+    \item \textbf{File Import:} Async Canvas file import with per-file status tracking
+    \item \textbf{Daily Sync:} Automatic sync of new assignments with a manual refresh option
 \end{itemize}
 
-\subsubsection{Calendar \& Assignment Tracking}
+\subsubsection{Calendar, Planning \& Assignment Tracking}
 
 \begin{itemize}
     \item \textbf{Assignment Calendar:} View Canvas assignments and due dates
-    \item \textbf{Due Date Display:} Clear visualization of upcoming deadlines
+    \item \textbf{Time Blocks:} User-defined study blocks linked to assignments
+    \item \textbf{Pomodoro Sessions:} Pomodoro-style focus sessions linked to time blocks or assignments
+    \item \textbf{Calendar Export:} Per-user calendar export token for external calendar subscription
     \item \textbf{Integration with Study Tools:} Link quizzes and flashcards to assignments
 \end{itemize}
 
 \subsubsection{Authentication \& Security}
 
 \begin{itemize}
-    \item Email and password registration
-    \item Google and GitHub OAuth via NextAuth v5 (Auth.js)
-    \item Email verification required
+    \item Email and password registration with verification
+    \item Google and GitHub OAuth
     \item JWT authentication (24-hour expiry)
     \item Secure password reset (1-hour token, single-use)
     \item Passwords hashed with bcrypt (10+ rounds)
-    \item Login lockout after 5 failed attempts (15-minute window, 30-minute lockout)
-    \item Rate limiting via Redis-backed sliding window counter
+    \item Login lockout after repeated failed attempts (sliding window)
+    \item Rate limiting via Valkey-backed sliding window counter
     \item Account deletion with soft-delete grace period (30 days, GDPR-compliant)
-    \item Settings management (email, password, preferences)
+    \item Settings management (email, password, preferences, locale)
 \end{itemize}
 
 \subsubsection{User Interface}
 
 \begin{itemize}
-    \item VSCode-style layout (icon nav, sidebar, split editor panes)
+    \item VSCode- and Obsidian-inspired layout (icon nav, collapsible sidebar, split editor panes)
     \item Dark and light mode with class-based Tailwind v4 theming
-    \item Internationalisation supporting 12 languages
+    \item Internationalisation across 12 locales
     \item Responsive design (desktop, tablet)
     \item Real-time form validation
     \item Keyboard-first navigation
@@ -154,15 +157,16 @@ For: Development team, supervisors, stakeholders.
     \item Advanced analytics (learning patterns, AI-driven insights)
     \item Integration with other LMS platforms
     \item Note templates
+    \item BYOK (Bring Your Own Key) for LLM providers
 \end{itemize}
 
 \subsection{Goals}
 
 \begin{enumerate}
-    \item Deliver feature-complete MVP with core functionality and AI chat
-    \item Enable 3 people to develop in parallel without conflicts
+    \item Deliver a feature-complete MVP with core functionality and AI chat
+    \item Support parallel development across the three-person team with minimal merge conflict
     \item Maintain code quality with automated testing and linting
-    \item Deploy automatically from main branch
+    \item Deploy automatically from the main branch
 \end{enumerate}
 
 %==============================================================================
@@ -174,7 +178,7 @@ For: Development team, supervisors, stakeholders.
 \begin{itemize}
     \item Next.js 16+ with React 19 and TypeScript
     \item Tailwind CSS 4 for styling
-    \item Lexical rich-text editor for note editing
+    \item CodeMirror for note editing
     \item PDF.js for document viewing
     \item Zustand for state management
     \item Dark and light mode with class-based Tailwind v4 theming
@@ -192,10 +196,10 @@ For: Development team, supervisors, stakeholders.
 \subsection{Database}
 
 \begin{itemize}
-    \item PostgreSQL 17.4
+    \item PostgreSQL (AWS RDS)
     \item pgvector extension for semantic search
     \item UUID v7 for all primary keys (cryptographically secure, sortable by timestamp)
-    \item Version-controlled migrations
+    \item Version-controlled migrations tracked in \texttt{schema\_migrations}
 \end{itemize}
 
 \subsection{Storage}
@@ -204,29 +208,33 @@ For: Development team, supervisors, stakeholders.
     \item AWS S3 for object storage
     \item Presigned URLs for secure file access (1-hour expiry)
     \item Notes stored as JSON
-    \item Tree structure managed in S3
+    \item Tree structure managed in S3 and mirrored in the \texttt{tree\_items} table
 \end{itemize}
 
 \subsection{LLM Integration}
 
 \begin{itemize}
-    \item Kimi K2.5 (Moonshot AI) via OpenAI-compatible API for production LLM
-    \item Cohere embed-multilingual-v3.0 for 1024-dimensional embeddings
-    \item Cohere rerank-multilingual-v3.0 for relevance reranking
+    \item Managed LLM served via an OpenAI-compatible API
+    \item External embedding API for 1024-dimensional embeddings
+    \item External reranking API for relevance reranking
     \item Server-side API key management (not client-side)
     \item Streaming responses via Server-Sent Events
-    \item Self-hosted Marker OCR on EC2 ASG (g5.xlarge, NVIDIA A10G GPU)
+    \item Self-hosted Marker OCR on EC2 Auto Scaling Group (GPU-backed)
+    \item Provider selection is abstracted behind an internal interface so vendors can be swapped without user-facing change (several iterations occurred during development)
 \end{itemize}
 
 \subsection{Deployment}
 
+All infrastructure is hosted on AWS in the Ireland region (\texttt{eu-west-1}).
+
 \begin{itemize}
-    \item AWS Amplify Gen 2 for auto-deployment from main branch
-    \item AWS ECS Fargate for Canvas import worker (Docker containerised)
-    \item AWS SQS for asynchronous job queue
+    \item AWS Amplify Gen 2 for auto-deployment from the main branch
+    \item AWS ECS Fargate for the Canvas import worker (Docker containerised)
+    \item AWS SQS for the asynchronous job queue
     \item AWS SES for transactional email
-    \item AWS ElastiCache (Valkey 8.2) for session caching and rate limiting
+    \item AWS ElastiCache (Valkey, latest AWS-managed version) for session caching and rate limiting
     \item AWS EC2 Auto Scaling Group for GPU-backed OCR
+    \item AWS RDS PostgreSQL with pgvector
 \end{itemize}
 
 %==============================================================================
@@ -235,135 +243,37 @@ For: Development team, supervisors, stakeholders.
 
 \subsection{User Authentication}
 
-\begin{enumerate}
-    \item System shall allow users to register with email and password
-    \item System shall validate email addresses and send verification emails
-    \item System shall require email verification before login
-    \item System shall allow users to login with verified email and password
-    \item System shall issue JWT tokens valid for 24 hours
-    \item System shall support secure password reset via email tokens (1-hour validity)
-    \item System shall hash passwords using bcrypt with minimum 10 rounds
-    \item System shall lock accounts after 5 failed login attempts
-    \item System shall support user logout
-    \item System shall allow users to delete accounts (soft-delete with 30-day GDPR-compliant recovery window)
-\end{enumerate}
+Users register with email and password, verify their email before first login, and authenticate via either credentials or Google/GitHub OAuth. Passwords are hashed with bcrypt (minimum 10 rounds) and sessions are issued as 24-hour JWTs. Repeated failed logins are rate-limited, and password reset happens via single-use email tokens valid for one hour. Users can delete their account at any time; deletion is soft with a 30-day GDPR-compliant recovery window.
 
 \subsection{Note Taking}
 
-\begin{enumerate}
-    \item System shall allow authenticated users to create, read, update, and delete notes
-    \item System shall store notes as Markdown with metadata (title, created\_at, updated\_at)
-    \item System shall support note hierarchy (parent-child relationships)
-    \item System shall enable folder-like organization with drag-and-drop reordering
-    \item System shall auto-save notes to local storage (IndexedDB) every 5 seconds
-    \item System shall sync notes to S3 on reconnection
-    \item System shall implement conflict resolution (last-write-wins)
-    \item System shall support pinning and soft-deleting notes
-    \item System shall preserve note creation and modification timestamps
-\end{enumerate}
+Authenticated users can create, read, update, and delete markdown notes, organised in a drag-and-drop folder hierarchy with pin and soft-delete support. Notes auto-save to IndexedDB every five seconds and sync to S3 on reconnection; concurrent edits resolve last-write-wins. Timestamps (created, updated) and note relationships (parent folder, clone source) are preserved.
 
-\subsection{PDF Upload \& Storage}
+\subsection{PDF Upload and Storage}
 
-\begin{enumerate}
-    \item System shall allow authenticated users to upload PDF files up to 100MB
-    \item System shall validate file format and size before processing
-    \item System shall store PDFs in S3 with secure access
-    \item System shall generate presigned URLs for authenticated downloads (1-hour expiry)
-    \item System shall extract text from uploaded PDFs
-    \item System shall preserve PDF metadata (file name, upload date, page count)
-    \item System shall provide upload progress indication
-    \item System shall handle upload failures gracefully with error messages
-\end{enumerate}
+Users can upload PDF files up to 100MB. Files are validated, stored in S3, and served via short-lived presigned URLs (1-hour expiry). The ingestion pipeline extracts text, captures metadata (filename, page count, MIME type, size), and supports page-level annotations. Upload progress and failure states are surfaced in the UI.
 
 \subsection{Search}
 
-\begin{enumerate}
-    \item System shall provide fuzzy keyword search across all notes and PDFs
-    \item Keyword search shall complete in under 5 milliseconds
-    \item System shall provide semantic vector search using embeddings
-    \item Semantic search shall complete in under 50 milliseconds
-    \item System shall support search filters (by tags, document type, date range)
-    \item System shall display search results with relevance scores and text snippets
-    \item System shall implement command palette (Cmd+K) for keyboard-first search
-    \item System shall rank results by relevance with pagination support
-\end{enumerate}
+Search combines fuzzy keyword and semantic vector modes over notes and PDFs, surfaced through a Cmd+K command palette. Results include relevance scores, text snippets, and filters for document type and date range, with pagination for large result sets.
 
-\subsection{RAG Chat \& AI Features}
+\subsection{RAG Chat and AI Features}
 
-\begin{enumerate}
-    \item System shall extract text from PDFs and split into semantic chunks (approximately 500 characters, sentence-aligned, no overlap)
-    \item System shall generate 1024-dimensional embeddings for text chunks
-    \item System shall store embeddings in PostgreSQL with pgvector extension
-    \item System shall accept user questions in free text
-    \item System shall retrieve relevant document chunks using vector similarity search with HNSW indexing and Cohere reranking
-    \item System shall generate LLM responses with citations to source materials
-    \item System shall stream responses token-by-token to the user
-    \item System shall include clickable citations linking to original PDF locations
-    \item System shall handle LLM API failures gracefully
-    \item System shall use server-managed LLM and embedding API connections
-\end{enumerate}
+User questions are answered against their own content. The pipeline chunks source text (approximately 500 characters, sentence-aligned, no overlap), embeds each chunk (1024 dimensions) via an external embedding API, and stores the vectors in pgvector. On query, the system performs HNSW similarity search followed by external reranking, then generates a streamed LLM response with clickable citations back to source material. Chat sessions and messages are persisted, including per-message source attribution and optional user ratings. All provider API keys live on the server, and failures in any external API degrade gracefully rather than crash the chat flow.
 
-\subsection{Learning Tools}
+\subsection{Quiz Generation and Flashcards}
 
-\subsubsection{Quiz Generation}
+Quizzes are generated from selected notes or PDF sections as multiple choice, short answer, or true/false questions, each tagged with a Bloom's taxonomy level. Quiz sessions record response time, correctness, and Bloom distribution, and can optionally be timed.
 
-\begin{enumerate}
-    \item System shall generate quizzes from selected notes or PDF sections
-    \item System shall generate 5--10 questions per quiz
-    \item System shall support multiple choice, short answer, and true/false question types
-    \item System shall support difficulty levels (easy, medium, hard)
-    \item System shall allow optional timed quiz mode
-    \item System shall track quiz scores and performance metrics
-    \item System shall identify weak topics based on quiz performance
-\end{enumerate}
-
-\subsubsection{Flashcard System}
-
-\begin{enumerate}
-    \item System shall allow users to create flashcard decks from quizzes or notes
-    \item System shall implement FSRS (Free Spaced Repetition Scheduler) algorithm for scheduling reviews
-    \item System shall display daily review queue based on spaced repetition schedule
-    \item System shall allow users to rate cards with FSRS ratings (Again, Hard, Good, Easy)
-    \item System shall track flashcard mastery percentage and progress metrics
-    \item System shall persist flashcard state across sessions
-    \item System shall support importing questions as flashcards
-\end{enumerate}
+Flashcards are created from quiz questions and scheduled using the FSRS algorithm. Users rate each card Again/Hard/Good/Easy, which updates persisted FSRS state (stability, difficulty, reps, lapses, due date). A daily review queue is derived from due dates, every review is recorded for analytics, and study streaks (current, longest, total days) are tracked.
 
 \subsection{Canvas LMS Integration}
 
-\begin{enumerate}
-    \item System shall connect to Canvas LMS via encrypted API token
-    \item System shall retrieve assignments and due dates from Canvas courses
-    \item System shall auto-sync Canvas assignments daily and on-demand
-    \item System shall store Canvas assignment metadata (title, due date, course)
-    \item System shall display assignments in assignment calendar view
-    \item System shall process Canvas imports asynchronously via SQS job queue and ECS Fargate worker
-    \item System shall extract text from imported PDFs via Marker OCR and generate vector embeddings
-    \item System shall handle API errors gracefully
-    \item System shall allow users to disconnect and reconnect Canvas accounts
-    \item System shall preserve Canvas sync history
-\end{enumerate}
+Users connect to Canvas via an encrypted API token, and can disconnect or reconnect at any time. Assignments and due dates sync daily and on demand, with per-course settings controlling which courses are active or archived. File imports run asynchronously through an SQS queue and an ECS Fargate worker: per-file status is tracked, imported PDFs flow through Marker OCR and the embedding pipeline, and sync history is preserved across jobs. API failures are surfaced without aborting the rest of the sync.
 
-\subsection{Assignment Calendar \& Due Date Tracking}
+\subsection{Assignment Calendar and Planning}
 
-\begin{enumerate}
-    \item System shall display a calendar view of Canvas assignment due dates
-    \item System shall show upcoming assignments in week/month views
-    \item System shall link assignments to quizzes and flashcards for planning
-    \item System shall display due date warnings (e.g., ``Due in 3 days'')
-    \item System shall integrate assignment deadlines with quiz/flashcard scheduling
-\end{enumerate}
-
-\subsection{Analytics (Basics)}
-
-\begin{enumerate}
-    \item System shall track overall quiz scores (percentage, number passed)
-    \item System shall track flashcard mastery percentage per deck
-    \item System shall track total study time (hours spent on quizzes, flashcards, notes)
-    \item System shall display progress metrics (quizzes attempted, cards reviewed, time spent)
-    \item System shall show performance trends over time (charts/graphs)
-    \item System shall identify weak topics based on quiz performance
-\end{enumerate}
+Canvas assignments appear in a calendar with week and month views and due-date warnings (for example, \emph{Due in 3 days}). Users can schedule study time blocks against assignments and run Pomodoro sessions linked to either. A per-user calendar export token allows subscribing to the calendar from external apps.
 
 %==============================================================================
 \section{Non-Functional Requirements}
@@ -375,14 +285,15 @@ For: Development team, supervisors, stakeholders.
 \toprule
 \textbf{Metric} & \textbf{Target} \\
 \midrule
-Fuzzy keyword search & $\leq 5$ms \\
-Semantic vector search & $\leq 50$ms \\
-PDF text extraction (100MB) & $\leq 2$ minutes \\
-Quiz generation & $\leq 5$ seconds \\
-RAG response (end-to-end) & $\leq 3$ seconds \\
-Note sync (500KB) & $\leq 2$ seconds \\
-Cold page load & $\leq 4$ seconds \\
-Cached page load & $\leq 2$ seconds \\
+Fuzzy keyword search & $\leq 100$ms \\
+Semantic vector search (including reranking) & $\leq 500$ms \\
+PDF text extraction (100MB, OCR) & $\leq 5$ minutes \\
+Quiz generation & $\leq 30$ seconds \\
+RAG response (first token) & $\leq 5$ seconds \\
+RAG response (full streamed answer) & $\leq 30$ seconds \\
+Note sync (500KB) & $\leq 5$ seconds \\
+Cold page load & $\leq 6$ seconds \\
+Cached page load & $\leq 3$ seconds \\
 Concurrent requests & 10+ simultaneous \\
 \bottomrule
 \end{tabular}
@@ -394,10 +305,11 @@ Concurrent requests & 10+ simultaneous \\
     \item Passwords hashed with bcrypt using minimum 10 salt rounds
     \item HTTPS/TLS 1.2+ required for all connections
     \item CORS policy restricts requests to approved origins
-    \item Rate limiting on public endpoints (login, register, password reset)
+    \item Rate limiting on public endpoints (login, register, password reset) via Valkey sliding window
     \item Sensitive configuration via environment variables (encrypted at rest)
+    \item Canvas API tokens encrypted at rest
     \item S3 presigned URLs expire in 1 hour
-    \item Vector queries filtered by user\_id to prevent cross-user data leakage
+    \item Vector and chunk queries filtered by \texttt{user\_id} to prevent cross-user data leakage
     \item Password reset tokens valid for 1 hour and single-use only
     \item Email verification tokens valid for 24 hours
 \end{itemize}
@@ -405,10 +317,10 @@ Concurrent requests & 10+ simultaneous \\
 \subsection{Reliability}
 
 \begin{itemize}
-    \item 99\% availability during critical grading windows
+    \item 99\% availability target during academic term periods
     \item AWS RDS automated backups enabled
     \item Failed background jobs retry up to 3 times with exponential backoff
-    \item Graceful degradation when external APIs (LLM, email) are unavailable
+    \item Graceful degradation when external APIs (LLM, embedding, reranking, email) are unavailable
     \item Database migrations are versioned and reversible
     \item PWA reconnects within 30 seconds after network loss
 \end{itemize}
@@ -416,14 +328,13 @@ Concurrent requests & 10+ simultaneous \\
 \subsection{Usability}
 
 \begin{itemize}
-    \item Modern, clean design following Material Design 3 principles
-    \item Complete user onboarding in under 5 minutes (register, verify, start taking notes)
+    \item VSCode- and Obsidian-inspired layout for a familiar note-taking UX
     \item Real-time form validation with feedback
     \item Keyboard navigation support throughout
     \item Responsive design (desktop 1024px+, tablet 768px+)
     \item Actionable error messages (not generic 500 errors)
     \item Dark and light mode with class-based theming
-    \item VSCode-style layout for familiar developer UX
+    \item Internationalisation: 12 supported locales. English, Irish (Gaeilge), and French are fully translated; remaining locales are approximately 80\% complete
 \end{itemize}
 
 \subsection{Maintainability}
@@ -439,297 +350,68 @@ Concurrent requests & 10+ simultaneous \\
 \end{itemize}
 
 %==============================================================================
-\section{API Endpoints}
+\section{API Surface}
 %==============================================================================
 
-\textbf{Implementation Status:} All endpoints listed below are implemented and deployed.
-
-\subsection{Authentication}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-POST & \texttt{/api/auth/register} & Register new user \\
-POST & \texttt{/api/auth/login} & Login user \\
-POST & \texttt{/api/auth/logout} & Logout user \\
-POST & \texttt{/api/auth/forgot-password} & Request password reset \\
-POST & \texttt{/api/auth/reset-password} & Reset password with token \\
-GET & \texttt{/api/auth/me} & Get current user info \\
-\bottomrule
-\end{tabular}
-
-\subsection{Notes}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-GET & \texttt{/api/notes} & List all notes (paginated) \\
-POST & \texttt{/api/notes} & Create new note \\
-GET & \texttt{/api/notes/:id} & Get single note \\
-PUT & \texttt{/api/notes/:id} & Update note \\
-DELETE & \texttt{/api/notes/:id} & Delete note \\
-GET & \texttt{/api/tree} & Get folder hierarchy \\
-POST & \texttt{/api/tree} & Reorder/mutate tree structure \\
-\bottomrule
-\end{tabular}
-
-\subsection{Search}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-GET & \texttt{/api/search} & Combined fuzzy + semantic search \\
-\bottomrule
-\end{tabular}
-
-\subsection{RAG Chat}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-POST & \texttt{/api/chat} & Send message, receive RAG response \\
-GET/POST & \texttt{/api/chat/sessions} & Manage chat sessions \\
-\bottomrule
-\end{tabular}
-
-\subsection{Files}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-POST & \texttt{/api/upload} & Upload file (returns S3 URL) \\
-GET & \texttt{/api/upload/:id} & Get file (returns presigned URL) \\
-POST & \texttt{/api/extract} & Extract text from PDF \\
-\bottomrule
-\end{tabular}
-
-\subsection{Learning Tools}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-GET & \texttt{/api/quiz/dashboard} & Quiz stats and overview \\
-GET/POST & \texttt{/api/quiz/sessions} & Create and list quiz sessions \\
-POST & \texttt{/api/quiz/sessions/:id/answer} & Submit answer for a question \\
-GET & \texttt{/api/quiz/streak} & Get study streak data \\
-\bottomrule
-\end{tabular}
-
-\subsection{Canvas LMS Integration}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-GET/POST/DELETE & \texttt{/api/canvas/connect} & Manage Canvas connection \\
-GET & \texttt{/api/canvas/courses} & List Canvas courses \\
-POST & \texttt{/api/canvas/import} & Start Canvas import job \\
-GET & \texttt{/api/canvas/status} & Get import job status \\
-\bottomrule
-\end{tabular}
-
-\subsection{Analytics}
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Method} & \textbf{Endpoint} & \textbf{Purpose} \\
-\midrule
-GET & \texttt{/api/quiz/dashboard} & Quiz scores and progress \\
-GET & \texttt{/api/quiz/dashboard/courses} & Per-course quiz metrics \\
-GET & \texttt{/api/quiz/streak} & Study streak tracking \\
-GET/POST & \texttt{/api/pomodoro} & Pomodoro session tracking \\
-GET/POST & \texttt{/api/time-blocks} & Time block management \\
-\bottomrule
-\end{tabular}
-
-%==============================================================================
-\section{Database Schema}
-%==============================================================================
-
-\subsection{Core Tables}
-
-\textbf{Implementation Status:} All tables listed below are implemented and deployed in production.
-
-\subsubsection{app.login}
-
-Users and authentication. All IDs use UUID v7.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-email & varchar(255) & UNIQUE, NOT NULL \\
-password & varchar(255) & NOT NULL (bcrypt hash) \\
-verified & boolean & DEFAULT false \\
-created\_at & timestamptz & DEFAULT now() \\
-updated\_at & timestamptz & DEFAULT now() \\
-deleted\_at & timestamptz & NULL (soft delete) \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.notes}
-
-Notes data and metadata.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-title & varchar(255) & NOT NULL \\
-content & text & NULL \\
-pid & uuid v7 & FOREIGN KEY (notes.id), NULL \\
-deleted & boolean & DEFAULT false \\
-pinned & boolean & DEFAULT false \\
-created\_at & timestamptz & DEFAULT now() \\
-updated\_at & timestamptz & DEFAULT now() \\
-s3\_path & varchar(255) & NULL \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.documents}
-
-PDF documents metadata.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-file\_name & varchar(255) & NOT NULL \\
-s3\_path & varchar(255) & NOT NULL \\
-page\_count & integer & NULL \\
-created\_at & timestamptz & DEFAULT now() \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.chunks}
-
-Text chunks from PDFs for semantic search.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-document\_id & uuid v7 & FOREIGN KEY (documents.id) \\
-text & text & NOT NULL \\
-page\_number & integer & NULL \\
-section & varchar(255) & NULL \\
-created\_at & timestamptz & DEFAULT now() \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.embeddings}
-
-Vector embeddings for semantic search, stored separately from chunks.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-chunk\_id & uuid v7 & FOREIGN KEY (chunks.id) \\
-embedding & vector(1024) & NOT NULL \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.oauth\_accounts}
-
-OAuth provider accounts linked to users.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-provider & varchar(50) & NOT NULL \\
-provider\_id & varchar(255) & NOT NULL \\
-email & varchar(255) & NULL \\
-name & varchar(255) & NULL \\
-avatar\_url & varchar(255) & NULL \\
-raw\_profile & jsonb & NULL \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.canvas\_assignments}
-
-Canvas assignment metadata from LMS sync.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-canvas\_id & varchar(255) & NOT NULL \\
-course\_name & varchar(255) & NOT NULL \\
-assignment\_name & varchar(255) & NOT NULL \\
-due\_date & timestamptz & NOT NULL \\
-canvas\_url & varchar(255) & NULL \\
-synced\_at & timestamptz & DEFAULT now() \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.quiz\_results}
-
-Quiz attempt history for analytics.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-quiz\_id & uuid v7 & NULL \\
-score & integer & NOT NULL (0--100) \\
-time\_spent & integer & NULL (seconds) \\
-created\_at & timestamptz & DEFAULT now() \\
-\bottomrule
-\end{tabular}
-
-\subsubsection{app.quiz\_cards}
-
-FSRS-based spaced repetition card state.
-
-\begin{tabular}{lll}
-\toprule
-\textbf{Column} & \textbf{Type} & \textbf{Constraint} \\
-\midrule
-id & uuid v7 & PRIMARY KEY \\
-user\_id & uuid v7 & FOREIGN KEY (login.id) \\
-question\_id & uuid v7 & FOREIGN KEY (quiz\_questions.id) \\
-state & integer & NOT NULL (FSRS state) \\
-stability & float & NOT NULL \\
-difficulty & float & NOT NULL \\
-elapsed\_days & integer & NOT NULL \\
-scheduled\_days & integer & NOT NULL \\
-reps & integer & NOT NULL \\
-lapses & integer & NOT NULL \\
-due & timestamptz & NOT NULL \\
-last\_review & timestamptz & NULL \\
-\bottomrule
-\end{tabular}
-
-\subsection{Indexes}
+The backend is a Next.js monolith exposing a REST-style JSON API under \texttt{/api}. Specific routes are expected to evolve during iteration; this section outlines the resource areas rather than enumerating every endpoint.
 
 \begin{itemize}
-    \item GIN index on \texttt{notes.search\_vector} (full-text search)
-    \item HNSW (Hierarchical Navigable Small World) index on \texttt{embeddings.embedding} (semantic search)
-    \item Compound index on \texttt{(user\_id, created\_at)}
-    \item Compound index on \texttt{(user\_id, updated\_at)}
-    \item Index on \texttt{documents.user\_id}
+    \item \textbf{Authentication:} register, login, logout, password reset, email verification, OAuth callbacks, current user info
+    \item \textbf{Notes and tree:} CRUD for notes and folders, tree reordering
+    \item \textbf{Files:} upload, download via presigned URL, text extraction
+    \item \textbf{Search:} combined fuzzy and semantic search
+    \item \textbf{RAG chat:} send message, manage chat sessions
+    \item \textbf{Quizzes and flashcards:} session management, answer submission, study streak
+    \item \textbf{Planning:} time blocks and Pomodoro sessions
+    \item \textbf{Canvas integration:} connection management, course listing, import job control and status
+\end{itemize}
+
+All routes (except unauthenticated auth routes) require a valid JWT. API shape is documented via OpenAPI alongside the codebase.
+
+%==============================================================================
+\section{Database Design}
+%==============================================================================
+
+Data is stored in PostgreSQL (AWS RDS) with the pgvector extension enabled for semantic search. All primary keys use UUID v7. Individual table columns are expected to evolve during iteration and are not specified in advance; this section outlines the core entities and the relationships between them.
+
+\subsection{Core Entities}
+
+\begin{itemize}
+    \item \textbf{User} (\texttt{login}) --- email, hashed password, verification state, soft-delete flag. Extended over time with profile fields, Canvas connection data, and reset/verification tokens.
+    \item \textbf{OAuth account} --- provider records linked to a user for Google and GitHub sign-in.
+    \item \textbf{Note} --- title, markdown content, S3 key for the canonical JSON, folder flag, pin state, soft-delete. Owned by a user.
+    \item \textbf{Tree item} --- positions notes and folders inside the user's hierarchy; self-referential parent link.
+    \item \textbf{Attachment} --- files uploaded against a note (primarily PDFs): filename, S3 key, MIME type, size.
+    \item \textbf{Chunk} --- a passage of text extracted from a note or attachment for retrieval.
+    \item \textbf{Embedding} --- a 1024-dimensional vector associated one-to-one with a chunk. Kept in a separate table so embeddings can be regenerated without rewriting chunk rows.
+    \item \textbf{Chat session and message} --- persistent RAG chat history with per-message source attribution.
+    \item \textbf{Assignment} --- Canvas-synced assignment with title, course, and due date.
+    \item \textbf{Canvas import job} --- top-level job record and per-file import records, populated by the async worker.
+    \item \textbf{Quiz question} --- generated question (multiple choice, short, true/false) linked to a source note or chunk.
+    \item \textbf{Quiz card} --- FSRS state per question per user (stability, difficulty, due date, reps, lapses).
+    \item \textbf{Time block and Pomodoro session} --- planning primitives linked to assignments.
+\end{itemize}
+
+Supporting tables for ingestion jobs, review history, rate limiting, streaks, and per-course settings are expected to emerge during iteration as the corresponding features are built.
+
+\subsection{Key Relationships}
+
+\begin{itemize}
+    \item Every user-scoped row carries a \texttt{user\_id} foreign key to \texttt{login}, so all queries can be filtered at the row level for isolation
+    \item A note has many attachments, chunks, and (through chunks) embeddings
+    \item Tree items form a per-user forest via a self-referential \texttt{parent\_id}
+    \item A chat session belongs to a user and optionally a note; messages belong to a session
+    \item Canvas import jobs have many per-file import records; each import can link to the note it produced
+    \item Quiz cards sit between a question and the FSRS review history, so the same question can be reviewed repeatedly over time
+\end{itemize}
+
+\subsection{Indexing Strategy}
+
+\begin{itemize}
+    \item HNSW index on the embedding vector column for approximate nearest-neighbour search
+    \item GIN full-text index on note content and extracted text for fuzzy keyword search
+    \item Compound \texttt{(user\_id, created\_at)} and \texttt{(user\_id, updated\_at)} indexes across user-scoped tables
+    \item Targeted indexes on review due dates and assignment due dates for the review queue and calendar views
 \end{itemize}
 
 %==============================================================================
@@ -738,22 +420,21 @@ last\_review & timestamptz & NULL \\
 
 \subsection{Server-Managed LLM Integration}
 
-\textbf{Decision:} LLM and embedding API keys are managed server-side. Users do not need to provide their own keys.
+\textbf{Decision:} LLM, embedding, and reranking API keys are managed server-side. Users do not need to provide their own keys.
 
 \textbf{Rationale:}
 \begin{itemize}
     \item No API key setup required for users
     \item Consistent model selection across all users
     \item Centralised cost monitoring and usage tracking
-    \item Providers can be swapped without any user-facing changes
+    \item Providers can be swapped without any user-facing change (and were, multiple times, during iteration)
 \end{itemize}
 
 \textbf{Implementation:}
 \begin{itemize}
-    \item Cohere API key stored as a server environment variable for embeddings and reranking
-    \item LLM API key (Kimi K2.5) stored as a server environment variable
     \item All inference requests go through backend API routes
-    \item BYOK (Bring Your Own Key) planned as a future optional feature
+    \item Provider abstraction allows embedding and reranking vendors to be swapped via configuration
+    \item BYOK (Bring Your Own Key) is planned as a future optional feature
 \end{itemize}
 
 \subsection{Note Storage Architecture}
@@ -762,7 +443,7 @@ last\_review & timestamptz & NULL \\
 
 \textbf{Rationale:}
 \begin{itemize}
-    \item S3 scales independently from database
+    \item S3 scales independently from the database
     \item Simpler backup and disaster recovery
     \item Better versioning and audit trail support
     \item Works well with PWA offline storage
@@ -782,7 +463,7 @@ last\_review & timestamptz & NULL \\
 
 \subsection{Semantic Search First}
 
-\textbf{Decision:} Semantic vector search is the primary search mode; fuzzy search is fallback.
+\textbf{Decision:} Semantic vector search is the primary search mode; fuzzy search is a fallback.
 
 \textbf{Rationale:}
 \begin{itemize}
@@ -803,6 +484,17 @@ last\_review & timestamptz & NULL \\
     \item Can be added later if needed
 \end{itemize}
 
+\subsection{Hosted in AWS Ireland}
+
+\textbf{Decision:} All infrastructure is deployed to the \texttt{eu-west-1} (Ireland) region.
+
+\textbf{Rationale:}
+\begin{itemize}
+    \item Low latency for the primary user base (Irish university students)
+    \item EU data residency for GDPR alignment
+    \item Single region simplifies networking and observability
+\end{itemize}
+
 %==============================================================================
 \section{Acceptance Criteria}
 %==============================================================================
@@ -819,33 +511,31 @@ The system is ready to ship when:
         \item Quiz generation
         \item Flashcard system with FSRS
         \item Canvas LMS integration (API token, file import, assignment sync)
-        \item Analytics basics (overall scores, flashcard mastery, study time)
+        \item Planning tools (time blocks, Pomodoro, calendar export)
     \end{itemize}
-    
+
     \item Non-functional requirements validated
     \begin{itemize}
-        \item Performance benchmarks met (search \textless5-50ms, RAG \textless3s)
-        \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth, AES-256-GCM encryption)
-        \item Reliability: 99\% uptime, graceful degradation on API failures
+        \item Performance targets met as defined in the NFR table
+        \item Security requirements implemented (JWT, bcrypt, CORS, rate limiting, OAuth, token encryption at rest)
+        \item Reliability: 99\% uptime target, graceful degradation on external API failure
     \end{itemize}
-    
 
     \item Complete end-to-end demo works:
     \begin{itemize}
-        \item Register and verify email
+        \item Register and verify email (or sign in via OAuth)
         \item Upload PDF and extract text
         \item Search notes and PDFs
-        \item Ask RAG question with citations
-        \item Generate quiz and track score
-        \item Review flashcards and track mastery
+        \item Ask a RAG question and receive a cited answer
+        \item Generate a quiz and review via FSRS
         \item Connect to Canvas and view assignment due dates
-        \item View analytics dashboard with basic metrics
+        \item Schedule a time block and run a Pomodoro session
     \end{itemize}
-    
+
     \item Automated deployment working (AWS Amplify, GitHub Actions)
-    
+
     \item Documentation complete (README, setup, API docs, architecture)
-    
+
     \item Code quality standards met (ESLint, Prettier, TypeScript strict mode)
 \end{enumerate}
 
@@ -870,9 +560,9 @@ Project setup and core infrastructure.
 Core features, editor, and deployment pipeline.
 
 \begin{itemize}
-    \item Rich-text editor integration (Lexical)
+    \item CodeMirror editor integration
     \item S3 file storage and presigned URLs
-    \item AWS Amplify deployment pipeline
+    \item AWS Amplify deployment pipeline (Ireland region)
     \item RAG pipeline: PDF chunking, embedding generation, vector search
     \item Canvas LMS research and API exploration
     \item Fuzzy and semantic search with pgvector
@@ -884,12 +574,12 @@ Feature delivery across all modules.
 
 \begin{itemize}
     \item Canvas import system with SQS queue and ECS Fargate worker
-    \item Migration from OpenAI to Cohere for embeddings and reranking
+    \item Iteration on embedding and reranking providers (final state: external managed API for both, swappable behind a provider abstraction)
     \item RAG chat with streaming responses and citations
     \item Quiz generation and FSRS spaced repetition system
-    \item Internationalisation (12 languages via Rosetta-based system)
+    \item Internationalisation across 12 locales (English, Irish and French fully translated; remaining locales approximately 80\% complete)
     \item Vault import/export functionality
-    \item OAuth (Google, GitHub) via NextAuth v5
+    \item OAuth (Google, GitHub) integration
 \end{itemize}
 
 \subsection{Phase 4: Hardening (Apr 2026)}
@@ -926,13 +616,15 @@ Planned features for future releases:
     \item[UUID v7] Universally Unique Identifier version 7. Cryptographically secure, sortable by timestamp.
     \item[pgvector] PostgreSQL extension for storing and querying vector embeddings.
     \item[Semantic Search] Search based on meaning using vector embeddings, not keyword matching.
-    \item[FSRS] Free Spaced Repetition Scheduler. Modern spaced repetition algorithm with improved accuracy over SM-2, implemented via the ts-fsrs library.
+    \item[FSRS] Free Spaced Repetition Scheduler. Modern spaced repetition algorithm with improved accuracy over SM-2, implemented via the \texttt{ts-fsrs} library.
     \item[HNSW] Hierarchical Navigable Small World. Graph-based index structure for approximate nearest-neighbour search in high-dimensional vector spaces.
     \item[SQS] AWS Simple Queue Service. Managed message queue for decoupling application components.
     \item[ECS Fargate] AWS Elastic Container Service with Fargate launch type. Serverless container runtime.
     \item[PWA] Progressive Web App. Web application that works offline and can be installed.
     \item[JWT] JSON Web Token. Stateless authentication mechanism.
     \item[S3] AWS Simple Storage Service for object storage.
+    \item[Valkey] Open-source fork of Redis; used here via AWS ElastiCache for session caching and rate limiting.
+    \item[Bloom Level] Level in Bloom's taxonomy of cognitive objectives, used to classify quiz questions by difficulty type.
 \end{description}
 
 \end{document}

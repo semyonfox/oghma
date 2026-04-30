@@ -39,7 +39,7 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY || 'fake-key'
 );
 
-const sqsClient = new SQSClient({ region: 'eu-north-1' });
+const sqsClient = new SQSClient({ region: 'eu-west-1' });
 const ec2Client = new EC2Client({ region: process.env.MARKER_ASG_REGION || 'eu-west-1' });
 const elbv2Client = new ELBv2Client({ region: process.env.MARKER_ASG_REGION || 'eu-west-1' });
 const logsClient = new CloudWatchLogsClient({ region: process.env.MARKER_ASG_REGION || 'eu-west-1' });

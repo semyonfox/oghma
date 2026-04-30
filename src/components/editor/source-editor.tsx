@@ -15,11 +15,8 @@ import {
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-} from "@codemirror/language";
-import { oneDark, oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
+import { syntaxHighlighting } from "@codemirror/language";
+import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 
 interface CodeMirrorEditorProps {
   value: string;
@@ -28,49 +25,65 @@ interface CodeMirrorEditorProps {
   placeholder?: string;
 }
 
-// custom theme overrides to blend with the app's dark background
-const appTheme = EditorView.theme({
-  "&": {
-    height: "100%",
-    fontSize: "14px",
-    backgroundColor: "transparent",
+// custom theme — dark: true signals dark mode to CM6 so cursor/selection use dark defaults
+const appTheme = EditorView.theme(
+  {
+    "&": {
+      height: "100%",
+      fontSize: "14px",
+      backgroundColor: "transparent",
+    },
+    ".cm-scroller": {
+      fontFamily:
+        'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+      padding: "3rem 1rem 12rem",
+      overflow: "auto",
+    },
+    ".cm-content": {
+      width: "100%",
+      maxWidth: "48rem",
+      margin: "0 auto",
+      padding: "0",
+    },
+    ".cm-gutters": {
+      display: "none",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-selectionBackground": {
+      backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+    },
+    "&.cm-focused .cm-selectionBackground": {
+      backgroundColor: "rgba(59, 130, 246, 0.3) !important",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "#e2e8f0",
+    },
+    // markdown-specific token styling
+    ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
+    ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
+    ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
+    ".cm-strong": { fontWeight: "700" },
+    ".cm-em": { fontStyle: "italic" },
+    ".cm-strikethrough": { textDecoration: "line-through" },
+    ".cm-url": { color: "#60a5fa" },
+    ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
+    "@media (min-width: 768px)": {
+      ".cm-scroller": {
+        paddingLeft: "2rem",
+        paddingRight: "2rem",
+      },
+    },
+    "@media (min-width: 1024px)": {
+      ".cm-scroller": {
+        paddingLeft: "2.5rem",
+        paddingRight: "2.5rem",
+      },
+    },
   },
-  ".cm-scroller": {
-    fontFamily:
-      'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-    padding: "3rem 0 12rem 0",
-    overflow: "auto",
-  },
-  ".cm-content": {
-    maxWidth: "82ch",
-    margin: "0 auto",
-    padding: "0 clamp(1rem, 4vw, 2.5rem)",
-  },
-  ".cm-gutters": {
-    display: "none",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-  },
-  ".cm-selectionBackground": {
-    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
-  },
-  "&.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgba(59, 130, 246, 0.3) !important",
-  },
-  ".cm-cursor": {
-    borderLeftColor: "#e2e8f0",
-  },
-  // markdown-specific token styling
-  ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
-  ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
-  ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
-  ".cm-strong": { fontWeight: "700" },
-  ".cm-em": { fontStyle: "italic" },
-  ".cm-strikethrough": { textDecoration: "line-through" },
-  ".cm-url": { color: "#60a5fa" },
-  ".cm-link": { color: "#60a5fa", textDecoration: "underline" },
-});
+  { dark: true },
+);
 
 export default function CodeMirrorEditor({
   value,
@@ -80,6 +93,7 @@ export default function CodeMirrorEditor({
 }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const destroyedRef = useRef(false);
   // keep callbacks in refs so extensions don't go stale
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -94,6 +108,7 @@ export default function CodeMirrorEditor({
   // create editor once on mount
   useEffect(() => {
     if (!containerRef.current) return;
+    destroyedRef.current = false;
 
     const saveKeymap = keymap.of([
       {
@@ -119,8 +134,6 @@ export default function CodeMirrorEditor({
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         syntaxHighlighting(oneDarkHighlightStyle),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        oneDark,
         appTheme,
         EditorView.lineWrapping,
         cmPlaceholder(placeholder),
@@ -132,6 +145,7 @@ export default function CodeMirrorEditor({
     viewRef.current = view;
 
     return () => {
+      destroyedRef.current = true;
       view.destroy();
       viewRef.current = null;
     };
@@ -142,7 +156,7 @@ export default function CodeMirrorEditor({
   // sync external value changes (e.g. note switch, cross-pane sync)
   useEffect(() => {
     const view = viewRef.current;
-    if (!view) return;
+    if (!view || destroyedRef.current) return;
     const current = view.state.doc.toString();
     if (value !== current) {
       view.dispatch({
@@ -154,7 +168,7 @@ export default function CodeMirrorEditor({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full bg-background text-text-secondary"
+      className="h-full w-full bg-transparent text-text-secondary"
     />
   );
 }

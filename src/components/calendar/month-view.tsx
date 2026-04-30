@@ -118,6 +118,20 @@ export default function MonthView() {
     fetchTimeBlocks(start, end);
   }, [anchor, fetchTimeBlocks]);
 
+  // refresh when AI creates/completes a time block
+  useEffect(() => {
+    const refresh = () => {
+      const year = anchor.getFullYear();
+      const month = anchor.getMonth();
+      fetchTimeBlocks(
+        new Date(year, month - 1, 20).toISOString(),
+        new Date(year, month + 2, 10).toISOString(),
+      );
+    };
+    window.addEventListener("oghma:time-block-changed", refresh);
+    return () => window.removeEventListener("oghma:time-block-changed", refresh);
+  }, [anchor, fetchTimeBlocks]);
+
   // fetch quiz review dates for streak badges
   useEffect(() => {
     const year = anchor.getFullYear();

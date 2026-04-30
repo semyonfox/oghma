@@ -7,6 +7,11 @@ const TOOL_CALL_LABELS: Record<string, string> = {
   readNote: "Reading note",
   findFolder: "Looking up folder",
   makeMDNote: "Creating note",
+  moveNote: "Moving note",
+  renameNote: "Renaming note",
+  getTimeBlocks: "Checking calendar",
+  addTimeBlock: "Scheduling study block",
+  completeTimeBlock: "Marking block complete",
   canvas_list_courses: "Reading Canvas courses",
   canvas_list_modules: "Reading Canvas modules",
   canvas_list_assignments: "Reading Canvas assignments",
@@ -20,7 +25,7 @@ export type MessageUpdate =
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
   | { type: "token"; text: string; thinkingDuration?: number }
-  | { type: "tool-call"; label: string }
+  | { type: "tool-call"; label: string; toolName: string }
   | { type: "error"; message: string };
 
 /**
@@ -73,7 +78,7 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     case "tool-call": {
       const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
       const label = TOOL_CALL_LABELS[toolName] ?? toolName;
-      return { type: "tool-call", label };
+      return { type: "tool-call", label, toolName };
     }
 
     case "error": {

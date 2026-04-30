@@ -7,7 +7,6 @@
  */
 
 import sql from "../../database/pgsql.js";
-import { v4 as uuidv4 } from "uuid";
 import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
@@ -34,7 +33,7 @@ import {
 const CANVAS_PREWARM_MARKER = parseEnvEnabled("CANVAS_PREWARM_MARKER", true);
 
 const _workerSqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-north-1",
+  region: process.env.AWS_REGION ?? "eu-west-1",
 });
 
 // ── Job course parsing ──────────────────────────────────────────────────────
@@ -99,7 +98,10 @@ async function insertPendingFile(
   parentFolderId,
   s3Prefix,
 ) {
-  const resolvedMimeType = resolveMimeType(file.display_name, file.content_type);
+  const resolvedMimeType = resolveMimeType(
+    file.display_name,
+    file.content_type,
+  );
   if (!PROCESSABLE_TYPES.has(resolvedMimeType)) return;
 
   const moduleIdVal = moduleId ?? -1;
@@ -125,7 +127,7 @@ async function insertPendingFile(
       s3_prefix        = EXCLUDED.s3_prefix,
       error_message    = NULL,
       updated_at       = NOW()
-    WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
+    WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry', 'pending_marker')
   `;
 }
 
@@ -171,8 +173,10 @@ async function discoverModuleFiles(
 
       await pooled(
         fileItems.map((item) => async () => {
-          const { data: file, forbidden: fileForbidden } =
-            await client.getFile(courseId, item.content_id);
+          const { data: file, forbidden: fileForbidden } = await client.getFile(
+            courseId,
+            item.content_id,
+          );
           if (fileForbidden || !file) return;
           await insertPendingFile(
             userId,
@@ -211,7 +215,9 @@ async function discoverAssignmentFiles(
 
   const assignmentsWithFiles = assignments.filter((a) =>
     (a.attachments ?? []).some((att) =>
-      PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type)),
+      PROCESSABLE_TYPES.has(
+        resolveMimeType(att.display_name, att.content_type),
+      ),
     ),
   );
   if (assignmentsWithFiles.length === 0) return;
@@ -273,14 +279,10 @@ async function discoverCourse(course, userId, ctx) {
     canvasAcademicYear: academicYear,
   });
 
-  await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
-  await discoverAssignmentFiles(
-    courseId,
-    userId,
-    courseTitle,
-    courseFolderId,
-    ctx,
-  );
+  await Promise.all([
+    discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx),
+    discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx),
+  ]);
 
   try {
     const { synced, errors } = await syncAssignmentMetadata(
@@ -340,8 +342,10 @@ async function processModules(
       );
       const metaResults = await pooled(
         fileItems.map((item) => async () => {
-          const { data: file, forbidden: fileForbidden } =
-            await client.getFile(courseId, item.content_id);
+          const { data: file, forbidden: fileForbidden } = await client.getFile(
+            courseId,
+            item.content_id,
+          );
           if (fileForbidden || !file) {
             console.log(`File forbidden: ${item.title}`);
             return null;
@@ -548,17 +552,13 @@ export async function processDiscoverJob(jobId) {
     // scale workers based on how many files need processing
     Promise.resolve()
       .then(() => ensureWorkerRunning(pendingRecords.length))
-      .catch((err) =>
-        console.warn(`Worker scale-up skipped: ${err.message}`),
-      );
+      .catch((err) => console.warn(`Worker scale-up skipped: ${err.message}`));
 
     if (CANVAS_PREWARM_MARKER) {
       Promise.resolve()
         .then(() => ensureMarkerRunning())
         .then(() => console.log("Marker prewarm complete"))
-        .catch((err) =>
-          console.warn(`Marker prewarm skipped: ${err.message}`),
-        );
+        .catch((err) => console.warn(`Marker prewarm skipped: ${err.message}`));
     }
 
     const startTime = job.started_at ? new Date(job.started_at) : new Date();

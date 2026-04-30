@@ -21,6 +21,8 @@ interface UseChatStreamOptions {
   selectedFolders: ChatContextItem[];
   thinkingMode: LlmThinkingMode;
   onSessionCreated?: (sessionId: string, title: string) => void;
+  /** called when a stream completes — useful for refreshing session list order */
+  onStreamComplete?: () => void;
 }
 
 interface UseChatStreamResult {
@@ -31,7 +33,11 @@ interface UseChatStreamResult {
   loading: boolean;
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
-  send: (text: string, history: { role: string; content: string }[]) => Promise<void>;
+  send: (
+    text: string,
+    history: { role: string; content: string }[],
+  ) => Promise<void>;
+  cancel: () => void;
 }
 
 /** apply a parsed SSE update to the assistant message being streamed */
@@ -87,14 +93,40 @@ function clearDraft(sid: string | null): void {
   }
 }
 
-export function useChatStream(options: UseChatStreamOptions): UseChatStreamResult {
-  const { t, noteId, noteTitle, selectedNotes, selectedFolders, thinkingMode, onSessionCreated } = options;
+export function useChatStream(
+  options: UseChatStreamOptions,
+): UseChatStreamResult {
+  const {
+    t,
+    noteId,
+    noteTitle,
+    selectedNotes,
+    selectedFolders,
+    thinkingMode,
+    onSessionCreated,
+    onStreamComplete,
+  } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancel = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setLoading(false);
+    // trim trailing empty assistant message if nothing was streamed yet
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === "assistant" && !last.content.trim() && !last.thinking) {
+        return prev.slice(0, -1);
+      }
+      return prev;
+    });
+  }, []);
 
   // stable ref for sessionId so stream handlers see the latest value
   const sessionIdRef = useRef<string | null>(null);
@@ -128,9 +160,13 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
       try {
         const { endpoint, headers } = await resolveEndpoint();
 
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         const res = await fetch(endpoint, {
           method: "POST",
           headers,
+          signal: controller.signal,
           body: JSON.stringify({
             message: text,
             noteId,
@@ -143,6 +179,15 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
             history,
             stream: true,
             thinkingMode,
+            clientDateTime: (() => {
+              const d = new Date();
+              const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+              const off = -d.getTimezoneOffset();
+              const s = off >= 0 ? "+" : "-";
+              const h = String(Math.floor(Math.abs(off) / 60)).padStart(2, "0");
+              const m = String(Math.abs(off) % 60).padStart(2, "0");
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}${s}${h}:${m}[${tz}]`;
+            })(),
           }),
         });
 
@@ -167,11 +212,13 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,
                     searchContext: data.searchContext ?? undefined,
+                    timestamp: Date.now(),
                   }
                 : m,
             ),
           );
           clearDraft(data.sessionId || sessionIdRef.current);
+          onStreamComplete?.();
           return;
         }
 
@@ -179,9 +226,20 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
           throw new Error("Missing stream body");
         }
 
-        await consumeStream(res.body, assistantId, text);
+        const { timeBlockChanged } = await consumeStream(res.body, assistantId, text);
+        const completionTime = Date.now();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, timestamp: completionTime } : m,
+          ),
+        );
+        if (timeBlockChanged) {
+          window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
+        }
         clearDraft(sessionIdRef.current);
+        onStreamComplete?.();
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         const errMsg =
           err instanceof Error ? err.message : t("error.something_went_wrong");
         const friendlyMessage = toFriendlyChatError(errMsg);
@@ -191,11 +249,20 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
             : t("error.something_went_wrong"),
         );
       } finally {
+        abortControllerRef.current = null;
         setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [noteId, noteTitle, selectedNotes, selectedFolders, sessionId, thinkingMode, loading],
+    [
+      noteId,
+      noteTitle,
+      selectedNotes,
+      selectedFolders,
+      sessionId,
+      thinkingMode,
+      loading,
+    ],
   );
 
   /** resolve the chat endpoint, fetching a Lambda token when needed */
@@ -203,7 +270,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
     endpoint: string;
     headers: Record<string, string>;
   }> {
-    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "https://zniows5yrf3z5txiqzy5msimlq0jvxwt.lambda-url.eu-north-1.on.aws/";
+    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "";
     if (
       !chatFunctionUrl &&
       typeof window !== "undefined" &&
@@ -237,7 +304,10 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
   }
 
   /** handle session ID from server responses */
-  function handleNewSession(newSessionId: string | undefined, userText: string): void {
+  function handleNewSession(
+    newSessionId: string | undefined,
+    userText: string,
+  ): void {
     if (newSessionId && newSessionId !== sessionIdRef.current) {
       setSessionId(newSessionId);
       onSessionCreated?.(newSessionId, userText.slice(0, 60));
@@ -249,7 +319,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
     body: ReadableStream<Uint8Array>,
     assistantId: string,
     userText: string,
-  ): Promise<void> {
+  ): Promise<{ timeBlockChanged: boolean }> {
+    let timeBlockChanged = false;
     const reader = body.getReader();
     const decoder = new TextDecoder();
     const parseState = { buffer: "" };
@@ -273,6 +344,14 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
             handleNewSession(update.sessionId, userText);
           }
 
+          if (
+            update.type === "tool-call" &&
+            (update.toolName === "addTimeBlock" ||
+              update.toolName === "completeTimeBlock")
+          ) {
+            timeBlockChanged = true;
+          }
+
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
@@ -288,7 +367,18 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamResul
       // yield to the macrotask queue so React can flush pending renders
       await new Promise<void>((r) => setTimeout(r, 0));
     }
+    return { timeBlockChanged };
   }
 
-  return { messages, setMessages, sessionId, setSessionId, loading, error, setError, send };
+  return {
+    messages,
+    setMessages,
+    sessionId,
+    setSessionId,
+    loading,
+    error,
+    setError,
+    send,
+    cancel,
+  };
 }

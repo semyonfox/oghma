@@ -12,6 +12,7 @@ import {
   SQSClient,
   ReceiveMessageCommand,
   DeleteMessageCommand,
+  ChangeMessageVisibilityCommand,
 } from "@aws-sdk/client-sqs";
 import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
 import {
@@ -20,6 +21,7 @@ import {
   processCanvasFile,
   processExtractionRetry,
   processDirectExtraction,
+  processMarkerComplete,
 } from "./import-worker.js";
 import { processVaultImport } from "../vault/import-worker.js";
 import { processVaultExport } from "../vault/export-worker.js";
@@ -42,7 +44,7 @@ const keepWarmMode =
   String(process.env.WORKER_KEEP_WARM ?? "").toLowerCase() === "true";
 
 const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-north-1",
+  region: process.env.AWS_REGION ?? "eu-west-1",
 });
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 const RETRY_QUEUE_URL = process.env.SQS_EXTRACT_RETRY_QUEUE_URL;
@@ -142,6 +144,9 @@ async function processAndDelete(message, queueUrl) {
     case "extract-retry":
       await processExtractionRetry(body);
       break;
+    case "marker-complete":
+      await processMarkerComplete(body);
+      break;
     case "vault-export":
       await processVaultExport(body);
       break;
@@ -166,6 +171,16 @@ async function processAndDelete(message, queueUrl) {
 const inFlight = new Set();
 
 function launchProcessing(message, queueUrl) {
+  const heartbeat = setInterval(async () => {
+    try {
+      await sqsClient.send(new ChangeMessageVisibilityCommand({
+        QueueUrl: queueUrl,
+        ReceiptHandle: message.ReceiptHandle,
+        VisibilityTimeout: 600,
+      }));
+    } catch { /* message may already be deleted, ignore */ }
+  }, 5 * 60 * 1000);
+
   const p = processAndDelete(message, queueUrl)
     .catch((err) => {
       console.error(
@@ -173,7 +188,7 @@ function launchProcessing(message, queueUrl) {
         err?.message,
       );
     })
-    .finally(() => inFlight.delete(p));
+    .finally(() => { clearInterval(heartbeat); inFlight.delete(p); });
   inFlight.add(p);
 }
 
@@ -188,8 +203,7 @@ async function pollQueue() {
     new ReceiveMessageCommand({
       QueueUrl: QUEUE_URL,
       MaxNumberOfMessages: Math.min(10, capacity),
-      // long-poll only when fully idle so we don't burn 20s when there's work to do
-      WaitTimeSeconds: inFlight.size === 0 ? 20 : 0,
+      WaitTimeSeconds: 20,
       VisibilityTimeout: 3600,
     }),
   );
@@ -244,6 +258,7 @@ setInterval(async () => {
 }, DB_POLL_INTERVAL_MS);
 
 let idlePolls = 0;
+let pollErrorCount = 0;
 
 while (true) {
   try {
@@ -255,6 +270,7 @@ while (true) {
 
     const hadWork = await pollQueue();
     const hadRetries = await pollRetryQueue();
+    pollErrorCount = 0;
 
     // only count as idle when there's nothing in-flight and both queues were empty
     const isIdle = !hadWork && !hadRetries && inFlight.size === 0;
@@ -289,7 +305,7 @@ while (true) {
       );
       try {
         const ecsClient = new ECSClient({
-          region: process.env.AWS_REGION ?? "eu-north-1",
+          region: process.env.AWS_REGION ?? "eu-west-1",
         });
         await ecsClient.send(
           new UpdateServiceCommand({
@@ -308,6 +324,8 @@ while (true) {
     }
   } catch (err) {
     console.error(`[${new Date().toISOString()}] Poll error:`, err.message);
-    await new Promise((r) => setTimeout(r, 5000));
+    pollErrorCount++;
+    const backoffMs = Math.min(1000 * 2 ** (pollErrorCount - 1), 30_000);
+    await new Promise((r) => setTimeout(r, backoffMs + Math.random() * 500));
   }
 }

@@ -19,8 +19,9 @@ describe("PreviewRenderer", () => {
   it("renders fenced code without language as a block", () => {
     const html = renderPreview("```\nconst value = 1\n```");
 
-    expect(html).toContain("<pre><code");
-    expect(html).not.toContain("rounded bg-surface");
+    // CodeBlock wraps the pre; verify a <pre> element is present (block render)
+    expect(html).toContain("<pre");
+    expect(html).not.toContain('class="rounded bg-surface');
   });
 
   it("keeps list styling for task lists", () => {
@@ -51,5 +52,13 @@ describe("PreviewRenderer", () => {
 
     expect(html).toContain("hljs");
     expect(html).not.toContain("<script>");
+  });
+
+  it("renders inline and display math with katex markup", () => {
+    const html = renderPreview("Inline $x^2$ and display $$x^2$$.");
+
+    expect(html).toContain("katex");
+    expect(html).not.toContain("$x^2$");
+    expect(html).not.toContain("$$x^2$$");
   });
 });

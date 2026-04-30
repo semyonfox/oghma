@@ -253,7 +253,7 @@ async function _runFileImport(importRecordId, file, opts) {
     const [existing] = await tx`
         SELECT status FROM app.canvas_imports
         WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int
-          AND status IN ('complete', 'indexing', 'pending_retry')
+          AND status IN ('complete', 'indexing', 'pending_retry', 'pending_marker')
         LIMIT 1
       `;
     if (existing) return false;
@@ -265,7 +265,7 @@ async function _runFileImport(importRecordId, file, opts) {
       ON CONFLICT (user_id, canvas_file_id)
       DO UPDATE SET status = 'downloading', job_id = ${opts.jobId ?? null},
                     filename = ${file.display_name}, mime_type = ${resolvedMimeType}, created_at = NOW()
-      WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry')
+      WHERE app.canvas_imports.status NOT IN ('complete', 'indexing', 'pending_retry', 'pending_marker')
     `;
     return true;
   });
@@ -411,13 +411,23 @@ export async function downloadAndStoreFile(file, opts) {
 // marks a job complete when all its canvas_imports rows are in terminal states.
 // the count check and status update share the same transaction to avoid TOCTOU.
 // pending_retry counts as in-flight since the retry queue will eventually resolve it.
+// pending_marker is settled for the Canvas job because extraction has been handed
+// off to Marker and should not block the import from finishing.
 async function checkAndCompleteJob(jobId, userId) {
+  // fast pre-check: skip the transaction entirely if >1 file is still in-flight
+  const [{ count: pending }] = await sql`
+    SELECT COUNT(*) as count FROM app.canvas_imports
+    WHERE job_id = ${jobId}::uuid
+      AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled', 'pending_marker')
+  `;
+  if (parseInt(pending, 10) > 1) return;
+
   let weCompleted = false;
   await sql.begin(async (tx) => {
     const [{ count }] = await tx`
       SELECT COUNT(*) as count FROM app.canvas_imports
       WHERE job_id = ${jobId}::uuid
-        AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled')
+        AND status NOT IN ('complete', 'forbidden', 'error', 'cancelled', 'pending_marker')
     `;
     if (parseInt(count, 10) > 0) return;
 
@@ -442,9 +452,8 @@ async function checkAndCompleteJob(jobId, userId) {
     `;
     const chunkIds = chunks.map((r) => r.id);
     if (chunkIds.length > 0) {
-      const { seedQuestionsAfterImport } = await import(
-        "../quiz/generate-background.ts"
-      );
+      const { seedQuestionsAfterImport } =
+        await import("../quiz/generate-background.ts");
       const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
       console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
     }
@@ -459,18 +468,35 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
   const ts = () => new Date().toISOString();
   console.log(`[${ts()}] Processing canvas file: ${importRecordId}`);
   try {
-    const [record] =
-      await sql`SELECT * FROM app.canvas_imports WHERE id = ${importRecordId}::uuid`;
-    if (!record) {
+    const [row] = await sql`
+      SELECT
+        ci.*,
+        cij.status AS job_status,
+        l.canvas_token,
+        l.canvas_domain
+      FROM app.canvas_imports ci
+      LEFT JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
+      JOIN app.login l ON l.user_id = ci.user_id
+      WHERE ci.id = ${importRecordId}::uuid
+    `;
+    if (!row) {
       console.error(`[${ts()}] Import record not found: ${importRecordId}`);
       return false;
     }
 
+    // split the joined row into record shape and credentials
+    const { canvas_token, canvas_domain, job_status, ...record } = row;
+
     // idempotency -- SQS at-least-once may redeliver
     if (
-      ["complete", "forbidden", "error", "cancelled", "pending_retry"].includes(
-        record.status,
-      )
+      [
+        "complete",
+        "forbidden",
+        "error",
+        "cancelled",
+        "pending_retry",
+        "pending_marker",
+      ].includes(record.status)
     ) {
       console.log(
         `[${ts()}] Record ${importRecordId} already terminal: ${record.status}`,
@@ -478,17 +504,16 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
       return true;
     }
 
-    if (await isJobCancelled(jobId)) {
+    if (job_status === "cancelled") {
       await sql`UPDATE app.canvas_imports SET status = 'cancelled', updated_at = NOW() WHERE id = ${importRecordId}::uuid`;
       await checkAndCompleteJob(jobId, userId);
       return false;
     }
 
-    const [creds] =
-      await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
-    if (!creds) throw new Error("Canvas credentials not found");
-    const plainToken = decrypt(creds.canvas_token, userId);
-    const client = new CanvasClient(creds.canvas_domain, plainToken);
+    if (!canvas_token || !canvas_domain)
+      throw new Error("Canvas credentials not found");
+    const plainToken = decrypt(canvas_token, userId);
+    const client = new CanvasClient(canvas_domain, plainToken);
     const storage = getStorageProvider();
 
     // re-fetch a fresh download URL -- avoids any session-tied URL expiry between phases
@@ -567,9 +592,7 @@ export async function processDirectExtraction(msg) {
       SET status = 'failed', error = 'S3 object not found', updated_at = NOW()
       WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
     `;
-    console.error(
-      `[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`,
-    );
+    console.error(`[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`);
     return;
   }
 
@@ -582,11 +605,17 @@ export async function processDirectExtraction(msg) {
     `;
     const sourceParentId = treeRow?.parent_id ?? null;
 
-    const result = await runRagPipeline(noteId, userId, sourceParentId, buffer, {
-      filename: filename ?? s3Key.split("/").pop() ?? "document",
-      mimeType,
-      s3Key,
-    });
+    const result = await runRagPipeline(
+      noteId,
+      userId,
+      sourceParentId,
+      buffer,
+      {
+        filename: filename ?? s3Key.split("/").pop() ?? "document",
+        mimeType,
+        s3Key,
+      },
+    );
     if (!result) {
       await sql`
         UPDATE app.ingestion_jobs
@@ -624,15 +653,8 @@ export async function processDirectExtraction(msg) {
 // ── Extraction retry handler ────────────────────────────────────────────────
 
 export async function processExtractionRetry(msg) {
-  const {
-    noteId,
-    userId,
-    s3Key,
-    filename,
-    mimeType,
-    parentFolderId,
-    attempt,
-  } = msg;
+  const { noteId, userId, s3Key, filename, mimeType, parentFolderId, attempt } =
+    msg;
   console.log(
     `[${new Date().toISOString()}] Extraction retry for note ${noteId} (attempt ${attempt})`,
   );
@@ -640,7 +662,7 @@ export async function processExtractionRetry(msg) {
   // for retry messages we still allow processing even when already complete,
   // because retries can be used for enrichment/replacement after fallback text.
   const [importRow] =
-    await sql`SELECT status FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
+    await sql`SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
   if (importRow?.status === "complete" && (attempt ?? 0) <= 0) {
     console.log(`Note ${noteId} already complete, skipping duplicate retry`);
     return;
@@ -660,32 +682,51 @@ export async function processExtractionRetry(msg) {
   }
 
   try {
-    const result = await runRagPipeline(
-      noteId,
-      userId,
-      parentFolderId,
-      buffer,
-      {
-        filename,
-        mimeType,
-        s3Key,
-        attempt,
-      },
-    );
+    await globalFileLimiter(async () => {
+      let timerId;
+      const timer = new Promise((_, reject) => {
+        timerId = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Extraction retry timed out after ${Math.round(FILE_TIMEOUT_MS / 60000)} minutes: ${filename}`,
+              ),
+            ),
+          FILE_TIMEOUT_MS,
+        );
+      });
 
-    if (result) {
-      await sql`
-        UPDATE app.ingestion_jobs
-        SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
-      `;
-    } else {
-      await sql`
-        UPDATE app.ingestion_jobs
-        SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
-      `;
-    }
+      try {
+        const result = await Promise.race([
+          runRagPipeline(noteId, userId, parentFolderId, buffer, {
+            filename,
+            mimeType,
+            s3Key,
+            attempt,
+          }),
+          timer,
+        ]);
+
+        if (result) {
+          await sql`
+            UPDATE app.ingestion_jobs
+            SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
+            WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          `;
+          if (importRow?.job_id) {
+            await checkAndCompleteJob(importRow.job_id, userId);
+          }
+        } else {
+          await sql`
+            UPDATE app.ingestion_jobs
+            SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
+            WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          `;
+        }
+      } finally {
+        clearTimeout(timerId);
+      }
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -704,5 +745,157 @@ export async function processExtractionRetry(msg) {
     console.error(
       `[${new Date().toISOString()}] Extraction retry failed for note ${noteId}: ${message}`,
     );
+  }
+}
+
+// ── Marker-complete handler ──────────────────────────────────────────────────
+
+export async function processMarkerComplete(msg) {
+  const {
+    noteId,
+    userId,
+    jobId,
+    filename,
+    mimeType,
+    parentFolderId,
+    resultKey,
+  } = msg;
+  const ts = () => new Date().toISOString();
+  console.log(`[${ts()}] processMarkerComplete: note ${noteId}`);
+
+  const [importRows, ingestionRows] = await Promise.all([
+    sql`
+      SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1
+    `,
+    sql`
+      SELECT status FROM app.ingestion_jobs
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+  ]);
+  const importRow = importRows[0] ?? null;
+  const ingestionJob = ingestionRows[0] ?? null;
+  const effectiveJobId = jobId ?? importRow?.job_id ?? null;
+  const canvasAlreadyComplete = !importRow || importRow.status === "complete";
+  const ingestionAlreadyComplete =
+    !ingestionJob || ingestionJob.status === "done";
+
+  if (!importRow && !ingestionJob) {
+    console.log(
+      `[${ts()}] Note ${noteId} has no import or ingestion job, skipping marker-complete`,
+    );
+    return;
+  }
+
+  if (canvasAlreadyComplete && ingestionAlreadyComplete) {
+    console.log(
+      `[${ts()}] Note ${noteId} already complete, skipping marker-complete`,
+    );
+    return;
+  }
+
+  const storage = getStorageProvider();
+  const resultBuffer = await storage.getObject(resultKey);
+  if (!resultBuffer) {
+    if (importRow) {
+      await sql`UPDATE app.canvas_imports SET status = 'error', error_message = 'Marker result missing from S3', updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+    }
+    if (ingestionJob) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'failed', error = 'Marker result missing from S3', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+    }
+    return;
+  }
+
+  let markerOutput;
+  try {
+    markerOutput = JSON.parse(resultBuffer.toString());
+  } catch {
+    if (importRow) {
+      await sql`UPDATE app.canvas_imports SET status = 'error', error_message = 'Marker result JSON parse failed', updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+    }
+    if (ingestionJob) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'failed', error = 'Marker result JSON parse failed', updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+    }
+    return;
+  }
+
+  const {
+    output: rawMarkdown = "",
+    images = {},
+    metadata = null,
+  } = markerOutput;
+
+  const { normalizeMarkerMarkdown } = await import("../marker-output.ts");
+  const { splitMarkdownToChunks } = await import("../ocr.ts");
+
+  const normalizedText = normalizeMarkerMarkdown(rawMarkdown);
+  const chunks = splitMarkdownToChunks(normalizedText);
+
+  try {
+    const result = await processRagPipeline(
+      noteId,
+      userId,
+      parentFolderId ?? null,
+      null,
+      {
+        filename: filename ?? "document",
+        mimeType: mimeType ?? "application/octet-stream",
+        s3Key: null,
+        attempt: 0,
+        jobId: effectiveJobId,
+        extractionOverride: {
+          rawText: normalizedText,
+          chunks,
+          source: "marker",
+          markerImages: images,
+          markerMetadata: metadata,
+        },
+      },
+      findOrCreateNote,
+    );
+
+    if (result) {
+      if (importRow) {
+        await sql`
+          UPDATE app.canvas_imports
+          SET status = 'complete', error_message = NULL, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid
+        `;
+      }
+      if (ingestionJob) {
+        await sql`
+          UPDATE app.ingestion_jobs
+          SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+        `;
+      }
+      if (importRow && effectiveJobId) {
+        await checkAndCompleteJob(effectiveJobId, userId);
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[${ts()}] processMarkerComplete failed for note ${noteId}: ${message}`,
+    );
+    if (importRow) {
+      await sql`UPDATE app.canvas_imports SET status = 'error', error_message = ${message}, updated_at = NOW() WHERE note_id = ${noteId}::uuid`;
+    }
+    if (ingestionJob) {
+      await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'failed', error = ${message}, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      `;
+    }
   }
 }

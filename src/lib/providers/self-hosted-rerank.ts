@@ -1,4 +1,4 @@
-// reranking via SiliconFlow / any Cohere-compatible rerank API
+// reranking via OpenRouter / any Cohere-compatible rerank API
 // configured via RERANK_API_URL, RERANK_API_KEY, RERANK_MODEL
 
 export interface RerankProvider {
@@ -37,11 +37,7 @@ class RerankAPIProvider implements RerankProvider {
       throw new Error("Rerank provider not configured (RERANK_API_URL/KEY/MODEL)");
     }
 
-    if (chunks.length <= topN) {
-      return chunks.map((text, index) => ({ index, text, score: 1 }));
-    }
-
-    const res = await fetch(`${apiUrl}/v1/rerank`, {
+    const res = await fetch(`${apiUrl}/rerank`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,7 +1,7 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 export const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-north-1",
+  region: process.env.AWS_REGION ?? "eu-west-1",
 });
 
 // lazy getters — read process.env at call time, not module-load time.
@@ -13,6 +13,10 @@ export function getCanvasImportQueueUrl(): string {
 
 export function getExtractRetryQueueUrl(): string {
   return process.env.SQS_EXTRACT_RETRY_QUEUE_URL ?? "";
+}
+
+export function getMarkerQueueUrl(): string {
+  return process.env.SQS_MARKER_QUEUE_URL ?? "";
 }
 
 // removed stale module-level exports — they bake in "" during next build

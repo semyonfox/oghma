@@ -17,13 +17,23 @@ log_error() { echo -e "${RED}✗${NC} $1"; }
 log_section() { echo -e "\n${MAGENTA}══ $1 ══${NC}"; }
 log_debug() { echo -e "${CYAN}◆${NC} $1"; }
 
-# Load env
-set -a
-. ./.env
-set +a
+# Load env when present
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+AWS_REGION="${AWS_REGION:-eu-west-1}"
+DATABASE_URL="${DATABASE_URL:-}"
 
 log_section "RAG PIPELINE DIAGNOSTIC & REQUEUE"
 log_info "Starting Marker diagnostics and pending_retry requeue...\n"
+
+if [ -z "$DATABASE_URL" ]; then
+  log_error "DATABASE_URL not set"
+  exit 1
+fi
 
 # ============================================================================
 # 1. MARKER HEALTH CHECK
@@ -164,7 +174,7 @@ else
         aws sqs send-message \
           --queue-url "$SQS_QUEUE_URL" \
           --message-body "{\"job_id\":$NEW_JOB_ID,\"note_id\":\"$note_id\",\"filename\":\"$ESCAPED_FILENAME\",\"import_id\":$id,\"attempt_number\":1,\"retry\":true}" \
-          --region eu-north-1 2>&1 > /dev/null
+          --region "$AWS_REGION" 2>&1 > /dev/null
         
         QUEUED_COUNT=$((QUEUED_COUNT + 1))
       fi
@@ -214,7 +224,7 @@ else
   log_success "  1. Marker is healthy - retries will process immediately"
 fi
 log_info "  2. Monitor extraction:"
-log_info "     - Watch SQS queue depth: \`aws sqs get-queue-attributes --queue-url \$SQS_QUEUE_URL --attribute-names ApproximateNumberOfMessages --region eu-north-1\`"
+log_info "     - Watch SQS queue depth: \`aws sqs get-queue-attributes --queue-url \$SQS_QUEUE_URL --attribute-names ApproximateNumberOfMessages --region $AWS_REGION\`"
 log_info "  3. Verify success:"
 log_info "     - Check chunks table: \`SELECT COUNT(*) FROM app.chunks;\`"
 log_info "     - Check embeddings: \`SELECT COUNT(*) FROM app.embeddings;\`"

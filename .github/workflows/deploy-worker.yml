@@ -4,23 +4,30 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'src/lib/canvas/**'
-      - 'src/lib/chunking.ts'
-      - 'src/lib/embeddings.ts'
-      - 'src/lib/embedText.ts'
-      - 'src/lib/ocr.ts'
-      - 'src/lib/storage/**'
-      - 'src/lib/sqs.ts'
-      - 'src/lib/ecs.ts'
-      - 'src/database/**'
-      - 'Dockerfile.worker'
-      - 'package.json'
-      - 'package-lock.json'
+      - ".github/workflows/deploy-worker.yml"
+      - "src/lib/canvas/**"
+      - "src/lib/chunking.ts"
+      - "src/lib/embeddings.ts"
+      - "src/lib/embedText.ts"
+      - "src/lib/ocr.ts"
+      - "src/lib/storage/**"
+      - "src/lib/sqs.ts"
+      - "src/lib/ecs.ts"
+      - "src/database/**"
+      - "Dockerfile.worker"
+      - "package.json"
+      - "package-lock.json"
 
 env:
-  AWS_REGION: eu-north-1
-  ECR_REPO: 723920043097.dkr.ecr.eu-north-1.amazonaws.com/oghmanotes-worker
+  AWS_REGION: eu-west-1
+  ECR_REPO: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-west-1.amazonaws.com/oghmanotes-worker
   COMMIT_SHA: ${{ github.sha }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER || 'oghmanotes' }}
+  ECS_SERVICE: ${{ vars.ECS_SERVICE || 'canvas-import-worker' }}
+  ECS_TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY || 'oghmanotes-worker' }}
+  ECS_VPC_NAME: ${{ vars.ECS_VPC_NAME || 'oghmanotes-vpc' }}
+  ECS_SECURITY_GROUP_NAME: ${{ vars.ECS_SECURITY_GROUP_NAME || 'oghma-ecs-sg' }}
+  ECS_PRIVATE_SUBNET_PREFIX: ${{ vars.ECS_PRIVATE_SUBNET_PREFIX || 'oghma-private-' }}
 
 jobs:
   deploy-worker:
@@ -33,8 +40,8 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::723920043097:role/github-actions-oghma
-          aws-region: eu-north-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-oghma
+          aws-region: ${{ env.AWS_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v2
 
@@ -49,7 +56,7 @@ jobs:
       - name: Force new ECS deployment
         run: |
           aws ecs update-service \
-            --cluster oghmanotes \
-            --service canvas-import-worker \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
             --force-new-deployment \
-            --region eu-north-1
+            --region "$AWS_REGION"

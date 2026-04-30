@@ -46,6 +46,13 @@ export const GET = withErrorHandler(async (request) => {
     const fullKey = `${prefix}/${job.output_s3_key}`;
     const s3 = new S3Client({
       region: process.env.STORAGE_REGION || "us-east-1",
+      ...(process.env.STORAGE_ENDPOINT && { endpoint: process.env.STORAGE_ENDPOINT }),
+      ...(process.env.STORAGE_ACCESS_KEY && process.env.STORAGE_SECRET_KEY && {
+        credentials: {
+          accessKeyId: process.env.STORAGE_ACCESS_KEY,
+          secretAccessKey: process.env.STORAGE_SECRET_KEY,
+        },
+      }),
     });
 
     downloadUrl = await getSignedUrl(
