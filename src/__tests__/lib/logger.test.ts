@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// mock transports and external deps to avoid filesystem/network side effects
+// mock transports to avoid filesystem side effects
 vi.mock("winston-daily-rotate-file", () => ({ default: vi.fn() }));
-vi.mock("winston-cloudwatch", () => {
-  return { default: vi.fn().mockImplementation(() => ({})) };
-});
 
 // mock trace module to avoid AsyncLocalStorage complexity in tests
 vi.mock("@/lib/trace", () => ({

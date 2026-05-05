@@ -1,7 +1,5 @@
 import postgres from 'postgres';
-import awsSslProfiles from 'aws-ssl-profiles';
 import { config } from '@/lib/config';
-const { ca: rdsCaCerts } = awsSslProfiles;
 
 // lazy connection - only created on first use, not at module load
 // this ensures runtime env vars are available (not build-time values)
@@ -17,9 +15,8 @@ function getSQL() {
             );
         }
         const requiresSSL = url.includes('sslmode=require');
-        // use the bundled AWS RDS CA certificates for proper TLS verification
         sql = postgres(url, {
-            ssl: requiresSSL ? { ca: rdsCaCerts } : false,
+            ssl: requiresSSL ? { rejectUnauthorized: false } : false,
             idle_in_transaction_session_timeout: config.db.transactionTimeoutMs,
             statement_timeout: config.db.statementTimeoutMs,
             max: config.db.maxConnections,
