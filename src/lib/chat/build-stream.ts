@@ -22,13 +22,13 @@ import {
   recordSessionCreatedNote,
 } from "@/lib/chat/session";
 import {
-  buildThinkingOptions,
+  buildReasoningOptions,
   createLlmProvider,
   getLlmMaxTokens,
   getLlmModel,
+  type LlmReasoningOptions,
   type LlmThinkingMode,
 } from "@/lib/ai-config";
-import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { MCPClient } from "@ai-sdk/mcp";
 
@@ -76,7 +76,7 @@ export interface LlmCallResult {
     temperature?: number;
     stopWhen: ReturnType<typeof stepCountIs>;
     tools: ToolSet;
-    providerOptions: { moonshotai: MoonshotAILanguageModelOptions };
+    providerOptions: { openrouter: { reasoning?: LlmReasoningOptions } };
   };
   canvasMcpClient: MCPClient | null;
 }
@@ -586,10 +586,7 @@ export async function buildLlmCall(
   const provider = createLlmProvider();
   const model = provider ? provider(getLlmModel()) : null;
 
-  const thinkingOptions = buildThinkingOptions(params.thinkingMode);
-  const moonshotOptions: MoonshotAILanguageModelOptions = {
-    thinking: thinkingOptions,
-  };
+  const reasoning = buildReasoningOptions(params.thinkingMode);
 
   return {
     model,
@@ -600,7 +597,7 @@ export async function buildLlmCall(
       ...(params.thinkingMode !== "off" && { temperature: 1 }),
       stopWhen: stepCountIs(50),
       tools,
-      providerOptions: { moonshotai: moonshotOptions },
+      providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
     },
     canvasMcpClient,
   };
