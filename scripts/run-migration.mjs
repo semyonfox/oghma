@@ -52,7 +52,7 @@ if (!ENV.DATABASE_URL) {
 const dbUrl = ENV.DATABASE_URL;
 const masked = dbUrl.replace(/:[^@]*@/, ':***@');
 const sql = postgres(dbUrl, {
-  ssl: dbUrl.includes('localhost') ? false : 'require',
+  ssl: dbUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
 });
 
 async function getApplied() {
