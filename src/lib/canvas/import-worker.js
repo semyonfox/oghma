@@ -22,31 +22,16 @@
 import sql from "../../database/pgsql.js";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
-import { parseEnvEnabled } from "./import-metrics.js";
 import { parseJobCourses, processCourse } from "./import-discovery.js";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
-import { ensureMarkerRunning } from "../marker-ec2.ts";
-
-const CANVAS_PREWARM_MARKER = parseEnvEnabled("CANVAS_PREWARM_MARKER", true);
 
 // ── Legacy single-pass pipeline ─────────────────────────────────────────────
-// used by the "canvas-import" SQS message type; kept for in-flight messages
+// used by the "canvas-import" message type; kept for in-flight messages
 // during the transition to two-phase (discover + per-file) processing.
 
 async function runJobPipeline(jobId, userId, courses) {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
-
-  if (CANVAS_PREWARM_MARKER) {
-    Promise.resolve()
-      .then(() => ensureMarkerRunning())
-      .then(() => {
-        console.log("Marker prewarm complete");
-      })
-      .catch((error) => {
-        console.warn(`Marker prewarm skipped: ${error.message}`);
-      });
-  }
 
   const [creds] =
     await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;

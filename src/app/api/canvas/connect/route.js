@@ -3,7 +3,6 @@ import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
 import { encrypt } from "@/lib/crypto";
-import { preWarmMarker } from "@/lib/marker-ec2";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
@@ -92,10 +91,6 @@ export const POST = withErrorHandler(async (request) => {
           SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain}
           WHERE user_id = ${user.user_id}
       `;
-
-  // pre-warm Marker GPU — user will likely import notes soon
-  // fire-and-forget, never throws, gives ~90s head start before first import
-  preWarmMarker();
 
   return noStoreJson({ success: true, courses: courses ?? [] });
 });
