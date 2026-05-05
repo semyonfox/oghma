@@ -30,18 +30,18 @@ Visit `http://localhost:3000`.
 
 ## Tech stack
 
-- Next.js (frontend + API routes, deployed on AWS Amplify WEB_COMPUTE)
-- PostgreSQL 17 with pgvector (RDS, eu-west-1)
-- AWS S3 (file storage)
-- AWS SQS + ECS Fargate (async Canvas import worker)
-- EC2 ASG g4dn.xlarge / NVIDIA T4 (Marker OCR, GPU PDF extraction)
+- Next.js (frontend + API routes, runs in Docker on the homelab via Cloudflare Tunnel)
+- PostgreSQL 17 with pgvector
+- rustfs (S3-compatible object store)
+- BullMQ on Redis (canvas-import + extract-retry queues; worker is a sibling container)
 - Zustand (state)
 - Lexical (rich text editor)
-- OpenRouter — qwen/qwen3-embedding-8b (embeddings, 4096d)
-- SiliconFlow — Qwen3-Reranker-8B (reranking)
+- SiliconFlow — Qwen3-Embedding-8B (embeddings, 4096d)
+- OpenRouter — Qwen3-Reranker-8B (reranking)
 - Moonshot AI — Kimi K2.5 (LLM)
+- AWS SES — outbound email (verification, reset, contact form)
 
-See [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for full AWS architecture.
+See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for what's left on AWS.
 
 ## Setup
 

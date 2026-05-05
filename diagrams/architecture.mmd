@@ -2,66 +2,60 @@
 flowchart TD
     Browser(["User Browser"])
 
+    subgraph cf["Cloudflare"]
+        DNS["Route 53 / CF DNS\noghmanotes.ie + dev.oghmanotes.ie"]
+        Tunnel["CF Tunnel"]
+    end
+
+    subgraph homelab["Homelab (10.0.0.5)"]
+        Nginx["nginx\nprod / dev routing"]
+        AppProd["oghma-prod\nNext.js SSR + /api/chat"]
+        AppDev["oghma-dev\nNext.js SSR + /api/chat"]
+        Worker["oghma-{env}-worker\nBullMQ canvas-import + extract-retry"]
+        Postgres[("PostgreSQL 17\n+ pgvector")]
+        Redis[("Redis 7\nBullMQ + cache + rate-limit")]
+        Rustfs[("rustfs\nS3-compatible store")]
+    end
+
     subgraph aws["AWS  eu-west-1"]
-        subgraph amplify["AWS Amplify  WEB_COMPUTE"]
-            FE["Next.js SSR Frontend\nCDN + Serverless Lambda"]
-            API["API Routes\nServerless Lambda"]
-            ChatLambda["Chat Lambda\nLambda Function URL"]
-        end
-        RDS[("PostgreSQL 17\ndb.t3.micro\npublicly accessible")]
-        S3[("S3\noghma-notes-store")]
-        CIMP["SQS: canvas-import"]
-        CRETRY["SQS: extract-retry"]
-        ECS["ECS Fargate\ncanvas-import-worker\n⏸ 0 desired"]
-        Cache[("ElastiCache Valkey\ncache.t3.micro\n⚠ orphaned")]
-        MarkerASG["EC2 ASG\nmarker-asg-oghmanotes\ng4dn.xlarge / NVIDIA T4\n⏸ 0 desired"]
-        SecretsManager["Secrets Manager\noghmanotes/database\noghmanotes/app-secrets\noghmanotes/migrator"]
         SES["SES\nnoreply@oghmanotes.ie"]
+        SesFwd["Lambda\nses-email-forwarder"]
     end
 
     subgraph external["External Services"]
         LLM["Kimi K2.5\nMoonshot AI"]
-        Embed["OpenRouter\nqwen3-embedding-8b\n4096 dims"]
-        Rerank["SiliconFlow\nQwen3-Reranker-8B"]
-        Cohere["Cohere API"]
-        Datalab["Datalab API\nPDF extraction"]
+        Embed["SiliconFlow\nQwen3-Embedding-8B (4096d)"]
+        Rerank["OpenRouter\nQwen3-Reranker-8B"]
+        Datalab["Datalab API\nPDF extraction (optional)"]
         CanvasLMS["Canvas LMS API"]
         OAuth["GitHub / Google OAuth"]
     end
 
-    Browser --> FE
-    FE --> API
-    FE --> ChatLambda
-    API --> RDS
-    API --> S3
-    API --> CIMP
-    API --> Embed
-    API --> Rerank
-    API --> LLM
-    API --> CanvasLMS
-    API --> SES
-    API --> Cohere
-    ChatLambda --> RDS
-    ChatLambda --> LLM
-    ChatLambda --> Embed
-    CIMP --> ECS
-    ECS --> S3
-    ECS --> RDS
-    ECS --> MarkerASG
-    ECS --> Datalab
-    ECS --> Embed
-    ECS --> Cohere
-    ECS --> CRETRY
-    CRETRY --> ECS
-    SecretsManager -.->|build-time| amplify
+    Browser --> DNS --> Tunnel --> Nginx
+    Nginx --> AppProd
+    Nginx --> AppDev
+    AppProd --> Postgres
+    AppProd --> Redis
+    AppProd --> Rustfs
+    AppProd --> CanvasLMS
+    AppProd --> Embed
+    AppProd --> Rerank
+    AppProd --> LLM
+    AppProd --> SES
+    AppDev --> Postgres
+    AppDev --> Redis
+    AppDev --> Rustfs
+    Worker --> Postgres
+    Worker --> Redis
+    Worker --> Rustfs
+    Worker --> CanvasLMS
+    Worker --> Embed
+    Worker --> Datalab
     Browser --> OAuth
+    SES --> SesFwd
 
     classDef plain fill:#ffffff,color:#111111,stroke:#111111
     classDef shaded fill:#e8e8e8,color:#111111,stroke:#111111
-    classDef paused fill:#f5f5f5,color:#888888,stroke:#aaaaaa,stroke-dasharray:4
-    classDef orphaned fill:#f5f5f5,color:#888888,stroke:#cc4444,stroke-dasharray:4
     classDef endpoint fill:#f0f0f0,color:#111111,stroke:#333333,font-weight:bold
-    class CIMP,CRETRY shaded
-    class ECS,MarkerASG paused
-    class Cache orphaned
+    class Postgres,Redis,Rustfs shaded
     class Browser endpoint
