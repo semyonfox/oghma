@@ -2,52 +2,66 @@
 flowchart TD
     Browser(["User Browser"])
 
-    subgraph aws["AWS  eu-north-1"]
-        subgraph amplify["AWS Amplify Gen 2"]
-            FE["Next.js Frontend\nCDN + Lambda@Edge"]
+    subgraph aws["AWS  eu-west-1"]
+        subgraph amplify["AWS Amplify  WEB_COMPUTE"]
+            FE["Next.js SSR Frontend\nCDN + Serverless Lambda"]
             API["API Routes\nServerless Lambda"]
+            ChatLambda["Chat Lambda\nLambda Function URL"]
         end
-        RDS[("PostgreSQL 17.4\ndb.t3.micro")]
-        S3[("S3: oghma-notes-store\noghmanotes-email")]
+        RDS[("PostgreSQL 17\ndb.t3.micro\npublicly accessible")]
+        S3[("S3\noghma-notes-store")]
         CIMP["SQS: canvas-import"]
         CRETRY["SQS: extract-retry"]
-        Cache[("ElastiCache Valkey 8.2\ncache.t3.micro")]
-        ECS["ECS Fargate\ncanvas-import-worker"]
-    end
-
-    subgraph homelab["Homelab via Cloudflare Tunnel"]
-        Embed["qwen3-embedding:8b\n4096 dims"]
-        Rerank["Self-hosted Reranker"]
+        ECS["ECS Fargate\ncanvas-import-worker\n⏸ 0 desired"]
+        Cache[("ElastiCache Valkey\ncache.t3.micro\n⚠ orphaned")]
+        MarkerASG["EC2 ASG\nmarker-asg-oghmanotes\ng4dn.xlarge / NVIDIA T4\n⏸ 0 desired"]
+        SecretsManager["Secrets Manager\noghmanotes/database\noghmanotes/app-secrets\noghmanotes/migrator"]
+        SES["SES\nnoreply@oghmanotes.ie"]
     end
 
     subgraph external["External Services"]
         LLM["Kimi K2.5\nMoonshot AI"]
-        Canvas["Canvas LMS API"]
-        SES["AWS SES"]
-        Marker["Marker OCR\nEC2 ASG g4dn.xlarge\nNVIDIA T4"]
+        Embed["OpenRouter\nqwen3-embedding-8b\n4096 dims"]
+        Rerank["SiliconFlow\nQwen3-Reranker-8B"]
+        Cohere["Cohere API"]
+        Datalab["Datalab API\nPDF extraction"]
+        CanvasLMS["Canvas LMS API"]
+        OAuth["GitHub / Google OAuth"]
     end
 
     Browser --> FE
     FE --> API
+    FE --> ChatLambda
     API --> RDS
     API --> S3
-    API --> Cache
     API --> CIMP
+    API --> Embed
+    API --> Rerank
+    API --> LLM
+    API --> CanvasLMS
+    API --> SES
+    API --> Cohere
+    ChatLambda --> RDS
+    ChatLambda --> LLM
+    ChatLambda --> Embed
     CIMP --> ECS
     ECS --> S3
     ECS --> RDS
-    ECS --> Marker
+    ECS --> MarkerASG
+    ECS --> Datalab
+    ECS --> Embed
+    ECS --> Cohere
     ECS --> CRETRY
     CRETRY --> ECS
-    API --> Embed
-    ECS --> Embed
-    API --> Rerank
-    API --> LLM
-    API --> Canvas
-    API --> SES
+    SecretsManager -.->|build-time| amplify
+    Browser --> OAuth
 
     classDef plain fill:#ffffff,color:#111111,stroke:#111111
     classDef shaded fill:#e8e8e8,color:#111111,stroke:#111111
+    classDef paused fill:#f5f5f5,color:#888888,stroke:#aaaaaa,stroke-dasharray:4
+    classDef orphaned fill:#f5f5f5,color:#888888,stroke:#cc4444,stroke-dasharray:4
     classDef endpoint fill:#f0f0f0,color:#111111,stroke:#333333,font-weight:bold
-    class CIMP,CRETRY,ECS shaded
+    class CIMP,CRETRY shaded
+    class ECS,MarkerASG paused
+    class Cache orphaned
     class Browser endpoint
