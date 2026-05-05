@@ -33,6 +33,11 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# scripts/ and database/migrations/ are needed at startup for the prebuild-migrate
+# step in the Jenkins pipeline (runs against a live DB before app deploy).
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/database/migrations ./database/migrations
+COPY --from=builder /app/node_modules/postgres ./node_modules/postgres
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 
