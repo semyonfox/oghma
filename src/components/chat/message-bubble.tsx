@@ -137,12 +137,8 @@ export const TypingDots: FC = () => (
 
 const CopyMessageButton: FC<{
   content: string;
-  variant:
-    | "full-user"
-    | "full-assistant"
-    | "compact-user"
-    | "compact-assistant";
-}> = ({ content, variant }) => {
+  size?: "sm" | "xs";
+}> = ({ content, size = "sm" }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -157,27 +153,21 @@ const CopyMessageButton: FC<{
     }
   };
 
-  const className =
-    variant === "full-user"
-      ? "absolute right-2 top-2 rounded-md p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
-      : variant === "full-assistant"
-        ? "absolute right-2 top-2 rounded-md p-1 text-text-tertiary hover:bg-subtle hover:text-text transition-colors"
-        : variant === "compact-user"
-          ? "absolute right-1.5 top-1.5 rounded p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
-          : "absolute right-1.5 top-1.5 rounded p-1 text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors";
+  const iconClass = size === "xs" ? "w-3 h-3" : "w-3.5 h-3.5";
+  const padding = size === "xs" ? "p-0.5" : "p-1";
 
   return (
     <button
       type="button"
       onClick={handleCopy}
-      className={className}
+      className={`${padding} rounded text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors`}
       aria-label="Copy message"
       title={copied ? "Copied" : "Copy message"}
     >
       {copied ? (
-        <CheckIcon className="w-3.5 h-3.5" />
+        <CheckIcon className={iconClass} />
       ) : (
-        <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+        <ClipboardDocumentIcon className={iconClass} />
       )}
     </button>
   );
@@ -194,21 +184,21 @@ export const FullMessageBubble: FC<{
     return (
       <div className="flex justify-end">
         <div className="max-w-[70%]">
-          <div className="relative px-3 py-2.5 pr-10 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
-            {hasContent && (
-              <CopyMessageButton content={m.content} variant="full-user" />
-            )}
+          <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
-          <p
-            className="mt-0.5 text-[11px] text-text-tertiary opacity-60 text-right"
-            suppressHydrationWarning
-          >
-            {new Date(m.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
+          <div className="mt-0.5 flex items-center justify-end gap-1.5">
+            {hasContent && <CopyMessageButton content={m.content} />}
+            <p
+              className="text-[11px] text-text-tertiary opacity-60"
+              suppressHydrationWarning
+            >
+              {new Date(m.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -227,10 +217,7 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="glass-card relative rounded-xl rounded-bl-sm px-3 py-2.5 pr-10 text-sm leading-relaxed text-text">
-        {hasContent && (
-          <CopyMessageButton content={m.content} variant="full-assistant" />
-        )}
+      <div className="glass-card rounded-xl rounded-bl-sm px-3 py-2.5 text-sm leading-relaxed text-text">
         {hasContent ? (
           <ChatMarkdown>{m.content}</ChatMarkdown>
         ) : !m.thinking ? (
@@ -242,12 +229,15 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <p className="text-[11px] text-text-tertiary opacity-60" suppressHydrationWarning>
-        {new Date(m.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </p>
+      <div className="flex items-center gap-1.5">
+        {hasContent && <CopyMessageButton content={m.content} />}
+        <p className="text-[11px] text-text-tertiary opacity-60" suppressHydrationWarning>
+          {new Date(m.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      </div>
     </div>
   );
 };
@@ -274,18 +264,12 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         <div
-          className={`relative px-2.5 py-[5px] pr-8 rounded-md text-xs leading-relaxed ${
+          className={`px-2.5 py-[5px] rounded-md text-xs leading-relaxed ${
             m.role === "user"
               ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
               : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
           }`}
         >
-          {hasContent && (
-            <CopyMessageButton
-              content={m.content}
-              variant={m.role === "user" ? "compact-user" : "compact-assistant"}
-            />
-          )}
           {m.role === "assistant" ? (
             hasContent ? (
               <ChatMarkdown>{m.content}</ChatMarkdown>
@@ -296,6 +280,14 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
             m.content
           )}
         </div>
+
+        {hasContent && (
+          <div
+            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <CopyMessageButton content={m.content} size="xs" />
+          </div>
+        )}
 
         {m.role === "assistant" && hasSources && (
           <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
