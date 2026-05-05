@@ -38,8 +38,10 @@ export function useChatPersistence(
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
+  // toggle off ↔ auto (skip "on" — high-effort reasoning is opt-in via env only,
+  // since billing per reasoning token adds up fast on hot chats)
   const toggleThinking = useCallback(() => {
-    setThinkingMode((current) => (current === "off" ? "on" : "off"));
+    setThinkingMode((current) => (current === "off" ? "auto" : "off"));
   }, []);
 
   // restore thinking mode from localStorage on mount
