@@ -265,41 +265,14 @@ export function useChatStream(
     ],
   );
 
-  /** resolve the chat endpoint, fetching a Lambda token when needed */
+  /** resolve the chat endpoint — homelab streams via /api/chat (no Lambda) */
   async function resolveEndpoint(): Promise<{
     endpoint: string;
     headers: Record<string, string>;
   }> {
-    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "";
-    if (
-      !chatFunctionUrl &&
-      typeof window !== "undefined" &&
-      window.location.hostname !== "localhost"
-    ) {
-      console.warn(
-        "[chat] NEXT_PUBLIC_CHAT_URL not set -- falling back to /api/chat (no streaming on Amplify)",
-      );
-    }
-
-    if (!chatFunctionUrl) {
-      return {
-        endpoint: "/api/chat",
-        headers: { "Content-Type": "application/json" },
-      };
-    }
-
-    const tokenRes = await fetch("/api/chat/token", { method: "POST" });
-    if (!tokenRes.ok) {
-      const data = await tokenRes.json().catch(() => ({}));
-      throw new Error(data.error || "Failed to get chat token");
-    }
-    const { token } = await tokenRes.json();
     return {
-      endpoint: chatFunctionUrl,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      endpoint: "/api/chat",
+      headers: { "Content-Type": "application/json" },
     };
   }
 
