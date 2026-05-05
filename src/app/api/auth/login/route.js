@@ -26,9 +26,7 @@ import {
   isAccountLocked,
   getLockoutMinutesRemaining,
 } from "@/lib/loginLockout.js";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
@@ -201,20 +199,13 @@ async function queueCanvasSync(userId) {
     return inserted;
   });
 
-  // dispatch via SQS + scale up ECS so the worker actually picks this up
   try {
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: getCanvasImportQueueUrl(),
-        MessageBody: JSON.stringify({ jobId: job.id, userId }),
-      }),
-    );
-    await ensureWorkerRunning();
-  } catch (sqsErr) {
-    // non-fatal: worker DB safety-net poll will catch it if a worker is running
+    await enqueueCanvasJob("canvas-discover", { jobId: job.id, userId });
+  } catch (queueErr) {
+    // non-fatal: worker DB safety-net poll will catch it
     logger.warn(
-      "SQS send failed for login auto-sync (job still queued in DB)",
-      { error: sqsErr.message },
+      "queue enqueue failed for login auto-sync (job still queued in DB)",
+      { error: queueErr.message },
     );
   }
 

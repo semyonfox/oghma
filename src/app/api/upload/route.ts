@@ -9,9 +9,7 @@ import sql from "@/database/pgsql";
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 
 function sanitizeFileName(raw: string): string {
   return raw
@@ -206,26 +204,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         ON CONFLICT DO NOTHING
       `;
 
-      // dispatch to ECS worker via SQS — same queue and worker as canvas imports
-      const queueUrl = getCanvasImportQueueUrl();
-      if (queueUrl) {
-        await sqsClient.send(
-          new SendMessageCommand({
-            QueueUrl: queueUrl,
-            MessageBody: JSON.stringify({
-              type: "extract",
-              noteId,
-              userId: session.user_id,
-              s3Key: storagePath,
-              mimeType: file.type || "application/pdf",
-              filename: fileName,
-            }),
-          }),
-        );
-      }
-
-      // wake the ECS worker if it scaled to zero (non-fatal if IAM isn't wired)
-      await ensureWorkerRunning();
+      await enqueueCanvasJob("extract", {
+        noteId,
+        userId: session.user_id,
+        s3Key: storagePath,
+        mimeType: file.type || "application/pdf",
+        filename: fileName,
+      });
 
       logger.info("extraction job queued", { noteId, mimeType: file.type });
     } catch (extractErr) {

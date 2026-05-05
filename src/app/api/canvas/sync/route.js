@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
@@ -93,16 +91,10 @@ export const POST = withErrorHandler(async () => {
   const jobId = job.id;
 
   try {
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: getCanvasImportQueueUrl(),
-        MessageBody: JSON.stringify({ type: "canvas-discover", jobId, userId: user.user_id }),
-      }),
-    );
-    await ensureWorkerRunning();
-  } catch (sqsErr) {
-    logger.warn("SQS send failed for sync (job still queued in DB)", {
-      error: sqsErr.message,
+    await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
+  } catch (queueErr) {
+    logger.warn("queue enqueue failed for sync (job still queued in DB)", {
+      error: queueErr.message,
     });
   }
 

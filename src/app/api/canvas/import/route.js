@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 
@@ -57,45 +55,14 @@ export const POST = withErrorHandler(async (request) => {
 
   const jobId = job.id;
 
-  let sqsOk = false;
-  let ecsOk = false;
-  const queueUrl = getCanvasImportQueueUrl();
-
   try {
-    if (!queueUrl) {
-      logger.error(
-        "SQS_QUEUE_URL is empty — import job will rely on DB safety-net only",
-        { jobId },
-      );
-    } else {
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: queueUrl,
-          MessageBody: JSON.stringify({ type: "canvas-discover", jobId, userId: user.user_id }),
-        }),
-      );
-      sqsOk = true;
-    }
-  } catch (sqsErr) {
-    logger.warn("SQS send failed", {
+    await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });
+  } catch (queueErr) {
+    // non-fatal: worker DB safety-net poll catches it
+    logger.warn("queue enqueue failed (job still queued in DB)", {
       jobId,
-      error: sqsErr.message,
-      queueUrl: queueUrl ? "(set)" : "(empty)",
+      error: queueErr.message,
     });
-  }
-
-  try {
-    await ensureWorkerRunning();
-    ecsOk = true;
-  } catch (ecsErr) {
-    logger.warn("ECS scale-up failed", { jobId, error: ecsErr.message });
-  }
-
-  if (!sqsOk && !ecsOk) {
-    logger.error(
-      "Both SQS and ECS failed — import job may not be processed",
-      { jobId },
-    );
   }
 
   return NextResponse.json({ success: true, queued: true, jobId });

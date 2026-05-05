@@ -19,9 +19,6 @@ import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import { createAsyncLimiter } from "./async-limiter.js";
 import { parseEnvConcurrency } from "./import-metrics.js";
 import logger from "../logger.ts";
-import { sqsClient, getMarkerQueueUrl, getCanvasImportQueueUrl } from "../sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureMarkerRunning } from "../marker-ec2.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 
@@ -46,19 +43,10 @@ async function replaceEmbeddings(targetNoteId, userId, chunks) {
 }
 
 async function queueExtractionRetry(retryOpts) {
-  const { delaySeconds, queueUrl, usedFallbackQueue } =
-    await enqueueExtractionRetry(retryOpts);
-
+  const { delaySeconds } = await enqueueExtractionRetry(retryOpts);
   console.log(
-    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)` +
-      (usedFallbackQueue ? " via main queue fallback" : ""),
+    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)`,
   );
-
-  if (usedFallbackQueue) {
-    console.warn(
-      `SQS_EXTRACT_RETRY_QUEUE_URL not set, using fallback queue: ${queueUrl}`,
-    );
-  }
 }
 
 // ── RAG pipeline (extraction + embedding) ───────────────────────────────────
@@ -116,34 +104,7 @@ export async function processRagPipeline(
     } = extraction;
     const isText = source === "text";
 
-    // pending-marker: Marker timed out on fast-path — queued to Marker SQS by caller
     // skipped: non-PDF binary with no Marker and no text fallback — stored as attachment only
-    if (source === "pending-marker") {
-      const markerQueueUrl = getMarkerQueueUrl();
-      if (markerQueueUrl && s3Key) {
-        await sqsClient.send(new SendMessageCommand({
-          QueueUrl: markerQueueUrl,
-          MessageBody: JSON.stringify({
-            noteId,
-            userId,
-            jobId: jobId ?? null,
-            s3Key,
-            filename: filename ?? "document",
-            mimeType: mimeType ?? "application/octet-stream",
-            parentFolderId: parentFolderId ?? null,
-            callbackQueueUrl: getCanvasImportQueueUrl(),
-            resultS3Prefix: "marker-results/",
-          }),
-        }));
-        ensureMarkerRunning().catch(() => {}); // fire-and-forget ASG scale-up
-      }
-      await sql`
-        UPDATE app.canvas_imports
-        SET status = 'pending_marker', updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid
-      `;
-      return null;
-    }
     if (source === "skipped") {
       return null;
     }

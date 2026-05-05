@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 
 /**
  * POST /api/vault/export
@@ -33,34 +31,15 @@ export const POST = withErrorHandler(async () => {
 
   const jobId = job.id;
 
-  // dispatch to SQS
-  const queueUrl = getCanvasImportQueueUrl();
   try {
-    if (queueUrl) {
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: queueUrl,
-          MessageBody: JSON.stringify({
-            type: "vault-export",
-            jobId,
-            userId: user.user_id,
-          }),
-        }),
-      );
-    }
-  } catch (sqsErr) {
+    await enqueueCanvasJob("vault-export", {
+      jobId,
+      userId: user.user_id,
+    });
+  } catch (queueErr) {
     console.error(
-      "SQS send failed for vault export:",
-      (sqsErr as Error).message,
-    );
-  }
-
-  try {
-    await ensureWorkerRunning();
-  } catch (ecsErr) {
-    console.error(
-      "ECS scale-up failed for vault export:",
-      (ecsErr as Error).message,
+      "queue enqueue failed for vault export:",
+      (queueErr as Error).message,
     );
   }
 
