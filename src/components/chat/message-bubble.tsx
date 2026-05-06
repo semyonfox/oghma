@@ -135,10 +135,10 @@ export const TypingDots: FC = () => (
   </div>
 );
 
-const CopyMessageButton: FC<{
-  content: string;
-  size?: "sm" | "xs";
-}> = ({ content, size = "sm" }) => {
+// chrome-less copy "icon" — reads as metadata next to the timestamp, not a button.
+// hover: bumps to opacity-100 + secondary text, matching how the row "activates".
+// success: checkmark in green for 1.5s — the only loud thing in the row, intentional.
+const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -153,22 +153,26 @@ const CopyMessageButton: FC<{
     }
   };
 
-  const iconClass = size === "xs" ? "w-3 h-3" : "w-3.5 h-3.5";
-  const padding = size === "xs" ? "p-0.5" : "p-1";
-
   return (
     <button
       type="button"
       onClick={handleCopy}
-      className={`${padding} rounded text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors`}
+      className={`inline-flex items-center rounded-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 ${
+        copied
+          ? "text-green-500 opacity-100"
+          : "text-text-tertiary opacity-60 hover:opacity-100 hover:text-text-secondary"
+      }`}
       aria-label="Copy message"
       title={copied ? "Copied" : "Copy message"}
     >
       {copied ? (
-        <CheckIcon className={iconClass} />
+        <CheckIcon className="w-3 h-3" />
       ) : (
-        <ClipboardDocumentIcon className={iconClass} />
+        <ClipboardDocumentIcon className="w-3 h-3" />
       )}
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied" : ""}
+      </span>
     </button>
   );
 };
@@ -187,12 +191,14 @@ export const FullMessageBubble: FC<{
           <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
-          <div className="mt-0.5 flex items-center justify-end gap-1.5">
-            {hasContent && <CopyMessageButton content={m.content} />}
-            <p
-              className="text-[11px] text-text-tertiary opacity-60"
-              suppressHydrationWarning
-            >
+          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-text-tertiary">
+            {hasContent && (
+              <>
+                <CopyMessageButton content={m.content} />
+                <span aria-hidden="true" className="opacity-60">·</span>
+              </>
+            )}
+            <p className="opacity-60" suppressHydrationWarning>
               {new Date(m.timestamp).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -229,9 +235,14 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <div className="flex items-center gap-1.5">
-        {hasContent && <CopyMessageButton content={m.content} />}
-        <p className="text-[11px] text-text-tertiary opacity-60" suppressHydrationWarning>
+      <div className="flex items-center gap-1 text-[11px] text-text-tertiary">
+        {hasContent && (
+          <>
+            <CopyMessageButton content={m.content} />
+            <span aria-hidden="true" className="opacity-60">·</span>
+          </>
+        )}
+        <p className="opacity-60" suppressHydrationWarning>
           {new Date(m.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -285,7 +296,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
           <div
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <CopyMessageButton content={m.content} size="xs" />
+            <CopyMessageButton content={m.content} />
           </div>
         )}
 
