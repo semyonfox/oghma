@@ -61,12 +61,16 @@ export async function replaceNoteEmbeddings(
       RETURNING id
     `;
 
+    // pass embeddings as text[] and cast per-row to vector — pgvector has no
+    // text[]→vector[] cast (only a parser-level text→vector via input function),
+    // so a direct ::vector[] cast errors with "type vector[] does not exist"
     await tx`
       INSERT INTO app.embeddings (chunk_id, embedding)
-      SELECT * FROM UNNEST(
+      SELECT t.chunk_id, t.embedding::vector
+      FROM UNNEST(
         ${chunkRows.map((row: ChunkRow) => row.id)}::uuid[],
-        ${embeddings.map((entry) => JSON.stringify(entry.vector))}::vector[]
-      )
+        ${embeddings.map((entry) => JSON.stringify(entry.vector))}::text[]
+      ) AS t(chunk_id, embedding)
     `;
 
     if (oldChunkIds.length > 0) {

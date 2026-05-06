@@ -140,10 +140,11 @@ async function main() {
 
           await tx`
             INSERT INTO app.embeddings (chunk_id, embedding)
-            SELECT * FROM UNNEST(
+            SELECT t.chunk_id, t.embedding::vector
+            FROM UNNEST(
               ${chunkRows.map((r) => r.id)}::uuid[],
-              ${allEmbeddings.map((e) => JSON.stringify(e.vector))}::vector[]
-            )
+              ${allEmbeddings.map((e) => JSON.stringify(e.vector))}::text[]
+            ) AS t(chunk_id, embedding)
           `;
         });
 
