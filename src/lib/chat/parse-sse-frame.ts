@@ -1,23 +1,8 @@
 import type { SseFrame } from "@/lib/chat/sse";
 import type { Message, SearchContextData } from "@/lib/chat/types";
+import { labelForTool } from "@/lib/chat/tool-labels";
 
-// labels shown while a tool call is in progress
-const TOOL_CALL_LABELS: Record<string, string> = {
-  getChunks: "Searching notes",
-  readNote: "Reading note",
-  findFolder: "Looking up folder",
-  makeMDNote: "Creating note",
-  moveNote: "Moving note",
-  renameNote: "Renaming note",
-  getTimeBlocks: "Checking calendar",
-  addTimeBlock: "Scheduling study block",
-  completeTimeBlock: "Marking block complete",
-  canvas_list_courses: "Reading Canvas courses",
-  canvas_list_modules: "Reading Canvas modules",
-  canvas_list_assignments: "Reading Canvas assignments",
-  canvas_list_module_items: "Reading Canvas module items",
-  canvas_get_file: "Reading Canvas file metadata",
-};
+export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =
@@ -77,7 +62,7 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
 
     case "tool-call": {
       const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
-      const label = TOOL_CALL_LABELS[toolName] ?? toolName;
+      const label = toolName ? labelForTool(toolName) : "";
       return { type: "tool-call", label, toolName };
     }
 

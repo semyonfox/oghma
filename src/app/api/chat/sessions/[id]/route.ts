@@ -46,7 +46,7 @@ export const GET = withErrorHandler(
       }
 
       const messages = await sql`
-            SELECT m.id, m.role, m.content, m.sources, m.created_at
+            SELECT m.id, m.role, m.content, m.parts, m.sources, m.created_at
             FROM app.chat_messages m
             JOIN app.chat_sessions s ON s.id = m.session_id
             WHERE m.session_id = ${id}::uuid

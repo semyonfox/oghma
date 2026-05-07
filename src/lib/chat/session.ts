@@ -3,6 +3,7 @@
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
 import sql from "@/database/pgsql.js";
+import type { MessagePart } from "@/lib/chat/types";
 
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_RECENT_ACCESSES = 12;
@@ -221,12 +222,28 @@ export async function persistMessage(
   sessionId: string,
   role: "user" | "assistant",
   content: string,
-  sources?: { id: string; title: string }[],
+  options?: {
+    parts?: MessagePart[];
+    sources?: { id: string; title: string }[];
+  },
 ): Promise<void> {
   const messageId = generateUUID();
+  // default to wrapping content in a single text part — keeps user messages
+  // and any non-streaming callers in the same shape as streamed assistant
+  // messages, so the UI never needs a fallback path.
+  const parts: MessagePart[] =
+    options?.parts ?? (content ? [{ type: "text", text: content }] : []);
+  const sources = options?.sources;
   await sql`
-    INSERT INTO app.chat_messages(id, session_id, role, content, sources)
-    VALUES(${messageId}::uuid, ${sessionId}::uuid, ${role}, ${content}, ${sources ? JSON.stringify(sources) : null})
+    INSERT INTO app.chat_messages(id, session_id, role, content, parts, sources)
+    VALUES(
+      ${messageId}::uuid,
+      ${sessionId}::uuid,
+      ${role},
+      ${content},
+      ${JSON.stringify(parts)}::jsonb,
+      ${sources ? JSON.stringify(sources) : null}
+    )
   `;
 }
 

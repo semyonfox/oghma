@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
+import { normalizeMessageParts } from "@/lib/chat/types";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
@@ -82,19 +83,25 @@ export function useChatPersistence(
             id: string;
             role: string;
             content: string;
+            parts?: unknown;
             sources?: { id: string; title: string }[];
             created_at?: string;
             rating?: number | null;
-          }) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            sources: Array.isArray(m.sources) ? m.sources : [],
-            timestamp: m.created_at
-              ? new Date(m.created_at).getTime()
-              : Date.now(),
-            rating: m.rating ?? null,
-          }),
+          }) => {
+            const parts = normalizeMessageParts(m.parts) ??
+              (m.content ? [{ type: "text" as const, text: m.content }] : []);
+            return {
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              parts,
+              sources: Array.isArray(m.sources) ? m.sources : [],
+              timestamp: m.created_at
+                ? new Date(m.created_at).getTime()
+                : Date.now(),
+              rating: m.rating ?? null,
+            };
+          },
         );
 
         // check sessionStorage for a partial assistant message saved on unload
