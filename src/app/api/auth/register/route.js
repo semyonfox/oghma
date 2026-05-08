@@ -18,7 +18,6 @@ import {
 import { generateUUID } from "@/lib/utils/uuid";
 import { generateSecureToken, hashToken } from "@/lib/tokens.js";
 import { sendVerificationEmail } from "@/lib/email.js";
-import { preWarmMarker } from "@/lib/marker-ec2";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
@@ -133,10 +132,6 @@ export const POST = withErrorHandler(async (request) => {
         500,
       );
     }
-
-    // pre-warm Marker GPU — new users often import Canvas notes soon after signup
-    // gives extra lead time vs waiting until Canvas is connected
-    preWarmMarker();
 
     // 8. Send verification email
     try {

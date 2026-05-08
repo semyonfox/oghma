@@ -1,6 +1,5 @@
 import winston from "winston";
 import "winston-daily-rotate-file";
-import CloudWatchTransport from "winston-cloudwatch";
 import { traceFormat } from "./trace";
 
 const SENSITIVE_KEYS = new Set([
@@ -65,9 +64,7 @@ const transports: winston.transport[] = [
   }),
 ];
 
-const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
-
-if (isProduction && !isLambda) {
+if (isProduction) {
   transports.push(
     new winston.transports.DailyRotateFile({
       filename: "logs/app-%DATE%.log",
@@ -75,23 +72,6 @@ if (isProduction && !isLambda) {
       maxSize: "100m",
       maxFiles: "14d",
       format: winston.format.json(),
-    }),
-  );
-}
-
-if (isProduction) {
-  transports.push(
-    new CloudWatchTransport({
-      logGroupName: isLambda
-        ? "/aws/lambda/oghmanotes-chat"
-        : "/oghmanotes/app/production",
-      logStreamName: isLambda
-        ? `lambda-${Date.now()}`
-        : `ecs-${process.env.HOSTNAME ?? "unknown"}`,
-      awsRegion: process.env.AWS_REGION ?? "eu-west-1",
-      jsonMessage: true,
-      retentionInDays: 30,
-      uploadRate: 2000,
     }),
   );
 }

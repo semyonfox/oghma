@@ -3,9 +3,7 @@
 // UI buttons in settings are disabled until you flip VAULT_JOBS_ENABLED
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
-import { sqsClient, getCanvasImportQueueUrl } from "@/lib/sqs";
-import { SendMessageCommand } from "@aws-sdk/client-sqs";
-import { ensureWorkerRunning } from "@/lib/ecs";
+import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 
@@ -34,15 +32,9 @@ export async function POST(request: NextRequest) {
   if (action === "export") {
     // queue a background export — worker builds zip and uploads to S3
     try {
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: getCanvasImportQueueUrl(),
-          MessageBody: JSON.stringify({ type: "vault-export", userId }),
-        }),
-      );
-      await ensureWorkerRunning();
+      await enqueueCanvasJob("vault-export", { userId });
     } catch (err) {
-      logger.warn("SQS send failed for vault-export", { error: err });
+      logger.warn("queue enqueue failed for vault-export", { error: err });
     }
     return NextResponse.json({ success: true, queued: true });
   }

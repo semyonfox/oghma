@@ -1,15 +1,10 @@
 #!/usr/bin/env node
 
-// runs pending migrations before build using a dedicated migrator role
-// pulls credentials from Secrets Manager, never touches env or disk
-// used via amplify.yml build phase
+// runs pending migrations before the app starts
+// homelab passes MIGRATION_DATABASE_URL via Jenkins env file (oghma_admin role)
 
 import { execSync } from 'child_process';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import postgres from 'postgres';
-
-const MIGRATOR_SECRET = process.env.MIGRATOR_SECRET_ID || 'oghmanotes/migrator';
-const AWS_REGION = process.env.AWS_REGION || 'eu-west-1';
 
 // migrations applied before the tracking system existed
 const LEGACY_MIGRATIONS = [
@@ -31,38 +26,9 @@ const LEGACY_MIGRATIONS = [
   '017_user_course_settings.sql',
 ];
 
-async function getMigratorUrl() {
-  // prefer explicit env var for local dev / testing
-  if (process.env.MIGRATION_DATABASE_URL) {
-    return process.env.MIGRATION_DATABASE_URL;
-  }
-
-  // pull from Secrets Manager (Amplify build role has access)
-  try {
-    const client = new SecretsManagerClient({ region: AWS_REGION });
-    const res = await client.send(new GetSecretValueCommand({ SecretId: MIGRATOR_SECRET }));
-    if (!res.SecretString) return null;
-
-    const secret = JSON.parse(res.SecretString);
-    // support both { url: "postgres://..." } and { host, port, username, password, dbname }
-    if (secret.url || secret.DATABASE_URL || secret.database_url) {
-      return secret.url || secret.DATABASE_URL || secret.database_url;
-    }
-    if (secret.host && secret.username && secret.password) {
-      const db = secret.dbname || secret.database || 'oghma';
-      const port = secret.port || 5432;
-      return `postgresql://${secret.username}:${encodeURIComponent(secret.password)}@${secret.host}:${port}/${db}?sslmode=require&search_path=app`;
-    }
-    return null;
-  } catch (err) {
-    console.warn(`[prebuild-migrate] could not fetch secret ${MIGRATOR_SECRET}:`, err.message);
-    return null;
-  }
-}
-
 async function bootstrap(dbUrl) {
   const sql = postgres(dbUrl, {
-    ssl: dbUrl.includes('localhost') ? false : 'require',
+    ssl: dbUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
     connect_timeout: 10,
     idle_timeout: 5,
   });
@@ -91,16 +57,15 @@ async function bootstrap(dbUrl) {
 }
 
 try {
-  const dbUrl = await getMigratorUrl();
+  const dbUrl = process.env.MIGRATION_DATABASE_URL;
   if (!dbUrl) {
-    console.log('[prebuild-migrate] no migrator credentials available, skipping');
+    console.log('[prebuild-migrate] MIGRATION_DATABASE_URL not set, skipping');
     process.exit(0);
   }
 
   console.log('[prebuild-migrate] running pending migrations...');
   await bootstrap(dbUrl);
 
-  // pass the migrator URL to run-migration.mjs via env
   execSync('node scripts/run-migration.mjs --all', {
     stdio: 'inherit',
     timeout: 60000,

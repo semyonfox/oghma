@@ -33,8 +33,11 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-# aws-ssl-profiles is not traced by Next.js standalone output, copy it manually
-COPY --from=deps /app/node_modules/aws-ssl-profiles ./node_modules/aws-ssl-profiles
+# scripts/ and database/migrations/ are needed at startup for the prebuild-migrate
+# step in the Jenkins pipeline (runs against a live DB before app deploy).
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/database/migrations ./database/migrations
+COPY --from=builder /app/node_modules/postgres ./node_modules/postgres
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 

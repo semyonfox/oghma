@@ -1,7 +1,6 @@
-// document text extraction via self-hosted Marker
-// Marker API: synchronous POST /marker/upload
-
-import { ensureMarkerRunning } from "./marker-ec2";
+// document text extraction via Marker server
+// expects a MARKER_API_URL pointing at a marker_server (POST /marker/upload).
+// when unset, callers fall back to pdf-parse (text layer only).
 import { normalizeMarkerMarkdown } from "./marker-output";
 import type { MarkerImages } from "./marker-output";
 
@@ -17,7 +16,7 @@ export interface MarkerResult {
   chunks: string[];
   images: MarkerImages;
   metadata: unknown;
-  source: "ec2";
+  source: "marker";
 }
 
 function parsePositiveIntEnv(name: string, fallback: number): number {
@@ -53,48 +52,29 @@ export async function extractWithMarker(
   filename: string,
   options: { fastPath?: boolean } = {},
 ): Promise<MarkerResult> {
-  const hasAsgConfig = Boolean(process.env.MARKER_ASG_NAME);
-  const hasInstanceConfig = Boolean(process.env.MARKER_EC2_INSTANCE_ID);
-
-  if (!hasAsgConfig && !hasInstanceConfig) {
-    throw new Error(
-      "Marker is not configured (set MARKER_ASG_NAME or MARKER_EC2_INSTANCE_ID)",
-    );
+  const markerUrl = process.env.MARKER_API_URL;
+  if (!markerUrl) {
+    throw new Error("Marker is not configured (set MARKER_API_URL)");
   }
 
-  if (options.fastPath) {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new MarkerPendingError()), MARKER_FAST_PATH_MS),
-    );
-    const markerUrl = await Promise.race([
-      ensureMarkerRunning(),
-      timeoutPromise,
-    ]);
-    const result = await Promise.race([
-      callEc2Marker(`${markerUrl}/marker/upload`, buffer, filename),
-      timeoutPromise,
-    ]);
-    if (!result) throw new Error("Marker returned no result");
-    return { ...result, source: "ec2" };
-  }
-
-  const markerUrl = await ensureMarkerRunning();
-  const result = await callEc2Marker(
+  const timeoutMs = options.fastPath ? MARKER_FAST_PATH_MS : TOTAL_TIMEOUT_MS;
+  const result = await callMarker(
     `${markerUrl}/marker/upload`,
     buffer,
     filename,
+    timeoutMs,
+    Boolean(options.fastPath),
   );
-  if (!result) {
-    throw new Error("Marker returned no result");
-  }
-  return { ...result, source: "ec2" };
+  if (!result) throw new Error("Marker returned no result");
+  return { ...result, source: "marker" };
 }
 
-// self-hosted marker_server on EC2 — synchronous single-request
-async function callEc2Marker(
+async function callMarker(
   url: string,
   buffer: Buffer,
   filename: string,
+  timeoutMs: number,
+  isFastPath: boolean,
 ): Promise<{
   text: string;
   chunks: string[];
@@ -110,7 +90,7 @@ async function callEc2Marker(
   form.append("paginate_output", "false");
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TOTAL_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -121,13 +101,13 @@ async function callEc2Marker(
 
     if (!res.ok) {
       throw new Error(
-        `EC2 Marker ${res.status}: ${(await res.text()).slice(0, 200)}`,
+        `Marker ${res.status}: ${(await res.text()).slice(0, 200)}`,
       );
     }
 
     const json = await res.json();
     if (!json.success)
-      throw new Error(json.error ?? "EC2 Marker returned success=false");
+      throw new Error(json.error ?? "Marker returned success=false");
 
     const rawText = typeof json.output === "string" ? json.output : "";
     const text = normalizeMarkerMarkdown(rawText);
@@ -139,6 +119,14 @@ async function callEc2Marker(
     const metadata =
       json.metadata && typeof json.metadata === "object" ? json.metadata : null;
     return { text, chunks, images, metadata };
+  } catch (err) {
+    if (
+      isFastPath &&
+      (err as { name?: string })?.name === "AbortError"
+    ) {
+      throw new MarkerPendingError();
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }

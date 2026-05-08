@@ -11,13 +11,11 @@
  * workers if you ever need to scale horizontally.
  */
 
-import { loadSecrets } from "../src/lib/secrets";
 import sql from "../src/database/pgsql.js";
 import { runExtraction } from "../src/app/api/extract/route";
 import logger from "../src/lib/logger";
 
 const POLL_INTERVAL_MS = 2_000;   // how often to check for new jobs when idle
-const MAX_RETRIES = 3;             // how many times to retry a failed job
 
 async function claimNextJob() {
     // atomically claim one pending job — SKIP LOCKED means parallel workers
@@ -90,9 +88,6 @@ function sleep(ms: number) {
 }
 
 async function run() {
-    if (process.env.NODE_ENV === "production") {
-        await loadSecrets();
-    }
     logger.info("ingestion-worker: started");
 
     while (true) {

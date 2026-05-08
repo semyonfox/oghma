@@ -6,7 +6,7 @@ import { parseSseFrame } from "@/lib/chat/parse-sse-frame";
 import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
-import type { Message, ChatContextItem } from "@/lib/chat/types";
+import type { Message, MessagePart, ChatContextItem } from "@/lib/chat/types";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -40,8 +40,23 @@ interface UseChatStreamResult {
   cancel: () => void;
 }
 
+/**
+ * Append a token to the trailing text part, or open a new one if the last
+ * part is a tool indicator. Returns a new array (immutable update).
+ */
+function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
+  const last = parts[parts.length - 1];
+  if (last && last.type === "text") {
+    return [
+      ...parts.slice(0, -1),
+      { type: "text", text: last.text + text },
+    ];
+  }
+  return [...parts, { type: "text", text }];
+}
+
 /** apply a parsed SSE update to the assistant message being streamed */
-function applyUpdate(
+export function applyUpdate(
   msg: Message,
   update: MessageUpdate,
   thinkingStartRef: React.MutableRefObject<number | null>,
@@ -72,12 +87,23 @@ function applyUpdate(
       return {
         ...msg,
         content: `${msg.content}${update.text}`,
+        parts: appendTokenPart(msg.parts ?? [], update.text),
         thinkingDuration: msg.thinkingDuration ?? duration,
       };
     }
 
-    case "tool-call":
-      return { ...msg, content: `${msg.content}\n\n*${update.label}…*\n\n` };
+    case "tool-call": {
+      // tool calls land as their own part — message-bubble renders these via
+      // ToolCallPill rather than baking markdown into content. content stays
+      // the plain prose concat (drives copy button + LLM history).
+      return {
+        ...msg,
+        parts: [
+          ...(msg.parts ?? []),
+          { type: "tool", name: update.toolName, label: update.label },
+        ],
+      };
+    }
 
     default:
       return msg;
@@ -143,6 +169,7 @@ export function useChatStream(
         id: makeId(),
         role: "user",
         content: text,
+        parts: [{ type: "text", text }],
         timestamp: Date.now(),
       };
       const assistantId = makeId();
@@ -150,6 +177,7 @@ export function useChatStream(
         id: assistantId,
         role: "assistant",
         content: "",
+        parts: [],
         sources: [],
         timestamp: Date.now(),
       };
@@ -208,6 +236,7 @@ export function useChatStream(
                 ? {
                     ...m,
                     content: data.reply || "",
+                    parts: data.reply ? [{ type: "text", text: data.reply }] : [],
                     thinking: data.thinking || undefined,
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,
@@ -265,41 +294,14 @@ export function useChatStream(
     ],
   );
 
-  /** resolve the chat endpoint, fetching a Lambda token when needed */
+  /** resolve the chat endpoint — homelab streams via /api/chat (no Lambda) */
   async function resolveEndpoint(): Promise<{
     endpoint: string;
     headers: Record<string, string>;
   }> {
-    const chatFunctionUrl = process.env.NEXT_PUBLIC_CHAT_URL || "";
-    if (
-      !chatFunctionUrl &&
-      typeof window !== "undefined" &&
-      window.location.hostname !== "localhost"
-    ) {
-      console.warn(
-        "[chat] NEXT_PUBLIC_CHAT_URL not set -- falling back to /api/chat (no streaming on Amplify)",
-      );
-    }
-
-    if (!chatFunctionUrl) {
-      return {
-        endpoint: "/api/chat",
-        headers: { "Content-Type": "application/json" },
-      };
-    }
-
-    const tokenRes = await fetch("/api/chat/token", { method: "POST" });
-    if (!tokenRes.ok) {
-      const data = await tokenRes.json().catch(() => ({}));
-      throw new Error(data.error || "Failed to get chat token");
-    }
-    const { token } = await tokenRes.json();
     return {
-      endpoint: chatFunctionUrl,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      endpoint: "/api/chat",
+      headers: { "Content-Type": "application/json" },
     };
   }
 

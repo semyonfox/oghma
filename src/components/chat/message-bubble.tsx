@@ -1,13 +1,42 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, Fragment, useState } from "react";
 import {
-  CheckIcon,
   ChevronDownIcon,
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
-import type { Message } from "./chat-interface";
+import { toast } from "sonner";
+import type { Message, MessagePart } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
+import { ToolCallPill } from "./tool-call-pill";
+
+/**
+ * Render an assistant message body. If structured `parts` are present, walk
+ * them and render each typed segment with the right component (markdown for
+ * text, ToolCallPill for tool indicators). Falls back to whole-message
+ * markdown for legacy/draft messages that only carry `content`.
+ */
+const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
+  parts,
+  content,
+}) => {
+  if (parts && parts.length > 0) {
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.type === "text" ? (
+            <Fragment key={i}>
+              <ChatMarkdown>{part.text}</ChatMarkdown>
+            </Fragment>
+          ) : (
+            <ToolCallPill key={i} label={part.label} />
+          ),
+        )}
+      </>
+    );
+  }
+  return <ChatMarkdown>{content}</ChatMarkdown>;
+};
 
 // relevance level from cosine distance
 function relevanceLabel(distance: number): { label: string; color: string } {
@@ -135,50 +164,36 @@ export const TypingDots: FC = () => (
   </div>
 );
 
-const CopyMessageButton: FC<{
-  content: string;
-  variant:
-    | "full-user"
-    | "full-assistant"
-    | "compact-user"
-    | "compact-assistant";
-}> = ({ content, variant }) => {
-  const [copied, setCopied] = useState(false);
+// chrome-less copy "icon" — placed inside a hover-revealed slot by the parent.
+// success: a sonner toast pops "Copied" for 1.2s; the icon itself doesn't change,
+// so the action feels like it dispatched somewhere rather than mutating the chrome.
+// disabled briefly so double-click doesn't fire two toasts.
+const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
+  const [busy, setBusy] = useState(false);
 
   const handleCopy = async () => {
-    if (!content.trim() || !navigator.clipboard?.writeText) return;
-
+    if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      toast.success("Copied", { duration: 1200 });
     } catch {
-      setCopied(false);
+      toast.error("Couldn't copy");
+    } finally {
+      setBusy(true);
+      window.setTimeout(() => setBusy(false), 1200);
     }
   };
-
-  const className =
-    variant === "full-user"
-      ? "absolute right-2 top-2 rounded-md p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
-      : variant === "full-assistant"
-        ? "absolute right-2 top-2 rounded-md p-1 text-text-tertiary hover:bg-subtle hover:text-text transition-colors"
-        : variant === "compact-user"
-          ? "absolute right-1.5 top-1.5 rounded p-1 text-text-on-primary/70 hover:bg-white/10 hover:text-text-on-primary transition-colors"
-          : "absolute right-1.5 top-1.5 rounded p-1 text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors";
 
   return (
     <button
       type="button"
       onClick={handleCopy}
-      className={className}
+      disabled={busy}
+      className="inline-flex items-center rounded-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
       aria-label="Copy message"
-      title={copied ? "Copied" : "Copy message"}
+      title="Copy message"
     >
-      {copied ? (
-        <CheckIcon className="w-3.5 h-3.5" />
-      ) : (
-        <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-      )}
+      <ClipboardDocumentIcon className="w-3 h-3" />
     </button>
   );
 };
@@ -193,22 +208,23 @@ export const FullMessageBubble: FC<{
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[70%]">
-          <div className="relative px-3 py-2.5 pr-10 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
-            {hasContent && (
-              <CopyMessageButton content={m.content} variant="full-user" />
-            )}
+        <div className="group/msg max-w-[70%]">
+          <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
-          <p
-            className="mt-0.5 text-[11px] text-text-tertiary opacity-60 text-right"
-            suppressHydrationWarning
-          >
-            {new Date(m.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
+          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-text-tertiary">
+            {hasContent && (
+              <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+                <CopyMessageButton content={m.content} />
+              </span>
+            )}
+            <p className="opacity-50" suppressHydrationWarning>
+              {new Date(m.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -218,7 +234,7 @@ export const FullMessageBubble: FC<{
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
-    <div className="space-y-2.5">
+    <div className="group/msg space-y-2.5">
       {m.thinking && (
         <ThinkingBlock
           text={m.thinking}
@@ -227,12 +243,9 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="glass-card relative rounded-xl rounded-bl-sm px-3 py-2.5 pr-10 text-sm leading-relaxed text-text">
-        {hasContent && (
-          <CopyMessageButton content={m.content} variant="full-assistant" />
-        )}
-        {hasContent ? (
-          <ChatMarkdown>{m.content}</ChatMarkdown>
+      <div className="glass-card rounded-xl rounded-bl-sm px-3 py-2.5 text-sm leading-relaxed text-text">
+        {hasContent || (m.parts && m.parts.length > 0) ? (
+          <AssistantBody parts={m.parts} content={m.content} />
         ) : !m.thinking ? (
           <TypingDots />
         ) : null}
@@ -242,12 +255,19 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <p className="text-[11px] text-text-tertiary opacity-60" suppressHydrationWarning>
-        {new Date(m.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </p>
+      <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+        <p className="opacity-50" suppressHydrationWarning>
+          {new Date(m.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+        {hasContent && (
+          <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
+            <CopyMessageButton content={m.content} />
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -264,7 +284,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
     <div
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      <div className="max-w-[85%] space-y-1.5">
+      <div className="group/msg max-w-[85%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
           <ThinkingBlock
             text={m.thinking}
@@ -274,21 +294,15 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         <div
-          className={`relative px-2.5 py-[5px] pr-8 rounded-md text-xs leading-relaxed ${
+          className={`px-2.5 py-[5px] rounded-md text-xs leading-relaxed ${
             m.role === "user"
               ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
               : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
           }`}
         >
-          {hasContent && (
-            <CopyMessageButton
-              content={m.content}
-              variant={m.role === "user" ? "compact-user" : "compact-assistant"}
-            />
-          )}
           {m.role === "assistant" ? (
-            hasContent ? (
-              <ChatMarkdown>{m.content}</ChatMarkdown>
+            hasContent || (m.parts && m.parts.length > 0) ? (
+              <AssistantBody parts={m.parts} content={m.content} />
             ) : (
               <TypingDots />
             )
@@ -296,6 +310,14 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
             m.content
           )}
         </div>
+
+        {hasContent && (
+          <div
+            className={`flex opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <CopyMessageButton content={m.content} />
+          </div>
+        )}
 
         {m.role === "assistant" && hasSources && (
           <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />

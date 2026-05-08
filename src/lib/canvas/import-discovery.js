@@ -7,7 +7,7 @@
  */
 
 import sql from "../../database/pgsql.js";
-import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
+import { enqueueCanvasJobBatch } from "../queue.ts";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
 import {
@@ -17,10 +17,7 @@ import {
 } from "./canvas-folders.js";
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
-import { ensureWorkerRunning } from "../ecs.ts";
-import { ensureMarkerRunning } from "../marker-ec2.ts";
 import logger from "../logger.ts";
-import { parseEnvEnabled } from "./import-metrics.js";
 import {
   PROCESSABLE_TYPES,
   FILE_CONCURRENCY,
@@ -29,12 +26,6 @@ import {
   isJobCancelled,
   downloadAndStoreFile,
 } from "./import-extraction.js";
-
-const CANVAS_PREWARM_MARKER = parseEnvEnabled("CANVAS_PREWARM_MARKER", true);
-
-const _workerSqsClient = new SQSClient({
-  region: process.env.AWS_REGION ?? "eu-west-1",
-});
 
 // ── Job course parsing ──────────────────────────────────────────────────────
 
@@ -55,34 +46,18 @@ export function parseJobCourses(job) {
   );
 }
 
-// ── SQS fan-out ─────────────────────────────────────────────────────────────
+// ── BullMQ fan-out ──────────────────────────────────────────────────────────
 
-// batch-send per-file SQS messages (up to 10 per SendMessageBatch call)
 async function sendFileMessages(records, jobId, userId) {
-  const queueUrl = process.env.SQS_QUEUE_URL;
-  if (!queueUrl) {
-    console.warn(
-      `[sendFileMessages] SQS_QUEUE_URL not set — ${records.length} file messages skipped`,
-    );
-    return;
-  }
-  for (let i = 0; i < records.length; i += 10) {
-    const batch = records.slice(i, i + 10);
-    await _workerSqsClient.send(
-      new SendMessageBatchCommand({
-        QueueUrl: queueUrl,
-        Entries: batch.map((record, idx) => ({
-          Id: String(idx),
-          MessageBody: JSON.stringify({
-            type: "canvas-file",
-            importRecordId: record.id,
-            jobId,
-            userId,
-          }),
-        })),
-      }),
-    );
-  }
+  if (records.length === 0) return;
+  await enqueueCanvasJobBatch(
+    "canvas-file",
+    records.map((record) => ({
+      importRecordId: record.id,
+      jobId,
+      userId,
+    })),
+  );
 }
 
 // ── Pending file insertion ──────────────────────────────────────────────────
@@ -548,18 +523,6 @@ export async function processDiscoverJob(jobId) {
     const pendingRecords =
       await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'`;
     await sendFileMessages(pendingRecords, jobId, job.user_id);
-
-    // scale workers based on how many files need processing
-    Promise.resolve()
-      .then(() => ensureWorkerRunning(pendingRecords.length))
-      .catch((err) => console.warn(`Worker scale-up skipped: ${err.message}`));
-
-    if (CANVAS_PREWARM_MARKER) {
-      Promise.resolve()
-        .then(() => ensureMarkerRunning())
-        .then(() => console.log("Marker prewarm complete"))
-        .catch((err) => console.warn(`Marker prewarm skipped: ${err.message}`));
-    }
 
     const startTime = job.started_at ? new Date(job.started_at) : new Date();
     const elapsedMs = Date.now() - startTime.getTime();

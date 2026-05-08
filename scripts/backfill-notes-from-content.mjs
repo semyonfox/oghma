@@ -195,10 +195,11 @@ async function main() {
           `;
           await tx`
             INSERT INTO app.embeddings (chunk_id, embedding)
-            SELECT * FROM UNNEST(
+            SELECT t.chunk_id, t.embedding::vector
+            FROM UNNEST(
               ${rows.map((r) => r.id)}::uuid[],
-              ${allVectors.map((v) => JSON.stringify(v))}::vector[]
-            )
+              ${allVectors.map((v) => JSON.stringify(v))}::text[]
+            ) AS t(chunk_id, embedding)
           `;
         });
         const dbMs = Date.now() - dbStart;

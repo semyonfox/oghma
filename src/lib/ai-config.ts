@@ -1,19 +1,19 @@
-import { createMoonshotAI } from "@ai-sdk/moonshotai";
-import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
+// LLM provider config — generic OpenAI-compatible client via @openrouter/ai-sdk-provider.
+// works against any OpenAI-compat endpoint (OpenRouter, SiliconFlow, Moonshot, OpenAI direct).
+// reasoning is OR-specific: passes through to the provider when LLM_API_URL points at OR,
+// silently ignored elsewhere (matches prior behaviour with Moonshot's `thinking` param).
+
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
-const DEFAULT_LLM_MODEL = "kimi-k2.5";
-
-const LLM_MODEL_ALIASES: Record<string, string> = {
-  "kimik2.5": "kimi-k2.5",
-  "kimi-2.5": "kimi-k2.5",
-  "kimi2.5": "kimi-k2.5",
-  "kimi-k2.5": "kimi-k2.5",
-};
+const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
 
 export type LlmThinkingMode = "auto" | "on" | "off";
+
+// OR's reasoning effort levels: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+export type LlmReasoningOptions = { effort: "high" | "medium" | "none" };
 
 function readBoundedInt(
   value: string | undefined,
@@ -34,13 +34,6 @@ function normalizeThinkingMode(value: string | undefined): LlmThinkingMode {
   return "auto";
 }
 
-function normalizeLlmModel(value: string | undefined): string {
-  const trimmed = (value ?? "").trim();
-  if (!trimmed) return DEFAULT_LLM_MODEL;
-  const normalized = trimmed.toLowerCase().replace(/\s+/g, "");
-  return LLM_MODEL_ALIASES[normalized] ?? trimmed;
-}
-
 export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   return readBoundedInt(
     env.LLM_TIMEOUT_MS,
@@ -51,7 +44,8 @@ export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 export function getLlmModel(env: NodeJS.ProcessEnv = process.env): string {
-  return normalizeLlmModel(env.LLM_MODEL);
+  const trimmed = (env.LLM_MODEL ?? "").trim();
+  return trimmed || DEFAULT_LLM_MODEL;
 }
 
 export function getLlmThinkingMode(
@@ -60,12 +54,16 @@ export function getLlmThinkingMode(
   return normalizeThinkingMode(env.LLM_THINKING);
 }
 
-// build the SDK-native thinking option from our env-based mode
-export function buildThinkingOptions(
+// map our user-facing tri-state to OR reasoning effort.
+// off → omit reasoning (caller treats undefined as "no reasoning")
+// auto → medium effort, the model decides if it's worth thinking
+// on → high effort, force the model to reason
+export function buildReasoningOptions(
   mode: LlmThinkingMode,
-): MoonshotAILanguageModelOptions["thinking"] {
-  if (mode === "off") return { type: "disabled" };
-  return { type: "enabled" };
+): LlmReasoningOptions | undefined {
+  if (mode === "off") return undefined;
+  if (mode === "on") return { effort: "high" };
+  return { effort: "medium" };
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
@@ -88,15 +86,14 @@ export function getCohereTimeoutMs(
   );
 }
 
-// create the Moonshot provider, or null if no API key is configured
 export function createLlmProvider(env: NodeJS.ProcessEnv = process.env) {
-  const apiKey = (env.LLM_API_KEY ?? env.MOONSHOT_API_KEY ?? "").trim();
+  const apiKey = (env.LLM_API_KEY ?? "").trim();
   if (!apiKey) return null;
 
   const baseURL = (env.LLM_API_URL ?? "").trim() || undefined;
   const timeoutMs = getLlmTimeoutMs(env);
 
-  return createMoonshotAI({
+  return createOpenRouter({
     apiKey,
     ...(baseURL && { baseURL }),
     fetch: (input, init) => {

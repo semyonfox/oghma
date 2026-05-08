@@ -2,13 +2,12 @@ import { BLOOM_NAMES, BLOOM_DESCRIPTIONS } from "./types";
 import type { BloomLevel, QuestionType, QuizQuestion } from "./types";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
-  buildThinkingOptions,
+  buildReasoningOptions,
   createLlmProvider,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
 } from "@/lib/ai-config";
-import type { MoonshotAILanguageModelOptions } from "@ai-sdk/moonshotai";
 import { generateText } from "ai";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
@@ -146,9 +145,7 @@ async function callLLM(prompt: string): Promise<string> {
   if (!provider) throw new Error("LLM not configured");
 
   const thinkingMode = getLlmThinkingMode();
-  const moonshotOptions: MoonshotAILanguageModelOptions = {
-    thinking: buildThinkingOptions(thinkingMode),
-  };
+  const reasoning = buildReasoningOptions(thinkingMode);
 
   const { text } = await generateText({
     model: provider(getLlmModel()),
@@ -156,7 +153,7 @@ async function callLLM(prompt: string): Promise<string> {
     maxOutputTokens: getLlmMaxTokens(),
     ...(thinkingMode !== "off" && { temperature: 1 }),
     maxRetries: 3,
-    providerOptions: { moonshotai: moonshotOptions },
+    providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
   });
 
   return text;

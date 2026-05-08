@@ -9,6 +9,8 @@ import { streamText, generateText } from "ai";
 
 import { runRagPipeline, buildSystemPrompt, runKeywordFallback } from "@/lib/chat/rag-pipeline";
 import { persistMessage, type ChatMessage } from "@/lib/chat/session";
+import type { MessagePart } from "@/lib/chat/types";
+import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
@@ -154,16 +156,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   scope.sessionId,
                   "assistant",
                   fallback,
-                  uniqueSources,
+                  { sources: uniqueSources },
                 );
                 sendDone(writer);
                 writer.close();
                 return;
               }
 
-              // stream LLM response
+              // stream LLM response, accumulating typed parts as we go.
+              // parts mirror what the client builds for live render — text
+              // segments interleaved with tool indicators — and persist as
+              // jsonb so reload reproduces the same shape.
               const t0 = Date.now();
               let reply = "";
+              const parts: MessagePart[] = [];
+              let pendingText = "";
+              const flushText = () => {
+                if (pendingText) {
+                  parts.push({ type: "text", text: pendingText });
+                  pendingText = "";
+                }
+              };
               try {
                 const result = streamText({
                   model: model!,
@@ -174,14 +187,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     sendThinking(writer, part.text);
                   } else if (part.type === "text-delta") {
                     reply += part.text;
+                    pendingText += part.text;
                     sendToken(writer, part.text);
                   } else if (part.type === "tool-call") {
+                    flushText();
+                    parts.push({
+                      type: "tool",
+                      name: part.toolName,
+                      label: labelForTool(part.toolName),
+                    });
                     sendToolCall(writer, part.toolName);
                   }
                 }
               } finally {
                 await canvasMcpClient?.close().catch(() => {});
               }
+              flushText();
               void Metrics.llmLatency(Date.now() - t0);
 
               if (!reply.trim()) {
@@ -196,7 +217,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   scope.sessionId,
                   "assistant",
                   emptyReply,
-                  uniqueSources,
+                  { sources: uniqueSources },
                 );
                 sendDone(writer);
                 writer.close();
@@ -207,7 +228,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 scope.sessionId,
                 "assistant",
                 reply,
-                uniqueSources,
+                { parts, sources: uniqueSources },
               );
               sendDone(writer);
               writer.close();
@@ -291,12 +312,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ragResult.searchResults,
       ragResult.embeddingAvailable,
     );
-    await persistMessage(
-      scope.sessionId,
-      "assistant",
-      fallback,
-      uniqueSources,
-    );
+    await persistMessage(scope.sessionId, "assistant", fallback, {
+      sources: uniqueSources,
+    });
     return NextResponse.json({
       reply: fallback,
       sources: uniqueSources,
@@ -318,7 +336,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     })();
     void Metrics.llmLatency(Date.now() - t0);
 
-    await persistMessage(scope.sessionId, "assistant", reply, uniqueSources);
+    await persistMessage(scope.sessionId, "assistant", reply, {
+      sources: uniqueSources,
+    });
     return NextResponse.json({
       reply,
       thinking: reasoningText || undefined,
