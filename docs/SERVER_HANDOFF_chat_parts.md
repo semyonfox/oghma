@@ -33,7 +33,7 @@ by a real React component (`ToolCallPill`) rather than markdown injection.
 
 ## Migration
 
-`database/migrations/020_chat_message_parts.sql` — auto-applies via
+`database/migrations/028_chat_message_parts.sql` — auto-applies via
 `amplify.yml → npm run migrate → scripts/prebuild-migrate.mjs` before env
 vars are unset, using the `oghmanotes/migrator` Secrets Manager creds. Steps
 the migration runs:
@@ -44,8 +44,10 @@ the migration runs:
    re-run.
 3. `ALTER COLUMN parts SET DEFAULT '[]'::jsonb` then `SET NOT NULL`.
 
-Tracked in `app.schema_migrations` as version `020`. Sequential numbering
-continues from the existing 018, 019.
+Tracked in `app.schema_migrations` as version `028`. The repo and DB
+numbering had drifted historically (DB has 020-027 from earlier manual /
+out-of-band applies), so we picked the next free version above the DB high
+water mark (027) rather than reusing a reserved one.
 
 ### Sizing note
 
@@ -58,7 +60,7 @@ in chunks first and let the in-build re-run no-op.
 ## Files touched
 
 Schema:
-- `database/migrations/020_chat_message_parts.sql` (new)
+- `database/migrations/028_chat_message_parts.sql` (new)
 
 Server:
 - `src/app/api/chat/route.ts` — streaming branch accumulates `MessagePart[]`
@@ -107,7 +109,7 @@ After the next Amplify build / runtime swap:
 -- 1. confirm migration applied
 SELECT version, name, applied_at
   FROM app.schema_migrations
- WHERE version = '020';
+ WHERE version = '028';
 
 -- 2. confirm column exists with the expected default + NOT NULL
 SELECT column_name, data_type, is_nullable, column_default

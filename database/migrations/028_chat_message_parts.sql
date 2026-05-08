@@ -1,4 +1,4 @@
--- 020_chat_message_parts.sql
+-- 028_chat_message_parts.sql
 -- structured message parts so tool-call indicators survive reload without
 -- baking them into prose. matches the openai/anthropic conversation shape:
 -- each assistant message is a list of typed parts.

@@ -168,7 +168,15 @@ pipeline {
             sh 'docker rm -f "${CONTAINER}-next" 2>/dev/null || true'
         }
         always {
-            cleanWs()
+            // Workspace Cleanup plugin isn't installed on this jenkins —
+            // swallow the NoSuchMethodError so post-actions don't fail the run
+            script {
+                try {
+                    cleanWs()
+                } catch (err) {
+                    echo "cleanWs unavailable (plugin not installed): ${err.message}"
+                }
+            }
         }
     }
 }
