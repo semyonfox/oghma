@@ -168,12 +168,14 @@ pipeline {
             sh 'docker rm -f "${CONTAINER}-next" 2>/dev/null || true'
         }
         always {
-            // Workspace Cleanup plugin isn't installed on this jenkins —
-            // swallow the NoSuchMethodError so post-actions don't fail the run
+            // Workspace Cleanup plugin isn't installed on this jenkins, so
+            // cleanWs() raises NoSuchMethodError. catch Throwable (not just
+            // Exception) since java.lang.Error sits outside the Exception
+            // hierarchy and a bare `catch (err)` lets it through.
             script {
                 try {
                     cleanWs()
-                } catch (err) {
+                } catch (Throwable err) {
                     echo "cleanWs unavailable (plugin not installed): ${err.message}"
                 }
             }
