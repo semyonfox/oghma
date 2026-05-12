@@ -19,7 +19,12 @@ import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import CreateNoteModal from "@/components/notes/create-note-modal";
 import { useTreeData } from "./use-tree-data";
-import { useSidebarActions } from "./use-sidebar-actions";
+import { DeleteConfirmTarget, useSidebarActions } from "./use-sidebar-actions";
+import {
+  getVisibleRangeSelection,
+  getVisibleTreeItemIds,
+  toggleSelectedId,
+} from "./selection-utils";
 
 const SidebarList = () => {
   const { t } = useI18n();
@@ -31,7 +36,11 @@ const SidebarList = () => {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] =
+    useState<DeleteConfirmTarget>(null);
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(
+    null,
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefreshTree = useCallback(async () => {
@@ -44,6 +53,13 @@ const SidebarList = () => {
       setIsRefreshing(false);
     }
   }, [refreshTree]);
+
+  // active note from URL
+  const activeId = useMemo(() => {
+    if (!pathname || pathname === "/") return null;
+    const segs = pathname.split("/").filter(Boolean);
+    return segs[0] === "notes" ? (segs[1] ?? null) : (segs[0] ?? null);
+  }, [pathname]);
 
   const treeData = useTreeData();
 
@@ -65,6 +81,7 @@ const SidebarList = () => {
     handleCollapseAll,
     handleRename,
     handleDeleteRequest,
+    handleBulkDeleteRequest,
     handleDeleteConfirm,
     handleDuplicate,
     handleTogglePin,
@@ -74,14 +91,86 @@ const SidebarList = () => {
     handleOpenInAIChat,
     handleItemContextMenu,
     handleDrop,
-  } = useSidebarActions({ setRenamingId, setDeleteConfirmId, deleteConfirmId });
+  } = useSidebarActions({
+    setRenamingId,
+    setDeleteConfirmTarget,
+    deleteConfirmTarget,
+    activeId,
+    setSelectionAnchorId,
+    onDeleteSelectionCleared: () => setSelectionAnchorId(null),
+  });
 
-  // active note from URL
-  const activeId = useMemo(() => {
-    if (!pathname || pathname === "/") return null;
-    const segs = pathname.split("/").filter(Boolean);
-    return segs[0] === "notes" ? (segs[1] ?? null) : (segs[0] ?? null);
-  }, [pathname]);
+  const visibleIds = useMemo(
+    () => getVisibleTreeItemIds(tree, expandedIds),
+    [tree, expandedIds],
+  );
+
+  const selectedCount = selectedIds.size;
+  const deleteIds = deleteConfirmTarget?.ids ?? [];
+  const deleteHasFolder = deleteIds.some(
+    (id) => (tree.items[id]?.children?.length ?? 0) > 0,
+  );
+  const singleDeleteId =
+    deleteConfirmTarget?.mode === "single" ? deleteConfirmTarget.ids[0] : null;
+
+  const handleRowClick = useCallback(
+    (
+      e: React.MouseEvent,
+      itemId: string,
+      isFolder: boolean,
+      nodeData: NoteModel | undefined,
+      isExpanded: boolean,
+    ) => {
+      if (e.shiftKey) {
+        setSelectedIds(
+          new Set(
+            getVisibleRangeSelection(visibleIds, selectionAnchorId, itemId),
+          ),
+        );
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey) {
+        setSelectedIds(toggleSelectedId(selectedIds, itemId));
+        setSelectionAnchorId(itemId);
+        return;
+      }
+
+      setSelectedIds(new Set([itemId]));
+      setSelectionAnchorId(itemId);
+
+      if (isFolder) {
+        const next = new Set(expandedIds);
+        if (isExpanded) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+          const ti = useNoteTreeStore.getState().tree.items[itemId];
+          if (ti && !ti.childrenLoaded) loadChildren(itemId);
+        }
+        setExpandedIds(next);
+      } else if (nodeData) {
+        const { setPaneA, setActivePane } = useLayoutStore.getState();
+        setPaneA(buildFileSpec(nodeData));
+        setActivePane("A");
+        const href = pathname?.startsWith("/notes")
+          ? `/notes/${itemId}`
+          : `/${itemId}`;
+        router.push(href);
+      }
+    },
+    [
+      expandedIds,
+      loadChildren,
+      pathname,
+      router,
+      selectedIds,
+      selectionAnchorId,
+      setExpandedIds,
+      setSelectedIds,
+      visibleIds,
+    ],
+  );
 
   // view state for react-complex-tree
   const viewState = useMemo(
@@ -113,6 +202,30 @@ const SidebarList = () => {
           <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
+          {selectedCount > 1 && (
+            <div className="flex items-center gap-1 mr-1 text-[11px] text-text-tertiary">
+              <span>{selectedCount} selected</span>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleBulkDeleteRequest(Array.from(selectedIds));
+                }}
+                className="p-0.5 rounded hover:bg-error-500/10 text-text-tertiary hover:text-error-400 transition-colors"
+                title={t("Delete selected")}
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M5 6h10M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6" />
+                </svg>
+              </button>
+            </div>
+          )}
           {!initLoaded && (
             <svg
               className="animate-spin h-3 w-3 text-text-tertiary mr-1"
@@ -253,6 +366,7 @@ const SidebarList = () => {
                 const isActive = activeId === item.index;
                 const isItemRenaming = renamingId === item.index;
                 const itemId = item.index as string;
+                const isSelected = selectedIds.has(itemId);
 
                 return (
                   <TreeItem
@@ -262,6 +376,7 @@ const SidebarList = () => {
                     isFolder={!!isFolder}
                     isExpanded={isExpanded}
                     isActive={!!isActive}
+                    isSelected={isSelected}
                     isDragging={isDragging}
                     isLoading={loadingChildren.has(itemId)}
                     hasChildren={hasChildren}
@@ -285,29 +400,15 @@ const SidebarList = () => {
                         setExpandedIds(next);
                       }
                     }}
-                    onClick={() => {
-                      if (isFolder) {
-                        const next = new Set(expandedIds);
-                        if (isExpanded) {
-                          next.delete(itemId);
-                        } else {
-                          next.add(itemId);
-                          const ti =
-                            useNoteTreeStore.getState().tree.items[itemId];
-                          if (ti && !ti.childrenLoaded) loadChildren(itemId);
-                        }
-                        setExpandedIds(next);
-                      } else if (nodeData) {
-                        const { setPaneA, setActivePane } =
-                          useLayoutStore.getState();
-                        setPaneA(buildFileSpec(nodeData));
-                        setActivePane("A");
-                        const href = pathname?.startsWith("/notes")
-                          ? `/notes/${itemId}`
-                          : `/${itemId}`;
-                        router.push(href);
-                      }
-                    }}
+                    onClick={(e) =>
+                      handleRowClick(
+                        e,
+                        itemId,
+                        !!isFolder,
+                        nodeData,
+                        isExpanded,
+                      )
+                    }
                     onRenameComplete={async (newTitle) => {
                       if (nodeData) {
                         await mutateNote(itemId, { title: newTitle });
@@ -333,7 +434,14 @@ const SidebarList = () => {
                           rect.bottom + 4,
                           !!isFolder,
                           _isPinned,
+                          isSelected && selectedIds.size > 1
+                            ? Array.from(selectedIds)
+                            : [itemId],
                         );
+                      if (!isSelected || selectedIds.size <= 1) {
+                        setSelectedIds(new Set([itemId]));
+                        setSelectionAnchorId(itemId);
+                      }
                     }}
                     onOpenInAIChat={(e) => {
                       e.preventDefault();
@@ -361,7 +469,13 @@ const SidebarList = () => {
 
       <NoteContextMenu
         onRename={handleRename}
-        onDelete={handleDeleteRequest}
+        onDelete={(ids) => {
+          if (ids.length === 1) {
+            handleDeleteRequest(ids[0]);
+          } else {
+            handleBulkDeleteRequest(ids);
+          }
+        }}
         onDuplicate={handleDuplicate}
         onTogglePin={handleTogglePin}
         onCreateNote={handleContextCreateNote}
@@ -370,22 +484,40 @@ const SidebarList = () => {
       />
 
       {/* delete confirmation overlay */}
-      {deleteConfirmId && (
+      {deleteConfirmTarget && (
         <div
           className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50"
-          onClick={() => setDeleteConfirmId(null)}
+          onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
             className="bg-surface rounded-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
-              {t("Delete")}{" "}
-              <span className="font-medium text-text">
-                {tree.items[deleteConfirmId]?.data?.title || t("Untitled")}
-              </span>
-              ?
-              {(tree.items[deleteConfirmId]?.children?.length ?? 0) > 0 && (
+              {deleteConfirmTarget.mode === "bulk" ? (
+                <>
+                  <span className="font-medium text-text">
+                    {t("Delete")} {deleteIds.length} {t("selected items")}?
+                  </span>
+                  <span className="block mt-1 text-text-tertiary text-xs">
+                    {deleteHasFolder
+                      ? t("Selected folders and their contents will be deleted.")
+                      : t("The selected notes will be deleted.")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {t("Delete")}{" "}
+                  <span className="font-medium text-text">
+                    {singleDeleteId
+                      ? tree.items[singleDeleteId]?.data?.title ||
+                        t("Untitled")
+                      : t("Untitled")}
+                  </span>
+                  ?
+                </>
+              )}
+              {deleteConfirmTarget.mode === "single" && deleteHasFolder && (
                 <span className="block mt-1 text-text-tertiary text-xs">
                   {t("This folder and all its contents will be deleted.")}
                 </span>
@@ -393,7 +525,7 @@ const SidebarList = () => {
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setDeleteConfirmId(null)}
+                onClick={() => setDeleteConfirmTarget(null)}
                 className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-white/[0.06] transition-colors"
               >
                 {t("Cancel")}

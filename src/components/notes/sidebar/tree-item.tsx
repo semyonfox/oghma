@@ -11,6 +11,7 @@ export interface TreeItemProps {
   isFolder: boolean;
   isExpanded: boolean;
   isActive: boolean;
+  isSelected: boolean;
   isDragging: boolean;
   isLoading: boolean;
   hasChildren: boolean;
@@ -21,7 +22,7 @@ export interface TreeItemProps {
   initLoaded: boolean;
   onContextMenu: (e: React.MouseEvent) => void;
   onToggle: () => void;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   onRenameComplete: (newTitle: string) => void | Promise<void>;
   onAddNote: (e: React.MouseEvent) => void | Promise<void>;
   onDotsClick: (e: React.MouseEvent) => void;
@@ -35,6 +36,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
     isFolder,
     isExpanded,
     isActive,
+    isSelected,
     isDragging,
     isLoading,
     hasChildren,
@@ -121,11 +123,18 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           className={`
             group/item flex items-center h-[26px] pr-1 cursor-pointer select-none
             transition-colors duration-75 rounded-[3px] mx-0.5
+            ${isActive ? "bg-subtle text-text-secondary" : ""}
             ${
-              isActive
-                ? "bg-subtle text-text-secondary"
-                : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+              !isActive && isSelected
+                ? "bg-primary-500/10 text-text-secondary"
+                : ""
             }
+            ${
+              !isActive && !isSelected
+                ? "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+                : ""
+            }
+            ${isActive && isSelected ? "ring-1 ring-primary-500/20" : ""}
             ${isDragging ? "opacity-40" : ""}
           `}
           style={{ paddingLeft: `${pl + 4}px` }}
@@ -133,7 +142,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           onContextMenu={onContextMenu}
           onClick={(e) => {
             interactiveProps.onClick?.(e);
-            onClick();
+            onClick(e);
           }}
           onDragStart={(e: React.DragEvent) => {
             rctProps.onDragStart?.(e);

@@ -8,14 +8,30 @@ import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
+import { getTopLevelSelectedIds, treeItemContainsId } from "./selection-utils";
+
+export type DeleteConfirmTarget =
+  | { mode: "single"; ids: [string] }
+  | { mode: "bulk"; ids: string[] }
+  | null;
 
 // sidebar CRUD operations and action callbacks
 export function useSidebarActions(deps: {
   setRenamingId: (id: string | null) => void;
-  setDeleteConfirmId: (id: string | null) => void;
-  deleteConfirmId: string | null;
+  setDeleteConfirmTarget: (target: DeleteConfirmTarget) => void;
+  deleteConfirmTarget: DeleteConfirmTarget;
+  activeId: string | null;
+  setSelectionAnchorId: (id: string | null) => void;
+  onDeleteSelectionCleared: () => void;
 }) {
-  const { setRenamingId, setDeleteConfirmId, deleteConfirmId } = deps;
+  const {
+    setRenamingId,
+    setDeleteConfirmTarget,
+    deleteConfirmTarget,
+    activeId,
+    setSelectionAnchorId,
+    onDeleteSelectionCleared,
+  } = deps;
   const router = useRouter();
 
   const {
@@ -28,6 +44,9 @@ export function useSidebarActions(deps: {
     loadChildren,
     expandedIds,
     setExpandedIds,
+    selectedIds,
+    setSelectedIds,
+    refreshTree,
   } = useNoteTreeStore();
   const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
 
@@ -137,22 +156,111 @@ export function useSidebarActions(deps: {
         toast.error("Please wait for notes to load");
         return;
       }
-      setDeleteConfirmId(id);
+      setDeleteConfirmTarget({ mode: "single", ids: [id] });
     },
-    [initLoaded, setDeleteConfirmId],
+    [initLoaded, setDeleteConfirmTarget],
+  );
+
+  const handleBulkDeleteRequest = useCallback(
+    (ids: string[]) => {
+      if (!initLoaded) {
+        toast.error("Please wait for notes to load");
+        return;
+      }
+      const cleanIds = ids.filter((id) => id !== "root" && tree.items[id]);
+      if (cleanIds.length === 0) return;
+      if (cleanIds.length === 1) {
+        setDeleteConfirmTarget({ mode: "single", ids: [cleanIds[0]] });
+        return;
+      }
+      setDeleteConfirmTarget({ mode: "bulk", ids: cleanIds });
+    },
+    [initLoaded, setDeleteConfirmTarget, tree.items],
   );
 
   // confirm and execute delete
   const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteConfirmId) return;
-    const id = deleteConfirmId;
-    setDeleteConfirmId(null);
-    try {
-      await removeNote(id);
-    } catch {
-      toast.error("Failed to delete");
+    if (!deleteConfirmTarget) return;
+
+    const target = deleteConfirmTarget;
+    setDeleteConfirmTarget(null);
+
+    if (target.mode === "single") {
+      const id = target.ids[0];
+      try {
+        await removeNote(id);
+        const nextSelected = new Set(useNoteTreeStore.getState().selectedIds);
+        nextSelected.delete(id);
+        setSelectedIds(nextSelected);
+        onDeleteSelectionCleared();
+        if (activeId === id) router.push("/notes");
+      } catch {
+        toast.error("Failed to delete");
+      }
+      return;
     }
-  }, [deleteConfirmId, removeNote, setDeleteConfirmId]);
+
+    const idsToDelete = getTopLevelSelectedIds(target.ids, tree);
+    let deletedCount = 0;
+    let failedCount = 0;
+    const deletedIds = new Set<string>();
+
+    for (const id of idsToDelete) {
+      try {
+        await removeNote(id);
+        deletedCount += 1;
+        deletedIds.add(id);
+      } catch {
+        failedCount += 1;
+      }
+    }
+
+    if (failedCount === 0) {
+      setSelectedIds(new Set());
+      onDeleteSelectionCleared();
+      if (
+        activeId &&
+        idsToDelete.some(
+          (id) => id === activeId || treeItemContainsId(tree, id, activeId),
+        )
+      ) {
+        router.push("/notes");
+      }
+      return;
+    }
+
+    if (deletedCount > 0) {
+      toast.error(
+        `Deleted ${deletedCount} items. Failed to delete ${failedCount} items.`,
+      );
+      const remainingSelection = new Set(
+        target.ids.filter(
+          (id) =>
+            !Array.from(deletedIds).some(
+              (deletedId) =>
+                deletedId === id || treeItemContainsId(tree, deletedId, id),
+            ),
+        ),
+      );
+      setSelectedIds(remainingSelection);
+      await refreshTree();
+      return;
+    }
+
+    toast.error("Failed to delete selected items.");
+    setSelectedIds(new Set(target.ids));
+    await refreshTree();
+  }, [
+    activeId,
+    deleteConfirmTarget,
+    onDeleteSelectionCleared,
+    refreshTree,
+    removeNote,
+    router,
+    setDeleteConfirmTarget,
+    setSelectedIds,
+    tree,
+  ]);
 
   // duplicate a note
   const handleDuplicate = useCallback(
@@ -274,11 +382,28 @@ export function useSidebarActions(deps: {
       isPinned: boolean,
     ) => {
       e.preventDefault();
+      const selectedGroup =
+        selectedIds.has(itemId) && selectedIds.size > 1
+          ? Array.from(selectedIds).filter((id) => id !== "root")
+          : [itemId];
+
+      if (selectedGroup.length === 1) {
+        setSelectedIds(new Set([itemId]));
+        setSelectionAnchorId(itemId);
+      }
+
       useContextMenuStore
         .getState()
-        .setOpenMenu(itemId, e.clientX, e.clientY, isFolder, isPinned);
+        .setOpenMenu(
+          itemId,
+          e.clientX,
+          e.clientY,
+          isFolder,
+          isPinned,
+          selectedGroup,
+        );
     },
-    [],
+    [selectedIds, setSelectedIds, setSelectionAnchorId],
   );
 
   // drag and drop handler
@@ -380,6 +505,7 @@ export function useSidebarActions(deps: {
     handleCollapseAll,
     handleRename,
     handleDeleteRequest,
+    handleBulkDeleteRequest,
     handleDeleteConfirm,
     handleDuplicate,
     handleTogglePin,
