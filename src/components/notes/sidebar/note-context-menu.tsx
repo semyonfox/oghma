@@ -7,7 +7,7 @@ import useContextMenuStore from "@/lib/notes/state/context-menu";
 
 interface NoteContextMenuPortalProps {
   onRename: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (ids: string[]) => void;
   onDuplicate: (id: string) => void;
   onTogglePin: (id: string) => void;
   onCreateNote: (parentId: string) => void;
@@ -63,8 +63,15 @@ export default function NoteContextMenuPortal({
   onOpenInSplit,
 }: NoteContextMenuPortalProps) {
   const { t } = useI18n();
-  const { openMenuId, position, isFolder, isPinned, closeMenu } =
-    useContextMenuStore();
+  const {
+    openMenuId,
+    position,
+    isFolder,
+    isPinned,
+    selectedCount,
+    selectionIds,
+    closeMenu,
+  } = useContextMenuStore();
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjusted, setAdjusted] = useState<{ x: number; y: number } | null>(
     null,
@@ -120,6 +127,7 @@ export default function NoteContextMenuPortal({
     fn();
     closeMenu();
   };
+  const isMultiSelectMenu = selectedCount > 1;
 
   // svg icons inline for crisp rendering
   const icons = {
@@ -216,72 +224,85 @@ export default function NoteContextMenuPortal({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {!isFolder && (
+      {isMultiSelectMenu ? (
         <MenuItem
-          label={isPinned ? t("Unpin") : t("Pin to favorites")}
-          icon={icons.pin}
-          onClick={() => run(() => onTogglePin(openMenuId))}
+          label={t("Delete selected")}
+          icon={icons.trash}
+          onClick={() => run(() => onDelete(selectionIds))}
+          danger
         />
-      )}
-
-      <MenuItem
-        label={t("Rename")}
-        shortcut="F2"
-        icon={icons.rename}
-        onClick={() => run(() => onRename(openMenuId))}
-      />
-
-      {!isFolder && (
-        <MenuItem
-          label={t("Duplicate")}
-          icon={icons.duplicate}
-          onClick={() => run(() => onDuplicate(openMenuId))}
-        />
-      )}
-
-      {(isFolder || openMenuId === "root") && (
+      ) : (
         <>
-          <Separator />
+          {!isFolder && (
+            <MenuItem
+              label={isPinned ? t("Unpin") : t("Pin to favorites")}
+              icon={icons.pin}
+              onClick={() => run(() => onTogglePin(openMenuId))}
+            />
+          )}
+
           <MenuItem
-            label={t("New note")}
-            icon={icons.newNote}
-            onClick={() =>
-              run(() =>
-                onCreateNote(openMenuId === "root" ? "root" : openMenuId),
-              )
-            }
+            label={t("Rename")}
+            shortcut="F2"
+            icon={icons.rename}
+            onClick={() => run(() => onRename(openMenuId))}
           />
+
+          {!isFolder && (
+            <MenuItem
+              label={t("Duplicate")}
+              icon={icons.duplicate}
+              onClick={() => run(() => onDuplicate(openMenuId))}
+            />
+          )}
+
+          {(isFolder || openMenuId === "root") && (
+            <>
+              <Separator />
+              <MenuItem
+                label={t("New note")}
+                icon={icons.newNote}
+                onClick={() =>
+                  run(() =>
+                    onCreateNote(openMenuId === "root" ? "root" : openMenuId),
+                  )
+                }
+              />
+              <MenuItem
+                label={t("New folder")}
+                icon={icons.newFolder}
+                onClick={() =>
+                  run(() =>
+                    onCreateFolder(
+                      openMenuId === "root" ? "root" : openMenuId,
+                    ),
+                  )
+                }
+              />
+            </>
+          )}
+
+          {!isFolder && (
+            <>
+              <Separator />
+              <MenuItem
+                label={t("Open in split view")}
+                icon={icons.split}
+                onClick={() => run(() => onOpenInSplit(openMenuId))}
+              />
+            </>
+          )}
+
+          <Separator />
+
           <MenuItem
-            label={t("New folder")}
-            icon={icons.newFolder}
-            onClick={() =>
-              run(() =>
-                onCreateFolder(openMenuId === "root" ? "root" : openMenuId),
-              )
-            }
+            label={t("Delete")}
+            icon={icons.trash}
+            onClick={() => run(() => onDelete([openMenuId]))}
+            danger
           />
         </>
       )}
-
-      {!isFolder && (
-        <>
-          <Separator />
-          <MenuItem
-            label={t("Open in split view")}
-            icon={icons.split}
-            onClick={() => run(() => onOpenInSplit(openMenuId))}
-          />
-        </>
-      )}
-
-      <Separator />
-
-      <MenuItem
-        label={t("Delete")}
-        icon={icons.trash}
-        onClick={() => run(() => onDelete(openMenuId))}
-        danger
-      />
     </div>,
     document.body,
   );
