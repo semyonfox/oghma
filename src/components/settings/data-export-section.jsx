@@ -20,10 +20,12 @@ export default function DataExportSection() {
   const [importProgress, setImportProgress] = useState(null);
   const [importJobId, setImportJobId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [importCancelRequested, setImportCancelRequested] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [exportJobId, setExportJobId] = useState(null);
   const [exportDownloadUrl, setExportDownloadUrl] = useState(null);
   const [exportProgress, setExportProgress] = useState(null);
+  const [exportCancelRequested, setExportCancelRequested] = useState(false);
   const importFileRef = useRef(null);
 
   // fetch calendar token on mount
@@ -175,9 +177,41 @@ export default function DataExportSection() {
     }
   }
 
+  // cancel handlers
+  async function handleCancelImport() {
+    if (!importJobId) return;
+    if (!confirm(t("Stop this import? Files processed so far will remain."))) return;
+    setImportCancelRequested(true);
+    try {
+      const res = await fetch(`/api/vault/jobs/${importJobId}/cancel`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.info(t("Import cancellation requested. Stopping after current file..."));
+    } catch {
+      setImportCancelRequested(false);
+      toast.error(t("Failed to cancel import"));
+    }
+  }
+
+  async function handleCancelExport() {
+    if (!exportJobId) return;
+    if (!confirm(t("Stop this export?"))) return;
+    setExportCancelRequested(true);
+    try {
+      const res = await fetch(`/api/vault/jobs/${exportJobId}/cancel`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.info(t("Export cancellation requested. Stopping after current file..."));
+    } catch {
+      setExportCancelRequested(false);
+      toast.error(t("Failed to cancel export"));
+    }
+  }
+
   // poll import status
   const importPollingActive =
-    !!importJobId && importStatus !== "complete" && importStatus !== "failed";
+    !!importJobId &&
+    importStatus !== "complete" &&
+    importStatus !== "failed" &&
+    importStatus !== "cancelled";
 
   const handleImportPollData = useCallback(
     (data) => {
@@ -186,11 +220,19 @@ export default function DataExportSection() {
       if (job.status === "complete") {
         setImportStatus("complete");
         setImportProgress(progress);
+        setImportCancelRequested(false);
         toast.success(t("Vault import complete!"));
+        return true;
+      }
+      if (job.status === "cancelled") {
+        setImportStatus(null);
+        setImportCancelRequested(false);
+        toast.info(t("Import cancelled."));
         return true;
       }
       if (job.status === "failed") {
         setImportStatus("failed");
+        setImportCancelRequested(false);
         toast.error(job.error || t("Import failed"));
         return true;
       }
@@ -211,7 +253,10 @@ export default function DataExportSection() {
 
   // poll export status
   const exportPollingActive =
-    !!exportJobId && exportStatus !== "complete" && exportStatus !== "failed";
+    !!exportJobId &&
+    exportStatus !== "complete" &&
+    exportStatus !== "failed" &&
+    exportStatus !== "cancelled";
 
   const handleExportPollData = useCallback(
     (data) => {
@@ -221,11 +266,19 @@ export default function DataExportSection() {
         setExportStatus("complete");
         setExportDownloadUrl(downloadUrl);
         setExportProgress(progress);
+        setExportCancelRequested(false);
         toast.success(t("Vault export ready!"));
+        return true;
+      }
+      if (job.status === "cancelled") {
+        setExportStatus(null);
+        setExportCancelRequested(false);
+        toast.info(t("Export cancelled."));
         return true;
       }
       if (job.status === "failed") {
         setExportStatus("failed");
+        setExportCancelRequested(false);
         toast.error(job.error || t("Export failed"));
         return true;
       }
@@ -388,6 +441,19 @@ export default function DataExportSection() {
                     ? t("Processing...")
                     : t("Select .zip file")}
               </label>
+              {importStatus === "processing" && (
+                <button
+                  type="button"
+                  onClick={handleCancelImport}
+                  disabled={importCancelRequested}
+                  className={cn(
+                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    importCancelRequested ? "opacity-50 cursor-not-allowed" : "",
+                  )}
+                >
+                  {importCancelRequested ? t("Cancelling...") : t("Cancel")}
+                </button>
+              )}
             </div>
           </div>
 
@@ -447,21 +513,36 @@ export default function DataExportSection() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleVaultExport}
-              disabled={exportStatus === "processing"}
-              className={cn(
-                "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
-                exportStatus === "processing"
-                  ? "opacity-50 cursor-not-allowed"
-                  : "",
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleVaultExport}
+                disabled={exportStatus === "processing"}
+                className={cn(
+                  "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                  exportStatus === "processing"
+                    ? "opacity-50 cursor-not-allowed"
+                    : "",
+                )}
+              >
+                {exportStatus === "processing"
+                  ? t("Exporting...")
+                  : t("Export vault")}
+              </button>
+              {exportStatus === "processing" && (
+                <button
+                  type="button"
+                  onClick={handleCancelExport}
+                  disabled={exportCancelRequested}
+                  className={cn(
+                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    exportCancelRequested ? "opacity-50 cursor-not-allowed" : "",
+                  )}
+                >
+                  {exportCancelRequested ? t("Cancelling...") : t("Cancel")}
+                </button>
               )}
-            >
-              {exportStatus === "processing"
-                ? t("Exporting...")
-                : t("Export vault")}
-            </button>
+            </div>
           </div>
 
           {/* calendar subscription */}

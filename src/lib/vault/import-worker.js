@@ -363,6 +363,19 @@ export async function processVaultImport(msg) {
 
           totalFiles++;
           if (totalFiles % 10 === 0) {
+            const [cancelRow] = await sql`
+              SELECT cancel_requested_at FROM app.canvas_import_jobs
+              WHERE id = ${jobId}::uuid
+            `;
+            if (cancelRow?.cancel_requested_at) {
+              console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${totalFiles} files`);
+              await sql`
+                UPDATE app.canvas_import_jobs
+                SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}
+                WHERE id = ${jobId}::uuid
+              `;
+              return; // exit processEntry — outer streamAndProcessZip will finish naturally
+            }
             await sql`
               UPDATE app.canvas_import_jobs
               SET expected_total = ${totalFiles + failedFiles},
