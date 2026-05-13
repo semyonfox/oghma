@@ -302,6 +302,7 @@ export async function processVaultImport(msg) {
 
     const storage = getStorageProvider();
     const folderCache = new Map();
+    let cancelled = false;
     let totalFiles = 0;
     let totalFolders = 0;
     let failedFiles = 0;
@@ -313,6 +314,7 @@ export async function processVaultImport(msg) {
       userId,
       jobId,
       async (entryPath, buffer) => {
+        if (cancelled) return;
         const cleanPath = sanitizePath(entryPath);
         if (!cleanPath || shouldIgnore(entryPath)) return;
 
@@ -374,6 +376,7 @@ export async function processVaultImport(msg) {
                 SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}
                 WHERE id = ${jobId}::uuid
               `;
+              cancelled = true;
               return; // exit processEntry — outer streamAndProcessZip will finish naturally
             }
             await sql`
@@ -394,6 +397,11 @@ export async function processVaultImport(msg) {
         }
       },
     );
+
+    if (cancelled) {
+      console.log(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
+      return;
+    }
 
     // seed initial quiz questions from newly imported chunks (non-fatal)
     try {
