@@ -449,7 +449,7 @@ export async function processVaultImport(msg) {
   } catch (error) {
     if (cancelled) {
       console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${error.message}`);
-      throw error;
+      return;
     }
     console.error(`[${ts()}] Vault import failed:`, error);
     await sql`

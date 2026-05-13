@@ -11,7 +11,13 @@ vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
   withErrorHandler: (handler: () => Promise<Response>) => handler,
   ApiError: class extends Error {
-    constructor(public status: number, msg: string) { super(msg); }
+    constructor(
+      public statusCode: number,
+      public userMessage: string,
+      public internalDetails?: string,
+    ) {
+      super(userMessage);
+    }
   },
 }));
 
