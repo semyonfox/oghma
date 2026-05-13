@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (action === "export") {
     // queue a background export — worker builds zip and uploads to S3
     try {
-      await enqueueCanvasJob("vault-export", { userId });
+      await enqueueCanvasJob("vault-export", { userId }, { attempts: 1 });
     } catch (err) {
       logger.warn("queue enqueue failed for vault-export", { error: err });
     }

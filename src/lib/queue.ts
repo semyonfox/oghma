@@ -37,11 +37,17 @@ export function getExtractRetryQueue(): Queue {
   return _extractRetryQueue;
 }
 
+// `attempts: 3` is safe for canvas-import (workers check terminal states before
+// mutating; see src/lib/canvas/import-extraction.js) and extract-retry.
+// Vault import is NOT yet retry-safe: `createNote()` mints fresh UUIDs per entry,
+// so a partial-failure retry would create duplicates. Vault enqueue sites override
+// attempts: 1 until import-worker is made idempotent (planned alongside cancellation).
 // keep the last 200 completed/failed jobs for observability; older are pruned
 const DEFAULT_OPTS: JobsOptions = {
   removeOnComplete: { count: 200 },
   removeOnFail: { count: 200 },
-  attempts: 1,
+  attempts: 3,
+  backoff: { type: "exponential", delay: 1000 },
 };
 
 export async function enqueueCanvasJob(

@@ -193,7 +193,25 @@ export async function processVaultExport(msg) {
 
         processed++;
         if (processed % 50 === 0) {
-          await sql`UPDATE app.canvas_import_jobs SET updated_at = NOW() WHERE id = ${jobId}::uuid`;
+          const [cancelRow] = await sql`
+            SELECT cancel_requested_at FROM app.canvas_import_jobs
+            WHERE id = ${jobId}::uuid
+          `;
+          if (cancelRow?.cancel_requested_at) {
+            console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${processed} files`);
+            await uploader.abort();
+            await sql`
+              UPDATE app.canvas_import_jobs
+              SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}
+              WHERE id = ${jobId}::uuid AND status = 'processing'
+            `;
+            return; // exit the worker function
+          }
+          await sql`
+            UPDATE app.canvas_import_jobs
+            SET processed_files = ${processed}, updated_at = NOW()
+            WHERE id = ${jobId}::uuid
+          `;
           console.log(`[${ts()}] Exported ${processed}/${totalFiles} files`);
         }
       } catch (err) {
@@ -201,6 +219,13 @@ export async function processVaultExport(msg) {
         // continue with other files
       }
     }
+
+    // final progress flush
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET processed_files = ${processed}
+      WHERE id = ${jobId}::uuid
+    `;
 
     // finalize zip
     zip.end();
