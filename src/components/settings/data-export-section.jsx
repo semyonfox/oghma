@@ -23,6 +23,7 @@ export default function DataExportSection() {
   const [exportStatus, setExportStatus] = useState(null);
   const [exportJobId, setExportJobId] = useState(null);
   const [exportDownloadUrl, setExportDownloadUrl] = useState(null);
+  const [exportProgress, setExportProgress] = useState(null);
   const importFileRef = useRef(null);
 
   // fetch calendar token on mount
@@ -186,11 +187,12 @@ export default function DataExportSection() {
 
   const handleExportPollData = useCallback(
     (data) => {
-      const { job, downloadUrl } = data;
+      const { job, downloadUrl, progress } = data;
       if (!job) return false;
       if (job.status === "complete" && downloadUrl) {
         setExportStatus("complete");
         setExportDownloadUrl(downloadUrl);
+        setExportProgress(progress);
         toast.success(t("Vault export ready!"));
         return true;
       }
@@ -198,6 +200,9 @@ export default function DataExportSection() {
         setExportStatus("failed");
         toast.error(job.error || t("Export failed"));
         return true;
+      }
+      if (progress) {
+        setExportProgress(progress);
       }
       return false;
     },
@@ -366,28 +371,25 @@ export default function DataExportSection() {
             </p>
 
             {exportStatus === "processing" && (
-              <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
-                <svg
-                  className="animate-spin h-4 w-4 text-primary-500"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm text-text-secondary mb-1">
+                  <span>
+                    {exportProgress
+                      ? `${t("Exporting")} ${exportProgress.completed}/${exportProgress.total} ${t("files")}...`
+                      : t("Generating export... This may take a few minutes.")}
+                  </span>
+                  {exportProgress?.percent != null && (
+                    <span>{exportProgress.percent}%</span>
+                  )}
+                </div>
+                <div className="w-full bg-subtle rounded-full h-2">
+                  <div
+                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${exportProgress?.percent ?? 0}%`,
+                    }}
                   />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                {t("Generating export... This may take a few minutes.")}
+                </div>
               </div>
             )}
 

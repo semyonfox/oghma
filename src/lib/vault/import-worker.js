@@ -363,7 +363,13 @@ export async function processVaultImport(msg) {
 
           totalFiles++;
           if (totalFiles % 10 === 0) {
-            await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles + failedFiles}, updated_at = NOW() WHERE id = ${jobId}::uuid`;
+            await sql`
+              UPDATE app.canvas_import_jobs
+              SET expected_total = ${totalFiles + failedFiles},
+                  processed_files = ${totalFiles},
+                  updated_at = NOW()
+              WHERE id = ${jobId}::uuid
+            `;
           }
           console.log(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {

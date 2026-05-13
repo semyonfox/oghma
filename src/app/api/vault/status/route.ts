@@ -22,7 +22,8 @@ export const GET = withErrorHandler(async (request) => {
 
   const [job] = await sql`
     SELECT id, type, status, created_at, started_at, completed_at,
-           expected_total, error_message, output_s3_key, download_url
+           expected_total, processed_files, cancel_requested_at,
+           error_message, output_s3_key, download_url
     FROM app.canvas_import_jobs
     WHERE user_id = ${user.user_id}
       AND type = ${type}
@@ -62,29 +63,17 @@ export const GET = withErrorHandler(async (request) => {
     );
   }
 
-  // for imports, count processed files for progress
+  // unified progress for both import and export
   let progress = null;
-  if (
-    type === "vault-import" &&
-    ["processing", "complete"].includes(job.status)
-  ) {
-    const [counts] = await sql`
-      SELECT COUNT(*) as total
-      FROM app.notes
-      WHERE user_id = ${user.user_id}
-        AND created_at >= ${job.created_at}
-        AND is_folder = false
-        AND deleted_at IS NULL
-    `;
-    const completed = parseInt(counts?.total ?? "0", 10);
+  if (["processing", "complete"].includes(job.status)) {
+    const completed = job.processed_files ?? 0;
     const total = job.expected_total ?? 0;
     progress = {
       completed,
       total,
-      percent:
-        total > 0
-          ? Math.min(100, Math.round((completed / total) * 100))
-          : null,
+      percent: total > 0
+        ? Math.min(100, Math.round((completed / total) * 100))
+        : null,
     };
   }
 
@@ -97,6 +86,7 @@ export const GET = withErrorHandler(async (request) => {
       startedAt: job.started_at,
       completedAt: job.completed_at,
       expectedTotal: job.expected_total,
+      cancelRequested: !!job.cancel_requested_at,
       error: job.error_message,
     },
     downloadUrl,

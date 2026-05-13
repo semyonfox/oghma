@@ -193,7 +193,11 @@ export async function processVaultExport(msg) {
 
         processed++;
         if (processed % 50 === 0) {
-          await sql`UPDATE app.canvas_import_jobs SET updated_at = NOW() WHERE id = ${jobId}::uuid`;
+          await sql`
+            UPDATE app.canvas_import_jobs
+            SET processed_files = ${processed}, updated_at = NOW()
+            WHERE id = ${jobId}::uuid
+          `;
           console.log(`[${ts()}] Exported ${processed}/${totalFiles} files`);
         }
       } catch (err) {
@@ -201,6 +205,13 @@ export async function processVaultExport(msg) {
         // continue with other files
       }
     }
+
+    // final progress flush
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET processed_files = ${processed}
+      WHERE id = ${jobId}::uuid
+    `;
 
     // finalize zip
     zip.end();
