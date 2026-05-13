@@ -103,16 +103,32 @@ export default function DataExportSection() {
       setImportStatus("processing");
       setUploadProgress(100);
 
-      const startRes = await fetch("/api/vault/import/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ s3Key }),
-      });
-      if (!startRes.ok) {
-        const err = await startRes.json();
-        throw new Error(err.error || "Failed to start import");
+      async function startImport(force = false) {
+        const startRes = await fetch("/api/vault/import/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(force ? { s3Key, force: true } : { s3Key }),
+        });
+
+        if (startRes.status === 409) {
+          setImportStatus(null);
+          const ok = confirm(
+            t("An import is already in progress. Cancel it and start a new one?"),
+          );
+          if (!ok) return null;
+          return startImport(true);
+        }
+
+        if (!startRes.ok) {
+          const err = await startRes.json();
+          throw new Error(err.error || "Failed to start import");
+        }
+        return startRes.json();
       }
-      const { jobId } = await startRes.json();
+
+      const result = await startImport();
+      if (!result) return;
+      const { jobId } = result;
       setImportJobId(jobId);
 
       toast.success(t("Import started! Processing your vault..."));
@@ -126,12 +142,24 @@ export default function DataExportSection() {
   }
 
   // vault export handler
-  async function handleVaultExport() {
+  async function handleVaultExport({ force = false } = {}) {
     try {
       setExportStatus("processing");
       setExportDownloadUrl(null);
 
-      const res = await fetch("/api/vault/export", { method: "POST" });
+      const url = force ? "/api/vault/export?force=true" : "/api/vault/export";
+      const res = await fetch(url, { method: "POST" });
+
+      if (res.status === 409) {
+        setExportStatus(null);
+        await res.json();
+        const ok = confirm(
+          t("An export is already in progress. Cancel it and start a new one?"),
+        );
+        if (!ok) return;
+        return handleVaultExport({ force: true });
+      }
+
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to start export");
