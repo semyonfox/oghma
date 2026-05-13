@@ -203,7 +203,7 @@ export async function processVaultExport(msg) {
             await sql`
               UPDATE app.canvas_import_jobs
               SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}
-              WHERE id = ${jobId}::uuid
+              WHERE id = ${jobId}::uuid AND status = 'processing'
             `;
             return; // exit the worker function
           }

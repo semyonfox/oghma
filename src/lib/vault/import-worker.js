@@ -374,7 +374,7 @@ export async function processVaultImport(msg) {
               await sql`
                 UPDATE app.canvas_import_jobs
                 SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}
-                WHERE id = ${jobId}::uuid
+                WHERE id = ${jobId}::uuid AND status = 'processing'
               `;
               cancelled = true;
               return; // exit processEntry — outer streamAndProcessZip will finish naturally
@@ -447,6 +447,10 @@ export async function processVaultImport(msg) {
       `[${ts()}] Vault import complete: ${totalFiles} files, ${totalFolders} folders, ${failedFiles} failures`,
     );
   } catch (error) {
+    if (cancelled) {
+      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${error.message}`);
+      throw error;
+    }
     console.error(`[${ts()}] Vault import failed:`, error);
     await sql`
       UPDATE app.canvas_import_jobs
