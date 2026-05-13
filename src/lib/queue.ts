@@ -37,11 +37,15 @@ export function getExtractRetryQueue(): Queue {
   return _extractRetryQueue;
 }
 
+// Workers MUST be idempotent: attempts > 1 means a job may re-run mid-processing.
+// Vault import/export workers handle this by checking job.status before mutating DB state
+// and by re-using deterministic S3 keys (vault/{userId}/{jobId}/...).
 // keep the last 200 completed/failed jobs for observability; older are pruned
 const DEFAULT_OPTS: JobsOptions = {
   removeOnComplete: { count: 200 },
   removeOnFail: { count: 200 },
-  attempts: 1,
+  attempts: 3,
+  backoff: { type: "exponential", delay: 1000 },
 };
 
 export async function enqueueCanvasJob(
