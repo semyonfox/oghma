@@ -236,13 +236,15 @@ export default function DataExportSection() {
           }
         }
         if (exportRes.ok) {
-          const { job, downloadUrl } = await exportRes.json();
+          const { job, downloadUrl, progress } = await exportRes.json();
           if (job && ["queued", "processing"].includes(job.status)) {
             setExportStatus("processing");
             setExportJobId(job.jobId);
+            setExportProgress(progress);
           } else if (job?.status === "complete" && downloadUrl) {
             setExportStatus("complete");
             setExportDownloadUrl(downloadUrl);
+            setExportProgress(progress);
           }
         }
       } catch {

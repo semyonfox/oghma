@@ -404,7 +404,7 @@ export async function processVaultImport(msg) {
 
     await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'complete', expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
+      SET status = 'complete', processed_files = ${totalFiles}, expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid
     `;
 
