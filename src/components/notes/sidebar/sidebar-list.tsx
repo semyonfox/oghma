@@ -9,6 +9,7 @@ import React, { memo, useMemo, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
+import { TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
   ControlledTreeEnvironment,
   Tree,
@@ -25,6 +26,7 @@ import {
   getVisibleTreeItemIds,
   toggleSelectedId,
 } from "./selection-utils";
+import { ROOT_ID } from "@/lib/notes/types/tree";
 
 const SidebarList = () => {
   const { t } = useI18n();
@@ -105,7 +107,11 @@ const SidebarList = () => {
     [tree, expandedIds],
   );
 
-  const selectedCount = selectedIds.size;
+  const selectedItemIds = useMemo(
+    () => Array.from(selectedIds).filter((id) => id !== ROOT_ID && tree.items[id]),
+    [selectedIds, tree.items],
+  );
+  const selectedCount = selectedItemIds.length;
   const deleteIds = deleteConfirmTarget?.ids ?? [];
   const deleteHasFolder = deleteIds.some(
     (id) => (tree.items[id]?.children?.length ?? 0) > 0,
@@ -202,30 +208,6 @@ const SidebarList = () => {
           <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
-          {selectedCount > 1 && (
-            <div className="flex items-center gap-1 mr-1 text-[11px] text-text-tertiary">
-              <span>{selectedCount} selected</span>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleBulkDeleteRequest(Array.from(selectedIds));
-                }}
-                className="p-0.5 rounded hover:bg-error-500/10 text-text-tertiary hover:text-error-400 transition-colors"
-                title={t("Delete selected")}
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M5 6h10M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6" />
-                </svg>
-              </button>
-            </div>
-          )}
           {!initLoaded && (
             <svg
               className="animate-spin h-3 w-3 text-text-tertiary mr-1"
@@ -329,6 +311,47 @@ const SidebarList = () => {
             </button>
           </div>
         </div>
+
+        {selectedCount > 1 && (
+          <div className="mx-2 mb-1 flex h-8 items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 text-[11px] text-text-secondary">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-300">
+                {selectedCount}
+              </span>
+              <span className="truncate font-medium">
+                {selectedCount === 1 ? t("item selected") : t("items selected")}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleBulkDeleteRequest(selectedItemIds);
+              }}
+              className="inline-flex h-6 items-center gap-1 rounded-radius-sm bg-error-500/15 px-2 font-medium text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 focus:outline-none focus:ring-1 focus:ring-error-500/50"
+              title={t("Delete selected")}
+              aria-label={t("Delete selected")}
+            >
+              <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{t("Delete")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedIds(new Set());
+                setSelectionAnchorId(null);
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+              title={t("Clear selection")}
+              aria-label={t("Clear selection")}
+            >
+              <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
 
         {/* Tree */}
         <div className="flex-1 pb-4">
