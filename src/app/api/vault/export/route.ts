@@ -35,7 +35,7 @@ export const POST = withErrorHandler(async () => {
     await enqueueCanvasJob("vault-export", {
       jobId,
       userId: user.user_id,
-    });
+    }, { attempts: 1 });
   } catch (queueErr) {
     console.error(
       "queue enqueue failed for vault export:",

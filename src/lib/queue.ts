@@ -37,9 +37,11 @@ export function getExtractRetryQueue(): Queue {
   return _extractRetryQueue;
 }
 
-// Workers MUST be idempotent: attempts > 1 means a job may re-run mid-processing.
-// Vault import/export workers handle this by checking job.status before mutating DB state
-// and by re-using deterministic S3 keys (vault/{userId}/{jobId}/...).
+// `attempts: 3` is safe for canvas-import (workers check terminal states before
+// mutating; see src/lib/canvas/import-extraction.js) and extract-retry.
+// Vault import is NOT yet retry-safe: `createNote()` mints fresh UUIDs per entry,
+// so a partial-failure retry would create duplicates. Vault enqueue sites override
+// attempts: 1 until import-worker is made idempotent (planned alongside cancellation).
 // keep the last 200 completed/failed jobs for observability; older are pruned
 const DEFAULT_OPTS: JobsOptions = {
   removeOnComplete: { count: 200 },

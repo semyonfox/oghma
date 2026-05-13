@@ -49,7 +49,7 @@ export const POST = withErrorHandler(async (request) => {
       jobId,
       userId: user.user_id,
       s3Key,
-    });
+    }, { attempts: 1 });
   } catch (queueErr) {
     console.error(
       "queue enqueue failed for vault import:",
