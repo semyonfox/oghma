@@ -30,6 +30,8 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
+  // note: TOCTOU between SELECT and INSERT — concurrent double-submits could both create jobs.
+  // acceptable for now (requires fast double-click); proper fix needs a unique partial index on (user_id, type) where status in ('queued','processing').
   const jobId = await sql.begin(async (tx: any) => {
     if (existing) {
       await tx`
@@ -48,17 +50,10 @@ export const POST = withErrorHandler(async (request) => {
     return row.id;
   });
 
-  try {
-    await enqueueCanvasJob("vault-export", {
-      jobId,
-      userId: user.user_id,
-    }, { attempts: 1 });
-  } catch (queueErr) {
-    console.error(
-      "queue enqueue failed for vault export:",
-      (queueErr as Error).message,
-    );
-  }
+  await enqueueCanvasJob("vault-export", {
+    jobId,
+    userId: user.user_id,
+  }, { attempts: 1 });
 
   return NextResponse.json({ jobId });
 });

@@ -11,7 +11,7 @@ vi.mock("@/database/pgsql.js", () => {
 vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
   withErrorHandler: (h: (r: NextRequest) => Promise<Response>) => h,
-  ApiError: class extends Error { constructor(public status: number, msg: string) { super(msg); } },
+  ApiError: class extends Error { constructor(public statusCode: number, public userMessage: string, public internalDetails?: string) { super(userMessage); } },
 }));
 
 vi.mock("@/lib/queue", () => ({ enqueueCanvasJob: vi.fn().mockResolvedValue(undefined) }));
