@@ -34,9 +34,10 @@ export const POST = withErrorHandler(async (request) => {
   // acceptable for now (requires fast double-click); proper fix needs a unique partial index on (user_id, type) where status in ('queued','processing').
   const jobId = await sql.begin(async (tx: any) => {
     if (existing) {
+      // also set cancel_requested_at so any running worker stops cooperatively
       await tx`
         UPDATE app.canvas_import_jobs
-        SET status = 'cancelled', completed_at = NOW()
+        SET status = 'cancelled', completed_at = NOW(), cancel_requested_at = NOW(), updated_at = NOW()
         WHERE user_id = ${user.user_id}
           AND type = 'vault-export'
           AND status IN ('queued', 'processing')
@@ -50,10 +51,20 @@ export const POST = withErrorHandler(async (request) => {
     return row.id;
   });
 
-  await enqueueCanvasJob("vault-export", {
-    jobId,
-    userId: user.user_id,
-  }, { attempts: 1 });
+  try {
+    await enqueueCanvasJob("vault-export", {
+      jobId,
+      userId: user.user_id,
+    }, { attempts: 1 });
+  } catch (err) {
+    // enqueue failed — clean up the orphan queued row so it doesn't block future requests
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'failed', error_message = 'Failed to enqueue job', completed_at = NOW(), updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+    `;
+    throw err;
+  }
 
   return NextResponse.json({ jobId });
 });

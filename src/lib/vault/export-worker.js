@@ -192,25 +192,27 @@ export async function processVaultExport(msg) {
         }
 
         processed++;
-        if (processed % 50 === 0) {
-          const [cancelRow] = await sql`
-            SELECT cancel_requested_at FROM app.canvas_import_jobs
-            WHERE id = ${jobId}::uuid
+        // poll cancel signal every iteration so small jobs are still cancellable;
+        // status may also be set directly to 'cancelled' via force=true on the route.
+        const [cancelRow] = await sql`
+          SELECT cancel_requested_at, status FROM app.canvas_import_jobs
+          WHERE id = ${jobId}::uuid
+        `;
+        if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
+          console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${processed} files`);
+          await uploader.abort();
+          await sql`
+            UPDATE app.canvas_import_jobs
+            SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}, updated_at = NOW()
+            WHERE id = ${jobId}::uuid AND status IN ('processing', 'cancelled')
           `;
-          if (cancelRow?.cancel_requested_at) {
-            console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${processed} files`);
-            await uploader.abort();
-            await sql`
-              UPDATE app.canvas_import_jobs
-              SET status = 'cancelled', completed_at = NOW(), processed_files = ${processed}
-              WHERE id = ${jobId}::uuid AND status = 'processing'
-            `;
-            return; // exit the worker function
-          }
+          return; // exit the worker function
+        }
+        if (processed % 50 === 0) {
           await sql`
             UPDATE app.canvas_import_jobs
             SET processed_files = ${processed}, updated_at = NOW()
-            WHERE id = ${jobId}::uuid
+            WHERE id = ${jobId}::uuid AND status = 'processing'
           `;
           console.log(`[${ts()}] Exported ${processed}/${totalFiles} files`);
         }
@@ -240,17 +242,22 @@ export async function processVaultExport(msg) {
       { expiresIn: 86400 },
     );
 
-    // update job with results
+    // update job with results — guard against overwriting a cancelled job
     const outputS3Key = `exports/${userId}/${jobId}/vault-export.zip`;
-    await sql`
+    const completed = await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'complete',
           completed_at = NOW(),
           updated_at = NOW(),
           output_s3_key = ${outputS3Key},
           download_url = ${downloadUrl}
-      WHERE id = ${jobId}::uuid
+      WHERE id = ${jobId}::uuid AND status = 'processing'
+      RETURNING id
     `;
+    if (completed.length === 0) {
+      console.log(`[${ts()}] Export ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      return;
+    }
 
     // send email notification
     try {
@@ -270,7 +277,7 @@ export async function processVaultExport(msg) {
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = ${error.message}, completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid
+      WHERE id = ${jobId}::uuid AND status = 'processing'
     `;
     throw error;
   }

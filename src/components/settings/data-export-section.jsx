@@ -225,7 +225,8 @@ export default function DataExportSection() {
         return true;
       }
       if (job.status === "cancelled") {
-        setImportStatus(null);
+        setImportStatus("cancelled");
+        if (progress) setImportProgress(progress);
         setImportCancelRequested(false);
         toast.info(t("Import cancelled."));
         return true;
@@ -271,7 +272,8 @@ export default function DataExportSection() {
         return true;
       }
       if (job.status === "cancelled") {
-        setExportStatus(null);
+        setExportStatus("cancelled");
+        if (progress) setExportProgress(progress);
         setExportCancelRequested(false);
         toast.info(t("Export cancelled."));
         return true;
