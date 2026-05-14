@@ -20,9 +20,12 @@ export default function DataExportSection() {
   const [importProgress, setImportProgress] = useState(null);
   const [importJobId, setImportJobId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [importCancelRequested, setImportCancelRequested] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [exportJobId, setExportJobId] = useState(null);
   const [exportDownloadUrl, setExportDownloadUrl] = useState(null);
+  const [exportProgress, setExportProgress] = useState(null);
+  const [exportCancelRequested, setExportCancelRequested] = useState(false);
   const importFileRef = useRef(null);
 
   // fetch calendar token on mount
@@ -102,16 +105,32 @@ export default function DataExportSection() {
       setImportStatus("processing");
       setUploadProgress(100);
 
-      const startRes = await fetch("/api/vault/import/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ s3Key }),
-      });
-      if (!startRes.ok) {
-        const err = await startRes.json();
-        throw new Error(err.error || "Failed to start import");
+      async function startImport(force = false) {
+        const startRes = await fetch("/api/vault/import/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(force ? { s3Key, force: true } : { s3Key }),
+        });
+
+        if (startRes.status === 409) {
+          setImportStatus(null);
+          const ok = confirm(
+            t("An import is already in progress. Cancel it and start a new one?"),
+          );
+          if (!ok) return null;
+          return startImport(true);
+        }
+
+        if (!startRes.ok) {
+          const err = await startRes.json();
+          throw new Error(err.error || "Failed to start import");
+        }
+        return startRes.json();
       }
-      const { jobId } = await startRes.json();
+
+      const result = await startImport();
+      if (!result) return;
+      const { jobId } = result;
       setImportJobId(jobId);
 
       toast.success(t("Import started! Processing your vault..."));
@@ -125,12 +144,24 @@ export default function DataExportSection() {
   }
 
   // vault export handler
-  async function handleVaultExport() {
+  async function handleVaultExport({ force = false } = {}) {
     try {
       setExportStatus("processing");
       setExportDownloadUrl(null);
 
-      const res = await fetch("/api/vault/export", { method: "POST" });
+      const url = force ? "/api/vault/export?force=true" : "/api/vault/export";
+      const res = await fetch(url, { method: "POST" });
+
+      if (res.status === 409) {
+        setExportStatus(null);
+        await res.json();
+        const ok = confirm(
+          t("An export is already in progress. Cancel it and start a new one?"),
+        );
+        if (!ok) return;
+        return handleVaultExport({ force: true });
+      }
+
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to start export");
@@ -146,9 +177,41 @@ export default function DataExportSection() {
     }
   }
 
+  // cancel handlers
+  async function handleCancelImport() {
+    if (!importJobId) return;
+    if (!confirm(t("Stop this import? Files processed so far will remain."))) return;
+    setImportCancelRequested(true);
+    try {
+      const res = await fetch(`/api/vault/jobs/${importJobId}/cancel`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.info(t("Import cancellation requested. Stopping after current file..."));
+    } catch {
+      setImportCancelRequested(false);
+      toast.error(t("Failed to cancel import"));
+    }
+  }
+
+  async function handleCancelExport() {
+    if (!exportJobId) return;
+    if (!confirm(t("Stop this export?"))) return;
+    setExportCancelRequested(true);
+    try {
+      const res = await fetch(`/api/vault/jobs/${exportJobId}/cancel`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.info(t("Export cancellation requested. Stopping after current file..."));
+    } catch {
+      setExportCancelRequested(false);
+      toast.error(t("Failed to cancel export"));
+    }
+  }
+
   // poll import status
   const importPollingActive =
-    !!importJobId && importStatus !== "complete" && importStatus !== "failed";
+    !!importJobId &&
+    importStatus !== "complete" &&
+    importStatus !== "failed" &&
+    importStatus !== "cancelled";
 
   const handleImportPollData = useCallback(
     (data) => {
@@ -157,11 +220,20 @@ export default function DataExportSection() {
       if (job.status === "complete") {
         setImportStatus("complete");
         setImportProgress(progress);
+        setImportCancelRequested(false);
         toast.success(t("Vault import complete!"));
+        return true;
+      }
+      if (job.status === "cancelled") {
+        setImportStatus("cancelled");
+        if (progress) setImportProgress(progress);
+        setImportCancelRequested(false);
+        toast.info(t("Import cancelled."));
         return true;
       }
       if (job.status === "failed") {
         setImportStatus("failed");
+        setImportCancelRequested(false);
         toast.error(job.error || t("Import failed"));
         return true;
       }
@@ -182,22 +254,38 @@ export default function DataExportSection() {
 
   // poll export status
   const exportPollingActive =
-    !!exportJobId && exportStatus !== "complete" && exportStatus !== "failed";
+    !!exportJobId &&
+    exportStatus !== "complete" &&
+    exportStatus !== "failed" &&
+    exportStatus !== "cancelled";
 
   const handleExportPollData = useCallback(
     (data) => {
-      const { job, downloadUrl } = data;
+      const { job, downloadUrl, progress } = data;
       if (!job) return false;
       if (job.status === "complete" && downloadUrl) {
         setExportStatus("complete");
         setExportDownloadUrl(downloadUrl);
+        setExportProgress(progress);
+        setExportCancelRequested(false);
         toast.success(t("Vault export ready!"));
+        return true;
+      }
+      if (job.status === "cancelled") {
+        setExportStatus("cancelled");
+        if (progress) setExportProgress(progress);
+        setExportCancelRequested(false);
+        toast.info(t("Export cancelled."));
         return true;
       }
       if (job.status === "failed") {
         setExportStatus("failed");
+        setExportCancelRequested(false);
         toast.error(job.error || t("Export failed"));
         return true;
+      }
+      if (progress) {
+        setExportProgress(progress);
       }
       return false;
     },
@@ -231,13 +319,15 @@ export default function DataExportSection() {
           }
         }
         if (exportRes.ok) {
-          const { job, downloadUrl } = await exportRes.json();
+          const { job, downloadUrl, progress } = await exportRes.json();
           if (job && ["queued", "processing"].includes(job.status)) {
             setExportStatus("processing");
             setExportJobId(job.jobId);
+            setExportProgress(progress);
           } else if (job?.status === "complete" && downloadUrl) {
             setExportStatus("complete");
             setExportDownloadUrl(downloadUrl);
+            setExportProgress(progress);
           }
         }
       } catch {
@@ -353,6 +443,19 @@ export default function DataExportSection() {
                     ? t("Processing...")
                     : t("Select .zip file")}
               </label>
+              {importStatus === "processing" && (
+                <button
+                  type="button"
+                  onClick={handleCancelImport}
+                  disabled={importCancelRequested}
+                  className={cn(
+                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    importCancelRequested ? "opacity-50 cursor-not-allowed" : "",
+                  )}
+                >
+                  {importCancelRequested ? t("Cancelling...") : t("Cancel")}
+                </button>
+              )}
             </div>
           </div>
 
@@ -366,28 +469,25 @@ export default function DataExportSection() {
             </p>
 
             {exportStatus === "processing" && (
-              <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
-                <svg
-                  className="animate-spin h-4 w-4 text-primary-500"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm text-text-secondary mb-1">
+                  <span>
+                    {exportProgress
+                      ? `${t("Exporting")} ${exportProgress.completed}/${exportProgress.total} ${t("files")}...`
+                      : t("Generating export... This may take a few minutes.")}
+                  </span>
+                  {exportProgress?.percent != null && (
+                    <span>{exportProgress.percent}%</span>
+                  )}
+                </div>
+                <div className="w-full bg-subtle rounded-full h-2">
+                  <div
+                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${exportProgress?.percent ?? 0}%`,
+                    }}
                   />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                {t("Generating export... This may take a few minutes.")}
+                </div>
               </div>
             )}
 
@@ -415,21 +515,36 @@ export default function DataExportSection() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleVaultExport}
-              disabled={exportStatus === "processing"}
-              className={cn(
-                "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
-                exportStatus === "processing"
-                  ? "opacity-50 cursor-not-allowed"
-                  : "",
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleVaultExport}
+                disabled={exportStatus === "processing"}
+                className={cn(
+                  "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                  exportStatus === "processing"
+                    ? "opacity-50 cursor-not-allowed"
+                    : "",
+                )}
+              >
+                {exportStatus === "processing"
+                  ? t("Exporting...")
+                  : t("Export vault")}
+              </button>
+              {exportStatus === "processing" && (
+                <button
+                  type="button"
+                  onClick={handleCancelExport}
+                  disabled={exportCancelRequested}
+                  className={cn(
+                    "glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text",
+                    exportCancelRequested ? "opacity-50 cursor-not-allowed" : "",
+                  )}
+                >
+                  {exportCancelRequested ? t("Cancelling...") : t("Cancel")}
+                </button>
               )}
-            >
-              {exportStatus === "processing"
-                ? t("Exporting...")
-                : t("Export vault")}
-            </button>
+            </div>
           </div>
 
           {/* calendar subscription */}

@@ -302,6 +302,7 @@ export async function processVaultImport(msg) {
 
     const storage = getStorageProvider();
     const folderCache = new Map();
+    let cancelled = false;
     let totalFiles = 0;
     let totalFolders = 0;
     let failedFiles = 0;
@@ -313,6 +314,7 @@ export async function processVaultImport(msg) {
       userId,
       jobId,
       async (entryPath, buffer) => {
+        if (cancelled) return;
         const cleanPath = sanitizePath(entryPath);
         if (!cleanPath || shouldIgnore(entryPath)) return;
 
@@ -362,8 +364,30 @@ export async function processVaultImport(msg) {
           }
 
           totalFiles++;
+          // poll cancel signal every iteration so small imports are still cancellable;
+          // status may also be set directly to 'cancelled' via force=true on the route.
+          const [cancelRow] = await sql`
+            SELECT cancel_requested_at, status FROM app.canvas_import_jobs
+            WHERE id = ${jobId}::uuid
+          `;
+          if (cancelRow?.cancel_requested_at || cancelRow?.status === "cancelled") {
+            console.log(`[${ts()}] Cancel requested for ${jobId}; aborting after ${totalFiles} files`);
+            await sql`
+              UPDATE app.canvas_import_jobs
+              SET status = 'cancelled', completed_at = NOW(), processed_files = ${totalFiles}, updated_at = NOW()
+              WHERE id = ${jobId}::uuid AND status IN ('processing', 'cancelled')
+            `;
+            cancelled = true;
+            return; // exit processEntry — outer streamAndProcessZip will finish naturally
+          }
           if (totalFiles % 10 === 0) {
-            await sql`UPDATE app.canvas_import_jobs SET expected_total = ${totalFiles + failedFiles}, updated_at = NOW() WHERE id = ${jobId}::uuid`;
+            await sql`
+              UPDATE app.canvas_import_jobs
+              SET expected_total = ${totalFiles + failedFiles},
+                  processed_files = ${totalFiles},
+                  updated_at = NOW()
+              WHERE id = ${jobId}::uuid AND status = 'processing'
+            `;
           }
           console.log(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {
@@ -375,6 +399,11 @@ export async function processVaultImport(msg) {
         }
       },
     );
+
+    if (cancelled) {
+      console.log(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
+      return;
+    }
 
     // seed initial quiz questions from newly imported chunks (non-fatal)
     try {
@@ -396,11 +425,16 @@ export async function processVaultImport(msg) {
       );
     }
 
-    await sql`
+    const completed = await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'complete', expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid
+      SET status = 'complete', processed_files = ${totalFiles}, expected_total = ${totalEntries || totalFiles + failedFiles}, completed_at = NOW(), updated_at = NOW()
+      WHERE id = ${jobId}::uuid AND status = 'processing'
+      RETURNING id
     `;
+    if (completed.length === 0) {
+      console.log(`[${ts()}] Import ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
+      return;
+    }
 
     try {
       const [user] =
@@ -420,11 +454,15 @@ export async function processVaultImport(msg) {
       `[${ts()}] Vault import complete: ${totalFiles} files, ${totalFolders} folders, ${failedFiles} failures`,
     );
   } catch (error) {
+    if (cancelled) {
+      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${error.message}`);
+      return;
+    }
     console.error(`[${ts()}] Vault import failed:`, error);
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = ${error.message}, completed_at = NOW(), updated_at = NOW()
-      WHERE id = ${jobId}::uuid
+      WHERE id = ${jobId}::uuid AND status = 'processing'
     `;
     throw error;
   }
