@@ -99,6 +99,24 @@ export class StoreS3 extends StoreProvider {
   }
 
   /**
+   * Stream an object directly without buffering — used to proxy content through
+   * the Next.js server so browsers never receive internal HTTP presigned URLs.
+   */
+  async getObjectStream(path: string): Promise<{ body: Readable; contentType?: string; contentLength?: number }> {
+    const result = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(path),
+      })
+    );
+    return {
+      body: result.Body as Readable,
+      contentType: result.ContentType,
+      contentLength: result.ContentLength,
+    };
+  }
+
+  /**
    * Generate a signed URL for temporary access
    * Handles MinIO with custom ports via presigning workaround
    * @see https://github.com/aws/aws-sdk-js-v3/issues/2121
