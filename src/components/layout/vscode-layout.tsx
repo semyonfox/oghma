@@ -61,13 +61,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
           `/api/notes/${fileId}?fields=note_id,title,content`,
         );
         if (!response.ok) {
-          if (!cancelled && fileId !== paneAFileId) {
-            setPaneA({
-              fileId,
-              fileType: "note",
-              title: fileId,
-            });
-          }
+          if (!cancelled) router.replace("/notes");
           return;
         }
 
