@@ -1,25 +1,26 @@
 version: '3.9'
 
 services:
-  # Next.js application
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ct216_web
+  app:
+    image: oghma:dev-latest
+    container_name: oghma-dev
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
+    mem_limit: 512m
     env_file:
-      - env.production
+      - /home/semyon/jenkins/env/oghma-dev.env
     networks:
-      ct216:
-        ipv4_address: 172.30.10.8
+      - oghma
+
+  worker:
+    image: oghma-worker:dev-latest
+    container_name: oghma-dev-worker
+    restart: unless-stopped
+    mem_limit: 512m
+    env_file:
+      - /home/semyon/jenkins/env/oghma-dev.env
+    networks:
+      - oghma
 
 networks:
-  ct216:
+  oghma:
     external: true
-
