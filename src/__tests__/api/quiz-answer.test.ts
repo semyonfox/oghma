@@ -10,7 +10,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── mocks (hoisted) ──────────────────────────────────────────────────────────
 
 vi.mock("@/database/pgsql.js", () => {
-  const sqlMock = vi.fn();
+  const sqlMock = vi.fn() as ReturnType<typeof vi.fn> & {
+    begin: ReturnType<typeof vi.fn>;
+    __txMock: ReturnType<typeof vi.fn>;
+  };
   sqlMock.mockResolvedValue([]);
   // tx mock used inside sql.begin() transactions
   const txMock = vi.fn();
