@@ -9,7 +9,8 @@ services:
     env_file:
       - /home/semyon/jenkins/env/oghma-dev.env
     networks:
-      - oghma
+      oghma:
+        ipv4_address: 192.168.48.40
 
   worker:
     image: oghma-worker:dev-latest
@@ -19,7 +20,8 @@ services:
     env_file:
       - /home/semyon/jenkins/env/oghma-dev.env
     networks:
-      - oghma
+      oghma:
+        ipv4_address: 192.168.48.41
 
 networks:
   oghma:
