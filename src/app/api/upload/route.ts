@@ -1,5 +1,6 @@
 // upload API route - handles file uploads for note attachments
 import { NextRequest, NextResponse } from "next/server";
+import { Readable } from "stream";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { getStorageProvider } from "@/lib/storage/init";
 import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
@@ -143,9 +144,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return tracedError("Failed to upload file", 500);
   }
 
-  const signedUrl = await xraySubsegment("s3-sign-url", () =>
-    storage.getSignUrl(storagePath, 300),
-  );
+  const signedUrl = `/api/upload?path=${encodeURIComponent(storagePath)}&stream=1`;
 
   const attachmentId = generateUUID();
   try {
@@ -248,6 +247,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   `;
   if (!owned.length) return tracedError("File not found", 404);
 
-  const url = await storage.getSignUrl(path, 300);
+  if (request.nextUrl.searchParams.get("stream") === "1") {
+    const { body, contentType, contentLength } = await storage.getObjectStream(path);
+    const headers: Record<string, string> = {
+      "Content-Type": contentType ?? "application/octet-stream",
+      "Cache-Control": "private, max-age=300",
+    };
+    if (contentLength) headers["Content-Length"] = String(contentLength);
+    return new NextResponse(Readable.toWeb(body) as ReadableStream, { headers });
+  }
+
+  const url = `/api/upload?path=${encodeURIComponent(path)}&stream=1`;
   return NextResponse.json({ success: true, path, url });
 });

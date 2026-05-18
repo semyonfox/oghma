@@ -96,8 +96,7 @@ export async function GET() {
       return NextResponse.json({ avatarUrl: null });
     }
 
-    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
-    return NextResponse.json({ avatarUrl });
+    return NextResponse.json({ avatarUrl: "/api/auth/avatar/image" });
   } catch (error) {
     logger.error("error fetching avatar", { error });
     return NextResponse.json(
@@ -150,9 +149,7 @@ export async function POST(request: NextRequest) {
     const currentSettings = await getSettingsFromS3(userId as number);
     await saveSettingsToS3(userId as number, { ...currentSettings, avatarKey });
 
-    const avatarUrl = await storage.getSignUrl(avatarKey, 3600);
-
-    return NextResponse.json({ success: true, avatarUrl, avatarKey });
+    return NextResponse.json({ success: true, avatarUrl: "/api/auth/avatar/image", avatarKey });
   } catch (error) {
     logger.error("error uploading avatar", { error });
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

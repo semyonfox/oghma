@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Readable } from "stream";
 import sql from "@/database/pgsql.js";
 import {
   requireAuth,
@@ -44,10 +45,12 @@ export const GET = withErrorHandler(
     // First check the canonical Marker image location.
     const markerKey = markerAssetKey(session.user_id, noteId, assetName);
     if (await storage.hasObject(markerKey)) {
-      const signedUrl = await storage.getSignUrl(markerKey, 300);
-      return NextResponse.redirect(signedUrl, {
-        status: 307,
-        headers: { "Cache-Control": "private, max-age=60" },
+      const { body, contentType } = await storage.getObjectStream(markerKey);
+      return new NextResponse(Readable.toWeb(body) as ReadableStream, {
+        headers: {
+          "Content-Type": contentType ?? "application/octet-stream",
+          "Cache-Control": "private, max-age=60",
+        },
       });
     }
 
@@ -90,10 +93,12 @@ export const GET = withErrorHandler(
 
     if (!resolvedKey) return tracedError("Asset not found", 404);
 
-    const signedUrl = await storage.getSignUrl(resolvedKey, 300);
-    return NextResponse.redirect(signedUrl, {
-      status: 307,
-      headers: { "Cache-Control": "private, max-age=60" },
+    const { body, contentType } = await storage.getObjectStream(resolvedKey);
+    return new NextResponse(Readable.toWeb(body) as ReadableStream, {
+      headers: {
+        "Content-Type": contentType ?? "application/octet-stream",
+        "Cache-Control": "private, max-age=60",
+      },
     });
   },
 );
