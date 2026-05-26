@@ -1,8 +1,10 @@
 # OghmaNote — Pricing & Commercial Planning
 
-> Last updated: 2026-04-30
+> Last updated: 2026-05-21
 > Based on real AWS billing data (Cost Explorer), live AWS pricing API, and Cohere API pricing.
+> Payment processor: Polar (polar.sh) — Merchant of Record, handles EU VAT.
 > Sister docs: `ROADMAP.md` (timeline) · `LAUNCH_CHECKLIST.md` (launch tasks). Operational/governance docs are kept private.
+> Current live infrastructure: homelab Docker stack for prod + dev, with AWS retained for Route 53 and SES. Older AWS numbers below are retained as planning/reference material, not the current hosting bill.
 
 ---
 
@@ -70,9 +72,11 @@ For the existing distributed architecture (Amplify + RDS + ElastiCache + ASG-bas
 
 **This shape is being retired.** The launch architecture (§1.5) collapses to a single self-hosted GPU instance, which is significantly simpler and ~$120/mo cheaper than always-on on-demand at the distributed shape.
 
-### 1.5 Launch Infrastructure — single g5.xlarge, self-hosted (post-homelab)
+### 1.5 Future AWS Upgrade Option — single g5.xlarge, self-hosted
 
-**Architecture**: one EC2 g5.xlarge in eu-west-1 running the full stack via docker-compose — postgres, valkey, garage/S3, Next.js app, worker, Marker GPU. Mirrors the homelab compose stack so summer-tested config lifts directly onto AWS pre-launch.
+**Status**: not the current live deployment. Prod and dev are already live on the homelab. This remains the simplest AWS upgrade option if revenue or reliability demands moving the homelab-shaped stack into eu-west-1.
+
+**Architecture**: one EC2 g5.xlarge in eu-west-1 running the full stack via docker-compose — postgres, valkey/Redis, S3-compatible object storage, Next.js app, worker, Marker GPU. Mirrors the homelab compose stack.
 
 **Why this shape won**:
 
@@ -81,7 +85,7 @@ For the existing distributed architecture (Amplify + RDS + ElastiCache + ASG-bas
 - one box = mirror of homelab dev environment, minimal new ops surface
 - cheaper than current distributed + on-demand always-on
 
-**Cost stack — launch month onward** (with 1-yr RI all-upfront committed in mid-Aug):
+**Cost stack if chosen** (with 1-yr RI all-upfront):
 
 | line item | $/mo | notes |
 |---|---|---|
@@ -100,7 +104,7 @@ For the existing distributed architecture (Amplify + RDS + ElastiCache + ASG-bas
 | 1-yr RI no-upfront | $0 | $544 | from day 1 (~$300/mo saving vs on-demand) |
 | on-demand 24/7 | $0 | $848 | n/a |
 
-**RI commit timing**: buy in mid-August, **after** 2 weeks of on-demand smoke-testing on AWS. Premature RI = locking before validating the box works.
+**RI commit rule**: only buy after on-demand smoke-testing the exact AWS box and after revenue justifies the commitment. Premature RI = locking before validating the box works.
 
 ---
 
@@ -124,7 +128,7 @@ Free trial key: ~1,000 calls/month (fine for development and handful of beta use
 | self-hosted GPU (launch arch §1.5) | ~$0.0006 | ~$0.60 |
 | Marker API (datalab.to) | ~$0.04–0.10 | ~$40–100 |
 
-**Empirical April 2026 test**: ~€5 burned through ~100 notes on the Marker API. Confirms the per-page rate and rules out the cloud API as a sustainable launch path — at 50 students × 100 notes/semester that's ~€2,500/semester just on OCR, which the €4.99/mo Student tier cannot fund.
+**Empirical April 2026 test**: ~€5 burned through ~100 notes on the Marker API. Confirms the per-page rate and rules out the cloud API as a sustainable launch path — at 50 students × 100 notes/semester that's ~€2,500/semester just on OCR, which even €10/mo pricing cannot fund.
 
 **Conclusion**: self-hosted GPU is the only viable launch architecture. Datalab API stays in the codebase as a fallback (`DATALAB_API_KEY` already supported) for emergencies when the GPU instance is down, not as the steady-state path.
 
@@ -132,50 +136,44 @@ Breakeven point is ~30–40 pages/month total — crossed by 4–5 active users.
 
 ---
 
-## 3. Break-Even Analysis (Launch Architecture, Full Stack)
+## 3. Break-Even Analysis (Progressive Model)
 
-Old break-even assumed a $254/mo distributed-AWS warm-window config and ignored Stripe fees. Updated for the launch arch (§1.5) at €510/mo with Stripe fees and Cohere baked in.
+Using Polar (polar.sh) as Merchant of Record — they handle EU VAT, we don't need to register for Irish VAT or file returns.
 
 ### Per-User Variable Cost
 
-| component | $/active user/mo |
+| component | €/active user/mo |
 |---|---|
-| Cohere rerank (avg 200 searches) | ~$0.40 |
-| Cohere embed (new content) | ~$0.02 |
-| Marker GPU time (already in §1.5 fixed) | $0.00 — fixed cost |
-| S3 + bandwidth | ~$0.05 |
-| **total variable** | **~$0.50** |
+| Cohere rerank (avg 200 searches) | ~€0.40 |
+| Cohere embed (new content) | ~€0.02 |
+| Marker GPU time | ~€0.05–0.20 (on-demand, amortised) |
+| S3 + bandwidth | ~€0.05 |
+| **total variable** | **~€0.50–0.70** |
 
-### Break-Even at €4.99/month (Student tier)
+### Break-Even at €10/month (Standard tier)
 
-- gross revenue/user: €4.99
-- Stripe fees (~8% effective on €4.99): −€0.40
-- Cohere variable: ~−€0.45 (avg user)
-- net contribution/user: ~**€4.14/mo**
-- launch fixed cost: **€480/mo** ($510 ≈ €480)
-- **break-even: ~116 paid Student users**
+- gross revenue/user: €10
+- Polar fee (5%): −€0.50
+- Cohere + GPU variable: ~−€0.60
+- net contribution/user: ~**€8.90/mo**
 
-### Break-Even at €9.99/month (Pro tier)
+### Break-Even at €20/month (Premium tier)
 
-- gross: €9.99
-- Stripe fees: −€0.85
-- Cohere variable (Pro is unlimited search, assume heavier ~€1.20): ~−€1.20
-- net contribution/user: ~**€7.94/mo**
-- **break-even: ~61 paid Pro users**
+- gross: €20
+- Polar fee (5%): −€1.00
+- Cohere variable (heavier usage ~€1.50): ~−€1.50
+- net contribution/user: ~**€17.50/mo**
 
-### Mixed Cohort Break-Even
+### Break-Even by Infrastructure Tier
 
-| mix | revenue (gross) | net (after Stripe + Cohere) | net result vs €480 launch fixed |
+| Infra tier | Fixed cost | Standard users needed | Premium users needed |
 |---|---|---|---|
-| 100 Student | €499 | €414 | **−€66** |
-| 120 Student | €599 | €497 | **+€17** |
-| 80 Student + 20 Pro | €599 | €490 | **+€10** |
-| 50 Student + 30 Pro | €549 | €477 | **−€3** |
-| 40 Student + 40 Pro | €600 | €516 | **+€36** |
+| Tier 0 (now) | ~€6 | 1 | 1 |
+| Tier 1 (warm window) | ~€175 | ~20 | ~10 |
+| Tier 2 (24/7 small GPU) | ~€450 | ~51 | ~26 |
+| Tier 3 (24/7 best GPU) | ~€900 | ~101 | ~52 |
 
-**Realistic break-even target**: ~120 Student or ~55 Pro or ~80/20 mix. Higher than the €254/mo doc's old quote because (a) launch fixed cost is ~2× now and (b) Stripe fees are real.
-
-> Recommendation: pre-launch summer runs on homelab at ~€0.50/mo to preserve the runway fund. AWS launch arch (§1.5) commits in mid-August, RI in mid-August after smoke-test, real spend kicks in September.
+**Model**: never upgrade infra until current tier is comfortably profitable. Each tier unlocks the next. No upfront RI commitment until Tier 2+ is justified by sustained revenue.
 
 ---
 
@@ -192,15 +190,15 @@ Old break-even assumed a $254/mo distributed-AWS warm-window config and ignored 
 
 **Purpose:** acquisition funnel. Zero marginal cost per free user.
 
-### Student — €4.99/month or €39/year
+### Standard — €10/month or €79/year
 
 - Canvas LMS import (2 courses, up to 300 pages/month)
 - 250 AI semantic searches/month
 - Full spaced repetition
 - 3GB storage
-- Standard OCR queue (rate-limited if heavy load)
+- Standard OCR queue
 
-### Pro — €9.99/month or €79/year
+### Premium — €20/month or €159/year
 
 - Unlimited Canvas import
 - Unlimited AI searches (rate-limited to prevent runaway Cohere costs)
@@ -209,7 +207,7 @@ Old break-even assumed a $254/mo distributed-AWS warm-window config and ignored 
 - Vault export (Obsidian/Markdown zip)
 - Founder support — direct email line
 
-> Note: launch arch (§1.5) is always-warm for all tiers. The "warm GPU window" differentiator from earlier drafts is gone — Pro differentiates on caps, priority queueing, and direct support, not on GPU availability.
+> Note: at Tier 0 infra (§5.1), imports have a 4–7 min cold start while GPU spins up. Premium users get priority queueing but same cold start until revenue supports always-warm GPU (Tier 2+).
 
 ### University Licence — contact for pricing
 
@@ -223,13 +221,25 @@ Old break-even assumed a $254/mo distributed-AWS warm-window config and ignored 
 
 ## 5. Cost Trajectory
 
-The "scale infra alongside users" phased model in earlier drafts is replaced by a binary trajectory: homelab summer → launch arch September. Once the 1-yr RI is committed in mid-August, fixed cost is locked at €480/mo regardless of user count up to the capacity ceiling of g5.xlarge (well above 200 active users).
+**Principle: scale infra with revenue, never ahead of it.** No month should end in the red. Infrastructure upgrades unlock when the previous month's revenue covers them.
 
-| period | infra | $/mo | notes |
+### 5.1 Progressive Infrastructure Tiers
+
+| Tier | Infra | ~Cost/mo | Users @ €10 | UX tradeoff |
+|------|-------|----------|-------------|-------------|
+| **0 (now)** | Live homelab + Route 53/SES + external AI/OCR usage | ~€0.50 base + usage | 1 | Single-site homelab reliability; OCR depends on configured fallback/Marker |
+| **1** | Homelab plus paid/offsite backup and monitoring | ~€10-30 | 2-4 | Better recovery/alerting, same compute limits |
+| **2** | Managed database/object storage or warm GPU window | ~€150-250 | ~20-30 | Reduces one-box risk or OCR cold starts |
+| **3** | Always-warm GPU / managed production stack | ~€450-900 | ~51-101 | Better reliability and OCR latency; higher fixed bill |
+
+Each tier unlocks when monthly revenue reliably covers it. Tier 0 is sustainable indefinitely with even a handful of paying users.
+
+### 5.2 Current State (May 2026)
+
+| period | infra | cost/mo | notes |
 |---|---|---|---|
-| May–early Aug 2026 | homelab | ~€0.50 | dev + closed beta |
-| mid–late Aug 2026 | AWS provisioning, on-demand smoke-test | ~$50 (partial mo) | overlap with homelab during cutover |
-| ~Sept 2026 onward | AWS launch arch §1.5, 1-yr RI committed | ~€480 | RI commit ~25 Aug = $5,784 once |
+| Now | Homelab Docker stack + AWS Route 53/SES | ~€0.50 base + provider usage | prod + dev are live on homelab |
+| When revenue supports | Tier 1–3 as above | €10–900 | upgrade only when covered |
 
 **For the product/feature phase plan** (controlled beta → soft launch → paid cohort growth), see `ROADMAP.md`. This doc focuses on cost; the roadmap focuses on what we ship in each phase.
 
@@ -239,38 +249,34 @@ The "scale infra alongside users" phased model in earlier drafts is replaced by 
 
 | Risk                       | Severity   | Mitigation                                                                                                                             |
 | -------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **AWS credit expiry**      | Resolved   | Credits expired April 5 2026. Real spend now ~€39/mo, with planned migration to homelab dropping it to ~€0.50/mo.                       |
-| **Cold-start UX**          | Resolved   | Launch arch §1.5 is always-warm. Cold start no longer applies post-cutover.                                                            |
+| **AWS credit expiry**      | Resolved   | Credits expired April 5 2026. Real spend now ~€6/mo on minimal infra.                                                                  |
+| **Cold-start UX**          | Accepted   | 4–7 min GPU spin-up at Tier 0. Mitigate with clear "processing" UI. Resolves at Tier 2+ when revenue supports always-warm GPU.         |
 | **GDPR**                   | High       | Irish jurisdiction, all EU users in scope. Need privacy policy, DPA, data residency docs. AWS eu-west-1 (Ireland) satisfies residency. |
-| **Cost spike**             | Medium     | One viral post → many imports → GPU saturation rather than cost spike (RI is fixed). Per-user caps + billing alarms in place.                  |
+| **Cost spike**             | Low        | Progressive model (§5.1) means costs only rise with revenue. On-demand GPU = pay only for usage. No RI commitment until justified.     |
 | **Canvas ToS**             | Medium     | Using OAuth with user credentials is legitimate. Watch for institution-level API restrictions.                                         |
-| **Cohere rerank at scale** | Medium     | 500 daily active users each doing 20 searches = $600/month in rerank alone. Cache results where possible. Per-tier caps prevent runaway. |
-| **Single-instance blast radius** | Medium | Launch arch §1.5 is one EC2 box — postgres + app + worker + GPU all on one host. Hardware blip = total outage. Daily EBS snapshot + nightly `pg_dump` to S3. Move postgres to RDS multi-AZ post-launch when revenue justifies. |
+| **Cohere rerank at scale** | Medium     | 500 daily active users each doing 20 searches = €600/month in rerank alone. Cache results where possible. Per-tier caps prevent runaway. |
+| **Spot interruption**      | Low–Medium | Tier 1–2 use spot instances. Interruption during import = retry from checkpoint. Upgrade to on-demand (Tier 3) when revenue supports. |
 
 ---
 
-## 7. Current AWS Infrastructure State (April 2026 — being decommissioned)
+## 7. Current Infrastructure State (May 2026)
 
-This shape is the legacy distributed setup, scheduled for teardown ahead of the launch arch in §1.5.
+The distributed AWS app stack has been replaced by the homelab deployment. AWS remains for DNS/email and as future capacity planning reference.
 
 | Resource        | Name / ID                  | Region    | Status                      | Fate                          |
 | --------------- | -------------------------- | --------- | --------------------------- | ----------------------------- |
-| Amplify app     | `<amplify-app-id>`           | eu-west-1 | Active                      | delete in homelab teardown    |
-| ECS cluster     | `oghmanotes`               | eu-west-1 | Active                      | delete in homelab teardown    |
-| ECS service     | `canvas-import-worker`     | eu-west-1 | Scaled per demand           | delete (worker moves on-box)  |
-| Marker ASG      | `<marker-asg>`    | eu-west-1 | desired=0, spot enabled     | delete (Marker moves on-box)  |
-| Marker ALB      | `marker-alb-oghmanotes`    | eu-west-1 | Active (costs ~$18/mo idle) | delete (caddy on-box replaces)|
-| Launch template | `<launch-template>` v22 | eu-west-1 | Spot, g5.xlarge             | delete                        |
-| RDS             | db.t3.micro (PostgreSQL)   | eu-west-1 | Active                      | delete (postgres in compose)  |
-| Redis           | cache.t3.micro             | eu-west-1 | Active                      | delete (valkey in compose)    |
-| Route53 zone    | `oghmanotes.ie`            | global    | Active                      | **keep** — points to launch IP |
-| SES             | sending identity           | eu-west-1 | Active                      | **keep** — least-priv IAM user|
+| App hosting     | homelab Docker/Jenkins     | home server | Active                    | **current prod/dev host**     |
+| PostgreSQL      | `oghma-postgres`           | homelab   | Active                      | **current DB**                |
+| Redis           | `oghma-redis`              | homelab   | Active                      | **current queue/cache**       |
+| RustFS          | `oghma-rustfs`             | homelab   | Active                      | **current object storage**    |
+| Route53 zone    | `oghmanotes.ie`            | global    | Active                      | **keep**                      |
+| SES             | sending identity           | eu-west-1 | Active                      | **keep**                      |
 
-### Scheduled Scaling Actions (<marker-asg>)
+### Future GPU Scaling Actions
 
-None. Pure scale-to-zero. GPU spins up on demand (~4-7 min cold start), scales back to 0 when idle.
+The old Marker ASG is not the live homelab path. Keep these commands only as reference if an AWS Marker ASG is recreated later.
 
-To add a warm window later (when you have paying Pro users who need it):
+To add a warm window later:
 
 ```bash
 # scale up 08:00 IST (07:00 UTC)

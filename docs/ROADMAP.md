@@ -1,8 +1,8 @@
 # OghmaNote — Product Roadmap
 
-> Last updated: 2026-04-30  
-> Shaped by: competitive analysis vs BetterCampus + RemNote, real AWS billing data, user feedback signals  
-> See also: `PRICING.md` (cost model + launch arch), `LAUNCH_CHECKLIST.md` (pre-launch blockers). Operational/governance + competitive research kept private.
+> Last updated: 2026-05-21
+> Shaped by: competitive analysis vs BetterCampus + RemNote, real AWS billing data, user feedback signals
+> See also: `PRICING.md` (cost model + live homelab arch), `LAUNCH_CHECKLIST.md` (pre-launch blockers). Operational/governance + competitive research kept private.
 
 ---
 
@@ -12,7 +12,7 @@
 
 **product state:** functional, not yet launched. Canvas import, RAG chat, FSRS flashcards, quiz gen, PDF viewer, time blocks, iCal subscription, vault import/export — all shipped. Not yet in the hands of real users.
 
-**infrastructure plan:** May–early Aug homelab (~€0.50/mo) for closed beta + dev. Mid-Aug provision AWS launch arch (single g5.xlarge, 1-yr RI, ~€480/mo per `PRICING.md` §1.5). DNS cutover ~1 Sept for back-to-school launch.
+**infrastructure state:** homelab is live now for both prod and dev. AWS is currently limited to Route 53/SES and any explicitly configured external services. Future GPU/AWS upgrades should follow revenue, not calendar dates.
 
 **the market moment:** BetterCampus (1.5M installs) is mid-pivot to freemium and users are revolting — April 2026 feedback board is full of "uninstalled", "corporate cash grab", "bring back old free features". RemNote (1M users) charges €18/month for AI and has zero Canvas awareness. Neither competitor can replicate what OghmaNote has structurally.
 
@@ -35,10 +35,10 @@
 
 ## phase 1 — controlled beta (0 → ~20 users)
 
-**goal:** real feedback from UoG students (closed cohort over summer), fix what breaks, validate Canvas import reliability  
-**when:** May–Aug 2026  
-**infrastructure:** homelab — full docker-compose stack (postgres + valkey + garage + app + worker + Marker on local GPU if available, Datalab API fallback otherwise)  
-**cost:** ~€0.50/month (Route53 + SES only — homelab runs on existing hardware)  
+**goal:** real feedback from UoG students (closed cohort over summer), fix what breaks, validate Canvas import reliability
+**when:** May–Aug 2026
+**infrastructure:** homelab — full docker-compose stack (postgres + valkey + garage + app + worker + Marker on local GPU if available, Datalab API fallback otherwise)
+**cost:** ~€0.50/month (Route53 + SES only — homelab runs on existing hardware)
 **channel:** UoG CompSoc Discord, direct invites
 
 ### quick wins to ship before inviting anyone (1–2 days each)
@@ -65,10 +65,10 @@ these are all data already in the DB — no new syncing required:
 
 ## phase 2 — soft launch (20 → 100 users)
 
-**goal:** first paying users, validate €4.99 Student tier  
-**when:** Sept 2026 onward (back-to-school)  
-**infrastructure:** AWS launch arch — single g5.xlarge eu-west-1, 1-yr RI, full self-host on the GPU box (mirror of homelab compose). Always-warm GPU, no spot eviction risk. See `PRICING.md` §1.5.  
-**cost:** ~€480/mo fixed (RI committed mid-Aug; $5,784 upfront), self-funding at ~120 Student or ~55 Pro or ~80/20 mix paid users (full-stack break-even per `PRICING.md` §3)  
+**goal:** first paying users, validate €10 Standard tier
+**when:** Sept 2026 onward (back-to-school)
+**infrastructure:** keep the live homelab stack until revenue or reliability needs justify an AWS/GPU upgrade.
+**cost:** Route 53/SES plus external AI/OCR usage while on homelab; upgrade only when the previous month can pay for it.
 **channels:** r/college, r/NUIG, r/ObsidianMD, CompSoc, Product Hunt (needs demo video)
 
 ### ship in this phase
@@ -99,10 +99,10 @@ these are all data already in the DB — no new syncing required:
 
 ## phase 3 — paid cohort growth (100+ users)
 
-**goal:** sustainable, self-funding. word of mouth beyond UoG.  
-**when:** Oct 2026 onward, contingent on phase 2 conversion  
-**infrastructure:** unchanged from phase 2 — GPU is already always-warm, capacity headroom on g5.xlarge well above 200 active users. Scale triggers (RDS multi-AZ, CloudFront in front, second instance for HA) only fire if revenue justifies.  
-**cost:** ~€480/mo unchanged (fixed cost is the launch arch — phase progression doesn't add infra spend until HA scaling kicks in)  
+**goal:** sustainable, self-funding. word of mouth beyond UoG.
+**when:** Oct 2026 onward, contingent on phase 2 conversion
+**infrastructure:** upgrade from homelab only when reliability/capacity demands it and revenue covers the bill. Candidate upgrades: managed Postgres, offsite object storage, always-warm GPU, second app host.
+**cost:** scales with the chosen upgrade path; avoid fixed GPU commitments until imports/search usage proves demand.
 **channels:** broader Canvas community, university IT partnerships
 
 ### ship in this phase
@@ -115,7 +115,7 @@ these are all data already in the DB — no new syncing required:
 
 17. [ ] **PDF section-by-section AI** — instead of whole-document RAG, generate flashcards per PDF section. RemNote's approach. more actionable, less overwhelming for large lecture slide decks.
 
-18. [ ] **advanced FSRS analytics** — weak card heatmap, streak history, estimated time-to-mastery per deck. Pro tier differentiator.
+18. [ ] **advanced FSRS analytics** — weak card heatmap, streak history, estimated time-to-mastery per deck. Premium tier differentiator.
 
 19. [ ] **shared study sets** — collaborate on flashcard decks with course-mates. group notes. Pro/Max tier.
 
@@ -155,7 +155,7 @@ these are architectural. BetterCampus and RemNote cannot replicate them:
 
 **specific pain points to name:**
 - BetterCampus: 2 study sets/month, 3MB notes, chrome only, chat not saved → all free and unlimited
-- RemNote: €18/month for AI, zero canvas awareness → OghmaNote is €9.99 and knows your deadlines, grades, and assignments
+- RemNote: €18/month for AI, zero canvas awareness → OghmaNote is €10 and knows your deadlines, grades, and assignments
 
 **user acquisition playbook:**
 1. BetterCampus revolt posts (April 2026) — reply in threads with a direct comparison, no hard sell

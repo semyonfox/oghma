@@ -67,4 +67,13 @@ describe('chunkText', () => {
         expect(Array.isArray(result)).toBe(true);
         expect(result.length).toBeGreaterThan(0);
     });
+
+    it('splits long newline-delimited text without punctuation', () => {
+        const text = Array.from({ length: 200 }, (_, i) => `word${i}`).join('\n');
+        const result = chunkText(text, 100);
+
+        expect(result.length).toBeGreaterThan(1);
+        expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(100);
+        expect(result.join('\n')).toContain('word199');
+    });
 });

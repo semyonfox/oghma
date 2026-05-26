@@ -1,5 +1,6 @@
 import sql from "@/database/pgsql.js";
 import { embedChunks } from "@/lib/embeddings";
+import { sanitizePostgresText } from "@/lib/text-sanitize";
 
 interface ChunkRow {
   id: string;
@@ -10,7 +11,7 @@ export function normalizeChunksForIndexing(chunks: string[]): string[] {
   const normalized: string[] = [];
 
   for (const chunk of chunks) {
-    const trimmed = chunk?.trim();
+    const trimmed = sanitizePostgresText(chunk ?? "").trim();
     if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     normalized.push(trimmed);

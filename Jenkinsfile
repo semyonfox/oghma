@@ -7,7 +7,12 @@ pipeline {
         NETWORK      = 'oghma'
         HEALTH_CMD   = 'node -e "require(\'http\').get(\'http://localhost:3000/api/health\', r => process.exit(r.statusCode===200?0:1))"'
         APP_MEM      = '512m'
-        WORKER_MEM   = '512m'
+        WORKER_MEM   = '1536m'
+        // fixed IPs — keeps nginx upstreams stable across redeploys
+        PROD_IP      = '192.168.48.30'
+        PROD_WRK_IP  = '192.168.48.31'
+        DEV_IP       = '192.168.48.40'
+        DEV_WRK_IP   = '192.168.48.41'
     }
 
     stages {
@@ -62,66 +67,19 @@ pipeline {
         stage('deploy app') {
             steps {
                 script {
-                    if (env.DEPLOY_ENV == 'prod') {
-                        // zero-downtime: start new → wait healthy → swap (~1s gap, CF tunnel retries handle it)
-                        sh '''
-                            NEXT="${CONTAINER}-next"
-
-                            # clean up any previous failed attempt
-                            docker rm -f "${NEXT}" 2>/dev/null || true
-
-                            docker run -d --name "${NEXT}" \
-                                --network "$NETWORK" \
-                                --restart unless-stopped \
-                                --env-file "$ENV_FILE" \
-                                --memory "$APP_MEM" \
-                                --health-cmd "$HEALTH_CMD" \
-                                --health-interval 10s \
-                                --health-timeout 5s \
-                                --health-start-period 60s \
-                                --health-retries 3 \
-                                "$IMAGE"
-
-                            echo "waiting for ${NEXT} to become healthy..."
-                            for i in $(seq 1 36); do
-                                STATUS=$(docker inspect -f '{{.State.Health.Status}}' "${NEXT}" 2>/dev/null || echo "missing")
-                                printf "  [%02d/36] %s\\n" "$i" "$STATUS"
-                                [ "$STATUS" = "healthy" ] && break
-                                if [ "$STATUS" = "unhealthy" ]; then
-                                    docker logs --tail 30 "${NEXT}"
-                                    docker rm -f "${NEXT}"
-                                    echo "container unhealthy — aborting deploy"
-                                    exit 1
-                                fi
-                                sleep 5
-                            done
-
-                            FINAL=$(docker inspect -f '{{.State.Health.Status}}' "${NEXT}" 2>/dev/null)
-                            if [ "$FINAL" != "healthy" ]; then
-                                docker rm -f "${NEXT}"
-                                echo "timed out waiting for healthy — aborting deploy"
-                                exit 1
-                            fi
-
-                            docker stop "$CONTAINER" 2>/dev/null || true
-                            docker rm   "$CONTAINER" 2>/dev/null || true
-                            docker rename "${NEXT}" "$CONTAINER"
-
-                            echo "deployed $IMAGE to $CONTAINER"
-                        '''
-                    } else {
-                        sh '''
-                            docker stop  "$CONTAINER" 2>/dev/null || true
-                            docker rm    "$CONTAINER" 2>/dev/null || true
-                            docker run -d --name "$CONTAINER" \
-                                --network "$NETWORK" \
-                                --restart unless-stopped \
-                                --env-file "$ENV_FILE" \
-                                --memory "$APP_MEM" \
-                                "$IMAGE"
-                            echo "deployed $IMAGE to $CONTAINER"
-                        '''
-                    }
+                    def appIp = env.DEPLOY_ENV == 'prod' ? env.PROD_IP : env.DEV_IP
+                    sh """
+                        docker stop  "\$CONTAINER" 2>/dev/null || true
+                        docker rm    "\$CONTAINER" 2>/dev/null || true
+                        docker run -d --name "\$CONTAINER" \
+                            --network "\$NETWORK" \
+                            --ip ${appIp} \
+                            --restart unless-stopped \
+                            --env-file "\$ENV_FILE" \
+                            --memory "\$APP_MEM" \
+                            "\$IMAGE"
+                        echo "deployed \$IMAGE to \$CONTAINER (${appIp})"
+                    """
                 }
             }
         }
@@ -130,17 +88,21 @@ pipeline {
             steps {
                 // BullMQ worker — drains jobs from canvas-import + extract-retry queues.
                 // brief downtime is fine on swap; in-flight jobs get retried via DB safety-net.
-                sh '''
-                    docker stop "$WORKER" 2>/dev/null || true
-                    docker rm   "$WORKER" 2>/dev/null || true
-                    docker run -d --name "$WORKER" \
-                        --network "$NETWORK" \
-                        --restart unless-stopped \
-                        --env-file "$ENV_FILE" \
-                        --memory "$WORKER_MEM" \
-                        "$WORKER_IMAGE"
-                    echo "deployed $WORKER_IMAGE to $WORKER"
-                '''
+                script {
+                    def wrkIp = env.DEPLOY_ENV == 'prod' ? env.PROD_WRK_IP : env.DEV_WRK_IP
+                    sh """
+                        docker stop  "\$WORKER" 2>/dev/null || true
+                        docker rm    "\$WORKER" 2>/dev/null || true
+                        docker run -d --name "\$WORKER" \
+                            --network "\$NETWORK" \
+                            --ip ${wrkIp} \
+                            --restart unless-stopped \
+                            --env-file "\$ENV_FILE" \
+                            --memory "\$WORKER_MEM" \
+                            "\$WORKER_IMAGE"
+                        echo "deployed \$WORKER_IMAGE to \$WORKER (${wrkIp})"
+                    """
+                }
             }
         }
 
@@ -165,7 +127,7 @@ pipeline {
 
     post {
         failure {
-            sh 'docker rm -f "${CONTAINER}-next" 2>/dev/null || true'
+            sh 'docker rm -f "$CONTAINER" 2>/dev/null || true'
         }
         always {
             // Workspace Cleanup plugin isn't installed on this jenkins, so

@@ -55,7 +55,10 @@ vi.mock("@/lib/logger.ts", () => ({
 import sql from "@/database/pgsql.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding.js";
-import { processMarkerComplete } from "@/lib/canvas/import-extraction.js";
+import {
+  processExtractionRetry,
+  processMarkerComplete,
+} from "@/lib/canvas/import-extraction.js";
 
 describe("processMarkerComplete", () => {
   beforeEach(() => {
@@ -120,5 +123,48 @@ describe("processMarkerComplete", () => {
           call[0]?.join("").includes("UPDATE app.canvas_imports"),
         ),
     ).toBe(false);
+  });
+});
+
+describe("processExtractionRetry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("marks pending retry imports complete after successful indexing", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([
+      { status: "pending_retry", job_id: null },
+    ] as never);
+
+    vi.mocked(getStorageProvider).mockReturnValue({
+      getObjectAndMeta: vi
+        .fn()
+        .mockResolvedValue({ buffer: Buffer.from("lecture notes") }),
+    } as never);
+
+    vi.mocked(processRagPipeline).mockResolvedValue({
+      noteId: "note-123",
+      chunksStored: 1,
+    } as never);
+
+    await processExtractionRetry({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "canvas/user/file.txt",
+      filename: "file.txt",
+      mimeType: "text/plain",
+      parentFolderId: null,
+      attempt: 1,
+    });
+
+    const updateQueries = vi
+      .mocked(sql)
+      .mock.calls.map((call: any[]) => call[0]?.join(""))
+      .filter((query: string | undefined) =>
+        query?.includes("UPDATE app.canvas_imports"),
+      );
+
+    expect(updateQueries.some((query) => query.includes("status = 'complete'")))
+      .toBe(true);
   });
 });

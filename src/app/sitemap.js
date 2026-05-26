@@ -6,7 +6,16 @@ const BASE_URL = (
 
 export default function sitemap() {
   const lastModified = new Date();
-  const staticRoutes = ["/", "/about", "/blog"];
+  const staticRoutes = [
+    "/",
+    "/about",
+    "/blog",
+    "/privacy",
+    "/terms",
+    "/cookies",
+    "/pricing",
+    "/contact",
+  ];
 
   return [
     ...staticRoutes.map((path) => ({

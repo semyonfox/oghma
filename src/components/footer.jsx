@@ -17,17 +17,18 @@ export default function Footer() {
     support: [
       { name: t("Documentation"), href: "/syntax-guide" },
       { name: t("Guides"), href: "/syntax-guide" },
-      { name: t("Contact"), href: "/#contact" },
+      { name: t("Contact"), href: "/contact" },
     ],
     company: [
       { name: t("About"), href: "/about" },
       { name: t("Blog"), href: "/blog" },
+      { name: t("Pricing"), href: "/pricing" },
       { name: t("GitHub"), href: "https://github.com/semyonfox/oghma" },
     ],
     legal: [
-      { name: t("Privacy Policy"), href: "#" },
-      { name: t("Terms of Service"), href: "#" },
-      { name: t("License"), href: "#" },
+      { name: t("Privacy Policy"), href: "/privacy" },
+      { name: t("Terms of Service"), href: "/terms" },
+      { name: t("Cookie Notice"), href: "/cookies" },
     ],
     social: [
       {

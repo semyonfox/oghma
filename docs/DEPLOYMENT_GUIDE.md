@@ -1,5 +1,7 @@
 # Canvas + Vault Import Pipeline Optimization — Deployment Guide
 
+> Legacy AWS/ECS guide. The live deployment now runs on the homelab Docker/Jenkins stack; use `infra/HOMELAB.md`, `Jenkinsfile`, and the Jenkins env files under `/home/semyon/jenkins/env/` for current deploy operations. The tuning concepts here still apply to the worker, but ECS/CloudWatch/ASG steps are historical unless AWS worker hosting is reintroduced.
+
 ## Overview
 
 This guide documents the performance optimizations implemented to reduce Canvas and Vault import latency. The optimizations focus on three key areas:
