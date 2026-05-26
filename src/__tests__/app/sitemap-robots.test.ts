@@ -13,6 +13,11 @@ describe("sitemap metadata route", () => {
       "https://oghmanotes.ie/",
       "https://oghmanotes.ie/about",
       "https://oghmanotes.ie/blog",
+      "https://oghmanotes.ie/privacy",
+      "https://oghmanotes.ie/terms",
+      "https://oghmanotes.ie/cookies",
+      "https://oghmanotes.ie/pricing",
+      "https://oghmanotes.ie/contact",
       ...blogPosts.map((post) => `https://oghmanotes.ie/blog/${post.slug}`),
       "https://oghmanotes.ie/syntax-guide",
     ]);

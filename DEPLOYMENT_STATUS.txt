@@ -3,6 +3,10 @@ CANVAS + VAULT IMPORT OPTIMIZATION - DEPLOYMENT STATUS
 Date: April 1, 2026
 Status: ✅ COMPLETE AND LIVE
 
+NOTE (2026-05-25): This file records the old AWS/ECS deployment state at the time
+of the optimization. Current prod/dev run on the homelab Docker/Jenkins stack; see
+infra/HOMELAB.md and Jenkinsfile for live deployment operations.
+
 WHAT WAS ACCOMPLISHED
 =====================
 

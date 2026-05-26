@@ -7,7 +7,7 @@ pipeline {
         NETWORK      = 'oghma'
         HEALTH_CMD   = 'node -e "require(\'http\').get(\'http://localhost:3000/api/health\', r => process.exit(r.statusCode===200?0:1))"'
         APP_MEM      = '512m'
-        WORKER_MEM   = '512m'
+        WORKER_MEM   = '1536m'
         // fixed IPs — keeps nginx upstreams stable across redeploys
         PROD_IP      = '192.168.48.30'
         PROD_WRK_IP  = '192.168.48.31'

@@ -17,6 +17,15 @@ function env() {
   };
 }
 
+function positiveIntEnv(name: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 class SelfHostedEmbeddingProvider implements EmbeddingProvider {
   name = "self-hosted";
 
@@ -31,33 +40,48 @@ class SelfHostedEmbeddingProvider implements EmbeddingProvider {
       throw new Error("Embedding provider not configured (EMBEDDING_API_URL/KEY/MODEL)");
     }
 
-    const res = await fetch(`${apiUrl}/embeddings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ input: texts, model }),
-      signal: AbortSignal.timeout(30000),
-    });
+    const timeoutMs = positiveIntEnv("EMBEDDING_TIMEOUT_MS", 120_000);
+    const maxAttempts = positiveIntEnv("EMBEDDING_MAX_ATTEMPTS", 2);
+    let lastError: unknown;
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Embedding API ${res.status}: ${body.slice(0, 200)}`);
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const res = await fetch(`${apiUrl}/embeddings`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ input: texts, model }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Embedding API ${res.status}: ${body.slice(0, 200)}`);
+        }
+
+        const json = await res.json();
+        const embeddings: number[][] = (json.data ?? [])
+          .map((item: { embedding: number[] }) => item.embedding)
+          .filter(Boolean);
+
+        if (embeddings.length !== texts.length) {
+          throw new Error(
+            `Embedding count mismatch: got ${embeddings.length}, expected ${texts.length}`,
+          );
+        }
+
+        return embeddings;
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxAttempts) {
+          await delay(500 * attempt);
+        }
+      }
     }
 
-    const json = await res.json();
-    const embeddings: number[][] = (json.data ?? [])
-      .map((item: { embedding: number[] }) => item.embedding)
-      .filter(Boolean);
-
-    if (embeddings.length !== texts.length) {
-      throw new Error(
-        `Embedding count mismatch: got ${embeddings.length}, expected ${texts.length}`,
-      );
-    }
-
-    return embeddings;
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   async embedSingle(text: string): Promise<number[]> {

@@ -2,7 +2,7 @@
 
 > Track progress toward the first real users.
 > Sections are ordered: blockers first, nice-to-haves after.
-> Sister docs: `ROADMAP.md` (timeline + features) · `PRICING.md` (cost model + launch arch). Operational + governance docs are private.
+> Sister docs: `ROADMAP.md` (timeline + features) · `PRICING.md` (cost model + live homelab arch). Operational + governance docs are private.
 
 ---
 
@@ -20,10 +20,10 @@
 
 - [ ] All secrets rotated from dev values (JWT_SECRET, NEXTAUTH_SECRET, AUTH_SECRET, SERVER_ENCRYPTION_SECRET)
 - [ ] `ENABLE_CREDENTIALS_AUTH=true` is intentional — confirm OAuth providers (Google/GitHub) are either wired up or removed from the UI
-- [ ] S3 bucket is private (no public ACL), presigned URLs only
-- [ ] RDS is not publicly accessible (VPC only, security group locked)
-- [ ] Redis has TLS enabled in production (`REDIS_TLS=true`)
-- [ ] WAF rules reviewed — currently active and billing (~$19/month)
+- [ ] RustFS bucket is private; browser access is via presigned URLs only
+- [ ] PostgreSQL is internal to the homelab Docker network and not publicly exposed
+- [ ] Redis is internal to the homelab Docker network and not publicly exposed
+- [ ] Cloudflare tunnel/nginx routing reviewed; no direct public app/database/storage ports
 - [ ] Rate limiting confirmed working for login (`/api/auth/login`)
 - [ ] Set up AWS billing alerts at **$50 / $200 / $500 / $1000** (supersedes earlier $50/$100/$200 plan)
   ```bash
@@ -40,32 +40,26 @@
 - [ ] **Cookie notice** — do you use any tracking cookies? If yes, consent banner required. If no analytics/tracking, a simple "we use only essential cookies" banner is fine.
 - [ ] **Contact email** listed for data requests (GDPR Article 12) — a real inbox, not a form
 - [ ] **Account deletion actually works** (see section 1) — legally required under GDPR Article 17
-- [ ] Data residency: AWS eu-west-1 (Ireland) for all services
+- [ ] Data residency: app data on Irish homelab; AWS eu-west-1 for SES/Route 53 where used
 
 ---
 
 ## 4. Infrastructure Sanity Check
 
-- [ ] Amplify env vars are all set in console (not just `.env.local`) — cross-check against `.env.example`
-- [ ] `DATABASE_URL` points to production RDS (not local Docker)
-- [ ] `pgvector` extension enabled on production RDS:
+- [ ] Jenkins env vars are set in `/home/semyon/jenkins/env/oghma-prod.env` and `/home/semyon/jenkins/env/oghma-dev.env`
+- [ ] `DATABASE_URL` points to `oghma-postgres` and includes `search_path=app,public`
+- [ ] `MIGRATION_DATABASE_URL` uses the admin/migrator role and points to `oghma-postgres`
+- [ ] `pgvector` extension enabled on production PostgreSQL:
   ```sql
   SELECT * FROM pg_extension WHERE extname = 'vector';
   ```
 - [ ] All DB migrations applied in order (`database/` folder)
-- [ ] S3 bucket exists in `eu-west-1`, CORS configured for `oghmanotes.ie`
-- [ ] SQS queue exists and worker has IAM permissions to consume it
-- [ ] ECS `canvas-import-worker` service healthy (or scaled to 0 intentionally)
-- [ ] Marker ASG at desired=0 (scale-to-zero confirmed) — **GPU should not be running idle**
-  ```bash
-  aws autoscaling describe-auto-scaling-groups \
-    --auto-scaling-group-name <marker-asg> \
-    --region eu-west-1 \
-    --query 'AutoScalingGroups[0].DesiredCapacity'
-  ```
+- [ ] RustFS bucket exists and is reachable from app/worker containers
+- [ ] BullMQ worker containers are healthy (`oghma-prod-worker`, `oghma-dev-worker`)
+- [ ] Marker/OCR path is intentional: `MARKER_API_URL` set if self-hosted OCR is enabled, otherwise fallback behaviour accepted
 - [ ] Redis reachable from production app (not just localhost)
-- [ ] Domain `oghmanotes.ie` resolving to Amplify — check with `dig oghmanotes.ie`
-- [ ] SSL cert valid and auto-renewing (Amplify handles this, just verify HTTPS works)
+- [ ] Domain `oghmanotes.ie` resolves through Cloudflare tunnel to homelab nginx
+- [ ] HTTPS works through Cloudflare
 
 ---
 
@@ -88,9 +82,9 @@ Do these yourself end-to-end in production before inviting anyone:
 
 ## 6. Monitoring & Observability
 
-- [ ] CloudWatch log groups exist for ECS worker (`/aws/ecs/oghmanotes/canvas-import-worker`)
-- [ ] Set a CloudWatch alarm on ECS task failures
-- [ ] Set a CloudWatch alarm if RDS CPU > 80% for 5 min
+- [ ] Container logs are accessible on the homelab (`docker logs oghma-prod`, `docker logs oghma-prod-worker`)
+- [ ] Add an alert for app/worker container restarts or health failures
+- [ ] Add an alert for disk usage and PostgreSQL health on the homelab
 - [ ] Consider adding [Sentry](https://sentry.io) for frontend error tracking (free tier covers early usage)
   - Add `SENTRY_DSN` to env, wrap `_app.tsx` with Sentry provider
 - [ ] Uptime monitoring — [UptimeRobot](https://uptimerobot.com) free tier pings `oghmanotes.ie` every 5 min and emails you if it goes down
@@ -100,33 +94,32 @@ Do these yourself end-to-end in production before inviting anyone:
 ## 7. Product Polish (Before Inviting People)
 
 - [ ] Landing page accurately reflects what the product does today (no "coming soon" features listed as ready)
-- [ ] **Early-access banner** on landing page — "Early access — €4.99 launch pricing locked for 12 months. Help us shape the product."
+- [ ] **Early-access banner** on landing page — "Early access — help us shape the product."
 - [ ] **First-run modal** for new accounts — "this is a launch beta. Expect rough edges. Email [founder@oghmanotes.ie] if anything breaks." Direct line to founder is itself a feature BetterCampus / RemNote can't replicate.
 - [ ] Onboarding — new user lands on an empty workspace with no clue what to do. Add at minimum a welcome note or tooltip pointing at Canvas import
 - [ ] Error states are user-friendly (not raw JSON or blank screens)
-- [ ] Cold-start UX for OCR — with launch arch (`PRICING.md` §1.5) GPU is always-warm, so cold start should not occur. Keep the "Processing your files..." copy as a fallback if Marker is restarting (e.g. post-deploy).
+- [ ] Cold-start UX for OCR — homelab may use fallback extraction or optional Marker, so keep "Processing your files..." copy honest when OCR/indexing takes time.
 - [ ] "Coming soon" buttons (note export, import, AI panel actions) — either remove them or disable with a tooltip. Don't show broken buttons to real users.
 
 ---
 
-## 8. Payments — v1 Stripe Payment Links (defer full automation)
+## 8. Payments — Polar (Merchant of Record)
 
-For launch: **manual flow with Stripe Payment Links**, no webhook automation. Cheap, ~30 min/mo admin overhead distributed across the three founders. Wire up webhook automation later when traffic justifies the engineering time.
+Using [Polar](https://polar.sh) instead of Stripe — they handle EU VAT as Merchant of Record, so we don't need to register for Irish VAT or file returns. 5% fee (vs Stripe ~3% + you handle tax).
 
-- [ ] [Stripe](https://stripe.com/ie) account created (Irish entity — use Stripe Ireland)
-- [ ] Products created in Stripe dashboard: Student (€4.99/mo, €39/yr), Pro (€9.99/mo, €79/yr)
-- [ ] Stripe Tax enabled — handles EU VAT automatically (~0.5% fee, required above €10k EU revenue/yr)
-- [ ] Generate **Payment Links** for each tier — paste in `/pricing` page footer / signup flow
-- [ ] User table has `plan` column (`free` | `student` | `pro`) — gate Canvas import and AI search behind it
-- [ ] Pricing page at `/pricing` live, with Payment Link buttons
-- [ ] Manual fulfilment process documented: when Stripe sends "subscription created" email → ops person sets `users.plan` in DB. Once a week, audit `users.plan` against Stripe active subscriptions (script in `scripts/`).
+- [ ] Polar account created, organisation set up
+- [ ] Products created: Standard (€10/mo, €79/yr), Premium (€20/mo, €159/yr)
+- [ ] Generate checkout links for each tier
+- [ ] `app.login` table has `plan` column (`free` | `standard` | `premium`) — gate Canvas import and AI search behind it
+- [ ] Pricing page at `/pricing` live, with checkout buttons
+- [ ] Polar webhook endpoint `/api/polar/webhook` to handle subscription events
 - [ ] Test mode payments work end-to-end before going live
 
-### v2 (post-launch, when traffic justifies)
+### Manual fallback (if webhook is delayed)
 
-- [ ] Webhook endpoint `/api/stripe/webhook` implemented to handle `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed`
-- [ ] Replace manual fulfilment with webhook-driven plan flips
-- [ ] Self-service plan changes from `/settings/billing` (Stripe Customer Portal)
+- Polar dashboard shows all active subscriptions
+- Manual fulfilment: check Polar → set `login.plan` in DB
+- Automate via webhook when volume justifies
 
 ---
 
@@ -139,7 +132,7 @@ For launch: **manual flow with Stripe Payment Links**, no webhook automation. Ch
 - [ ] Have a feedback channel ready (Discord server, email, or a simple feedback form in the app)
 - [ ] Know how to check who has registered:
   ```sql
-  SELECT email, created_at FROM app.users ORDER BY created_at DESC LIMIT 20;
+  SELECT email, created_at FROM app.login ORDER BY created_at DESC LIMIT 20;
   ```
 - [ ] Know how to check if Canvas imports are working:
   ```sql
@@ -159,7 +152,7 @@ For launch: **manual flow with Stripe Payment Links**, no webhook automation. Ch
 | Manual QA      | 10    | 0    | Do yourself first            |
 | Monitoring     | 5     | 0    | Set up before inviting users |
 | Product polish | 5     | ?    | Before inviting users        |
-| Payments       | 7     | 0    | When ready to charge         |
+| Payments       | 7     | 0    | Polar setup when ready to charge |
 | Rollout        | 6     | 0    | Day of launch                |
 
-> Last verified: 2026-04-30
+> Last verified: 2026-05-25

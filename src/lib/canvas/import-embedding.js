@@ -19,6 +19,7 @@ import { persistMarkerAssetsForNote } from "../marker-output.ts";
 import { createAsyncLimiter } from "./async-limiter.js";
 import { parseEnvConcurrency } from "./import-metrics.js";
 import logger from "../logger.ts";
+import { sanitizePostgresText } from "../text-sanitize.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 
@@ -96,17 +97,21 @@ export async function processRagPipeline(
     const extractionElapsedMs = Date.now() - extractionStart;
 
     const {
-      rawText,
-      chunks,
+      rawText: extractedRawText,
+      chunks: extractedChunks,
       source,
       markerImages = {},
       markerMetadata = null,
     } = extraction;
+    const rawText = sanitizePostgresText(extractedRawText ?? "");
+    const chunks = (extractedChunks ?? []).map((chunk) =>
+      sanitizePostgresText(chunk),
+    );
     const isText = source === "text";
 
     // skipped: non-PDF binary with no Marker and no text fallback — stored as attachment only
     if (source === "skipped") {
-      return null;
+      return { noteId, chunksStored: 0 };
     }
 
     logger.info("canvas-import-file-extracted", {

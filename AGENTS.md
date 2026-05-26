@@ -26,15 +26,16 @@
 
 ### 4. Branch & Deploy Strategy
 
-- **`main`** is the production branch — deployed to oghmanotes.ie via AWS Amplify
-- **`dev`** is the development branch — deployed to dev.oghmanotes.ie
+- **`main`** is the production branch — deployed to oghmanotes.ie by Jenkins onto the homelab Docker stack
+- **`dev`** is the development branch — deployed to dev.oghmanotes.ie by Jenkins onto the homelab Docker stack
 - deploy flow: `dev` → `main` (via PR)
 - never push directly to `main` — always go through PR with required status checks
-- **Amplify app**: `<amplify-app-id>` in `eu-west-1`, auto-builds on push to `main` and `dev`
-- **Build env**: runtime-only env vars (DATABASE_URL, NEXTAUTH_URL, etc.) are unset before `npm run build` to prevent empty-string values from crashing SSR prerendering — they are written to `.env.production` for runtime use only
-- **Migrations**: auto-applied during Amplify build via `amplify.yml` → `npm run migrate` (runs before env vars are unset). Add new `.sql` files to `database/migrations/` — they apply on next deploy
-- **Migrator credentials**: `oghmanotes/migrator` secret in Secrets Manager (eu-west-1), uses `oghma_admin` role. The prebuild script (`scripts/prebuild-migrate.mjs`) pulls this secret at build time — credentials never touch env or disk at runtime
-- **Migration tracking**: `app.schema_migrations` table. Migrations 001-017 are legacy (pre-tracking, seeded by the prebuild bootstrap). New migrations use sequential numbering from 018+
+- **Jenkins jobs**: `oghma-prod` tracks `main`; `oghma-dev` tracks `dev`. GitHub webhook → `https://jenkins.semyon.ie/github-webhook/`
+- **Runtime env**: `/home/semyon/jenkins/env/oghma-prod.env` and `/home/semyon/jenkins/env/oghma-dev.env` on the homelab. App and worker containers both read these files.
+- **Homelab stack**: persistent services live under `/home/semyon/server-stacks/oghma/` (`oghma-postgres`, `oghma-redis`, `oghma-rustfs`, `oghma-nginx`, Cloudflare tunnel containers). App/worker containers are replaced by Jenkins.
+- **Migrations**: Jenkins runs `node scripts/prebuild-migrate.mjs` before deploying the app image. It uses `MIGRATION_DATABASE_URL` from the Jenkins env file and records applied migrations in `app.schema_migrations`.
+- **Migration numbering**: migrations `001-017` are legacy/bootstrap; newer migrations continue from the highest existing number in `database/migrations/`.
+- **AWS role now**: AWS is not the app host. It is kept for Route 53/SES and any explicitly documented external services.
 
 ### 5. Code Changes
 

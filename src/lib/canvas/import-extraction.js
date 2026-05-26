@@ -16,6 +16,7 @@ import { parseEnvConcurrency } from "./import-metrics.js";
 import { processRagPipeline } from "./import-embedding.js";
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
+import { sanitizePostgresText } from "../text-sanitize.ts";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -709,6 +710,11 @@ export async function processExtractionRetry(msg) {
 
         if (result) {
           await sql`
+            UPDATE app.canvas_imports
+            SET status = 'complete', error_message = NULL, updated_at = NOW()
+            WHERE note_id = ${noteId}::uuid AND status = 'pending_retry'
+          `;
+          await sql`
             UPDATE app.ingestion_jobs
             SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
             WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
@@ -837,8 +843,10 @@ export async function processMarkerComplete(msg) {
   const { normalizeMarkerMarkdown } = await import("../marker-output.ts");
   const { splitMarkdownToChunks } = await import("../ocr.ts");
 
-  const normalizedText = normalizeMarkerMarkdown(rawMarkdown);
-  const chunks = splitMarkdownToChunks(normalizedText);
+  const normalizedText = sanitizePostgresText(normalizeMarkerMarkdown(rawMarkdown));
+  const chunks = splitMarkdownToChunks(normalizedText).map((chunk) =>
+    sanitizePostgresText(chunk),
+  );
 
   try {
     const result = await processRagPipeline(

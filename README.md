@@ -14,7 +14,7 @@ Features:
 
 Planned:
 - Note export (markdown/PDF)
-- Payments (Student/Pro tiers)
+- Payments (Standard/Premium tiers)
 
 ## Quick start
 
@@ -41,7 +41,7 @@ Visit `http://localhost:3000`.
 - Moonshot AI — Kimi K2.5 (LLM)
 - AWS SES — outbound email (verification, reset, contact form)
 
-See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for what's left on AWS.
+The live app runs on the homelab Docker stack behind Cloudflare tunnels. See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for what's left on AWS.
 
 ## Setup
 

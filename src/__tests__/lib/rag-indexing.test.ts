@@ -26,4 +26,10 @@ describe("normalizeChunksForIndexing", () => {
 
     expect(out).toEqual(["heading one", "heading two"]);
   });
+
+  it("removes nul bytes before storing chunks", () => {
+    const out = normalizeChunksForIndexing(["alpha\u0000 beta", "\u0000"]);
+
+    expect(out).toEqual(["alpha beta"]);
+  });
 });
