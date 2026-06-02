@@ -76,13 +76,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
           );
         }
       } catch {
-        if (!cancelled && fileId !== paneAFileId) {
-          setPaneA({
-            fileId,
-            fileType: "note",
-            title: fileId,
-          });
-        }
+        if (!cancelled) router.replace("/notes");
       }
     };
 
