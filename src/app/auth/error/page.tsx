@@ -57,7 +57,7 @@ function AuthErrorContent() {
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href="/login"
-              className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-400"
+              className="flex w-full justify-center rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-700"
             >
               Back to sign in
             </Link>

@@ -68,7 +68,7 @@ export default function NewTaskModal({
 
           <form onSubmit={handleSubmit} className="p-4 space-y-3">
             <div>
-              <label className="block text-xs uppercase tracking-widest text-text-tertiary mb-1">
+              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
                 {t("Title")}
               </label>
               <input
@@ -83,7 +83,7 @@ export default function NewTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-widest text-text-tertiary mb-1">
+              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
                 {t("Course")}
               </label>
               <input
@@ -103,7 +103,7 @@ export default function NewTaskModal({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs uppercase tracking-widest text-text-tertiary mb-1">
+                <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
                   {t("Due Date")}
                 </label>
                 <input
@@ -114,7 +114,7 @@ export default function NewTaskModal({
                 />
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-widest text-text-tertiary mb-1">
+                <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
                   {t("Est. Hours")}
                 </label>
                 <input
@@ -130,7 +130,7 @@ export default function NewTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-widest text-text-tertiary mb-1">
+              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
                 {t("Description")}
               </label>
               <textarea
@@ -145,7 +145,7 @@ export default function NewTaskModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="w-full rounded-radius-md bg-primary-500 py-2 text-sm font-medium text-white hover:bg-primary-400 transition-colors disabled:opacity-50"
+              className="w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {saving ? t("Creating...") : t("Create Task")}
             </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { BloomLevel } from "@/lib/quiz/types";
@@ -24,7 +24,10 @@ export default function QuestionCard({
   onAnswer,
 }: QuestionCardProps) {
   const { t } = useI18n();
-  const options = Array.isArray(question.options) ? question.options : [];
+  const options = useMemo(
+    () => (Array.isArray(question.options) ? question.options : []),
+    [question.options],
+  );
   const hasOptions = options.length > 0;
   const [selected, setSelected] = useState<number | null>(null);
   const [fillInAnswer, setFillInAnswer] = useState("");

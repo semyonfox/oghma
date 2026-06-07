@@ -274,7 +274,7 @@ export default function NotesInspectorSidebar() {
                       }}
                       disabled={isSavingTag}
                       placeholder={t("add tag")}
-                      className="flex-1 bg-transparent text-xs text-text placeholder-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
+                      className="flex-1 bg-transparent text-xs text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
                     />
                     <button
                       type="button"

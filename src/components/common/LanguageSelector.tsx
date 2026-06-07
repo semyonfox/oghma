@@ -165,7 +165,7 @@ export default function LanguageSelector({
                 <ComboboxOption
                   key={lang.code}
                   value={lang.code}
-                  className="cursor-default px-3 py-2 text-white select-none data-focus:bg-primary-500 data-focus:outline-hidden"
+                  className="cursor-default px-3 py-2 text-white select-none data-focus:bg-primary-600 data-focus:outline-hidden"
                 >
                   <div className="flex items-center">
                     <span className="text-xl mr-3">{lang.flag}</span>

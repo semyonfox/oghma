@@ -231,7 +231,7 @@ export default function WeekView() {
             <span
               className={`
               mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold
-              ${d.isToday ? "bg-primary-500 text-text-on-primary" : "text-text-secondary"}
+              ${d.isToday ? "bg-primary-600 text-text-on-primary" : "text-text-secondary"}
             `}
             >
               {d.dayNum}

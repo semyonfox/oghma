@@ -208,7 +208,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                   }}
                   disabled={isCreating}
                   autoFocus
-                  className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none disabled:opacity-50"
+                  className="flex-1 bg-transparent text-sm text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
                   placeholder="Untitled"
                 />
                 <span className="text-xs text-text-tertiary flex-shrink-0">.md</span>

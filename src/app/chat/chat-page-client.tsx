@@ -306,12 +306,6 @@ export default function ChatPageClient() {
     syncScopeUrl(selectedNotes, nextFolders);
   };
 
-  const clearSelection = () => {
-    setSelectedNotes([]);
-    setSelectedFolders([]);
-    syncScopeUrl([], []);
-  };
-
   return (
     <div className="flex h-screen w-full overflow-hidden bg-app-page text-text">
       <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
@@ -384,7 +378,7 @@ export default function ChatPageClient() {
 
               <div className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end pr-1">
                 <span
-                  className="text-[10px] text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                  className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                   suppressHydrationWarning
                 >
                   {relativeDate(conv.createdAt)}

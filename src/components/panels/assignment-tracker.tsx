@@ -102,7 +102,7 @@ function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
           return (
             <div
               key={c.name}
-              className="flex items-center gap-1.5 text-xs text-text-tertiary leading-none"
+              className="flex items-center gap-1.5 text-xs text-text-tertiary leading-4"
             >
               <span
                 className="inline-block w-2 h-2 rounded-full shrink-0"
@@ -488,7 +488,7 @@ export default function AssignmentTracker() {
                       )}
                     </button>
                     {a.course_name && (
-                      <span className="inline-flex items-center gap-1 text-xs text-text-tertiary leading-none">
+                      <span className="inline-flex items-center gap-1 text-xs text-text-tertiary leading-4">
                         <span
                           className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
                           style={{

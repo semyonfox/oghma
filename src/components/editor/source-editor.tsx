@@ -30,7 +30,8 @@ const appTheme = EditorView.theme(
   {
     "&": {
       height: "100%",
-      fontSize: "14px",
+      fontSize: "15px",
+      lineHeight: "1.6",
       backgroundColor: "transparent",
     },
     ".cm-scroller": {
@@ -41,7 +42,7 @@ const appTheme = EditorView.theme(
     },
     ".cm-content": {
       width: "100%",
-      maxWidth: "48rem",
+      maxWidth: "68ch",
       margin: "0 auto",
       padding: "0",
     },
@@ -61,9 +62,9 @@ const appTheme = EditorView.theme(
       borderLeftColor: "#e2e8f0",
     },
     // markdown-specific token styling
-    ".cm-header-1": { fontSize: "1.6em", fontWeight: "700" },
-    ".cm-header-2": { fontSize: "1.35em", fontWeight: "600" },
-    ".cm-header-3": { fontSize: "1.15em", fontWeight: "600" },
+    ".cm-header-1": { fontSize: "1.6em", fontWeight: "700", lineHeight: "1.1" },
+    ".cm-header-2": { fontSize: "1.35em", fontWeight: "600", lineHeight: "1.1" },
+    ".cm-header-3": { fontSize: "1.15em", fontWeight: "600", lineHeight: "1.15" },
     ".cm-strong": { fontWeight: "700" },
     ".cm-em": { fontStyle: "italic" },
     ".cm-strikethrough": { textDecoration: "line-through" },

@@ -62,7 +62,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
               onClick={() => handleSectionClick(section.id)}
               className={`relative p-3 rounded-lg transition-all duration-200 ${
                 isActive
-                  ? "bg-primary-500 text-text-on-primary"
+                  ? "bg-primary-600 text-text-on-primary"
                   : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
               }`}
               title={section.label}
@@ -97,7 +97,7 @@ export const NavigationSidebar: FC<NavigationSidebarProps> = ({
         onClick={() => handleSectionClick("settings")}
         className={`relative p-3 rounded-lg transition-all duration-200 mt-auto ${
           activeSection === "settings"
-            ? "bg-primary-500 text-text-on-primary"
+            ? "bg-primary-600 text-text-on-primary"
             : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
         }`}
         title={t("Settings")}

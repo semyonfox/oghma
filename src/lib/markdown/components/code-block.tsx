@@ -35,7 +35,7 @@ export default function CodeBlock({
     <div className="relative group my-4 rounded-lg overflow-hidden border border-border-subtle">
       {language && (
         <div className="flex items-center justify-between px-4 py-2.5 bg-surface border-b border-border-subtle">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-text-secondary">
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
             {language}
           </span>
           <button

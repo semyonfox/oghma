@@ -213,7 +213,7 @@ export default function MonthView() {
                 dateTime={day.date}
                 className={`
                   inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
-                  ${day.isToday ? "bg-primary-500 font-semibold text-text-on-primary" : ""}
+                  ${day.isToday ? "bg-primary-600 font-semibold text-text-on-primary" : ""}
                   ${day.isSelected && !day.isToday ? "bg-subtle font-semibold text-text-secondary" : ""}
                   ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
                 `}
@@ -223,7 +223,7 @@ export default function MonthView() {
 
               {/* ogham streak badge */}
               {reviewDates.has(day.date) && (
-                <span className="absolute top-1 right-1.5 text-xs text-text-tertiary opacity-60 leading-none">
+                <span className="absolute top-1 right-1.5 text-xs text-text-tertiary opacity-60 leading-4">
                   ᚑ
                 </span>
               )}

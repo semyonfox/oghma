@@ -64,7 +64,7 @@ function CourseButton({
         </div>
         <div className="flex gap-3 mt-1 text-xs">
           {isArchived && (
-            <span className="rounded-full border border-border-subtle px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-tertiary">
+            <span className="rounded-full border border-border-subtle px-2 py-0.5 text-xs uppercase tracking-wide text-text-tertiary">
               {t("Archived")}
             </span>
           )}

@@ -15,7 +15,7 @@ interface PreviewRendererProps {
 export default function PreviewRenderer({ content, noteId }: PreviewRendererProps) {
   return (
     <MarkdownRenderer
-      className="markdown-preview w-full prose prose-lg prose-invert max-w-none"
+      className="markdown-preview w-full max-w-none"
       remarkPlugins={[remarkBreaks]}
       rehypePlugins={[
         rehypeRaw,

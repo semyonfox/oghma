@@ -226,7 +226,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             </div>
           ) : (
             <span
-              className={`flex-1 min-w-0 truncate text-[13px] leading-none ${
+              className={`flex-1 min-w-0 truncate text-[13px] leading-snug ${
                 isFolder ? "font-medium" : ""
               } ${
                 syncStatus === "modified"
@@ -321,7 +321,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
 
         {isFolder && isExpanded && !hasChildren && initLoaded && (
           <div
-            className="h-6 flex items-center text-[11px] text-text-tertiary/50 select-none italic"
+            className="h-6 flex items-center text-xs text-text-tertiary/50 select-none italic"
             style={{ paddingLeft: `${pl + INDENT_PX + 8}px` }}
           >
             {t("No pages inside")}

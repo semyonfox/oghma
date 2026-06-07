@@ -499,7 +499,7 @@ export default function DataExportSection() {
                 <a
                   href={exportDownloadUrl}
                   download
-                  className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 inline-block"
+                  className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 inline-block"
                 >
                   {t("Download vault.zip")}
                 </a>

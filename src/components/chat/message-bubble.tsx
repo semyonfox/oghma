@@ -70,7 +70,7 @@ const ThinkingBlock: FC<{
         {isStreaming ? (
           <span className="w-3 h-3 border-2 border-text-tertiary/30 border-t-text-tertiary/70 rounded-full animate-spin flex-shrink-0" />
         ) : (
-          <span className="text-primary-400/60 text-[10px] flex-shrink-0">◆</span>
+          <span className="text-primary-400/60 text-xs flex-shrink-0">◆</span>
         )}
         <span className="text-xs text-text-tertiary italic flex-1">{label}</span>
         <ChevronDownIcon
@@ -212,7 +212,7 @@ export const FullMessageBubble: FC<{
           <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
-          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-text-tertiary">
+          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
             {hasContent && (
               <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
                 <CopyMessageButton content={m.content} />
@@ -255,7 +255,7 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+      <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
         <p className="opacity-50" suppressHydrationWarning>
           {new Date(m.timestamp).toLocaleTimeString([], {
             hour: "2-digit",

@@ -199,11 +199,11 @@ const SidebarList = () => {
           role="toolbar"
           aria-label={t("Notes actions")}
         >
-          <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
+          <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
           {selectedCount > 1 && (
-            <div className="flex items-center gap-1 mr-1 text-[11px] text-text-tertiary">
+            <div className="flex items-center gap-1 mr-1 text-xs text-text-tertiary">
               <span>{selectedCount} selected</span>
               <button
                 onClick={(e) => {

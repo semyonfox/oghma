@@ -43,7 +43,7 @@ const MenuItem = ({
     </span>
     <span className="flex-1 text-left truncate">{label}</span>
     {shortcut && (
-      <span className="text-[11px] text-text-tertiary ml-4 flex-shrink-0">
+      <span className="text-xs text-text-tertiary ml-4 flex-shrink-0">
         {shortcut}
       </span>
     )}

@@ -155,7 +155,7 @@ export default function BlogPost({ params }) {
             <div className="mt-8">
               <Link
                 href="/register"
-                className="rounded-md bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600"
+                className="rounded-md bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
               >
                 {t("blog.cta.button")}
               </Link>

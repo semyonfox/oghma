@@ -129,6 +129,8 @@ html,
 body {
   @apply overflow-x-hidden antialiased;
   direction: ltr;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 @layer components {
@@ -170,14 +172,17 @@ body {
 
   .lexical-editor h1 {
     @apply text-4xl font-bold my-4 mt-6;
+    line-height: 1.1;
   }
 
   .lexical-editor h2 {
     @apply text-3xl font-bold my-3 mt-5;
+    line-height: 1.1;
   }
 
   .lexical-editor h3 {
     @apply text-2xl font-bold my-2 mt-4;
+    line-height: 1.15;
   }
 
   .lexical-editor ul,
@@ -212,14 +217,17 @@ body {
 
   .editor-heading-h1 {
     @apply text-4xl font-bold my-4 mt-6;
+    line-height: 1.1;
   }
 
   .editor-heading-h2 {
     @apply text-3xl font-bold my-3 mt-5;
+    line-height: 1.1;
   }
 
   .editor-heading-h3 {
     @apply text-2xl font-bold my-2 mt-4;
+    line-height: 1.15;
   }
 
   .editor-list-ul {
@@ -255,6 +263,33 @@ body {
   .btn-hover {
     @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
   }
+}
+
+.markdown-preview {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.markdown-preview p {
+  margin: 0 0 1rem;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  line-height: 1.1;
+}
+
+.markdown-preview h1 {
+  margin: 2rem 0 1rem;
+}
+
+.markdown-preview h2 {
+  margin: 1.75rem 0 0.75rem;
+}
+
+.markdown-preview h3 {
+  margin: 1.5rem 0 0.5rem;
 }
 
 /* react-complex-tree - obsidian-style overrides */
