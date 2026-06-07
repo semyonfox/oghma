@@ -3,6 +3,8 @@
 Date: 2026-03-30
 Prepared for review/scrutiny
 
+> Historical report: this was a point-in-time audit from March 2026. It is useful for project history and review provenance, but it is not the current source of truth for deployment, queueing, storage, or AI-provider architecture. For current docs, start with [README.md](README.md) and [infra/HOMELAB.md](../infra/HOMELAB.md).
+
 This document merges:
 
 - `/home/semyon/Downloads/project-report-condensed.md`

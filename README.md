@@ -1,51 +1,44 @@
 # OghmaNotes
 
-A note-taking app built for the CT216 software engineering module.
+OghmaNotes is a study workspace for notes, Canvas LMS imports, semantic search, RAG chat, quizzes, flashcards, and planning.
 
-Features:
-- Markdown notes with a tree-based folder system
-- User auth (register/login/password reset) + Google/GitHub OAuth
-- PDF uploads to S3
-- Soft delete (notes are recoverable for 7 days)
-- Search / command palette (Cmd+K)
-- AI chat with RAG (semantic search over your notes)
-- Canvas LMS import (PDF extraction + embedding pipeline)
-- Quiz generation with spaced repetition (FSRS)
+## Current Features
 
-Planned:
-- Note export (markdown/PDF)
-- Payments (Standard/Premium tiers)
+- Tree-based notes and folders with rich-text / markdown editing
+- File uploads and viewers for PDFs, images, and media
+- RAG chat and semantic search over indexed notes
+- Canvas LMS import with background extraction and embedding jobs
+- Quiz and spaced-repetition study flows using FSRS
+- Assignment planning, time blocks, and Pomodoro tracking
+- Vault import/export for Markdown/Obsidian-style archives
+- Credentials auth plus Google/GitHub OAuth support
 
-## Quick start
+## Quick Start
 
 ```bash
 npm install
 cp .env.example .env.local
-# fill in S3 credentials in .env.local
 docker-compose up
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
+The local app runs at `http://localhost:3000`. See [SETUP.md](SETUP.md) for required environment variables and common commands.
 
-## Tech stack
+## Stack
 
-- Next.js (frontend + API routes, runs in Docker on the homelab via Cloudflare Tunnel)
+- Next.js app router for UI and API routes
 - PostgreSQL 17 with pgvector
-- rustfs (S3-compatible object store)
-- BullMQ on Redis (canvas-import + extract-retry queues; worker is a sibling container)
-- Zustand (state)
-- Lexical (rich text editor)
-- SiliconFlow — Qwen3-Embedding-8B (embeddings, 4096d)
-- OpenRouter — Qwen3-Reranker-8B (reranking)
-- Moonshot AI — Kimi K2.5 (LLM)
-- AWS SES — outbound email (verification, reset, contact form)
+- RustFS or S3-compatible object storage
+- Redis + BullMQ for Canvas, extraction, vault import, and vault export jobs
+- Lexical, CodeMirror, Zustand, and Tailwind for the app UI
+- Configurable LLM, embedding, rerank, and OCR providers
+- AWS SES for outbound email; Route 53 for DNS
 
-The live app runs on the homelab Docker stack behind Cloudflare tunnels. See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for what's left on AWS.
+Production and dev currently run on the homelab Docker/Jenkins stack behind Cloudflare tunnels. Current operations live in [infra/HOMELAB.md](infra/HOMELAB.md); AWS is limited to DNS/email unless explicitly reintroduced in [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md).
 
-## Setup
+## Documentation
 
-See [SETUP.md](SETUP.md).
+Start with [docs/README.md](docs/README.md) for the canonical docs map. Product planning is in [docs/ROADMAP.md](docs/ROADMAP.md), launch readiness is in [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md), and pricing/cost planning is in [docs/PRICING.md](docs/PRICING.md).
 
 ## Credits
 

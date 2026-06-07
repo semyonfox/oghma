@@ -35,12 +35,12 @@
 
 ## 3. Legal / Compliance (GDPR — you're in Ireland, this is not optional)
 
-- [ ] **Privacy policy** published at `/privacy` — must cover: what data is collected, stored, how long, user rights (access, deletion, portability)
-- [ ] **Terms of service** published at `/terms` — include the "early experimental" clause: service may have downtime, data loss possible (backups maintained but not guaranteed), features may change without notice — exchange for discounted launch pricing
-- [ ] **Cookie notice** — do you use any tracking cookies? If yes, consent banner required. If no analytics/tracking, a simple "we use only essential cookies" banner is fine.
-- [ ] **Contact email** listed for data requests (GDPR Article 12) — a real inbox, not a form
-- [ ] **Account deletion actually works** (see section 1) — legally required under GDPR Article 17
-- [ ] Data residency: app data on Irish homelab; AWS eu-west-1 for SES/Route 53 where used
+- [x] **Privacy policy** published at `/privacy` — review wording before public launch
+- [x] **Terms of service** published at `/terms` — includes early-service notice; review wording before public launch
+- [ ] **Cookie notice** — `/cookies` exists; confirm whether the app uses tracking cookies and whether a banner is needed
+- [x] **Contact email** listed for data requests (GDPR Article 12) — privacy/terms pages use `contact@oghmanotes.ie`
+- [x] **Account deletion actually works** (see section 1) — legally required under GDPR Article 17
+- [x] Data residency documented: app data on Irish homelab; AWS eu-west-1 for SES/Route 53 where used
 
 ---
 
@@ -99,26 +99,28 @@ Do these yourself end-to-end in production before inviting anyone:
 - [ ] Onboarding — new user lands on an empty workspace with no clue what to do. Add at minimum a welcome note or tooltip pointing at Canvas import
 - [ ] Error states are user-friendly (not raw JSON or blank screens)
 - [ ] Cold-start UX for OCR — homelab may use fallback extraction or optional Marker, so keep "Processing your files..." copy honest when OCR/indexing takes time.
-- [ ] "Coming soon" buttons (note export, import, AI panel actions) — either remove them or disable with a tooltip. Don't show broken buttons to real users.
+- [ ] "Coming soon" buttons and disabled actions — either remove them or disable with a tooltip. Don't show broken buttons to real users.
 
 ---
 
-## 8. Payments — Polar (Merchant of Record)
+## 8. Payments — Stripe Managed Payments (Merchant of Record)
 
-Using [Polar](https://polar.sh) instead of Stripe — they handle EU VAT as Merchant of Record, so we don't need to register for Irish VAT or file returns. 5% fee (vs Stripe ~3% + you handle tax).
+Using Stripe Managed Payments instead of plain Stripe Checkout. It keeps the payment stack Merchant-of-Record/tax-managed while preserving Stripe's mature checkout, billing portal, webhooks, dashboard, and low payout friction. Decision record: [`docs/PAYMENT_PROCESSOR_DECISION.md`](PAYMENT_PROCESSOR_DECISION.md).
 
-- [ ] Polar account created, organisation set up
-- [ ] Products created: Standard (€10/mo, €79/yr), Premium (€20/mo, €159/yr)
-- [ ] Generate checkout links for each tier
-- [ ] `app.login` table has `plan` column (`free` | `standard` | `premium`) — gate Canvas import and AI search behind it
-- [ ] Pricing page at `/pricing` live, with checkout buttons
-- [ ] Polar webhook endpoint `/api/polar/webhook` to handle subscription events
+- [ ] Stripe account has Managed Payments enabled and Oghma's digital subscription use case approved
+- [ ] Product created: Standard (€10/mo). Keep Premium and annual pricing disabled until usage limits and demand are clearer
+- [ ] Checkout session/link created for Standard
+- [ ] `app.login` table has billing fields (`billing_provider`, provider customer/subscription IDs, `plan`, `billing_status`, `current_period_end`) — gate Canvas import and AI search from local DB state
+- [x] Pricing page at `/pricing` live without paid checkout
+- [ ] Checkout buttons wired only after Stripe Managed is approved and tested
+- [ ] Stripe webhook endpoint `/api/stripe/webhook` handles checkout, subscription, invoice/payment success, and invoice/payment failure events
+- [ ] Stripe customer portal linked from settings for card updates and cancellation
 - [ ] Test mode payments work end-to-end before going live
 
 ### Manual fallback (if webhook is delayed)
 
-- Polar dashboard shows all active subscriptions
-- Manual fulfilment: check Polar → set `login.plan` in DB
+- Stripe dashboard shows all active subscriptions
+- Manual fulfilment: check Stripe → set `login.plan`/billing status in DB
 - Automate via webhook when volume justifies
 
 ---
@@ -147,12 +149,12 @@ Using [Polar](https://polar.sh) instead of Stripe — they handle EU VAT as Merc
 | -------------- | ----- | ---- | ---------------------------- |
 | Broken things  | 5     | 3    | 2 remaining (SES, Canvas E2E) |
 | Security       | 8     | ?    | Review before launch         |
-| GDPR           | 6     | 1    | Required by law (delete account ✓) |
+| GDPR           | 6     | 5    | Cookie/tracking decision still open |
 | Infrastructure | 11    | ?    | Verify in prod               |
 | Manual QA      | 10    | 0    | Do yourself first            |
 | Monitoring     | 5     | 0    | Set up before inviting users |
 | Product polish | 5     | ?    | Before inviting users        |
-| Payments       | 7     | 0    | Polar setup when ready to charge |
+| Payments       | 9     | 1    | Stripe Managed setup when ready to charge |
 | Rollout        | 6     | 0    | Day of launch                |
 
-> Last verified: 2026-05-25
+> Last verified: 2026-06-07

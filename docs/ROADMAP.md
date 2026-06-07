@@ -1,6 +1,6 @@
 # OghmaNote — Product Roadmap
 
-> Last updated: 2026-05-21
+> Last updated: 2026-06-07
 > Shaped by: competitive analysis vs BetterCampus + RemNote, real AWS billing data, user feedback signals
 > See also: `PRICING.md` (cost model + live homelab arch), `LAUNCH_CHECKLIST.md` (pre-launch blockers). Operational/governance + competitive research kept private.
 
@@ -20,16 +20,18 @@
 
 ## phase 0 — fix before anyone touches it
 
-> these are launch blockers. nothing ships until these are done. tracked in `LAUNCH_CHECKLIST.md`.
+> canonical checklist: `LAUNCH_CHECKLIST.md`.
 
-- [x] change password UI wired up
-- [x] delete account (GDPR Article 17) — soft-delete with 30-day grace period
+Resolved: change password, 30-day account deletion grace period, privacy page, terms page, and public pricing page routes exist.
+
+Still blocking launch:
+
 - [ ] Canvas import end-to-end verified in prod (PDF → extract → embed → searchable)
-- [ ] SES out of sandbox (password reset emails work for all addresses)
-- [ ] secrets rotated from dev values
-- [ ] billing alerts set ($50 / $100 / $200) — **not set, cloudwatch alarms empty**
-- [ ] privacy policy + ToS published — **no /privacy or /terms routes exist**
-- [ ] cold-start UX — show "processing, may take a few minutes" instead of silent spinner
+- [ ] SES out of sandbox
+- [ ] secrets rotated from dev/default values
+- [ ] billing/infra alerts configured
+- [ ] legal pages reviewed for launch accuracy
+- [ ] cold-start UX shows clear "processing may take a few minutes" copy
 
 ---
 

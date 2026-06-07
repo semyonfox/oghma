@@ -1,434 +1,165 @@
 ---
-title: OghmaNotes Complete User Flow and System Architecture
+title: OghmaNotes User Flow And Architecture
 tags:
   - oghmanotes
   - architecture
   - demo
   - user-flow
 created: 2026-04-01
+updated: 2026-06-07
 ---
 
-# OghmaNotes - Complete User Flow and Architecture (Demo Resource)
+# OghmaNotes User Flow And Architecture
 
-This document is an Obsidian-friendly demo companion that explains:
+This is the current demo companion. It is intentionally compact so it can stay accurate as the app changes.
 
-- the full end-to-end user flow
-- the full system architecture
-- feature-specific architecture and interaction flows
+## System At A Glance
 
-Use this as a presenter guide plus an additional technical resource during demos.
+OghmaNotes combines:
 
-## 1) System At A Glance
+- notes, folders, rich-text / markdown editing, and uploads
+- Canvas LMS import into the notes tree
+- background extraction, chunking, embedding, and indexing
+- semantic search and RAG chat over personal notes
+- quiz / flashcard study flows with FSRS scheduling
+- assignment planning, time blocks, and Pomodoro logging
+- vault import/export jobs
 
-OghmaNotes is a study platform built on Next.js that combines:
-
-- markdown note-taking with folder tree management
-- AI semantic search and RAG chat over personal notes
-- spaced repetition quiz sessions powered by FSRS
-- assignment planning with calendar, time-blocking, and pomodoro sessions
-- vault import/export pipelines with async worker processing
-
----
-
-## 2) Complete User Journey (High-Level)
+## User Journey
 
 ```mermaid
 flowchart TD
-    A[User lands on homepage] --> B{Authenticated?}
-    B -- No --> C[Register or login]
-    C --> D[Session established]
-    B -- Yes --> D
-
-    D --> E[Open Notes workspace]
-    E --> F[Create notes/folders or upload files]
-    F --> G[Content stored in PostgreSQL + S3 attachments]
-    G --> H[Text extracted + chunked + embedded]
-
-    H --> I[Use semantic search]
-    H --> J[Use RAG chat with citations]
-    H --> K[Start quiz session from notes/chunks]
-
-    K --> L[Answer questions]
-    L --> M[FSRS updates scheduling and card state]
-
-    D --> N[Manage assignments/calendar]
-    N --> O[Create time blocks]
-    O --> P[Run pomodoro sessions]
-    P --> Q[Track logged study hours]
-
-    D --> R[Vault import/export]
-    R --> S[SQS job queued]
-    S --> T[Worker processes data]
-    T --> U[Status polling and completion]
+    A[Land on app] --> B{Authenticated?}
+    B -- No --> C[Register, login, or OAuth]
+    B -- Yes --> D[Workspace]
+    C --> D
+    D --> E[Create notes or import Canvas/vault/files]
+    E --> F[Store content and attachments]
+    F --> G[Extract, chunk, embed, index]
+    G --> H[Search and RAG chat]
+    G --> I[Quiz and flashcards]
+    D --> J[Assignments and planner]
+    D --> K[Vault export]
 ```
 
----
-
-## 3) Full System Architecture
+## Runtime Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Client[Client - Next.js React UI]
-      UI1[Landing + Auth pages]
-      UI2[Notes VSCode layout]
-      UI3[Chat UI]
-      UI4[Quiz UI]
-      UI5[Calendar/Planner UI]
-      UI6[Settings + Vault UI]
-    end
-
-    subgraph App[Next.js App Router + API Layer]
-      APIA[/api/auth/*]
-      APIN[/api/notes* + /api/tree* + /api/upload + /api/extract]
-      APIS[/api/search]
-      APIC[/api/chat + /api/chat/sessions*]
-      APIQ[/api/quiz/*]
-      APIP[/api/time-blocks* + /api/pomodoro]
-      APIV[/api/vault/*]
-      APICA[/api/canvas/* + /api/assignments*]
-    end
-
-    subgraph Core[Core Services]
-      AUTH[validateSession: custom JWT cookie + NextAuth session]
-      CHUNK[chunkText and OCR chunking]
-      EMBED[Cohere embed-multilingual-v3.0]
-      RERANK[Cohere rerank-multilingual-v3.0]
-      LLM[Kimi k2.5 via /chat/completions]
-      FSRS[ts-fsrs scheduler]
-    end
-
-    subgraph Data[Data Layer]
-      PG[(PostgreSQL + pgvector)]
-      S3[(AWS S3 storage)]
-      SQS[(AWS SQS queue)]
-      WORKER[Import/Export worker]
-    end
-
-    Client --> App
-    App --> Core
-    App --> Data
-
-    APIV --> SQS --> WORKER --> PG
-    APIV --> SQS --> WORKER --> S3
-    APIN --> S3
-    APIC --> EMBED
-    APIC --> RERANK
-    APIC --> LLM
-    APIQ --> FSRS
-    EMBED --> PG
+    UI[Next.js React UI] --> API[Next.js App Router APIs]
+    API --> DB[(PostgreSQL + pgvector)]
+    API --> STORE[(RustFS / S3-compatible storage)]
+    API --> REDIS[(Redis + BullMQ)]
+    REDIS --> WORKER[App worker container]
+    WORKER --> DB
+    WORKER --> STORE
+    WORKER --> OCR[Marker OCR if configured]
+    API --> AI[LLM / embedding / rerank providers]
+    WORKER --> AI
+    API --> SES[AWS SES email]
 ```
 
----
-
-## 4) Feature Flow - Authentication and Access Control
-
-### Purpose
-
-Allow credentials and OAuth sign-in while enforcing ownership checks on every protected API call.
-
-### Key implementation points
-
-- NextAuth providers: Google, GitHub, and optional Credentials provider.
-- Session strategy: JWT (`session.strategy = "jwt"`).
-- API guard pattern: `validateSession()` on protected routes.
-- `validateSession()` order:
-  1. custom `session` cookie JWT
-  2. NextAuth `auth()` session fallback
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Frontend
-    participant AUTH as Auth API
-    participant DB as app.login
-    participant API as Protected API
-
-    U->>UI: Login/Register/OAuth
-    UI->>AUTH: Submit credentials or OAuth callback
-    AUTH->>DB: Verify/create/link user
-    AUTH-->>UI: Session established
-
-    UI->>API: Request protected endpoint
-    API->>API: validateSession()
-    API->>API: check custom JWT cookie
-    API->>API: fallback to NextAuth auth()
-    API-->>UI: 200 (authorized) or 401
-```
-
----
-
-## 5) Feature Flow - Notes, Upload, Extraction, and Embedding
-
-### Purpose
-
-Capture user knowledge from typed notes and uploaded files, then index it for retrieval.
-
-### Key implementation points
-
-- Upload allowlist includes PDF/text/markdown/Office/image/audio/video MIME types.
-- Magic-number validation verifies file bytes match declared MIME type.
-- Max upload size is controlled by `config.upload.maxFileSizeBytes`.
-- Extract endpoint URL ingestion hard-limits file size to 50MB.
-- Chunking strategy:
-  - `chunkText(...)`: sentence-aligned chunks around 500 chars, no overlap.
-  - OCR markdown split: page separator then header section grouping, target 500 chars.
-- Embeddings:
-  - model: `embed-multilingual-v3.0`
-  - dimension: 1024
-  - chunk embedding input type: `search_document`
-  - batch size: 96
-  - markdown is stripped before embedding; raw chunk text remains stored for RAG context.
-
-```mermaid
-flowchart TD
-    A[User uploads file or edits note] --> B{File or text?}
-    B -- File --> C[Validate size, MIME, magic number]
-    C --> D[Store file in S3 and attachment metadata in DB]
-    D --> E[Extract text via Marker EC2 or Datalab fallback]
-    B -- Text --> F[Use note content directly]
-    E --> G[Chunk text]
-    F --> G
-    G --> H[Strip markdown for vectors]
-    H --> I[Cohere embed batch]
-    I --> J[Insert app.chunks + app.embeddings]
-    J --> K[Update app.notes.extracted_text]
-```
-
----
-
-## 6) Feature Flow - Semantic Search
-
-### Purpose
-
-Return relevant notes/chunks using keyword search and vector similarity.
-
-### Key implementation points
-
-- `mode=keyword` uses `ILIKE` against `title` and `content`.
-- `mode=semantic`:
-  - embeds query using `embed-multilingual-v3.0` with `input_type=search_query`
-  - queries `app.embeddings` with pgvector cosine distance (`<=>`)
-  - deduplicates by note (`DISTINCT ON note_id`), then re-sorts by best distance
-  - supports client-provided `exclude` list of note IDs.
-
-```mermaid
-flowchart TD
-    A[User search query] --> B{mode}
-    B -- keyword --> C[ILIKE in notes title/content]
-    B -- semantic --> D[Embed query]
-    D --> E[Vector search in embeddings]
-    E --> F[Dedup by note, sort by distance]
-    C --> G[Return note results]
-    F --> G
-```
-
----
-
-## 7) Feature Flow - RAG Chat
-
-### Purpose
-
-Answer user questions with note-grounded context and optional streaming tokens.
-
-### Key implementation points
-
-- Endpoint: `/api/chat`.
-- Query flow:
-  1. embed message (`search_query`)
-  2. semantic search candidates (`limit 20`) from chunks/embeddings
-  3. distance cutoff `MAX_DISTANCE = 0.75`
-  4. rerank candidates with Cohere reranker (`top_n=5`, `MIN_RELEVANCE=0.15`)
-  5. build system prompt grouped by note
-  6. call LLM (`model` default `kimi-k2.5`, max tokens from config)
-- History policy: up to last 8 request history messages (or DB session history up to 20 loaded entries).
-- Streaming mode uses SSE events: `meta`, `token`, `done`, `error`.
-- Chat persistence: user + assistant messages stored in `app.chat_messages`; sessions in `app.chat_sessions`.
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant API as /api/chat
-    participant V as Cohere Embed
-    participant DB as pgvector tables
-    participant RR as Cohere Rerank
-    participant LLM as Kimi API
-
-    U->>API: POST message (+ optional noteId/sessionId)
-    API->>V: embed query
-    API->>DB: semantic candidate search (limit 20)
-    API->>RR: rerank candidate chunks (top 5)
-    API->>LLM: send prompt + context + history
-    LLM-->>API: reply or stream tokens
-    API->>DB: persist chat messages + sources
-    API-->>U: response with citations
-```
-
----
-
-## 8) Feature Flow - Quiz and FSRS Scheduling
-
-### Purpose
-
-Generate and schedule adaptive study questions tied to note chunks.
-
-### Key implementation points
-
-- Session creation resolves chunk scope from filters (course/module/note/global).
-- Candidate selection combines:
-  - due cards
-  - uncovered chunks (no generated question yet)
-  - retention cards
-- New question generation uses bloom level progression and question-type selection.
-- FSRS uses `ts-fsrs` state mapping:
-  - `new=0`, `learning=1`, `review=2`, `relearning=3`
-- Answer auto-rating currently maps:
-  - correct -> `Good (3)`
-  - incorrect -> `Again (1)`
-- Fatigue warning triggers when answered > 4 and wrong ratio exceeds `SESSION_DEFAULTS.fatigueThreshold`.
-- Leech indicator triggers when lapses exceed `SESSION_DEFAULTS.leechThreshold`.
-
-```mermaid
-flowchart TD
-    A[Create quiz session] --> B[Resolve chunk IDs from filter]
-    B --> C[Load due/uncovered/mastered candidates]
-    C --> D[Select cards for session]
-    D --> E[Generate new questions for uncovered chunks]
-    E --> F[Persist session with card_ids]
-    F --> G[Serve current question + next intervals]
-    G --> H[User submits answer]
-    H --> I[FSRS review update]
-    I --> J[Store review, update session stats]
-    J --> K[Return next question + warnings + progress]
-```
-
----
-
-## 9) Feature Flow - Planner (Assignments, Time Blocks, Pomodoro)
-
-### Purpose
-
-Convert assignments into executable study plans and tracked focus time.
-
-### Key implementation points
-
-- Time block creation requires `starts_at` and `ends_at`.
-- Pomodoro estimate per block is auto-calculated as `ceil(duration_minutes / 30)`.
-- Pomodoro sessions:
-  - `POST /api/pomodoro` starts a session (default 25 mins, type `focus`)
-  - `PATCH /api/pomodoro` ends session and marks completion
-  - if completed focus session and linked assignment, increment assignment `logged_hours`.
-
-```mermaid
-flowchart TD
-    A[User opens calendar/planner] --> B[Fetch assignments + blocks]
-    B --> C[Create or resize time block]
-    C --> D[Auto compute pomodoro_count]
-    D --> E[Start pomodoro session]
-    E --> F[Complete session]
-    F --> G{Completed focus with assignment?}
-    G -- Yes --> H[Increment assignment logged_hours]
-    G -- No --> I[No hour increment]
-```
-
----
-
-## 10) Feature Flow - Vault Import/Export Jobs
-
-### Purpose
-
-Handle heavy import/export asynchronously and safely using queue workers.
-
-### Key implementation points
-
-- Import presign endpoint creates S3 upload URL for `.zip` (max 10GB).
-- Start import/export creates job row in `app.canvas_import_jobs` with `queued` status.
-- Existing active jobs of same type are cancelled before new job starts.
-- Job message sent to SQS; worker scaling triggered (`ensureWorkerRunning`).
-- Status endpoint returns latest job and progress (import) or refreshed download URL (export).
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant API as Vault API
-    participant S3 as S3
-    participant Q as SQS
-    participant W as Worker
-    participant DB as canvas_import_jobs
-
-    U->>API: Request import presigned URL
-    API-->>U: uploadUrl + s3Key
-    U->>S3: Upload vault zip
-    U->>API: Start import with s3Key
-    API->>DB: Insert queued job
-    API->>Q: Send job message
-    API->>W: Ensure worker running
-    W->>DB: Update status processing -> complete/failed
-    U->>API: Poll status endpoint
-    API-->>U: Job state + progress/download URL
-```
-
----
-
-## 11) Main UI Composition (Demo Talking Point)
-
-The notes workspace uses a 4-pane VSCode-style layout:
-
-- 48px icon navigation rail
-- resizable file tree panel (default ~220px)
-- flexible split editor pane
-- collapsible inspector panel (default ~280px)
-
-Keyboard behavior:
-
-- `Tab` toggles focus between split panes
-- `Escape` closes the right inspector panel
-
-```mermaid
-flowchart LR
-    A[Icon Nav] --> B[File Tree Panel]
-    B --> C[Main Split Editor]
-    C --> D[Inspector Sidebar]
-```
-
----
-
-## 12) Demo Script (Recommended Order)
-
-1. Login/register and show protected access.
-2. Create a note and folder in the tree.
-3. Upload a document and explain extraction + embeddings.
-4. Run semantic search and compare keyword vs semantic behavior.
-5. Ask a question in chat and show note citations.
-6. Start a quiz session and submit a few answers (show adaptive scheduling).
-7. Open calendar, create a time block, and start/complete pomodoro.
-8. Show vault import/export status flow and background job model.
-
----
-
-## 13) Quick Reference - Critical Technical Values
-
-- Embedding model: `embed-multilingual-v3.0` (1024 dimensions)
-- Embedding batch size: `96`
-- Query embedding input type: `search_query`
-- Index embedding input type: `search_document`
-- Rerank model: `rerank-multilingual-v3.0`
-- Rerank top N: `5`
-- Rerank min relevance: `0.15`
-- Chat semantic distance cutoff: `0.75`
-- Default LLM model: `kimi-k2.5`
-- Default LLM max tokens: `2048`
-- Default LLM timeout: `20000ms`
-- Default Cohere timeout: `8000ms`
-- URL extract max file size: `50MB`
-- Vault import upload limit: `10GB`
-
----
-
-## 14) Suggested Obsidian Links
-
-You can link this page into your vault using:
-
-- `[[OghmaNotes Complete User Flow and Architecture]]`
-- `[[Demo Script]]`
-- `[[RAG Chat Architecture]]`
-- `[[Quiz FSRS Flow]]`
+Current deployment:
+
+- app and worker containers are built by Jenkins
+- prod/dev run on the homelab behind Cloudflare tunnels
+- Route 53 and SES remain on AWS
+- queues are BullMQ on Redis, not SQS
+- object storage is RustFS/S3-compatible, not tied to AWS S3
+
+## Feature Flows
+
+### Auth
+
+- Credentials auth uses custom JWT session cookies.
+- NextAuth is present for Google/GitHub OAuth.
+- Protected API routes use `validateSession()`.
+- Email verification is hard-gated for credentials registration.
+- Account deletion uses a 30-day soft-delete grace period.
+
+### Notes, Uploads, And Indexing
+
+1. User creates a note or uploads/imports a file.
+2. Metadata and note tree state are stored in PostgreSQL.
+3. Binary objects go to S3-compatible storage.
+4. The worker extracts text where needed.
+5. Text is chunked and embedded.
+6. Embeddings are stored in pgvector-backed tables for search/chat.
+
+Important implementation areas:
+
+- `src/app/api/notes*`
+- `src/app/api/upload/route.ts`
+- `src/app/api/extract/route.ts`
+- `src/lib/ingestion/`
+- `src/lib/rag/`
+
+### Canvas Import
+
+1. User connects Canvas and selects courses/modules.
+2. API inserts a job row in `app.canvas_import_jobs`.
+3. API enqueues BullMQ work through `src/lib/queue.ts`.
+4. Worker discovers files, downloads supported content, creates notes, and indexes content.
+5. UI polls status and refreshes the tree as files become visible.
+
+Supported job states are documented in [OPTIMIZATION_SUMMARY.md](OPTIMIZATION_SUMMARY.md).
+
+### Semantic Search And RAG Chat
+
+- Search/chat embeds the query.
+- pgvector retrieves relevant chunks.
+- The reranker provider narrows context where configured.
+- The LLM answers with note-grounded context.
+- Chat sessions and messages persist in PostgreSQL.
+- Assistant messages store both plain `content` and structured `parts` for tool-call pills.
+
+Key files:
+
+- `src/lib/chat/rag-pipeline.ts`
+- `src/lib/chat/chunk-search.ts`
+- `src/lib/rerank.ts`
+- `src/app/api/chat/route.ts`
+- `src/lib/chat/session.ts`
+
+### Quiz And FSRS
+
+- Quiz sessions select due cards, uncovered chunks, and retention cards.
+- New questions can be generated from note chunks.
+- Correctness maps to FSRS review updates.
+- Session state, warnings, and progress are persisted and shown in the quiz UI.
+
+### Planner
+
+- Assignments and time blocks are shown in the planning surfaces.
+- Pomodoro sessions can log focused time back to linked assignments.
+- Calendar/iCal features expose study and assignment schedules.
+
+### Vault Import/Export
+
+- Import uses a presigned upload URL for a zip archive.
+- Import/export jobs are queued through BullMQ and tracked in `app.canvas_import_jobs`.
+- Jobs persist progress with `processed_files`.
+- Active job conflicts return `409` unless the caller explicitly forces replacement.
+- Cancellation is cooperative through `cancel_requested_at`.
+
+## Demo Script
+
+1. Register/login and show protected workspace access.
+2. Create a folder and note in the tree.
+3. Upload a small PDF or import a small Canvas file.
+4. Show status moving through import/indexing.
+5. Ask chat about the imported content.
+6. Run semantic search for the same topic.
+7. Start a quiz session and answer a few cards.
+8. Show planner/time-block surfaces.
+9. Run a vault export and explain the worker job model.
+
+## Quick Technical Values
+
+- Embeddings use the configured `EMBEDDING_*` provider.
+- Reranking uses the configured `RERANK_*` provider and falls back when unavailable.
+- Chat uses the configured `LLM_*` provider.
+- Vector storage is PostgreSQL + pgvector.
+- Current embedding migrations target 4096-dimensional vectors.
+- Canvas/vault work uses BullMQ queues: `canvas-import` and `extract-retry`.
+- Vault import upload limit is modelled for large archives, but real limits should be tested before launch.
