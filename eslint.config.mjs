@@ -16,6 +16,7 @@ export default [
       ".archive/**",
       "public/**",
       ".worktrees/**",
+      ".claude/**",
       ".unlighthouse/**",
       ".lighthouseci/**",
       "infra/**/dist/**",

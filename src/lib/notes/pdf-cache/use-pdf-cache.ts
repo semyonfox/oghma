@@ -60,7 +60,9 @@ export function usePdfCache(
         const cached = await getCacheEntry(cacheKey);
         if (cached) {
           if (cancelled) return;
-          const blob = new Blob([cached.buffer], { type: "application/pdf" });
+          const blob = new Blob([cached.buffer], {
+            type: cached.contentType ?? "application/pdf",
+          });
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = URL.createObjectURL(blob);
           setUrl(blobUrlRef.current);
@@ -88,10 +90,12 @@ export function usePdfCache(
           return;
         }
 
+        const contentType =
+          res.headers.get("Content-Type") ?? "application/pdf";
         const buffer = await res.arrayBuffer();
         if (cancelled) return;
 
-        const blob = new Blob([buffer], { type: "application/pdf" });
+        const blob = new Blob([buffer], { type: contentType });
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = URL.createObjectURL(blob);
         setUrl(blobUrlRef.current);
@@ -103,6 +107,7 @@ export function usePdfCache(
           buffer,
           size: buffer.byteLength,
           cachedAt: Date.now(),
+          contentType,
         })
           .then(() => runEviction())
           .catch(() => {});
