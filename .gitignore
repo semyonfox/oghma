@@ -38,6 +38,7 @@ pnpm-lock.yaml
 # env files: ignore all, only .env.example and *.template files committed
 .env*
 !.env.example
+!.env.e2e.example
 !*.template
 
 # local-specific envs
