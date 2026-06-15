@@ -1,6 +1,6 @@
 # AWS Amplify To Homelab Migration Record
 
-Status: completed. The current running stack is documented in [HOMELAB.md](HOMELAB.md), and the remaining AWS surface is documented in [AWS_INFRASTRUCTURE.md](AWS_INFRASTRUCTURE.md).
+Status: completed. The current running stack is documented in [HOMELAB.md](HOMELAB.md), the remaining/historical AWS surface is documented in [AWS_INFRASTRUCTURE.md](AWS_INFRASTRUCTURE.md), and the launch target is documented in [TARGET_HOSTING.md](TARGET_HOSTING.md).
 
 This file is retained as a historical record of the migration approach, not as the active deployment runbook.
 
@@ -14,7 +14,7 @@ This file is retained as a historical record of the migration approach, not as t
 | S3 app storage | RustFS S3-compatible object storage |
 | Secrets Manager runtime config | Jenkins env files on the homelab |
 
-AWS is now retained for Route 53, SES, and any explicitly documented external service.
+AWS is now historical/fallback unless explicitly retained for a documented service.
 
 ## Migration Shape Used
 
@@ -39,6 +39,8 @@ See [HOMELAB.md](HOMELAB.md) for exact container names and useful server command
 ## Future Return To AWS
 
 If the project moves back to AWS, treat the homelab compose stack as the architecture template: app, worker, PostgreSQL/pgvector, Redis/BullMQ, S3-compatible storage, and optional Marker OCR. Do not resurrect the old Amplify/RDS/SQS/ECS split unless there is a specific reliability or capacity reason.
+
+The current launch direction is not a return to AWS. It is Cloudflare for edge/email/storage, Neon for Postgres, a small Node runtime where needed, and on-demand rented GPUs for import processing.
 
 Before any AWS rebuild:
 

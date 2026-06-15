@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // keep native/credential-dependent packages out of the Turbopack bundle
-    // AWS SDK must not be bundled — Turbopack tree-shakes credential providers
+    // Provider SDK credential loaders must stay external for Node/Docker builds.
     serverExternalPackages: ['postgres', 'winston-cloudwatch', 'aws-xray-sdk-core',
         '@aws-sdk/client-secrets-manager', '@aws-sdk/credential-provider-node'],
-    // standalone output generates NFT trace files required by Amplify SSR
+    // standalone output keeps Docker/Node deployments small and portable
     output: 'standalone',
 
     images: {

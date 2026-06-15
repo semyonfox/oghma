@@ -2,6 +2,8 @@
 
 Current deployment target: homelab Docker containers managed by Jenkins. Older ECS/SQS/CloudWatch deployment notes were condensed into [OPTIMIZATION_SUMMARY.md](OPTIMIZATION_SUMMARY.md) as historical context.
 
+Launch hosting target: [../infra/TARGET_HOSTING.md](../infra/TARGET_HOSTING.md). Canvas import economics and GPU batching model: [CANVAS_IMPORT_PRICING_REPORT.md](CANVAS_IMPORT_PRICING_REPORT.md).
+
 ## Runtime Shape
 
 | Component | Current path |
@@ -40,9 +42,9 @@ Set these in `/home/semyon/jenkins/env/oghma-dev.env` and `/home/semyon/jenkins/
 | `CANVAS_POLL_INTERVAL_MS` | `3000` | Client/status polling interval |
 | `REDIS_HOST`, `REDIS_PORT` | `localhost`, `6379` | BullMQ connection |
 | `MARKER_API_URL` | unset | Enables Marker OCR |
-| `DATALAB_API_KEY` | unset | Optional external extraction fallback |
+| `DATALAB_API_KEY` | unset | Historical/emergency external extraction fallback; not steady-state launch processing |
 
-Also keep `DATABASE_URL`, `MIGRATION_DATABASE_URL`, storage keys, SES keys, auth secrets, and AI provider keys in sync with [../SETUP.md](../SETUP.md).
+Also keep `DATABASE_URL`, `MIGRATION_DATABASE_URL`, storage keys, email transport keys, auth secrets, and AI provider keys in sync with [../SETUP.md](../SETUP.md).
 
 ## Verification
 
@@ -90,6 +92,8 @@ Start conservative on the homelab. Raise one knob at a time while watching worke
 | Aggressive | `10` | `3` | `5` | Only if OCR and DB are keeping up |
 
 If files sit in `indexing` too long, investigate OCR first, then embedding provider latency, then database writes.
+
+Do not use managed document APIs such as Datalab as the steady-state import path without rechecking the Canvas pricing report. The current launch plan is on-demand GPU batching once the queue volume justifies it.
 
 ## Troubleshooting
 

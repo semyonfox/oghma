@@ -9,6 +9,9 @@ npm-debug.log
 yarn-error.log
 pnpm-lock.yaml
 *.local
+.env
+.env*
+.env-exports
 .env.local
 .env.development
 .env.test

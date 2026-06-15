@@ -1,6 +1,6 @@
 # Canvas And Vault Import Optimization Summary
 
-This is the condensed record of the import pipeline optimization. Current deployment steps live in [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
+This is the condensed record of the import pipeline optimization. Current deployment steps live in [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md). Canvas import cost and page-volume planning live in [CANVAS_IMPORT_PRICING_REPORT.md](CANVAS_IMPORT_PRICING_REPORT.md).
 
 ## Problem
 
@@ -66,3 +66,5 @@ Status language:
 ## Historical Notes
 
 Earlier versions of this doc described ECS, SQS, CloudWatch metrics, and AWS Marker autoscaling. Those details are no longer the live deployment path. If an AWS worker/GPU stack is reintroduced, recreate the runbook from the current code and current cloud pricing instead of copying the old commands back verbatim.
+
+Current planning favours on-demand rented GPU batches over Datalab/managed document APIs for steady-state Canvas imports.
