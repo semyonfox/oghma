@@ -49,7 +49,10 @@ export function selectCards(
     retentionCount -= reduceFromRetention;
     const reduceFromNew = Math.min(overflow - reduceFromRetention, newCount);
     newCount -= reduceFromNew;
-    dueCount = Math.max(0, dueCount - (overflow - reduceFromRetention - reduceFromNew));
+    dueCount = Math.max(
+      0,
+      dueCount - (overflow - reduceFromRetention - reduceFromNew),
+    );
     total = dueCount + newCount + retentionCount;
   }
 
@@ -216,6 +219,19 @@ export async function getSessionCandidates(
   `;
   const correctTodayIds = new Set(correctTodayRows.map((r: any) => r.card_id));
 
+  const activeChunks = await sql`
+        SELECT c.id
+        FROM app.chunks c
+        JOIN app.notes n ON n.note_id = c.document_id
+        LEFT JOIN app.user_course_settings ucs
+          ON ucs.user_id = ${userId}::uuid
+          AND ucs.canvas_course_id = n.canvas_course_id
+        WHERE c.user_id = ${userId}::uuid
+          AND c.id = ANY(${chunkIds}::uuid[])
+          AND n.deleted_at IS NULL
+          AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
+    `;
+
   const now = new Date();
   const dueCards = existingCards.filter(
     (c: any) =>
@@ -231,13 +247,17 @@ export async function getSessionCandidates(
   );
   const newCards = existingCards.filter((c: any) => c.state === "new");
 
+  // only active chunks should seed or regenerate quiz questions
+  const activeChunkIds = activeChunks.map((chunk: any) => chunk.id);
+
   // chunks that have no questions yet
   const coveredChunkIds = new Set(existingCards.map((c: any) => c.chunk_id));
-  const uncoveredChunkIds = chunkIds.filter((id) => !coveredChunkIds.has(id));
+  const uncoveredChunkIds = activeChunkIds.filter(
+    (id: string) => !coveredChunkIds.has(id),
+  );
 
   // include new (unreviewed) cards as due
   const allDue = [...dueCards, ...newCards];
 
   return { dueCards: allDue, uncoveredChunkIds, masteredCards };
 }
-
