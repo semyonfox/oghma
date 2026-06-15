@@ -15,11 +15,23 @@
     "test": "vitest",
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "node scripts/e2e/run-with-env.mjs vitest run -c vitest.integration.config.ts",
+    "e2e": "node scripts/e2e/run-with-env.mjs playwright test",
+    "e2e:smoke": "node scripts/e2e/run-with-env.mjs playwright test tests/e2e/smoke",
+    "e2e:smoke:public": "node scripts/e2e/run-with-env.mjs playwright test tests/e2e/smoke/public.spec.ts",
+    "e2e:full": "node scripts/e2e/run-with-env.mjs playwright test tests/e2e/full",
+    "e2e:install": "playwright install --with-deps chromium",
+    "e2e:services:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
+    "e2e:services:down": "docker compose -f docker-compose.e2e.yml down -v",
+    "e2e:reset": "node scripts/e2e/run-with-env.mjs node scripts/e2e/reset-db.mjs && node scripts/e2e/run-with-env.mjs node scripts/e2e/create-storage-bucket.mjs",
     "docker:marker:build": "docker build -f Dockerfile.marker -t marker-ocr:latest .",
     "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
     "prepare": "husky",
     "i18n:audit": "node scripts/i18n-audit.mjs",
-    "i18n:extract": "node scripts/extract-i18n.js"
+    "i18n:extract": "node scripts/extract-i18n.js",
+    "i18n:scan": "node scripts/i18n-bunx-audit.mjs",
+    "i18n:scan:strict": "I18N_AUDIT_STRICT=1 npm run i18n:scan",
+    "i18n:full-audit": "npm run i18n:audit && npm run i18n:scan"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.36",
@@ -85,6 +97,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
