@@ -1,6 +1,3 @@
-"use client";
-
-import { use } from "react";
 import {
   CheckCircleIcon,
   InformationCircleIcon,
@@ -11,12 +8,11 @@ import { notFound } from "next/navigation";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { blogPostsBySlug } from "@/lib/blog-data";
+import { getServerI18n } from "@/lib/i18n/server";
 
-import useI18n from "@/lib/notes/hooks/use-i18n";
-
-export default function BlogPost({ params }) {
-  const { slug } = use(params);
-  const { t } = useI18n();
+export default async function BlogPost({ params }) {
+  const { slug } = await params;
+  const { t } = await getServerI18n();
   const post = blogPostsBySlug[slug];
 
   if (!post) {

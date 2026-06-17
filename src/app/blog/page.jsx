@@ -1,14 +1,12 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import { blogCards } from "@/lib/blog-data";
-import useI18n from "@/lib/notes/hooks/use-i18n";
+import { getServerI18n } from "@/lib/i18n/server";
 
-export default function BlogPage() {
-  const { t } = useI18n();
+export default async function BlogPage() {
+  const { t } = await getServerI18n();
 
   return (
     <div className="bg-landing min-h-screen">

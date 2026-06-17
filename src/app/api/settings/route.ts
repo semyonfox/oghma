@@ -25,6 +25,13 @@ export const GET = withErrorHandler(async () => {
         sameSite: "lax",
       });
     }
+    if (mergedSettings.locale) {
+      response.cookies.set("ogma-locale", String(mergedSettings.locale), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+      });
+    }
     return response;
 });
 
@@ -58,5 +65,13 @@ export const POST = withErrorHandler(async (request) => {
     // Save to S3
     await saveSettingsToS3(user.user_id, updatedSettings);
 
-    return NextResponse.json(updatedSettings);
+    const response = NextResponse.json(updatedSettings);
+    if (updatedSettings.locale) {
+      response.cookies.set("ogma-locale", String(updatedSettings.locale), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+      });
+    }
+    return response;
 });

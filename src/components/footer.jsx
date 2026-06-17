@@ -53,6 +53,8 @@ export default function Footer() {
       // Load the new locale file
       const module = await import(`@/locales/${nextLocale}.json`);
       locale(nextLocale, module.default);
+      document.cookie = `ogma-locale=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
+      localStorage.setItem("ogma-locale", nextLocale);
 
       // Persist the language preference to user settings
       await fetch("/api/settings", {

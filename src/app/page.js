@@ -1,59 +1,109 @@
-"use client";
-
 import {
-  Disclosure,
-  DisclosureButton,
-  DisclosurePanel,
-} from "@headlessui/react";
-import { MinusSmallIcon, PlusSmallIcon } from "@heroicons/react/24/outline";
-import {
+  ArrowPathIcon,
   BuildingOffice2Icon,
+  CloudArrowUpIcon,
+  Cog6ToothIcon,
   EnvelopeIcon,
+  FingerPrintIcon,
+  LockClosedIcon,
   PhoneIcon,
+  ServerIcon,
 } from "@heroicons/react/24/outline";
-import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import TestimonialSection from "@/components/testimonial-section";
 import ContactForm from "@/components/contact-form";
-import useI18n from "@/lib/notes/hooks/use-i18n";
-import { useHomeFeatures } from "@/lib/hooks/useHomeFeatures";
-import { useHomeFAQs } from "@/lib/hooks/useHomeFAQs";
+import FadeIn from "@/components/public/fade-in";
+import FAQDisclosure from "@/components/public/faq-disclosure";
+import { getServerI18n } from "@/lib/i18n/server";
 
-function FadeIn({ children, delay = 0, className }) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+function getHomeFeatures(t) {
+  return [
+    {
+      name: t("Rich Markdown Editor"),
+      description: t(
+        "Write beautiful, formatted notes with live preview, syntax highlighting, and seamless organization.",
+      ),
+      icon: Cog6ToothIcon,
+    },
+    {
+      name: t("AI-Powered Insights"),
+      description: t(
+        "Get intelligent summaries, key concepts, and study questions generated automatically from your notes.",
+      ),
+      icon: CloudArrowUpIcon,
+    },
+    {
+      name: t("Canvas Integration"),
+      description: t(
+        "Seamlessly sync notes from your Canvas courses and keep all study materials in one place.",
+      ),
+      icon: ArrowPathIcon,
+    },
+    {
+      name: t("Secure Cloud Storage"),
+      description: t(
+        "Your notes are safely stored and accessible from any device with enterprise-grade encryption.",
+      ),
+      icon: LockClosedIcon,
+    },
+    {
+      name: t("Collaborative Learning"),
+      description: t(
+        "Share notes with classmates, collaborate on study materials, and learn together in real-time.",
+      ),
+      icon: FingerPrintIcon,
+    },
+    {
+      name: t("Multi-User Support"),
+      description: t(
+        "Built for university teams with secure authentication, role-based access, and session management.",
+      ),
+      icon: ServerIcon,
+    },
+  ];
+}
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { rootMargin: "-50px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(20px)",
-        transition: `opacity 0.5s ease-out ${delay}s, transform 0.5s ease-out ${delay}s`,
-      }}
-    >
-      {children}
-    </div>
-  );
+function getHomeFAQs(t) {
+  return [
+    {
+      question: t("What is OghmaNotes?"),
+      answer: t(
+        "OghmaNotes is a RAG-powered learning platform that combines Markdown notes with semantic search and AI. Upload PDFs from lectures, ask questions about your materials with cited answers, and get adaptive quizzes and flashcards personalized to your learning pace.",
+      ),
+    },
+    {
+      question: t("How does the RAG chat work?"),
+      answer: t(
+        "Upload any PDF or document. The system extracts text, chunks it semantically, and stores embeddings in our vector database. When you ask a question, it retrieves relevant material and generates answers with direct citations so you know where information came from.",
+      ),
+    },
+    {
+      question: t("Can I integrate Canvas deadlines?"),
+      answer: t(
+        "Yes. Connect your Canvas account and OghmaNotes automatically syncs your courses, assignments, and deadlines daily. All your course materials are organized in one place with integrated calendar views.",
+      ),
+    },
+    {
+      question: t("What are spaced repetition flashcards?"),
+      answer: t(
+        "We use the SM-2 algorithm to schedule flashcard reviews at optimal intervals. The system learns which cards you struggle with and prioritizes them, scientifically proven to improve long-term retention.",
+      ),
+    },
+    {
+      question: t("Do you generate quizzes automatically?"),
+      answer: t(
+        "Absolutely. OghmaNotes generates adaptive quizzes from your notes and materials. Questions scale in difficulty based on your performance, giving you targeted practice on weak areas.",
+      ),
+    },
+    {
+      question: t("Can I access my notes offline?"),
+      answer: t(
+        "Yes! OghmaNotes is a Progressive Web App. Write and edit notes offline, and they sync automatically when you reconnect. Perfect for lecture halls and studying anywhere.",
+      ),
+    },
+  ];
 }
 
 // screenshot of the actual notes editor
@@ -82,10 +132,10 @@ function HeroMockup() {
   );
 }
 
-export default function Home() {
-  const { t } = useI18n();
-  const features = useHomeFeatures();
-  const faqs = useHomeFAQs();
+export default async function Home() {
+  const { t } = await getServerI18n();
+  const features = getHomeFeatures(t);
+  const faqs = getHomeFAQs(t);
 
   return (
     <div className="bg-landing">
@@ -179,11 +229,11 @@ export default function Home() {
                       />
                     </div>
                     <span className="font-serif text-lg font-semibold text-text">
-                      {t(feature.name)}
+                      {feature.name}
                     </span>
                   </dt>
                   <dd className="mt-2 text-base/7 text-text-secondary">
-                    {t(feature.description)}
+                    {feature.description}
                   </dd>
                 </dl>
               </FadeIn>
@@ -335,38 +385,7 @@ export default function Home() {
                 {t("Frequently asked questions")}
               </h2>
             </FadeIn>
-            <dl className="mt-16 divide-y divide-border-subtle">
-              {faqs.map((faq) => (
-                <Disclosure
-                  key={faq.question}
-                  as="div"
-                  className="py-6 first:pt-0 last:pb-0"
-                >
-                  <dt>
-                    <DisclosureButton className="group flex w-full items-start justify-between text-left text-text">
-                      <span className="text-base/7 font-semibold">
-                        {faq.question}
-                      </span>
-                      <span className="ml-6 flex h-7 items-center text-text-tertiary">
-                        <PlusSmallIcon
-                          aria-hidden="true"
-                          className="size-6 group-data-[open]:hidden"
-                        />
-                        <MinusSmallIcon
-                          aria-hidden="true"
-                          className="size-6 group-not-data-[open]:hidden"
-                        />
-                      </span>
-                    </DisclosureButton>
-                  </dt>
-                  <DisclosurePanel as="dd" className="mt-2 pr-12">
-                    <p className="text-base/7 text-text-secondary">
-                      {faq.answer}
-                    </p>
-                  </DisclosurePanel>
-                </Disclosure>
-              ))}
-            </dl>
+            <FAQDisclosure faqs={faqs} />
           </div>
         </div>
       </div>

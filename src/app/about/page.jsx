@@ -1,10 +1,8 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
 import { aboutBlogCards, authors } from "@/lib/blog-data";
-import useI18n from "@/lib/notes/hooks/use-i18n";
+import { getServerI18n } from "@/lib/i18n/server";
 
 const academicImages = [
   {
@@ -127,8 +125,8 @@ const getFooterNavigation = (t) => ({
   ],
 });
 
-export default function About() {
-  const { t } = useI18n();
+export default async function About() {
+  const { t } = await getServerI18n();
   const stats = getStats(t);
   const _values = getValues(t);
   const team = getTeam(t);

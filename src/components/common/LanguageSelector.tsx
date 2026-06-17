@@ -70,6 +70,8 @@ export default function LanguageSelector({
       // Load the new locale file
       const module = await import(`@/locales/${lang}.json`);
       locale(lang, module.default);
+      document.cookie = `ogma-locale=${lang}; path=/; max-age=31536000; samesite=lax`;
+      localStorage.setItem("ogma-locale", lang);
 
       // Persist the language preference to user settings
       await updateSettings({ locale: lang });
