@@ -9,7 +9,7 @@ This file is intentionally short. Detailed, canonical tracking lives in:
 ## Immediate Launch Blockers
 
 - Verify a real production Canvas import from PDF to extraction, embedding, and search/chat retrieval.
-- Move SES out of sandbox so transactional emails work for unverified recipients.
+- Finish production email properly: Cloudflare Email Service is the target, but real credentials, sender verification, deliverability, and end-to-end password reset/verification email tests still need to be done before launch.
 - Rotate any dev/default secrets in the homelab Jenkins env files.
 - Review `/privacy` and `/terms` wording before inviting real users.
 - Add basic uptime, disk, database, and container health monitoring.

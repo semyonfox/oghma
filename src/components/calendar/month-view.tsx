@@ -6,6 +6,7 @@ import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outli
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import { isoToDateKey } from "@/lib/notes/utils/calendar-date";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface DayCell {
   date: string; // YYYY-MM-DD
@@ -94,6 +95,7 @@ function dayOfMonth(dateStr: string): string {
 }
 
 export default function MonthView() {
+  const { t } = useI18n();
   const {
     currentDate,
     selectedDate,
@@ -247,7 +249,11 @@ export default function MonthView() {
                         });
                       }}
                       className="shrink-0"
-                      aria-label={a.status === "done" ? "Mark incomplete" : "Mark complete"}
+                      aria-label={
+                        a.status === "done"
+                          ? t("Mark incomplete")
+                          : t("Mark complete")
+                      }
                     >
                       {a.status === "done" ? (
                         <CheckCircleIcon className="h-3 w-3 text-primary-500" />
@@ -277,7 +283,11 @@ export default function MonthView() {
                           void toggleTimeBlockCompleted(tb.id);
                         }}
                         className="shrink-0"
-                        aria-label={tb.completed ? "Mark incomplete" : "Mark complete"}
+                        aria-label={
+                          tb.completed
+                            ? t("Mark incomplete")
+                            : t("Mark complete")
+                        }
                       >
                         {tb.completed ? (
                           <CheckCircleIcon className="h-3 w-3 text-primary-500" />
@@ -286,7 +296,7 @@ export default function MonthView() {
                         )}
                       </button>
                       <span className={`truncate ${tb.completed ? "text-text-tertiary line-through opacity-60" : "text-text-secondary"}`}>
-                        {tb.title || "Study block"}
+                        {tb.title || t("Study block")}
                       </span>
                       <button
                         onClick={(e) => {
@@ -295,8 +305,8 @@ export default function MonthView() {
                           void deleteTimeBlock(tb.id);
                         }}
                         className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle transition"
-                        aria-label="Delete study block"
-                        title="Delete study block"
+                        aria-label={t("Delete study block")}
+                        title={t("Delete study block")}
                       >
                         <XMarkIcon className="h-2.5 w-2.5" />
                       </button>
@@ -304,7 +314,9 @@ export default function MonthView() {
                   ))}
                 {day.assignments.length + day.timeBlocks.length > 2 && (
                   <span className="text-xs text-text-tertiary">
-                    +{day.assignments.length + day.timeBlocks.length - 2} more
+                    {t("+{count} more", {
+                      count: day.assignments.length + day.timeBlocks.length - 2,
+                    })}
                   </span>
                 )}
               </div>

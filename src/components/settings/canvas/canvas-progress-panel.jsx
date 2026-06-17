@@ -35,7 +35,7 @@ export default function CanvasProgressPanel({
             : ""
       }`}
     >
-      <LogStatusIcon status={log.status} />
+      <LogStatusIcon status={log.status} t={t} />
       <span
         className="flex-1 min-w-0 truncate text-text-tertiary"
         title={log.filename}
@@ -51,7 +51,7 @@ export default function CanvasProgressPanel({
         </span>
       )}
       <span className="shrink-0 text-text-tertiary/50">
-        {relativeTime(log.updatedAt)}
+        {relativeTime(log.updatedAt, t)}
       </span>
     </div>
   );
@@ -83,24 +83,28 @@ export default function CanvasProgressPanel({
         <div className="flex items-center gap-3">
           {isImporting && !isDiscovering && progress?.estimatedSecsRemaining && (
             <span className="text-xs text-text-tertiary tabular-nums">
-              {formatTime(progress.estimatedSecsRemaining)} left
+              {t("{time} left", {
+                time: formatTime(progress.estimatedSecsRemaining),
+              })}
             </span>
           )}
           {importSummary && !isImporting && (
             <div className="flex items-center gap-2 text-xs tabular-nums">
               {importSummary.imported > 0 && (
                 <span className="text-green-400">
-                  {importSummary.imported} imported
+                  {t("{count} imported", { count: importSummary.imported })}
                 </span>
               )}
               {importSummary.forbidden > 0 && (
                 <span className="text-orange-400">
-                  {importSummary.forbidden} restricted
+                  {t("{count} restricted", {
+                    count: importSummary.forbidden,
+                  })}
                 </span>
               )}
               {importSummary.failed > 0 && (
                 <span className="text-red-400">
-                  {importSummary.failed} failed
+                  {t("{count} failed", { count: importSummary.failed })}
                 </span>
               )}
             </div>
@@ -126,8 +130,9 @@ export default function CanvasProgressPanel({
 
       {isImporting && markerColdStarting && (
         <div className="px-4 py-2 text-xs text-amber-300 bg-amber-500/10 border-t border-amber-500/20">
-          Canvas import is warming up the document processor. The first files
-          can take a few minutes.
+          {t(
+            "Canvas import is warming up the document processor. The first files can take a few minutes.",
+          )}
         </div>
       )}
 

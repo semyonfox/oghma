@@ -5,6 +5,7 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 const HOUR_HEIGHT = 56; // px per hour row
 const START_HOUR = 6;
@@ -59,6 +60,7 @@ interface PositionedBlock {
 }
 
 export default function WeekView() {
+  const { t } = useI18n();
   const {
     currentDate,
     timeBlocks,
@@ -118,7 +120,7 @@ export default function WeekView() {
 
       blocks.push({
         id: tb.id,
-        title: tb.assignment_title || tb.title || "Study block",
+        title: tb.assignment_title || tb.title || t("Study block"),
         courseColor: tb.course_color || null,
         completed: tb.completed ?? false,
         top,
@@ -127,7 +129,7 @@ export default function WeekView() {
       });
     }
     return blocks;
-  }, [timeBlocks, weekDays]);
+  }, [timeBlocks, weekDays, t]);
 
   // due date markers
   const dueMarkers = useMemo(() => {
@@ -298,8 +300,8 @@ export default function WeekView() {
                         void deleteTimeBlock(b.id);
                       }}
                       className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-subtle hover:text-text-secondary transition"
-                      aria-label="Delete study block"
-                      title="Delete study block"
+                      aria-label={t("Delete study block")}
+                      title={t("Delete study block")}
                     >
                       <XMarkIcon className="h-3 w-3" />
                     </button>
@@ -311,7 +313,9 @@ export default function WeekView() {
                           void toggleTimeBlockCompleted(b.id);
                         }}
                         className="shrink-0"
-                        aria-label={b.completed ? "Mark incomplete" : "Mark complete"}
+                        aria-label={
+                          b.completed ? t("Mark incomplete") : t("Mark complete")
+                        }
                       >
                         {b.completed ? (
                           <CheckCircleIcon className="h-3.5 w-3.5 text-primary-500" />
@@ -337,7 +341,7 @@ export default function WeekView() {
                       top: m.top,
                       borderColor: m.color,
                     }}
-                    title={`Due: ${m.title}`}
+                    title={t("Due: {title}", { title: m.title })}
                   />
                 ))}
 

@@ -46,37 +46,37 @@ export function ChevronDownIcon({ className, open }) {
 }
 
 /** Status badge for each course */
-export function CourseBadge({ status, errorMsg }) {
+export function CourseBadge({ status, errorMsg, t = (value) => value }) {
   const config = {
     synced: {
       color: "fill-green-400",
       text: "text-green-200",
       ring: "ring-green-400/30",
-      label: "Synced",
+      label: t("Synced"),
     },
     outOfSync: {
       color: "fill-yellow-400",
       text: "text-yellow-200",
       ring: "ring-yellow-400/30",
-      label: "Out of sync",
+      label: t("Out of sync"),
     },
     syncing: {
       color: "fill-blue-400",
       text: "text-blue-200",
       ring: "ring-blue-400/30",
-      label: "Syncing",
+      label: t("Syncing"),
     },
     forbidden: {
       color: "fill-orange-400",
       text: "text-orange-200",
       ring: "ring-orange-400/30",
-      label: "Restricted",
+      label: t("Restricted"),
     },
     error: {
       color: "fill-red-400",
       text: "text-red-200",
       ring: "ring-red-400/30",
-      label: errorMsg ?? "Failed",
+      label: errorMsg ?? t("Failed"),
     },
     idle: null,
   };
@@ -97,13 +97,13 @@ export function CourseBadge({ status, errorMsg }) {
 }
 
 /** Status dot + label for a single log entry */
-export function LogStatusIcon({ status }) {
+export function LogStatusIcon({ status, t = (value) => value }) {
   const map = {
-    complete: { dot: "bg-green-400", label: "done" },
-    processing: { dot: "bg-blue-400 animate-pulse", label: "processing" },
-    downloading: { dot: "bg-yellow-400 animate-pulse", label: "downloading" },
-    forbidden: { dot: "bg-orange-400", label: "restricted" },
-    error: { dot: "bg-red-400", label: "error" },
+    complete: { dot: "bg-green-400", label: t("done") },
+    processing: { dot: "bg-blue-400 animate-pulse", label: t("processing") },
+    downloading: { dot: "bg-yellow-400 animate-pulse", label: t("downloading") },
+    forbidden: { dot: "bg-orange-400", label: t("restricted") },
+    error: { dot: "bg-red-400", label: t("error") },
   };
   const cfg = map[status] ?? { dot: "bg-text-tertiary", label: status };
   return (
@@ -120,10 +120,14 @@ export function formatTime(secs) {
   return `~${Math.ceil(secs / 60)}m`;
 }
 
-export function relativeTime(date) {
+export function relativeTime(
+  date,
+  t = (key, params) =>
+    params?.count != null ? key.replace("{count}", params.count) : key,
+) {
   const diff = Date.now() - new Date(date).getTime();
   const s = Math.floor(diff / 1000);
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  return `${Math.floor(s / 60)}m ago`;
+  if (s < 5) return t("just now");
+  if (s < 60) return t("{count}s ago", { count: s });
+  return t("{count}m ago", { count: Math.floor(s / 60) });
 }

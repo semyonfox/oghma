@@ -44,10 +44,8 @@ function mapQuizCourses(courses) {
     courseId: course.courseId,
     courseName: course.courseName,
     isActive: course.isActive,
-    contextText:
-      course.totalCards > 0
-        ? `${course.dueCount} due · ${course.totalCards} cards`
-        : "No quiz cards yet",
+    dueCount: course.dueCount,
+    totalCards: course.totalCards,
     hasDueItems: course.dueCount > 0,
   }));
 }
@@ -112,8 +110,21 @@ export default function SettingsPage() {
   }, [fetchSettings]);
 
   const courseVisibilityItems = useMemo(
-    () => mergeCourseVisibilityItems(quizCourses, courseSettings),
-    [courseSettings, quizCourses],
+    () =>
+      mergeCourseVisibilityItems(
+        quizCourses.map((course) => ({
+          ...course,
+          contextText:
+            course.totalCards > 0
+              ? t("{dueCount} due · {totalCards} cards", {
+                  dueCount: course.dueCount,
+                  totalCards: course.totalCards,
+                })
+              : t("No quiz cards yet"),
+        })),
+        courseSettings,
+      ),
+    [courseSettings, quizCourses, t],
   );
 
   // load user profile and settings on mount

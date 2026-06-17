@@ -87,7 +87,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
       if (committedRef.current) return;
       committedRef.current = true;
       const trimmed = renameValueRef.current.trim();
-      void onRenameComplete(trimmed || nodeData?.title || "Untitled");
+      void onRenameComplete(trimmed || nodeData?.title || t("Untitled"));
     };
 
     const handleRenameCancel = () => {
@@ -95,7 +95,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
       committedRef.current = true;
       escapedRef.current = true;
       setRenameValue(nodeData?.title ?? "");
-      void onRenameComplete(nodeData?.title ?? "Untitled");
+      void onRenameComplete(nodeData?.title ?? t("Untitled"));
     };
 
     const handleRenameBlur = () => {
@@ -107,7 +107,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
         if (trimmed && trimmed !== original) {
           handleRenameSubmit();
         } else {
-          void onRenameComplete(original || "Untitled");
+          void onRenameComplete(original || t("Untitled"));
         }
       }, 150);
     };

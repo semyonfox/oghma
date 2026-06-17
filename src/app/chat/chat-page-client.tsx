@@ -35,15 +35,18 @@ interface ContextItem {
   title: string;
 }
 
-function relativeDate(ms: number): string {
+function relativeDate(
+  ms: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
   const diff = Date.now() - ms;
   const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t("just now");
+  if (m < 60) return t("{count}m ago", { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t("{count}h ago", { count: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
+  if (d < 7) return t("{count}d ago", { count: d });
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
@@ -88,15 +91,15 @@ export default function ChatPageClient() {
   useEffect(() => {
     const notes: ContextItem[] = paramNoteIds.map((id, i) => ({
       id,
-      title: paramNoteTitles[i] || "Untitled",
+      title: paramNoteTitles[i] || t("Untitled"),
     }));
     const folders: ContextItem[] = paramFolderIds.map((id, i) => ({
       id,
-      title: paramFolderTitles[i] || "Folder",
+      title: paramFolderTitles[i] || t("Folder"),
     }));
     setSelectedNotes(notes);
     setSelectedFolders(folders);
-  }, [paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles]);
+  }, [paramNoteIds, paramNoteTitles, paramFolderIds, paramFolderTitles, t]);
 
   useEffect(() => {
     if (!activeId || hasRouteScope || !activeConv?.context?.scope) return;
@@ -285,13 +288,19 @@ export default function ChatPageClient() {
 
   const contextPrefix =
     selectedFolders.length > 0
-      ? `${selectedFolders.length} folder${selectedFolders.length > 1 ? "s" : ""}`
+      ? t(
+          selectedFolders.length === 1 ? "{count} folder" : "{count} folders",
+          { count: selectedFolders.length },
+        )
       : selectedNotes.length > 0
-        ? `${selectedNotes.length} file${selectedNotes.length > 1 ? "s" : ""}`
+        ? t(
+            selectedNotes.length === 1 ? "{count} file" : "{count} files",
+            { count: selectedNotes.length },
+          )
         : paramFolderId
-          ? `Folder: "${paramFolderTitle}"`
+          ? t('Folder: "{title}"', { title: paramFolderTitle })
           : paramNoteTitle
-            ? `Note: "${paramNoteTitle}"`
+            ? t('Note: "{title}"', { title: paramNoteTitle })
             : null;
 
   const removeSelectedNote = (id: string) => {
@@ -381,7 +390,7 @@ export default function ChatPageClient() {
                   className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                   suppressHydrationWarning
                 >
-                  {relativeDate(conv.createdAt)}
+                  {relativeDate(conv.createdAt, t)}
                 </span>
               </div>
 

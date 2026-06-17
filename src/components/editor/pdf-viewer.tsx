@@ -107,7 +107,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
         <div className="flex items-center gap-1">
           <button
             onClick={handleFitToggle}
-            title={fitMode ? "Switch to manual zoom" : "Fit to pane"}
+            title={fitMode ? t("Switch to manual zoom") : t("Fit to pane")}
             className={`p-1.5 rounded transition-colors ${
               fitMode
                 ? "bg-subtle text-text-secondary"
@@ -187,10 +187,10 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
             <p className="text-sm text-red-400/80">{t("pdf_viewer.error")}</p>
             <p className="text-xs text-text-tertiary">
               {urlError === "http-404"
-                ? "File not found in storage."
+                ? t("File not found in storage.")
                 : urlError === "no-source"
-                  ? "No file path attached to this note."
-                  : "Could not load the file URL."}
+                  ? t("No file path attached to this note.")
+                  : t("Could not load the file URL.")}
             </p>
           </div>
         ) : (

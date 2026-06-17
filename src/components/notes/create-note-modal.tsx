@@ -97,7 +97,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   }, []);
 
   const handleCreateNew = useCallback(async () => {
-    const name = filename.trim() || "Untitled";
+    const name = filename.trim() || t("Untitled");
     const title = name.endsWith(".md") ? name : `${name}.md`;
     setIsCreating(true);
     try {
@@ -108,7 +108,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
     } finally {
       setIsCreating(false);
     }
-  }, [filename, onCreateNote, onClose]);
+  }, [filename, onCreateNote, onClose, t]);
 
   const handleCreateFolder = useCallback(async () => {
     setIsCreating(true);
@@ -209,7 +209,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                   disabled={isCreating}
                   autoFocus
                   className="flex-1 bg-transparent text-sm text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
-                  placeholder="Untitled"
+                  placeholder={t("Untitled")}
                 />
                 <span className="text-xs text-text-tertiary flex-shrink-0">.md</span>
               </div>

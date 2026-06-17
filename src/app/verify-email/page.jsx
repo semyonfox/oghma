@@ -119,7 +119,8 @@ function VerifyEmailContent() {
         <p className="mt-2 text-center text-sm text-text-tertiary">
           {email
             ? t(
-                `We sent a verification link to ${email}. Click the link to verify your account.`,
+                "We sent a verification link to {email}. Click the link to verify your account.",
+                { email },
               )
             : t(
                 "We sent a verification link to your email. Click the link to verify your account.",

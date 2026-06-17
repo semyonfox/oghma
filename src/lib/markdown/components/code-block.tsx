@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ClipboardDocumentIcon, CheckIcon } from "@heroicons/react/24/outline";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface CodeBlockProps {
   language?: string;
@@ -17,6 +18,7 @@ export default function CodeBlock({
   children,
   rawContent,
 }: CodeBlockProps) {
+  const { t = (key: string) => key } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -42,8 +44,8 @@ export default function CodeBlock({
             type="button"
             onClick={handleCopy}
             className="opacity-0 group-hover:opacity-100 p-1 rounded text-text-tertiary hover:text-text-secondary transition-all"
-            aria-label="Copy code"
-            title={copied ? "Copied" : "Copy"}
+            aria-label={t("Copy code")}
+            title={copied ? t("Copied") : t("Copy")}
           >
             {copied ? (
               <CheckIcon className="w-3.5 h-3.5 text-green-400" />

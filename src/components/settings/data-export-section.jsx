@@ -81,7 +81,7 @@ export default function DataExportSection() {
       });
       if (!presignRes.ok) {
         const err = await presignRes.json();
-        throw new Error(err.error || "Failed to get upload URL");
+        throw new Error(err.error || t("Failed to get upload URL"));
       }
       const { uploadUrl, s3Key } = await presignRes.json();
 
@@ -97,8 +97,10 @@ export default function DataExportSection() {
         xhr.onload = () =>
           xhr.status < 400
             ? resolve()
-            : reject(new Error(`Upload failed: ${xhr.status}`));
-        xhr.onerror = () => reject(new Error("Upload failed"));
+            : reject(
+                new Error(t("Upload failed: {status}", { status: xhr.status })),
+              );
+        xhr.onerror = () => reject(new Error(t("Upload failed")));
         xhr.send(file);
       });
 
@@ -123,7 +125,7 @@ export default function DataExportSection() {
 
         if (!startRes.ok) {
           const err = await startRes.json();
-          throw new Error(err.error || "Failed to start import");
+          throw new Error(err.error || t("Failed to start import"));
         }
         return startRes.json();
       }
@@ -164,7 +166,7 @@ export default function DataExportSection() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to start export");
+        throw new Error(err.error || t("Failed to start export"));
       }
       const { jobId } = await res.json();
       setExportJobId(jobId);

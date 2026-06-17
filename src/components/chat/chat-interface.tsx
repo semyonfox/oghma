@@ -164,9 +164,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary"
               }`}
-              title={thinkingActive ? "Thinking on" : "Thinking off"}
+              title={thinkingActive ? t("Thinking on") : t("Thinking off")}
             >
-              ◆ {thinkingActive ? "Thinking" : "Think"}
+              ◆ {thinkingActive ? t("Thinking") : t("Think")}
             </button>
             <button
               onClick={handleSend}
@@ -223,7 +223,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{note.title}</span>
                   {onRemoveNote && (
-                    <button onClick={() => onRemoveNote(note.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4" title={`Remove ${note.title}`}>×</button>
+                    <button
+                      onClick={() => onRemoveNote(note.id)}
+                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      title={t("Remove {title}", { title: note.title })}
+                    >
+                      ×
+                    </button>
                   )}
                 </span>
               ))}
@@ -232,7 +238,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   <FolderIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{folder.title}</span>
                   {onRemoveFolder && (
-                    <button onClick={() => onRemoveFolder(folder.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4" title={`Remove ${folder.title}`}>×</button>
+                    <button
+                      onClick={() => onRemoveFolder(folder.id)}
+                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      title={t("Remove {title}", { title: folder.title })}
+                    >
+                      ×
+                    </button>
                   )}
                 </span>
               ))}
@@ -270,18 +282,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }`}
               title={
                 thinkingActive
-                  ? "Thinking on — click to disable"
-                  : "Thinking off — click to enable"
+                  ? t("Thinking on — click to disable")
+                  : t("Thinking off — click to enable")
               }
             >
-              ◆ {thinkingActive ? "Thinking" : "Think"}
+              ◆ {thinkingActive ? t("Thinking") : t("Think")}
             </button>
             {loading ? (
               <button
                 type="button"
                 onClick={cancel}
                 className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-md transition-colors"
-                title="Stop generating"
+                title={t("Stop generating")}
               >
                 <StopCircleIcon className="w-3.5 h-3.5" />
               </button>

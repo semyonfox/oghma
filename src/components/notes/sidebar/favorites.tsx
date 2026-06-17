@@ -102,7 +102,7 @@ export const Favorites: FC = () => {
         <div>
           <ControlledTreeEnvironment
             items={treeData}
-            getItemTitle={(item) => item.data?.title ?? "Untitled"}
+            getItemTitle={(item) => item.data?.title ?? t("Untitled")}
             viewState={viewState}
             onExpandItem={(item) => handleToggleExpanded(item)}
             onCollapseItem={(item) => handleToggleExpanded(item)}

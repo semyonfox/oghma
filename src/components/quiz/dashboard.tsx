@@ -96,13 +96,16 @@ export default function QuizDashboard() {
           isActive: course.isActive,
           contextText:
             course.totalCards > 0
-              ? `${course.dueCount} due · ${course.totalCards} cards`
-              : "No quiz cards yet",
+              ? t("{dueCount} due · {totalCards} cards", {
+                  dueCount: course.dueCount,
+                  totalCards: course.totalCards,
+                })
+              : t("No quiz cards yet"),
           hasDueItems: course.dueCount > 0,
         })),
         settings,
       ),
-    [courses, settings],
+    [courses, settings, t],
   );
 
   const handleSetCourseVisibility = async (
@@ -168,7 +171,7 @@ export default function QuizDashboard() {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           toast.error(
-            body.error || "Could not start quiz session. Please try again.",
+            body.error || t("Could not start quiz session. Please try again."),
           );
           setStartingSession(null);
           return;
@@ -182,7 +185,7 @@ export default function QuizDashboard() {
         return;
       } catch {
         toast.error(
-          "Could not start quiz session. Please check your connection.",
+          t("Could not start quiz session. Please check your connection."),
         );
         setStartingSession(null);
         return;

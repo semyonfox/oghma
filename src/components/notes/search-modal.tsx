@@ -231,7 +231,7 @@ export default function SearchModal() {
                           : "border-border-subtle text-text-tertiary hover:text-text hover:border-border"
                       }`}
                     >
-                      All
+                      {t("All")}
                     </button>
                     {courses.map((c) => (
                       <button
@@ -308,7 +308,7 @@ export default function SearchModal() {
                               <DocumentTextIcon className="mt-1 h-5 w-5 text-text-tertiary flex-shrink-0" />
                               <div className="ml-3 flex-1 min-w-0">
                                 <p className="text-sm font-medium text-text truncate">
-                                  {result.title || "Untitled"}
+                                  {result.title || t("Untitled")}
                                 </p>
                                 {result.snippet && (
                                   <p className="mt-1 text-sm text-text-tertiary line-clamp-2">

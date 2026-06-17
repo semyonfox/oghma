@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import MarkdownRenderer from "@/lib/markdown/renderer";
 import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface PreviewRendererProps {
   content: string;
@@ -13,6 +14,7 @@ interface PreviewRendererProps {
 }
 
 export default function PreviewRenderer({ content, noteId }: PreviewRendererProps) {
+  const { t } = useI18n();
   return (
     <MarkdownRenderer
       className="markdown-preview w-full max-w-none"
@@ -149,7 +151,7 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
         },
       }}
     >
-      {content || "*No content*"}
+      {content || t("*No content*")}
     </MarkdownRenderer>
   );
 }

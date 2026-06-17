@@ -357,7 +357,7 @@ const SidebarList = () => {
         <div className="flex-1 pb-4">
           <ControlledTreeEnvironment
             items={treeData}
-            getItemTitle={(item) => item.data?.title ?? "Untitled"}
+            getItemTitle={(item) => item.data?.title ?? t("Untitled")}
             viewState={viewState}
             onExpandItem={handleExpandItem}
             onCollapseItem={handleCollapseItem}

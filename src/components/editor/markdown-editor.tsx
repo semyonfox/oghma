@@ -13,18 +13,24 @@ import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-const PreviewRenderer = dynamic(() => import("./preview-renderer"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-      Loading preview...
-    </div>
-  ),
-});
 import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
+
+function LoadingPreviewFallback() {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+      {t("Loading preview...")}
+    </div>
+  );
+}
+
+const PreviewRenderer = dynamic(() => import("./preview-renderer"), {
+  ssr: false,
+  loading: () => <LoadingPreviewFallback />,
+});
 
 // CodeMirror accesses browser APIs on import, so lazy-load it client-side only
 const SourceEditor = dynamic(() => import("./source-editor"), {
@@ -109,7 +115,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           setLoaded(true);
           setIsDirty(true);
           draftRestored = true;
-          toast.info("Restored unsaved draft", { duration: 3000 });
+          toast.info(t("Restored unsaved draft"), { duration: 3000 });
         }
       } catch {
         // draft read failure is non-fatal
@@ -153,7 +159,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             if (serverMs > draftMs) {
               // server has a newer version than the draft — warn once, don't block
               toast.warning(
-                "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+                t(
+                  "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
+                ),
                 { duration: 6000 },
               );
             }
@@ -171,7 +179,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       cancelled = true;
       if (draftTimer.current) clearTimeout(draftTimer.current);
     };
-  }, [file.fileId, fetchNote]);
+  }, [file.fileId, fetchNote, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -242,11 +250,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     } catch (error) {
       console.error("Save failed:", error);
       setSaveError(true);
-      toast.error("Failed to save note");
+      toast.error(t("Failed to save note"));
     } finally {
       setIsSaving(false);
     }
-  }, [localContent, file.fileId, isDirty, mutateNote, markSynced]);
+  }, [localContent, file.fileId, isDirty, mutateNote, markSynced, t]);
 
   // Ctrl+S handler (for read mode — CodeMirror handles it in source mode)
   useEffect(() => {
@@ -286,7 +294,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 : "text-text-tertiary hover:text-text-secondary"
             }`}
           >
-            Source
+            {t("Source")}
           </button>
           <button
             onClick={() => setMode("read")}
@@ -296,7 +304,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 : "text-text-tertiary hover:text-text-secondary"
             }`}
           >
-            Read
+            {t("Read")}
           </button>
         </div>
 
@@ -307,13 +315,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             target="_blank"
             className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
           >
-            Syntax Guide
+            {t("Syntax Guide")}
           </Link>
           {isDirty && !isSaving ? (
             <button
               onClick={handleSave}
               className="flex items-center gap-1.5 text-xs font-mono text-yellow-500 hover:text-yellow-400 transition-colors"
-              title="Save (Ctrl+S)"
+              title={t("Save (Ctrl+S)")}
             >
               <svg
                 className="w-3 h-3"
@@ -325,7 +333,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 <path d="M5 3h8l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
                 <path d="M7 3v4h6V3M7 13h6" />
               </svg>
-              Unsaved
+              {t("Unsaved")}
             </button>
           ) : (
             <span
@@ -337,7 +345,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                     : "text-success-500"
               }`}
             >
-              {isSaving ? "Saving..." : saveError ? "Save failed" : "Saved"}
+              {isSaving
+                ? t("Saving...")
+                : saveError
+                  ? t("Save failed")
+                  : t("Saved")}
             </span>
           )}
         </div>
@@ -361,7 +373,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-              Loading...
+              {t("Loading...")}
             </div>
           )
         ) : loaded ? (
@@ -372,7 +384,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-            Loading...
+            {t("Loading...")}
           </div>
         )}
       </div>

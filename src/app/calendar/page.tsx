@@ -38,7 +38,12 @@ export default function CalendarPage() {
   });
   const weekLabel =
     view === "week"
-      ? `Week of ${current.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+      ? t("Week of {date}", {
+          date: current.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+        })
       : monthYear;
 
   return (

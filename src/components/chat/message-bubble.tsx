@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { Message, MessagePart } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
 import { ToolCallPill } from "./tool-call-pill";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 /**
  * Render an assistant message body. If structured `parts` are present, walk
@@ -39,10 +40,13 @@ const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
 };
 
 // relevance level from cosine distance
-function relevanceLabel(distance: number): { label: string; color: string } {
-  if (distance < 0.3) return { label: "high", color: "text-green-400" };
-  if (distance < 0.5) return { label: "medium", color: "text-yellow-400" };
-  return { label: "low", color: "text-text-tertiary" };
+function relevanceLabel(
+  distance: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): { label: string; color: string } {
+  if (distance < 0.3) return { label: t("high"), color: "text-green-400" };
+  if (distance < 0.5) return { label: t("medium"), color: "text-yellow-400" };
+  return { label: t("low"), color: "text-text-tertiary" };
 }
 
 // collapsible thinking block — ChatGPT style
@@ -51,14 +55,15 @@ const ThinkingBlock: FC<{
   isStreaming?: boolean;
   duration?: number;
 }> = ({ text, isStreaming = false, duration }) => {
+  const { t = (key: string) => key } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
 
   const label = isStreaming
-    ? "Thinking…"
+    ? t("Thinking…")
     : duration != null && duration > 0
-      ? `Thought for ${duration}s`
-      : "Thought for a moment";
+      ? t("Thought for {duration}s", { duration })
+      : t("Thought for a moment");
 
   return (
     <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface/30">
@@ -91,6 +96,7 @@ const SourcesBlock: FC<{
   sources: { id: string; title: string }[];
   retrieval?: Message["retrieval"];
 }> = ({ sources, retrieval }) => {
+  const { t = (key: string) => key } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (!sources || sources.length === 0) return null;
 
@@ -114,9 +120,11 @@ const SourcesBlock: FC<{
       >
         <span className="text-xs text-text-tertiary">
           <span className="font-medium text-text-secondary">
-            {count} {count === 1 ? "source" : "sources"}
+            {t(count === 1 ? "{count} source" : "{count} sources", {
+              count,
+            })}
           </span>{" "}
-          used
+          {t("used")}
         </span>
         <ChevronDownIcon
           className={`w-3 h-3 text-text-tertiary flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -126,7 +134,7 @@ const SourcesBlock: FC<{
         <div className="border-t border-border-subtle">
           {sources.map((s) => {
             const distance = relMap.get(s.id);
-            const rel = distance != null ? relevanceLabel(distance) : null;
+            const rel = distance != null ? relevanceLabel(distance, t) : null;
             return (
               <a
                 key={s.id}
@@ -135,7 +143,7 @@ const SourcesBlock: FC<{
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-border-subtle flex-shrink-0" />
                 <span className="flex-1 text-xs text-text-secondary truncate">
-                  {s.title || "Untitled"}
+                  {s.title || t("Untitled")}
                 </span>
                 {rel && (
                   <span className={`text-xs ${rel.color} flex-shrink-0`}>
@@ -169,15 +177,16 @@ export const TypingDots: FC = () => (
 // so the action feels like it dispatched somewhere rather than mutating the chrome.
 // disabled briefly so double-click doesn't fire two toasts.
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
+  const { t = (key: string) => key } = useI18n();
   const [busy, setBusy] = useState(false);
 
   const handleCopy = async () => {
     if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(content);
-      toast.success("Copied", { duration: 1200 });
+      toast.success(t("Copied"), { duration: 1200 });
     } catch {
-      toast.error("Couldn't copy");
+      toast.error(t("Couldn't copy"));
     } finally {
       setBusy(true);
       window.setTimeout(() => setBusy(false), 1200);
@@ -190,8 +199,8 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       onClick={handleCopy}
       disabled={busy}
       className="inline-flex items-center rounded-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
-      aria-label="Copy message"
-      title="Copy message"
+      aria-label={t("Copy message")}
+      title={t("Copy message")}
     >
       <ClipboardDocumentIcon className="w-3 h-3" />
     </button>

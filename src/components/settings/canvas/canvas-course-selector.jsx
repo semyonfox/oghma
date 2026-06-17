@@ -70,7 +70,7 @@ export default function CanvasCourseSelector({
                       <p className="text-sm text-text-secondary">
                         {course.name}
                       </p>
-                      <CourseBadge status={status} errorMsg={error} />
+                      <CourseBadge status={status} errorMsg={error} t={t} />
                     </div>
                     <p className="text-xs text-text-tertiary">
                       {course.course_code}
