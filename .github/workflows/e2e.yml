@@ -1,0 +1,308 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "E2E suite to run"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.ref }}-${{ github.event.inputs.suite || github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "22"
+  CI: "true"
+  NODE_ENV: test
+  NEXT_TELEMETRY_DISABLED: "1"
+  E2E_BASE_URL: http://127.0.0.1:3310
+  PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
+  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3310
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:3310
+  NEXTAUTH_URL: http://127.0.0.1:3310
+  APP_BASE_URL: http://127.0.0.1:3310
+  CORS_ORIGINS: http://127.0.0.1:3310
+  ENABLE_CREDENTIALS_AUTH: "true"
+  JWT_SECRET: e2e-jwt-secret
+  NEXTAUTH_SECRET: e2e-nextauth-secret
+  AUTH_SECRET: e2e-nextauth-secret
+  SERVER_ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
+  MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
+  REDIS_HOST: 127.0.0.1
+  REDIS_PORT: "6379"
+  REDIS_TLS: "false"
+  STORAGE_ENDPOINT: http://127.0.0.1:9000
+  STORAGE_BUCKET: oghma-e2e
+  STORAGE_REGION: us-east-1
+  STORAGE_ACCESS_KEY: minioadmin
+  STORAGE_SECRET_KEY: minioadmin
+  STORAGE_PATH_STYLE: "true"
+  STORAGE_PREFIX: e2e
+  VAULT_JOBS_ENABLED: "true"
+  AWS_REGION: eu-west-1
+  AWS_SES_REGION: eu-west-1
+  AWS_SES_ACCESS_KEY_ID: e2e
+  AWS_SES_SECRET_ACCESS_KEY: e2e
+  AWS_SES_FROM_EMAIL: noreply@example.test
+  SES_REGION: eu-west-1
+  SES_ACCESS_KEY_ID: e2e
+  SES_SECRET_ACCESS_KEY: e2e
+  SES_FROM_EMAIL: noreply@example.test
+  LLM_API_URL: http://127.0.0.1:8787/v1
+  LLM_API_KEY: e2e
+  LLM_MODEL: e2e-chat
+  EMBEDDING_API_URL: http://127.0.0.1:8787/v1
+  EMBEDDING_API_KEY: e2e
+  EMBEDDING_MODEL: e2e-embedding-4096
+  RERANK_API_URL: http://127.0.0.1:8787/v1
+  RERANK_API_KEY: e2e
+  RERANK_MODEL: e2e-rerank
+  MARKER_API_URL: ""
+
+jobs:
+  smoke:
+    name: PR Smoke E2E
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'smoke') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: oghma_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d oghma_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check smoke E2E script
+        env:
+          E2E_SCRIPT: e2e:smoke
+        run: |
+          node -e "const fs=require('node:fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const script=process.env.E2E_SCRIPT;if(!pkg.scripts?.[script]){console.error('Missing npm script: '+script);process.exit(1);}"
+
+      - name: Install Playwright browser
+        run: npm exec -- playwright install --with-deps chromium
+
+      - name: Start S3-compatible storage
+        run: |
+          docker run -d --name oghma-e2e-minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
+            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
+            minio/minio:latest server /data --console-address ":9001"
+
+          for attempt in {1..30}; do
+            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          docker run --rm --network host minio/mc:latest alias set local "${STORAGE_ENDPOINT}" "${STORAGE_ACCESS_KEY}" "${STORAGE_SECRET_KEY}"
+          docker run --rm --network host minio/mc:latest mb --ignore-existing "local/${STORAGE_BUCKET}"
+
+      - name: Start fake AI provider
+        run: |
+          PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
+          echo $! > fake-ai.pid
+          for attempt in {1..30}; do
+            if curl -fsS "http://127.0.0.1:8787/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat fake-ai.log
+          exit 1
+
+      - name: Run integration contracts
+        run: |
+          npm run e2e:reset
+          npm run test:integration
+
+      - name: Run smoke E2E
+        # Integration contracts already run reset + seed + bucket setup. Skip
+        # the Playwright setup step for those to avoid duplicate work.
+        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop S3-compatible storage
+        if: always()
+        run: |
+          if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
+          docker rm -f oghma-e2e-minio 2>/dev/null || true
+
+  full:
+    name: Nightly Full E2E
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'full') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: oghma_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d oghma_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check full E2E script
+        env:
+          E2E_SCRIPT: e2e:full
+        run: |
+          node -e "const fs=require('node:fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const script=process.env.E2E_SCRIPT;if(!pkg.scripts?.[script]){console.error('Missing npm script: '+script);process.exit(1);}"
+
+      - name: Install Playwright browsers
+        run: npm exec -- playwright install --with-deps
+
+      - name: Start S3-compatible storage
+        run: |
+          docker run -d --name oghma-e2e-minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
+            -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
+            minio/minio:latest server /data --console-address ":9001"
+
+          for attempt in {1..30}; do
+            if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
+          docker run --rm --network host minio/mc:latest alias set local "${STORAGE_ENDPOINT}" "${STORAGE_ACCESS_KEY}" "${STORAGE_SECRET_KEY}"
+          docker run --rm --network host minio/mc:latest mb --ignore-existing "local/${STORAGE_BUCKET}"
+
+      - name: Start fake AI provider
+        run: |
+          PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
+          echo $! > fake-ai.pid
+          for attempt in {1..30}; do
+            if curl -fsS "http://127.0.0.1:8787/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat fake-ai.log
+          exit 1
+
+      - name: Run full E2E
+        # The E2E script owns reset/migrate/seed so CI and local runs use the
+        # same deterministic setup instead of the deploy-only migration hook.
+        run: npm run e2e:full -- --workers=2
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-full-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 21
+
+      - name: Stop S3-compatible storage
+        if: always()
+        run: |
+          if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
+          docker rm -f oghma-e2e-minio 2>/dev/null || true

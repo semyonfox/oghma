@@ -6,12 +6,12 @@ tags:
   - demo
   - user-flow
 created: 2026-04-01
-updated: 2026-06-07
+updated: 2026-06-15
 ---
 
 # OghmaNotes User Flow And Architecture
 
-This is the current demo companion. It is intentionally compact so it can stay accurate as the app changes.
+This is the current demo companion. It is intentionally compact so it can stay accurate as the app changes. It describes the running homelab stack; the paid-launch provider target is tracked separately in [../infra/TARGET_HOSTING.md](../infra/TARGET_HOSTING.md).
 
 ## System At A Glance
 
@@ -53,17 +53,18 @@ flowchart LR
     REDIS --> WORKER[App worker container]
     WORKER --> DB
     WORKER --> STORE
-    WORKER --> OCR[Marker OCR if configured]
+    WORKER --> OCR[Marker / GPU batch path if configured]
     API --> AI[LLM / embedding / rerank providers]
     WORKER --> AI
-    API --> SES[AWS SES email]
+    API --> EMAIL[SES-shaped env now / Cloudflare Email launch target]
 ```
 
 Current deployment:
 
 - app and worker containers are built by Jenkins
 - prod/dev run on the homelab behind Cloudflare tunnels
-- Route 53 and SES remain on AWS
+- AWS email/DNS notes are historical or fallback unless explicitly retained
+- Cloudflare Email Sending, R2, Neon, and a tested app runtime are the launch migration target
 - queues are BullMQ on Redis, not SQS
 - object storage is RustFS/S3-compatible, not tied to AWS S3
 

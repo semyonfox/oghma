@@ -32,13 +32,13 @@ The local app runs at `http://localhost:3000`. See [SETUP.md](SETUP.md) for requ
 - Redis + BullMQ for Canvas, extraction, vault import, and vault export jobs
 - Lexical, CodeMirror, Zustand, and Tailwind for the app UI
 - Configurable LLM, embedding, rerank, and OCR providers
-- AWS SES for outbound email; Route 53 for DNS
+- Launch target: Cloudflare DNS/edge/email/R2, Neon Postgres + pgvector, Node/Docker worker and likely app fallback runtime; Cloudflare Workers/OpenNext only if the web-app trial stays clean
 
-Production and dev currently run on the homelab Docker/Jenkins stack behind Cloudflare tunnels. Current operations live in [infra/HOMELAB.md](infra/HOMELAB.md); AWS is limited to DNS/email unless explicitly reintroduced in [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md).
+Production and dev currently run on the interim homelab Docker/Jenkins stack behind Cloudflare tunnels. Current operations live in [infra/HOMELAB.md](infra/HOMELAB.md); the launch migration target lives in [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md). AWS is now historical/fallback unless explicitly reintroduced in [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md).
 
 ## Documentation
 
-Start with [docs/README.md](docs/README.md) for the canonical docs map. Product planning is in [docs/ROADMAP.md](docs/ROADMAP.md), launch readiness is in [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md), and pricing/cost planning is in [docs/PRICING.md](docs/PRICING.md).
+Start with [docs/README.md](docs/README.md) for the canonical docs map. Product planning is in [docs/ROADMAP.md](docs/ROADMAP.md), launch readiness is in [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md), pricing/cost planning is in [docs/PRICING.md](docs/PRICING.md), Canvas import economics are in [docs/CANVAS_IMPORT_PRICING_REPORT.md](docs/CANVAS_IMPORT_PRICING_REPORT.md), and company/admin order is in [docs/COMPANY_FORMATION_AND_LAUNCH_ADMIN.md](docs/COMPANY_FORMATION_AND_LAUNCH_ADMIN.md).
 
 ## Credits
 

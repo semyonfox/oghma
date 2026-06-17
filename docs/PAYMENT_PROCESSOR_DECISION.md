@@ -1,6 +1,6 @@
 # Payment Processor Decision
 
-> Last updated: 2026-06-07
+> Last updated: 2026-06-11
 > Current decision: Stripe Managed Payments for paid OghmaNotes subscriptions.
 
 ---
@@ -105,6 +105,12 @@ Initial UI:
 - admin/manual fallback through the Stripe dashboard while volume is low
 
 ---
+
+## Open Questions
+
+- Whether Stripe Managed Payments onboarding requires a registered business entity — this could force the Irish LTD before the first paid user rather than "before serious money" (cross-ref: launch checklist payments section).
+- Scope of MoR: Managed Payments handles transaction tax (VAT on subscription sales). It does not replace Corporation Tax, income tax on the founder split, bookkeeping, or CRO filings — those stay ours regardless of processor.
+- Re-evaluate plain Stripe Checkout + Stripe Tax once revenue passes a few thousand EUR/month. The ~6-point Merchant-of-Record premium (~8% vs ~2%) buys tax admin and is correct at launch volume, but becomes material at scale.
 
 ## Sources To Recheck Before Build
 

@@ -28,9 +28,9 @@ Fill at least these local values in `.env.local`:
 | Auth | `JWT_SECRET`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, `SERVER_ENCRYPTION_SECRET` |
 | Redis / queues | `REDIS_HOST`, `REDIS_PORT` |
 | AI / RAG | `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`, `RERANK_API_URL`, `RERANK_API_KEY`, `RERANK_MODEL` |
-| Email | `SES_REGION`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_FROM_EMAIL` |
+| Email | Current code compatibility: `SES_REGION`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_FROM_EMAIL`; launch target: provider-neutral SMTP / Cloudflare Email Sending |
 
-`MARKER_API_URL` enables Marker OCR. If it is unset, extraction falls back to the configured non-Marker paths where supported.
+`MARKER_API_URL` enables Marker OCR. If it is unset, extraction falls back to the configured non-Marker paths where supported. Datalab or similar managed document APIs are emergency/benchmark-only, not the steady-state Canvas import path; see [docs/CANVAS_IMPORT_PRICING_REPORT.md](docs/CANVAS_IMPORT_PRICING_REPORT.md).
 
 ## Commands
 
@@ -44,7 +44,7 @@ npm run test:ci   # test suite
 npm run migrate   # apply database migrations
 ```
 
-## Production And Dev Deploys
+## Current Homelab Production And Dev Deploys
 
 Production is not on AWS Amplify/RDS. Both live environments run on the homelab Docker/Jenkins stack:
 
@@ -58,7 +58,7 @@ Jenkins builds app and worker images, runs `node scripts/prebuild-migrate.mjs` a
 - `/home/semyon/jenkins/env/oghma-dev.env`
 - `/home/semyon/jenkins/env/oghma-prod.env`
 
-See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for the small set of AWS services still in use.
+See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack, [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md) for the launch migration target, and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for historical/fallback AWS notes.
 
 ## Common Issues
 
