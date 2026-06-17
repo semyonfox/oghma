@@ -1,19 +1,79 @@
-import nodemailer from "nodemailer";
+import { SESClient, SendRawEmailCommand } from "@aws-sdk/client-ses";
+import { randomUUID } from "node:crypto";
 
 // Amplify blocks AWS_ prefixed env vars, so fall back to SES_ prefix
 const sesRegion =
   process.env.AWS_SES_REGION || process.env.SES_REGION || "eu-west-1";
-const transporter = nodemailer.createTransport({
-  host: `email-smtp.${sesRegion}.amazonaws.com`,
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.AWS_SES_ACCESS_KEY_ID || process.env.SES_ACCESS_KEY_ID,
-    pass:
-      process.env.AWS_SES_SECRET_ACCESS_KEY ||
-      process.env.SES_SECRET_ACCESS_KEY,
-  },
+const sesAccessKeyId =
+  process.env.AWS_SES_ACCESS_KEY_ID || process.env.SES_ACCESS_KEY_ID;
+const sesSecretAccessKey =
+  process.env.AWS_SES_SECRET_ACCESS_KEY || process.env.SES_SECRET_ACCESS_KEY;
+
+const ses = new SESClient({
+  region: sesRegion,
+  ...(sesAccessKeyId && sesSecretAccessKey
+    ? {
+        credentials: {
+          accessKeyId: sesAccessKeyId,
+          secretAccessKey: sesSecretAccessKey,
+        },
+      }
+    : {}),
 });
+
+function assertHeaderValue(value, fieldName) {
+  if (!value || /[\r\n]/.test(value)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+  return value;
+}
+
+function encodeHeader(value) {
+  assertHeaderValue(value, "email header");
+  return /^[\x20-\x7e]*$/.test(value)
+    ? value
+    : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
+
+function buildRawEmail({ from, to, subject, text, html }) {
+  const safeFrom = assertHeaderValue(from, "from email");
+  const safeTo = assertHeaderValue(to, "recipient email");
+  const boundary = `oghma-${randomUUID()}`;
+
+  return [
+    `From: ${safeFrom}`,
+    `To: ${safeTo}`,
+    `Subject: ${encodeHeader(subject)}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    text,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    html,
+    "",
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+}
+
+async function sendEmail(mailOptions) {
+  const rawEmail = buildRawEmail(mailOptions);
+  await ses.send(
+    new SendRawEmailCommand({
+      RawMessage: {
+        Data: Buffer.from(rawEmail, "utf8"),
+      },
+    }),
+  );
+}
 
 export async function sendPasswordResetEmail(email, resetToken) {
   const fromEmail =
@@ -48,7 +108,7 @@ export async function sendPasswordResetEmail(email, resetToken) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error("[email] failed to send password reset:", err.message);
     throw new Error("Failed to send password reset email");
@@ -88,7 +148,7 @@ export async function sendVerificationEmail(email, verificationToken) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error("[email] failed to send verification email:", err.message);
     throw new Error("Failed to send verification email");
@@ -135,7 +195,7 @@ export async function sendVaultImportCompleteEmail(
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error(
       "[email] failed to send vault import notification:",
@@ -174,7 +234,7 @@ export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error(
       "[email] failed to send vault export notification:",

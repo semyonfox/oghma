@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDef } from "./types";
-import { jsonResult } from "./types";
+import type { ToolDef } from "./types.ts";
+import { jsonResult } from "./types.ts";
 
 export const assignmentTools: ToolDef[] = [
     {

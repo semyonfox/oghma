@@ -18,14 +18,13 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.2"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.0",
-    "vitest": "^4.1.4"
+    "@types/node": "25.9.3",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
   }
 }
