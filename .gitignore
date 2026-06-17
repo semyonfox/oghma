@@ -39,6 +39,7 @@ pnpm-lock.yaml
 .env*
 !.env.example
 !.env.e2e.example
+!.env.mock.example
 !*.template
 
 # local-specific envs

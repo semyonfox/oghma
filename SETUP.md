@@ -44,6 +44,27 @@ npm run test:ci   # test suite
 npm run migrate   # apply database migrations
 ```
 
+## Mock Database (offline dev / sign-in testing)
+
+Run the app against a disposable local stack instead of the real DB, with a synthetic
+seeded login. No real user data is involved. Needs Docker.
+
+```bash
+cp .env.mock.example .env.mock   # one-time
+npm run mock:up                  # start postgres/redis/minio/fake-ai (docker-compose.e2e.yml)
+npm run mock:seed                # migrate + seed the synthetic login, notes, quiz, and a sample PDF
+npm run dev:mock                 # next dev on http://127.0.0.1:3311
+npm run mock:down                # stop and wipe volumes
+```
+
+Sign in at `http://127.0.0.1:3311/login` with `student.e2e@example.com` / `E2ePassword123!`.
+The seed also loads a real paper (`scripts/e2e/fixtures/sample-paper.pdf`) plus a markdown
+note, chunked and embedded so semantic and keyword search both return results.
+
+> Note: the mock AI provider returns a constant embedding, so semantic ranking is trivial
+> (search returns the paper but cannot rank by true relevance). Use the real self-hosted
+> embedding service for meaningful ranking.
+
 ## Current Homelab Production And Dev Deploys
 
 Production is not on AWS Amplify/RDS. Both live environments run on the homelab Docker/Jenkins stack:
