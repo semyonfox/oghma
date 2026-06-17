@@ -67,7 +67,7 @@ export default function SettingsPage() {
     lastName: "",
     email: "",
     timezone: "UTC",
-    theme: "dark",
+    theme: "system",
     editorWidth: "large",
     currentPassword: "",
     newPassword: "",
@@ -140,7 +140,7 @@ export default function SettingsPage() {
           setSettings(settingsData);
           setFormState((prev) => ({
             ...prev,
-            theme: settingsData.theme || "dark",
+            theme: settingsData.theme || "system",
             editorWidth:
               settingsData.editorsize === "small" ? "small" : "large",
             timezone: settingsData.timezone || "UTC",
@@ -218,6 +218,7 @@ export default function SettingsPage() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       localStorage.removeItem("ogma-theme");
+      document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";
     } catch {
       toast.error(t("Failed to sign out"));

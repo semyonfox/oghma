@@ -34,7 +34,7 @@ const MenuItem = ({
     className={`flex w-full items-center h-7 px-2 text-[13px] rounded-[3px] mx-0.5 transition-colors ${
       danger
         ? "text-error-400 hover:bg-error-500/10"
-        : "text-text-secondary hover:bg-white/[0.06]"
+        : "text-text-secondary hover:bg-subtle"
     }`}
     style={{ width: "calc(100% - 4px)" }}
   >
@@ -51,7 +51,7 @@ const MenuItem = ({
 );
 
 const Separator = () => (
-  <div className="my-1 mx-2 border-t border-white/[0.06]" />
+  <div className="my-1 mx-2 border-t border-border-subtle" />
 );
 export default function NoteContextMenuPortal({
   onRename,

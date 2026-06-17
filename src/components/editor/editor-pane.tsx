@@ -233,8 +233,8 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
             onClick={() => openRightPanelTab("meta")}
             className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "meta"
-                ? "bg-white/[0.08] text-text-secondary"
-                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title="Toggle metadata panel"
           >
@@ -244,8 +244,8 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
             onClick={() => openRightPanelTab("ai")}
             className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "ai"
-                ? "bg-white/[0.08] text-text-secondary"
-                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title="Toggle AI assistant panel"
           >
@@ -254,7 +254,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
           {pane === "B" && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-1 hover:bg-subtle rounded text-text-tertiary hover:text-text-secondary transition-colors"
               title="Close this pane"
             >
               <XMarkIcon className="w-3.5 h-3.5" />

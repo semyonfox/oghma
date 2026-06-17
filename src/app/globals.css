@@ -32,17 +32,17 @@
   --color-ai-800: #92400e;
   --color-ai-900: #78350f;
 
-  /* === PRIMARY: Blue for Focus & Productivity === */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* === PRIMARY: Indigo (Aether accent) === */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
 
   /* === SECONDARY: Teal for Progress & Learning === */
   --color-secondary-50: #f0fdfa;
@@ -392,8 +392,16 @@ body {
 .bg-landing {
   background: radial-gradient(
     ellipse at top,
-    rgb(30 41 59 / 0.5),
-    var(--color-background) 50%
+    rgb(99 102 241 / 0.1),
+    var(--color-background) 55%
+  );
+}
+
+html.light .bg-landing {
+  background: radial-gradient(
+    ellipse at top,
+    rgb(99 102 241 / 0.06),
+    var(--color-background) 55%
   );
 }
 

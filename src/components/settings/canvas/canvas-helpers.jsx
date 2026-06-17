@@ -105,7 +105,7 @@ export function LogStatusIcon({ status }) {
     forbidden: { dot: "bg-orange-400", label: "restricted" },
     error: { dot: "bg-red-400", label: "error" },
   };
-  const cfg = map[status] ?? { dot: "bg-white/30", label: status };
+  const cfg = map[status] ?? { dot: "bg-text-tertiary", label: status };
   return (
     <span
       className={`mt-1 inline-block size-1.5 shrink-0 rounded-full ${cfg.dot}`}

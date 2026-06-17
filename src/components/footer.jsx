@@ -70,7 +70,7 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-8 sm:pt-24 lg:px-8 lg:pt-32">
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
-            <div className="font-serif text-2xl font-bold text-white flex items-center gap-2">
+            <div className="font-serif text-2xl font-bold text-text flex items-center gap-2">
               <Image
                 src="/oghmanotes.svg"
                 alt="OghmaNotes Logo"
@@ -110,10 +110,7 @@ export default function Footer() {
                 id="language-select"
                 value={activeLocale}
                 onChange={handleLanguageChange}
-                className="bg-white/5 border border-white/10 text-text-secondary text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
-                style={{
-                  colorScheme: "dark",
-                }}
+                className="bg-input border border-border-subtle text-text-secondary text-sm rounded-radius-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
               >
                 {Object.entries(configLocale).map(([code, name]) => (
                   <option key={code} value={code}>
@@ -126,7 +123,7 @@ export default function Footer() {
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">
+                <h3 className="text-sm/6 font-semibold text-text">
                   {t("Features")}
                 </h3>
                 <ul role="list" className="mt-6 space-y-4">
@@ -143,7 +140,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">
+                <h3 className="text-sm/6 font-semibold text-text">
                   {t("Support")}
                 </h3>
                 <ul role="list" className="mt-6 space-y-4">
@@ -162,7 +159,7 @@ export default function Footer() {
             </div>
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm/6 font-semibold text-white">
+                <h3 className="text-sm/6 font-semibold text-text">
                   {t("Company")}
                 </h3>
                 <ul role="list" className="mt-6 space-y-4">
@@ -179,7 +176,7 @@ export default function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm/6 font-semibold text-white">
+                <h3 className="text-sm/6 font-semibold text-text">
                   {t("Legal")}
                 </h3>
                 <ul role="list" className="mt-6 space-y-4">

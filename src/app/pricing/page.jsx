@@ -37,7 +37,7 @@ export default function PricingPage() {
             key={tier.name}
             className="rounded-lg border border-border-subtle bg-surface/70 p-5"
           >
-            <h2 className="text-xl font-semibold text-white">{tier.name}</h2>
+            <h2 className="text-xl font-semibold text-text">{tier.name}</h2>
             <p className="mt-3 text-2xl font-semibold text-primary-300">
               {tier.price}
             </p>

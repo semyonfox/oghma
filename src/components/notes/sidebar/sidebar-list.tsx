@@ -526,7 +526,7 @@ const SidebarList = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-white/[0.06] transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-subtle transition-colors"
               >
                 {t("Cancel")}
               </button>

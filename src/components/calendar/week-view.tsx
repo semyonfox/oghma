@@ -297,7 +297,7 @@ export default function WeekView() {
                         e.stopPropagation();
                         void deleteTimeBlock(b.id);
                       }}
-                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-white/[0.07] hover:text-text-secondary transition"
+                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-subtle hover:text-text-secondary transition"
                       aria-label="Delete study block"
                       title="Delete study block"
                     >

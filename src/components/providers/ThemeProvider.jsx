@@ -22,7 +22,10 @@ export default function ThemeProvider({ children }) {
   useEffect(() => {
     const resolved = theme || localStorage.getItem('ogma-theme') || 'system'
     applyTheme(resolved)
-    if (theme) localStorage.setItem('ogma-theme', theme)
+    if (theme) {
+      localStorage.setItem('ogma-theme', theme)
+      document.cookie = `ogma-theme=${theme}; path=/; max-age=31536000; samesite=lax`
+    }
   }, [theme])
 
   // respond to OS preference changes when in 'system' mode

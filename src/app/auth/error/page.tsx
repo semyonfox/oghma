@@ -44,7 +44,7 @@ function AuthErrorContent() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-text-secondary mb-2">
+            <h2 className="text-xl font-semibold text-text mb-2">
               Sign-in failed
             </h2>
             <p className="text-sm text-text-tertiary mb-1">{message}</p>
@@ -57,13 +57,13 @@ function AuthErrorContent() {
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href="/login"
-              className="flex w-full justify-center rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-700"
+              className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
             >
               Back to sign in
             </Link>
             <Link
               href="/"
-              className="flex w-full justify-center rounded-md glass-card-interactive px-3 py-1.5 text-sm font-semibold text-text-secondary"
+              className="flex w-full justify-center rounded-radius-md glass-card-interactive px-3 py-1.5 text-sm font-semibold text-text-secondary"
             >
               Go home
             </Link>

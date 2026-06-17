@@ -27,7 +27,7 @@ export default function CanvasProgressPanel({
 
   const LogRow = ({ log }) => (
     <div
-      className={`flex items-start gap-2 px-4 py-1 border-b border-white/5 last:border-0 ${
+      className={`flex items-start gap-2 px-4 py-1 border-b border-border-subtle last:border-0 ${
         log.status === "forbidden"
           ? "bg-orange-500/5"
           : log.status === "error"
@@ -67,7 +67,7 @@ export default function CanvasProgressPanel({
   return (
     <div className="glass-card rounded-radius-md overflow-hidden">
       {/* header row */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white/2.5">
+      <div className="flex items-center justify-between px-4 py-3 bg-subtle">
         <div className="flex items-center gap-2">
           {isImporting && (
             <span className="inline-block size-2 rounded-full bg-primary-400 animate-pulse" />
@@ -112,7 +112,7 @@ export default function CanvasProgressPanel({
       </div>
 
       {/* progress bar */}
-      <div className="h-1.5 w-full bg-white/10 overflow-hidden">
+      <div className="h-1.5 w-full bg-subtle overflow-hidden">
         {isDiscovering ? (
           // pulsing full bar while total is unknown
           <div className="h-full w-full bg-primary-500/50 animate-pulse" />
@@ -149,7 +149,7 @@ export default function CanvasProgressPanel({
               <button
                 type="button"
                 onClick={() => setLogsFailedOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/[0.07] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
                 <span className="text-xs font-medium text-red-400/80">
                   {t("Failed / Restricted")} ({failedLogs.length})
@@ -175,7 +175,7 @@ export default function CanvasProgressPanel({
               <button
                 type="button"
                 onClick={() => setLogsSuccessOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/[0.07] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
                 <span className="text-xs font-medium text-green-400/80">
                   {t("Imported")} ({successLogs.length})

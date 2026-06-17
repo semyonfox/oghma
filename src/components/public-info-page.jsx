@@ -14,7 +14,7 @@ export default function PublicInfoPage({
         <p className="text-sm font-semibold uppercase text-primary-300">
           {eyebrow}
         </p>
-        <h1 className="mt-4 font-serif text-4xl font-semibold tracking-normal text-white sm:text-5xl">
+        <h1 className="mt-4 font-serif text-4xl font-semibold tracking-normal text-text sm:text-5xl">
           {title}
         </h1>
         {description ? (
@@ -34,7 +34,7 @@ export default function PublicInfoPage({
 export function InfoSection({ title, children }) {
   return (
     <section>
-      <h2 className="font-serif text-2xl font-semibold text-white">{title}</h2>
+      <h2 className="font-serif text-2xl font-semibold text-text">{title}</h2>
       <div className="mt-4 space-y-4">{children}</div>
     </section>
   );

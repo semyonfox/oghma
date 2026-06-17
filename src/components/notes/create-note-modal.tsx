@@ -146,7 +146,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           <button
             onClick={onClose}
             disabled={isCreating}
-            className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50"
+            className="p-1 hover:bg-subtle rounded text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -266,7 +266,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           <button
             onClick={onClose}
             disabled={isCreating}
-            className="px-4 py-2 text-sm text-text-secondary hover:bg-white/[0.06] rounded transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm text-text-secondary hover:bg-subtle rounded transition-colors disabled:opacity-50"
           >
             {t("Close")}
           </button>

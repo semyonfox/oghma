@@ -60,7 +60,7 @@ export default function NewTaskModal({
             </DialogTitle>
             <button
               onClick={onClose}
-              className="rounded p-1 text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07]"
+              className="rounded p-1 text-text-tertiary hover:text-text-secondary hover:bg-subtle"
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
@@ -145,7 +145,7 @@ export default function NewTaskModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
+              className="w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-text-on-primary hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {saving ? t("Creating...") : t("Create Task")}
             </button>

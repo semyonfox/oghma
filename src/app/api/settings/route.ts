@@ -15,7 +15,17 @@ export const GET = withErrorHandler(async () => {
     // Merge with defaults
     const mergedSettings = { ...DEFAULT_SETTINGS, ...userSettings };
 
-    return NextResponse.json(mergedSettings);
+    const response = NextResponse.json(mergedSettings);
+    // mirror the account theme into a cookie so it applies pre-paint on any
+    // device once settings have loaded once (read by the theme init script)
+    if (mergedSettings.theme) {
+      response.cookies.set("ogma-theme", String(mergedSettings.theme), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+      });
+    }
+    return response;
 });
 
 export const POST = withErrorHandler(async (request) => {

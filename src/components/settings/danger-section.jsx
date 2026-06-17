@@ -121,7 +121,7 @@ export default function DangerSection() {
                       (clearVaultInput !== VAULT_CONFIRM_PHRASE &&
                         clearVaultInput !== "0")
                     }
-                    className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="rounded-radius-md bg-error-500 px-3 py-2 text-sm font-semibold text-white hover:bg-error-400 disabled:opacity-30 disabled:cursor-not-allowed"
                     onClick={handleClearVault}
                   >
                     {isClearingVault ? t("Clearing...") : t("Confirm")}
@@ -154,7 +154,7 @@ export default function DangerSection() {
             </p>
             <button
               type="button"
-              className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400"
+              className="rounded-radius-md bg-error-500 px-3 py-2 text-sm font-semibold text-white hover:bg-error-400"
               onClick={() => setDeleteAccountModal(true)}
             >
               {t("Delete my account")}
@@ -197,7 +197,7 @@ export default function DangerSection() {
                   isDeletingAccount ||
                   deleteAccountInput !== DELETE_ACCOUNT_PHRASE
                 }
-                className="rounded-md bg-red-500 px-3 py-2 text-sm font-semibold text-white hover:bg-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="rounded-radius-md bg-error-500 px-3 py-2 text-sm font-semibold text-white hover:bg-error-400 disabled:opacity-30 disabled:cursor-not-allowed"
                 onClick={handleDeleteAccount}
               >
                 {isDeletingAccount ? t("Deleting...") : t("Delete my account")}

@@ -344,7 +344,7 @@ export default function AssignmentTracker() {
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
           <div className="relative flex-1">
-            <ListboxButton className="relative w-full rounded-radius-md glass-card py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary transition-colors hover:bg-white/[0.07]">
+            <ListboxButton className="relative w-full rounded-radius-md glass-card py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary transition-colors hover:bg-subtle">
               {courseFilter || t("All Courses")}
               <span className="absolute inset-y-0 right-0 flex items-center pr-2">
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
@@ -353,7 +353,7 @@ export default function AssignmentTracker() {
             <ListboxOptions className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-radius-md glass-card py-1 text-xs shadow-lg">
               <ListboxOption
                 value={null}
-                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
+                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
               >
                 {t("All Courses")}
               </ListboxOption>
@@ -361,7 +361,7 @@ export default function AssignmentTracker() {
                 <ListboxOption
                   key={c}
                   value={c}
-                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-white/[0.07] data-[focus]:bg-white/[0.07]"
+                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                 >
                   {c}
                 </ListboxOption>
@@ -374,7 +374,7 @@ export default function AssignmentTracker() {
           className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
             includeAll
               ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
-              : "border-border-subtle bg-surface text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07]"
+              : "border-border-subtle bg-surface text-text-tertiary hover:text-text-secondary hover:bg-subtle"
           }`}
           title={
             includeAll ? t("Showing all assignments") : t("Get all assignments")
@@ -385,14 +385,14 @@ export default function AssignmentTracker() {
         <button
           type="button"
           onClick={() => setShowCourseManager(true)}
-          className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-white/[0.07]"
+          className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
         >
           {t("Manage")}
         </button>
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="rounded-radius-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-white/[0.07] transition-colors disabled:opacity-40"
+          className="rounded-radius-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors disabled:opacity-40"
           title={t("Sync from Canvas")}
         >
           <ArrowPathIcon

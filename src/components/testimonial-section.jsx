@@ -42,14 +42,14 @@ export default function TestimonialSection() {
   );
 
   return (
-    <div className="border-y border-white/5 bg-white/[0.02] py-16 sm:py-24">
+    <div className="border-y border-border-subtle bg-surface/30 py-16 sm:py-24">
       <div className="mx-auto max-w-5xl px-6 lg:px-8">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.5 }}
-          className="font-serif text-3xl font-semibold tracking-tight text-white text-center mb-12"
+          className="font-serif text-3xl font-semibold tracking-tight text-text text-center mb-12"
         >
           {t("What students say")}
         </motion.h2>
@@ -62,7 +62,7 @@ export default function TestimonialSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
-              className="rounded-xl bg-white/5 ring-1 ring-white/10 p-8"
+              className="rounded-radius-xl bg-surface border border-border-subtle p-8"
             >
               <div className="flex gap-1 mb-4">
                 {[...Array(5)].map((_, j) => (
@@ -79,7 +79,7 @@ export default function TestimonialSection() {
                   {item.author.charAt(0)}
                 </div>
                 <div>
-                  <p className="font-semibold text-white text-sm">
+                  <p className="font-semibold text-text text-sm">
                     {item.author}
                   </p>
                   <p className="text-xs text-text-tertiary">{item.role}</p>

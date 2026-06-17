@@ -140,7 +140,7 @@ export default function QuestionCard({
                         ? option.is_correct
                           ? "bg-success-500/20 border-success-500/30 text-text-secondary"
                           : "bg-error-500/20 border-error-500/30 text-text-secondary"
-                        : "bg-white/10 border-text-tertiary text-text-secondary"
+                        : "bg-subtle border-text-tertiary text-text-secondary"
                       : submitted && option.is_correct
                         ? "bg-success-500/20 border-success-500/30 text-text-secondary"
                         : "border-border-subtle text-text-tertiary"

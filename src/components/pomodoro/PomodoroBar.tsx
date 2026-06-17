@@ -146,7 +146,7 @@ export default function PomodoroBar({
       }`}
     >
       {/* progress track */}
-      <div className="h-0.5 w-full bg-white/[0.07]">
+      <div className="h-0.5 w-full bg-subtle">
         <div
           className={`h-full ${isComplete ? "bg-green-500" : barColor} transition-all duration-700 ease-out`}
           style={{ width: `${isComplete ? 100 : progress}%` }}

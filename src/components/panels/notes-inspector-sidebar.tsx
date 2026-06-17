@@ -152,7 +152,7 @@ export default function NotesInspectorSidebar() {
         {rightPanelOpen && (
           <button
             onClick={toggleRightPanel}
-            className="rounded p-1 text-text-tertiary transition-colors hover:bg-white/[0.06] hover:text-text-secondary flex-shrink-0"
+            className="rounded p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary flex-shrink-0"
             title={t("Collapse panel")}
           >
             <ChevronRightIcon className="h-3.5 w-3.5" />

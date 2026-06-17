@@ -294,7 +294,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void deleteTimeBlock(tb.id);
                         }}
-                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-white/[0.07] transition"
+                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle transition"
                         aria-label="Delete study block"
                         title="Delete study block"
                       >

@@ -185,7 +185,7 @@ export default function About() {
             <div className="mx-auto max-w-7xl px-6 pt-36 pb-32 sm:pt-60 lg:px-8 lg:pt-32">
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
-                  <h1 className="text-5xl font-semibold tracking-tight text-pretty text-white sm:text-7xl">
+                  <h1 className="text-5xl font-semibold tracking-tight text-pretty text-text sm:text-7xl">
                     {t("We're changing the way people learn")}
                   </h1>
                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
@@ -202,9 +202,9 @@ export default function About() {
                         src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
-                        className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
                     </div>
                   </div>
                   <div className="mr-auto w-44 flex-none space-y-8 sm:mr-0 sm:pt-52 lg:pt-36">
@@ -214,9 +214,9 @@ export default function About() {
                         src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
-                        className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
                     </div>
                     <div className="relative">
                       <Image
@@ -224,9 +224,9 @@ export default function About() {
                         src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
-                        className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
                     </div>
                   </div>
                   <div className="w-44 flex-none space-y-8 pt-32 sm:pt-0">
@@ -236,9 +236,9 @@ export default function About() {
                         src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
-                        className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
                     </div>
                     <div className="relative">
                       <Image
@@ -246,9 +246,9 @@ export default function About() {
                         src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=352&h=528&q=80"
                         width={352}
                         height={528}
-                        className="aspect-2/3 w-full rounded-xl bg-gray-700/5 object-cover shadow-lg"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
                       />
-                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 ring-inset" />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
                     </div>
                   </div>
                 </div>
@@ -260,7 +260,7 @@ export default function About() {
         {/* Content section */}
         <div className="mx-auto -mt-12 max-w-7xl px-6 sm:mt-0 lg:px-8 xl:-mt-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
               {t("Our mission")}
             </h2>
             <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
@@ -286,7 +286,7 @@ export default function About() {
                       <dt className="text-base/7 text-text-tertiary">
                         {stat.label}
                       </dt>
-                      <dd className="text-5xl font-semibold tracking-tight text-white">
+                      <dd className="text-5xl font-semibold tracking-tight text-text">
                         {stat.value}
                       </dd>
                     </div>
@@ -311,7 +311,7 @@ export default function About() {
         {/* Features section */}
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-white sm:text-5xl">
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
               {t("Powerful features")}
             </h2>
             <p className="mt-6 text-lg/8 text-text-secondary">
@@ -327,7 +327,7 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-primary-500/10 p-3">
                 <span className="text-3xl">✨</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text">
                 {t("AI-Powered Insights")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
@@ -343,7 +343,7 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-blue-500/10 p-3">
                 <span className="text-3xl">🔗</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text">
                 {t("Seamless Canvas Integration")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
@@ -359,7 +359,7 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-purple-500/10 p-3">
                 <span className="text-3xl">📚</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text">
                 {t("Smart Organization")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
@@ -375,7 +375,7 @@ export default function About() {
               <div className="mb-6 inline-flex rounded-lg bg-pink-500/10 p-3">
                 <span className="text-3xl">📱</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text">
                 {t("Work Anywhere")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
@@ -422,7 +422,7 @@ export default function About() {
             </svg>
           </div>
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <h2 className="text-center text-lg/8 font-semibold text-white">
+            <h2 className="text-center text-lg/8 font-semibold text-text">
               {t("Built for academic excellence")}
             </h2>
             <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-6 gap-y-8 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-8 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-8 lg:gap-y-10">
@@ -448,7 +448,7 @@ export default function About() {
         <div className="py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
             <div className="mx-auto max-w-2xl">
-              <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">
+              <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
                 {t("Meet our team")}
               </h2>
               <p className="mt-6 text-lg/8 text-text-tertiary">
@@ -480,7 +480,7 @@ export default function About() {
                       className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
                     />
                   </a>
-                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-white">
+                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-text">
                     <a
                       href={person.linkedin}
                       className="hover:text-text-secondary"
@@ -552,7 +552,7 @@ export default function About() {
           className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8"
         >
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
-            <h2 className="text-4xl font-semibold tracking-tight text-balance text-white sm:text-5xl">
+            <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
               {t("From our blog")}
             </h2>
             <p className="mt-2 text-lg/8 text-text-tertiary">
@@ -575,7 +575,7 @@ export default function About() {
                   className="absolute inset-0 -z-10 object-cover"
                 />
                 <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
-                <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-white/10" />
+                <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-border-subtle" />
 
                 <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-text-secondary">
                   <time dateTime={post.datetime} className="mr-8">
@@ -590,7 +590,7 @@ export default function About() {
                     </svg>
                     <a
                       href={post.author.linkedin}
-                      className="flex items-center gap-x-2.5 text-text-secondary hover:text-white"
+                      className="flex items-center gap-x-2.5 text-text-secondary hover:text-text"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -599,13 +599,13 @@ export default function About() {
                         src={post.author.imageUrl}
                         width={24}
                         height={24}
-                        className="size-6 flex-none rounded-full bg-gray-800/10"
+                        className="size-6 flex-none rounded-full bg-surface-elevated"
                       />
                       <span>{post.author.name}</span>
                     </a>
                   </div>
                 </div>
-                <h3 className="mt-3 text-lg/6 font-semibold text-white">
+                <h3 className="mt-3 text-lg/6 font-semibold text-text">
                   <Link href={`/blog/${post.slug}`}>
                     <span className="absolute inset-0" />
                     {t(post.title)}
@@ -628,7 +628,7 @@ export default function About() {
               <a
                 key={item.name}
                 href={item.href}
-                className="text-text-tertiary hover:text-white"
+                className="text-text-tertiary hover:text-text"
               >
                 {item.name}
               </a>
@@ -639,7 +639,7 @@ export default function About() {
               <a
                 key={item.name}
                 href={item.href}
-                className="text-text-tertiary hover:text-white"
+                className="text-text-tertiary hover:text-text"
               >
                 <span className="sr-only">{item.name}</span>
                 <item.icon aria-hidden="true" className="size-6" />

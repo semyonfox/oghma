@@ -20,7 +20,7 @@ export default function CanvasCourseSelector({
       <button
         type="button"
         onClick={() => setCourseListOpen(!courseListOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.07] transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-subtle transition-colors"
       >
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-text-secondary">
@@ -39,7 +39,7 @@ export default function CanvasCourseSelector({
       </button>
 
       {courseListOpen && (
-        <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-white/2.5">
+        <div className="border-t border-border-subtle px-4 py-3 space-y-3 bg-subtle">
           {courses.length > 0 && (
             <div className="flex justify-end">
               <button

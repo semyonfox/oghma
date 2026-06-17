@@ -1,9 +1,14 @@
 "use client";
 
 import { toast } from "sonner";
+import {
+  ComputerDesktopIcon,
+  SunIcon,
+  MoonIcon,
+} from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
-import { saveBtnClass } from "./settings-utils";
+import { saveBtnClass, cn } from "./settings-utils";
 
 export default function EditorThemeSection({
   formState,
@@ -13,6 +18,18 @@ export default function EditorThemeSection({
 }) {
   const { t } = useI18n();
   const { updateSettings } = useSettingsStore();
+
+  // theme persists immediately on change — no Save needed
+  const handleThemeChange = (value) => {
+    setFormState((prev) => ({ ...prev, theme: value }));
+    try {
+      localStorage.setItem("ogma-theme", value);
+      document.cookie = `ogma-theme=${value}; path=/; max-age=31536000; samesite=lax`;
+    } catch {
+      /* ignore storage errors */
+    }
+    updateSettings({ theme: value }).catch(() => {});
+  };
 
   const handleEditorSettingsSave = async (e) => {
     e.preventDefault();
@@ -50,37 +67,44 @@ export default function EditorThemeSection({
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl">
           {/* theme */}
           <div>
-            <label className="block text-sm/6 font-medium text-text mb-3">
+            <label className="block text-sm/6 font-medium text-text mb-1">
               {t("Theme")}
             </label>
-            <div className="flex gap-3">
-              {[{ label: t("Dark"), value: "dark" }].map((theme) => (
-                <label
-                  key={theme.value}
-                  className="flex items-center cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={theme.value}
-                    checked={formState.theme === theme.value}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        theme: e.target.value,
-                      }))
-                    }
-                    className="mr-2 accent-primary-500"
-                  />
-                  <span className="text-sm text-text-secondary">
-                    {theme.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-text-tertiary mt-2">
-              {t("Dark theme is enabled for beta users right now.")}
+            <p className="text-xs text-text-tertiary mb-3">
+              {t(
+                "Choose how OghmaNotes looks. System follows your device setting.",
+              )}
             </p>
+            <div className="inline-flex gap-1 rounded-radius-lg border border-border-subtle bg-surface p-1">
+              {[
+                {
+                  label: t("System"),
+                  value: "system",
+                  icon: ComputerDesktopIcon,
+                },
+                { label: t("Light"), value: "light", icon: SunIcon },
+                { label: t("Dark"), value: "dark", icon: MoonIcon },
+              ].map((opt) => {
+                const active = formState.theme === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleThemeChange(opt.value)}
+                    aria-pressed={active}
+                    className={cn(
+                      "flex items-center gap-2 rounded-radius-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary-600 text-text-on-primary"
+                        : "text-text-secondary hover:bg-subtle",
+                    )}
+                  >
+                    <opt.icon className="h-4 w-4" aria-hidden="true" />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* editor width */}
