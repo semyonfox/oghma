@@ -3,11 +3,10 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "03:00"
+      interval: "cron"
+      cronjob: "0 * * * *"
       timezone: "Europe/Dublin"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 99
     versioning-strategy: "increase"
     commit-message:
       prefix: "deps"
@@ -26,6 +25,10 @@ updates:
       major-dependencies:
         update-types:
           - "major"
+      security-dependencies:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
     ignore:
       - dependency-name: "eslint"
         update-types:
@@ -37,11 +40,10 @@ updates:
   - package-ecosystem: "npm"
     directory: "/src/lib/canvas-mcp"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "03:15"
+      interval: "cron"
+      cronjob: "15 * * * *"
       timezone: "Europe/Dublin"
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 99
     versioning-strategy: "increase"
     commit-message:
       prefix: "deps(canvas-mcp)"
@@ -54,6 +56,10 @@ updates:
       canvas-mcp-major-dependencies:
         update-types:
           - "major"
+      canvas-mcp-security-dependencies:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
     reviewers:
       - "semyonfox"
     assignees:

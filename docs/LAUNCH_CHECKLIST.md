@@ -84,7 +84,7 @@ Launch-target checks:
 - [ ] Neon Postgres created, `pgvector` enabled, migrations applied, and connection pooling tested.
 - [ ] Cloudflare R2 bucket created and tested for uploads, downloads, presigned URLs, metadata, and vault import/export paths.
 - [ ] Vault import/export direct S3 clients checked or refactored so they use the same R2-compatible storage settings as the main app.
-- [ ] Email transport changed from SES-hardcoded SMTP to provider-neutral SMTP or Cloudflare Email Sending API.
+- [x] Email transport changed from SES-hardcoded SMTP to Cloudflare Email Sending API.
 - [ ] Redis/BullMQ runtime selected and tested under import load.
 - [ ] Production app/worker runtime selected for current Node worker shape if OpenNext is not enough.
 - [ ] Datalab/managed document API is disabled as steady-state processing path; on-demand GPU/batch path is documented.

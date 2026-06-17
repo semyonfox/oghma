@@ -28,7 +28,7 @@ Fill at least these local values in `.env.local`:
 | Auth | `JWT_SECRET`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, `SERVER_ENCRYPTION_SECRET` |
 | Redis / queues | `REDIS_HOST`, `REDIS_PORT` |
 | AI / RAG | `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`, `RERANK_API_URL`, `RERANK_API_KEY`, `RERANK_MODEL` |
-| Email | Current code compatibility: `SES_REGION`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_FROM_EMAIL`; launch target: provider-neutral SMTP / Cloudflare Email Sending |
+| Email | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `EMAIL_FROM` |
 
 `MARKER_API_URL` enables Marker OCR. If it is unset, extraction falls back to the configured non-Marker paths where supported. Datalab or similar managed document APIs are emergency/benchmark-only, not the steady-state Canvas import path; see [docs/CANVAS_IMPORT_PRICING_REPORT.md](docs/CANVAS_IMPORT_PRICING_REPORT.md).
 

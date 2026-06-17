@@ -67,7 +67,7 @@ That sender should be used for:
 - account notifications
 - background job completion emails
 
-Current implementation note: OghmaNotes still uses AWS SES-style SMTP environment names in `src/lib/email.js`. Before the Cloudflare email cutover, make the mail transport provider-neutral with generic `SMTP_*` env vars or point the existing SMTP transport at Cloudflare's SMTP settings if compatible. Treat SES as a fallback, not the launch default.
+Current implementation note: OghmaNotes sends transactional mail through the Cloudflare Email Service REST API in `src/lib/email.js`. Configure `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM`.
 
 ## Where Cloudflare Fits
 

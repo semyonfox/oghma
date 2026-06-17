@@ -31,7 +31,7 @@ Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manag
 | nginx + Cloudflare tunnels | homelab `oghma-nginx`, `oghma-cloudflared-{prod,dev}` | docker, compose |
 | chat streaming | `/api/chat` in the Next.js app | direct SSE — no 30s timeout on homelab |
 | document OCR (Marker) | optional — set `MARKER_API_URL` to enable, otherwise falls through to pdf-parse | — |
-| outbound email | Current code supports SES-shaped SMTP envs; launch target is Cloudflare Email Sending | migration required |
+| outbound email | Cloudflare Email Service REST API | configured by `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM` |
 | LLM / embedding / reranker | external SaaS | configured by `LLM_*`, `EMBEDDING_*`, and `RERANK_*` env vars |
 
 ---

@@ -55,15 +55,9 @@ env:
   STORAGE_PATH_STYLE: "true"
   STORAGE_PREFIX: e2e
   VAULT_JOBS_ENABLED: "true"
-  AWS_REGION: eu-west-1
-  AWS_SES_REGION: eu-west-1
-  AWS_SES_ACCESS_KEY_ID: e2e
-  AWS_SES_SECRET_ACCESS_KEY: e2e
-  AWS_SES_FROM_EMAIL: noreply@example.test
-  SES_REGION: eu-west-1
-  SES_ACCESS_KEY_ID: e2e
-  SES_SECRET_ACCESS_KEY: e2e
-  SES_FROM_EMAIL: noreply@example.test
+  CLOUDFLARE_ACCOUNT_ID: e2e
+  CLOUDFLARE_EMAIL_API_TOKEN: e2e
+  EMAIL_FROM: noreply@example.test
   LLM_API_URL: http://127.0.0.1:8787/v1
   LLM_API_KEY: e2e
   LLM_MODEL: e2e-chat

@@ -34,7 +34,7 @@ flowchart TD
     Embed["Embedding provider (Qwen / OpenRouter)"]
     Rerank["Reranker provider"]
     OCR["Marker / GPU batch path\nDatalab historical/fallback only"]
-    SES["SES-shaped env now\nCloudflare Email launch target"]
+    Email["Cloudflare Email Service\ntransactional mail"]
     Canvas["Canvas LMS API"]
   end
 
@@ -60,7 +60,7 @@ flowchart TD
   AppProd --> Embed
   AppProd --> Rerank
   AppProd --> OCR
-  AppProd --> SES
+  AppProd --> Email
   AppProd --> Canvas
 
   WorkerProd --> OCR
@@ -353,9 +353,9 @@ flowchart TD
 - Redis: `REDIS_HOST`/`REDIS_PORT` (queue + rate limit + cache)
 - Storage: `STORAGE_*` environment variables (S3-compatible bucket, endpoint, creds, prefix)
 - AI/Docs: `LLM_*`, `EMBEDDING_*`, `RERANK_*`, optional `DATALAB_API_KEY`, optional `MARKER_API_URL`
-- Email/notifications: current code uses SES-shaped env names (`AWS_SES_*` / `SES_*`); launch target is Cloudflare Email Sending or a provider-neutral SMTP/API mapping.
+- Email/notifications: Cloudflare Email Service REST API using `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM`.
 - Auth callbacks: `GOOGLE_*`, `GITHUB_*`, credentials flags/env secrets.
 
 ---
 
-This file is a compact architecture atlas. Provider decisions belong in `../infra/TARGET_HOSTING.md`; do not treat the SES/Datalab labels here as the launch target.
+This file is a compact architecture atlas. Provider decisions belong in `../infra/TARGET_HOSTING.md`.

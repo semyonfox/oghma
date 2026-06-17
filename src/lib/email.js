@@ -1,87 +1,63 @@
-import { SESClient, SendRawEmailCommand } from "@aws-sdk/client-ses";
-import { randomUUID } from "node:crypto";
+const CLOUDFLARE_EMAIL_ENDPOINT = "https://api.cloudflare.com/client/v4";
 
-// Amplify blocks AWS_ prefixed env vars, so fall back to SES_ prefix
-const sesRegion =
-  process.env.AWS_SES_REGION || process.env.SES_REGION || "eu-west-1";
-const sesAccessKeyId =
-  process.env.AWS_SES_ACCESS_KEY_ID || process.env.SES_ACCESS_KEY_ID;
-const sesSecretAccessKey =
-  process.env.AWS_SES_SECRET_ACCESS_KEY || process.env.SES_SECRET_ACCESS_KEY;
+function getFromEmail() {
+  return process.env.EMAIL_FROM || process.env.CLOUDFLARE_EMAIL_FROM;
+}
 
-const ses = new SESClient({
-  region: sesRegion,
-  ...(sesAccessKeyId && sesSecretAccessKey
-    ? {
-        credentials: {
-          accessKeyId: sesAccessKeyId,
-          secretAccessKey: sesSecretAccessKey,
-        },
-      }
-    : {}),
-});
+function getCloudflareEmailConfig() {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_EMAIL_API_TOKEN;
 
-function assertHeaderValue(value, fieldName) {
+  if (!accountId || !apiToken) {
+    throw new Error(
+      "Cloudflare Email Service not configured (set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN)",
+    );
+  }
+
+  return { accountId, apiToken };
+}
+
+function assertEmailValue(value, fieldName) {
   if (!value || /[\r\n]/.test(value)) {
     throw new Error(`Invalid ${fieldName}`);
   }
   return value;
 }
 
-function encodeHeader(value) {
-  assertHeaderValue(value, "email header");
-  return /^[\x20-\x7e]*$/.test(value)
-    ? value
-    : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
-}
-
-function buildRawEmail({ from, to, subject, text, html }) {
-  const safeFrom = assertHeaderValue(from, "from email");
-  const safeTo = assertHeaderValue(to, "recipient email");
-  const boundary = `oghma-${randomUUID()}`;
-
-  return [
-    `From: ${safeFrom}`,
-    `To: ${safeTo}`,
-    `Subject: ${encodeHeader(subject)}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    text,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    html,
-    "",
-    `--${boundary}--`,
-    "",
-  ].join("\r\n");
-}
-
-async function sendEmail(mailOptions) {
-  const rawEmail = buildRawEmail(mailOptions);
-  await ses.send(
-    new SendRawEmailCommand({
-      RawMessage: {
-        Data: Buffer.from(rawEmail, "utf8"),
+async function sendEmail({ from, to, subject, text, html }) {
+  const { accountId, apiToken } = getCloudflareEmailConfig();
+  const response = await fetch(
+    `${CLOUDFLARE_EMAIL_ENDPOINT}/accounts/${accountId}/email/sending/send`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
       },
-    }),
+      body: JSON.stringify({
+        from: assertEmailValue(from, "from email"),
+        to: assertEmailValue(to, "recipient email"),
+        subject,
+        text,
+        html,
+      }),
+    },
   );
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success === false) {
+    const message =
+      body?.errors?.[0]?.message ||
+      body?.messages?.[0]?.message ||
+      `Cloudflare Email Service returned HTTP ${response.status}`;
+    throw new Error(message);
+  }
 }
 
 export async function sendPasswordResetEmail(email, resetToken) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error(
-      "SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)",
-    );
+    throw new Error("Email from-address not configured (set EMAIL_FROM)");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -116,12 +92,9 @@ export async function sendPasswordResetEmail(email, resetToken) {
 }
 
 export async function sendVerificationEmail(email, verificationToken) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error(
-      "SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)",
-    );
+    throw new Error("Email from-address not configured (set EMAIL_FROM)");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -159,11 +132,10 @@ export async function sendVaultImportCompleteEmail(
   email,
   { totalFiles, totalFolders, failedFiles },
 ) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
     console.warn(
-      "[email] SES from-email not configured, skipping vault import notification",
+      "[email] from-address not configured, skipping vault import notification",
     );
     return;
   }
@@ -205,11 +177,10 @@ export async function sendVaultImportCompleteEmail(
 }
 
 export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
     console.warn(
-      "[email] SES from-email not configured, skipping vault export notification",
+      "[email] from-address not configured, skipping vault export notification",
     );
     return;
   }
@@ -242,16 +213,3 @@ export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
     );
   }
 }
-
-/* permissions policy (group name: AWSSESSendingGroupDoNotRename)
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "ses:SendRawEmail",
-            "Resource": "*"
-        }
-    ]
-}
-*/

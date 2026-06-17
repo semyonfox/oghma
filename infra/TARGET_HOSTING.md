@@ -107,9 +107,9 @@ References:
 
 Use Cloudflare Email Sending for launch transactional mail.
 
-Expected outbound volume is low: verification, password reset, welcome, and job-complete emails should stay well below the included 3,000 emails/month on Workers Paid during early launch. SES remains a fallback, not the launch default.
+Expected outbound volume is low: verification, password reset, welcome, and job-complete emails should stay well below the included 3,000 emails/month on Workers Paid during early launch.
 
-Code caveat: `src/lib/email.js` is currently hardcoded around the Amazon SES SMTP hostname and SES-shaped env vars. Before cutover, replace it with provider-neutral SMTP env vars such as `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `EMAIL_FROM`, or implement Cloudflare Email Sending via its API/Worker binding depending on the final runtime.
+Implementation: `src/lib/email.js` sends through the Cloudflare Email Service REST API from the Node app runtime. Configure `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM`.
 
 References:
 
