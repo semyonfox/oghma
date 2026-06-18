@@ -68,6 +68,7 @@ env:
   RERANK_API_KEY: e2e
   RERANK_MODEL: e2e-rerank
   MARKER_API_URL: ""
+  MINIO_IMAGE: minio/minio:RELEASE.2025-09-07T16-13-09Z
 
 jobs:
   smoke:
@@ -135,7 +136,7 @@ jobs:
             -p 9000:9000 -p 9001:9001 \
             -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
             -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            minio/minio:latest server /data --console-address ":9001"
+            "${MINIO_IMAGE}" server /data --console-address ":9001"
 
           for attempt in {1..30}; do
             if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
@@ -145,8 +146,7 @@ jobs:
           done
 
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
-          docker run --rm --network host minio/mc:latest alias set local "${STORAGE_ENDPOINT}" "${STORAGE_ACCESS_KEY}" "${STORAGE_SECRET_KEY}"
-          docker run --rm --network host minio/mc:latest mb --ignore-existing "local/${STORAGE_BUCKET}"
+          node scripts/e2e/create-storage-bucket.mjs
 
       - name: Start fake AI provider
         run: |
@@ -253,7 +253,7 @@ jobs:
             -p 9000:9000 -p 9001:9001 \
             -e MINIO_ROOT_USER="${STORAGE_ACCESS_KEY}" \
             -e MINIO_ROOT_PASSWORD="${STORAGE_SECRET_KEY}" \
-            minio/minio:latest server /data --console-address ":9001"
+            "${MINIO_IMAGE}" server /data --console-address ":9001"
 
           for attempt in {1..30}; do
             if curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null; then
@@ -263,8 +263,7 @@ jobs:
           done
 
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
-          docker run --rm --network host minio/mc:latest alias set local "${STORAGE_ENDPOINT}" "${STORAGE_ACCESS_KEY}" "${STORAGE_SECRET_KEY}"
-          docker run --rm --network host minio/mc:latest mb --ignore-existing "local/${STORAGE_BUCKET}"
+          node scripts/e2e/create-storage-bucket.mjs
 
       - name: Start fake AI provider
         run: |
