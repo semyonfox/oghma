@@ -62,7 +62,7 @@ describe("ai-config", () => {
       getLlmThinkingMode({
         LLM_THINKING: "enabled",
       } as unknown as NodeJS.ProcessEnv),
-    ).toBe("on");
+    ).toBe("auto");
     expect(
       getLlmThinkingMode({
         LLM_THINKING: "disabled",
@@ -76,8 +76,7 @@ describe("ai-config", () => {
   });
 
   it("maps thinking mode to OpenRouter reasoning effort", () => {
-    expect(buildReasoningOptions("auto")).toEqual({ effort: "medium" });
-    expect(buildReasoningOptions("on")).toEqual({ effort: "high" });
+    expect(buildReasoningOptions("auto")).toEqual({ enabled: true });
     expect(buildReasoningOptions("off")).toBeUndefined();
   });
 

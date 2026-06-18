@@ -39,8 +39,7 @@ export function useChatPersistence(
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
-  // toggle off ↔ auto (skip "on" — high-effort reasoning is opt-in via env only,
-  // since billing per reasoning token adds up fast on hot chats)
+  // toggle off <-> auto; "on" is retained only as a legacy persisted value.
   const toggleThinking = useCallback(() => {
     setThinkingMode((current) => (current === "off" ? "auto" : "off"));
   }, []);
@@ -49,7 +48,9 @@ export function useChatPersistence(
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(THINKING_MODE_KEY);
-    if (saved === "on" || saved === "off" || saved === "auto") {
+    if (saved === "on") {
+      setThinkingMode("auto");
+    } else if (saved === "off" || saved === "auto") {
       setThinkingMode(saved);
     }
   }, []);
