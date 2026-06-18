@@ -66,6 +66,12 @@ try {
   console.log('[prebuild-migrate] running pending migrations...');
   await bootstrap(dbUrl);
 
+  execSync('node scripts/migrate-pgvector-to-qdrant.mjs', {
+    stdio: 'inherit',
+    timeout: 300000,
+    env: { ...process.env, DATABASE_URL: dbUrl },
+  });
+
   execSync('node scripts/run-migration.mjs --all', {
     stdio: 'inherit',
     timeout: 60000,
@@ -73,5 +79,6 @@ try {
   });
   console.log('[prebuild-migrate] done');
 } catch (err) {
-  console.warn('[prebuild-migrate] migrations failed, continuing build:', err.message);
+  console.error('[prebuild-migrate] migrations failed:', err.message);
+  process.exit(1);
 }

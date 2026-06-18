@@ -6,10 +6,12 @@ import { isValidUUID } from "@/lib/utils/uuid";
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import sql from "@/database/pgsql.js";
+import { searchChunkVectors } from "@/lib/qdrant";
 
 export interface SearchResult {
   note_id: string;
   title: string;
+  chunk_id?: string;
   chunk_text: string;
   distance: number;
 }
@@ -25,33 +27,41 @@ export async function semanticSearch(
   scopedNoteIds?: string[] | null,
   limit = 8,
 ): Promise<SearchResult[]> {
-  const vectorStr = `[${queryVector.join(",")}]`;
-  const scoped = scopedNoteIds && scopedNoteIds.length > 0;
-  const rows = scoped
-    ? await sql`
-        SELECT n.note_id, n.title, c.text AS chunk_text,
-               (e.embedding <=> ${vectorStr}::vector) AS distance
-        FROM app.embeddings e
-        JOIN app.chunks c ON c.id = e.chunk_id
-        JOIN app.notes n ON n.note_id = c.document_id
-        WHERE c.user_id = ${userId}::uuid
-          AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-        ORDER BY e.embedding <=> ${vectorStr}::vector
-        LIMIT ${limit}
-      `
-    : await sql`
-        SELECT n.note_id, n.title, c.text AS chunk_text,
-               (e.embedding <=> ${vectorStr}::vector) AS distance
-        FROM app.embeddings e
-        JOIN app.chunks c ON c.id = e.chunk_id
-        JOIN app.notes n ON n.note_id = c.document_id
-        WHERE c.user_id = ${userId}::uuid
-          AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-        ORDER BY e.embedding <=> ${vectorStr}::vector
-        LIMIT ${limit}
-      `;
-  return rows as SearchResult[];
+  const hits = await searchChunkVectors({
+    userId,
+    vector: queryVector,
+    documentIds: scopedNoteIds,
+    maxDistance: MAX_DISTANCE,
+    limit,
+  });
+  if (hits.length === 0) return [];
+
+  const chunkIds = hits.map((hit) => hit.chunkId);
+  const rows = await sql`
+    SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
+    FROM app.chunks c
+    JOIN app.notes n ON n.note_id = c.document_id
+    WHERE c.user_id = ${userId}::uuid
+      AND c.id = ANY(${chunkIds}::uuid[])
+      AND n.deleted_at IS NULL
+  `;
+  const byChunkId = new Map<string, any>(
+    rows.map((row: any) => [row.chunk_id, row]),
+  );
+
+  return hits.flatMap((hit) => {
+    const row = byChunkId.get(hit.chunkId);
+    if (!row) return [];
+    return [
+      {
+        note_id: row.note_id,
+        title: row.title,
+        chunk_id: row.chunk_id,
+        chunk_text: row.chunk_text,
+        distance: hit.distance,
+      },
+    ];
+  });
 }
 
 export function normalizeUuidList(value: unknown): string[] {

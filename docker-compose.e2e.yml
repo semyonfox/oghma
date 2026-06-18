@@ -2,7 +2,7 @@ name: oghmanotes-e2e
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: postgres:18
     environment:
       POSTGRES_USER: oghma_e2e
       POSTGRES_PASSWORD: oghma_e2e
@@ -15,7 +15,7 @@ services:
       timeout: 5s
       retries: 30
     volumes:
-      - e2e-postgres:/var/lib/postgresql/data
+      - e2e-postgres:/var/lib/postgresql
 
   redis:
     image: redis:7-alpine
@@ -26,6 +26,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "56333:6333"
+      - "56334:6334"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c '</dev/tcp/127.0.0.1/6333'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - e2e-qdrant:/qdrant/storage
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -76,3 +93,4 @@ services:
 volumes:
   e2e-postgres:
   e2e-minio:
+  e2e-qdrant:

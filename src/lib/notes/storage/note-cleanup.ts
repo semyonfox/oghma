@@ -1,6 +1,7 @@
 import sql from "@/database/pgsql.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import logger from "@/lib/logger";
+import { deleteChunkVectors } from "@/lib/qdrant";
 
 function uniqueKeys(rows: Array<{ s3_key: string | null }>): string[] {
   return [...new Set(rows.map((row) => row.s3_key).filter(Boolean))] as string[];
@@ -27,6 +28,15 @@ export async function cleanupNoteDependencies(
       AND user_id = ${userId}::uuid
       AND s3_key IS NOT NULL
   `;
+  const chunkRows = await sql`
+    SELECT id
+    FROM app.chunks
+    WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+  `;
+  const chunkIds = chunkRows.map((row: { id: string }) => row.id);
+  await deleteChunkVectors(chunkIds).catch((error) => {
+    logger.warn("note cleanup Qdrant delete failed", { noteId, error });
+  });
 
   // delete all DB dependencies in a single transaction
   await sql.begin(async (tx: any) => {
@@ -78,14 +88,6 @@ export async function cleanupNoteDependencies(
     await tx`
       DELETE FROM app.quiz_questions
       WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-    `;
-
-    await tx`
-      DELETE FROM app.embeddings
-      WHERE chunk_id IN (
-        SELECT id FROM app.chunks
-        WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid
-      )
     `;
 
     await tx`

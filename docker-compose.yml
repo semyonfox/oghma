@@ -1,6 +1,16 @@
 version: '3.9'
 
 services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: oghma-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      oghma:
+        ipv4_address: 192.168.48.42
+
   app:
     image: oghma:dev-latest
     container_name: oghma-dev
@@ -8,6 +18,9 @@ services:
     mem_limit: 512m
     env_file:
       - /home/semyon/jenkins/env/oghma-dev.env
+    environment:
+      QDRANT_URL: http://oghma-qdrant:6333
+      QDRANT_COLLECTION: oghma_dev_chunks
     networks:
       oghma:
         ipv4_address: 192.168.48.40
@@ -19,6 +32,9 @@ services:
     mem_limit: 512m
     env_file:
       - /home/semyon/jenkins/env/oghma-dev.env
+    environment:
+      QDRANT_URL: http://oghma-qdrant:6333
+      QDRANT_COLLECTION: oghma_dev_chunks
     networks:
       oghma:
         ipv4_address: 192.168.48.41
@@ -26,3 +42,6 @@ services:
 networks:
   oghma:
     external: true
+
+volumes:
+  qdrant-data:

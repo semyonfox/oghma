@@ -1,5 +1,6 @@
 import sql from "@/database/pgsql.js";
 import { embedChunks } from "@/lib/embeddings";
+import { deleteChunkVectors, upsertChunkVectors } from "@/lib/qdrant";
 import { sanitizePostgresText } from "@/lib/text-sanitize";
 
 interface ChunkRow {
@@ -23,7 +24,7 @@ export function normalizeChunksForIndexing(chunks: string[]): string[] {
 async function deleteChunkSet(chunkIds: string[]): Promise<void> {
   if (chunkIds.length === 0) return;
 
-  await sql`DELETE FROM app.embeddings WHERE chunk_id = ANY(${chunkIds}::uuid[])`;
+  await deleteChunkVectors(chunkIds).catch(() => undefined);
   await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
 }
 
@@ -49,10 +50,8 @@ export async function replaceNoteEmbeddings(
     return 0;
   }
 
-  // atomic: insert new chunks+embeddings and delete old ones in one transaction
-  // prevents orphaned chunks if the embedding INSERT fails mid-flight
-  await sql.begin(async (tx: any) => {
-    const chunkRows = await tx`
+  const chunkRows = await sql.begin(async (tx: any) => {
+    return await tx`
       INSERT INTO app.chunks (document_id, user_id, text)
       SELECT * FROM UNNEST(
         ${embeddings.map(() => noteId)}::uuid[],
@@ -61,24 +60,26 @@ export async function replaceNoteEmbeddings(
       )
       RETURNING id
     `;
-
-    // pass embeddings as text[] and cast per-row to vector — pgvector has no
-    // text[]→vector[] cast (only a parser-level text→vector via input function),
-    // so a direct ::vector[] cast errors with "type vector[] does not exist"
-    await tx`
-      INSERT INTO app.embeddings (chunk_id, embedding)
-      SELECT t.chunk_id, t.embedding::vector
-      FROM UNNEST(
-        ${chunkRows.map((row: ChunkRow) => row.id)}::uuid[],
-        ${embeddings.map((entry) => JSON.stringify(entry.vector))}::text[]
-      ) AS t(chunk_id, embedding)
-    `;
-
-    if (oldChunkIds.length > 0) {
-      await tx`DELETE FROM app.embeddings WHERE chunk_id = ANY(${oldChunkIds}::uuid[])`;
-      await tx`DELETE FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])`;
-    }
   });
+
+  try {
+    await upsertChunkVectors(
+      chunkRows.map((row: ChunkRow, index: number) => ({
+        chunkId: row.id,
+        documentId: noteId,
+        userId,
+        vector: embeddings[index].vector,
+      })),
+    );
+  } catch (error) {
+    await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkRows.map((row: ChunkRow) => row.id)}::uuid[])`;
+    throw error;
+  }
+
+  if (oldChunkIds.length > 0) {
+    await deleteChunkVectors(oldChunkIds).catch(() => undefined);
+    await sql`DELETE FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])`;
+  }
 
   return embeddings.length;
 }

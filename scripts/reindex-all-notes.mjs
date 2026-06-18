@@ -1,5 +1,5 @@
-// full re-index: reads all notes with content, chunks, embeds via Cohere, stores
-// run after migration 014 to repopulate the empty chunks+embeddings tables
+// full re-index: reads all notes with content, chunks, embeds, and stores
+// vectors in Qdrant while keeping chunk metadata in Postgres.
 //
 // usage: node --import=tsx scripts/reindex-all-notes.mjs [--dry-run]
 
@@ -7,11 +7,10 @@ import fs from "fs";
 import path from "path";
 import sql from "../src/database/pgsql.js";
 import { chunkText } from "../src/lib/chunking.ts";
-import { embedChunks } from "../src/lib/embeddings.ts";
-import { normalizeChunksForIndexing } from "../src/lib/rag/indexing.ts";
+import { deleteChunkVectors } from "../src/lib/qdrant.ts";
+import { normalizeChunksForIndexing, replaceNoteEmbeddings } from "../src/lib/rag/indexing.ts";
 
 const DRY_RUN = process.argv.includes("--dry-run");
-const EMBED_BATCH = 96; // Cohere limit
 // small concurrency to stay under Cohere rate limits
 const NOTE_BATCH = 50;
 
@@ -60,7 +59,8 @@ async function main() {
   // with --force, wipe existing chunks+embeddings and rebuild from scratch
   if (FORCE && !DRY_RUN) {
     console.log("--force: clearing all existing chunks and embeddings...");
-    await sql`DELETE FROM app.embeddings`;
+    const rows = await sql`SELECT id FROM app.chunks`;
+    await deleteChunkVectors(rows.map((row) => row.id)).catch(() => undefined);
     await sql`DELETE FROM app.chunks`;
     console.log("cleared.\n");
   }
@@ -111,45 +111,10 @@ async function main() {
         continue;
       }
 
-      // embed in batches of 96
       try {
-        const allEmbeddings = [];
-        for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
-          const batch = chunks.slice(i, i + EMBED_BATCH);
-          const result = await embedChunks(batch);
-          allEmbeddings.push(...result);
-        }
-
-        if (allEmbeddings.length === 0) {
-          console.log(`${prefix} — embedding returned empty, skipping`);
-          skipped++;
-          continue;
-        }
-
-        // atomic insert: chunks + embeddings in one transaction
-        await sql.begin(async (tx) => {
-          const chunkRows = await tx`
-            INSERT INTO app.chunks (document_id, user_id, text)
-            SELECT * FROM UNNEST(
-              ${allEmbeddings.map(() => note.note_id)}::uuid[],
-              ${allEmbeddings.map(() => note.user_id)}::uuid[],
-              ${allEmbeddings.map((e) => e.chunk)}::text[]
-            )
-            RETURNING id
-          `;
-
-          await tx`
-            INSERT INTO app.embeddings (chunk_id, embedding)
-            SELECT t.chunk_id, t.embedding::vector
-            FROM UNNEST(
-              ${chunkRows.map((r) => r.id)}::uuid[],
-              ${allEmbeddings.map((e) => JSON.stringify(e.vector))}::text[]
-            ) AS t(chunk_id, embedding)
-          `;
-        });
-
-        embedded += allEmbeddings.length;
-        console.log(`${prefix} — ${allEmbeddings.length} chunks embedded`);
+        const stored = await replaceNoteEmbeddings(note.note_id, note.user_id, chunks);
+        embedded += stored;
+        console.log(`${prefix} — ${stored} chunks embedded`);
       } catch (err) {
         failed++;
         console.error(

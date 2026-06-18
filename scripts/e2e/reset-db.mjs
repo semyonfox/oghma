@@ -14,6 +14,7 @@ const seedEmail = process.env.E2E_SEED_USER_EMAIL || "student.e2e@example.com";
 const seedPassword = process.env.E2E_SEED_USER_PASSWORD || "E2ePassword123!";
 const seedUserId =
   process.env.E2E_SEED_USER_ID || "11111111-1111-4111-8111-111111111111";
+const qdrantCollection = process.env.QDRANT_COLLECTION || "oghma_e2e_chunks";
 
 function assertSafeDatabaseUrl(dbUrl) {
   if (!dbUrl) {
@@ -50,11 +51,8 @@ async function applyCurrentSchemaPatch(sql) {
       ADD COLUMN IF NOT EXISTS canvas_domain TEXT,
       ADD COLUMN IF NOT EXISTS calendar_export_token UUID;
 
-    DROP INDEX IF EXISTS app.idx_embeddings_hnsw;
-    DELETE FROM app.embeddings;
     DELETE FROM app.chunks;
-    ALTER TABLE app.embeddings
-      ALTER COLUMN embedding TYPE vector(4096);
+    DROP TABLE IF EXISTS app.embeddings;
 
     CREATE TABLE IF NOT EXISTS app.quiz_sessions (
       id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -214,20 +212,65 @@ async function applyCurrentSchemaPatch(sql) {
   `);
 }
 
+function qdrantUrl() {
+  return (process.env.QDRANT_URL || "http://127.0.0.1:56333").replace(/\/+$/, "");
+}
+
+function qdrantHeaders() {
+  const headers = { "content-type": "application/json" };
+  if (process.env.QDRANT_API_KEY?.trim()) {
+    headers["api-key"] = process.env.QDRANT_API_KEY.trim();
+  }
+  return headers;
+}
+
+async function qdrantFetch(path, init = {}) {
+  const res = await fetch(`${qdrantUrl()}${path}`, {
+    ...init,
+    headers: { ...qdrantHeaders(), ...(init.headers || {}) },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`);
+  }
+  if (res.status === 204) return undefined;
+  return await res.json();
+}
+
+async function resetQdrant() {
+  await fetch(`${qdrantUrl()}/collections/${qdrantCollection}`, {
+    method: "DELETE",
+    headers: qdrantHeaders(),
+  }).catch(() => undefined);
+
+  await qdrantFetch(`/collections/${qdrantCollection}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      vectors: { size: 4096, distance: "Cosine" },
+      hnsw_config: {
+        m: 16,
+        ef_construct: 100,
+      },
+      optimizers_config: {
+        indexing_threshold: 1,
+      },
+    }),
+  });
+}
+
 async function seedUser(sql) {
   const hashedPassword = await bcrypt.hash(seedPassword, 10);
   const noteId = "22222222-2222-4222-8222-222222222222";
   const chunkId = "33333333-3333-4333-8333-333333333333";
-  const embeddingId = "44444444-4444-4444-8444-444444444444";
   const questionId = "55555555-5555-4555-8555-555555555555";
   const cardId = "66666666-6666-4666-8666-666666666666";
   const assignmentId = "77777777-7777-4777-8777-777777777777";
   const timeBlockId = "88888888-8888-4888-8888-888888888888";
   const chatSessionId = "99999999-9999-4999-8999-999999999999";
   const chatMessageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  const vector4096 = `[${Array.from({ length: 4096 }, (_, index) =>
-    index === 0 ? "1" : "0",
-  ).join(",")}]`;
+  const vector4096 = Array.from({ length: 4096 }, (_, index) =>
+    index === 0 ? 1 : 0,
+  );
 
   await sql`
     INSERT INTO app.login (
@@ -285,12 +328,20 @@ async function seedUser(sql) {
       SET text = EXCLUDED.text
   `;
 
-  await sql`
-    INSERT INTO app.embeddings (id, chunk_id, embedding)
-    VALUES (${embeddingId}::uuid, ${chunkId}::uuid, ${vector4096}::vector)
-    ON CONFLICT (id) DO UPDATE
-      SET embedding = EXCLUDED.embedding
-  `;
+  await qdrantFetch(`/collections/${qdrantCollection}/points?wait=true`, {
+    method: "PUT",
+    body: JSON.stringify({
+      points: [{
+        id: chunkId,
+        vector: vector4096,
+        payload: {
+          chunk_id: chunkId,
+          document_id: noteId,
+          user_id: seedUserId,
+        },
+      }],
+    }),
+  });
 
   await sql`
     INSERT INTO app.quiz_questions (
@@ -433,6 +484,7 @@ async function main() {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
     await sql.unsafe(MIGRATION_SQL);
     await applyCurrentSchemaPatch(sql);
+    await resetQdrant();
     await seedUser(sql);
     await flushRedis();
     console.log(`[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`);
