@@ -1,7 +1,7 @@
 // Storage initialization
 // Creates and configures the storage provider instance
 
-import { StoreS3, type S3Config } from './s3';
+import { createS3ConfigFromEnv, StoreS3, type S3Config } from './s3';
 import { createLogger } from './logger';
 
 const logger = createLogger('store.init');
@@ -10,24 +10,7 @@ const logger = createLogger('store.init');
  * Validates that all required S3 configuration is available
  */
 function validateS3Config(): S3Config {
-  const bucket = process.env.STORAGE_BUCKET;
-
-  if (!bucket) {
-    throw new Error(
-      'Missing required environment variable: STORAGE_BUCKET. ' +
-        'Set it to your S3 bucket name.'
-    );
-  }
-
-  return {
-    bucket,
-    accessKey: process.env.STORAGE_ACCESS_KEY,
-    secretKey: process.env.STORAGE_SECRET_KEY,
-    region: process.env.STORAGE_REGION || 'us-east-1',
-    endPoint: process.env.STORAGE_ENDPOINT,
-    pathStyle: process.env.STORAGE_PATH_STYLE === 'true',
-    prefix: process.env.STORAGE_PREFIX || 'oghma',
-  };
+  return createS3ConfigFromEnv();
 }
 
 /**

@@ -3,6 +3,7 @@ import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 
 /**
  * GET /api/vault/status?type=vault-import|vault-export
@@ -46,14 +47,7 @@ export const GET = withErrorHandler(async (request) => {
     const prefix = process.env.STORAGE_PREFIX || "oghma";
     const fullKey = `${prefix}/${job.output_s3_key}`;
     const s3 = new S3Client({
-      region: process.env.STORAGE_REGION || "us-east-1",
-      ...(process.env.STORAGE_ENDPOINT && { endpoint: process.env.STORAGE_ENDPOINT }),
-      ...(process.env.STORAGE_ACCESS_KEY && process.env.STORAGE_SECRET_KEY && {
-        credentials: {
-          accessKeyId: process.env.STORAGE_ACCESS_KEY,
-          secretAccessKey: process.env.STORAGE_SECRET_KEY,
-        },
-      }),
+      ...createS3ClientConfig(createS3ConfigFromEnv()),
     });
 
     downloadUrl = await getSignedUrl(
