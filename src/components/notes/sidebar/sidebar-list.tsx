@@ -9,6 +9,7 @@ import React, { memo, useMemo, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
+import { TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import {
   ControlledTreeEnvironment,
   Tree,
@@ -25,6 +26,7 @@ import {
   getVisibleTreeItemIds,
   toggleSelectedId,
 } from "./selection-utils";
+import { ROOT_ID } from "@/lib/notes/types/tree";
 
 const SidebarList = () => {
   const { t } = useI18n();
@@ -105,7 +107,11 @@ const SidebarList = () => {
     [tree, expandedIds],
   );
 
-  const selectedCount = selectedIds.size;
+  const selectedItemIds = useMemo(
+    () => Array.from(selectedIds).filter((id) => id !== ROOT_ID && tree.items[id]),
+    [selectedIds, tree.items],
+  );
+  const selectedCount = selectedItemIds.length;
   const deleteIds = deleteConfirmTarget?.ids ?? [];
   const deleteHasFolder = deleteIds.some(
     (id) => (tree.items[id]?.children?.length ?? 0) > 0,
@@ -199,33 +205,9 @@ const SidebarList = () => {
           role="toolbar"
           aria-label={t("Notes actions")}
         >
-          <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
+          <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
-          {selectedCount > 1 && (
-            <div className="flex items-center gap-1 mr-1 text-[11px] text-text-tertiary">
-              <span>{selectedCount} selected</span>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleBulkDeleteRequest(Array.from(selectedIds));
-                }}
-                className="p-0.5 rounded hover:bg-error-500/10 text-text-tertiary hover:text-error-400 transition-colors"
-                title={t("Delete selected")}
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M5 6h10M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6" />
-                </svg>
-              </button>
-            </div>
-          )}
           {!initLoaded && (
             <svg
               className="animate-spin h-3 w-3 text-text-tertiary mr-1"
@@ -251,7 +233,7 @@ const SidebarList = () => {
           <div className="flex items-center gap-0.5">
             <button
               onClick={handleQuickNewNote}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New note")}
             >
               <svg
@@ -267,7 +249,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleQuickNewFolder}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New folder")}
             >
               <svg
@@ -283,7 +265,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleCollapseAll}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("Collapse all")}
             >
               <svg
@@ -299,7 +281,7 @@ const SidebarList = () => {
             <button
               onClick={handleRefreshTree}
               disabled={isRefreshing}
-              className={`p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
+              className={`p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
                 isRefreshing ? "opacity-50 cursor-not-allowed" : ""
               }`}
               title={t("Refresh filetree")}
@@ -316,7 +298,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("More options")}
             >
               <svg
@@ -330,11 +312,52 @@ const SidebarList = () => {
           </div>
         </div>
 
+        {selectedCount > 1 && (
+          <div className="mx-2 mb-1 flex h-8 items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 text-xs text-text-secondary">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-radius-sm bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-300">
+                {selectedCount}
+              </span>
+              <span className="truncate font-medium">
+                {selectedCount === 1 ? t("item selected") : t("items selected")}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleBulkDeleteRequest(selectedItemIds);
+              }}
+              className="inline-flex h-6 items-center gap-1 rounded-radius-sm bg-error-500/15 px-2 font-medium text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 focus:outline-none focus:ring-1 focus:ring-error-500/50"
+              title={t("Delete selected")}
+              aria-label={t("Delete selected")}
+            >
+              <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{t("Delete")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedIds(new Set());
+                setSelectionAnchorId(null);
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+              title={t("Clear selection")}
+              aria-label={t("Clear selection")}
+            >
+              <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         {/* Tree */}
         <div className="flex-1 pb-4">
           <ControlledTreeEnvironment
             items={treeData}
-            getItemTitle={(item) => item.data?.title ?? "Untitled"}
+            getItemTitle={(item) => item.data?.title ?? t("Untitled")}
             viewState={viewState}
             onExpandItem={handleExpandItem}
             onCollapseItem={handleCollapseItem}
@@ -490,7 +513,7 @@ const SidebarList = () => {
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
-            className="bg-surface rounded-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
+            className="bg-surface rounded-radius-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
@@ -526,13 +549,13 @@ const SidebarList = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-white/[0.06] transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm text-text-secondary hover:bg-subtle transition-colors"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
               >
                 {t("Delete")}
               </button>

@@ -248,13 +248,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (!owned.length) return tracedError("File not found", 404);
 
   if (request.nextUrl.searchParams.get("stream") === "1") {
-    const { body, contentType, contentLength } = await storage.getObjectStream(path);
-    const headers: Record<string, string> = {
-      "Content-Type": contentType ?? "application/octet-stream",
-      "Cache-Control": "private, max-age=300",
-    };
-    if (contentLength) headers["Content-Length"] = String(contentLength);
-    return new NextResponse(Readable.toWeb(body) as ReadableStream, { headers });
+    // attachment row may exist while the blob is gone (e.g. migration orphans)
+    if (!(await storage.hasObject(path))) {
+      return tracedError("File not found", 404);
+    }
+    try {
+      const { body, contentType, contentLength } = await storage.getObjectStream(path);
+      const headers: Record<string, string> = {
+        "Content-Type": contentType ?? "application/octet-stream",
+        "Cache-Control": "private, max-age=300",
+      };
+      if (contentLength) headers["Content-Length"] = String(contentLength);
+      return new NextResponse(Readable.toWeb(body) as ReadableStream, { headers });
+    } catch (streamError) {
+      logger.error("failed to stream attachment from storage", {
+        key: path,
+        error: streamError,
+      });
+      return tracedError("Failed to read file from storage", 502);
+    }
   }
 
   const url = `/api/upload?path=${encodeURIComponent(path)}&stream=1`;

@@ -7,6 +7,7 @@ import enDict from "@/locales/en.json";
 import { uiCache } from "@/lib/notes/cache";
 
 const SETTINGS_CACHE_KEY = "settings-cache";
+const LOCALE_STORAGE_KEY = "ogma-locale";
 // revalidate from network after 10 min, but always serve cache instantly
 const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -38,10 +39,19 @@ function I18nRootProviderContent({ children }: Props) {
   useEffect(() => {
     const loadLocale = async () => {
       try {
+        const cookieLocale = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith(`${LOCALE_STORAGE_KEY}=`))
+          ?.split("=")[1];
+        const browserLocale =
+          (cookieLocale ? decodeURIComponent(cookieLocale) : null) ||
+          localStorage.getItem(LOCALE_STORAGE_KEY);
+
         // serve cached locale immediately — no waiting for network
         const cached = await uiCache.getItem<CachedSettings>(SETTINGS_CACHE_KEY);
-        if (cached?.locale && cached.locale !== Locale.EN) {
-          setLocaleData(await loadLocaleDict(cached.locale));
+        const instantLocale = cached?.locale || browserLocale;
+        if (instantLocale && instantLocale !== Locale.EN) {
+          setLocaleData(await loadLocaleDict(instantLocale));
         }
 
         // skip revalidation if cache is still fresh
@@ -59,9 +69,11 @@ function I18nRootProviderContent({ children }: Props) {
           locale: userLocale,
           cachedAt: Date.now(),
         });
+        localStorage.setItem(LOCALE_STORAGE_KEY, userLocale);
+        document.cookie = `${LOCALE_STORAGE_KEY}=${userLocale}; path=/; max-age=31536000; samesite=lax`;
 
         // only re-render if locale actually changed
-        if (userLocale !== (cached?.locale ?? Locale.EN)) {
+        if (userLocale !== (instantLocale ?? Locale.EN)) {
           setLocaleData(await loadLocaleDict(userLocale));
         }
       } catch (error) {

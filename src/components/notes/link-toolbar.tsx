@@ -32,9 +32,9 @@ const LinkToolbar: FC = () => {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(linkToolbar.data!.href);
-      toast("Link copied", "success");
+      toast(t("Link copied"), "success");
     } catch {
-      toast("Failed to copy", "error");
+      toast(t("Failed to copy"), "error");
     }
     linkToolbar.close();
   };

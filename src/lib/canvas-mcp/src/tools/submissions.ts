@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDef } from "./types";
-import { jsonResult, textResult } from "./types";
+import type { ToolDef } from "./types.ts";
+import { jsonResult, textResult } from "./types.ts";
 
 export const submissionTools: ToolDef[] = [
     {

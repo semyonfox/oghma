@@ -152,7 +152,7 @@ export default function NotesInspectorSidebar() {
         {rightPanelOpen && (
           <button
             onClick={toggleRightPanel}
-            className="rounded p-1 text-text-tertiary transition-colors hover:bg-white/[0.06] hover:text-text-secondary flex-shrink-0"
+            className="rounded p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary flex-shrink-0"
             title={t("Collapse panel")}
           >
             <ChevronRightIcon className="h-3.5 w-3.5" />
@@ -262,7 +262,7 @@ export default function NotesInspectorSidebar() {
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
+                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-radius-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
                     <span className="text-text-tertiary text-xs">#</span>
                     <input
                       ref={tagInputRef}
@@ -274,7 +274,7 @@ export default function NotesInspectorSidebar() {
                       }}
                       disabled={isSavingTag}
                       placeholder={t("add tag")}
-                      className="flex-1 bg-transparent text-xs text-text placeholder-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
+                      className="flex-1 bg-transparent text-xs text-text placeholder:text-text-tertiary/60 focus:outline-none disabled:opacity-50 min-w-0"
                     />
                     <button
                       type="button"

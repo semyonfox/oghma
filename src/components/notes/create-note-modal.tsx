@@ -97,7 +97,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
   }, []);
 
   const handleCreateNew = useCallback(async () => {
-    const name = filename.trim() || "Untitled";
+    const name = filename.trim() || t("Untitled");
     const title = name.endsWith(".md") ? name : `${name}.md`;
     setIsCreating(true);
     try {
@@ -108,7 +108,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
     } finally {
       setIsCreating(false);
     }
-  }, [filename, onCreateNote, onClose]);
+  }, [filename, onCreateNote, onClose, t]);
 
   const handleCreateFolder = useCallback(async () => {
     setIsCreating(true);
@@ -146,7 +146,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           <button
             onClick={onClose}
             disabled={isCreating}
-            className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50"
+            className="p-1 hover:bg-subtle rounded text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-50"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -208,8 +208,8 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
                   }}
                   disabled={isCreating}
                   autoFocus
-                  className="flex-1 bg-transparent text-sm text-text placeholder-text-tertiary focus:outline-none disabled:opacity-50"
-                  placeholder="Untitled"
+                  className="flex-1 bg-transparent text-sm text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
+                  placeholder={t("Untitled")}
                 />
                 <span className="text-xs text-text-tertiary flex-shrink-0">.md</span>
               </div>
@@ -266,7 +266,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
           <button
             onClick={onClose}
             disabled={isCreating}
-            className="px-4 py-2 text-sm text-text-secondary hover:bg-white/[0.06] rounded transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm text-text-secondary hover:bg-subtle rounded transition-colors disabled:opacity-50"
           >
             {t("Close")}
           </button>

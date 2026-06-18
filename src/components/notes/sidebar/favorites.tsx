@@ -88,7 +88,7 @@ export const Favorites: FC = () => {
   return (
     <>
       <div className="group flex items-center h-7 px-2 mt-1 sticky top-0 bg-background z-10">
-        <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary select-none">
+        <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
           {t("Favorites")}
         </span>
         <IconButton
@@ -102,7 +102,7 @@ export const Favorites: FC = () => {
         <div>
           <ControlledTreeEnvironment
             items={treeData}
-            getItemTitle={(item) => item.data?.title ?? "Untitled"}
+            getItemTitle={(item) => item.data?.title ?? t("Untitled")}
             viewState={viewState}
             onExpandItem={(item) => handleToggleExpanded(item)}
             onCollapseItem={(item) => handleToggleExpanded(item)}

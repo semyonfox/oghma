@@ -43,7 +43,7 @@ export default function Header() {
               width={32}
               height={32}
             />
-            <span className="font-serif text-lg font-semibold text-white hidden sm:block">
+            <span className="font-serif text-lg font-semibold text-text hidden sm:block">
               {t("OghmaNotes")}
             </span>
           </Link>
@@ -63,14 +63,14 @@ export default function Header() {
             <Link
               key={item.name}
               href={item.href}
-              className="text-sm/6 font-semibold text-white"
+              className="text-sm/6 font-semibold text-text"
             >
               {item.name}
             </Link>
           ))}
         </div>
         <div className="hidden lg:flex lg:flex-1 lg:justify-end">
-          <Link href="/login" className="text-sm/6 font-semibold text-white">
+          <Link href="/login" className="text-sm/6 font-semibold text-text">
             {t("Log in")} <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>
@@ -91,7 +91,7 @@ export default function Header() {
                 width={32}
                 height={32}
               />
-              <span className="font-serif text-lg font-semibold text-white">
+              <span className="font-serif text-lg font-semibold text-text">
                 {t("OghmaNotes")}
               </span>
             </Link>
@@ -111,7 +111,7 @@ export default function Header() {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-white hover:bg-subtle"
+                    className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-text hover:bg-subtle"
                   >
                     {item.name}
                   </Link>
@@ -120,7 +120,7 @@ export default function Header() {
               <div className="py-6">
                 <Link
                   href="/login"
-                  className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-white hover:bg-subtle"
+                  className="-mx-3 block rounded-lg px-3 py-2.5 text-base/7 font-semibold text-text hover:bg-subtle"
                 >
                   {t("Log in")}
                 </Link>

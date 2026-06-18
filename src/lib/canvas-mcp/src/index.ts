@@ -11,11 +11,11 @@ import {
   type ServerResponse,
 } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { loadConfig } from "./config";
-import { CanvasClient } from "./canvas/client";
-import { allTools } from "./tools/index";
-import type { ToolContext } from "./tools/types";
+import { toJSONSchema } from "zod";
+import { loadConfig } from "./config.ts";
+import { CanvasClient } from "./canvas/client.ts";
+import { allTools } from "./tools/index.ts";
+import type { ToolContext } from "./tools/types.ts";
 
 const cfg = loadConfig();
 
@@ -34,9 +34,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: allTools.map((t) => ({
     name: t.name,
     description: t.description,
-    inputSchema: zodToJsonSchema(t.inputSchema as any, {
-      target: "openApi3",
-    }) as any,
+    inputSchema: toJSONSchema(t.inputSchema) as any,
   })),
 }));
 

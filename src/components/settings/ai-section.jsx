@@ -74,7 +74,7 @@ export default function AISection() {
             <h3 className="text-sm/6 font-medium text-text">
               {t("Bring Your Own Key")}
             </h3>
-            <span className="inline-flex items-center rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-400 ring-1 ring-inset ring-primary-500/20">
+            <span className="inline-flex items-center rounded-radius-md bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-400 ring-1 ring-inset ring-primary-500/20">
               {t("Beta")}
             </span>
           </div>
@@ -88,7 +88,7 @@ export default function AISection() {
             <h3 className="text-sm/6 font-medium text-text">
               {t("Canvas In Chat")}
             </h3>
-            <span className="inline-flex items-center rounded-md bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-400 ring-1 ring-inset ring-primary-500/20">
+            <span className="inline-flex items-center rounded-radius-md bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-400 ring-1 ring-inset ring-primary-500/20">
               {t("Beta")}
             </span>
           </div>

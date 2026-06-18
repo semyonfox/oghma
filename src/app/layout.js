@@ -52,7 +52,7 @@ export const metadata = {
 
 // static script to apply theme class before first paint (prevents FOUC)
 // safe: hardcoded string, no user input
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('ogma-theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.add(d?'dark':'light')}catch(e){}})()`;
+const THEME_INIT_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )ogma-theme=([^;]+)/);var t=(m?decodeURIComponent(m[1]):null)||localStorage.getItem('ogma-theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);var r=document.documentElement;r.classList.remove('dark','light');r.classList.add(d?'dark':'light')}catch(e){}})()`;
 
 export default function RootLayout({ children }) {
   return (

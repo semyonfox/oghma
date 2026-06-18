@@ -7,8 +7,10 @@ import usePortalStore from "@/lib/notes/state/portal";
 import noteCache from "@/lib/notes/cache/note";
 import Link from "next/link";
 import { useSWR } from "@/lib/notes/hooks/use-swr";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 const PreviewModal: FC = () => {
+  const { t } = useI18n();
   const { preview } = usePortalStore();
   const previewId = preview.data?.id;
   const { data: previewNote } = useSWR(
@@ -17,7 +19,7 @@ const PreviewModal: FC = () => {
       previewId ? noteCache.getItem(previewId) : Promise.resolve(undefined),
   );
 
-  const title = previewNote?.title || "Untitled";
+  const title = previewNote?.title || t("Untitled");
   const content = previewNote?.rawContent?.slice(0, 200) || "";
 
   if (!preview.visible || !preview.data?.id || !preview.anchor) {

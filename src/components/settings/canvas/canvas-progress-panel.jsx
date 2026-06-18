@@ -27,7 +27,7 @@ export default function CanvasProgressPanel({
 
   const LogRow = ({ log }) => (
     <div
-      className={`flex items-start gap-2 px-4 py-1 border-b border-white/5 last:border-0 ${
+      className={`flex items-start gap-2 px-4 py-1 border-b border-border-subtle last:border-0 ${
         log.status === "forbidden"
           ? "bg-orange-500/5"
           : log.status === "error"
@@ -35,7 +35,7 @@ export default function CanvasProgressPanel({
             : ""
       }`}
     >
-      <LogStatusIcon status={log.status} />
+      <LogStatusIcon status={log.status} t={t} />
       <span
         className="flex-1 min-w-0 truncate text-text-tertiary"
         title={log.filename}
@@ -51,7 +51,7 @@ export default function CanvasProgressPanel({
         </span>
       )}
       <span className="shrink-0 text-text-tertiary/50">
-        {relativeTime(log.updatedAt)}
+        {relativeTime(log.updatedAt, t)}
       </span>
     </div>
   );
@@ -67,7 +67,7 @@ export default function CanvasProgressPanel({
   return (
     <div className="glass-card rounded-radius-md overflow-hidden">
       {/* header row */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white/2.5">
+      <div className="flex items-center justify-between px-4 py-3 bg-subtle">
         <div className="flex items-center gap-2">
           {isImporting && (
             <span className="inline-block size-2 rounded-full bg-primary-400 animate-pulse" />
@@ -83,24 +83,28 @@ export default function CanvasProgressPanel({
         <div className="flex items-center gap-3">
           {isImporting && !isDiscovering && progress?.estimatedSecsRemaining && (
             <span className="text-xs text-text-tertiary tabular-nums">
-              {formatTime(progress.estimatedSecsRemaining)} left
+              {t("{time} left", {
+                time: formatTime(progress.estimatedSecsRemaining),
+              })}
             </span>
           )}
           {importSummary && !isImporting && (
             <div className="flex items-center gap-2 text-xs tabular-nums">
               {importSummary.imported > 0 && (
                 <span className="text-green-400">
-                  {importSummary.imported} imported
+                  {t("{count} imported", { count: importSummary.imported })}
                 </span>
               )}
               {importSummary.forbidden > 0 && (
                 <span className="text-orange-400">
-                  {importSummary.forbidden} restricted
+                  {t("{count} restricted", {
+                    count: importSummary.forbidden,
+                  })}
                 </span>
               )}
               {importSummary.failed > 0 && (
                 <span className="text-red-400">
-                  {importSummary.failed} failed
+                  {t("{count} failed", { count: importSummary.failed })}
                 </span>
               )}
             </div>
@@ -112,7 +116,7 @@ export default function CanvasProgressPanel({
       </div>
 
       {/* progress bar */}
-      <div className="h-1.5 w-full bg-white/10 overflow-hidden">
+      <div className="h-1.5 w-full bg-subtle overflow-hidden">
         {isDiscovering ? (
           // pulsing full bar while total is unknown
           <div className="h-full w-full bg-primary-500/50 animate-pulse" />
@@ -126,8 +130,9 @@ export default function CanvasProgressPanel({
 
       {isImporting && markerColdStarting && (
         <div className="px-4 py-2 text-xs text-amber-300 bg-amber-500/10 border-t border-amber-500/20">
-          Canvas import is warming up the document processor. The first files
-          can take a few minutes.
+          {t(
+            "Canvas import is warming up the document processor. The first files can take a few minutes.",
+          )}
         </div>
       )}
 
@@ -149,7 +154,7 @@ export default function CanvasProgressPanel({
               <button
                 type="button"
                 onClick={() => setLogsFailedOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/[0.07] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
                 <span className="text-xs font-medium text-red-400/80">
                   {t("Failed / Restricted")} ({failedLogs.length})
@@ -175,7 +180,7 @@ export default function CanvasProgressPanel({
               <button
                 type="button"
                 onClick={() => setLogsSuccessOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/[0.07] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-2 hover:bg-subtle transition-colors"
               >
                 <span className="text-xs font-medium text-green-400/80">
                   {t("Imported")} ({successLogs.length})

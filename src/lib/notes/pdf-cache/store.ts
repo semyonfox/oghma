@@ -9,6 +9,8 @@ export interface PdfCacheEntry {
   buffer: ArrayBuffer;
   size: number;
   cachedAt: number;
+  /** MIME type from the server; older entries lack it (assume PDF) */
+  contentType?: string;
 }
 
 let dbPromise: Promise<IDBPDatabase> | null = null;

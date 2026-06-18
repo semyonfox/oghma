@@ -5,6 +5,7 @@
 // requires: npm install postgres
 
 import postgres from 'postgres';
+import { pathToFileURL } from 'url';
 
 const ENV = process.env;
 const DB_URL = ENV.DATABASE_URL;
@@ -13,7 +14,9 @@ const DB_URL = ENV.DATABASE_URL;
 // CONFIGURATION
 // ============================================================================
 
-const MIGRATION_SQL = `
+export const MIGRATION_SQL = `
+CREATE SCHEMA IF NOT EXISTS app;
+
 -- Drop existing tables (fresh rebuild)
 DROP TABLE IF EXISTS app.pdf_annotations CASCADE;
 DROP TABLE IF EXISTS app.attachments CASCADE;
@@ -33,6 +36,7 @@ DROP TABLE IF EXISTS app.chunks CASCADE;
 DROP TABLE IF EXISTS app.documents CASCADE;
 
 -- Create extensions (ignore if they already exist on RDS)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -430,4 +434,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

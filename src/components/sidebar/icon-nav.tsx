@@ -137,11 +137,11 @@ const IconNav: FC = () => {
               onClick={() => handleNavClick(item)}
               aria-describedby={`tooltip-${item.id}`}
               className={`
-                relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition-colors
+                relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors
                 ${
                   isActive
-                    ? "bg-subtle text-text-secondary"
-                    : "text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+                    ? "bg-primary-500/10 text-primary-400"
+                    : "text-text-tertiary hover:text-text hover:bg-subtle"
                 }
                 group
               `}
@@ -153,7 +153,7 @@ const IconNav: FC = () => {
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
-                className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+                className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded-radius-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
               >
                 {translatedLabel}
               </div>
@@ -177,10 +177,10 @@ const IconNav: FC = () => {
           })
         }
         aria-describedby="tooltip-settings"
-        className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-subtle group relative ${
+        className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors group relative ${
           derivedActiveSection === "settings"
-            ? "bg-subtle text-text-secondary"
-            : ""
+            ? "bg-primary-500/10 text-primary-400"
+            : "text-text-tertiary hover:text-text hover:bg-subtle"
         }`}
         title={t("Settings")}
       >
@@ -188,7 +188,7 @@ const IconNav: FC = () => {
         <div
           id="tooltip-settings"
           role="tooltip"
-          className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+          className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded-radius-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
         >
           {t("Settings")}
         </div>

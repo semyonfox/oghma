@@ -44,10 +44,8 @@ function mapQuizCourses(courses) {
     courseId: course.courseId,
     courseName: course.courseName,
     isActive: course.isActive,
-    contextText:
-      course.totalCards > 0
-        ? `${course.dueCount} due · ${course.totalCards} cards`
-        : "No quiz cards yet",
+    dueCount: course.dueCount,
+    totalCards: course.totalCards,
     hasDueItems: course.dueCount > 0,
   }));
 }
@@ -67,7 +65,7 @@ export default function SettingsPage() {
     lastName: "",
     email: "",
     timezone: "UTC",
-    theme: "dark",
+    theme: "system",
     editorWidth: "large",
     currentPassword: "",
     newPassword: "",
@@ -112,8 +110,21 @@ export default function SettingsPage() {
   }, [fetchSettings]);
 
   const courseVisibilityItems = useMemo(
-    () => mergeCourseVisibilityItems(quizCourses, courseSettings),
-    [courseSettings, quizCourses],
+    () =>
+      mergeCourseVisibilityItems(
+        quizCourses.map((course) => ({
+          ...course,
+          contextText:
+            course.totalCards > 0
+              ? t("{dueCount} due · {totalCards} cards", {
+                  dueCount: course.dueCount,
+                  totalCards: course.totalCards,
+                })
+              : t("No quiz cards yet"),
+        })),
+        courseSettings,
+      ),
+    [courseSettings, quizCourses, t],
   );
 
   // load user profile and settings on mount
@@ -140,7 +151,7 @@ export default function SettingsPage() {
           setSettings(settingsData);
           setFormState((prev) => ({
             ...prev,
-            theme: settingsData.theme || "dark",
+            theme: settingsData.theme || "system",
             editorWidth:
               settingsData.editorsize === "small" ? "small" : "large",
             timezone: settingsData.timezone || "UTC",
@@ -218,6 +229,7 @@ export default function SettingsPage() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       localStorage.removeItem("ogma-theme");
+      document.cookie = "ogma-theme=; path=/; max-age=0";
       window.location.href = "/login";
     } catch {
       toast.error(t("Failed to sign out"));
@@ -247,7 +259,7 @@ export default function SettingsPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-16">
           <button
             onClick={() => router.back()}
-            className="inline-flex items-center justify-center rounded-md text-text-tertiary hover:text-text hover:bg-subtle p-2 -ml-2"
+            className="inline-flex items-center justify-center rounded-radius-md text-text-tertiary hover:text-text hover:bg-subtle p-2 -ml-2"
             title={t("Back")}
           >
             <ArrowLeftIcon className="h-5 w-5" />
@@ -296,7 +308,7 @@ export default function SettingsPage() {
                 <li key={item.id}>
                   <button
                     className={cn(
-                      "group flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "group flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium transition-colors",
                       activeSection === item.id
                         ? "bg-primary-500/10 text-primary-400"
                         : "text-text-tertiary hover:text-text-secondary hover:bg-subtle",
@@ -313,7 +325,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSignOut}
                 disabled={isSigningOut}
-                className="flex w-full items-center gap-x-3 rounded-md px-3 py-2 text-sm font-medium text-error-400 hover:bg-error-500/10 transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-x-3 rounded-radius-md px-3 py-2 text-sm font-medium text-error-400 hover:bg-error-500/10 transition-colors disabled:opacity-50"
               >
                 <ArrowRightStartOnRectangleIcon className="h-5 w-5 shrink-0" />
                 {isSigningOut ? t("Signing out...") : t("Sign out")}

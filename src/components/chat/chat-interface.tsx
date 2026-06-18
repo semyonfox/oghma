@@ -46,7 +46,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   selectedNotes = [],
   selectedFolders = [],
   onSessionCreated,
-  onClearContext,
   onStreamComplete,
   onRemoveNote,
   onRemoveFolder,
@@ -71,7 +70,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setSessionId,
     loading,
     error,
-    setError,
     send,
     cancel,
   } = useChatStream({
@@ -134,30 +132,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     }
   };
 
-  const clear = () => {
-    if (onClearContext) {
-      onClearContext();
-      return;
-    }
-
-    // clean up any saved draft for the current session
-    if (sessionId) {
-      try {
-        sessionStorage.removeItem(`chat-draft:${sessionId}`);
-      } catch {
-        // ignore
-      }
-    }
-
-    setMessages([]);
-    setSessionId(null);
-    setError(null);
-  };
-
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
-        <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-[5px]">
+        <div className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]">
           {messages.map((m) => (
             <CompactMessageBubble key={m.id} message={m} />
           ))}
@@ -167,7 +145,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         </div>
 
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-1.5">
-          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
+          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -176,24 +154,24 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
               disabled={loading}
-              className="flex-1 min-w-0 bg-transparent text-[11px] text-text-secondary placeholder-text-tertiary focus:outline-none disabled:opacity-50"
+              className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               type="button"
               onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-medium px-1.5 py-[3px] rounded border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1 text-xs font-medium px-1.5 py-[3px] rounded-radius-sm border transition-colors ${
                 thinkingActive
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary"
               }`}
-              title={thinkingActive ? "Thinking on" : "Thinking off"}
+              title={thinkingActive ? t("Thinking on") : t("Thinking off")}
             >
-              ◆ {thinkingActive ? "Thinking" : "Think"}
+              ◆ {thinkingActive ? t("Thinking") : t("Think")}
             </button>
             <button
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="p-1 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors flex-shrink-0"
+              className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
             </button>
@@ -219,7 +197,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
           {error && (
             <div className="flex justify-center">
-              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-lg">
+              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
                 {error}
               </p>
             </div>
@@ -245,7 +223,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{note.title}</span>
                   {onRemoveNote && (
-                    <button onClick={() => onRemoveNote(note.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none" title={`Remove ${note.title}`}>×</button>
+                    <button
+                      onClick={() => onRemoveNote(note.id)}
+                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      title={t("Remove {title}", { title: note.title })}
+                    >
+                      ×
+                    </button>
                   )}
                 </span>
               ))}
@@ -254,7 +238,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                   <FolderIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{folder.title}</span>
                   {onRemoveFolder && (
-                    <button onClick={() => onRemoveFolder(folder.id)} className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none" title={`Remove ${folder.title}`}>×</button>
+                    <button
+                      onClick={() => onRemoveFolder(folder.id)}
+                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      title={t("Remove {title}", { title: folder.title })}
+                    >
+                      ×
+                    </button>
                   )}
                 </span>
               ))}
@@ -265,7 +255,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
+            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -279,31 +269,31 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               placeholder={t("chat.ask_placeholder")}
               disabled={loading}
               rows={1}
-              className="flex-1 bg-transparent text-sm leading-snug text-text placeholder-text-tertiary focus:outline-none resize-none disabled:opacity-50"
+              className="flex-1 bg-transparent text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none resize-none disabled:opacity-50"
               style={{ minHeight: "20px", maxHeight: "96px" }}
             />
             <button
               type="button"
               onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-radius-md border transition-colors ${
                 thinkingActive
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
               }`}
               title={
                 thinkingActive
-                  ? "Thinking on — click to disable"
-                  : "Thinking off — click to enable"
+                  ? t("Thinking on — click to disable")
+                  : t("Thinking off — click to enable")
               }
             >
-              ◆ {thinkingActive ? "Thinking" : "Think"}
+              ◆ {thinkingActive ? t("Thinking") : t("Think")}
             </button>
             {loading ? (
               <button
                 type="button"
                 onClick={cancel}
-                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-md transition-colors"
-                title="Stop generating"
+                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors"
+                title={t("Stop generating")}
               >
                 <StopCircleIcon className="w-3.5 h-3.5" />
               </button>
@@ -311,14 +301,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="flex-shrink-0 p-1.5 bg-primary-500 hover:bg-primary-400 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
+                className="flex-shrink-0 p-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-md transition-colors"
               >
                 <PaperAirplaneIcon className="w-3.5 h-3.5" />
               </button>
             )}
           </form>
 
-          <p className="text-center text-[11px] text-text-tertiary opacity-50 mt-1.5">
+          <p className="text-center text-xs text-text-tertiary opacity-50 mt-1.5">
             {t("chat.disclaimer")}
           </p>
         </div>

@@ -1,13 +1,9 @@
-"use client";
-
-import PreviewRenderer from "@/components/editor/preview-renderer";
 import Link from "next/link";
-import useI18n from "@/lib/notes/hooks/use-i18n";
-import useSyntaxGuideContent from "@/lib/hooks/use-syntax-guide-content";
+import SyntaxGuideClient from "./syntax-guide-client";
+import { getServerI18n } from "@/lib/i18n/server";
 
-export default function SyntaxGuidePage() {
-  const { t } = useI18n();
-  const guideContent = useSyntaxGuideContent();
+export default async function SyntaxGuidePage() {
+  const { t } = await getServerI18n();
 
   return (
     <div className="min-h-screen bg-app-page text-text">
@@ -20,7 +16,7 @@ export default function SyntaxGuidePage() {
             {t("&larr; Back to Notes")}
           </Link>
         </div>
-        <PreviewRenderer content={guideContent} />
+        <SyntaxGuideClient />
       </div>
     </div>
   );

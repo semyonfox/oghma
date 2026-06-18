@@ -3,13 +3,63 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "03:00"
-    open-pull-requests-limit: 5
-    auto-merge:
-      merge-type: "squash"
-      auto-commit-message: "chore: bump dependencies"
+      interval: "cron"
+      cronjob: "0 * * * *"
+      timezone: "Europe/Dublin"
+    open-pull-requests-limit: 99
+    versioning-strategy: "increase"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      major-dependencies:
+        update-types:
+          - "major"
+      security-dependencies:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
+    reviewers:
+      - "semyonfox"
+    assignees:
+      - "semyonfox"
+  - package-ecosystem: "npm"
+    directory: "/src/lib/canvas-mcp"
+    schedule:
+      interval: "cron"
+      cronjob: "15 * * * *"
+      timezone: "Europe/Dublin"
+    open-pull-requests-limit: 99
+    versioning-strategy: "increase"
+    commit-message:
+      prefix: "deps(canvas-mcp)"
+      include: "scope"
+    groups:
+      canvas-mcp-dependencies:
+        update-types:
+          - "minor"
+          - "patch"
+      canvas-mcp-major-dependencies:
+        update-types:
+          - "major"
+      canvas-mcp-security-dependencies:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
     reviewers:
       - "semyonfox"
     assignees:

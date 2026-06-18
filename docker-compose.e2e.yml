@@ -1,0 +1,78 @@
+name: oghmanotes-e2e
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: oghma_e2e
+      POSTGRES_PASSWORD: oghma_e2e
+      POSTGRES_DB: oghma_e2e
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oghma_e2e -d oghma_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - e2e-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "56380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: oghmae2e
+      MINIO_ROOT_PASSWORD: oghmae2e-secret
+    ports:
+      - "59100:9000"
+      - "59101:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - e2e-minio:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "58125:1025"
+      - "58180:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  fake-ai:
+    image: node:22-alpine
+    working_dir: /work
+    command: ["node", "scripts/e2e/fake-ai-provider.mjs"]
+    ports:
+      - "58181:8081"
+    volumes:
+      - ./:/work:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  e2e-postgres:
+  e2e-minio:

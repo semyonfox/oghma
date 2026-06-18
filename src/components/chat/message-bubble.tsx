@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { Message, MessagePart } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
 import { ToolCallPill } from "./tool-call-pill";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 /**
  * Render an assistant message body. If structured `parts` are present, walk
@@ -39,10 +40,13 @@ const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
 };
 
 // relevance level from cosine distance
-function relevanceLabel(distance: number): { label: string; color: string } {
-  if (distance < 0.3) return { label: "high", color: "text-green-400" };
-  if (distance < 0.5) return { label: "medium", color: "text-yellow-400" };
-  return { label: "low", color: "text-text-tertiary" };
+function relevanceLabel(
+  distance: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): { label: string; color: string } {
+  if (distance < 0.3) return { label: t("high"), color: "text-green-400" };
+  if (distance < 0.5) return { label: t("medium"), color: "text-yellow-400" };
+  return { label: t("low"), color: "text-text-tertiary" };
 }
 
 // collapsible thinking block — ChatGPT style
@@ -51,17 +55,18 @@ const ThinkingBlock: FC<{
   isStreaming?: boolean;
   duration?: number;
 }> = ({ text, isStreaming = false, duration }) => {
+  const { t = (key: string) => key } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
 
   const label = isStreaming
-    ? "Thinking…"
+    ? t("Thinking…")
     : duration != null && duration > 0
-      ? `Thought for ${duration}s`
-      : "Thought for a moment";
+      ? t("Thought for {duration}s", { duration })
+      : t("Thought for a moment");
 
   return (
-    <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface/30">
+    <div className="border border-border-subtle rounded-radius-lg overflow-hidden bg-surface/30">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -70,7 +75,7 @@ const ThinkingBlock: FC<{
         {isStreaming ? (
           <span className="w-3 h-3 border-2 border-text-tertiary/30 border-t-text-tertiary/70 rounded-full animate-spin flex-shrink-0" />
         ) : (
-          <span className="text-primary-400/60 text-[10px] flex-shrink-0">◆</span>
+          <span className="text-primary-400/60 text-xs flex-shrink-0">◆</span>
         )}
         <span className="text-xs text-text-tertiary italic flex-1">{label}</span>
         <ChevronDownIcon
@@ -91,6 +96,7 @@ const SourcesBlock: FC<{
   sources: { id: string; title: string }[];
   retrieval?: Message["retrieval"];
 }> = ({ sources, retrieval }) => {
+  const { t = (key: string) => key } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (!sources || sources.length === 0) return null;
 
@@ -106,7 +112,7 @@ const SourcesBlock: FC<{
   const count = sources.length;
 
   return (
-    <div className="border border-border-subtle rounded-lg overflow-hidden">
+    <div className="border border-border-subtle rounded-radius-lg overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -114,9 +120,11 @@ const SourcesBlock: FC<{
       >
         <span className="text-xs text-text-tertiary">
           <span className="font-medium text-text-secondary">
-            {count} {count === 1 ? "source" : "sources"}
+            {t(count === 1 ? "{count} source" : "{count} sources", {
+              count,
+            })}
           </span>{" "}
-          used
+          {t("used")}
         </span>
         <ChevronDownIcon
           className={`w-3 h-3 text-text-tertiary flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -126,7 +134,7 @@ const SourcesBlock: FC<{
         <div className="border-t border-border-subtle">
           {sources.map((s) => {
             const distance = relMap.get(s.id);
-            const rel = distance != null ? relevanceLabel(distance) : null;
+            const rel = distance != null ? relevanceLabel(distance, t) : null;
             return (
               <a
                 key={s.id}
@@ -135,7 +143,7 @@ const SourcesBlock: FC<{
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-border-subtle flex-shrink-0" />
                 <span className="flex-1 text-xs text-text-secondary truncate">
-                  {s.title || "Untitled"}
+                  {s.title || t("Untitled")}
                 </span>
                 {rel && (
                   <span className={`text-xs ${rel.color} flex-shrink-0`}>
@@ -169,15 +177,16 @@ export const TypingDots: FC = () => (
 // so the action feels like it dispatched somewhere rather than mutating the chrome.
 // disabled briefly so double-click doesn't fire two toasts.
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
+  const { t = (key: string) => key } = useI18n();
   const [busy, setBusy] = useState(false);
 
   const handleCopy = async () => {
     if (busy || !content.trim() || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(content);
-      toast.success("Copied", { duration: 1200 });
+      toast.success(t("Copied"), { duration: 1200 });
     } catch {
-      toast.error("Couldn't copy");
+      toast.error(t("Couldn't copy"));
     } finally {
       setBusy(true);
       window.setTimeout(() => setBusy(false), 1200);
@@ -189,9 +198,9 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       type="button"
       onClick={handleCopy}
       disabled={busy}
-      className="inline-flex items-center rounded-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
-      aria-label="Copy message"
-      title="Copy message"
+      className="inline-flex items-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
+      aria-label={t("Copy message")}
+      title={t("Copy message")}
     >
       <ClipboardDocumentIcon className="w-3 h-3" />
     </button>
@@ -209,10 +218,10 @@ export const FullMessageBubble: FC<{
     return (
       <div className="flex justify-end">
         <div className="group/msg max-w-[70%]">
-          <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
+          <div className="px-3 py-2.5 rounded-radius-xl rounded-br-[4px] bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
-          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[11px] text-text-tertiary">
+          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
             {hasContent && (
               <span className="opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100 focus-within:opacity-100">
                 <CopyMessageButton content={m.content} />
@@ -243,7 +252,7 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="glass-card rounded-xl rounded-bl-sm px-3 py-2.5 text-sm leading-relaxed text-text">
+      <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-sm leading-relaxed text-text">
         {hasContent || (m.parts && m.parts.length > 0) ? (
           <AssistantBody parts={m.parts} content={m.content} />
         ) : !m.thinking ? (
@@ -255,7 +264,7 @@ export const FullMessageBubble: FC<{
         <SourcesBlock sources={m.sources!} retrieval={m.retrieval} />
       )}
 
-      <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+      <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
         <p className="opacity-50" suppressHydrationWarning>
           {new Date(m.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
@@ -284,7 +293,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
     <div
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      <div className="group/msg max-w-[85%] space-y-1.5">
+      <div className="group/msg max-w-[78%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
           <ThinkingBlock
             text={m.thinking}
@@ -294,10 +303,10 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         <div
-          className={`px-2.5 py-[5px] rounded-md text-xs leading-relaxed ${
+          className={`px-2 py-[5px] rounded-radius-md text-xs leading-relaxed ${
             m.role === "user"
-              ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
-              : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
+              ? "bg-primary-500/70 text-text-on-primary rounded-br-[4px]"
+              : "bg-surface border border-border-subtle text-text-secondary rounded-bl-[4px]"
           }`}
         >
           {m.role === "assistant" ? (

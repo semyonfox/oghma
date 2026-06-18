@@ -9,6 +9,7 @@ import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { getTopLevelSelectedIds, treeItemContainsId } from "./selection-utils";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export type DeleteConfirmTarget =
   | { mode: "single"; ids: [string] }
@@ -33,6 +34,7 @@ export function useSidebarActions(deps: {
     onDeleteSelectionCleared,
   } = deps;
   const router = useRouter();
+  const { t } = useI18n();
 
   const {
     tree,
@@ -75,7 +77,7 @@ export function useSidebarActions(deps: {
     const newId = genNewId();
     const newNote = await createNote({
       id: newId,
-      title: "Untitled",
+      title: t("Untitled"),
       content: "\n",
       pid: undefined,
     });
@@ -83,7 +85,7 @@ export function useSidebarActions(deps: {
       setRenamingId(newId);
       router.push(`/notes/${newId}`);
     }
-  }, [genNewId, createNote, router, setRenamingId]);
+  }, [genNewId, createNote, router, setRenamingId, t]);
 
   // quick new folder from toolbar button
   const handleQuickNewFolder = useCallback(async () => {
@@ -124,7 +126,7 @@ export function useSidebarActions(deps: {
           const uploadData = await uploadFile(file);
           if (!firstNoteId) firstNoteId = uploadData.noteId;
         } catch {
-          toast.error(`Failed to upload ${file.name}`);
+          toast.error(t("Failed to upload {filename}", { filename: file.name }));
         }
       }
 
@@ -132,7 +134,7 @@ export function useSidebarActions(deps: {
         router.push(`/notes/${firstNoteId}`);
       }
     },
-    [router, uploadFile],
+    [router, uploadFile, t],
   );
 
   // collapse all tree items
@@ -153,18 +155,18 @@ export function useSidebarActions(deps: {
   const handleDeleteRequest = useCallback(
     (id: string) => {
       if (!initLoaded) {
-        toast.error("Please wait for notes to load");
+        toast.error(t("Please wait for notes to load"));
         return;
       }
       setDeleteConfirmTarget({ mode: "single", ids: [id] });
     },
-    [initLoaded, setDeleteConfirmTarget],
+    [initLoaded, setDeleteConfirmTarget, t],
   );
 
   const handleBulkDeleteRequest = useCallback(
     (ids: string[]) => {
       if (!initLoaded) {
-        toast.error("Please wait for notes to load");
+        toast.error(t("Please wait for notes to load"));
         return;
       }
       const cleanIds = ids.filter((id) => id !== "root" && tree.items[id]);
@@ -175,7 +177,7 @@ export function useSidebarActions(deps: {
       }
       setDeleteConfirmTarget({ mode: "bulk", ids: cleanIds });
     },
-    [initLoaded, setDeleteConfirmTarget, tree.items],
+    [initLoaded, setDeleteConfirmTarget, tree.items, t],
   );
 
   // confirm and execute delete
@@ -195,7 +197,7 @@ export function useSidebarActions(deps: {
         onDeleteSelectionCleared();
         if (activeId === id) router.push("/notes");
       } catch {
-        toast.error("Failed to delete");
+        toast.error(t("Failed to delete"));
       }
       return;
     }
@@ -231,7 +233,10 @@ export function useSidebarActions(deps: {
 
     if (deletedCount > 0) {
       toast.error(
-        `Deleted ${deletedCount} items. Failed to delete ${failedCount} items.`,
+        t("Deleted {deletedCount} items. Failed to delete {failedCount} items.", {
+          deletedCount,
+          failedCount,
+        }),
       );
       const remainingSelection = new Set(
         target.ids.filter(
@@ -247,7 +252,7 @@ export function useSidebarActions(deps: {
       return;
     }
 
-    toast.error("Failed to delete selected items.");
+    toast.error(t("Failed to delete selected items."));
     setSelectedIds(new Set(target.ids));
     await refreshTree();
   }, [
@@ -259,6 +264,7 @@ export function useSidebarActions(deps: {
     router,
     setDeleteConfirmTarget,
     setSelectedIds,
+    t,
     tree,
   ]);
 
@@ -271,16 +277,16 @@ export function useSidebarActions(deps: {
         const newId = genNewId();
         const newNote = await createNote({
           id: newId,
-          title: `${original.data.title} (Copy)`,
+          title: t("{title} (Copy)", { title: original.data.title }),
           content: original.data.content || "\n",
           pid: original.data.pid,
         });
         if (newNote) router.push(`/notes/${newId}`);
       } catch {
-        toast.error("Failed to duplicate");
+        toast.error(t("Failed to duplicate"));
       }
     },
-    [tree.items, genNewId, createNote, router],
+    [tree.items, genNewId, createNote, router, t],
   );
 
   // toggle pin/unpin
@@ -304,7 +310,7 @@ export function useSidebarActions(deps: {
       const pid = parentId === "root" ? undefined : parentId;
       const newNote = await createNote({
         id: newId,
-        title: "Untitled",
+        title: t("Untitled"),
         content: "\n",
         pid,
       });
@@ -327,6 +333,7 @@ export function useSidebarActions(deps: {
       expandedIds,
       setExpandedIds,
       setRenamingId,
+      t,
     ],
   );
 
@@ -363,14 +370,14 @@ export function useSidebarActions(deps: {
   const handleOpenInAIChat = useCallback(
     (id: string, nodeData: NoteModel | undefined, isFolder: boolean) => {
       const title = encodeURIComponent(
-        nodeData?.title || (isFolder ? "Folder" : "Untitled"),
+        nodeData?.title || (isFolder ? t("Folder") : t("Untitled")),
       );
       const param = isFolder
         ? `folderId=${id}&folderTitle=${title}`
         : `noteId=${id}&noteTitle=${title}`;
       router.push(`/chat?${param}`);
     },
-    [router],
+    [router, t],
   );
 
   // open context menu on right-click

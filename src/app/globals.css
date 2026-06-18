@@ -32,17 +32,17 @@
   --color-ai-800: #92400e;
   --color-ai-900: #78350f;
 
-  /* === PRIMARY: Blue for Focus & Productivity === */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* === PRIMARY: Indigo (Aether accent) === */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
 
   /* === SECONDARY: Teal for Progress & Learning === */
   --color-secondary-50: #f0fdfa;
@@ -129,6 +129,8 @@ html,
 body {
   @apply overflow-x-hidden antialiased;
   direction: ltr;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 @layer components {
@@ -170,14 +172,17 @@ body {
 
   .lexical-editor h1 {
     @apply text-4xl font-bold my-4 mt-6;
+    line-height: 1.1;
   }
 
   .lexical-editor h2 {
     @apply text-3xl font-bold my-3 mt-5;
+    line-height: 1.1;
   }
 
   .lexical-editor h3 {
     @apply text-2xl font-bold my-2 mt-4;
+    line-height: 1.15;
   }
 
   .lexical-editor ul,
@@ -212,14 +217,17 @@ body {
 
   .editor-heading-h1 {
     @apply text-4xl font-bold my-4 mt-6;
+    line-height: 1.1;
   }
 
   .editor-heading-h2 {
     @apply text-3xl font-bold my-3 mt-5;
+    line-height: 1.1;
   }
 
   .editor-heading-h3 {
     @apply text-2xl font-bold my-2 mt-4;
+    line-height: 1.15;
   }
 
   .editor-list-ul {
@@ -255,6 +263,33 @@ body {
   .btn-hover {
     @apply transition-opacity duration-150 ease-in-out hover:opacity-90;
   }
+}
+
+.markdown-preview {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.markdown-preview p {
+  margin: 0 0 1rem;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  line-height: 1.1;
+}
+
+.markdown-preview h1 {
+  margin: 2rem 0 1rem;
+}
+
+.markdown-preview h2 {
+  margin: 1.75rem 0 0.75rem;
+}
+
+.markdown-preview h3 {
+  margin: 1.5rem 0 0.5rem;
 }
 
 /* react-complex-tree - obsidian-style overrides */
@@ -357,8 +392,16 @@ body {
 .bg-landing {
   background: radial-gradient(
     ellipse at top,
-    rgb(30 41 59 / 0.5),
-    var(--color-background) 50%
+    rgb(99 102 241 / 0.1),
+    var(--color-background) 55%
+  );
+}
+
+html.light .bg-landing {
+  background: radial-gradient(
+    ellipse at top,
+    rgb(99 102 241 / 0.06),
+    var(--color-background) 55%
   );
 }
 

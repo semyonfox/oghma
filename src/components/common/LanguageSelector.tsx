@@ -70,6 +70,8 @@ export default function LanguageSelector({
       // Load the new locale file
       const module = await import(`@/locales/${lang}.json`);
       locale(lang, module.default);
+      document.cookie = `ogma-locale=${lang}; path=/; max-age=31536000; samesite=lax`;
+      localStorage.setItem("ogma-locale", lang);
 
       // Persist the language preference to user settings
       await updateSettings({ locale: lang });
@@ -94,7 +96,7 @@ export default function LanguageSelector({
     return (
       <div className={className}>
         {showLabel && (
-          <label className="block text-sm/6 font-medium text-white mb-2">
+          <label className="block text-sm/6 font-medium text-text mb-2">
             {t("Language")}
           </label>
         )}
@@ -120,7 +122,7 @@ export default function LanguageSelector({
   return (
     <div className={className}>
       {showLabel && (
-        <Label className="block text-sm/6 font-medium text-white mb-2">
+        <Label className="block text-sm/6 font-medium text-text mb-2">
           {t("Language")}
         </Label>
       )}
@@ -165,7 +167,7 @@ export default function LanguageSelector({
                 <ComboboxOption
                   key={lang.code}
                   value={lang.code}
-                  className="cursor-default px-3 py-2 text-white select-none data-focus:bg-primary-500 data-focus:outline-hidden"
+                  className="cursor-default px-3 py-2 text-text select-none data-focus:bg-primary-600 data-focus:text-text-on-primary data-focus:outline-hidden"
                 >
                   <div className="flex items-center">
                     <span className="text-xl mr-3">{lang.flag}</span>

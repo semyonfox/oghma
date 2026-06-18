@@ -161,7 +161,7 @@ function CourseVisibilityManager({
               type="button"
               onClick={() => handleBulk("archive", onArchiveAllNoDue, archivableNoDue)}
               disabled={bulkBusy !== false}
-              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
             >
               {bulkBusy === "archive"
                 ? t("Archiving...")
@@ -173,7 +173,7 @@ function CourseVisibilityManager({
               type="button"
               onClick={() => handleBulk("restore", onRestoreAll, grouped.archived)}
               disabled={bulkBusy !== false}
-              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
             >
               {bulkBusy === "restore"
                 ? t("Restoring...")
@@ -255,7 +255,7 @@ function CourseVisibilityManager({
                   type="button"
                   onClick={() => handleToggle(item, true)}
                   disabled={busyCourseId === item.courseId || bulkBusy !== false}
-                  className="shrink-0 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="shrink-0 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busyCourseId === item.courseId ? t("Saving...") : t("Archived")}
                 </button>
@@ -292,7 +292,7 @@ export function CourseVisibilityDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-radius-md p-1 text-text-tertiary transition-colors hover:bg-white/[0.07] hover:text-text-secondary"
+              className="rounded-radius-md p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>

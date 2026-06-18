@@ -22,6 +22,11 @@ export function useCanvasImportStatus(options = {}) {
 
   const abortRef = useRef(null);
 
+  // remembers a manual dismissal so the 3s poll doesn't re-show the toast
+  const dismissedRef = useRef(false);
+  // tracks active->inactive transitions so a brand-new import clears the dismissal
+  const wasActiveRef = useRef(false);
+
   const checkStatus = useCallback(async () => {
     // abort any in-flight request before starting a new one
     abortRef.current?.abort();
@@ -40,6 +45,12 @@ export function useCanvasImportStatus(options = {}) {
         data.activeJob?.status === "processing" ||
         data.activeJob?.status === "queued";
       setIsImporting(active);
+
+      // a brand-new import clears any dismissal carried over from a previous one
+      if (active && !wasActiveRef.current) {
+        dismissedRef.current = false;
+      }
+      wasActiveRef.current = active;
 
       const collectNewRecentLogNoteIds = (allowedStatuses) => {
         if (!Array.isArray(data.recentLogs)) return [];
@@ -81,7 +92,7 @@ export function useCanvasImportStatus(options = {}) {
           forbidden: data.issues?.forbidden ?? 0,
           error: data.issues?.error ?? 0,
         });
-        setShowToast(true);
+        setShowToast(!dismissedRef.current);
       } else {
         // job finished — show completion briefly, then let auto-hide take over
         if (data.progress?.total > 0 && data.progress?.percent === 100) {
@@ -91,7 +102,7 @@ export function useCanvasImportStatus(options = {}) {
             forbidden: data.issues?.forbidden ?? 0,
             error: data.issues?.error ?? 0,
           });
-          setShowToast(true);
+          setShowToast(!dismissedRef.current);
         } else {
           // no active job and nothing to show — stale entry, hide toast
           setShowToast(false);
@@ -177,6 +188,9 @@ export function useCanvasImportStatus(options = {}) {
     showToast,
     isImporting,
     checkStatus,
-    onToastClose: () => setShowToast(false),
+    onToastClose: () => {
+      dismissedRef.current = true;
+      setShowToast(false);
+    },
   };
 }

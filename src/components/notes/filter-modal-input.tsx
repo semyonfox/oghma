@@ -33,7 +33,7 @@ const FilterModalInput: FC<FilterModalInputProps> = ({ doFilter, keyword, placeh
                  ref={inputRef}
                  defaultValue={keyword}
                  type="text"
-                 className="appearance-none flex-1 outline-none ml-2 bg-transparent text-text placeholder-text-tertiary"
+                 className="appearance-none flex-1 outline-none ml-2 bg-transparent text-text placeholder:text-text-tertiary"
                  placeholder={placeholder}
                  autoFocus
                  onChange={(e) => debouncedFilter(e.target.value)}

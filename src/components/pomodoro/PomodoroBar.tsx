@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import type { PomodoroPhase } from "@/lib/notes/state/pomodoro.zustand";
+import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface PomodoroBarProps {
   phase: PomodoroPhase;
@@ -45,6 +46,7 @@ export default function PomodoroBar({
   skip,
   stop,
 }: PomodoroBarProps) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
 
   const isBreak = phase === "short_break" || phase === "long_break";
@@ -124,17 +126,19 @@ export default function PomodoroBar({
           </span>
         )}
         {!assignmentTitle && !courseName && (
-          <span className="text-text-tertiary">Focus session</span>
+          <span className="text-text-tertiary">{t("Focus session")}</span>
         )}
       </span>
     );
   } else if (phase === "short_break") {
-    statusText = <span className="text-text-tertiary">Short break</span>;
+    statusText = <span className="text-text-tertiary">{t("Short break")}</span>;
   } else if (phase === "long_break") {
-    statusText = <span className="text-text-tertiary">Long break</span>;
+    statusText = <span className="text-text-tertiary">{t("Long break")}</span>;
   } else if (isComplete) {
     statusText = (
-      <span className="text-green-400">{totalMinutesLogged}m logged</span>
+      <span className="text-green-400">
+        {t("{count}m logged", { count: totalMinutesLogged })}
+      </span>
     );
   }
 
@@ -146,7 +150,7 @@ export default function PomodoroBar({
       }`}
     >
       {/* progress track */}
-      <div className="h-0.5 w-full bg-white/[0.07]">
+      <div className="h-0.5 w-full bg-subtle">
         <div
           className={`h-full ${isComplete ? "bg-green-500" : barColor} transition-all duration-700 ease-out`}
           style={{ width: `${isComplete ? 100 : progress}%` }}
@@ -187,7 +191,7 @@ export default function PomodoroBar({
             <button
               onClick={paused ? resume : pause}
               className="text-text-tertiary hover:text-text-secondary p-0.5"
-              aria-label={paused ? "Resume" : "Pause"}
+              aria-label={paused ? t("Resume") : t("Pause")}
             >
               {paused ? (
                 <PlayIcon className="w-3.5 h-3.5" />
@@ -202,7 +206,7 @@ export default function PomodoroBar({
             <button
               onClick={skip}
               className="text-text-tertiary hover:text-text-secondary p-0.5"
-              aria-label="Skip"
+              aria-label={t("Skip")}
             >
               <ForwardIcon className="w-3.5 h-3.5" />
             </button>
@@ -215,7 +219,7 @@ export default function PomodoroBar({
               setTimeout(stop, 300);
             }}
             className="text-text-tertiary hover:text-text-secondary p-0.5"
-            aria-label="Close"
+            aria-label={t("Close")}
           >
             <XMarkIcon className="w-3.5 h-3.5" />
           </button>

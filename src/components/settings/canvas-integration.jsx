@@ -381,7 +381,7 @@ export default function CanvasIntegration() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
               >
                 {t("Cancel import")}
               </button>
@@ -390,7 +390,7 @@ export default function CanvasIntegration() {
                 type="button"
                 disabled={selectedCourseIds.length === 0 || isSyncing}
                 onClick={handleImport}
-                className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {`${t("Import selected courses")}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ""}`}
               </button>
@@ -407,7 +407,7 @@ export default function CanvasIntegration() {
             <button
               type="button"
               onClick={handleDisconnect}
-              className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+              className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
             >
               {t("Disconnect")}
             </button>

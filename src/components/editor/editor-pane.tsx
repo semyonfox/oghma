@@ -126,23 +126,23 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
     try {
       const note = await createNote({
         id,
-        title: "My first note",
-        content: "# Welcome to OghmaNotes\n\nStart typing here.",
+        title: t("My first note"),
+        content: t("# Welcome to OghmaNotes\n\nStart typing here."),
       });
 
       if (!note) {
-        toast.error("Could not create your first note. Please try again.");
+        toast.error(t("Could not create your first note. Please try again."));
         return;
       }
 
       setPaneA(buildFileSpec(note));
       router.push(`/notes/${id}`);
     } catch {
-      toast.error("Could not create your first note. Please try again.");
+      toast.error(t("Could not create your first note. Please try again."));
     } finally {
       setIsCreatingFirstNote(false);
     }
-  }, [createNote, genNewId, isCreatingFirstNote, router, setPaneA]);
+  }, [createNote, genNewId, isCreatingFirstNote, router, setPaneA, t]);
 
   const showFirstRunOnboarding =
     pane === "A" && initLoaded && rootChildCount === 0;
@@ -154,37 +154,42 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
         <div className="h-full flex items-center justify-center p-6">
           <div className="w-full max-w-lg rounded-radius-lg border border-border-subtle bg-surface/70 p-6">
             <h2 className="text-lg font-semibold text-text-secondary">
-              Welcome to OghmaNotes
+              {t("Welcome to OghmaNotes")}
             </h2>
             <p className="mt-2 text-sm text-text-tertiary leading-relaxed">
-              You are all set. Create your first note now, then import your
-              Canvas files when you are ready.
+              {t(
+                "You are all set. Create your first note now, then import your Canvas files when you are ready.",
+              )}
             </p>
             <div className="mt-4 space-y-2 text-sm text-text-tertiary">
-              <p>1. Create your first note.</p>
-              <p>2. Import Canvas courses from Settings.</p>
-              <p>3. Open AI Chat when you want summaries or quick answers.</p>
+              <p>{t("1. Create your first note.")}</p>
+              <p>{t("2. Import Canvas courses from Settings.")}</p>
+              <p>
+                {t("3. Open AI Chat when you want summaries or quick answers.")}
+              </p>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void handleCreateFirstNote()}
                 disabled={isCreatingFirstNote}
-                className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreatingFirstNote ? "Creating note..." : "Create first note"}
+                {isCreatingFirstNote
+                  ? t("Creating note...")
+                  : t("Create first note")}
               </button>
               <a
                 href="/settings#canvas"
                 className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
               >
-                Open Canvas import
+                {t("Open Canvas import")}
               </a>
               <a
                 href="/chat"
                 className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary"
               >
-                Open AI chat
+                {t("Open AI chat")}
               </a>
             </div>
           </div>
@@ -233,10 +238,10 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
             onClick={() => openRightPanelTab("meta")}
             className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "meta"
-                ? "bg-white/[0.08] text-text-secondary"
-                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
-            title="Toggle metadata panel"
+            title={t("Toggle metadata panel")}
           >
             <RectangleGroupIcon className="w-3.5 h-3.5" />
           </button>
@@ -244,18 +249,18 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
             onClick={() => openRightPanelTab("ai")}
             className={`p-1 rounded transition-colors ${
               rightPanelOpen && rightPanelTab === "ai"
-                ? "bg-white/[0.08] text-text-secondary"
-                : "text-text-tertiary hover:bg-white/[0.06] hover:text-text-secondary"
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
-            title="Toggle AI assistant panel"
+            title={t("Toggle AI assistant panel")}
           >
             <CpuChipIcon className="w-3.5 h-3.5" />
           </button>
           {pane === "B" && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-white/[0.06] rounded text-text-tertiary hover:text-text-secondary transition-colors"
-              title="Close this pane"
+              className="p-1 hover:bg-subtle rounded text-text-tertiary hover:text-text-secondary transition-colors"
+              title={t("Close this pane")}
             >
               <XMarkIcon className="w-3.5 h-3.5" />
             </button>

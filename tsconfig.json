@@ -13,6 +13,7 @@
     "incremental": true,
     "module": "esnext",
     "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,

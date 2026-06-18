@@ -87,7 +87,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
       if (committedRef.current) return;
       committedRef.current = true;
       const trimmed = renameValueRef.current.trim();
-      void onRenameComplete(trimmed || nodeData?.title || "Untitled");
+      void onRenameComplete(trimmed || nodeData?.title || t("Untitled"));
     };
 
     const handleRenameCancel = () => {
@@ -95,7 +95,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
       committedRef.current = true;
       escapedRef.current = true;
       setRenameValue(nodeData?.title ?? "");
-      void onRenameComplete(nodeData?.title ?? "Untitled");
+      void onRenameComplete(nodeData?.title ?? t("Untitled"));
     };
 
     const handleRenameBlur = () => {
@@ -107,7 +107,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
         if (trimmed && trimmed !== original) {
           handleRenameSubmit();
         } else {
-          void onRenameComplete(original || "Untitled");
+          void onRenameComplete(original || t("Untitled"));
         }
       }, 150);
     };
@@ -122,7 +122,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {...(isRenaming ? {} : interactiveProps)}
           className={`
             group/item flex items-center h-[26px] pr-1 cursor-pointer select-none
-            transition-colors duration-75 rounded-[3px] mx-0.5
+            transition-colors duration-75 rounded-radius-sm mx-0.5
             ${isActive ? "bg-subtle text-text-secondary" : ""}
             ${
               !isActive && isSelected
@@ -221,12 +221,12 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="flex-1 min-w-0 truncate bg-subtle border border-primary-500/50 rounded px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
+                className="flex-1 min-w-0 truncate bg-subtle border border-primary-500/50 rounded-radius-sm px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
               />
             </div>
           ) : (
             <span
-              className={`flex-1 min-w-0 truncate text-[13px] leading-none ${
+              className={`flex-1 min-w-0 truncate text-[13px] leading-snug ${
                 isFolder ? "font-medium" : ""
               } ${
                 syncStatus === "modified"
@@ -252,7 +252,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {!isRenaming && (
             <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
               <button
-                className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+                className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                 onClick={onDotsClick}
                 title={t("More actions")}
                 tabIndex={-1}
@@ -266,7 +266,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 </svg>
               </button>
               <button
-                className="p-0.5 rounded hover:bg-primary-600/20 text-text-tertiary hover:text-primary-300 transition-colors"
+                className="p-0.5 rounded-radius-sm hover:bg-primary-600/20 text-text-tertiary hover:text-primary-300 transition-colors"
                 onClick={onOpenInAIChat}
                 title={isFolder ? t("Chat with folder") : t("Chat with note")}
                 tabIndex={-1}
@@ -286,7 +286,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
               </button>
               {isFolder && (
                 <button
-                  className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
                   onClick={onAddNote}
                   title={t("New note inside")}
                   tabIndex={-1}
@@ -321,7 +321,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
 
         {isFolder && isExpanded && !hasChildren && initLoaded && (
           <div
-            className="h-6 flex items-center text-[11px] text-text-tertiary/50 select-none italic"
+            className="h-6 flex items-center text-xs text-text-tertiary/50 select-none italic"
             style={{ paddingLeft: `${pl + INDENT_PX + 8}px` }}
           >
             {t("No pages inside")}

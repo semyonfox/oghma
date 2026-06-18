@@ -8,6 +8,8 @@ pipeline {
         HEALTH_CMD   = 'node -e "require(\'http\').get(\'http://localhost:3000/api/health\', r => process.exit(r.statusCode===200?0:1))"'
         APP_MEM      = '512m'
         WORKER_MEM   = '1536m'
+        E2E_SMOKE_WORKERS = '1'
+        LIVE_SMOKE_HEALTH_RETRIES = '30'
         // fixed IPs — keeps nginx upstreams stable across redeploys
         PROD_IP      = '192.168.48.30'
         PROD_WRK_IP  = '192.168.48.31'
@@ -47,6 +49,50 @@ pipeline {
                     steps {
                         sh 'docker build -f Dockerfile.worker --label app=oghma-worker --label env=$DEPLOY_ENV -t $WORKER_IMAGE .'
                         sh 'docker tag $WORKER_IMAGE ${REGISTRY}-worker:${DEPLOY_ENV}-latest'
+                    }
+                }
+            }
+        }
+
+        stage('e2e smoke') {
+            steps {
+                script {
+                    final boolean hadE2EEnv = fileExists('.env.e2e');
+
+                    if (!hadE2EEnv) {
+                        sh 'cp .env.e2e.example .env.e2e'
+                    }
+
+                    sh 'npm ci --no-audit --no-fund'
+                    sh 'npm run e2e:install'
+
+                    try {
+                        sh """
+                            set -eu
+                            npm run e2e:services:up
+
+                            for attempt in \$(seq 1 30); do
+                              if npm run e2e:reset; then
+                                break
+                              fi
+
+                              if [ \"\$attempt\" -eq 30 ]; then
+                                echo \"[e2e] reset failed after 30 attempts; keeping logs above\"
+                                exit 1
+                              fi
+
+                              echo \"[e2e] services not ready yet, retrying reset (\${attempt}/30)\"
+                              sleep 2
+                            done
+
+                            CI=true npm run test:integration
+                            CI=true npm run e2e:smoke -- --workers=${env.E2E_SMOKE_WORKERS}
+                        """
+                    } finally {
+                        sh 'npm run e2e:services:down || true'
+                        if (!hadE2EEnv) {
+                            sh 'rm -f .env.e2e'
+                        }
                     }
                 }
             }
@@ -93,14 +139,56 @@ pipeline {
                     sh """
                         docker stop  "\$WORKER" 2>/dev/null || true
                         docker rm    "\$WORKER" 2>/dev/null || true
-                        docker run -d --name "\$WORKER" \
+                    docker run -d --name "\$WORKER" \
                             --network "\$NETWORK" \
                             --ip ${wrkIp} \
                             --restart unless-stopped \
                             --env-file "\$ENV_FILE" \
                             --memory "\$WORKER_MEM" \
-                            "\$WORKER_IMAGE"
-                        echo "deployed \$WORKER_IMAGE to \$WORKER (${wrkIp})"
+                        "\$WORKER_IMAGE"
+                    echo "deployed \$WORKER_IMAGE to \$WORKER (${wrkIp})"
+                """
+                }
+            }
+        }
+
+        stage('e2e smoke (live)') {
+            steps {
+                script {
+                    final String appIp = env.DEPLOY_ENV == 'prod'
+                        ? env.PROD_IP
+                        : env.DEV_IP
+                    final String appUrl = "http://${appIp}:3000"
+
+                    sh """
+                        set -eu
+                        for attempt in \$(seq 1 ${env.LIVE_SMOKE_HEALTH_RETRIES}); do
+                          if curl -fsS \"${appUrl}/api/health\" >/dev/null; then
+                            break
+                          fi
+
+                          if [ \"\$attempt\" -eq ${env.LIVE_SMOKE_HEALTH_RETRIES} ]; then
+                            echo \"[live smoke] app never reached healthy state at ${appUrl}\"
+                            exit 1
+                          fi
+
+                          echo \"[live smoke] waiting for app health (\${attempt}/${env.LIVE_SMOKE_HEALTH_RETRIES})\"
+                          sleep 2
+                        done
+
+                        echo \"[live smoke] running public smoke against ${appUrl}\"
+                        PLAYWRIGHT_SKIP_WEB_SERVER=1 \
+                          CI=true \
+                          E2E_RESET_DB=0 \
+                          E2E_CREATE_STORAGE_BUCKET=0 \
+                          E2E_BASE_URL=${appUrl} \
+                          PLAYWRIGHT_BASE_URL=${appUrl} \
+                          NEXT_PUBLIC_APP_URL=${appUrl} \
+                          NEXT_PUBLIC_API_URL=${appUrl} \
+                          NEXTAUTH_URL=${appUrl} \
+                          APP_BASE_URL=${appUrl} \
+                          CORS_ORIGINS=${appUrl} \
+                          npm run e2e:smoke:public -- --workers=${env.E2E_SMOKE_WORKERS}
                     """
                 }
             }

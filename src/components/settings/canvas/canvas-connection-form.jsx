@@ -18,7 +18,7 @@ export default function CanvasConnectionForm({
     <>
       {/* expired / invalid token warning */}
       {connectionWarning && (
-        <div className="flex items-center gap-2 rounded-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
+        <div className="flex items-center gap-2 rounded-radius-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
           <svg
             className="size-4 shrink-0"
             viewBox="0 0 24 24"
@@ -129,7 +129,7 @@ export default function CanvasConnectionForm({
         type="button"
         disabled={!domain || isConnecting}
         onClick={onConnect}
-        className="rounded-md bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isConnecting ? t("Connecting...") : t("Connect Canvas")}
       </button>

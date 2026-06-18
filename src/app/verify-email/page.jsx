@@ -81,7 +81,7 @@ function VerifyEmailContent() {
     return (
       <div className="flex min-h-full flex-col items-center justify-center py-12 bg-app-page">
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <h2 className="font-serif text-2xl font-semibold text-text-secondary">
+          <h2 className="font-serif text-2xl font-semibold text-text">
             {t("Verifying your email...")}
           </h2>
           <p className="mt-2 text-text-tertiary">
@@ -113,13 +113,14 @@ function VerifyEmailContent() {
   return (
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text-secondary">
+        <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
           {t("Check your email")}
         </h2>
         <p className="mt-2 text-center text-sm text-text-tertiary">
           {email
             ? t(
-                `We sent a verification link to ${email}. Click the link to verify your account.`,
+                "We sent a verification link to {email}. Click the link to verify your account.",
+                { email },
               )
             : t(
                 "We sent a verification link to your email. Click the link to verify your account.",
@@ -138,7 +139,7 @@ function VerifyEmailContent() {
             <button
               onClick={handleResend}
               disabled={resendLoading}
-              className="flex w-full justify-center rounded-md bg-primary-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {resendLoading ? t("Sending...") : t("Resend verification email")}
             </button>

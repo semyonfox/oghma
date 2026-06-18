@@ -1,21 +1,21 @@
-# infrastructure
+# AWS Infrastructure Archive
 
-> **current status (2026-05-05):** fully migrated to homelab. AWS now hosts only DNS (Route 53) and email (SES).
-> see [HOMELAB.md](HOMELAB.md) for the running stack.
+> **status:** historical/fallback reference. The old AWS application stack was migrated to homelab. The launch target is now Cloudflare + Neon + R2 + a small Node runtime where needed, documented in [TARGET_HOSTING.md](TARGET_HOSTING.md).
+> See [HOMELAB.md](HOMELAB.md) for the running interim stack.
 
 ---
 
-# AWS — what's left
+# AWS — retained or fallback surface
 
 | service | purpose | cost |
 |---|---|---|
-| Route 53 | `oghmanotes.ie` hosted zone | $0.50/mo |
-| SES | `noreply@oghmanotes.ie` outbound (verification, password reset, contact form) | free tier (3k msgs/mo) |
-| Lambda `ses-email-forwarder` | inbound SES → forward to Gmail | free tier |
+| Route 53 | Historical DNS or emergency fallback only; Cloudflare DNS is the launch target | $0.50/mo if retained |
+| SES | Historical/fallback transactional email path | usage-based |
+| Lambda `ses-email-forwarder` | Historical inbound SES forwarding path | free tier-scale |
 
 Region: **eu-west-1**. Account: **877013879182**.
 
-Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manager, S3 bucket, SQS, chat Lambda) was decommissioned during the homelab migration. See git history `chore: scrub sensitive content references` and the queue / chat / marker migration commits.
+Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manager, S3 bucket, SQS, chat Lambda) was decommissioned during the homelab migration. Cloudflare Email Sending is now the launch target for app mail, so SES is a fallback rather than the preferred path.
 
 ---
 
@@ -31,8 +31,8 @@ Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manag
 | nginx + Cloudflare tunnels | homelab `oghma-nginx`, `oghma-cloudflared-{prod,dev}` | docker, compose |
 | chat streaming | `/api/chat` in the Next.js app | direct SSE — no 30s timeout on homelab |
 | document OCR (Marker) | optional — set `MARKER_API_URL` to enable, otherwise falls through to pdf-parse | — |
-| outbound email (SES) | AWS, eu-west-1 | IAM user keys in env file |
-| LLM / embedding / reranker | external SaaS | Moonshot / OpenRouter / SiliconFlow |
+| outbound email | Cloudflare Email Service REST API | configured by `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM` |
+| LLM / embedding / reranker | external SaaS | configured by `LLM_*`, `EMBEDDING_*`, and `RERANK_*` env vars |
 
 ---
 
@@ -40,11 +40,11 @@ Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manag
 
 | env var | provider | purpose |
 |---|---|---|
-| `LLM_API_KEY` / `LLM_API_URL` | Moonshot AI | LLM — kimi-k2.5 |
-| `EMBEDDING_API_KEY` / `EMBEDDING_API_URL` | SiliconFlow | embeddings — Qwen/Qwen3-Embedding-8B (4096d) |
-| `RERANK_API_KEY` / `RERANK_API_URL` | OpenRouter | reranker — Qwen/Qwen3-Reranker-8B |
+| `LLM_API_KEY` / `LLM_API_URL` | configured provider | LLM |
+| `EMBEDDING_API_KEY` / `EMBEDDING_API_URL` | configured provider | embeddings |
+| `RERANK_API_KEY` / `RERANK_API_URL` | configured provider | reranker |
 | `COHERE_API_KEY` | Cohere | legacy embeddings / reranking |
-| `DATALAB_API_KEY` | Datalab | PDF extraction (Marker API, optional) |
+| `DATALAB_API_KEY` | Datalab | historical/emergency PDF extraction fallback, not steady-state launch path |
 | `GITHUB_ID` / `GITHUB_SECRET` | GitHub OAuth | NextAuth provider |
 | `GOOGLE_ID` / `GOOGLE_SECRET` | Google OAuth | NextAuth provider |
 | `WEB3FORMS_ACCESS_KEY` | Web3Forms | contact form submissions |

@@ -50,7 +50,7 @@ export default function ContactForm() {
         <div>
           <label
             htmlFor="first-name"
-            className="block text-sm/6 font-semibold text-white"
+            className="block text-sm/6 font-semibold text-text"
           >
             {t("First name")}
           </label>
@@ -60,14 +60,14 @@ export default function ContactForm() {
               name="first_name"
               type="text"
               required
-              className="block w-full rounded-md bg-white/5 px-3.5 py-2 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
         <div>
           <label
             htmlFor="last-name"
-            className="block text-sm/6 font-semibold text-white"
+            className="block text-sm/6 font-semibold text-text"
           >
             {t("Last name")}
           </label>
@@ -77,14 +77,14 @@ export default function ContactForm() {
               name="last_name"
               type="text"
               required
-              className="block w-full rounded-md bg-white/5 px-3.5 py-2 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
         <div className="sm:col-span-2">
           <label
             htmlFor="email"
-            className="block text-sm/6 font-semibold text-white"
+            className="block text-sm/6 font-semibold text-text"
           >
             {t("Email")}
           </label>
@@ -94,14 +94,14 @@ export default function ContactForm() {
               name="email"
               type="email"
               required
-              className="block w-full rounded-md bg-white/5 px-3.5 py-2 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
         <div className="sm:col-span-2">
           <label
             htmlFor="phone"
-            className="block text-sm/6 font-semibold text-white"
+            className="block text-sm/6 font-semibold text-text"
           >
             {t("Phone number")}
           </label>
@@ -110,14 +110,14 @@ export default function ContactForm() {
               id="phone"
               name="phone"
               type="tel"
-              className="block w-full rounded-md bg-white/5 px-3.5 py-2 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
         <div className="sm:col-span-2">
           <label
             htmlFor="message"
-            className="block text-sm/6 font-semibold text-white"
+            className="block text-sm/6 font-semibold text-text"
           >
             {t("Message")}
           </label>
@@ -127,7 +127,7 @@ export default function ContactForm() {
               name="message"
               rows={4}
               required
-              className="block w-full rounded-md bg-white/5 px-3.5 py-2 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
@@ -136,13 +136,13 @@ export default function ContactForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded-md bg-primary-500 px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-xs hover:bg-primary-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-radius-md bg-primary-600 px-3.5 py-2.5 text-center text-sm font-semibold text-text-on-primary shadow-xs hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? t("Sending...") : t("Send message")}
         </button>
         {result && (
           <p
-            className={`text-sm ${result.includes("success") ? "text-green-400" : "text-red-400"}`}
+            className={`text-sm ${result.includes("success") ? "text-success-500" : "text-error-500"}`}
           >
             {result}
           </p>

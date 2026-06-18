@@ -1,27 +1,63 @@
-import nodemailer from "nodemailer";
+const CLOUDFLARE_EMAIL_ENDPOINT = "https://api.cloudflare.com/client/v4";
 
-// Amplify blocks AWS_ prefixed env vars, so fall back to SES_ prefix
-const sesRegion =
-  process.env.AWS_SES_REGION || process.env.SES_REGION || "eu-west-1";
-const transporter = nodemailer.createTransport({
-  host: `email-smtp.${sesRegion}.amazonaws.com`,
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.AWS_SES_ACCESS_KEY_ID || process.env.SES_ACCESS_KEY_ID,
-    pass:
-      process.env.AWS_SES_SECRET_ACCESS_KEY ||
-      process.env.SES_SECRET_ACCESS_KEY,
-  },
-});
+function getFromEmail() {
+  return process.env.EMAIL_FROM || process.env.CLOUDFLARE_EMAIL_FROM;
+}
+
+function getCloudflareEmailConfig() {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_EMAIL_API_TOKEN;
+
+  if (!accountId || !apiToken) {
+    throw new Error(
+      "Cloudflare Email Service not configured (set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EMAIL_API_TOKEN)",
+    );
+  }
+
+  return { accountId, apiToken };
+}
+
+function assertEmailValue(value, fieldName) {
+  if (!value || /[\r\n]/.test(value)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+  return value;
+}
+
+async function sendEmail({ from, to, subject, text, html }) {
+  const { accountId, apiToken } = getCloudflareEmailConfig();
+  const response = await fetch(
+    `${CLOUDFLARE_EMAIL_ENDPOINT}/accounts/${accountId}/email/sending/send`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: assertEmailValue(from, "from email"),
+        to: assertEmailValue(to, "recipient email"),
+        subject,
+        text,
+        html,
+      }),
+    },
+  );
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success === false) {
+    const message =
+      body?.errors?.[0]?.message ||
+      body?.messages?.[0]?.message ||
+      `Cloudflare Email Service returned HTTP ${response.status}`;
+    throw new Error(message);
+  }
+}
 
 export async function sendPasswordResetEmail(email, resetToken) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error(
-      "SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)",
-    );
+    throw new Error("Email from-address not configured (set EMAIL_FROM)");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -48,7 +84,7 @@ export async function sendPasswordResetEmail(email, resetToken) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error("[email] failed to send password reset:", err.message);
     throw new Error("Failed to send password reset email");
@@ -56,12 +92,9 @@ export async function sendPasswordResetEmail(email, resetToken) {
 }
 
 export async function sendVerificationEmail(email, verificationToken) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
-    throw new Error(
-      "SES from-email not configured (set AWS_SES_FROM_EMAIL or SES_FROM_EMAIL)",
-    );
+    throw new Error("Email from-address not configured (set EMAIL_FROM)");
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -88,7 +121,7 @@ export async function sendVerificationEmail(email, verificationToken) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error("[email] failed to send verification email:", err.message);
     throw new Error("Failed to send verification email");
@@ -99,11 +132,10 @@ export async function sendVaultImportCompleteEmail(
   email,
   { totalFiles, totalFolders, failedFiles },
 ) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
     console.warn(
-      "[email] SES from-email not configured, skipping vault import notification",
+      "[email] from-address not configured, skipping vault import notification",
     );
     return;
   }
@@ -135,7 +167,7 @@ export async function sendVaultImportCompleteEmail(
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error(
       "[email] failed to send vault import notification:",
@@ -145,11 +177,10 @@ export async function sendVaultImportCompleteEmail(
 }
 
 export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
-  const fromEmail =
-    process.env.AWS_SES_FROM_EMAIL || process.env.SES_FROM_EMAIL;
+  const fromEmail = getFromEmail();
   if (!fromEmail) {
     console.warn(
-      "[email] SES from-email not configured, skipping vault export notification",
+      "[email] from-address not configured, skipping vault export notification",
     );
     return;
   }
@@ -174,7 +205,7 @@ export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
   } catch (err) {
     console.error(
       "[email] failed to send vault export notification:",
@@ -182,16 +213,3 @@ export async function sendVaultExportCompleteEmail(email, { downloadUrl }) {
     );
   }
 }
-
-/* permissions policy (group name: AWSSESSendingGroupDoNotRename)
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "ses:SendRawEmail",
-            "Resource": "*"
-        }
-    ]
-}
-*/

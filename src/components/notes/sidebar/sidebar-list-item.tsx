@@ -22,7 +22,7 @@ import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
 const TextSkeleton = () => (
-  <span className="inline-block w-20 h-4 bg-surface-elevated rounded animate-pulse" />
+  <span className="inline-block w-20 h-4 bg-surface-elevated rounded-radius-sm animate-pulse" />
 );
 
 const SidebarListItem: FC<{
@@ -248,7 +248,7 @@ const SidebarListItem: FC<{
           itemElementRef.current = el;
           innerRef(el);
         }}
-        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded px-2 py-1.5 cursor-pointer group ${
+        className={`flex items-center pr-2 overflow-hidden text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors duration-200 rounded-radius-sm px-2 py-1.5 cursor-pointer group ${
           snapshot.isDragging
             ? "opacity-60 bg-subtle-hover shadow-lg ring-1 ring-primary-400/30"
             : ""
@@ -270,7 +270,7 @@ const SidebarListItem: FC<{
             emoji ? (
               <span
                 onClick={handleClickIcon}
-                className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded mr-1 text-center hover:bg-subtle transition-colors"
+                className="flex-shrink-0 block p-0.5 cursor-pointer w-6 h-6 rounded-radius-sm mr-1 text-center hover:bg-subtle transition-colors"
                 role="button"
                 tabIndex={0}
                 aria-label={isExpanded ? t("Collapse") : t("Expand")}
@@ -321,7 +321,7 @@ const SidebarListItem: FC<{
                   handleRenameCompleteMemoized(item.title || "");
                 }
               }}
-              className="flex-1 truncate bg-subtle border border-border rounded px-1 py-0.5 outline-none text-text-secondary focus:bg-subtle-hover focus:border-primary-500 transition-colors text-sm"
+              className="flex-1 truncate bg-subtle border border-border rounded-radius-sm px-1 py-0.5 outline-none text-text-secondary focus:bg-subtle-hover focus:border-primary-500 transition-colors text-sm"
               dir="auto"
               onClick={(e) => e.stopPropagation()}
               aria-label={t("Rename note")}
@@ -361,7 +361,7 @@ const SidebarListItem: FC<{
         <IconButton
           icon="DotsHorizontal"
           onClick={handleClickMenu}
-          className="p-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
+          className="p-1 text-text-tertiary hover:text-text-secondary rounded-radius-sm transition-colors hidden group-hover:block flex-shrink-0"
           title={t("Remove, Copy Link, etc")}
           aria-label={t("Note actions")}
         ></IconButton>
@@ -370,7 +370,7 @@ const SidebarListItem: FC<{
           <IconButton
             icon="Plus"
             onClick={onAddNote}
-            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded transition-colors hidden group-hover:block flex-shrink-0"
+            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded-radius-sm transition-colors hidden group-hover:block flex-shrink-0"
             title={t("Add a page inside this folder")}
             aria-label={t("Add note")}
           ></IconButton>
