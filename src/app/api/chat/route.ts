@@ -30,10 +30,8 @@ import {
 function resolveChatThinkingMode(
   requestedThinkingMode: unknown,
 ): LlmThinkingMode {
-  if (requestedThinkingMode === "off" || requestedThinkingMode === "auto") {
-    return requestedThinkingMode;
-  }
-  if (requestedThinkingMode === "on") return "auto";
+  if (requestedThinkingMode === "off") return "off";
+  if (requestedThinkingMode !== undefined) return "auto";
   return getLlmThinkingMode();
 }
 

@@ -28,7 +28,6 @@ function readBoundedInt(
 
 function normalizeThinkingMode(value: string | undefined): LlmThinkingMode {
   const normalized = (value ?? "").trim().toLowerCase();
-  if (normalized === "on" || normalized === "enabled") return "auto";
   if (normalized === "off" || normalized === "disabled") return "off";
   return "auto";
 }

@@ -39,7 +39,7 @@ export function useChatPersistence(
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
-  // toggle off <-> auto; "on" is retained only as a legacy persisted value.
+  // toggle off <-> auto.
   const toggleThinking = useCallback(() => {
     setThinkingMode((current) => (current === "off" ? "auto" : "off"));
   }, []);
@@ -48,11 +48,7 @@ export function useChatPersistence(
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(THINKING_MODE_KEY);
-    if (saved === "on") {
-      setThinkingMode("auto");
-    } else if (saved === "off" || saved === "auto") {
-      setThinkingMode(saved);
-    }
+    setThinkingMode(saved === "off" ? "off" : "auto");
   }, []);
 
   // persist thinking mode changes
