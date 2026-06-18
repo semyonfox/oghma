@@ -262,7 +262,7 @@ export default function NotesInspectorSidebar() {
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
+                  <div className="flex items-center gap-1.5 bg-background border border-border-subtle rounded-radius-md px-2 py-1 focus-within:border-primary-500/50 transition-colors">
                     <span className="text-text-tertiary text-xs">#</span>
                     <input
                       ref={tagInputRef}

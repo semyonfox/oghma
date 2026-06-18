@@ -10,7 +10,7 @@ import { FC } from "react";
  */
 export const ToolCallPill: FC<{ label: string }> = ({ label }) => (
   <div
-    className="my-2 inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface/50 px-2 py-0.5 text-xs italic text-text-tertiary"
+    className="my-2 inline-flex items-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface/50 px-2 py-0.5 text-xs italic text-text-tertiary"
     role="status"
   >
     <span className="h-1.5 w-1.5 rounded-full bg-primary-500/50" />

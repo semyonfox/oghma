@@ -405,7 +405,7 @@ export default function DataExportSection() {
             )}
 
             {importStatus === "complete" && (
-              <div className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20">
+              <div className="mb-4 rounded-radius-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20">
                 {t("Import complete!")}
                 {importProgress &&
                   ` ${importProgress.completed} ${t("files processed")}.`}
@@ -413,7 +413,7 @@ export default function DataExportSection() {
             )}
 
             {importStatus === "failed" && (
-              <div className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+              <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
                 {t("Import failed. Please try again.")}
               </div>
             )}
@@ -495,13 +495,13 @@ export default function DataExportSection() {
 
             {exportStatus === "complete" && exportDownloadUrl && (
               <div className="mb-4">
-                <div className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20 mb-3">
+                <div className="rounded-radius-md bg-green-500/10 px-3 py-2 text-sm text-green-400 ring-1 ring-inset ring-green-500/20 mb-3">
                   {t("Export ready!")}
                 </div>
                 <a
                   href={exportDownloadUrl}
                   download
-                  className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 inline-block"
+                  className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 inline-block"
                 >
                   {t("Download vault.zip")}
                 </a>
@@ -512,7 +512,7 @@ export default function DataExportSection() {
             )}
 
             {exportStatus === "failed" && (
-              <div className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
+              <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
                 {t("Export failed. Please try again.")}
               </div>
             )}

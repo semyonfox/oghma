@@ -92,7 +92,7 @@ export default function DangerSection() {
             {!clearVaultConfirm ? (
               <button
                 type="button"
-                className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
                 onClick={() => setClearVaultConfirm(true)}
               >
                 {t("Clear vault")}
@@ -102,7 +102,7 @@ export default function DangerSection() {
                 <p className="text-xs text-text-tertiary">
                   {t("To confirm, type the following phrase exactly:")}
                 </p>
-                <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded p-3 ring-1 ring-red-500/20 leading-relaxed select-none pointer-events-none">
+                <p className="text-xs text-red-300 font-mono bg-red-500/10 rounded-radius-sm p-3 ring-1 ring-red-500/20 leading-relaxed select-none pointer-events-none">
                   {VAULT_CONFIRM_PHRASE}
                 </p>
                 <textarea

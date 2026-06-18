@@ -66,7 +66,7 @@ const ThinkingBlock: FC<{
       : t("Thought for a moment");
 
   return (
-    <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface/30">
+    <div className="border border-border-subtle rounded-radius-lg overflow-hidden bg-surface/30">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -112,7 +112,7 @@ const SourcesBlock: FC<{
   const count = sources.length;
 
   return (
-    <div className="border border-border-subtle rounded-lg overflow-hidden">
+    <div className="border border-border-subtle rounded-radius-lg overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -198,7 +198,7 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
       type="button"
       onClick={handleCopy}
       disabled={busy}
-      className="inline-flex items-center rounded-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
+      className="inline-flex items-center rounded-radius-sm text-text-tertiary opacity-70 transition-colors hover:opacity-100 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/40 disabled:cursor-default"
       aria-label={t("Copy message")}
       title={t("Copy message")}
     >
@@ -218,7 +218,7 @@ export const FullMessageBubble: FC<{
     return (
       <div className="flex justify-end">
         <div className="group/msg max-w-[70%]">
-          <div className="px-3 py-2.5 rounded-xl rounded-br-sm bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
+          <div className="px-3 py-2.5 rounded-radius-xl rounded-br-[4px] bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
             <p>{m.content}</p>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
@@ -252,7 +252,7 @@ export const FullMessageBubble: FC<{
         />
       )}
 
-      <div className="glass-card rounded-xl rounded-bl-sm px-3 py-2.5 text-sm leading-relaxed text-text">
+      <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-sm leading-relaxed text-text">
         {hasContent || (m.parts && m.parts.length > 0) ? (
           <AssistantBody parts={m.parts} content={m.content} />
         ) : !m.thinking ? (
@@ -293,7 +293,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
     <div
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      <div className="group/msg max-w-[85%] space-y-1.5">
+      <div className="group/msg max-w-[78%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
           <ThinkingBlock
             text={m.thinking}
@@ -303,10 +303,10 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         )}
 
         <div
-          className={`px-2.5 py-[5px] rounded-md text-xs leading-relaxed ${
+          className={`px-2 py-[5px] rounded-radius-md text-xs leading-relaxed ${
             m.role === "user"
-              ? "bg-primary-500/70 text-text-on-primary rounded-br-sm"
-              : "bg-surface border border-border-subtle text-text-secondary rounded-bl-sm"
+              ? "bg-primary-500/70 text-text-on-primary rounded-br-[4px]"
+              : "bg-surface border border-border-subtle text-text-secondary rounded-bl-[4px]"
           }`}
         >
           {m.role === "assistant" ? (

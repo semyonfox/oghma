@@ -233,7 +233,7 @@ const SidebarList = () => {
           <div className="flex items-center gap-0.5">
             <button
               onClick={handleQuickNewNote}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New note")}
             >
               <svg
@@ -249,7 +249,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleQuickNewFolder}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("New folder")}
             >
               <svg
@@ -265,7 +265,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleCollapseAll}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("Collapse all")}
             >
               <svg
@@ -281,7 +281,7 @@ const SidebarList = () => {
             <button
               onClick={handleRefreshTree}
               disabled={isRefreshing}
-              className={`p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
+              className={`p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
                 isRefreshing ? "opacity-50 cursor-not-allowed" : ""
               }`}
               title={t("Refresh filetree")}
@@ -298,7 +298,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="p-0.5 rounded hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
               title={t("More options")}
             >
               <svg
@@ -315,7 +315,7 @@ const SidebarList = () => {
         {selectedCount > 1 && (
           <div className="mx-2 mb-1 flex h-8 items-center gap-2 rounded-radius-md border border-primary-500/20 bg-primary-500/10 px-2 text-xs text-text-secondary">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="flex h-4 min-w-4 items-center justify-center rounded bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-300">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-radius-sm bg-primary-500/20 px-1 font-semibold tabular-nums text-primary-300">
                 {selectedCount}
               </span>
               <span className="truncate font-medium">
@@ -513,7 +513,7 @@ const SidebarList = () => {
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div
-            className="bg-surface rounded-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
+            className="bg-surface rounded-radius-lg shadow-2xl ring-1 ring-border-subtle p-5 w-[320px] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm text-text-secondary">
@@ -549,13 +549,13 @@ const SidebarList = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-3 py-1.5 text-xs font-medium rounded text-text-secondary hover:bg-subtle transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm text-text-secondary hover:bg-subtle transition-colors"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-radius-sm bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
               >
                 {t("Delete")}
               </button>

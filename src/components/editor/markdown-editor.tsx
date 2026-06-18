@@ -285,10 +285,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       {/* Toolbar */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
         {/* Source / Read toggle */}
-        <div className="flex items-center gap-1 glass-panel p-0.5 rounded-radius-md">
+        <div className="flex h-7 items-center gap-1 glass-panel p-0.5 rounded-radius-md">
           <button
             onClick={() => setMode("source")}
-            className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
+            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
               mode === "source"
                 ? "bg-primary-500 text-text"
                 : "text-text-tertiary hover:text-text-secondary"
@@ -298,7 +298,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
           </button>
           <button
             onClick={() => setMode("read")}
-            className={`px-2.5 py-0.5 text-xs font-medium rounded transition-colors ${
+            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
               mode === "read"
                 ? "bg-primary-500 text-text"
                 : "text-text-tertiary hover:text-text-secondary"
@@ -309,18 +309,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         </div>
 
         {/* Save Status + Guide link */}
-        <div className="flex items-center gap-3">
+        <div className="flex h-7 items-center gap-2">
           <Link
             href="/syntax-guide"
             target="_blank"
-            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+            className="inline-flex h-6 items-center rounded-radius-sm px-2 text-xs text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors"
           >
             {t("Syntax Guide")}
           </Link>
           {isDirty && !isSaving ? (
             <button
               onClick={handleSave}
-              className="flex items-center gap-1.5 text-xs font-mono text-yellow-500 hover:text-yellow-400 transition-colors"
+              className="inline-flex h-6 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 hover:bg-yellow-500/10 hover:text-yellow-400 transition-colors"
               title={t("Save (Ctrl+S)")}
             >
               <svg
@@ -337,7 +337,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </button>
           ) : (
             <span
-              className={`text-xs font-mono ${
+              className={`inline-flex h-6 items-center rounded-radius-sm px-2 text-xs font-mono ${
                 isSaving
                   ? "text-yellow-500"
                   : saveError

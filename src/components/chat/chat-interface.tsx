@@ -135,7 +135,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
-        <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-[5px]">
+        <div className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]">
           {messages.map((m) => (
             <CompactMessageBubble key={m.id} message={m} />
           ))}
@@ -145,7 +145,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         </div>
 
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-1.5">
-          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
+          <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
               type="text"
@@ -159,7 +159,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <button
               type="button"
               onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1 text-xs font-medium px-1.5 py-[3px] rounded border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1 text-xs font-medium px-1.5 py-[3px] rounded-radius-sm border transition-colors ${
                 thinkingActive
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary"
@@ -171,7 +171,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <button
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors flex-shrink-0"
+              className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
             </button>
@@ -197,7 +197,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
           {error && (
             <div className="flex justify-center">
-              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-lg">
+              <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
                 {error}
               </p>
             </div>
@@ -255,7 +255,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
+            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -275,7 +275,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             <button
               type="button"
               onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-radius-md border transition-colors ${
                 thinkingActive
                   ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
                   : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
@@ -292,7 +292,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="button"
                 onClick={cancel}
-                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-md transition-colors"
+                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors"
                 title={t("Stop generating")}
               >
                 <StopCircleIcon className="w-3.5 h-3.5" />
@@ -301,7 +301,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="flex-shrink-0 p-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-md transition-colors"
+                className="flex-shrink-0 p-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-md transition-colors"
               >
                 <PaperAirplaneIcon className="w-3.5 h-3.5" />
               </button>

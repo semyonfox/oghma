@@ -381,7 +381,7 @@ export default function CanvasIntegration() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
               >
                 {t("Cancel import")}
               </button>
@@ -407,7 +407,7 @@ export default function CanvasIntegration() {
             <button
               type="button"
               onClick={handleDisconnect}
-              className="rounded-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
+              className="rounded-radius-md bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20"
             >
               {t("Disconnect")}
             </button>
