@@ -13,6 +13,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import postgres from "postgres";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { deleteChunkVectors, upsertChunkVectors } from "../../src/lib/qdrant.ts";
 
 const FIXTURES = resolve(process.cwd(), "scripts/e2e/fixtures");
 const userId = process.env.E2E_SEED_USER_ID || "11111111-1111-4111-8111-111111111111";
@@ -156,23 +157,25 @@ async function main() {
     `;
 
     // 4. chunk the PDF text and embed each chunk for semantic search
-    await sql`DELETE FROM app.embeddings WHERE chunk_id IN (SELECT id FROM app.chunks WHERE document_id = ${pdfNoteId}::uuid)`;
+    const oldChunkRows = await sql`SELECT id FROM app.chunks WHERE document_id = ${pdfNoteId}::uuid`;
+    await deleteChunkVectors(oldChunkRows.map((row) => row.id)).catch(() => undefined);
     await sql`DELETE FROM app.chunks WHERE document_id = ${pdfNoteId}::uuid`;
 
     const chunks = chunkText(pdfText);
     let i = 0;
     for (const text of chunks) {
       const vector = await embed(text);
-      const vectorStr = `[${vector.join(",")}]`;
       const [{ id: chunkId }] = await sql`
         INSERT INTO app.chunks (document_id, user_id, text, section)
         VALUES (${pdfNoteId}::uuid, ${userId}::uuid, ${text}, ${`chunk ${i + 1}`})
         RETURNING id
       `;
-      await sql`
-        INSERT INTO app.embeddings (chunk_id, embedding)
-        VALUES (${chunkId}::uuid, ${vectorStr}::vector)
-      `;
+      await upsertChunkVectors([{
+        chunkId,
+        documentId: pdfNoteId,
+        userId,
+        vector,
+      }]);
       i += 1;
     }
 

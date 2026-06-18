@@ -9,7 +9,7 @@ import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/chunking";
-import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
+import { deleteNoteRagIndex, replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing.js";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
@@ -209,6 +209,15 @@ export const DELETE = withErrorHandler(async (request, { params }) => {
 
   // Delete all annotations for this note
   await deleteNoteAnnotations(user.user_id, noteId);
+
+  try {
+    await deleteNoteRagIndex(noteId, user.user_id);
+  } catch (error) {
+    logger.warn("note RAG index cleanup failed during soft delete", {
+      noteId,
+      error,
+    });
+  }
 
   // invalidate note + tree + list caches
   await cacheInvalidate(

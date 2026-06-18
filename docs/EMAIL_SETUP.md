@@ -47,6 +47,7 @@ Use aliases or forwarding for low-volume service addresses like:
 - `stripe@oghmanotes.ie`
 - `github@oghmanotes.ie`
 - `openai@oghmanotes.ie`
+- `neon@oghmanotes.ie`
 - `cloudflare@oghmanotes.ie`
 - `domain@oghmanotes.ie`
 

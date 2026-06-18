@@ -1,6 +1,8 @@
 import sql from "@/database/pgsql.js";
 import { embedChunks } from "@/lib/embeddings";
+import { deleteChunkVectors, upsertChunkVectors } from "@/lib/qdrant";
 import { sanitizePostgresText } from "@/lib/text-sanitize";
+import logger from "@/lib/logger";
 
 interface ChunkRow {
   id: string;
@@ -23,8 +25,36 @@ export function normalizeChunksForIndexing(chunks: string[]): string[] {
 async function deleteChunkSet(chunkIds: string[]): Promise<void> {
   if (chunkIds.length === 0) return;
 
-  await sql`DELETE FROM app.embeddings WHERE chunk_id = ANY(${chunkIds}::uuid[])`;
+  await deleteChunkVectors(chunkIds).catch(() => undefined);
+  await deletePgEmbeddings(chunkIds);
   await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
+}
+
+async function deletePgEmbeddings(chunkIds: string[]): Promise<void> {
+  if (chunkIds.length === 0) return;
+
+  try {
+    const [table] = await sql`SELECT to_regclass('app.embeddings') AS table_name`;
+    if (!table?.table_name) return;
+
+    await sql`
+      DELETE FROM app.embeddings
+      WHERE chunk_id = ANY(${chunkIds}::uuid[])
+    `;
+  } catch (error) {
+    logger.warn("pg embedding cleanup failed", { error });
+  }
+}
+
+export async function deleteNoteRagIndex(
+  noteId: string,
+  userId: string,
+): Promise<number> {
+  const chunkRows =
+    await sql`SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid`;
+  const chunkIds = chunkRows.map((row: ChunkRow) => row.id);
+  await deleteChunkSet(chunkIds);
+  return chunkIds.length;
 }
 
 export async function replaceNoteEmbeddings(
@@ -35,7 +65,7 @@ export async function replaceNoteEmbeddings(
   const normalizedChunks = normalizeChunksForIndexing(chunks);
 
   const oldChunks =
-    await sql`SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid`;
+    await sql`SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid`;
   const oldChunkIds = oldChunks.map((row: ChunkRow) => row.id);
 
   if (normalizedChunks.length === 0) {
@@ -49,10 +79,8 @@ export async function replaceNoteEmbeddings(
     return 0;
   }
 
-  // atomic: insert new chunks+embeddings and delete old ones in one transaction
-  // prevents orphaned chunks if the embedding INSERT fails mid-flight
-  await sql.begin(async (tx: any) => {
-    const chunkRows = await tx`
+  const chunkRows = await sql.begin(async (tx: any) => {
+    return await tx`
       INSERT INTO app.chunks (document_id, user_id, text)
       SELECT * FROM UNNEST(
         ${embeddings.map(() => noteId)}::uuid[],
@@ -61,24 +89,27 @@ export async function replaceNoteEmbeddings(
       )
       RETURNING id
     `;
-
-    // pass embeddings as text[] and cast per-row to vector — pgvector has no
-    // text[]→vector[] cast (only a parser-level text→vector via input function),
-    // so a direct ::vector[] cast errors with "type vector[] does not exist"
-    await tx`
-      INSERT INTO app.embeddings (chunk_id, embedding)
-      SELECT t.chunk_id, t.embedding::vector
-      FROM UNNEST(
-        ${chunkRows.map((row: ChunkRow) => row.id)}::uuid[],
-        ${embeddings.map((entry) => JSON.stringify(entry.vector))}::text[]
-      ) AS t(chunk_id, embedding)
-    `;
-
-    if (oldChunkIds.length > 0) {
-      await tx`DELETE FROM app.embeddings WHERE chunk_id = ANY(${oldChunkIds}::uuid[])`;
-      await tx`DELETE FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])`;
-    }
   });
+
+  try {
+    await upsertChunkVectors(
+      chunkRows.map((row: ChunkRow, index: number) => ({
+        chunkId: row.id,
+        documentId: noteId,
+        userId,
+        vector: embeddings[index].vector,
+      })),
+    );
+  } catch (error) {
+    await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkRows.map((row: ChunkRow) => row.id)}::uuid[])`;
+    throw error;
+  }
+
+  if (oldChunkIds.length > 0) {
+    await deleteChunkVectors(oldChunkIds).catch(() => undefined);
+    await deletePgEmbeddings(oldChunkIds);
+    await sql`DELETE FROM app.chunks WHERE id = ANY(${oldChunkIds}::uuid[])`;
+  }
 
   return embeddings.length;
 }

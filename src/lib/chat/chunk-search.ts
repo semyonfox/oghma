@@ -1,5 +1,6 @@
 import sql from "@/database/pgsql.js";
 import { embedText } from "@/lib/embedText";
+import { searchChunkVectors } from "@/lib/qdrant";
 
 const MAX_DISTANCE = 0.75;
 const MAX_RESULTS = 12;
@@ -57,31 +58,30 @@ export async function searchChatChunks({
   if (mode === "semantic" || mode === "both") {
     try {
       const vec = await embedText(query);
-      const vectorStr = `[${vec.join(",")}]`;
-      const rows: any[] = scoped
-        ? await sql`
-            SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-            FROM app.embeddings e
-            JOIN app.chunks c ON c.id = e.chunk_id
-            JOIN app.notes n ON n.note_id = c.document_id
-            WHERE c.user_id = ${userId}::uuid
-              AND c.document_id = ANY(${scopedNoteIds}::uuid[])
-              AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-            ORDER BY e.embedding <=> ${vectorStr}::vector
-            LIMIT ${QUERY_LIMIT}
-          `
-        : await sql`
-            SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-            FROM app.embeddings e
-            JOIN app.chunks c ON c.id = e.chunk_id
-            JOIN app.notes n ON n.note_id = c.document_id
-            WHERE c.user_id = ${userId}::uuid
-              AND (e.embedding <=> ${vectorStr}::vector) < ${MAX_DISTANCE}
-            ORDER BY e.embedding <=> ${vectorStr}::vector
-            LIMIT ${QUERY_LIMIT}
-          `;
+      const hits = await searchChunkVectors({
+        userId,
+        vector: vec,
+        documentIds: scoped ? scopedNoteIds : null,
+        maxDistance: MAX_DISTANCE,
+        limit: QUERY_LIMIT,
+      });
+      const chunkIds = hits.map((hit) => hit.chunkId);
+      const rows: any[] =
+        chunkIds.length === 0
+          ? []
+          : await sql`
+              SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
+              FROM app.chunks c
+              JOIN app.notes n ON n.note_id = c.document_id
+              WHERE c.user_id = ${userId}::uuid
+                AND c.id = ANY(${chunkIds}::uuid[])
+                AND n.deleted_at IS NULL
+            `;
+      const byChunkId = new Map(rows.map((row: any) => [row.chunk_id, row]));
 
-      for (const row of rows) {
+      for (const hit of hits) {
+        const row = byChunkId.get(hit.chunkId);
+        if (!row) continue;
         add(row.note_id, row.title, row.chunk_id, row.chunk_text, "semantic");
       }
     } catch {

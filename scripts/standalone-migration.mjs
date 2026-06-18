@@ -38,7 +38,6 @@ DROP TABLE IF EXISTS app.documents CASCADE;
 -- Create extensions (ignore if they already exist on RDS)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================================================
@@ -192,18 +191,6 @@ CREATE TABLE app.chunks (
 );
 
 CREATE INDEX idx_chunks_user_document ON app.chunks(user_id, document_id);
-
--- ============================================================================
--- TABLE: app.embeddings (Cohere embed-multilingual-v3.0, 1024 dims)
--- ============================================================================
-CREATE TABLE app.embeddings (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chunk_id  UUID NOT NULL,
-    embedding vector(1024) NOT NULL
-);
-
-CREATE INDEX idx_embeddings_chunk ON app.embeddings(chunk_id);
-CREATE INDEX idx_embeddings_hnsw ON app.embeddings USING hnsw(embedding vector_cosine_ops);
 
 -- ============================================================================
 -- TABLE: app.chat_sessions
@@ -389,7 +376,7 @@ async function main() {
     console.log('   - app.attachments        (file uploads)');
     console.log('   - app.pdf_annotations    (PDF markups)');
     console.log('   - app.chunks             (document text segments)');
-    console.log('   - app.embeddings         (vector embeddings, 1024d)');
+    console.log('   - Qdrant collection      (vector embeddings)');
     console.log('   - app.chat_sessions      (RAG chat sessions)');
     console.log('   - app.chat_messages      (RAG chat messages)');
     console.log('   - app.canvas_import_jobs (background import jobs)');

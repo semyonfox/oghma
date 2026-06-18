@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
+import { getChunkVector, searchChunkVectors } from "@/lib/qdrant";
 
 // distance threshold — lower = more similar
 const MAX_DISTANCE = 0.45;
@@ -23,28 +24,39 @@ export const GET = withErrorHandler(
     `;
     if (!question) return tracedError("Not found", 404);
 
-    // use the chunk's own stored embedding to find nearest neighbours —
-    // no embedding API call needed
-    const related = await sql`
-      SELECT c.text, n.title,
-        (e.embedding <=> (
-          SELECT embedding FROM app.embeddings WHERE chunk_id = ${question.chunk_id}::uuid LIMIT 1
-        )) AS distance
-      FROM app.embeddings e
-      JOIN app.chunks c ON c.id = e.chunk_id
-      JOIN app.notes n ON n.note_id = c.document_id
-      WHERE c.user_id = ${userId}::uuid
-        AND n.deleted_at IS NULL
-        AND c.id != ${question.chunk_id}::uuid
-        AND (e.embedding <=> (
-          SELECT embedding FROM app.embeddings WHERE chunk_id = ${question.chunk_id}::uuid LIMIT 1
-        )) < ${MAX_DISTANCE}
-      ORDER BY distance
-      LIMIT 3
-    `;
+    // use the chunk's own stored vector to find nearest neighbours in Qdrant;
+    // no embedding API call needed.
+    const vector = await getChunkVector(question.chunk_id);
+    if (!vector) return NextResponse.json({ related: [] });
+
+    const hits = await searchChunkVectors({
+      userId,
+      vector,
+      limit: 4,
+      maxDistance: MAX_DISTANCE,
+      excludeChunkIds: [question.chunk_id],
+    });
+    const chunkIds = hits.map((hit) => hit.chunkId).slice(0, 3);
+    const related =
+      chunkIds.length === 0
+        ? []
+        : await sql`
+            SELECT c.id, c.text, n.title
+            FROM app.chunks c
+            JOIN app.notes n ON n.note_id = c.document_id
+            WHERE c.user_id = ${userId}::uuid
+              AND c.id = ANY(${chunkIds}::uuid[])
+              AND n.deleted_at IS NULL
+          `;
+    const byChunkId = new Map<string, any>(
+      related.map((row: any) => [row.id, row]),
+    );
 
     return NextResponse.json({
-      related: related.map((r: any) => ({ text: r.text, title: r.title })),
+      related: chunkIds.flatMap((id) => {
+        const row = byChunkId.get(id);
+        return row ? [{ text: row.text, title: row.title }] : [];
+      }),
     });
   },
 );

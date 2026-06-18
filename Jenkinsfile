@@ -15,6 +15,7 @@ pipeline {
         PROD_WRK_IP  = '192.168.48.31'
         DEV_IP       = '192.168.48.40'
         DEV_WRK_IP   = '192.168.48.41'
+        QDRANT_IP    = '192.168.48.42'
     }
 
     stages {
@@ -98,12 +99,40 @@ pipeline {
             }
         }
 
+        stage('vector store') {
+            steps {
+                sh '''
+                    docker volume create oghma-qdrant-data >/dev/null
+                    if ! docker inspect oghma-qdrant >/dev/null 2>&1; then
+                      docker run -d --name oghma-qdrant \
+                        --network "$NETWORK" \
+                        --ip "$QDRANT_IP" \
+                        --restart unless-stopped \
+                        -v oghma-qdrant-data:/qdrant/storage \
+                        qdrant/qdrant:latest
+                    else
+                      docker start oghma-qdrant >/dev/null
+                    fi
+                    for attempt in $(seq 1 30); do
+                      if curl -fsS "http://${QDRANT_IP}:6333/collections" >/dev/null; then
+                        exit 0
+                      fi
+                      sleep 2
+                    done
+                    echo "qdrant did not become ready"
+                    exit 1
+                '''
+            }
+        }
+
         stage('migrate') {
             steps {
                 sh '''
                     docker run --rm \
                         --network $NETWORK \
                         --env-file $ENV_FILE \
+                        -e QDRANT_URL=http://oghma-qdrant:6333 \
+                        -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
                         $IMAGE \
                         node scripts/prebuild-migrate.mjs
                 '''
@@ -122,6 +151,8 @@ pipeline {
                             --ip ${appIp} \
                             --restart unless-stopped \
                             --env-file "\$ENV_FILE" \
+                            -e QDRANT_URL=http://oghma-qdrant:6333 \
+                            -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
                             --memory "\$APP_MEM" \
                             "\$IMAGE"
                         echo "deployed \$IMAGE to \$CONTAINER (${appIp})"
@@ -144,6 +175,8 @@ pipeline {
                             --ip ${wrkIp} \
                             --restart unless-stopped \
                             --env-file "\$ENV_FILE" \
+                            -e QDRANT_URL=http://oghma-qdrant:6333 \
+                            -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
                             --memory "\$WORKER_MEM" \
                         "\$WORKER_IMAGE"
                     echo "deployed \$WORKER_IMAGE to \$WORKER (${wrkIp})"

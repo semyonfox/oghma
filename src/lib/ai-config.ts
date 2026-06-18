@@ -10,10 +10,9 @@ const DEFAULT_LLM_MAX_TOKENS = 8_192;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
 
-export type LlmThinkingMode = "auto" | "on" | "off";
+export type LlmThinkingMode = "auto" | "off";
 
-// OR's reasoning effort levels: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
-export type LlmReasoningOptions = { effort: "high" | "medium" | "none" };
+export type LlmReasoningOptions = { enabled: true };
 
 function readBoundedInt(
   value: string | undefined,
@@ -29,7 +28,6 @@ function readBoundedInt(
 
 function normalizeThinkingMode(value: string | undefined): LlmThinkingMode {
   const normalized = (value ?? "").trim().toLowerCase();
-  if (normalized === "on" || normalized === "enabled") return "on";
   if (normalized === "off" || normalized === "disabled") return "off";
   return "auto";
 }
@@ -54,16 +52,14 @@ export function getLlmThinkingMode(
   return normalizeThinkingMode(env.LLM_THINKING);
 }
 
-// map our user-facing tri-state to OR reasoning effort.
+// map our user-facing two-state setting to OpenRouter's reasoning controls.
 // off → omit reasoning (caller treats undefined as "no reasoning")
-// auto → medium effort, the model decides if it's worth thinking
-// on → high effort, force the model to reason
+// auto → enable reasoning with the model/provider default budget
 export function buildReasoningOptions(
   mode: LlmThinkingMode,
 ): LlmReasoningOptions | undefined {
   if (mode === "off") return undefined;
-  if (mode === "on") return { effort: "high" };
-  return { effort: "medium" };
+  return { enabled: true };
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {

@@ -27,6 +27,14 @@ import {
   buildSearchContext,
 } from "@/lib/chat/stream-events";
 
+function resolveChatThinkingMode(
+  requestedThinkingMode: unknown,
+): LlmThinkingMode {
+  if (requestedThinkingMode === "off") return "off";
+  if (requestedThinkingMode !== undefined) return "auto";
+  return getLlmThinkingMode();
+}
+
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
@@ -59,15 +67,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     sessionId?: string;
     history?: ChatMessage[];
     stream?: boolean;
-    thinkingMode?: LlmThinkingMode;
+    thinkingMode?: unknown;
   } = body;
 
-  const thinkingMode: LlmThinkingMode =
-    requestedThinkingMode === "on" ||
-    requestedThinkingMode === "off" ||
-    requestedThinkingMode === "auto"
-      ? requestedThinkingMode
-      : getLlmThinkingMode();
+  const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
 
   if (!message?.trim()) return tracedError("message is required", 400);
   if (message.length > 2000)

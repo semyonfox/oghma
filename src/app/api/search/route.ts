@@ -4,6 +4,7 @@ import sql from "@/database/pgsql.js";
 import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { searchChunkVectors } from "@/lib/qdrant";
 
 interface ResultItem {
   note_id: string;
@@ -45,7 +46,7 @@ async function keywordSearch(
   }));
 }
 
-// semantic search via Cohere embed + pgvector cosine distance
+// semantic search via configured embedding provider + Qdrant cosine search
 // excludeIds: note_ids already found by keyword — skip them in the query
 async function semanticSearch(
   userId: string,
@@ -55,36 +56,41 @@ async function semanticSearch(
   limit = 10,
 ): Promise<ResultItem[]> {
   const vector = await embedText(query);
-  const vectorStr = `[${vector.join(",")}]`;
-  // pass an empty array when no excludes — the != ALL clause is a no-op on empty arrays
-  const excluded = excludeIds.length > 0 ? excludeIds : [];
+  const hits = await searchChunkVectors({
+    userId,
+    vector,
+    excludeDocumentIds: excludeIds,
+    limit: Math.max(limit * 3, limit),
+  });
+  if (hits.length === 0) return [];
 
+  const chunkIds = hits.map((hit) => hit.chunkId);
   const rows = await sql`
-        SELECT DISTINCT ON (n.note_id)
-               n.note_id, n.title, c.text AS snippet,
-               (e.embedding <=> ${vectorStr}::vector) AS distance
-        FROM app.embeddings e
-        JOIN app.chunks c ON c.id = e.chunk_id
-        JOIN app.notes n ON n.note_id = c.document_id
-        WHERE c.user_id = ${userId}::uuid
-          AND n.deleted_at IS NULL
-          AND n.note_id != ALL(${excluded}::uuid[])
-          ${course ? sql`AND n.canvas_course_id = ${course}` : sql``}
-        ORDER BY n.note_id, e.embedding <=> ${vectorStr}::vector
-    `;
+    SELECT n.note_id, n.title, n.canvas_course_id, c.id AS chunk_id, c.text AS snippet
+    FROM app.chunks c
+    JOIN app.notes n ON n.note_id = c.document_id
+    WHERE c.user_id = ${userId}::uuid
+      AND c.id = ANY(${chunkIds}::uuid[])
+      AND n.deleted_at IS NULL
+      ${course ? sql`AND n.canvas_course_id = ${course}` : sql``}
+  `;
+  const byChunkId = new Map<string, any>(
+    rows.map((row: any) => [row.chunk_id, row]),
+  );
+  const seenNotes = new Set<string>();
 
-  // re-sort by distance after DISTINCT ON dedup
-  const sorted = (rows as any[])
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit);
-
-  return sorted.map((r: any) => ({
-    note_id: r.note_id,
-    title: r.title || "Untitled",
-    snippet: (r.snippet || "").slice(0, 200).trim(),
-    distance: r.distance,
+  return hits.flatMap((hit) => {
+    const row = byChunkId.get(hit.chunkId);
+    if (!row || seenNotes.has(row.note_id)) return [];
+    seenNotes.add(row.note_id);
+    return [{
+      note_id: row.note_id,
+      title: row.title || "Untitled",
+      snippet: (row.snippet || "").slice(0, 200).trim(),
+      distance: hit.distance,
     source: "semantic" as const,
-  }));
+    }];
+  }).slice(0, limit);
 }
 
 // GET /api/search?q=query&mode=keyword|semantic&exclude=id1,id2

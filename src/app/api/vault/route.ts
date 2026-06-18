@@ -5,6 +5,7 @@ import { getStorageProvider } from '@/lib/storage/init';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
+import { deleteChunkVectors } from '@/lib/qdrant';
 
 /**
  * DELETE /api/vault
@@ -40,6 +41,12 @@ export const DELETE = withErrorHandler(async () => {
     `;
 
     const s3Keys: string[] = s3Rows.map((r: { s3_key: string }) => r.s3_key);
+    const chunkRows = await sql`
+      SELECT c.id FROM app.chunks c
+      JOIN app.notes n ON c.document_id = n.note_id
+      WHERE n.user_id = ${userId}::uuid
+    `;
+    const chunkIds: string[] = chunkRows.map((r: { id: string }) => r.id);
 
     // ── 2. Delete from S3 (best-effort — log failures but don't abort) ───────
     let s3Deleted = 0;
@@ -61,14 +68,9 @@ export const DELETE = withErrorHandler(async () => {
     // Order matters: delete children before parents to avoid FK violations
 
     // Embeddings + chunks (RAG pipeline data)
-    await sql`
-      DELETE FROM app.embeddings
-      WHERE chunk_id IN (
-        SELECT c.id FROM app.chunks c
-        JOIN app.notes n ON c.document_id = n.note_id
-        WHERE n.user_id = ${userId}::uuid
-      )
-    `;
+    await deleteChunkVectors(chunkIds).catch((error) => {
+      logger.warn('vault Qdrant delete failed', { userId, error });
+    });
     await sql`
       DELETE FROM app.chunks
       WHERE document_id IN (

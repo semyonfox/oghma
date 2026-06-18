@@ -2,6 +2,7 @@ import { embedText } from "@/lib/embedText";
 import sql from "@/database/pgsql.js";
 import type { FilterType } from "./types";
 import { SESSION_DEFAULTS } from "./types";
+import { searchChunkVectors } from "@/lib/qdrant";
 
 interface DueCard {
   id: string;
@@ -130,17 +131,24 @@ export async function resolveChunkIds(
     case "search": {
       const query = filterValue as string;
       const vector = await embedText(query);
+      const hits = await searchChunkVectors({
+        userId,
+        vector,
+        limit: 30,
+      });
+      if (hits.length === 0) return [];
+
+      const chunkIds = hits.map((hit) => hit.chunkId);
       const rows = await sql`
-                SELECT c.id
-                FROM app.embeddings e
-                JOIN app.chunks c ON c.id = e.chunk_id
-                JOIN app.notes n ON n.note_id = c.document_id
-                WHERE c.user_id = ${userId}::uuid
-                  AND n.deleted_at IS NULL
-                ORDER BY e.embedding <=> ${JSON.stringify(vector)}::vector
-                LIMIT 30
-            `;
-      return rows.map((r: any) => r.id);
+        SELECT c.id
+        FROM app.chunks c
+        JOIN app.notes n ON n.note_id = c.document_id
+        WHERE c.user_id = ${userId}::uuid
+          AND c.id = ANY(${chunkIds}::uuid[])
+          AND n.deleted_at IS NULL
+      `;
+      const available = new Set(rows.map((row: any) => row.id));
+      return chunkIds.filter((id) => available.has(id));
     }
     case "chat_session": {
       const sessionId = filterValue as string;

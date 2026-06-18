@@ -80,4 +80,16 @@ describe("Cloudflare queue adapter", () => {
       }),
     ).toEqual({ type: "extract", noteId: "note-1" });
   });
+
+  it("parses raw JSON bodies returned by HTTP pull", () => {
+    expect(
+      parseCloudflareQueueBody({
+        id: "msg-1",
+        lease_id: "lease-1",
+        attempts: 1,
+        body: JSON.stringify({ type: "extract", noteId: "note-1" }),
+        metadata: { "CF-Content-Type": "json" },
+      }),
+    ).toEqual({ type: "extract", noteId: "note-1" });
+  });
 });

@@ -45,15 +45,12 @@ describe("E2E database schema contract", () => {
     ]);
   });
 
-  it("uses 4096-dimensional embeddings for current providers", async () => {
+  it("stores embeddings outside Postgres", async () => {
     const [row] = await sql`
-      SELECT format_type(atttypid, atttypmod) AS type
-      FROM pg_attribute
-      WHERE attrelid = 'app.embeddings'::regclass
-        AND attname = 'embedding'
+      SELECT to_regclass('app.embeddings') AS embeddings_table
     `;
 
-    expect(row.type).toBe("vector(4096)");
+    expect(row.embeddings_table).toBeNull();
   });
 
   it("matches runtime column names and types for calendar and ingestion", async () => {
