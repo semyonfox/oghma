@@ -4,17 +4,34 @@ import { Button } from "@/components/catalyst/button";
 import { Heading } from "@/components/catalyst/heading";
 import { Text } from "@/components/catalyst/text";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function NotFound() {
   const router = useRouter();
   const { t } = useI18n();
+  const [homeUrl, setHomeUrl] = useState("/");
+  const [isLoadingHome, setIsLoadingHome] = useState(true);
 
-  // TODO: Check if user is authenticated
-  // const { auth } = useContext(AuthContext) or similar
-  // const isAuthenticated = !!auth?.accessToken
-  // const homeUrl = isAuthenticated ? '/notes' : '/'
-  const homeUrl = "/";
+  useEffect(() => {
+    const detectAuth = async () => {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json();
+          if (payload?.user?.user_id) {
+            setHomeUrl("/notes");
+          }
+        }
+      } catch {
+        // keep unauthenticated fallback silently
+      } finally {
+        setIsLoadingHome(false);
+      }
+    };
+
+    void detectAuth();
+  }, []);
 
   return (
     <main className="grid min-h-dvh place-items-center bg-white px-6 py-24 dark:bg-zinc-900 sm:py-32 lg:px-8">
@@ -29,7 +46,7 @@ export default function NotFound() {
           {t("error.page_not_found_description")}
         </Text>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
-          <Button href={homeUrl}>{t("error.go_home")}</Button>
+          <Button href={isLoadingHome ? "/" : homeUrl}>{t("error.go_home")}</Button>
           <Button plain onClick={() => router.back()}>
             {t("error.go_back")} <span aria-hidden="true">&rarr;</span>
           </Button>

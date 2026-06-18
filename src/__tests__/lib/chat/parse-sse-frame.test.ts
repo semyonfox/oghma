@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseSseFrame, humanizeToolName } from "@/lib/chat/parse-sse-frame";
+import logger from "@/lib/logger";
+import { Metrics } from "@/lib/metrics";
 
 describe("humanizeToolName", () => {
   it("turns camelCase into a sentence", () => {
@@ -59,14 +61,29 @@ describe("parseSseFrame — tool-call events", () => {
   });
 
   it("tolerates malformed JSON payload", () => {
-    const update = parseSseFrame({
-      event: "tool-call",
-      data: "not-json",
-    });
-    expect(update).toEqual({
-      type: "tool-call",
-      toolName: "",
-      label: "",
-    });
+    const warnSpy = vi.spyOn(logger, "warn");
+    const metricSpy = vi.spyOn(Metrics, "sseParseError").mockResolvedValue();
+
+    try {
+      const update = parseSseFrame({
+        event: "tool-call",
+        data: "not-json",
+      });
+
+      expect(update).toEqual({
+        type: "tool-call",
+        toolName: "",
+        label: "",
+      });
+      expect(metricSpy).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Malformed SSE frame payload",
+        expect.objectContaining({ event: "tool-call" }),
+      );
+    } finally {
+      warnSpy.mockRestore();
+      metricSpy.mockRestore();
+    }
   });
 });

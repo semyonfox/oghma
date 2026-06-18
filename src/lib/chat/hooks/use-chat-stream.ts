@@ -105,6 +105,20 @@ export function applyUpdate(
       };
     }
 
+    case "error":
+      return {
+        ...msg,
+        partial: true,
+        error: update.message,
+        parts: [
+          ...(msg.parts ?? []),
+          {
+            type: "error",
+            text: update.message || "Response interrupted.",
+          },
+        ],
+      };
+
     default:
       return msg;
   }
@@ -339,6 +353,13 @@ export function useChatStream(
           if (!update) continue;
 
           if (update.type === "error") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? applyUpdate(m, update, thinkingStartRef)
+                  : m,
+              ),
+            );
             throw new Error(update.message || t("error.something_went_wrong"));
           }
 

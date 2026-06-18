@@ -79,4 +79,19 @@ describe("applyUpdate — token + tool-call parts", () => {
       { type: "text", text: "ok" },
     ]);
   });
+
+  it("records stream errors as partial message parts", () => {
+    const msg = applyUpdate(
+      baseMsg("partial", [{ type: "text", text: "partial" }]),
+      { type: "error", message: "Tool-call limit reached" },
+      ref(),
+    );
+
+    expect(msg.partial).toBe(true);
+    expect(msg.error).toBe("Tool-call limit reached");
+    expect(msg.parts).toEqual([
+      { type: "text", text: "partial" },
+      { type: "error", text: "Tool-call limit reached" },
+    ]);
+  });
 });

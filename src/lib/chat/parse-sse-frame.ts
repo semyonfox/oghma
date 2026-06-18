@@ -1,6 +1,8 @@
 import type { SseFrame } from "@/lib/chat/sse";
 import type { Message, SearchContextData } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
+import logger from "@/lib/logger";
+import { Metrics } from "@/lib/metrics";
 
 export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 
@@ -22,6 +24,12 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
   try {
     payload = JSON.parse(frame.data);
   } catch {
+    logger.warn("Malformed SSE frame payload", {
+      event: frame.event,
+      payloadPreview: frame.data.slice(0, 120),
+      payloadLength: frame.data.length,
+    });
+    void Metrics.sseParseError();
     payload = {};
   }
 
