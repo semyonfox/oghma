@@ -14,7 +14,12 @@ function qdrantUrl() {
 }
 
 function qdrantCollection() {
-  return process.env.QDRANT_COLLECTION?.trim() || DEFAULT_COLLECTION;
+  const configured = process.env.QDRANT_COLLECTION?.trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("QDRANT_COLLECTION must be set for production migrations");
+  }
+  return DEFAULT_COLLECTION;
 }
 
 function headers() {
@@ -134,6 +139,13 @@ async function main() {
     }
 
     const [countRow] = await sql`SELECT COUNT(*)::int AS count FROM app.embeddings`;
+    const [activeCountRow] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM app.embeddings e
+      JOIN app.chunks c ON c.id = e.chunk_id
+      JOIN app.notes n ON n.note_id = c.document_id AND n.user_id = c.user_id
+      WHERE n.deleted_at IS NULL
+    `;
     if (!countRow || countRow.count === 0) {
       await ensureCollection(
         Number.parseInt(process.env.QDRANT_VECTOR_SIZE || "", 10) || DEFAULT_VECTOR_SIZE,
@@ -163,7 +175,9 @@ async function main() {
           e.embedding::text AS embedding
         FROM app.embeddings e
         JOIN app.chunks c ON c.id = e.chunk_id
+        JOIN app.notes n ON n.note_id = c.document_id AND n.user_id = c.user_id
         WHERE e.chunk_id > ${lastChunkId}::uuid
+          AND n.deleted_at IS NULL
         ORDER BY e.chunk_id
         LIMIT ${batchSize}
       `;
@@ -186,7 +200,13 @@ async function main() {
 
       copied += rows.length;
       lastChunkId = rows[rows.length - 1].chunk_id;
-      console.log(`[pgvector-to-qdrant] copied ${copied}/${countRow.count}`);
+      console.log(`[pgvector-to-qdrant] copied ${copied}/${activeCountRow.count}`);
+    }
+
+    if (countRow.count !== activeCountRow.count) {
+      console.log(
+        `[pgvector-to-qdrant] skipped ${countRow.count - activeCountRow.count} stale embedding(s) for deleted notes`,
+      );
     }
   } finally {
     await sql.end();
