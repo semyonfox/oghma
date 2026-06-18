@@ -55,6 +55,51 @@ export interface S3Config extends StoreProviderConfig {
 }
 
 /**
+ * Build an AWS SDK v3 config for S3-compatible storage, including R2/RustFS.
+ */
+export function createS3ClientConfig(config: S3Config): S3ClientConfig {
+  const clientConfig: S3ClientConfig = {
+    region: config.region ?? 'us-east-1',
+    ...(config.endPoint && { endpoint: config.endPoint }),
+    ...(config.pathStyle !== undefined && { forcePathStyle: config.pathStyle }),
+  };
+
+  if (config.accessKey && config.secretKey) {
+    clientConfig.credentials = {
+      accessKeyId: config.accessKey,
+      secretAccessKey: config.secretKey,
+    };
+  }
+
+  return clientConfig;
+}
+
+export function createS3ConfigFromEnv(): S3Config {
+  const bucket = process.env.STORAGE_BUCKET;
+
+  if (!bucket) {
+    throw new Error(
+      'Missing required environment variable: STORAGE_BUCKET. ' +
+        'Set it to your S3 bucket name.'
+    );
+  }
+
+  return {
+    bucket,
+    accessKey: process.env.STORAGE_ACCESS_KEY,
+    secretKey: process.env.STORAGE_SECRET_KEY,
+    region: process.env.STORAGE_REGION || 'us-east-1',
+    endPoint: process.env.STORAGE_ENDPOINT,
+    pathStyle: process.env.STORAGE_PATH_STYLE === 'true',
+    prefix: process.env.STORAGE_PREFIX || 'oghma',
+  };
+}
+
+export function createS3ClientFromEnv(): S3Client {
+  return new S3Client(createS3ClientConfig(createS3ConfigFromEnv()));
+}
+
+/**
  * S3-compatible storage provider
  * Supports AWS S3, MinIO, and other S3-compatible endpoints
  */
@@ -81,21 +126,7 @@ export class StoreS3 extends StoreProvider {
    * Create and configure S3Client instance
    */
   private createS3Client(config: S3Config): S3Client {
-    const clientConfig: S3ClientConfig = {
-      region: config.region ?? 'us-east-1',
-      ...(config.endPoint && { endpoint: config.endPoint }),
-      ...(config.pathStyle !== undefined && { forcePathStyle: config.pathStyle }),
-    };
-
-    // Only add credentials if both key and secret are provided
-    if (config.accessKey && config.secretKey) {
-      clientConfig.credentials = {
-        accessKeyId: config.accessKey,
-        secretAccessKey: config.secretKey,
-      };
-    }
-
-    return new S3Client(clientConfig);
+    return new S3Client(createS3ClientConfig(config));
   }
 
   /**

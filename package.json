@@ -12,6 +12,8 @@
     "worker": "tsx src/lib/canvas/worker-entry.js",
     "build": "next build",
     "migrate": "node scripts/prebuild-migrate.mjs",
+    "cf:setup": "node scripts/cloudflare/setup-r2-queues.mjs",
+    "cf:migrate-storage": "node scripts/cloudflare/migrate-storage-to-r2.mjs",
     "start": "next start",
     "start:next": "next start",
     "lint": "eslint",

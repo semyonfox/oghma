@@ -1,7 +1,23 @@
-// BullMQ queues — replaces SQS for canvas-import + extract-retry pipelines
-// connection: REDIS_HOST/REDIS_PORT (defaults to localhost:6379)
+// Queue facade for canvas-import + extract-retry pipelines.
+// Defaults to BullMQ for local/current homelab compatibility. Set
+// QUEUE_PROVIDER=cloudflare to publish to Cloudflare Queues over HTTP.
 import { Queue, type JobsOptions } from "bullmq";
 import IORedis from "ioredis";
+
+export type QueueProvider = "bullmq" | "cloudflare";
+
+interface CloudflareQueueMessage {
+  body: Record<string, unknown>;
+  contentType?: "json";
+  delaySeconds?: number;
+}
+
+interface CloudflareQueueConfig {
+  accountId: string;
+  apiToken: string;
+  canvasQueueId: string;
+  extractRetryQueueId: string;
+}
 
 let _connection: IORedis | null = null;
 
@@ -17,6 +33,13 @@ function getConnection(): IORedis {
 
 export const CANVAS_IMPORT_QUEUE = "canvas-import";
 export const EXTRACT_RETRY_QUEUE = "extract-retry";
+
+export function getQueueProvider(): QueueProvider {
+  const provider = process.env.QUEUE_PROVIDER?.toLowerCase();
+  if (!provider || provider === "bullmq") return "bullmq";
+  if (provider === "cloudflare" || provider === "cf") return "cloudflare";
+  throw new Error(`Unsupported QUEUE_PROVIDER: ${process.env.QUEUE_PROVIDER}`);
+}
 
 let _canvasImportQueue: Queue | null = null;
 let _extractRetryQueue: Queue | null = null;
@@ -50,11 +73,110 @@ const DEFAULT_OPTS: JobsOptions = {
   backoff: { type: "exponential", delay: 1000 },
 };
 
+function getCloudflareQueueConfig(): CloudflareQueueConfig {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? process.env.CF_ACCOUNT_ID;
+  const apiToken =
+    process.env.CLOUDFLARE_QUEUES_API_TOKEN ??
+    process.env.CLOUDFLARE_QUEUE_API_TOKEN ??
+    process.env.CF_QUEUES_API_TOKEN;
+  const canvasQueueId = process.env.CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID;
+  const extractRetryQueueId = process.env.CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID;
+
+  const missing = [
+    ["CLOUDFLARE_ACCOUNT_ID", accountId],
+    ["CLOUDFLARE_QUEUES_API_TOKEN", apiToken],
+    ["CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID", canvasQueueId],
+    ["CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID", extractRetryQueueId],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing Cloudflare Queues configuration for QUEUE_PROVIDER=cloudflare: ${missing.join(", ")}`,
+    );
+  }
+
+  return {
+    accountId: accountId!,
+    apiToken: apiToken!,
+    canvasQueueId: canvasQueueId!,
+    extractRetryQueueId: extractRetryQueueId!,
+  };
+}
+
+function getCloudflareQueueId(queueName: string): string {
+  const config = getCloudflareQueueConfig();
+  switch (queueName) {
+    case CANVAS_IMPORT_QUEUE:
+      return config.canvasQueueId;
+    case EXTRACT_RETRY_QUEUE:
+      return config.extractRetryQueueId;
+    default:
+      throw new Error(`Unknown Cloudflare queue name: ${queueName}`);
+  }
+}
+
+function cloudflareQueueUrl(queueId: string, action?: "messages" | "pull" | "ack"): string {
+  const { accountId } = getCloudflareQueueConfig();
+  const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}/queues/${queueId}/messages`;
+  return action && action !== "messages" ? `${base}/${action}` : base;
+}
+
+async function cloudflareQueueRequest<T>(
+  queueId: string,
+  action: "messages" | "pull" | "ack",
+  body: unknown,
+): Promise<T> {
+  const { apiToken } = getCloudflareQueueConfig();
+  const response = await fetch(cloudflareQueueUrl(queueId, action), {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+  if (!response.ok || payload.success === false) {
+    const message =
+      payload.errors?.map((err: { message?: string }) => err.message).filter(Boolean).join("; ") ||
+      payload.message ||
+      response.statusText;
+    throw new Error(`Cloudflare Queues request failed (${response.status}): ${message}`);
+  }
+
+  return payload as T;
+}
+
+async function sendCloudflareQueueMessage(
+  queueName: string,
+  message: CloudflareQueueMessage,
+): Promise<void> {
+  await cloudflareQueueRequest(getCloudflareQueueId(queueName), "messages", message);
+}
+
+function delayMillisToSeconds(delay?: number): number | undefined {
+  if (!delay || delay <= 0) return undefined;
+  return Math.ceil(delay / 1000);
+}
+
 export async function enqueueCanvasJob(
   type: string,
   data: Record<string, unknown>,
   opts: JobsOptions = {},
 ): Promise<void> {
+  if (getQueueProvider() === "cloudflare") {
+    await sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
+      body: { type, ...data },
+      contentType: "json",
+      delaySeconds: delayMillisToSeconds(opts.delay),
+    });
+    return;
+  }
+
   await getCanvasImportQueue().add(type, { type, ...data }, { ...DEFAULT_OPTS, ...opts });
 }
 
@@ -63,6 +185,18 @@ export async function enqueueCanvasJobBatch(
   payloads: Record<string, unknown>[],
 ): Promise<void> {
   if (payloads.length === 0) return;
+  if (getQueueProvider() === "cloudflare") {
+    await Promise.all(
+      payloads.map((data) =>
+        sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
+          body: { type, ...data },
+          contentType: "json",
+        }),
+      ),
+    );
+    return;
+  }
+
   await getCanvasImportQueue().addBulk(
     payloads.map((data) => ({
       name: type,
@@ -76,6 +210,15 @@ export async function enqueueExtractRetryJob(
   data: Record<string, unknown>,
   delaySeconds: number,
 ): Promise<void> {
+  if (getQueueProvider() === "cloudflare") {
+    await sendCloudflareQueueMessage(EXTRACT_RETRY_QUEUE, {
+      body: { type: "extract-retry", ...data },
+      contentType: "json",
+      delaySeconds,
+    });
+    return;
+  }
+
   await getExtractRetryQueue().add(
     "extract-retry",
     { type: "extract-retry", ...data },
@@ -85,4 +228,61 @@ export async function enqueueExtractRetryJob(
 
 export function getQueueConnection(): IORedis {
   return getConnection();
+}
+
+export interface CloudflarePulledMessage {
+  id: string;
+  lease_id: string;
+  attempts: number;
+  body: unknown;
+  metadata?: Record<string, string>;
+}
+
+export interface CloudflarePullResult {
+  messages: CloudflarePulledMessage[];
+}
+
+export async function pullCloudflareQueueMessages(
+  queueName: string,
+  options: { batchSize?: number; visibilityTimeoutMs?: number } = {},
+): Promise<CloudflarePullResult> {
+  const queueId = getCloudflareQueueId(queueName);
+  const payload = await cloudflareQueueRequest<{
+    result?: { messages?: CloudflarePulledMessage[] };
+  }>(queueId, "pull", {
+    batch_size: options.batchSize ?? 10,
+    visibility_timeout_ms: options.visibilityTimeoutMs ?? 3_600_000,
+  });
+
+  return { messages: payload.result?.messages ?? [] };
+}
+
+export async function ackCloudflareQueueMessages(
+  queueName: string,
+  acks: string[],
+  retries: { lease_id: string; delay_seconds?: number }[] = [],
+): Promise<void> {
+  const queueId = getCloudflareQueueId(queueName);
+  await cloudflareQueueRequest(queueId, "ack", {
+    acks: acks.map((lease_id) => ({ lease_id })),
+    retries,
+  });
+}
+
+export function parseCloudflareQueueBody(message: CloudflarePulledMessage): Record<string, unknown> {
+  if (message.body && typeof message.body === "object" && !Array.isArray(message.body)) {
+    return message.body as Record<string, unknown>;
+  }
+
+  if (typeof message.body !== "string") {
+    throw new Error(`Unsupported Cloudflare queue body type for message ${message.id}`);
+  }
+
+  const contentType = message.metadata?.["CF-Content-Type"] ?? message.metadata?.["content-type"];
+  if (contentType === "json" || contentType === "bytes") {
+    const decoded = Buffer.from(message.body, "base64").toString("utf8");
+    return JSON.parse(decoded);
+  }
+
+  return JSON.parse(message.body);
 }

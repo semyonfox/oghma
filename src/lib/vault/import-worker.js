@@ -14,6 +14,7 @@ import { chunkText } from "../chunking.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
+import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
 import { extractWithMarker } from "../ocr.ts";
 import { persistMarkerAssetsForNote } from "../marker-output.ts";
@@ -214,15 +215,13 @@ class EntryQueue {
  * Memory stays bounded at ~FILE_CONCURRENCY * largest_file_size.
  */
 async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
-  const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
 
   const bucket = process.env.STORAGE_BUCKET;
   const prefix = process.env.STORAGE_PREFIX || "oghma";
   const fullKey = `${prefix}/${s3Key}`;
 
-  const s3 = new S3Client({
-    region: process.env.STORAGE_REGION || "us-east-1",
-  });
+  const s3 = createS3ClientFromEnv();
   const res = await s3.send(
     new GetObjectCommand({ Bucket: bucket, Key: fullKey }),
   );

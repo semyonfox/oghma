@@ -10,9 +10,9 @@ Launch hosting target: [../infra/TARGET_HOSTING.md](../infra/TARGET_HOSTING.md).
 |---|---|
 | App | `oghma-dev` / `oghma-prod` Next.js containers |
 | Worker | `oghma-dev-worker` / `oghma-prod-worker` running `npm run worker` |
-| Queue | BullMQ on `oghma-redis:6379` |
+| Queue | BullMQ on `oghma-redis:6379`, or Cloudflare Queues HTTP pull when `QUEUE_PROVIDER=cloudflare` |
 | Job table | `app.canvas_import_jobs` |
-| Storage | RustFS/S3-compatible bucket |
+| Storage | RustFS/S3-compatible bucket, or Cloudflare R2 via S3 API |
 | OCR | Optional `MARKER_API_URL`; fallback extraction when unset or unavailable |
 
 Worker job names live on the `canvas-import` and `extract-retry` queues. Current names include `canvas-discover`, `canvas-file`, `extract`, `marker-complete`, `vault-import`, `vault-export`, and the legacy `canvas-import` handler for in-flight compatibility.
@@ -40,11 +40,40 @@ Set these in `/home/semyon/jenkins/env/oghma-dev.env` and `/home/semyon/jenkins/
 | `CANVAS_EMBED_CONCURRENCY` | `3` | Concurrent embedding writes |
 | `CANVAS_FILE_TIMEOUT_MS` | `600000` in import worker | Per-file import timeout |
 | `CANVAS_POLL_INTERVAL_MS` | `3000` | Client/status polling interval |
+| `QUEUE_PROVIDER` | `bullmq` | `bullmq` or `cloudflare` |
 | `REDIS_HOST`, `REDIS_PORT` | `localhost`, `6379` | BullMQ connection |
+| `CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID`, `CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID` | unset | Cloudflare queue IDs for HTTP publish/pull |
+| `CLOUDFLARE_QUEUES_API_TOKEN` | unset | Cloudflare token with Account Queues Edit |
+| `CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS` | `43200000` | HTTP pull lease duration |
 | `MARKER_API_URL` | unset | Enables Marker OCR |
 | `DATALAB_API_KEY` | unset | Historical/emergency external extraction fallback; not steady-state launch processing |
 
 Also keep `DATABASE_URL`, `MIGRATION_DATABASE_URL`, storage keys, email transport keys, auth secrets, and AI provider keys in sync with [../SETUP.md](../SETUP.md).
+
+Cloudflare resource setup is scripted:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=<account-id> CLOUDFLARE_API_TOKEN=<token> npm run cf:setup
+```
+
+Object storage migration to R2 is also scripted. It copies keys under the existing prefix unchanged:
+
+```bash
+SOURCE_STORAGE_ENDPOINT=http://oghma-rustfs:9000 \
+SOURCE_STORAGE_BUCKET=oghma-notes \
+SOURCE_STORAGE_REGION=us-east-1 \
+SOURCE_STORAGE_ACCESS_KEY=<rustfs-key> \
+SOURCE_STORAGE_SECRET_KEY=<rustfs-secret> \
+SOURCE_STORAGE_PATH_STYLE=true \
+SOURCE_STORAGE_PREFIX=oghma \
+DEST_STORAGE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+DEST_STORAGE_BUCKET=oghma-notes \
+DEST_STORAGE_REGION=auto \
+DEST_STORAGE_ACCESS_KEY=<r2-key> \
+DEST_STORAGE_SECRET_KEY=<r2-secret> \
+DEST_STORAGE_PATH_STYLE=true \
+npm run cf:migrate-storage
+```
 
 ## Verification
 
@@ -97,7 +126,7 @@ Do not use managed document APIs such as Datalab as the steady-state import path
 
 ## Troubleshooting
 
-**Worker not picking up jobs:** confirm `REDIS_HOST`/`REDIS_PORT`, worker container health, and `docker logs oghma-*-worker`.
+**Worker not picking up jobs:** for BullMQ, confirm `REDIS_HOST`/`REDIS_PORT`, worker container health, and `docker logs oghma-*-worker`. For Cloudflare Queues, confirm `QUEUE_PROVIDER=cloudflare`, queue IDs, `CLOUDFLARE_QUEUES_API_TOKEN`, and that HTTP pull consumers are enabled.
 
 **Files stuck in `queued` or `discovering`:** the worker has a DB safety-net that re-enqueues orphans. If rows stay stuck, check worker errors and Redis connectivity.
 

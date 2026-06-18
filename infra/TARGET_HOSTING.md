@@ -14,7 +14,7 @@ Use Cloudflare for the edge and platform-adjacent services, but keep a normal No
 | DNS, CDN, TLS, WAF/bot basics | Cloudflare |
 | Web app trial | Cloudflare Workers + OpenNext, if compatibility is acceptable |
 | Production fallback app runtime | Small Node/Docker host such as Railway, Fly, Render, or Hetzner/Coolify |
-| Background worker | Node/Docker worker service, not Cloudflare Workers for the first migration |
+| Background worker | Node/Docker worker service consuming Cloudflare Queues over HTTP pull |
 | Database | Neon Postgres with pgvector |
 | Object storage | Cloudflare R2 via S3-compatible API |
 | Transactional email | Cloudflare Email Sending |
@@ -41,7 +41,7 @@ Code reality:
 - Upload, Canvas, and vault routes enqueue BullMQ work directly.
 - Production logging, PDF parsing, and storage proxying use Node-shaped libraries and streams in several paths.
 
-That means Cloudflare Workers/OpenNext is a trial for the web app surface first. The worker stays Node/Docker unless the queue system is deliberately redesigned around Cloudflare Queues or a Node API sidecar.
+That means Cloudflare Workers/OpenNext is a trial for the web app surface first. The worker stays Node/Docker; Cloudflare Queues can replace Redis/BullMQ through HTTP publish/pull without moving the long-running worker into Workers.
 
 ## OpenNext Trial Policy
 
@@ -94,9 +94,9 @@ Use Cloudflare R2 as the launch object store.
 
 R2 is a good fit because the app already uses S3-compatible storage and user file downloads can become expensive on egress-charging providers.
 
-Migration caveat: not all code paths use the shared storage abstraction yet. Before switching production storage to R2, centralize vault import/export S3 clients through the same storage configuration used by the main app.
+Migration caveat: keep object keys under the same `STORAGE_PREFIX` during copy, because database rows store logical keys below that prefix.
 
-Specific code caveat: the main storage provider is already S3-compatible, but vault import/export still has direct `S3Client` usage that must be checked against `STORAGE_ENDPOINT`, R2 credentials, and path-style settings before cutover.
+The main storage provider and vault import/export paths now use the same S3-compatible configuration: `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_PATH_STYLE`, and `STORAGE_PREFIX`.
 
 References:
 

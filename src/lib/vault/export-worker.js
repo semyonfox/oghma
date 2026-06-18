@@ -7,7 +7,6 @@
 import sql from "../../database/pgsql.js";
 import { Zip, ZipDeflate } from "fflate";
 import {
-  S3Client,
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
@@ -16,6 +15,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getStorageProvider } from "../storage/init.ts";
+import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { buildExportPathMap } from "./tree-builder.js";
 import { sendVaultExportCompleteEmail } from "../email.js";
 
@@ -118,9 +118,7 @@ export async function processVaultExport(msg) {
 
   const bucket = process.env.STORAGE_BUCKET;
   const prefix = process.env.STORAGE_PREFIX || "oghma";
-  const s3 = new S3Client({
-    region: process.env.STORAGE_REGION || "us-east-1",
-  });
+  const s3 = createS3ClientFromEnv();
   const outputKey = `${prefix}/exports/${userId}/${jobId}/vault-export.zip`;
 
   const uploader = new S3MultipartZipUploader(s3, bucket, outputKey);

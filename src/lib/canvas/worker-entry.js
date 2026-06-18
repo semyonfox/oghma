@@ -1,19 +1,22 @@
 /**
  * Canvas Worker Entry Point
  *
- * BullMQ workers for canvas-import + extract-retry queues, plus a DB safety-net
+ * Queue workers for canvas-import + extract-retry queues, plus a DB safety-net
  * that reclaims jobs whose enqueue dropped (atomic UPDATE claims queued orphans).
  *
  * Run: npx tsx src/lib/canvas/worker-entry.js
  */
 
 import sql from "../../database/pgsql.js";
-import { Worker } from "bullmq";
 import {
   CANVAS_IMPORT_QUEUE,
   EXTRACT_RETRY_QUEUE,
+  ackCloudflareQueueMessages,
   enqueueCanvasJob,
+  getQueueProvider,
   getQueueConnection,
+  parseCloudflareQueueBody,
+  pullCloudflareQueueMessages,
 } from "../queue.ts";
 import {
   processImportJob,
@@ -30,6 +33,18 @@ const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const MAX_CONCURRENT_JOBS = 10;
+const CF_QUEUE_VISIBILITY_TIMEOUT_MS = parseInt(
+  process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS ?? `${12 * 60 * 60 * 1000}`,
+  10,
+);
+const CF_QUEUE_RETRY_DELAY_SECONDS = parseInt(
+  process.env.CLOUDFLARE_QUEUE_RETRY_DELAY_SECONDS ?? "60",
+  10,
+);
+const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
+  process.env.CLOUDFLARE_QUEUE_EMPTY_POLL_INTERVAL_MS ?? "5000",
+  10,
+);
 
 async function failStuckJobs() {
   const stuck = await sql`
@@ -83,7 +98,7 @@ async function claimOrphanedJobs() {
   return true;
 }
 
-async function processCanvasJob(job) {
+export async function processCanvasJob(job) {
   const ts = () => new Date().toISOString();
   const type = job.data?.type ?? job.name;
   console.log(
@@ -122,7 +137,7 @@ async function processCanvasJob(job) {
 }
 
 console.log(
-  `[${new Date().toISOString()}] Canvas Import Worker started (BullMQ + DB poll, concurrency=${MAX_CONCURRENT_JOBS})`,
+  `[${new Date().toISOString()}] Canvas Import Worker started (${getQueueProvider()} + DB poll, concurrency=${MAX_CONCURRENT_JOBS})`,
 );
 
 await failStuckJobs();
@@ -135,40 +150,123 @@ setInterval(async () => {
   }
 }, DB_POLL_INTERVAL_MS);
 
-const connection = getQueueConnection();
+let workers = [];
+let shuttingDown = false;
 
-const canvasWorker = new Worker(CANVAS_IMPORT_QUEUE, processCanvasJob, {
-  connection,
-  concurrency: MAX_CONCURRENT_JOBS,
-  // long-running jobs (canvas import) extend lock automatically while active
-  lockDuration: 60_000,
-  stalledInterval: 30_000,
-});
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-const retryWorker = new Worker(EXTRACT_RETRY_QUEUE, processCanvasJob, {
-  connection,
-  concurrency: MAX_CONCURRENT_JOBS,
-  lockDuration: 60_000,
-  stalledInterval: 30_000,
-});
+function cloudflareJobFromMessage(message) {
+  const data = parseCloudflareQueueBody(message);
+  const type = data.type ?? "unknown";
+  return {
+    id: message.id,
+    name: type,
+    data,
+  };
+}
 
-for (const w of [canvasWorker, retryWorker]) {
-  w.on("failed", (job, err) => {
-    console.error(
-      `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
-      err?.message,
-    );
+async function processCloudflareQueueBatch(queueName) {
+  const batch = await pullCloudflareQueueMessages(queueName, {
+    batchSize: MAX_CONCURRENT_JOBS,
+    visibilityTimeoutMs: CF_QUEUE_VISIBILITY_TIMEOUT_MS,
   });
-  w.on("error", (err) => {
-    console.error(`[${new Date().toISOString()}] Worker error:`, err?.message);
+
+  if (batch.messages.length === 0) return false;
+
+  const acks = [];
+  const retries = [];
+  await Promise.all(
+    batch.messages.map(async (message) => {
+      try {
+        await processCanvasJob(cloudflareJobFromMessage(message));
+        acks.push(message.lease_id);
+      } catch (err) {
+        console.error(
+          `[${new Date().toISOString()}] Cloudflare queue job ${message.id} failed:`,
+          err?.message,
+        );
+        retries.push({
+          lease_id: message.lease_id,
+          delay_seconds: CF_QUEUE_RETRY_DELAY_SECONDS,
+        });
+      }
+    }),
+  );
+
+  await ackCloudflareQueueMessages(queueName, acks, retries);
+  return true;
+}
+
+async function startCloudflarePullLoop(queueName) {
+  console.log(
+    `[${new Date().toISOString()}] Starting Cloudflare pull consumer for ${queueName}`,
+  );
+
+  while (!shuttingDown) {
+    try {
+      const hadMessages = await processCloudflareQueueBatch(queueName);
+      if (!hadMessages) {
+        await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
+      }
+    } catch (err) {
+      console.error(
+        `[${new Date().toISOString()}] Cloudflare pull error for ${queueName}:`,
+        err?.message,
+      );
+      await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
+    }
+  }
+}
+
+async function startBullMqWorkers() {
+  const { Worker } = await import("bullmq");
+  const connection = getQueueConnection();
+
+  const canvasWorker = new Worker(CANVAS_IMPORT_QUEUE, processCanvasJob, {
+    connection,
+    concurrency: MAX_CONCURRENT_JOBS,
+    // long-running jobs (canvas import) extend lock automatically while active
+    lockDuration: 60_000,
+    stalledInterval: 30_000,
   });
+
+  const retryWorker = new Worker(EXTRACT_RETRY_QUEUE, processCanvasJob, {
+    connection,
+    concurrency: MAX_CONCURRENT_JOBS,
+    lockDuration: 60_000,
+    stalledInterval: 30_000,
+  });
+
+  for (const w of [canvasWorker, retryWorker]) {
+    w.on("failed", (job, err) => {
+      console.error(
+        `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
+        err?.message,
+      );
+    });
+    w.on("error", (err) => {
+      console.error(`[${new Date().toISOString()}] Worker error:`, err?.message);
+    });
+  }
+
+  workers = [canvasWorker, retryWorker];
+}
+
+if (getQueueProvider() === "cloudflare") {
+  void startCloudflarePullLoop(CANVAS_IMPORT_QUEUE);
+  void startCloudflarePullLoop(EXTRACT_RETRY_QUEUE);
+} else {
+  await startBullMqWorkers();
 }
 
 const shutdown = async (signal) => {
+  shuttingDown = true;
   console.log(
     `[${new Date().toISOString()}] received ${signal}, draining workers`,
   );
-  await Promise.allSettled([canvasWorker.close(), retryWorker.close()]);
+  await Promise.allSettled(workers.map((worker) => worker.close()));
   await sql.end({ timeout: 5 });
   process.exit(0);
 };

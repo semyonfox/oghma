@@ -3,6 +3,7 @@ import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
+import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
 
 /**
  * POST /api/vault/import
@@ -34,14 +35,7 @@ export const POST = withErrorHandler(async (request) => {
   const fullKey = `${prefix}/${s3Key}`;
 
   const s3 = new S3Client({
-    region: process.env.STORAGE_REGION || "us-east-1",
-    ...(process.env.STORAGE_ENDPOINT && { endpoint: process.env.STORAGE_ENDPOINT }),
-    ...(process.env.STORAGE_ACCESS_KEY && process.env.STORAGE_SECRET_KEY && {
-      credentials: {
-        accessKeyId: process.env.STORAGE_ACCESS_KEY,
-        secretAccessKey: process.env.STORAGE_SECRET_KEY,
-      },
-    }),
+    ...createS3ClientConfig(createS3ConfigFromEnv()),
   });
 
   const uploadUrl = await getSignedUrl(
