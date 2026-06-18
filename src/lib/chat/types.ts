@@ -12,7 +12,20 @@ export interface SearchContextData {
  */
 export type MessagePart =
   | { type: "text"; text: string }
-  | { type: "tool"; name: string; label: string };
+  | { type: "tool"; name: string; label: string }
+  | { type: "error"; text: string };
+
+export interface MessageMetadata {
+  thinking?: string;
+  thinkingDuration?: number;
+  finishReason?: string;
+  rawFinishReason?: string;
+  stepCount?: number;
+  toolCallCount?: number;
+  partial?: boolean;
+  error?: string;
+  toolCallLimitHit?: boolean;
+}
 
 export interface Message {
   id: string;
@@ -21,6 +34,8 @@ export interface Message {
   parts?: MessagePart[];
   thinking?: string;
   thinkingDuration?: number; // seconds from first thinking token to first content token
+  partial?: boolean;
+  error?: string;
   sources?: { id: string; title: string }[];
   retrieval?: {
     scopeMode: "global" | "scoped";
@@ -49,6 +64,8 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       typeof e.label === "string"
     ) {
       parts.push({ type: "tool", name: e.name, label: e.label });
+    } else if (e.type === "error" && typeof e.text === "string") {
+      parts.push({ type: "error", text: e.text });
     }
   }
   return parts;

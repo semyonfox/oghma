@@ -6,6 +6,7 @@ describe("normalizeMessageParts", () => {
     const input = [
       { type: "text", text: "hi" },
       { type: "tool", name: "getChunks", label: "Searching notes" },
+      { type: "error", text: "Interrupted" },
     ];
     expect(normalizeMessageParts(input)).toEqual(input);
   });
@@ -18,10 +19,12 @@ describe("normalizeMessageParts", () => {
       { type: "unknown", text: "skip" },
       { type: "text", text: 42 }, // wrong text type
       { type: "tool", name: "y", label: "Doing y" },
+      { type: "error", text: "keep" },
     ];
     expect(normalizeMessageParts(input)).toEqual([
       { type: "text", text: "ok" },
       { type: "tool", name: "y", label: "Doing y" },
+      { type: "error", text: "keep" },
     ]);
   });
 

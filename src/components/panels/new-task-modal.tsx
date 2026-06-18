@@ -51,9 +51,9 @@ export default function NewTaskModal({
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
+      <div className="fixed inset-0 bg-black" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="w-full max-w-sm glass-card rounded-radius-lg shadow-xl">
+        <DialogPanel className="w-full max-w-sm bg-surface border border-border-subtle rounded-radius-lg shadow-xl">
           <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <DialogTitle className="text-sm font-medium text-text-secondary">
               {t("New Task")}

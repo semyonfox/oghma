@@ -25,6 +25,7 @@ import {
   buildReasoningOptions,
   createLlmProvider,
   getLlmMaxTokens,
+  getLlmMaxToolSteps,
   getLlmModel,
   type LlmReasoningOptions,
   type LlmThinkingMode,
@@ -79,6 +80,7 @@ export interface LlmCallResult {
     providerOptions: { openrouter: { reasoning?: LlmReasoningOptions } };
   };
   canvasMcpClient: MCPClient | null;
+  maxToolSteps: number;
 }
 
 async function resolveParentFolderHint(
@@ -587,6 +589,7 @@ export async function buildLlmCall(
   const model = provider ? provider(getLlmModel()) : null;
 
   const reasoning = buildReasoningOptions(params.thinkingMode);
+  const maxToolSteps = getLlmMaxToolSteps();
 
   return {
     model,
@@ -595,10 +598,11 @@ export async function buildLlmCall(
       messages: chatMessages,
       maxOutputTokens: getLlmMaxTokens(),
       ...(params.thinkingMode !== "off" && { temperature: 1 }),
-      stopWhen: stepCountIs(50),
+      stopWhen: stepCountIs(maxToolSteps),
       tools,
       providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
     },
     canvasMcpClient,
+    maxToolSteps,
   };
 }
