@@ -79,24 +79,26 @@ describe("normalizeQuizOptions", () => {
     expect(normalizeQuizOptions({ options: [] })).toBeNull();
   });
 
-  it("filters out options with non-string text", () => {
+  it("coerces non-string text to strings", () => {
     const input = [
       { text: 42, is_correct: true },
       { text: "Valid", is_correct: false },
     ];
     const result = normalizeQuizOptions(input);
-    expect(result).toHaveLength(1);
-    expect(result![0].text).toBe("Valid");
+    expect(result).toHaveLength(2);
+    expect(result![0]).toEqual({ text: "42", is_correct: true });
+    expect(result![1]).toEqual({ text: "Valid", is_correct: false });
   });
 
-  it("filters out options with non-boolean is_correct", () => {
+  it("accepts boolean-like is_correct values", () => {
     const input = [
       { text: "A", is_correct: "yes" },
       { text: "B", is_correct: true },
     ];
     const result = normalizeQuizOptions(input);
-    expect(result).toHaveLength(1);
-    expect(result![0].text).toBe("B");
+    expect(result).toHaveLength(2);
+    expect(result![0]).toEqual({ text: "A", is_correct: true });
+    expect(result![1]).toEqual({ text: "B", is_correct: true });
   });
 
   it("filters out null entries in the array", () => {
@@ -106,7 +108,10 @@ describe("normalizeQuizOptions", () => {
   });
 
   it("returns null when all entries are invalid", () => {
-    const input = [{ text: 1, is_correct: "no" }, null];
+    const input = [
+      { text: { value: "broken" }, is_correct: "maybe" },
+      null,
+    ];
     expect(normalizeQuizOptions(input)).toBeNull();
   });
 

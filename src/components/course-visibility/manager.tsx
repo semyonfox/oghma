@@ -277,7 +277,7 @@ export function CourseVisibilityDialog({
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/55" aria-hidden="true" />
+      <div className="fixed inset-0 bg-black" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <DialogPanel className="w-full max-w-2xl rounded-radius-lg border border-border-subtle bg-app-page shadow-2xl">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">

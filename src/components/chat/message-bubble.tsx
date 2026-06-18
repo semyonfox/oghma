@@ -29,6 +29,13 @@ const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
             <Fragment key={i}>
               <ChatMarkdown>{part.text}</ChatMarkdown>
             </Fragment>
+          ) : part.type === "error" ? (
+            <div
+              key={i}
+              className="my-1 rounded-radius-md border border-red-500/25 bg-red-500/10 px-2.5 py-2 text-xs text-red-200"
+            >
+              {part.text}
+            </div>
           ) : (
             <ToolCallPill key={i} label={part.label} />
           ),
@@ -239,7 +246,8 @@ export const FullMessageBubble: FC<{
     );
   }
 
-  const isThinkingStreaming = !!m.thinking && !m.content.trim();
+  const isThinkingStreaming =
+    !!m.thinking && !m.content.trim() && !m.error && !m.partial;
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 
   return (
@@ -285,7 +293,8 @@ export const FullMessageBubble: FC<{
 export const CompactMessageBubble: FC<{ message: Message }> = ({
   message: m,
 }) => {
-  const isThinkingStreaming = !!m.thinking && !m.content.trim();
+  const isThinkingStreaming =
+    !!m.thinking && !m.content.trim() && !m.error && !m.partial;
   const hasContent = m.content.trim().length > 0;
   const hasSources = Array.isArray(m.sources) && m.sources.length > 0;
 

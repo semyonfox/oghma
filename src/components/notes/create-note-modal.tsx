@@ -126,7 +126,7 @@ const CreateNoteModal: FC<CreateNoteModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black flex items-center justify-center z-50 p-4"
       role="dialog"
       aria-labelledby="create-note-title"
       onClick={onClose}

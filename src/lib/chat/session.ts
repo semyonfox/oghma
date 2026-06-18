@@ -3,7 +3,7 @@
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
 import sql from "@/database/pgsql.js";
-import type { MessagePart } from "@/lib/chat/types";
+import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_RECENT_ACCESSES = 12;
@@ -225,6 +225,7 @@ export async function persistMessage(
   options?: {
     parts?: MessagePart[];
     sources?: { id: string; title: string }[];
+    metadata?: MessageMetadata;
   },
 ): Promise<void> {
   const messageId = generateUUID();
@@ -234,15 +235,17 @@ export async function persistMessage(
   const parts: MessagePart[] =
     options?.parts ?? (content ? [{ type: "text", text: content }] : []);
   const sources = options?.sources;
+  const metadata = options?.metadata;
   await sql`
-    INSERT INTO app.chat_messages(id, session_id, role, content, parts, sources)
+    INSERT INTO app.chat_messages(id, session_id, role, content, parts, sources, metadata)
     VALUES(
       ${messageId}::uuid,
       ${sessionId}::uuid,
       ${role},
       ${content},
       ${JSON.stringify(parts)}::jsonb,
-      ${sources ? JSON.stringify(sources) : null}
+      ${sources ? JSON.stringify(sources) : null},
+      ${metadata ? JSON.stringify(metadata) : "{}"}::jsonb
     )
   `;
 }

@@ -9,7 +9,7 @@ import { streamText, generateText } from "ai";
 
 import { runRagPipeline, buildSystemPrompt, runKeywordFallback } from "@/lib/chat/rag-pipeline";
 import { persistMessage, type ChatMessage } from "@/lib/chat/session";
-import type { MessagePart } from "@/lib/chat/types";
+import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
@@ -123,21 +123,26 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 ragResult,
               );
 
-              const { model, llmAvailable, llmCallOptions, canvasMcpClient } =
-                await buildLlmCall({
-                  userId,
-                  sessionId: scope.sessionId,
-                  sessionContext: scope.sessionContext,
-                  scopedNoteIds: scope.scopedNoteIds,
-                  scopedInputNoteIds: scope.scopedInputNoteIds,
-                  history: scope.history,
-                  message,
-                  systemPrompt,
-                  sessionMemoryPrompt,
-                  thinkingMode,
-                  requestOrigin: request.nextUrl.origin,
-                  referer: request.headers.get("referer"),
-                });
+              const {
+                model,
+                llmAvailable,
+                llmCallOptions,
+                canvasMcpClient,
+                maxToolSteps,
+              } = await buildLlmCall({
+                userId,
+                sessionId: scope.sessionId,
+                sessionContext: scope.sessionContext,
+                scopedNoteIds: scope.scopedNoteIds,
+                scopedInputNoteIds: scope.scopedInputNoteIds,
+                history: scope.history,
+                message,
+                systemPrompt,
+                sessionMemoryPrompt,
+                thinkingMode,
+                requestOrigin: request.nextUrl.origin,
+                referer: request.headers.get("referer"),
+              });
 
               sendMeta(
                 writer,
@@ -172,6 +177,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               // jsonb so reload reproduces the same shape.
               const t0 = Date.now();
               let reply = "";
+              let thinking = "";
+              let thinkingStartedAt: number | null = null;
+              let thinkingDuration: number | undefined;
+              let finishReason: string | undefined;
+              let rawFinishReason: string | undefined;
+              let stepCount = 0;
+              let toolCallCount = 0;
+              let assistantPersisted = false;
               const parts: MessagePart[] = [];
               let pendingText = "";
               const flushText = () => {
@@ -180,6 +193,36 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   pendingText = "";
                 }
               };
+              const closeThinkingWindow = () => {
+                if (thinkingStartedAt && thinkingDuration == null) {
+                  thinkingDuration = Math.max(
+                    1,
+                    Math.round((Date.now() - thinkingStartedAt) / 1000),
+                  );
+                }
+              };
+              const buildMetadata = (
+                overrides: Partial<MessageMetadata> = {},
+              ): MessageMetadata => ({
+                ...(thinking && { thinking }),
+                ...(thinkingDuration != null && { thinkingDuration }),
+                ...(finishReason && { finishReason }),
+                ...(rawFinishReason && { rawFinishReason }),
+                stepCount,
+                toolCallCount,
+                ...overrides,
+              });
+              const persistAssistant = async (
+                content: string,
+                metadata?: MessageMetadata,
+              ) => {
+                await persistMessage(scope.sessionId, "assistant", content, {
+                  parts,
+                  sources: uniqueSources,
+                  metadata,
+                });
+                assistantPersisted = true;
+              };
               try {
                 const result = streamText({
                   model: model!,
@@ -187,12 +230,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 });
                 for await (const part of result.fullStream) {
                   if (part.type === "reasoning-delta") {
+                    if (!thinkingStartedAt) thinkingStartedAt = Date.now();
+                    thinking += part.text;
                     sendThinking(writer, part.text);
                   } else if (part.type === "text-delta") {
+                    closeThinkingWindow();
                     reply += part.text;
                     pendingText += part.text;
                     sendToken(writer, part.text);
                   } else if (part.type === "tool-call") {
+                    toolCallCount += 1;
                     flushText();
                     parts.push({
                       type: "tool",
@@ -200,13 +247,89 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       label: labelForTool(part.toolName),
                     });
                     sendToolCall(writer, part.toolName);
+                  } else if (part.type === "finish-step") {
+                    stepCount += 1;
+                    finishReason = part.finishReason;
+                    rawFinishReason = part.rawFinishReason;
+                  } else if (part.type === "finish") {
+                    finishReason = part.finishReason;
+                    rawFinishReason = part.rawFinishReason;
+                  } else if (part.type === "error") {
+                    throw part.error instanceof Error
+                      ? part.error
+                      : new Error(String(part.error));
                   }
                 }
+              } catch (error) {
+                void Metrics.llmError();
+                closeThinkingWindow();
+                flushText();
+                const detail =
+                  error instanceof Error ? error.message : String(error);
+                const interrupted =
+                  "Response interrupted while generating. Partial output was saved.";
+                logger.error("LLM stream interrupted", {
+                  error: detail,
+                  model: getLlmModel(),
+                  thinkingMode,
+                  stepCount,
+                  toolCallCount,
+                  finishReason,
+                  rawFinishReason,
+                });
+                if (
+                  !assistantPersisted &&
+                  (reply.trim() || thinking.trim() || parts.length > 0)
+                ) {
+                  parts.push({ type: "error", text: interrupted });
+                  await persistAssistant(
+                    reply,
+                    buildMetadata({
+                      partial: true,
+                      error: detail,
+                    }),
+                  ).catch((persistError) => {
+                    logger.error("Failed to persist interrupted LLM stream", {
+                      error:
+                        persistError instanceof Error
+                          ? persistError.message
+                          : String(persistError),
+                    });
+                  });
+                }
+                sendError(writer, interrupted);
+                writer.close();
+                return;
               } finally {
                 await canvasMcpClient?.close().catch(() => {});
               }
+              closeThinkingWindow();
               flushText();
               void Metrics.llmLatency(Date.now() - t0);
+
+              if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
+                const limitMessage =
+                  "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
+                logger.warn("LLM stream hit tool-call step limit", {
+                  model: getLlmModel(),
+                  thinkingMode,
+                  maxToolSteps,
+                  stepCount,
+                  toolCallCount,
+                });
+                parts.push({ type: "error", text: limitMessage });
+                await persistAssistant(
+                  reply,
+                  buildMetadata({
+                    partial: true,
+                    error: limitMessage,
+                    toolCallLimitHit: true,
+                  }),
+                );
+                sendError(writer, limitMessage);
+                writer.close();
+                return;
+              }
 
               if (!reply.trim()) {
                 const emptyReply =
@@ -220,19 +343,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   scope.sessionId,
                   "assistant",
                   emptyReply,
-                  { sources: uniqueSources },
+                  {
+                    sources: uniqueSources,
+                    metadata: buildMetadata(),
+                  },
                 );
                 sendDone(writer);
                 writer.close();
                 return;
               }
 
-              await persistMessage(
-                scope.sessionId,
-                "assistant",
-                reply,
-                { parts, sources: uniqueSources },
-              );
+              await persistAssistant(reply, buildMetadata());
               sendDone(writer);
               writer.close();
             } catch (error) {
@@ -289,20 +410,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     ragResult,
   );
 
-  const { model, llmCallOptions, canvasMcpClient } = await buildLlmCall({
-    userId,
-    sessionId: scope.sessionId,
-    sessionContext: scope.sessionContext,
-    scopedNoteIds: scope.scopedNoteIds,
-    scopedInputNoteIds: scope.scopedInputNoteIds,
-    history: scope.history,
-    message,
-    systemPrompt,
-    sessionMemoryPrompt,
-    thinkingMode,
-    requestOrigin: request.nextUrl.origin,
-    referer: request.headers.get("referer"),
-  });
+  const { model, llmCallOptions, canvasMcpClient, maxToolSteps } =
+    await buildLlmCall({
+      userId,
+      sessionId: scope.sessionId,
+      sessionContext: scope.sessionContext,
+      scopedNoteIds: scope.scopedNoteIds,
+      scopedInputNoteIds: scope.scopedInputNoteIds,
+      history: scope.history,
+      message,
+      systemPrompt,
+      sessionMemoryPrompt,
+      thinkingMode,
+      requestOrigin: request.nextUrl.origin,
+      referer: request.headers.get("referer"),
+    });
 
   const searchContext = buildSearchContext(
     scope.scopedNoteIds,
@@ -330,17 +452,51 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   try {
     const t0 = Date.now();
-    const { text: reply, reasoningText } = await (async () => {
+    const result = await (async () => {
       try {
         return await generateText({ model, ...llmCallOptions });
       } finally {
         await canvasMcpClient?.close().catch(() => {});
       }
     })();
+    const { text: reply, reasoningText, finishReason, rawFinishReason, steps } =
+      result;
     void Metrics.llmLatency(Date.now() - t0);
+    const stepCount = steps.length;
+    const toolCallCount = steps.reduce(
+      (sum, step) => sum + step.toolCalls.length,
+      0,
+    );
+    const metadata: MessageMetadata = {
+      ...(reasoningText && { thinking: reasoningText }),
+      finishReason,
+      ...(rawFinishReason && { rawFinishReason }),
+      stepCount,
+      toolCallCount,
+    };
+
+    if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
+      const limitMessage =
+        "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
+      await persistMessage(scope.sessionId, "assistant", reply, {
+        parts: [
+          ...(reply ? [{ type: "text" as const, text: reply }] : []),
+          { type: "error" as const, text: limitMessage },
+        ],
+        sources: uniqueSources,
+        metadata: {
+          ...metadata,
+          partial: true,
+          error: limitMessage,
+          toolCallLimitHit: true,
+        },
+      });
+      return tracedError(limitMessage, 502);
+    }
 
     await persistMessage(scope.sessionId, "assistant", reply, {
       sources: uniqueSources,
+      metadata,
     });
     return NextResponse.json({
       reply,

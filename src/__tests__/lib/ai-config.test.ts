@@ -3,6 +3,7 @@ import {
   buildReasoningOptions,
   createLlmProvider,
   getCohereTimeoutMs,
+  getLlmMaxToolSteps,
   getLlmMaxTokens,
   getLlmModel,
   getLlmThinkingMode,
@@ -15,6 +16,7 @@ describe("ai-config", () => {
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
+    expect(getLlmMaxToolSteps(env)).toBe(50);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 
@@ -22,11 +24,13 @@ describe("ai-config", () => {
     const env = {
       LLM_TIMEOUT_MS: "nope",
       LLM_MAX_TOKENS: "-1",
+      LLM_MAX_TOOL_STEPS: "0",
       COHERE_TIMEOUT_MS: "0",
     } as unknown as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
+    expect(getLlmMaxToolSteps(env)).toBe(50);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 
@@ -34,12 +38,22 @@ describe("ai-config", () => {
     const env = {
       LLM_TIMEOUT_MS: "9999999",
       LLM_MAX_TOKENS: "999999",
+      LLM_MAX_TOOL_STEPS: "999",
       COHERE_TIMEOUT_MS: "200000",
     } as unknown as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(600_000);
     expect(getLlmMaxTokens(env)).toBe(32_768);
+    expect(getLlmMaxToolSteps(env)).toBe(200);
     expect(getCohereTimeoutMs(env)).toBe(20_000);
+  });
+
+  it("reads the max tool step cap from env", () => {
+    expect(
+      getLlmMaxToolSteps({
+        LLM_MAX_TOOL_STEPS: "75",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(75);
   });
 
   it("returns the model from env or default", () => {

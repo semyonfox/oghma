@@ -7,6 +7,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
+const DEFAULT_LLM_MAX_TOOL_STEPS = 50;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
 
@@ -68,6 +69,17 @@ export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
     DEFAULT_LLM_MAX_TOKENS,
     128,
     32_768,
+  );
+}
+
+export function getLlmMaxToolSteps(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return readBoundedInt(
+    env.LLM_MAX_TOOL_STEPS,
+    DEFAULT_LLM_MAX_TOOL_STEPS,
+    1,
+    200,
   );
 }
 

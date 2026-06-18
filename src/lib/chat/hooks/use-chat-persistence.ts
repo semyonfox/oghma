@@ -82,16 +82,37 @@ export function useChatPersistence(
             content: string;
             parts?: unknown;
             sources?: { id: string; title: string }[];
+            metadata?: {
+              thinking?: unknown;
+              thinkingDuration?: unknown;
+              partial?: unknown;
+              error?: unknown;
+            };
             created_at?: string;
             rating?: number | null;
           }) => {
             const parts = normalizeMessageParts(m.parts) ??
               (m.content ? [{ type: "text" as const, text: m.content }] : []);
+            const metadata = m.metadata ?? {};
+            const thinking =
+              typeof metadata.thinking === "string"
+                ? metadata.thinking
+                : undefined;
+            const thinkingDuration =
+              typeof metadata.thinkingDuration === "number"
+                ? metadata.thinkingDuration
+                : undefined;
+            const error =
+              typeof metadata.error === "string" ? metadata.error : undefined;
             return {
               id: m.id,
               role: m.role as "user" | "assistant",
               content: m.content,
               parts,
+              thinking,
+              thinkingDuration,
+              partial: metadata.partial === true,
+              error,
               sources: Array.isArray(m.sources) ? m.sources : [],
               timestamp: m.created_at
                 ? new Date(m.created_at).getTime()
