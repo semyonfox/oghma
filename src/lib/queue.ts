@@ -280,8 +280,12 @@ export function parseCloudflareQueueBody(message: CloudflarePulledMessage): Reco
 
   const contentType = message.metadata?.["CF-Content-Type"] ?? message.metadata?.["content-type"];
   if (contentType === "json" || contentType === "bytes") {
-    const decoded = Buffer.from(message.body, "base64").toString("utf8");
-    return JSON.parse(decoded);
+    try {
+      return JSON.parse(message.body);
+    } catch {
+      const decoded = Buffer.from(message.body, "base64").toString("utf8");
+      return JSON.parse(decoded);
+    }
   }
 
   return JSON.parse(message.body);

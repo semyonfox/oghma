@@ -36,6 +36,21 @@ Managed API pricing is useful as a conservative cost floor, but it is not viable
 
 The first import is about 14x the average monthly API run-rate. Bundling it into normal monthly usage would hide the largest margin risk.
 
+## Storage Footprint Cross-Check
+
+Measured homelab storage on 2026-06-18 gives a useful sanity check for import-related storage pricing. The RustFS/S3-compatible bucket held about 1.2 GB total, mostly from one heavy note-taking CS student plus test/friend accounts. The main object-storage driver was Canvas files:
+
+| Object group | Measured size |
+|---|---:|
+| Canvas files | 896.6 MiB |
+| Vault uploads | 167.0 MiB |
+| Vault exports | 92.3 MiB |
+| Notes/attachments | 29.3 MiB |
+
+At Cloudflare R2 Standard pricing, this is inside the 10 GB free monthly storage allowance. Even without the free allowance, 1.2 GB is about $0.02/month in storage. For pricing purposes, object storage is not the Canvas import margin risk; OCR/import processing and database embeddings are.
+
+The observed heavy user is only about halfway through a 4-year CS degree. A 4th/5th-year engineering student importing historical Canvas content could plausibly be 2x-3x the measured object footprint. See [PRICING.md](PRICING.md) for the current per-user storage planning table.
+
 ## Launch Allowance Model
 
 The product limits are still to be finalized, but the current planning default is:
