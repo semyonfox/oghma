@@ -7,6 +7,13 @@
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
 
+  /* === RADII === */
+  --radius-radius-sm: 4px;
+  --radius-radius-md: 6px;
+  --radius-radius-lg: 8px;
+  --radius-radius-xl: 12px;
+  --radius-radius-2xl: 16px;
+
   /* === SEMANTIC SURFACES & TEXT === */
   --color-background: #0f172a;
   --color-surface: #1e293b;
