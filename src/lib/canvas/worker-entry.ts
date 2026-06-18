@@ -4,7 +4,7 @@
  * Queue workers for canvas-import + extract-retry queues, plus a DB safety-net
  * that reclaims jobs whose enqueue dropped (atomic UPDATE claims queued orphans).
  *
- * Run: npx tsx src/lib/canvas/worker-entry.js
+ * Run: npx tsx src/lib/canvas/worker-entry.ts
  */
 
 import sql from "../../database/pgsql.js";
@@ -25,8 +25,8 @@ import {
   processExtractionRetry,
   processDirectExtraction,
   processMarkerComplete,
-} from "./import-worker.js";
-import { processVaultImport } from "../vault/import-worker.js";
+} from "./import-worker";
+import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
@@ -46,7 +46,7 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   10,
 );
 
-async function failStuckJobs() {
+async function failStuckJobs(): Promise<void> {
   const stuck = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
@@ -62,7 +62,7 @@ async function failStuckJobs() {
 
 // reclaim queued jobs that never made it onto the BullMQ queue (rare —
 // happens when API enqueue throws or the worker died mid-discovery).
-async function claimOrphanedJobs() {
+async function claimOrphanedJobs(): Promise<boolean> {
   const queuedOrphans = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'discovering', started_at = NOW()
@@ -98,7 +98,11 @@ async function claimOrphanedJobs() {
   return true;
 }
 
-export async function processCanvasJob(job) {
+export async function processCanvasJob(job: {
+  data?: Record<string, unknown>;
+  name?: string;
+  id?: string;
+}): Promise<void> {
   const ts = () => new Date().toISOString();
   const type = job.data?.type ?? job.name;
   console.log(
@@ -150,14 +154,17 @@ setInterval(async () => {
   }
 }, DB_POLL_INTERVAL_MS);
 
-let workers = [];
+let workers: Array<{ close: () => Promise<void> }> = [];
 let shuttingDown = false;
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cloudflareJobFromMessage(message) {
+function cloudflareJobFromMessage(message: {
+  id: string;
+  data?: Record<string, string>;
+}): { id: string; name: string; data: Record<string, unknown> } {
   const data = parseCloudflareQueueBody(message);
   const type = data.type ?? "unknown";
   return {
@@ -167,7 +174,7 @@ function cloudflareJobFromMessage(message) {
   };
 }
 
-async function processCloudflareQueueBatch(queueName) {
+async function processCloudflareQueueBatch(queueName: string): Promise<boolean> {
   const batch = await pullCloudflareQueueMessages(queueName, {
     batchSize: MAX_CONCURRENT_JOBS,
     visibilityTimeoutMs: CF_QUEUE_VISIBILITY_TIMEOUT_MS,
@@ -199,7 +206,7 @@ async function processCloudflareQueueBatch(queueName) {
   return true;
 }
 
-async function startCloudflarePullLoop(queueName) {
+async function startCloudflarePullLoop(queueName: string): Promise<void> {
   console.log(
     `[${new Date().toISOString()}] Starting Cloudflare pull consumer for ${queueName}`,
   );
@@ -220,7 +227,7 @@ async function startCloudflarePullLoop(queueName) {
   }
 }
 
-async function startBullMqWorkers() {
+async function startBullMqWorkers(): Promise<void> {
   const { Worker } = await import("bullmq");
   const connection = getQueueConnection();
 
@@ -261,7 +268,7 @@ if (getQueueProvider() === "cloudflare") {
   await startBullMqWorkers();
 }
 
-const shutdown = async (signal) => {
+const shutdown = async (signal: string): Promise<void> => {
   shuttingDown = true;
   console.log(
     `[${new Date().toISOString()}] received ${signal}, draining workers`,

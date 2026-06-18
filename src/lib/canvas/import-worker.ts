@@ -30,7 +30,11 @@ import { getStorageProvider } from "../storage/init.ts";
 // used by the "canvas-import" message type; kept for in-flight messages
 // during the transition to two-phase (discover + per-file) processing.
 
-async function runJobPipeline(jobId, userId, courses) {
+async function runJobPipeline(
+  jobId: string,
+  userId: string,
+  courses: Array<unknown>,
+): Promise<void> {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
 
   const [creds] =
@@ -48,7 +52,7 @@ async function runJobPipeline(jobId, userId, courses) {
 
 // ── Job entry point (legacy single-pass) ────────────────────────────────────
 
-export async function processImportJob(jobId) {
+export async function processImportJob(jobId: string): Promise<boolean> {
   console.log(`[${new Date().toISOString()}] Processing import job: ${jobId}`);
   try {
     const [job] =

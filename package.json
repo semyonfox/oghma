@@ -9,7 +9,7 @@
     "mock:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
     "mock:down": "docker compose -f docker-compose.e2e.yml down -v",
     "mock:seed": "node scripts/dev/run-mock.mjs node scripts/e2e/reset-db.mjs && node scripts/dev/run-mock.mjs node scripts/e2e/create-storage-bucket.mjs && node scripts/dev/run-mock.mjs node scripts/dev/seed-sample-paper.mjs",
-    "worker": "tsx src/lib/canvas/worker-entry.js",
+    "worker": "tsx src/lib/canvas/worker-entry.ts",
     "build": "next build",
     "migrate": "node scripts/prebuild-migrate.mjs",
     "cf:setup": "node scripts/cloudflare/setup-r2-queues.mjs",

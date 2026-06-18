@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+// NOTE: run this with tsx so TypeScript imports resolve:
+//   npx tsx scripts/process-pending-retry-local.mjs
 
 import sql from "../src/database/pgsql.js";
-import { processExtractionRetry } from "../src/lib/canvas/import-worker.js";
+import { processExtractionRetry } from "../src/lib/canvas/import-worker.ts";
 
 const targetStatus = process.env.CANVAS_IMPORT_STATUS ?? "pending_retry";
 

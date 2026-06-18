@@ -22,7 +22,7 @@ import {
   shouldIgnore,
   sanitizePath,
   ensureFolderPath,
-} from "./tree-builder.js";
+} from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email.js";
 
 const PROCESSABLE_EXTS = new Set([
@@ -51,17 +51,22 @@ const FILE_CONCURRENCY = 5;
 const MAX_DECOMPRESSED_SIZE = 20 * 1024 * 1024 * 1024; // 20GB
 const MAX_ENTRIES = 50_000;
 
-function getMimeType(filename) {
+function getMimeType(filename: string | null | undefined): string | null {
   const ext = filename?.toLowerCase().split(".").pop();
   return ext && EXT_MIME[ext] ? EXT_MIME[ext] : null;
 }
 
-function isProcessable(filename) {
+function isProcessable(filename: string | null | undefined): boolean {
   const ext = filename?.toLowerCase().split(".").pop();
   return PROCESSABLE_EXTS.has(ext);
 }
 
-async function createNote(userId, title, parentId, opts = {}) {
+async function createNote(
+  userId: string,
+  title: string,
+  parentId: string | null,
+  opts: { s3Key?: string | null; content?: string } = {},
+): Promise<string> {
   const noteId = uuidv4();
   const s3Key = opts.s3Key ?? null;
   const content = opts.content ?? "";
@@ -73,7 +78,12 @@ async function createNote(userId, title, parentId, opts = {}) {
   return noteId;
 }
 
-async function findOrCreateNote(userId, title, parentId, opts = {}) {
+async function findOrCreateNote(
+  userId: string,
+  title: string,
+  parentId: string | null,
+  opts: { s3Key?: string | null; content?: string } = {},
+): Promise<{ noteId: string; created: boolean }> {
   const existing = await sql`
     SELECT n.note_id FROM app.notes n
     JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
@@ -93,18 +103,18 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
 }
 
 async function processRagPipeline(
-  noteId,
-  userId,
-  parentFolderId,
-  buffer,
-  opts,
-) {
+  noteId: string,
+  userId: string,
+  parentFolderId: string | null,
+  buffer: Buffer,
+  opts: { filename: string; mimeType: string | null },
+): Promise<void> {
   const { filename, mimeType } = opts;
   const isText = mimeType?.startsWith("text/");
 
   let rawText;
   let chunks;
-  let markerImages = {};
+  let markerImages: Record<string, string> = {};
   let markerMetadata = null;
 
   if (isText) {
@@ -169,7 +179,7 @@ async function processRagPipeline(
  * after each file so memory stays bounded (~FILE_CONCURRENCY * largest file).
  */
 class EntryQueue {
-  constructor(concurrency) {
+  constructor(concurrency: number) {
     this.concurrency = concurrency;
     this.queue = [];
     this.running = 0;
@@ -177,7 +187,7 @@ class EntryQueue {
     this._resolve = null;
   }
 
-  push(entry) {
+  push(entry: { process: () => Promise<unknown>; buffer: Buffer | null }) {
     this.queue.push(entry);
     this._tryDrain();
   }
@@ -214,7 +224,12 @@ class EntryQueue {
  * Stream zip from S3, process entries as they decompress.
  * Memory stays bounded at ~FILE_CONCURRENCY * largest_file_size.
  */
-async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
+async function streamAndProcessZip(
+  s3Key: string,
+  userId: string,
+  jobId: string,
+  processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,
+): Promise<number> {
   const { GetObjectCommand } = await import("@aws-sdk/client-s3");
 
   const bucket = process.env.STORAGE_BUCKET;
