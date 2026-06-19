@@ -1,7 +1,9 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
+// TypeScript imports require tsx. Prefer:
+//   npm run worker:retry-pending
 
 import sql from "../src/database/pgsql.js";
-import { processExtractionRetry } from "../src/lib/canvas/import-worker.js";
+import { processExtractionRetry } from "../src/lib/canvas/import-worker.ts";
 
 const targetStatus = process.env.CANVAS_IMPORT_STATUS ?? "pending_retry";
 

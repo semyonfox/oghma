@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { processExtractedText } from '@/lib/canvas/text-processing.js';
+import { processExtractedText } from '@/lib/canvas/text-processing';
 
 describe('processExtractedText', () => {
     it('preserves stop words for embedding context', () => {

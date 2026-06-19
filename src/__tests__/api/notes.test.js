@@ -51,7 +51,7 @@ import {
   PUT as notePUT,
   PATCH as notePATCH,
   DELETE as noteDELETE,
-} from "@/app/api/notes/[id]/route.js";
+} from "@/app/api/notes/[id]/route";
 import { validateSession } from "@/lib/auth.js";
 import sql from "@/database/pgsql.js";
 

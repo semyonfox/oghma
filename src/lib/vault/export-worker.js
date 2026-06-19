@@ -16,7 +16,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getStorageProvider } from "../storage/init.ts";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
-import { buildExportPathMap } from "./tree-builder.js";
+import { buildExportPathMap } from "./tree-builder";
 import { sendVaultExportCompleteEmail } from "../email.js";
 
 const MIN_PART_SIZE = 5 * 1024 * 1024; // 5MB minimum for S3 multipart

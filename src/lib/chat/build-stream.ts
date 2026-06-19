@@ -9,7 +9,7 @@ import { addNoteToTree, moveNoteInTree } from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing.js";
+import { processExtractedText } from "@/lib/canvas/text-processing";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";

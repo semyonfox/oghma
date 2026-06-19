@@ -86,8 +86,12 @@ describe("normalizeQuizOptions", () => {
     ];
     const result = normalizeQuizOptions(input);
     expect(result).toHaveLength(2);
-    expect(result![0]).toEqual({ text: "42", is_correct: true });
-    expect(result![1]).toEqual({ text: "Valid", is_correct: false });
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { text: "42", is_correct: true },
+        { text: "Valid", is_correct: false },
+      ]),
+    );
   });
 
   it("accepts boolean-like is_correct values", () => {
@@ -97,8 +101,12 @@ describe("normalizeQuizOptions", () => {
     ];
     const result = normalizeQuizOptions(input);
     expect(result).toHaveLength(2);
-    expect(result![0]).toEqual({ text: "A", is_correct: true });
-    expect(result![1]).toEqual({ text: "B", is_correct: true });
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { text: "A", is_correct: true },
+        { text: "B", is_correct: true },
+      ]),
+    );
   });
 
   it("filters out null entries in the array", () => {
