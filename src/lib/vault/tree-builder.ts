@@ -76,7 +76,7 @@ export async function findOrCreateVaultFolder(
   userId: string,
   title: string,
   parentId: string | null,
-): Promise<string> {
+): Promise<string | null> {
   const existing = (await sql`
     SELECT n.note_id FROM app.notes n
     JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
@@ -151,7 +151,9 @@ export async function ensureFolderPath(
     }
 
     parentId = await findOrCreateVaultFolder(userId, folderName, parentId);
-    folderCache.set(pathSoFar, parentId);
+    if (parentId) {
+      folderCache.set(pathSoFar, parentId);
+    }
   }
 
   return parentId;

@@ -22,6 +22,7 @@
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "node scripts/e2e/run-with-env.mjs vitest run -c vitest.integration.config.ts",
+    "worker:retry-pending": "tsx scripts/process-pending-retry-local.mjs",
     "e2e": "node scripts/e2e/run-with-env.mjs playwright test",
     "e2e:smoke": "node scripts/e2e/run-with-env.mjs playwright test tests/e2e/smoke",
     "e2e:smoke:public": "node scripts/e2e/run-with-env.mjs playwright test tests/e2e/smoke/public.spec.ts",
@@ -93,6 +94,7 @@
     "sonner": "^2.0.7",
     "swr": "^2.4.1",
     "ts-fsrs": "5.4.1",
+    "tsx": "4.22.4",
     "use-debounce": "^10.1.1",
     "uuid": "14.0.0",
     "validator": "13.15.35",
@@ -128,7 +130,6 @@
     "jsdom": "29.1.1",
     "postcss": "8.5.15",
     "tailwindcss": "4.3.1",
-    "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   },

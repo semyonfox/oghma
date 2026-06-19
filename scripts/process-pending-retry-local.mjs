@@ -1,6 +1,6 @@
-#!/usr/bin/env node
-// NOTE: run this with tsx so TypeScript imports resolve:
-//   npx tsx scripts/process-pending-retry-local.mjs
+#!/usr/bin/env -S npx tsx
+// TypeScript imports require tsx. Prefer:
+//   npm run worker:retry-pending
 
 import sql from "../src/database/pgsql.js";
 import { processExtractionRetry } from "../src/lib/canvas/import-worker.ts";

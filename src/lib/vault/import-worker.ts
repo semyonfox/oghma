@@ -36,7 +36,7 @@ const PROCESSABLE_EXTS = new Set([
   "txt",
 ]);
 
-const EXT_MIME = {
+const EXT_MIME: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   doc: "application/msword",
@@ -58,7 +58,11 @@ function getMimeType(filename: string | null | undefined): string | null {
 
 function isProcessable(filename: string | null | undefined): boolean {
   const ext = filename?.toLowerCase().split(".").pop();
-  return PROCESSABLE_EXTS.has(ext);
+  return Boolean(ext && PROCESSABLE_EXTS.has(ext));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function createNote(
@@ -179,6 +183,12 @@ async function processRagPipeline(
  * after each file so memory stays bounded (~FILE_CONCURRENCY * largest file).
  */
 class EntryQueue {
+  private concurrency: number;
+  private queue: EntryQueueItem[];
+  private running: number;
+  private done: boolean;
+  private _resolve: (() => void) | null;
+
   constructor(concurrency: number) {
     this.concurrency = concurrency;
     this.queue = [];
@@ -187,14 +197,17 @@ class EntryQueue {
     this._resolve = null;
   }
 
-  push(entry: { process: () => Promise<unknown>; buffer: Buffer | null }) {
+  push(entry: EntryQueueItem): void {
     this.queue.push(entry);
     this._tryDrain();
   }
 
-  _tryDrain() {
+  private _tryDrain(): void {
     while (this.running < this.concurrency && this.queue.length > 0) {
       const entry = this.queue.shift();
+      if (!entry) {
+        continue;
+      }
       this.running++;
       entry
         .process()
@@ -211,13 +224,36 @@ class EntryQueue {
   }
 
   // call after extraction is complete, resolves when all processing finishes
-  finish() {
+  finish(): Promise<void> {
     this.done = true;
     if (this.running === 0 && this.queue.length === 0) return Promise.resolve();
     return new Promise((r) => {
       this._resolve = r;
     });
   }
+}
+
+interface EntryQueueItem {
+  process: () => Promise<unknown>;
+  buffer: Buffer | null;
+}
+
+interface VaultImportMessage {
+  jobId: string;
+  userId: string;
+  s3Key: string;
+}
+
+function requireVaultImportMessage(msg: Record<string, unknown>): VaultImportMessage {
+  const { jobId, userId, s3Key } = msg;
+  if (
+    typeof jobId !== "string" ||
+    typeof userId !== "string" ||
+    typeof s3Key !== "string"
+  ) {
+    throw new Error("Invalid vault import message");
+  }
+  return { jobId, userId, s3Key };
 }
 
 /**
@@ -258,7 +294,7 @@ async function streamAndProcessZip(
         return;
       }
 
-      const chunks = [];
+      const chunks: Uint8Array[] = [];
       stream.ondata = (err, data, final) => {
         if (err) {
           reject(err);
@@ -278,8 +314,14 @@ async function streamAndProcessZip(
         }
         if (final) {
           const buffer = Buffer.concat(chunks);
-          const entry = { path: stream.name, buffer, process: null };
-          entry.process = () => processEntry(entry.path, entry.buffer);
+          const entry: EntryQueueItem = {
+            buffer,
+            process: async () => {
+              if (entry.buffer) {
+                await processEntry(stream.name, entry.buffer);
+              }
+            },
+          };
           entryQueue.push(entry);
         }
       };
@@ -288,7 +330,9 @@ async function streamAndProcessZip(
 
     unzip.register(AsyncUnzipInflate);
 
-    const readable = Readable.from(res.Body);
+    const readable = Readable.from(
+      res.Body as AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
+    );
     readable.on("data", (chunk) => {
       unzip.push(Buffer.isBuffer(chunk) ? new Uint8Array(chunk) : chunk);
     });
@@ -306,17 +350,17 @@ async function streamAndProcessZip(
 /**
  * Main entry point — called from worker-entry.js
  */
-export async function processVaultImport(msg) {
-  const { jobId, userId, s3Key } = msg;
+export async function processVaultImport(msg: Record<string, unknown>): Promise<void> {
+  const { jobId, userId, s3Key } = requireVaultImportMessage(msg);
   const ts = () => new Date().toISOString();
   console.log(`[${ts()}] Starting vault import: job=${jobId}`);
+  let cancelled = false;
 
   try {
     await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}::uuid`;
 
     const storage = getStorageProvider();
     const folderCache = new Map();
-    let cancelled = false;
     let totalFiles = 0;
     let totalFolders = 0;
     let failedFiles = 0;
@@ -372,7 +416,7 @@ export async function processVaultImport(msg) {
             } catch (ragErr) {
               console.error(
                 `[${ts()}] RAG failed for ${filename}:`,
-                ragErr.message,
+                errorMessage(ragErr),
               );
             }
           }
@@ -408,7 +452,7 @@ export async function processVaultImport(msg) {
           failedFiles++;
           console.error(
             `[${ts()}] Failed to import ${cleanPath}:`,
-            err.message,
+            errorMessage(err),
           );
         }
       },
@@ -426,7 +470,7 @@ export async function processVaultImport(msg) {
         WHERE c.user_id = ${userId}::uuid
           AND c.created_at >= (SELECT started_at FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid)
       `;
-      const chunkIds = chunks.map((r) => r.id);
+      const chunkIds = chunks.map((r: { id: string }) => r.id);
       if (chunkIds.length > 0) {
         const { seedQuestionsAfterImport } =
           await import("../quiz/generate-background.ts");
@@ -435,7 +479,7 @@ export async function processVaultImport(msg) {
       }
     } catch (seedErr) {
       console.warn(
-        `[${ts()}] Quiz seed failed (non-fatal): ${seedErr.message}`,
+        `[${ts()}] Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`,
       );
     }
 
@@ -461,7 +505,7 @@ export async function processVaultImport(msg) {
         });
       }
     } catch (emailErr) {
-      console.error(`[${ts()}] Email notification failed:`, emailErr.message);
+      console.error(`[${ts()}] Email notification failed:`, errorMessage(emailErr));
     }
 
     console.log(
@@ -469,13 +513,13 @@ export async function processVaultImport(msg) {
     );
   } catch (error) {
     if (cancelled) {
-      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${error.message}`);
+      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${errorMessage(error)}`);
       return;
     }
     console.error(`[${ts()}] Vault import failed:`, error);
     await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'failed', error_message = ${error.message}, completed_at = NOW(), updated_at = NOW()
+      SET status = 'failed', error_message = ${errorMessage(error)}, completed_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid AND status = 'processing'
     `;
     throw error;

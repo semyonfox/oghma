@@ -2,8 +2,8 @@ import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import type { Account, Profile, Session, User } from "next-auth";
-import type { JWT, NextAuthConfig } from "next-auth";
+import type { Session, User, NextAuthConfig } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { findOrCreateOAuthUser } from "@/lib/auth-oauth";
@@ -30,7 +30,7 @@ interface AppJWT extends JWT {
   locale?: string | null;
 }
 
-interface AppSessionUser {
+interface AppSessionUser extends NonNullable<Session["user"]> {
   id?: string;
   email?: string | null;
   displayName?: string | null;
@@ -39,7 +39,7 @@ interface AppSessionUser {
 }
 
 interface AppSession extends Session {
-  user?: AppSessionUser | null;
+  user?: AppSessionUser;
 }
 
 if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
@@ -71,8 +71,14 @@ if (process.env.ENABLE_CREDENTIALS_AUTH !== "false") {
           password: { label: "Password", type: "password" },
         },
         async authorize(credentials) {
-          const email = credentials?.email;
-          const password = credentials?.password;
+          const email =
+            typeof credentials?.email === "string"
+              ? credentials.email
+              : null;
+          const password =
+            typeof credentials?.password === "string"
+              ? credentials.password
+              : null;
           if (!email || !password) {
             return null;
           }
@@ -126,15 +132,7 @@ export const authConfig: NextAuthConfig = {
     error: "/auth/error",
   },
   callbacks: {
-    async signIn({
-      user,
-      account,
-      profile,
-    }: {
-      user: User;
-      account: Account | null;
-      profile?: Profile;
-    }) {
+    async signIn({ user, account, profile }) {
       if (!account || account.provider === "credentials") return true;
 
       try {
@@ -165,17 +163,12 @@ export const authConfig: NextAuthConfig = {
       }
     },
 
-    async jwt({
-      token,
-      user,
-    }: {
-      token: AppJWT;
-      user?: User;
-    }) {
+    async jwt({ token, user }) {
+      const appToken = token as AppJWT;
       // on initial sign-in, user is defined — fetch profile from DB
       if (user) {
-        token.user_id = user.id;
-        token.email = user.email;
+        appToken.user_id = user.id ?? appToken.sub ?? null;
+        appToken.email = user.email ?? appToken.email ?? null;
 
         // fetch profile fields for the session
         try {
@@ -185,9 +178,9 @@ export const authConfig: NextAuthConfig = {
                     `) as LoginProfileRow[];
           if (rows.length > 0) {
             const row = rows[0];
-            token.displayName = row.display_name;
-            token.avatarUrl = row.avatar_url;
-            token.locale = row.locale;
+            appToken.displayName = row.display_name;
+            appToken.avatarUrl = row.avatar_url;
+            appToken.locale = row.locale;
           }
         } catch (error) {
           logger.error("jwt callback db query failed", {
@@ -196,28 +189,24 @@ export const authConfig: NextAuthConfig = {
           });
         }
       }
-      return token;
+      return appToken;
     },
 
-    async session({
-      session,
-      token,
-    }: {
-      session: AppSession;
-      token: AppJWT;
-    }) {
-      if (session.user && token) {
-        session.user.id = token.user_id;
-        session.user.email = token.email;
-        session.user.displayName = token.displayName ?? null;
-        session.user.avatarUrl = token.avatarUrl ?? null;
-        session.user.locale = token.locale ?? null;
+    async session({ session, token }) {
+      const appSession = session as AppSession;
+      const appToken = token as AppJWT;
+      if (appSession.user && appToken) {
+        appSession.user.id = appToken.user_id ?? undefined;
+        appSession.user.email = appToken.email ?? null;
+        appSession.user.displayName = appToken.displayName ?? null;
+        appSession.user.avatarUrl = appToken.avatarUrl ?? null;
+        appSession.user.locale = appToken.locale ?? null;
       }
-      return session;
+      return appSession;
     },
   },
   events: {
-    async signIn({ user, account }: { user: User; account?: Account | null }) {
+    async signIn({ user, account }) {
       logger.info("user signed in", {
         email: user.email,
         provider: account?.provider,

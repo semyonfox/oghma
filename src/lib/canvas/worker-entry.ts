@@ -17,6 +17,7 @@ import {
   getQueueConnection,
   parseCloudflareQueueBody,
   pullCloudflareQueueMessages,
+  type CloudflarePulledMessage,
 } from "../queue.ts";
 import {
   processImportJob,
@@ -45,6 +46,37 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   process.env.CLOUDFLARE_QUEUE_EMPTY_POLL_INTERVAL_MS ?? "5000",
   10,
 );
+
+type CanvasJobData = Record<string, unknown>;
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function requireJobData(job: { data?: CanvasJobData }): CanvasJobData {
+  if (!job.data) {
+    throw new Error("Job data is missing");
+  }
+  return job.data;
+}
+
+function requireString(data: CanvasJobData, field: string): string {
+  const value = data[field];
+  if (typeof value !== "string") {
+    throw new Error(`Job data field ${field} is missing or invalid`);
+  }
+  return value;
+}
+
+function requireCanvasFileData(
+  data: CanvasJobData,
+): { importRecordId: string; jobId: string; userId: string } {
+  return {
+    importRecordId: requireString(data, "importRecordId"),
+    jobId: requireString(data, "jobId"),
+    userId: requireString(data, "userId"),
+  };
+}
 
 async function failStuckJobs(): Promise<void> {
   const stuck = await sql`
@@ -91,7 +123,7 @@ async function claimOrphanedJobs(): Promise<boolean> {
     } catch (err) {
       console.error(
         `[${new Date().toISOString()}] orphan re-enqueue failed:`,
-        err?.message,
+        errorMessage(err),
       );
     }
   }
@@ -104,36 +136,37 @@ export async function processCanvasJob(job: {
   id?: string;
 }): Promise<void> {
   const ts = () => new Date().toISOString();
-  const type = job.data?.type ?? job.name;
+  const data = job.data ?? {};
+  const type = typeof data.type === "string" ? data.type : job.name;
   console.log(
-    `[${ts()}] Received ${type}: ${job.data?.jobId ?? job.data?.userId ?? job.id}`,
+    `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
   );
 
   switch (type) {
     case "canvas-discover":
-      await processDiscoverJob(job.data.jobId);
+      await processDiscoverJob(requireString(requireJobData(job), "jobId"));
       return;
     case "canvas-file":
-      await processCanvasFile(job.data);
+      await processCanvasFile(requireCanvasFileData(requireJobData(job)));
       return;
     // legacy message type — kept for any in-flight messages during deploy
     case "canvas-import":
-      await processImportJob(job.data.jobId);
+      await processImportJob(requireString(requireJobData(job), "jobId"));
       return;
     case "extract":
-      await processDirectExtraction(job.data);
+      await processDirectExtraction(requireJobData(job));
       return;
     case "extract-retry":
-      await processExtractionRetry(job.data);
+      await processExtractionRetry(requireJobData(job));
       return;
     case "marker-complete":
-      await processMarkerComplete(job.data);
+      await processMarkerComplete(requireJobData(job));
       return;
     case "vault-export":
-      await processVaultExport(job.data);
+      await processVaultExport(requireJobData(job));
       return;
     case "vault-import":
-      await processVaultImport(job.data);
+      await processVaultImport(requireJobData(job));
       return;
     default:
       console.warn(`[${ts()}] Unknown job type: ${type}`);
@@ -150,7 +183,7 @@ setInterval(async () => {
   try {
     await claimOrphanedJobs();
   } catch (err) {
-    console.error(`[${new Date().toISOString()}] DB poll error:`, err?.message);
+    console.error(`[${new Date().toISOString()}] DB poll error:`, errorMessage(err));
   }
 }, DB_POLL_INTERVAL_MS);
 
@@ -161,12 +194,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cloudflareJobFromMessage(message: {
-  id: string;
-  data?: Record<string, string>;
-}): { id: string; name: string; data: Record<string, unknown> } {
+function cloudflareJobFromMessage(
+  message: CloudflarePulledMessage,
+): { id: string; name: string; data: CanvasJobData } {
   const data = parseCloudflareQueueBody(message);
-  const type = data.type ?? "unknown";
+  const type = typeof data.type === "string" ? data.type : "unknown";
   return {
     id: message.id,
     name: type,
@@ -182,8 +214,8 @@ async function processCloudflareQueueBatch(queueName: string): Promise<boolean> 
 
   if (batch.messages.length === 0) return false;
 
-  const acks = [];
-  const retries = [];
+  const acks: string[] = [];
+  const retries: { lease_id: string; delay_seconds: number }[] = [];
   await Promise.all(
     batch.messages.map(async (message) => {
       try {
@@ -192,7 +224,7 @@ async function processCloudflareQueueBatch(queueName: string): Promise<boolean> 
       } catch (err) {
         console.error(
           `[${new Date().toISOString()}] Cloudflare queue job ${message.id} failed:`,
-          err?.message,
+          errorMessage(err),
         );
         retries.push({
           lease_id: message.lease_id,
@@ -220,7 +252,7 @@ async function startCloudflarePullLoop(queueName: string): Promise<void> {
     } catch (err) {
       console.error(
         `[${new Date().toISOString()}] Cloudflare pull error for ${queueName}:`,
-        err?.message,
+        errorMessage(err),
       );
       await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
     }
@@ -250,11 +282,11 @@ async function startBullMqWorkers(): Promise<void> {
     w.on("failed", (job, err) => {
       console.error(
         `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
-        err?.message,
+        errorMessage(err),
       );
     });
     w.on("error", (err) => {
-      console.error(`[${new Date().toISOString()}] Worker error:`, err?.message);
+      console.error(`[${new Date().toISOString()}] Worker error:`, errorMessage(err));
     });
   }
 
