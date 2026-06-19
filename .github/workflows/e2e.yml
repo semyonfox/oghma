@@ -67,6 +67,9 @@ env:
   RERANK_API_URL: http://127.0.0.1:8787/v1
   RERANK_API_KEY: e2e
   RERANK_MODEL: e2e-rerank
+  QDRANT_URL: http://127.0.0.1:6333
+  QDRANT_COLLECTION: oghma_e2e_chunks
+  QDRANT_IMAGE: qdrant/qdrant:latest
   MARKER_API_URL: ""
   MINIO_IMAGE: minio/minio:RELEASE.2025-09-07T16-13-09Z
 
@@ -148,6 +151,20 @@ jobs:
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
           node scripts/e2e/create-storage-bucket.mjs
 
+      - name: Start Qdrant
+        run: |
+          docker run -d --name oghma-e2e-qdrant -p 6333:6333 "${QDRANT_IMAGE}"
+
+          for attempt in {1..30}; do
+            if curl -fsS "${QDRANT_URL}/healthz" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs oghma-e2e-qdrant
+          exit 1
+
       - name: Start fake AI provider
         run: |
           PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
@@ -187,6 +204,7 @@ jobs:
         run: |
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
           docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-qdrant 2>/dev/null || true
 
   full:
     name: Nightly Full E2E
@@ -265,6 +283,20 @@ jobs:
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
           node scripts/e2e/create-storage-bucket.mjs
 
+      - name: Start Qdrant
+        run: |
+          docker run -d --name oghma-e2e-qdrant -p 6333:6333 "${QDRANT_IMAGE}"
+
+          for attempt in {1..30}; do
+            if curl -fsS "${QDRANT_URL}/healthz" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs oghma-e2e-qdrant
+          exit 1
+
       - name: Start fake AI provider
         run: |
           PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
@@ -299,3 +331,4 @@ jobs:
         run: |
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
           docker rm -f oghma-e2e-minio 2>/dev/null || true
+          docker rm -f oghma-e2e-qdrant 2>/dev/null || true
