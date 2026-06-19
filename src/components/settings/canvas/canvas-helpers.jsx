@@ -66,6 +66,13 @@ export function CourseBadge({ status, errorMsg, t = (value) => value }) {
       ring: "ring-blue-400/30",
       label: t("Syncing"),
     },
+    checking: {
+      color: "fill-text-tertiary",
+      text: "text-text-secondary",
+      ring: "ring-border-subtle",
+      label: t("Checking…"),
+      pulse: true,
+    },
     forbidden: {
       color: "fill-orange-400",
       text: "text-orange-200",
@@ -83,12 +90,16 @@ export function CourseBadge({ status, errorMsg, t = (value) => value }) {
 
   if (!config[status]) return null;
 
-  const { color, text, ring, label } = config[status];
+  const { color, text, ring, label, pulse } = config[status];
   return (
     <span
       className={`inline-flex items-center gap-x-1.5 rounded-full px-2 py-1 text-xs font-medium ${text} ring-1 ${ring}`}
     >
-      <svg viewBox="0 0 6 6" aria-hidden="true" className={`size-1.5 ${color}`}>
+      <svg
+        viewBox="0 0 6 6"
+        aria-hidden="true"
+        className={`size-1.5 ${color} ${pulse ? "animate-pulse" : ""}`}
+      >
         <circle r={3} cx={3} cy={3} />
       </svg>
       {label}

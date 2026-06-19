@@ -44,6 +44,7 @@ export default function CanvasIntegration() {
   const [isCheckingConnection, setIsCheckingConnection] = useState(true);
   const [connectionWarning, setConnectionWarning] = useState(null);
   const [syncAvailable, setSyncAvailable] = useState(false);
+  const [syncChecked, setSyncChecked] = useState(false);
 
   // Per-course status tracking (persisted in localStorage)
   const [forbiddenCourses, setForbiddenCourses] = useState({}); // { [courseId]: true }
@@ -131,7 +132,8 @@ export default function CanvasIntegration() {
             .then((d) => {
               setSyncAvailable(d.available ?? false);
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => setSyncChecked(true));
 
           // resume any in-flight import that was started before page reload
           const savedJob = JSON.parse(
@@ -297,7 +299,18 @@ export default function CanvasIntegration() {
       return { status: "error", error: courseErrors[courseId] };
     }
     if (syncedCourses[courseId]) {
-      return { status: syncAvailable ? "outOfSync" : "synced", error: null };
+      // while the forbidden list + sync availability are still loading, show a
+      // neutral "checking" tag instead of prematurely flashing out-of-sync
+      if (!syncChecked) {
+        return { status: "checking", error: null };
+      }
+      // a course with no modules/files has nothing to sync — never "out of sync"
+      const course = courses.find((c) => c.id === courseId);
+      const hasContent = (course?.modules?.length ?? 0) > 0;
+      return {
+        status: syncAvailable && hasContent ? "outOfSync" : "synced",
+        error: null,
+      };
     }
     return { status: "idle", error: null };
   };
