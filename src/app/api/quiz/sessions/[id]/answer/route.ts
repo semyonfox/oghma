@@ -10,17 +10,16 @@ import {
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import { generateUUID } from "@/lib/utils/uuid";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
+import { isFillAnswerCorrect } from "@/lib/quiz/fill-answer";
 import sql from "@/database/pgsql.js";
 
-// compute correctness server-side — mirrors client logic in question-card.tsx
+// Compute correctness server-side using the same fill-in normalization as the client.
 function checkAnswerCorrect(
-  questionType: string,
+  _questionType: string,
   userAnswer: string,
   correctAnswer: string,
 ): boolean {
-  const ua = userAnswer.trim().toLowerCase();
-  const ca = correctAnswer.trim().toLowerCase();
-  return ua === ca;
+  return isFillAnswerCorrect(userAnswer, correctAnswer);
 }
 
 export const POST = withErrorHandler(
