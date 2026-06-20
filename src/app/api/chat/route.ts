@@ -15,6 +15,11 @@ import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-s
 import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
 import {
+  TOOL_CALL_LIMIT_USER_MESSAGE,
+  appendToolCallLimitMessage,
+  isToolCallLimitFinish,
+} from "@/lib/chat/tool-budget";
+import {
   type SseWriter,
   sendConnected,
   sendMeta,
@@ -307,9 +312,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               flushText();
               void Metrics.llmLatency(Date.now() - t0);
 
-              if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
-                const limitMessage =
-                  "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
+              if (
+                isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)
+              ) {
                 logger.warn("LLM stream hit tool-call step limit", {
                   model: getLlmModel(),
                   thinkingMode,
@@ -317,16 +322,20 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   stepCount,
                   toolCallCount,
                 });
-                parts.push({ type: "error", text: limitMessage });
+                const limitNotice = appendToolCallLimitMessage(reply);
+                reply = limitNotice.reply;
+                pendingText += limitNotice.delta;
+                sendToken(writer, limitNotice.delta);
+                flushText();
                 await persistAssistant(
                   reply,
                   buildMetadata({
                     partial: true,
-                    error: limitMessage,
+                    error: TOOL_CALL_LIMIT_USER_MESSAGE,
                     toolCallLimitHit: true,
                   }),
                 );
-                sendError(writer, limitMessage);
+                sendDone(writer);
                 writer.close();
                 return;
               }
@@ -475,23 +484,33 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       toolCallCount,
     };
 
-    if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
-      const limitMessage =
-        "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
-      await persistMessage(scope.sessionId, "assistant", reply, {
+    if (isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)) {
+      const limitNotice = appendToolCallLimitMessage(reply);
+      await persistMessage(scope.sessionId, "assistant", limitNotice.reply, {
         parts: [
           ...(reply ? [{ type: "text" as const, text: reply }] : []),
-          { type: "error" as const, text: limitMessage },
+          { type: "text" as const, text: limitNotice.delta },
         ],
         sources: uniqueSources,
         metadata: {
           ...metadata,
           partial: true,
-          error: limitMessage,
+          error: TOOL_CALL_LIMIT_USER_MESSAGE,
           toolCallLimitHit: true,
         },
       });
-      return tracedError(limitMessage, 502);
+      return NextResponse.json({
+        reply: limitNotice.reply,
+        sources: uniqueSources,
+        retrieval,
+        llmAvailable: true,
+        ragAvailable: !ragResult.ragFailed,
+        sessionId: scope.sessionId,
+        searchContext,
+        partial: true,
+        error: TOOL_CALL_LIMIT_USER_MESSAGE,
+        toolCallLimitHit: true,
+      });
     }
 
     await persistMessage(scope.sessionId, "assistant", reply, {

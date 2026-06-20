@@ -16,7 +16,7 @@ describe("ai-config", () => {
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
-    expect(getLlmMaxToolSteps(env)).toBe(50);
+    expect(getLlmMaxToolSteps(env)).toBe(10);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 
@@ -30,7 +30,7 @@ describe("ai-config", () => {
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
-    expect(getLlmMaxToolSteps(env)).toBe(50);
+    expect(getLlmMaxToolSteps(env)).toBe(10);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
   });
 

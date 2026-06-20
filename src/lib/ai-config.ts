@@ -7,7 +7,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
-const DEFAULT_LLM_MAX_TOOL_STEPS = 50;
+const DEFAULT_LLM_MAX_TOOL_STEPS = 10;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
 
