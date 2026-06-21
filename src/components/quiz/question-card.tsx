@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
 import type { BloomLevel } from "@/lib/quiz/types";
+import { isFillAnswerCorrect } from "@/lib/quiz/fill-answer";
 import QuizMarkdown from "./quiz-markdown";
 
 interface QuestionCardProps {
@@ -43,10 +44,10 @@ export default function QuestionCard({
     setSubmitted(true);
 
     if (question.question_type === "fill_in") {
-      const correct =
-        fillInAnswer.trim().toLowerCase() ===
-        question.correct_answer.trim().toLowerCase();
-      onAnswer(fillInAnswer, correct);
+      onAnswer(
+        fillInAnswer,
+        isFillAnswerCorrect(fillInAnswer, question.correct_answer),
+      );
     } else if (selected !== null && hasOptions) {
       const isCorrect = options[selected].is_correct;
       onAnswer(options[selected].text, isCorrect);
