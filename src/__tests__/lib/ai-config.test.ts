@@ -4,8 +4,13 @@ import {
   createLlmProvider,
   getCohereTimeoutMs,
   getLlmMaxToolSteps,
+  getRagChunkSize,
   getLlmMaxTokens,
   getLlmModel,
+  getRerankMinRelevance,
+  getRerankTopN,
+  getChatMaxDistance,
+  getEmbeddingBatchSize,
   getLlmThinkingMode,
   getLlmTimeoutMs,
 } from "@/lib/ai-config";
@@ -18,6 +23,11 @@ describe("ai-config", () => {
     expect(getLlmMaxTokens(env)).toBe(8_192);
     expect(getLlmMaxToolSteps(env)).toBe(10);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
+    expect(getRerankTopN(env)).toBe(5);
+    expect(getRerankMinRelevance(env)).toBe(0.25);
+    expect(getChatMaxDistance(env)).toBe(0.75);
+    expect(getEmbeddingBatchSize(env)).toBe(96);
+    expect(getRagChunkSize(env)).toBe(500);
   });
 
   it("falls back to defaults for invalid values", () => {
@@ -32,6 +42,11 @@ describe("ai-config", () => {
     expect(getLlmMaxTokens(env)).toBe(8_192);
     expect(getLlmMaxToolSteps(env)).toBe(10);
     expect(getCohereTimeoutMs(env)).toBe(8_000);
+    expect(getRerankTopN(env)).toBe(5);
+    expect(getRerankMinRelevance(env)).toBe(0.25);
+    expect(getChatMaxDistance(env)).toBe(0.75);
+    expect(getEmbeddingBatchSize(env)).toBe(96);
+    expect(getRagChunkSize(env)).toBe(500);
   });
 
   it("clamps very large values to safe upper bounds", () => {
@@ -40,12 +55,22 @@ describe("ai-config", () => {
       LLM_MAX_TOKENS: "999999",
       LLM_MAX_TOOL_STEPS: "999",
       COHERE_TIMEOUT_MS: "200000",
+      RERANK_TOP_N: "25",
+      RERANK_MIN_RELEVANCE: "2",
+      CHAT_MAX_DISTANCE: "2",
+      EMBEDDING_BATCH_SIZE: "900",
+      RAG_CHUNK_SIZE: "9999",
     } as unknown as NodeJS.ProcessEnv;
 
     expect(getLlmTimeoutMs(env)).toBe(600_000);
     expect(getLlmMaxTokens(env)).toBe(32_768);
     expect(getLlmMaxToolSteps(env)).toBe(200);
     expect(getCohereTimeoutMs(env)).toBe(20_000);
+    expect(getRerankTopN(env)).toBe(25);
+    expect(getRerankMinRelevance(env)).toBe(1);
+    expect(getChatMaxDistance(env)).toBe(1);
+    expect(getEmbeddingBatchSize(env)).toBe(500);
+    expect(getRagChunkSize(env)).toBe(4_000);
   });
 
   it("reads the max tool step cap from env", () => {
@@ -54,6 +79,34 @@ describe("ai-config", () => {
         LLM_MAX_TOOL_STEPS: "75",
       } as unknown as NodeJS.ProcessEnv),
     ).toBe(75);
+  });
+
+  it("reads RAG environment overrides", () => {
+    expect(
+      getRerankTopN({
+        RERANK_TOP_N: "8",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(8);
+    expect(
+      getRerankMinRelevance({
+        RERANK_MIN_RELEVANCE: "0.15",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(0.15);
+    expect(
+      getChatMaxDistance({
+        CHAT_MAX_DISTANCE: "0.61",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(0.61);
+    expect(
+      getEmbeddingBatchSize({
+        EMBEDDING_BATCH_SIZE: "12",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(12);
+    expect(
+      getRagChunkSize({
+        RAG_CHUNK_SIZE: "333",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe(333);
   });
 
   it("returns the model from env or default", () => {
