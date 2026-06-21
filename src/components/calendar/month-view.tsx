@@ -5,7 +5,11 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import { isoToDateKey } from "@/lib/notes/utils/calendar-date";
+import {
+  formatDateKey,
+  isoToDateKey,
+  localDateKeyRangeToIso,
+} from "@/lib/notes/utils/calendar-date";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface DayCell {
@@ -31,7 +35,7 @@ function getMonthDays(anchorDate: Date): DayCell[] {
   const year = anchorDate.getFullYear();
   const month = anchorDate.getMonth();
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const todayStr = formatDateKey(today);
 
   const firstDay = new Date(year, month, 1);
   // monday-based: 0=Mon, 6=Sun
@@ -44,9 +48,9 @@ function getMonthDays(anchorDate: Date): DayCell[] {
   for (let i = startDow - 1; i >= 0; i--) {
     const d = new Date(year, month, -i);
     days.push({
-      date: formatDate(d),
+      date: formatDateKey(d),
       isCurrentMonth: false,
-      isToday: formatDate(d) === todayStr,
+      isToday: formatDateKey(d) === todayStr,
       isSelected: false,
       assignments: [],
       timeBlocks: [],
@@ -57,9 +61,9 @@ function getMonthDays(anchorDate: Date): DayCell[] {
   for (let i = 1; i <= daysInMonth; i++) {
     const d = new Date(year, month, i);
     days.push({
-      date: formatDate(d),
+      date: formatDateKey(d),
       isCurrentMonth: true,
-      isToday: formatDate(d) === todayStr,
+      isToday: formatDateKey(d) === todayStr,
       isSelected: false,
       assignments: [],
       timeBlocks: [],
@@ -74,9 +78,9 @@ function getMonthDays(anchorDate: Date): DayCell[] {
       days.length - startDow - daysInMonth + 1,
     );
     days.push({
-      date: formatDate(d),
+      date: formatDateKey(d),
       isCurrentMonth: false,
-      isToday: formatDate(d) === todayStr,
+      isToday: formatDateKey(d) === todayStr,
       isSelected: false,
       assignments: [],
       timeBlocks: [],
@@ -84,10 +88,6 @@ function getMonthDays(anchorDate: Date): DayCell[] {
   }
 
   return days;
-}
-
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function dayOfMonth(dateStr: string): string {
@@ -115,8 +115,9 @@ export default function MonthView() {
   useEffect(() => {
     const year = anchor.getFullYear();
     const month = anchor.getMonth();
-    const start = new Date(year, month - 1, 20).toISOString();
-    const end = new Date(year, month + 2, 10).toISOString();
+    const startDateKey = formatDateKey(new Date(year, month - 1, 20));
+    const endDateKey = formatDateKey(new Date(year, month + 2, 10));
+    const { start, end } = localDateKeyRangeToIso(startDateKey, endDateKey);
     fetchTimeBlocks(start, end);
   }, [anchor, fetchTimeBlocks]);
 
@@ -125,10 +126,10 @@ export default function MonthView() {
     const refresh = () => {
       const year = anchor.getFullYear();
       const month = anchor.getMonth();
-      fetchTimeBlocks(
-        new Date(year, month - 1, 20).toISOString(),
-        new Date(year, month + 2, 10).toISOString(),
-      );
+      const startDateKey = formatDateKey(new Date(year, month - 1, 20));
+      const endDateKey = formatDateKey(new Date(year, month + 2, 10));
+      const { start, end } = localDateKeyRangeToIso(startDateKey, endDateKey);
+      fetchTimeBlocks(start, end);
     };
     window.addEventListener("oghma:time-block-changed", refresh);
     return () => window.removeEventListener("oghma:time-block-changed", refresh);
@@ -139,9 +140,9 @@ export default function MonthView() {
     const year = anchor.getFullYear();
     const month = anchor.getMonth();
     const startDate = new Date(year, month - 1, 20);
-    const start = formatDate(startDate);
+    const start = formatDateKey(startDate);
     const endDate = new Date(year, month + 2, 10);
-    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+    const end = formatDateKey(endDate);
     fetchReviewDates(start, end);
   }, [anchor, fetchReviewDates]);
 
