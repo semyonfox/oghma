@@ -6,6 +6,10 @@ import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outli
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import {
+  formatDateKey,
+  localDateKeyRangeToIso,
+} from "@/lib/notes/utils/calendar-date";
 
 const HOUR_HEIGHT = 56; // px per hour row
 const START_HOUR = 6;
@@ -23,12 +27,12 @@ function getWeekDays(
   d.setDate(d.getDate() - dow);
 
   const today = new Date();
-  const todayStr = formatDate(today);
+  const todayStr = formatDateKey(today);
 
   return Array.from({ length: 7 }, (_, i) => {
     const day = new Date(d);
     day.setDate(d.getDate() + i);
-    const dateStr = formatDate(day);
+    const dateStr = formatDateKey(day);
     return {
       date: dateStr,
       label: day.toLocaleDateString("en-US", { weekday: "short" }),
@@ -36,10 +40,6 @@ function getWeekDays(
       isToday: dateStr === todayStr,
     };
   });
-}
-
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatHour(h: number): string {
@@ -79,18 +79,21 @@ export default function WeekView() {
 
   // fetch time blocks for the week
   useEffect(() => {
-    const start = weekDays[0].date + "T00:00:00Z";
-    const end = weekDays[6].date + "T23:59:59Z";
+    const { start, end } = localDateKeyRangeToIso(
+      weekDays[0].date,
+      weekDays[6].date,
+    );
     fetchTimeBlocks(start, end);
   }, [weekDays, fetchTimeBlocks]);
 
   // refresh when AI creates/completes a time block
   useEffect(() => {
     const refresh = () => {
-      fetchTimeBlocks(
-        weekDays[0].date + "T00:00:00Z",
-        weekDays[6].date + "T23:59:59Z",
+      const { start, end } = localDateKeyRangeToIso(
+        weekDays[0].date,
+        weekDays[6].date,
       );
+      fetchTimeBlocks(start, end);
     };
     window.addEventListener("oghma:time-block-changed", refresh);
     return () => window.removeEventListener("oghma:time-block-changed", refresh);
@@ -109,7 +112,7 @@ export default function WeekView() {
     for (const tb of timeBlocks) {
       const start = new Date(tb.starts_at);
       const end = new Date(tb.ends_at);
-      const dateStr = formatDate(start);
+      const dateStr = formatDateKey(start);
       const colIdx = weekDays.findIndex((d) => d.date === dateStr);
       if (colIdx === -1) continue;
 
@@ -142,7 +145,7 @@ export default function WeekView() {
     for (const a of assignments) {
       if (!a.due_at) continue;
       const d = new Date(a.due_at);
-      const dateStr = formatDate(d);
+      const dateStr = formatDateKey(d);
       const colIdx = weekDays.findIndex((wd) => wd.date === dateStr);
       if (colIdx === -1) continue;
 
