@@ -96,6 +96,18 @@ function logViolation(category: string, identifier: string, count: number, limit
   });
 }
 
+function rateLimitStoreUnavailableResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'Service temporarily unavailable. Please try again shortly.' },
+    {
+      status: 503,
+      headers: {
+        'Retry-After': '30',
+      },
+    },
+  );
+}
+
 export async function checkRateLimit(
   category: string,
   identifier: string,
@@ -116,9 +128,18 @@ export async function checkRateLimit(
     try {
       result = await redisCheck(key, rule, now);
     } catch (err) {
-      logger.warn('redis rate limit failed, falling back to memory', {
-        category, error: (err as Error).message,
-      });
+      const error = (err as Error).message;
+      if (rule.failClosedOnStoreError) {
+        logger.error('redis rate limit failed for fail-closed category', {
+          category, error,
+          publicStatus: 503,
+          retryAfterSeconds: 30,
+        });
+        void Metrics.rateLimitViolation(`${category}:store-unavailable`);
+        return rateLimitStoreUnavailableResponse();
+      }
+
+      logger.warn('redis rate limit failed, falling back to memory', { category, error });
       result = memCheck(key, rule, now);
     }
   } else {
