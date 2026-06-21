@@ -86,3 +86,45 @@ describe("parseSseFrame — tool-call events", () => {
     }
   });
 });
+
+describe("parseSseFrame — search events", () => {
+  it("uses safe defaults for malformed numeric payload fields", () => {
+    const update = parseSseFrame({
+      event: "search",
+      data: JSON.stringify({
+        scopeSize: "all",
+        resultsFound: "many",
+        results: "not-an-array",
+      }),
+    });
+
+    expect(update).toEqual({
+      type: "search",
+      searchContext: {
+        scopeSize: null,
+        resultsFound: 0,
+        results: [],
+      },
+    });
+  });
+
+  it("preserves valid search summary counts", () => {
+    const update = parseSseFrame({
+      event: "search",
+      data: JSON.stringify({
+        scopeSize: 3,
+        resultsFound: 2,
+        results: [{ noteId: "note-1", title: "Intro", distance: 0.12 }],
+      }),
+    });
+
+    expect(update).toEqual({
+      type: "search",
+      searchContext: {
+        scopeSize: 3,
+        resultsFound: 2,
+        results: [{ noteId: "note-1", title: "Intro", distance: 0.12 }],
+      },
+    });
+  });
+});

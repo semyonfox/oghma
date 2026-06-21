@@ -43,11 +43,16 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     }
 
     case "search": {
+      const scopeSize =
+        typeof payload.scopeSize === "number" ? payload.scopeSize : null;
+      const resultsFound =
+        typeof payload.resultsFound === "number" ? payload.resultsFound : 0;
+
       return {
         type: "search",
         searchContext: {
-          scopeSize: (payload.scopeSize as number) ?? null,
-          resultsFound: (payload.resultsFound as number) ?? 0,
+          scopeSize,
+          resultsFound,
           results: Array.isArray(payload.results)
             ? (payload.results as SearchContextData["results"])
             : [],
