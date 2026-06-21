@@ -68,12 +68,31 @@ describe('chunkText', () => {
         expect(result.length).toBeGreaterThan(0);
     });
 
+    it('caps oversized chunks at 2x chunkSize', () => {
+        const text = Array.from({ length: 1200 }, (_, i) => `w${i}`).join(' ');
+        const result = chunkText(text, 200);
+
+        expect(result.length).toBeGreaterThan(1);
+        expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(400);
+    });
+
+    it('tries clause boundaries before hard chunk cap', () => {
+        const sentence =
+            'alpha beta gamma, delta epsilon zeta eta, theta iota kappa lambda, mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega.';
+        const longSentence = `${sentence} ${sentence} ${sentence} ${sentence}`;
+        const result = chunkText(longSentence, 120);
+
+        expect(result.length).toBeGreaterThan(1);
+        expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(240);
+        expect(result.some((chunk) => chunk.includes(','))).toBe(true);
+    });
+
     it('splits long newline-delimited text without punctuation', () => {
         const text = Array.from({ length: 200 }, (_, i) => `word${i}`).join('\n');
         const result = chunkText(text, 100);
 
         expect(result.length).toBeGreaterThan(1);
-        expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(100);
+        expect(Math.max(...result.map((chunk) => chunk.length))).toBeLessThanOrEqual(200);
         expect(result.join('\n')).toContain('word199');
     });
 });

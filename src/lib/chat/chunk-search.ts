@@ -1,8 +1,9 @@
 import sql from "@/database/pgsql.js";
 import { embedText } from "@/lib/embedText";
 import { searchChunkVectors } from "@/lib/qdrant";
+import { getChatMaxDistance } from "@/lib/ai-config";
+import { Metrics } from "@/lib/metrics";
 
-const MAX_DISTANCE = 0.75;
 const MAX_RESULTS = 12;
 const QUERY_LIMIT = 10;
 
@@ -57,14 +58,16 @@ export async function searchChatChunks({
 
   if (mode === "semantic" || mode === "both") {
     try {
+      const searchStartedAt = Date.now();
       const vec = await embedText(query);
       const hits = await searchChunkVectors({
         userId,
         vector: vec,
         documentIds: scoped ? scopedNoteIds : null,
-        maxDistance: MAX_DISTANCE,
+        maxDistance: getChatMaxDistance(),
         limit: QUERY_LIMIT,
       });
+      void Metrics.searchLatency("semantic", Date.now() - searchStartedAt);
       const chunkIds = hits.map((hit) => hit.chunkId);
       const rows: any[] =
         chunkIds.length === 0
@@ -86,10 +89,12 @@ export async function searchChatChunks({
       }
     } catch {
       // embedding unavailable
+      void Metrics.searchLatency("semantic", 0);
     }
   }
 
   if (mode === "exact" || mode === "both") {
+    const exactSearchStartedAt = Date.now();
     const safe = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
     const pattern = `%${safe}%`;
 
@@ -182,6 +187,7 @@ export async function searchChatChunks({
         "exact-note",
       );
     }
+    void Metrics.searchLatency("exact", Date.now() - exactSearchStartedAt);
   }
 
   return results.slice(0, MAX_RESULTS);
