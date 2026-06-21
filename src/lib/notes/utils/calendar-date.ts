@@ -6,6 +6,41 @@ export function formatDateKey(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function parseDateKey(dateKey: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return null;
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  return { year, month, day };
+}
+
+export function localDateKeyBoundaryToIso(
+  dateKey: string,
+  boundary: "start" | "end",
+): string {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) return dateKey;
+
+  const { year, month, day } = parsed;
+  const localDate =
+    boundary === "start"
+      ? new Date(year, month - 1, day, 0, 0, 0, 0)
+      : new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  return localDate.toISOString();
+}
+
+export function localDateKeyRangeToIso(startDateKey: string, endDateKey: string) {
+  return {
+    start: localDateKeyBoundaryToIso(startDateKey, "start"),
+    end: localDateKeyBoundaryToIso(endDateKey, "end"),
+  };
+}
+
 export function isoToDateKey(value: string, timeZone?: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 10);
