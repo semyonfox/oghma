@@ -75,7 +75,6 @@ const IconNav: FC = () => {
     setActiveNav,
     rightPanelOpen,
     rightPanelTab,
-    openRightPanelTab,
   } = useLayoutStore();
   const { t } = useI18n();
 
@@ -98,14 +97,11 @@ const IconNav: FC = () => {
       usePortalStore.getState().search.open();
       return;
     }
-    // AI chat: toggle right panel on /notes (where the inspector exists),
-    // otherwise navigate to the full /chat page
+
+    // Global AI chat entry should always open a fresh full-screen chat.
     if (item.section === "chat") {
-      if (pathname?.startsWith("/notes")) {
-        openRightPanelTab("ai");
-      } else {
-        router.push("/chat");
-      }
+      setActiveNav(item.section);
+      router.push("/chat");
       return;
     }
     setActiveNav(item.section);
