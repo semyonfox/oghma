@@ -16,6 +16,7 @@ import {
   findParentTreeItems,
   checkAncestorsExpanded,
   buildTreeItemFromApi,
+  buildPinnedTree,
 } from "./tree-utils";
 
 const TREE_CACHE_KEY = "tree";
@@ -151,7 +152,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
       newTree.items[ROOT_ID].children = rootChildren;
 
-      set({ tree: newTree, initLoaded: true });
+      set({ tree: newTree, pinnedTree: buildPinnedTree(newTree), initLoaded: true });
 
       // persist tree structure to IndexedDB for instant load on next visit
       await uiCache.setItem(TREE_CACHE_KEY, newTree);
@@ -213,7 +214,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
           };
         }
 
-        set({ tree: newTree });
+        set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
         await uiCache.setItem(TREE_CACHE_KEY, newTree);
       }
 
@@ -239,7 +240,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
     newTree.items[item.id].data = item;
     newTree.items[item.id].isFolder = item.isFolder ?? false;
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     // persist tree to IndexedDB cache
     uiCache
@@ -251,7 +252,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     const currentTree = get().tree;
     const newTree = TreeActions.removeItem(currentTree, id);
 
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     // persist tree to IndexedDB cache
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
@@ -302,7 +303,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       };
     }
 
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     // update cache with new tree state
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
@@ -314,7 +315,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       });
     } catch {
       // revert on failure
-      set({ tree: currentTree });
+      set({ tree: currentTree, pinnedTree: buildPinnedTree(currentTree) });
       await uiCache.setItem(TREE_CACHE_KEY, currentTree);
       const { toast: toastFn } = get();
       toastFn?.("Failed to move item", "error");
@@ -326,7 +327,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     const { treeAPI } = state;
     const currentTree = get().tree;
     const newTree = TreeActions.mutateItem(currentTree, id, data);
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     // sync expanded state with react-complex-tree
     if (data.isExpanded !== undefined) {
@@ -359,7 +360,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     const currentTree = get().tree;
     const newTree = TreeActions.restoreItem(currentTree, id, pid);
 
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
     await Promise.all(
       TreeActions.flattenTree(newTree, id).map(
         async (item) =>
@@ -373,7 +374,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   deleteItem: async (id: string) => {
     const currentTree = get().tree;
     const newTree = TreeActions.deleteItem(currentTree, id);
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     // persist tree to IndexedDB cache
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
@@ -397,7 +398,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         }),
       currentTree,
     );
-    set({ tree: newTree });
+    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
 
     for (const item of items) {
       await treeAPI.mutate({
@@ -437,8 +438,5 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     await get().initTree();
   },
 }));
-
-// TODO: Implement pinnedTree computation with proper Zustand v5 API
-// Currently disabled to allow build to succeed
 
 export default useNoteTreeStore;
