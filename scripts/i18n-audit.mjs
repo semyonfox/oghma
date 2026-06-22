@@ -132,7 +132,6 @@ function main() {
 
   const baseLocale = readLocale(BASE_LOCALE);
   const baseKeys = Object.keys(baseLocale).sort();
-  const baseSet = new Set(baseKeys);
 
   let hasError = false;
   let hasWarning = false;
