@@ -157,7 +157,7 @@ describe("processExtractionRetry", () => {
       attempt: 1,
     });
 
-    const updateQueries = vi
+    const updateQueries: string[] = vi
       .mocked(sql)
       .mock.calls.map((call: any[]) => call[0]?.join(""))
       .filter((query: string | undefined) =>
