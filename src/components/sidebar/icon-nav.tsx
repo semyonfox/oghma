@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import usePortalStore from "@/lib/notes/state/portal";
+import useGlobalSearchStore from "@/lib/global-search/state";
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -94,7 +94,7 @@ const IconNav: FC = () => {
                 : activeNav;
   const handleNavClick = (item: NavItem) => {
     if (item.section === "search") {
-      usePortalStore.getState().search.open();
+      useGlobalSearchStore.getState().open();
       return;
     }
 

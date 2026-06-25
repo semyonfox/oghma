@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
     push: vi.fn(),
     setActiveNav: vi.fn(),
     openRightPanelTab: vi.fn(),
-    searchOpen: vi.fn(),
+    globalSearchOpen: vi.fn(),
     pathname: "/notes",
   };
 });
@@ -37,14 +37,10 @@ vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   }),
 }));
 
-vi.mock("@/lib/notes/state/portal", () => ({
+vi.mock("@/lib/global-search/state", () => ({
   __esModule: true,
   default: {
-    getState: () => ({
-      search: {
-        open: mocks.searchOpen,
-      },
-    }),
+    getState: () => ({ open: mocks.globalSearchOpen }),
   },
 }));
 
@@ -64,5 +60,14 @@ describe("IconNav AI chat entry", () => {
     expect(mocks.setActiveNav).toHaveBeenCalledWith("chat");
     expect(mocks.push).toHaveBeenCalledWith("/chat");
     expect(mocks.openRightPanelTab).not.toHaveBeenCalled();
+  });
+
+  it("opens global search from the sidebar search icon", async () => {
+    render(React.createElement(IconNav));
+
+    fireEvent.click(screen.getByTitle("Search"));
+
+    expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 });

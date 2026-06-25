@@ -2,6 +2,7 @@ import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
+import GlobalSearchRoot from "@/components/search/global-search-root";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -69,6 +70,7 @@ export default function RootLayout({ children }) {
         <I18nRootProvider>
           <ThemeProvider>
             <PomodoroIntegration />
+            <GlobalSearchRoot />
             {children}
           </ThemeProvider>
         </I18nRootProvider>
