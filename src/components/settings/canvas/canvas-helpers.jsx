@@ -49,21 +49,21 @@ export function ChevronDownIcon({ className, open }) {
 export function CourseBadge({ status, errorMsg, t = (value) => value }) {
   const config = {
     synced: {
-      color: "fill-green-400",
-      text: "text-green-200",
-      ring: "ring-green-400/30",
+      color: "fill-success-500",
+      text: "text-text-secondary",
+      ring: "ring-success-500/40",
       label: t("Synced"),
     },
     outOfSync: {
-      color: "fill-yellow-400",
-      text: "text-yellow-200",
-      ring: "ring-yellow-400/30",
+      color: "fill-yellow-500",
+      text: "text-text-secondary",
+      ring: "ring-yellow-500/40",
       label: t("Out of sync"),
     },
     syncing: {
-      color: "fill-blue-400",
-      text: "text-blue-200",
-      ring: "ring-blue-400/30",
+      color: "fill-blue-500",
+      text: "text-text-secondary",
+      ring: "ring-blue-500/40",
       label: t("Syncing"),
     },
     checking: {
@@ -74,15 +74,15 @@ export function CourseBadge({ status, errorMsg, t = (value) => value }) {
       pulse: true,
     },
     forbidden: {
-      color: "fill-orange-400",
-      text: "text-orange-200",
-      ring: "ring-orange-400/30",
+      color: "fill-orange-500",
+      text: "text-text-secondary",
+      ring: "ring-orange-500/40",
       label: t("Restricted"),
     },
     error: {
-      color: "fill-red-400",
-      text: "text-red-200",
-      ring: "ring-red-400/30",
+      color: "fill-error-500",
+      text: "text-text-secondary",
+      ring: "ring-error-500/40",
       label: errorMsg ?? t("Failed"),
     },
     idle: null,

@@ -19,7 +19,7 @@ export default function NotesError({
       <p className="text-sm text-text-tertiary mb-4">{error.message}</p>
       <button
         onClick={reset}
-        className="px-4 py-2 text-sm bg-primary-600 text-white rounded-radius-md hover:bg-primary-700 transition-colors"
+        className="px-4 py-2 text-sm bg-primary-600 text-text-on-primary rounded-radius-md hover:bg-primary-700 transition-colors"
       >
         {t("error.reload_editor")}
       </button>
