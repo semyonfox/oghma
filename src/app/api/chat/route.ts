@@ -92,13 +92,66 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // ── streaming response ─────────────────────────────────────────────────────
   if (stream) {
+    const chatStreamId = crypto.randomUUID();
+    const startedAt = Date.now();
+    let clientDisconnected = false;
+    let streamClosed = false;
+    let bytesSent = 0;
+    let lastEvent = "init";
+
+    const markClientDisconnected = (reason: unknown) => {
+      if (clientDisconnected) return;
+      clientDisconnected = true;
+      logger.warn("Chat stream client disconnected", {
+        chatStreamId,
+        elapsedMs: Date.now() - startedAt,
+        bytesSent,
+        lastEvent,
+        reason:
+          reason instanceof Error
+            ? reason.message
+            : typeof reason === "string"
+              ? reason
+              : String(reason ?? "unknown"),
+      });
+    };
+
     return new NextResponse(
       new ReadableStream({
         start(controller) {
           void (async () => {
-            const writer: SseWriter = controller;
+            const writer: SseWriter = {
+              enqueue(chunk) {
+                if (clientDisconnected || streamClosed) return;
+                try {
+                  controller.enqueue(chunk);
+                  bytesSent += chunk.byteLength;
+                } catch (error) {
+                  markClientDisconnected(error);
+                }
+              },
+              close() {
+                if (streamClosed) return;
+                streamClosed = true;
+                if (clientDisconnected) return;
+                try {
+                  controller.close();
+                } catch (error) {
+                  markClientDisconnected(error);
+                }
+              },
+            };
             try {
+              logger.info("Chat stream started", {
+                chatStreamId,
+                userId,
+                requestedSession: Boolean(requestedSessionId),
+                scopedNoteCount: noteIds.length + (noteId ? 1 : 0),
+                scopedFolderCount: folderIds.length,
+                thinkingMode,
+              });
               sendConnected(writer);
+              lastEvent = "connected";
 
               const scope = await normalizeScope(
                 userId,
@@ -157,7 +210,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 !ragResult.ragFailed,
                 llmAvailable,
               );
+              lastEvent = "meta";
               sendSearch(writer, scope.scopedNoteIds, ragResult.searchResults);
+              lastEvent = "search";
 
               if (!llmAvailable) {
                 const fallback = buildFallbackReply(
@@ -172,6 +227,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   { sources: uniqueSources },
                 );
                 sendDone(writer);
+                lastEvent = "done";
+                logger.info("Chat stream completed with fallback response", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
@@ -243,6 +306,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     reply += part.text;
                     pendingText += part.text;
                     sendToken(writer, part.text);
+                    lastEvent = "token";
                   } else if (part.type === "tool-call") {
                     toolCallCount += 1;
                     flushText();
@@ -252,6 +316,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       label: labelForTool(part.toolName),
                     });
                     sendToolCall(writer, part.toolName);
+                    lastEvent = "tool-call";
                   } else if (part.type === "finish-step") {
                     stepCount += 1;
                     finishReason = part.finishReason;
@@ -274,6 +339,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 const interrupted =
                   "Response interrupted while generating. Partial output was saved.";
                 logger.error("LLM stream interrupted", {
+                  chatStreamId,
                   error: detail,
                   model: getLlmModel(),
                   thinkingMode,
@@ -303,6 +369,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   });
                 }
                 sendError(writer, interrupted);
+                lastEvent = "error";
                 writer.close();
                 return;
               } finally {
@@ -326,6 +393,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 reply = limitNotice.reply;
                 pendingText += limitNotice.delta;
                 sendToken(writer, limitNotice.delta);
+                lastEvent = "token";
                 flushText();
                 await persistAssistant(
                   reply,
@@ -336,6 +404,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   }),
                 );
                 sendDone(writer);
+                lastEvent = "done";
+                logger.warn("Chat stream completed after tool-call limit", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
@@ -344,10 +420,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 const emptyReply =
                   "I couldn't generate an answer this time. Please try again.";
                 logger.error("LLM stream returned empty response", {
+                  chatStreamId,
                   model: getLlmModel(),
                   thinkingMode,
                 });
                 sendToken(writer, emptyReply);
+                lastEvent = "token";
                 await persistMessage(
                   scope.sessionId,
                   "assistant",
@@ -358,26 +436,57 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   },
                 );
                 sendDone(writer);
+                lastEvent = "done";
+                logger.info("Chat stream completed with empty-response fallback", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
 
               await persistAssistant(reply, buildMetadata());
               sendDone(writer);
+              lastEvent = "done";
+              logger.info("Chat stream completed", {
+                chatStreamId,
+                sessionId: scope.sessionId,
+                elapsedMs: Date.now() - startedAt,
+                bytesSent,
+                clientDisconnected,
+                replyLength: reply.length,
+                thinkingLength: thinking.length,
+                stepCount,
+                toolCallCount,
+                finishReason,
+                rawFinishReason,
+              });
               writer.close();
             } catch (error) {
               void Metrics.llmError();
               const detail =
                 error instanceof Error ? error.message : String(error);
               logger.error("LLM stream failed", {
+                chatStreamId,
                 error: detail,
                 model: getLlmModel(),
                 thinkingMode,
+                elapsedMs: Date.now() - startedAt,
+                bytesSent,
+                clientDisconnected,
+                lastEvent,
               });
               sendError(writer, "Failed to generate response");
+              lastEvent = "error";
               writer.close();
             }
           })();
+        },
+        cancel(reason) {
+          markClientDisconnected(reason);
         },
       }),
       {

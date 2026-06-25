@@ -12,6 +12,7 @@ export type MessageUpdate =
   | { type: "thinking"; text: string }
   | { type: "token"; text: string; thinkingDuration?: number }
   | { type: "tool-call"; label: string; toolName: string }
+  | { type: "done" }
   | { type: "error"; message: string };
 
 /**
@@ -82,6 +83,9 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       const message = typeof payload.message === "string" ? payload.message : "";
       return { type: "error", message };
     }
+
+    case "done":
+      return { type: "done" };
 
     default:
       return null;

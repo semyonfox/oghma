@@ -7,6 +7,14 @@ import type { LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
 
+function logChatPersistence(
+  message: string,
+  details: Record<string, unknown> = {},
+): void {
+  if (typeof console === "undefined") return;
+  console.debug(`[chat-persistence] ${message}`, details);
+}
+
 interface PersistenceRefs {
   messages: Message[];
   sessionId: string | null;
@@ -184,10 +192,19 @@ export function useChatPersistence(
     const saveDraft = () => {
       if (!loadingRef.current) return;
       const sid = sessionIdRef.current;
-      if (!sid) return;
+      if (!sid) {
+        logChatPersistence("skipped draft save without session id");
+        return;
+      }
       const msgs = messagesRef.current;
       const last = msgs[msgs.length - 1];
-      if (!last || last.role !== "assistant" || !last.content) return;
+      if (!last || last.role !== "assistant" || !last.content) {
+        logChatPersistence("skipped draft save without assistant content", {
+          hasLastMessage: Boolean(last),
+          lastRole: last?.role,
+        });
+        return;
+      }
 
       const draft = {
         content: last.content,
@@ -197,14 +214,33 @@ export function useChatPersistence(
       };
       try {
         sessionStorage.setItem(`chat-draft:${sid}`, JSON.stringify(draft));
+        logChatPersistence("saved partial draft", {
+          sessionId: sid,
+          contentLength: last.content.length,
+          hasThinking: Boolean(last.thinking),
+        });
       } catch {
+        logChatPersistence("failed to save partial draft", {
+          sessionId: sid,
+          contentLength: last.content.length,
+        });
         // sessionStorage quota exceeded or unavailable
       }
     };
 
-    const handleBeforeUnload = () => saveDraft();
+    const handleBeforeUnload = () => {
+      logChatPersistence("beforeunload while streaming", {
+        loading: loadingRef.current,
+      });
+      saveDraft();
+    };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") saveDraft();
+      if (document.visibilityState === "hidden") {
+        logChatPersistence("document hidden while streaming", {
+          loading: loadingRef.current,
+        });
+        saveDraft();
+      }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);

@@ -128,3 +128,11 @@ describe("parseSseFrame — search events", () => {
     });
   });
 });
+
+describe("parseSseFrame — lifecycle events", () => {
+  it("parses done events as explicit stream completion", () => {
+    expect(parseSseFrame({ event: "done", data: "{}" })).toEqual({
+      type: "done",
+    });
+  });
+});
