@@ -30,6 +30,8 @@ interface UseChatStreamOptions {
   selectedNotes: ChatContextItem[];
   selectedFolders: ChatContextItem[];
   thinkingMode: LlmThinkingMode;
+  /** whether to retrieve note context (RAG). Off = plain chat, saves tokens. */
+  useRag: boolean;
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** called when a stream completes — useful for refreshing session list order */
   onStreamComplete?: () => void;
@@ -153,6 +155,7 @@ export function useChatStream(
     selectedNotes,
     selectedFolders,
     thinkingMode,
+    useRag,
     onSessionCreated,
     onStreamComplete,
   } = options;
@@ -239,6 +242,7 @@ export function useChatStream(
             history,
             stream: true,
             thinkingMode,
+            useRag,
             clientDateTime: (() => {
               const d = new Date();
               const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -337,6 +341,7 @@ export function useChatStream(
       selectedFolders,
       sessionId,
       thinkingMode,
+      useRag,
       loading,
     ],
   );

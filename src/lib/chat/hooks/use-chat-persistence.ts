@@ -6,6 +6,7 @@ import { normalizeMessageParts } from "@/lib/chat/types";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
+const USE_RAG_KEY = "chat-use-rag";
 
 function logChatPersistence(
   message: string,
@@ -29,6 +30,9 @@ interface UseChatPersistenceOptions {
 interface UseChatPersistenceResult {
   thinkingMode: LlmThinkingMode;
   toggleThinking: () => void;
+  /** whether note retrieval (RAG) is enabled for new messages */
+  useRag: boolean;
+  toggleRag: () => void;
   restoredMessages: Message[] | null;
   restored: boolean;
   /** keep refs in sync so unload handlers see fresh values */
@@ -64,6 +68,26 @@ export function useChatPersistence(
     if (typeof window === "undefined") return;
     window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
   }, [thinkingMode]);
+
+  // note retrieval (RAG) toggle — defaults on
+  const [useRag, setUseRag] = useState<boolean>(true);
+
+  const toggleRag = useCallback(() => {
+    setUseRag((current) => !current);
+  }, []);
+
+  // restore RAG preference from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(USE_RAG_KEY);
+    setUseRag(saved === null ? true : saved !== "false");
+  }, []);
+
+  // persist RAG preference changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(USE_RAG_KEY, String(useRag));
+  }, [useRag]);
 
   // session restore
   const [restored, setRestored] = useState(false);
@@ -254,6 +278,8 @@ export function useChatPersistence(
   return {
     thinkingMode,
     toggleThinking,
+    useRag,
+    toggleRag,
     restoredMessages,
     restored,
     updateRefs,

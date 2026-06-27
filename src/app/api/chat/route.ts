@@ -7,12 +7,22 @@ import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-
 import logger from "@/lib/logger";
 import { streamText, generateText } from "ai";
 
-import { runRagPipeline, buildSystemPrompt, runKeywordFallback } from "@/lib/chat/rag-pipeline";
+import {
+  runRagPipeline,
+  buildSystemPrompt,
+  buildPlainSystemPrompt,
+  runKeywordFallback,
+  type RagResult,
+} from "@/lib/chat/rag-pipeline";
 import { persistMessage, type ChatMessage } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
-import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
+import {
+  buildRetrievalInfo,
+  buildFallbackReply,
+  type RetrievalInfo,
+} from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
 import {
   TOOL_CALL_LIMIT_USER_MESSAGE,
@@ -40,6 +50,22 @@ function resolveChatThinkingMode(
   return getLlmThinkingMode();
 }
 
+// neutral results used when note retrieval (RAG) is turned off for a message
+const EMPTY_RAG_RESULT: RagResult = {
+  searchResults: [],
+  semanticMatches: [],
+  embeddingAvailable: false,
+  ragFailed: false,
+};
+
+const EMPTY_RETRIEVAL: RetrievalInfo = {
+  scopeMode: "global",
+  availableCount: 0,
+  availableFiles: [],
+  semanticHits: [],
+  usedFiles: [],
+};
+
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
@@ -61,6 +87,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     history: requestHistory = [],
     stream = false,
     thinkingMode: requestedThinkingMode,
+    useRag = true,
   }: {
     message: string;
     noteId?: string;
@@ -73,6 +100,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     history?: ChatMessage[];
     stream?: boolean;
     thinkingMode?: unknown;
+    useRag?: boolean;
   } = body;
 
   const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
@@ -162,24 +190,23 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 requestHistory,
               );
 
-              const ragResult = await runRagPipeline(
-                userId,
-                message,
-                scope.scopedNoteIds,
-              );
+              const ragResult = useRag
+                ? await runRagPipeline(userId, message, scope.scopedNoteIds)
+                : EMPTY_RAG_RESULT;
 
-              const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
-                ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-                : [];
-              const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
+              const fallbackResults =
+                useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
+                  ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+                  : [];
+              const systemPrompt = useRag
+                ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
+                : buildPlainSystemPrompt();
               const sessionMemoryPrompt = buildSessionMemoryPrompt(
                 scope.sessionContext,
               );
-              const { uniqueSources, retrieval } = await buildRetrievalInfo(
-                userId,
-                scope.scopedNoteIds,
-                ragResult,
-              );
+              const { uniqueSources, retrieval } = useRag
+                ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
+                : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
 
               const {
                 model,
@@ -198,6 +225,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 systemPrompt,
                 sessionMemoryPrompt,
                 thinkingMode,
+                retrievalEnabled: useRag,
                 requestOrigin: request.nextUrl.origin,
                 referer: request.headers.get("referer"),
               });
@@ -511,22 +539,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     requestHistory,
   );
 
-  const ragResult = await runRagPipeline(
-    userId,
-    message,
-    scope.scopedNoteIds,
-  );
+  const ragResult = useRag
+    ? await runRagPipeline(userId, message, scope.scopedNoteIds)
+    : EMPTY_RAG_RESULT;
 
-  const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
-    ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-    : [];
-  const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
+  const fallbackResults =
+    useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
+      ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+      : [];
+  const systemPrompt = useRag
+    ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
+    : buildPlainSystemPrompt();
   const sessionMemoryPrompt = buildSessionMemoryPrompt(scope.sessionContext);
-  const { uniqueSources, retrieval } = await buildRetrievalInfo(
-    userId,
-    scope.scopedNoteIds,
-    ragResult,
-  );
+  const { uniqueSources, retrieval } = useRag
+    ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
+    : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
 
   const { model, llmCallOptions, canvasMcpClient, maxToolSteps } =
     await buildLlmCall({
@@ -540,6 +567,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       systemPrompt,
       sessionMemoryPrompt,
       thinkingMode,
+      retrievalEnabled: useRag,
       requestOrigin: request.nextUrl.origin,
       referer: request.headers.get("referer"),
     });
