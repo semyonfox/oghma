@@ -6,8 +6,6 @@ import usePortalStore from "@/lib/notes/state/portal";
 import IconButton from "@/components/icon-button";
 import useNoteStore from "@/lib/notes/state/note";
 import { NOTE_SHARED } from "@/lib/notes/types/meta";
-// TODO: Convert to App Router (next/navigation) when sharing is active
-// import { useRouter } from 'next/router';
 import {
   useRouter as useNextRouter,
   usePathname,
