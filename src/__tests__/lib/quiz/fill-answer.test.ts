@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isFillAnswerCorrect, normalizeFillAnswer } from "@/lib/quiz/fill-answer";
+import {
+  acceptedFillAnswers,
+  isFillAnswerCorrect,
+  normalizeFillAnswer,
+} from "@/lib/quiz/fill-answer";
 
 describe("normalizeFillAnswer", () => {
   it("ignores case and surrounding whitespace", () => {
@@ -17,6 +21,23 @@ describe("normalizeFillAnswer", () => {
   });
 });
 
+describe("acceptedFillAnswers", () => {
+  it("normalizes and deduplicates stored alternatives", () => {
+    expect(acceptedFillAnswers(["Café", "cafe", "Coffee"])).toEqual([
+      "cafe",
+      "coffee",
+    ]);
+  });
+
+  it("splits compact alternatives stored in the answer string", () => {
+    expect(acceptedFillAnswers("mitochondria | mitochondrion; power house")).toEqual([
+      "mitochondria",
+      "mitochondrion",
+      "power house",
+    ]);
+  });
+});
+
 describe("isFillAnswerCorrect", () => {
   it("accepts punctuation-insensitive matches", () => {
     expect(isFillAnswerCorrect("binary search tree", "Binary-search tree")).toBe(
@@ -26,6 +47,27 @@ describe("isFillAnswerCorrect", () => {
 
   it("accepts accent-insensitive matches", () => {
     expect(isFillAnswerCorrect("cafe au lait", "Café au lait")).toBe(true);
+  });
+
+  it("accepts synonym alternatives from the stored answer", () => {
+    expect(isFillAnswerCorrect("mitochondrion", "mitochondria | mitochondrion")).toBe(
+      true,
+    );
+  });
+
+  it("accepts synonym alternatives from generated answer arrays", () => {
+    expect(
+      isFillAnswerCorrect("power house", [
+        "mitochondria",
+        "powerhouse",
+        "power house",
+      ]),
+    ).toBe(true);
+  });
+
+  it("preserves slash-containing answers as one answer", () => {
+    expect(isFillAnswerCorrect("TCP/IP", "TCP/IP")).toBe(true);
+    expect(isFillAnswerCorrect("TCP", "TCP/IP")).toBe(false);
   });
 
   it("rejects blank answers", () => {
