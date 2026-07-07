@@ -12,6 +12,7 @@ export interface Settings {
   timezone?: string;
   editorsize?: "small" | "large";
   ai_canvas_access?: boolean;
+  ai_model?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

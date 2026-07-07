@@ -5,6 +5,7 @@ import {
   getSettingsFromS3,
   saveSettingsToS3,
 } from "@/lib/notes/storage/s3-storage";
+import { getLlmModel } from "@/lib/ai-config";
 
 export const GET = withErrorHandler(async () => {
     const user = await requireAuth();
@@ -13,7 +14,11 @@ export const GET = withErrorHandler(async () => {
     const userSettings = await getSettingsFromS3(user.user_id);
 
     // Merge with defaults
-    const mergedSettings = { ...DEFAULT_SETTINGS, ...userSettings };
+    const mergedSettings = {
+      ...DEFAULT_SETTINGS,
+      ...userSettings,
+      ai_model: getLlmModel(),
+    };
 
     const response = NextResponse.json(mergedSettings);
     // mirror the account theme into a cookie so it applies pre-paint on any
@@ -60,12 +65,16 @@ export const POST = withErrorHandler(async (request) => {
 
     // Fetch current settings and merge
     const currentSettings = await getSettingsFromS3(user.user_id);
-    const updatedSettings = { ...currentSettings, ...sanitized };
+    const { ai_model: _ignoredAiModel, ...persistedSettings } = currentSettings;
+    const updatedSettings = { ...persistedSettings, ...sanitized };
 
     // Save to S3
     await saveSettingsToS3(user.user_id, updatedSettings);
 
-    const response = NextResponse.json(updatedSettings);
+    const response = NextResponse.json({
+      ...updatedSettings,
+      ai_model: getLlmModel(),
+    });
     if (updatedSettings.locale) {
       response.cookies.set("ogma-locale", String(updatedSettings.locale), {
         path: "/",
