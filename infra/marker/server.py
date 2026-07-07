@@ -8,26 +8,34 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import torch
 import uvicorn
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import JSONResponse
-from marker.converters.pdf import PdfConverter
-from marker.models import create_model_dict
-from marker.output import text_from_rendered
+
+from converter_pool import ConverterPool
+
+if TYPE_CHECKING:  # heavy ML deps are imported lazily at runtime (see _build_converter)
+    from marker.converters.pdf import PdfConverter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("marker-server")
 
 app = FastAPI(title="Marker OCR Server", version="1.1.0")
 
-_converter = None
-_init_lock = asyncio.Lock()
-_convert_lock = asyncio.Lock()
+# Number of converters (== model copies in VRAM == max concurrent conversions).
+# Default 1 keeps the old serial behaviour; raise it to overlap one request's
+# CPU stages with another request's GPU work. Size to what the GPU can hold.
+MARKER_CONCURRENCY = max(1, int(os.getenv("MARKER_CONCURRENCY", "1")))
 
 
-def _build_converter() -> PdfConverter:
+def _build_converter() -> "PdfConverter":
+    # Imported here (not at module load) so the module can be imported without the
+    # heavy torch/marker stack, e.g. for unit-testing the pool.
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+
     logger.info("loading marker models")
     artifacts = create_model_dict()
     try:
@@ -39,25 +47,19 @@ def _build_converter() -> PdfConverter:
     return converter
 
 
-async def _ensure_converter() -> PdfConverter:
-    global _converter
-    if _converter is not None:
-        return _converter
-
-    async with _init_lock:
-        if _converter is None:
-            _converter = await asyncio.to_thread(_build_converter)
-    return _converter
+_pool = ConverterPool(_build_converter, size=MARKER_CONCURRENCY)
 
 
 @app.on_event("startup")
 async def startup() -> None:
-    logger.info("marker API starting")
+    import torch
+
+    logger.info("marker API starting (concurrency=%d)", MARKER_CONCURRENCY)
     logger.info("torch cuda available: %s", torch.cuda.is_available())
     if torch.cuda.is_available():
         logger.info("gpu: %s", torch.cuda.get_device_name(0))
-    # warm in background so / health check is fast
-    asyncio.create_task(_ensure_converter())
+    # warm the pool in background so the / health check responds quickly
+    asyncio.create_task(_pool.start())
 
 
 @app.get("/")
@@ -70,6 +72,7 @@ async def marker_upload(
     file: UploadFile = File(...),
     output_format: str = Form("markdown"),
     paginate_output: str = Form("true"),
+    page_range: str | None = Form(None),
 ) -> JSONResponse:
     _ = paginate_output  # accepted for API compatibility
 
@@ -77,6 +80,18 @@ async def marker_upload(
         return JSONResponse(
             status_code=400,
             content={"success": False, "error": "only markdown output is supported"},
+        )
+
+    # the pooled converters are built without per-request config, so honouring
+    # page_range here isn't possible. reject instead of silently returning the
+    # full document — the runpod serving path supports page_range
+    if page_range:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "page_range is not supported by this marker server",
+            },
         )
 
     data = await file.read()
@@ -94,10 +109,13 @@ async def marker_upload(
         with open(temp_path, "wb") as handle:
             handle.write(data)
 
-        converter = await _ensure_converter()
+        from marker.output import text_from_rendered
+
         logger.info("processing %s (%d bytes)", file.filename or "document", len(data))
 
-        async with _convert_lock:
+        # Borrow a converter for exclusive use; this both bounds concurrency to the
+        # pool size and guarantees no two requests touch the same model at once.
+        async with _pool.acquire() as converter:
             rendered = await asyncio.to_thread(converter, temp_path)
             text, _, _ = await asyncio.to_thread(text_from_rendered, rendered)
 

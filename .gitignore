@@ -84,3 +84,15 @@ aws-export/
 
 # private business / internal docs — share via discord / private repo, never commit
 docs/internal/
+
+# local diagram/render scratch
+diagrams/demo-architecture-*.mmd
+diagrams/puppeteer-config.json
+diagrams/rendered/
+screenshots/demo-architecture-*.png
+screenshots/demo-architecture-*.svg
+
+# python (marker server + tests)
+__pycache__/
+*.pyc
+.pytest_cache/

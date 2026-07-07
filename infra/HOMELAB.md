@@ -22,13 +22,18 @@ server: `10.0.0.5` (ssh semyon@server), Ubuntu 24.04, 30 GB RAM, 457 GB NVMe, GT
 | container | image | purpose |
 |---|---|---|
 | oghma-postgres | pgvector/pgvector:pg17 | PostgreSQL 17 + pgvector |
-| oghma-redis | redis:7-alpine | BullMQ + cache + rate-limit (AOF on, 200 MB cap, allkeys-lru) |
+| oghma-redis | redis:7-alpine | BullMQ + cache + rate-limit (AOF on, 1 GB cap, noeviction — BullMQ requires noeviction; verified live 2026-07-07) |
 | oghma-rustfs | rustfs/rustfs:latest | S3-compatible object store |
+| oghma-qdrant | qdrant/qdrant:latest | vector store for chunk embeddings (per-env collections `oghma_{env}_chunks`), ensured by the Jenkins vector-store stage |
 | oghma-nginx | nginx:alpine | TLS termination handed off to CF tunnels; routes prod / dev |
 | oghma-cloudflared-prod | cloudflare/cloudflared | tunnel for `oghmanotes.ie` |
 | oghma-cloudflared-dev | cloudflare/cloudflared | tunnel for `dev.oghmanotes.ie` |
 | oghma-prod / oghma-dev | oghma:{env}-{sha} | Next.js app — managed by Jenkins |
 | oghma-prod-worker / oghma-dev-worker | oghma-worker:{env}-{sha} | BullMQ worker — managed by Jenkins |
+
+## accepted risks
+
+- prod and dev share the same postgres / redis / rustfs instances (separated by database, queue prefix, and bucket/collection naming). a dev migration bug or runaway dev worker can degrade prod. accepted for the closed beta on this interim stack; expires at first paying user — the phase 5 launch target gives each env isolated stateful services.
 
 ## CI/CD
 

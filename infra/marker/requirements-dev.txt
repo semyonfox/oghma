@@ -1,0 +1,3 @@
+# Test-only deps for the marker server (the runtime deps live in Dockerfile.marker).
+# Run:  pip install -r infra/marker/requirements-dev.txt && pytest infra/marker
+pytest>=8.0
