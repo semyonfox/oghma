@@ -102,7 +102,16 @@ export async function processRagPipeline(
       source,
       markerImages = {},
       markerMetadata = null,
+      pageRange = null,
     } = extraction;
+    // coverage record so page-limited marker runs are never mistaken for
+    // full-document extraction (partial notes can be found and re-enriched)
+    const extractionCoverage = JSON.stringify({
+      source,
+      page_range: pageRange,
+      partial: Boolean(pageRange),
+      extracted_at: new Date().toISOString(),
+    });
     const rawText = sanitizePostgresText(extractedRawText ?? "");
     const chunks = (extractedChunks ?? []).map((chunk) =>
       sanitizePostgresText(chunk),
@@ -158,7 +167,7 @@ export async function processRagPipeline(
       // text files: embed on the original note directly (no sibling needed)
       await sql`
         UPDATE app.notes
-        SET extracted_text = ${searchText}, updated_at = NOW()
+        SET extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
       `;
       const embeddingStart = Date.now();
@@ -200,7 +209,7 @@ export async function processRagPipeline(
     // stripped text for full-text search (no ### --- ** etc.)
     await sql`
       UPDATE app.notes
-      SET content = ${finalMarkdown}, extracted_text = ${searchText}, updated_at = NOW()
+      SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${mdNoteId}::uuid
     `;
 

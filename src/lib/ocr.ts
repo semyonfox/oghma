@@ -1,5 +1,6 @@
 // document text extraction via Marker server
 // expects a MARKER_API_URL pointing at a marker_server (POST /marker/upload).
+// set MARKER_API_TOKEN to send Authorization: Bearer <token>.
 // when unset, callers fall back to pdf-parse (text layer only).
 import { normalizeMarkerMarkdown } from "./marker-output";
 import type { MarkerImages } from "./marker-output";
@@ -17,6 +18,9 @@ export interface MarkerResult {
   images: MarkerImages;
   metadata: unknown;
   source: "marker";
+  // page range requested via MARKER_PAGE_RANGE, null for full-document runs.
+  // callers persist this as extraction coverage so partial OCR stays visible
+  pageRange: string | null;
 }
 
 function parsePositiveIntEnv(name: string, fallback: number): number {
@@ -30,6 +34,11 @@ const TOTAL_TIMEOUT_MS = parsePositiveIntEnv(
 );
 
 const MARKER_FAST_PATH_MS = parsePositiveIntEnv("MARKER_FAST_PATH_MS", 5_000);
+
+function markerPageRange(): string | null {
+  const range = process.env.MARKER_PAGE_RANGE?.trim();
+  return range ? range : null;
+}
 
 const MIME_MAP: Record<string, string> = {
   pdf: "application/pdf",
@@ -45,6 +54,11 @@ const MIME_MAP: Record<string, string> = {
 function mimeFromFilename(filename: string): string {
   const ext = filename.toLowerCase().split(".").pop() ?? "";
   return MIME_MAP[ext] ?? "application/octet-stream";
+}
+
+function markerAuthHeaders(): HeadersInit | undefined {
+  const token = process.env.MARKER_API_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
 }
 
 export async function extractWithMarker(
@@ -66,7 +80,7 @@ export async function extractWithMarker(
     Boolean(options.fastPath),
   );
   if (!result) throw new Error("Marker returned no result");
-  return { ...result, source: "marker" };
+  return { ...result, source: "marker", pageRange: markerPageRange() };
 }
 
 async function callMarker(
@@ -88,6 +102,8 @@ async function callMarker(
   form.append("file", new Blob([fileBytes], { type: mime }), filename);
   form.append("output_format", "markdown");
   form.append("paginate_output", "false");
+  const pageRange = markerPageRange();
+  if (pageRange) form.append("page_range", pageRange);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -95,6 +111,7 @@ async function callMarker(
   try {
     const res = await fetch(url, {
       method: "POST",
+      headers: markerAuthHeaders(),
       body: form,
       signal: controller.signal,
     });

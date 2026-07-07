@@ -120,6 +120,7 @@ async function processRagPipeline(
   let chunks;
   let markerImages: Record<string, string> = {};
   let markerMetadata = null;
+  let pageRange: string | null = null;
 
   if (isText) {
     rawText = buffer.toString("utf-8");
@@ -130,13 +131,22 @@ async function processRagPipeline(
     chunks = marker.chunks;
     markerImages = marker.images ?? {};
     markerMetadata = marker.metadata ?? null;
+    pageRange = marker.pageRange;
   }
+
+  // coverage record so page-limited marker runs stay visible on the note
+  const extractionCoverage = JSON.stringify({
+    source: isText ? "text" : "marker",
+    page_range: pageRange,
+    partial: Boolean(pageRange),
+    extracted_at: new Date().toISOString(),
+  });
 
   if (isText) {
     const searchText = stripMarkdown(rawText);
     await sql`
       UPDATE app.notes
-      SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
+      SET content = ${rawText}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
     `;
     const count = await replaceNoteEmbeddings(noteId, userId, chunks);
@@ -167,7 +177,7 @@ async function processRagPipeline(
   const searchText = stripMarkdown(finalMarkdown);
   await sql`
     UPDATE app.notes
-    SET content = ${finalMarkdown}, extracted_text = ${searchText}, updated_at = NOW()
+    SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
   `;
   const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
