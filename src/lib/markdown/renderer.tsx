@@ -17,6 +17,41 @@ export interface MarkdownRendererProps {
   components?: Partial<Components>;
 }
 
+type MarkdownAstNode = {
+  type?: string;
+  meta?: unknown;
+  data?: {
+    hProperties?: Record<string, unknown>;
+  };
+  children?: MarkdownAstNode[];
+};
+
+function extractFenceTitle(meta?: string) {
+  const titleMatch = meta?.match(
+    /(?:^|\s)(?:title|filename)=(?:"([^"]+)"|'([^']+)'|([^\s]+))/i,
+  );
+  return titleMatch?.[1] ?? titleMatch?.[2] ?? titleMatch?.[3];
+}
+
+function remarkPreserveCodeMeta() {
+  return (tree: MarkdownAstNode) => {
+    const visit = (node: MarkdownAstNode) => {
+      if (node.type === "code" && typeof node.meta === "string" && node.meta.trim()) {
+        node.data = {
+          ...node.data,
+          hProperties: {
+            ...node.data?.hProperties,
+            dataCodeMeta: node.meta.trim(),
+          },
+        };
+      }
+      node.children?.forEach(visit);
+    };
+
+    visit(tree);
+  };
+}
+
 const baseComponents: Partial<Components> = {
   a: ({ href, children, ...props }: any) => (
     <a
@@ -29,16 +64,26 @@ const baseComponents: Partial<Components> = {
       {children}
     </a>
   ),
-  // pre extracts language and delegates to CodeBlock;
-  // code passes through hljs classes so rehype-highlight tokens survive
+  // pre extracts fence metadata and delegates block rendering/highlighting to CodeBlock.
   pre: ({ children }: any) => {
     const codeEl = (children as any)?.props;
     const cls: string = codeEl?.className ?? "";
     const lang = /language-([a-z0-9_-]+)/i.exec(cls)?.[1];
     const rawContent =
       typeof codeEl?.children === "string" ? codeEl.children : undefined;
+    const meta =
+      typeof codeEl?.dataCodeMeta === "string"
+        ? codeEl.dataCodeMeta
+        : typeof codeEl?.node?.properties?.dataCodeMeta === "string"
+          ? codeEl.node.properties.dataCodeMeta
+          : typeof codeEl?.node?.data?.meta === "string"
+            ? codeEl.node.data.meta
+            : typeof codeEl?.meta === "string"
+              ? codeEl.meta
+              : undefined;
+    const title = extractFenceTitle(meta);
     return (
-      <CodeBlock language={lang} rawContent={rawContent}>
+      <CodeBlock language={lang} title={title} meta={meta} rawContent={rawContent}>
         {children}
       </CodeBlock>
     );
@@ -80,7 +125,7 @@ export default function MarkdownRenderer({
   return (
     <div className={wrapperClass}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, ...(remarkPlugins ?? [])]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkPreserveCodeMeta, ...(remarkPlugins ?? [])]}
         rehypePlugins={[...(rehypePlugins ?? []), rehypeKatex]}
         components={merged}
       >

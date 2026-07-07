@@ -1,7 +1,8 @@
 "use client";
 
-import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize from "rehype-sanitize";
 import MarkdownRenderer from "@/lib/markdown/renderer";
+import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 
 interface QuizMarkdownProps {
   children: string;
@@ -12,7 +13,7 @@ export default function QuizMarkdown({ children, className }: QuizMarkdownProps)
   return (
     <MarkdownRenderer
       className={className}
-      rehypePlugins={[rehypeHighlight]}
+      rehypePlugins={[[rehypeSanitize, markdownSanitizeSchema]]}
       components={{
         p: ({ children }: any) => (
           <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>

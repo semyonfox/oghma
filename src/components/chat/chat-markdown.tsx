@@ -3,7 +3,6 @@
 import MarkdownRenderer from "@/lib/markdown/renderer";
 import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 import remarkBreaks from "remark-breaks";
-import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize from "rehype-sanitize";
 
 export default function ChatMarkdown({ children }: { children: string }) {
@@ -11,7 +10,7 @@ export default function ChatMarkdown({ children }: { children: string }) {
     <MarkdownRenderer
       className="text-sm leading-relaxed"
       remarkPlugins={[remarkBreaks]}
-      rehypePlugins={[rehypeHighlight, [rehypeSanitize, markdownSanitizeSchema]]}
+      rehypePlugins={[[rehypeSanitize, markdownSanitizeSchema]]}
       components={{
         p: ({ children }: any) => <p className="mb-2 last:mb-0">{children}</p>,
         h1: ({ children }: any) => (

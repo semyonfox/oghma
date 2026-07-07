@@ -10,10 +10,21 @@ function renderPreview(content: string) {
 }
 
 describe("PreviewRenderer", () => {
-  it("preserves syntax token classes for highlighted code", () => {
+  it("renders fenced code with Shiki chrome and language label", () => {
     const html = renderPreview("```javascript\nconst value = 1\n```");
 
-    expect(html).toContain("hljs-keyword");
+    expect(html).toContain("javascript");
+    expect(html).toContain("Wrap");
+    expect(html).toContain("Copy");
+    expect(html).toContain("const value = 1");
+  });
+
+  it("preserves safe code fence titles through sanitization", () => {
+    const html = renderPreview('```ts title="app.ts"\nconst value = 1\n```');
+
+    expect(html).toContain("app.ts");
+    expect(html).toContain("ts");
+    expect(html).toContain("const value = 1");
   });
 
   it("renders fenced code without language as a block", () => {
@@ -47,10 +58,10 @@ describe("PreviewRenderer", () => {
     expect(html).not.toContain('href="javascript:');
   });
 
-  it("keeps syntax highlighting while sanitizing code fence contents", () => {
+  it("keeps code fence contents escaped while sanitizing unsafe html", () => {
     const html = renderPreview("```html\n<script>alert(1)</script>\n```");
 
-    expect(html).toContain("hljs");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain("<script>");
   });
 

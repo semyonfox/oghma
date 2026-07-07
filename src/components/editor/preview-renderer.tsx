@@ -1,7 +1,6 @@
 "use client";
 
 import remarkBreaks from "remark-breaks";
-import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import MarkdownRenderer from "@/lib/markdown/renderer";
@@ -21,7 +20,6 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
       remarkPlugins={[remarkBreaks]}
       rehypePlugins={[
         rehypeRaw,
-        rehypeHighlight,
         [rehypeSanitize, markdownSanitizeSchema],
       ]}
       components={{
