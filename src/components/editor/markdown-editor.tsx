@@ -18,26 +18,10 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
 
-function LoadingPreviewFallback() {
-  const { t } = useI18n();
-  return (
-    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-      {t("Loading preview...")}
-    </div>
-  );
-}
-
-const PreviewRenderer = dynamic(() => import("./preview-renderer"), {
-  ssr: false,
-  loading: () => <LoadingPreviewFallback />,
-});
-
-// CodeMirror accesses browser APIs on import, so lazy-load it client-side only
-const SourceEditor = dynamic(() => import("./source-editor"), {
+// CodeMirror accesses browser APIs on import, so lazy-load the writing surface client-side only.
+const WriteEditor = dynamic(() => import("./write-editor"), {
   ssr: false,
 });
-
-type EditorMode = "source" | "read";
 
 interface MarkdownEditorProps {
   pane: "A" | "B";
@@ -47,10 +31,10 @@ interface MarkdownEditorProps {
 const DRAFT_DEBOUNCE_MS = 1000;
 
 /**
- * Markdown editor with Source (raw md) and Read (rendered preview) modes
+ * Markdown editor with one Notion-ish writing surface.
+ * Markdown stays canonical underneath; the beta UI just softens the editing layer.
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
-  const [mode, setMode] = useState<EditorMode>("source");
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -177,7 +161,15 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
     return () => {
       cancelled = true;
-      if (draftTimer.current) clearTimeout(draftTimer.current);
+      if (draftTimer.current) {
+        clearTimeout(draftTimer.current);
+        draftTimer.current = null;
+      }
+      if (isDirtyRef.current) {
+        writeDraft(currentFileId.current, localContentRef.current).catch(
+          () => {},
+        );
+      }
     };
   }, [file.fileId, fetchNote, t]);
 
@@ -256,7 +248,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     }
   }, [localContent, file.fileId, isDirty, mutateNote, markSynced, t]);
 
-  // Ctrl+S handler (for read mode — CodeMirror handles it in source mode)
+  // Ctrl+S handler. CodeMirror also handles it while focused; this catches
+  // toolbar/outer-shell focus so the editor still behaves like one mode.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -284,28 +277,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
       {/* Toolbar */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
-        {/* Source / Read toggle */}
-        <div className="flex h-7 items-center gap-1 glass-panel p-0.5 rounded-radius-md">
-          <button
-            onClick={() => setMode("source")}
-            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
-              mode === "source"
-                ? "bg-primary-500 text-text"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {t("Source")}
-          </button>
-          <button
-            onClick={() => setMode("read")}
-            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
-              mode === "read"
-                ? "bg-primary-500 text-text"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {t("Read")}
-          </button>
+        <div className="flex h-7 items-center gap-2 text-xs text-text-tertiary">
+          <span className="inline-flex h-6 items-center rounded-radius-sm bg-primary-500/12 px-2.5 font-medium text-primary-300">
+            {t("Write")}
+          </span>
+          <span className="hidden sm:inline-flex h-6 items-center rounded-radius-sm border border-border-subtle px-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
+            {t("Beta")}
+          </span>
         </div>
 
         {/* Save Status + Guide link */}
@@ -357,30 +335,21 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden bg-app-page">
-        {mode === "source" ? (
-          loaded ? (
-            <div className="h-full min-h-0 w-full">
-              <SourceEditor
-                value={displayContent}
-                onChange={(val) => {
-                  setLocalContent(val);
+        {loaded ? (
+          <div className="h-full min-h-0 w-full">
+            <WriteEditor
+              value={displayContent}
+              onChange={(val, programmaticUpdate) => {
+                setLocalContent(val);
+                if (!programmaticUpdate) {
                   setIsDirty(true);
                   scheduleDraftWrite(val);
-                }}
-                onSave={handleSave}
-                placeholder={t("Start writing...")}
-              />
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-              {t("Loading...")}
-            </div>
-          )
-        ) : loaded ? (
-          <div className="h-full min-h-0 w-full overflow-auto px-4 py-10 md:px-8 lg:px-10">
-            <div className="mx-auto w-full max-w-3xl">
-              <PreviewRenderer content={displayContent} noteId={file.fileId} />
-            </div>
+                }
+              }}
+              onSave={handleSave}
+              noteId={file.fileId}
+              placeholder={t("Start writing...")}
+            />
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-text-tertiary">

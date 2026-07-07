@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // Allow local browser automation/dev previews to hydrate when using 127.0.0.1.
+    allowedDevOrigins: ['127.0.0.1'],
     // keep native/credential-dependent packages out of the Turbopack bundle
     // Provider SDK credential loaders must stay external for Node/Docker builds.
     serverExternalPackages: ['postgres', 'winston-cloudwatch', 'aws-xray-sdk-core',
