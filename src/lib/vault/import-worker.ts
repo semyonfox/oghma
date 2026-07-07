@@ -22,7 +22,7 @@ import {
   shouldIgnore,
   sanitizePath,
   ensureFolderPath,
-} from "./tree-builder.js";
+} from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email.js";
 
 const PROCESSABLE_EXTS = new Set([
@@ -36,7 +36,7 @@ const PROCESSABLE_EXTS = new Set([
   "txt",
 ]);
 
-const EXT_MIME = {
+const EXT_MIME: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   doc: "application/msword",
@@ -51,17 +51,26 @@ const FILE_CONCURRENCY = 5;
 const MAX_DECOMPRESSED_SIZE = 20 * 1024 * 1024 * 1024; // 20GB
 const MAX_ENTRIES = 50_000;
 
-function getMimeType(filename) {
+function getMimeType(filename: string | null | undefined): string | null {
   const ext = filename?.toLowerCase().split(".").pop();
   return ext && EXT_MIME[ext] ? EXT_MIME[ext] : null;
 }
 
-function isProcessable(filename) {
+function isProcessable(filename: string | null | undefined): boolean {
   const ext = filename?.toLowerCase().split(".").pop();
-  return PROCESSABLE_EXTS.has(ext);
+  return Boolean(ext && PROCESSABLE_EXTS.has(ext));
 }
 
-async function createNote(userId, title, parentId, opts = {}) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function createNote(
+  userId: string,
+  title: string,
+  parentId: string | null,
+  opts: { s3Key?: string | null; content?: string } = {},
+): Promise<string> {
   const noteId = uuidv4();
   const s3Key = opts.s3Key ?? null;
   const content = opts.content ?? "";
@@ -73,7 +82,12 @@ async function createNote(userId, title, parentId, opts = {}) {
   return noteId;
 }
 
-async function findOrCreateNote(userId, title, parentId, opts = {}) {
+async function findOrCreateNote(
+  userId: string,
+  title: string,
+  parentId: string | null,
+  opts: { s3Key?: string | null; content?: string } = {},
+): Promise<{ noteId: string; created: boolean }> {
   const existing = await sql`
     SELECT n.note_id FROM app.notes n
     JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
@@ -93,19 +107,20 @@ async function findOrCreateNote(userId, title, parentId, opts = {}) {
 }
 
 async function processRagPipeline(
-  noteId,
-  userId,
-  parentFolderId,
-  buffer,
-  opts,
-) {
+  noteId: string,
+  userId: string,
+  parentFolderId: string | null,
+  buffer: Buffer,
+  opts: { filename: string; mimeType: string | null },
+): Promise<void> {
   const { filename, mimeType } = opts;
   const isText = mimeType?.startsWith("text/");
 
   let rawText;
   let chunks;
-  let markerImages = {};
+  let markerImages: Record<string, string> = {};
   let markerMetadata = null;
+  let pageRange: string | null = null;
 
   if (isText) {
     rawText = buffer.toString("utf-8");
@@ -116,13 +131,22 @@ async function processRagPipeline(
     chunks = marker.chunks;
     markerImages = marker.images ?? {};
     markerMetadata = marker.metadata ?? null;
+    pageRange = marker.pageRange;
   }
+
+  // coverage record so page-limited marker runs stay visible on the note
+  const extractionCoverage = JSON.stringify({
+    source: isText ? "text" : "marker",
+    page_range: pageRange,
+    partial: Boolean(pageRange),
+    extracted_at: new Date().toISOString(),
+  });
 
   if (isText) {
     const searchText = stripMarkdown(rawText);
     await sql`
       UPDATE app.notes
-      SET content = ${rawText}, extracted_text = ${searchText}, updated_at = NOW()
+      SET content = ${rawText}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
     `;
     const count = await replaceNoteEmbeddings(noteId, userId, chunks);
@@ -153,7 +177,7 @@ async function processRagPipeline(
   const searchText = stripMarkdown(finalMarkdown);
   await sql`
     UPDATE app.notes
-    SET content = ${finalMarkdown}, extracted_text = ${searchText}, updated_at = NOW()
+    SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
   `;
   const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
@@ -169,7 +193,13 @@ async function processRagPipeline(
  * after each file so memory stays bounded (~FILE_CONCURRENCY * largest file).
  */
 class EntryQueue {
-  constructor(concurrency) {
+  private concurrency: number;
+  private queue: EntryQueueItem[];
+  private running: number;
+  private done: boolean;
+  private _resolve: (() => void) | null;
+
+  constructor(concurrency: number) {
     this.concurrency = concurrency;
     this.queue = [];
     this.running = 0;
@@ -177,14 +207,17 @@ class EntryQueue {
     this._resolve = null;
   }
 
-  push(entry) {
+  push(entry: EntryQueueItem): void {
     this.queue.push(entry);
     this._tryDrain();
   }
 
-  _tryDrain() {
+  private _tryDrain(): void {
     while (this.running < this.concurrency && this.queue.length > 0) {
       const entry = this.queue.shift();
+      if (!entry) {
+        continue;
+      }
       this.running++;
       entry
         .process()
@@ -201,7 +234,7 @@ class EntryQueue {
   }
 
   // call after extraction is complete, resolves when all processing finishes
-  finish() {
+  finish(): Promise<void> {
     this.done = true;
     if (this.running === 0 && this.queue.length === 0) return Promise.resolve();
     return new Promise((r) => {
@@ -210,11 +243,39 @@ class EntryQueue {
   }
 }
 
+interface EntryQueueItem {
+  process: () => Promise<unknown>;
+  buffer: Buffer | null;
+}
+
+interface VaultImportMessage {
+  jobId: string;
+  userId: string;
+  s3Key: string;
+}
+
+function requireVaultImportMessage(msg: Record<string, unknown>): VaultImportMessage {
+  const { jobId, userId, s3Key } = msg;
+  if (
+    typeof jobId !== "string" ||
+    typeof userId !== "string" ||
+    typeof s3Key !== "string"
+  ) {
+    throw new Error("Invalid vault import message");
+  }
+  return { jobId, userId, s3Key };
+}
+
 /**
  * Stream zip from S3, process entries as they decompress.
  * Memory stays bounded at ~FILE_CONCURRENCY * largest_file_size.
  */
-async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
+async function streamAndProcessZip(
+  s3Key: string,
+  userId: string,
+  jobId: string,
+  processEntry: (entryPath: string, buffer: Buffer) => Promise<void>,
+): Promise<number> {
   const { GetObjectCommand } = await import("@aws-sdk/client-s3");
 
   const bucket = process.env.STORAGE_BUCKET;
@@ -243,7 +304,7 @@ async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
         return;
       }
 
-      const chunks = [];
+      const chunks: Uint8Array[] = [];
       stream.ondata = (err, data, final) => {
         if (err) {
           reject(err);
@@ -263,8 +324,14 @@ async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
         }
         if (final) {
           const buffer = Buffer.concat(chunks);
-          const entry = { path: stream.name, buffer, process: null };
-          entry.process = () => processEntry(entry.path, entry.buffer);
+          const entry: EntryQueueItem = {
+            buffer,
+            process: async () => {
+              if (entry.buffer) {
+                await processEntry(stream.name, entry.buffer);
+              }
+            },
+          };
           entryQueue.push(entry);
         }
       };
@@ -273,7 +340,9 @@ async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
 
     unzip.register(AsyncUnzipInflate);
 
-    const readable = Readable.from(res.Body);
+    const readable = Readable.from(
+      res.Body as AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
+    );
     readable.on("data", (chunk) => {
       unzip.push(Buffer.isBuffer(chunk) ? new Uint8Array(chunk) : chunk);
     });
@@ -291,17 +360,17 @@ async function streamAndProcessZip(s3Key, userId, jobId, processEntry) {
 /**
  * Main entry point — called from worker-entry.js
  */
-export async function processVaultImport(msg) {
-  const { jobId, userId, s3Key } = msg;
+export async function processVaultImport(msg: Record<string, unknown>): Promise<void> {
+  const { jobId, userId, s3Key } = requireVaultImportMessage(msg);
   const ts = () => new Date().toISOString();
   console.log(`[${ts()}] Starting vault import: job=${jobId}`);
+  let cancelled = false;
 
   try {
     await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}::uuid`;
 
     const storage = getStorageProvider();
     const folderCache = new Map();
-    let cancelled = false;
     let totalFiles = 0;
     let totalFolders = 0;
     let failedFiles = 0;
@@ -357,7 +426,7 @@ export async function processVaultImport(msg) {
             } catch (ragErr) {
               console.error(
                 `[${ts()}] RAG failed for ${filename}:`,
-                ragErr.message,
+                errorMessage(ragErr),
               );
             }
           }
@@ -393,7 +462,7 @@ export async function processVaultImport(msg) {
           failedFiles++;
           console.error(
             `[${ts()}] Failed to import ${cleanPath}:`,
-            err.message,
+            errorMessage(err),
           );
         }
       },
@@ -411,7 +480,7 @@ export async function processVaultImport(msg) {
         WHERE c.user_id = ${userId}::uuid
           AND c.created_at >= (SELECT started_at FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid)
       `;
-      const chunkIds = chunks.map((r) => r.id);
+      const chunkIds = chunks.map((r: { id: string }) => r.id);
       if (chunkIds.length > 0) {
         const { seedQuestionsAfterImport } =
           await import("../quiz/generate-background.ts");
@@ -420,7 +489,7 @@ export async function processVaultImport(msg) {
       }
     } catch (seedErr) {
       console.warn(
-        `[${ts()}] Quiz seed failed (non-fatal): ${seedErr.message}`,
+        `[${ts()}] Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`,
       );
     }
 
@@ -446,7 +515,7 @@ export async function processVaultImport(msg) {
         });
       }
     } catch (emailErr) {
-      console.error(`[${ts()}] Email notification failed:`, emailErr.message);
+      console.error(`[${ts()}] Email notification failed:`, errorMessage(emailErr));
     }
 
     console.log(
@@ -454,13 +523,13 @@ export async function processVaultImport(msg) {
     );
   } catch (error) {
     if (cancelled) {
-      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${error.message}`);
+      console.warn(`[${ts()}] Ignoring error after cancel for ${jobId}: ${errorMessage(error)}`);
       return;
     }
     console.error(`[${ts()}] Vault import failed:`, error);
     await sql`
       UPDATE app.canvas_import_jobs
-      SET status = 'failed', error_message = ${error.message}, completed_at = NOW(), updated_at = NOW()
+      SET status = 'failed', error_message = ${errorMessage(error)}, completed_at = NOW(), updated_at = NOW()
       WHERE id = ${jobId}::uuid AND status = 'processing'
     `;
     throw error;

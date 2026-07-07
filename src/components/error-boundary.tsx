@@ -53,7 +53,7 @@ function ErrorBoundaryFallback({ onRetry }: { onRetry: () => void }) {
       </p>
       <button
         onClick={onRetry}
-        className="px-4 py-2 text-sm bg-accent-primary text-white rounded-md hover:bg-accent-primary/90 transition-colors"
+        className="px-4 py-2 text-sm bg-primary-600 text-text-on-primary rounded-radius-md hover:bg-primary-700 transition-colors"
       >
         {t("Try again")}
       </button>

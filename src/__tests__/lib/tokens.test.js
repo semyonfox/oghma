@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSecureToken, hashToken, verifyTokenHash } from '@/lib/tokens.js';
+import { generateSecureToken, hashToken, verifyTokenHash } from '@/lib/tokens';
 
 describe('generateSecureToken', () => {
     it('returns a 64-character hex string', () => {

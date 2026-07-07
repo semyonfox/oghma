@@ -14,7 +14,7 @@ vi.mock("bcryptjs", () => ({
   },
 }));
 
-vi.mock("@/lib/auth.js", () => ({
+vi.mock("@/lib/auth", () => ({
   validateSession: vi.fn(),
   createErrorResponse: (message, status = 400, additionalData = {}) =>
     Response.json(
@@ -44,7 +44,7 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 import sql from "@/database/pgsql.js";
-import { validateSession } from "@/lib/auth.js";
+import { validateSession } from "@/lib/auth";
 import { POST } from "@/app/api/auth/change-password/route.js";
 
 const MOCK_USER = { user_id: "user-123", email: "test@example.com" };

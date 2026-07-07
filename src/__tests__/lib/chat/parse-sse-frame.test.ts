@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseSseFrame, humanizeToolName } from "@/lib/chat/parse-sse-frame";
+import { Metrics } from "@/lib/metrics";
 
 describe("humanizeToolName", () => {
   it("turns camelCase into a sentence", () => {
@@ -59,14 +60,79 @@ describe("parseSseFrame — tool-call events", () => {
   });
 
   it("tolerates malformed JSON payload", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const metricSpy = vi.spyOn(Metrics, "sseParseError").mockResolvedValue();
+
+    try {
+      const update = parseSseFrame({
+        event: "tool-call",
+        data: "not-json",
+      });
+
+      expect(update).toEqual({
+        type: "tool-call",
+        toolName: "",
+        label: "",
+      });
+      expect(metricSpy).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Malformed SSE frame payload",
+        expect.objectContaining({ event: "tool-call" }),
+      );
+    } finally {
+      warnSpy.mockRestore();
+      metricSpy.mockRestore();
+    }
+  });
+});
+
+describe("parseSseFrame — search events", () => {
+  it("uses safe defaults for malformed numeric payload fields", () => {
     const update = parseSseFrame({
-      event: "tool-call",
-      data: "not-json",
+      event: "search",
+      data: JSON.stringify({
+        scopeSize: "all",
+        resultsFound: "many",
+        results: "not-an-array",
+      }),
     });
+
     expect(update).toEqual({
-      type: "tool-call",
-      toolName: "",
-      label: "",
+      type: "search",
+      searchContext: {
+        scopeSize: null,
+        resultsFound: 0,
+        results: [],
+      },
+    });
+  });
+
+  it("preserves valid search summary counts", () => {
+    const update = parseSseFrame({
+      event: "search",
+      data: JSON.stringify({
+        scopeSize: 3,
+        resultsFound: 2,
+        results: [{ noteId: "note-1", title: "Intro", distance: 0.12 }],
+      }),
+    });
+
+    expect(update).toEqual({
+      type: "search",
+      searchContext: {
+        scopeSize: 3,
+        resultsFound: 2,
+        results: [{ noteId: "note-1", title: "Intro", distance: 0.12 }],
+      },
+    });
+  });
+});
+
+describe("parseSseFrame — lifecycle events", () => {
+  it("parses done events as explicit stream completion", () => {
+    expect(parseSseFrame({ event: "done", data: "{}" })).toEqual({
+      type: "done",
     });
   });
 });

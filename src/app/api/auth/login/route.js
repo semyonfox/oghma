@@ -18,7 +18,7 @@ import {
   createErrorResponse,
   createValidationErrorResponse,
   parseJsonBody,
-} from "@/lib/auth.js";
+} from "@/lib/auth";
 import {
   isRateLimited,
   recordFailedAttempt,

@@ -1,6 +1,15 @@
 "use client";
 
-import { FC, useState, useRef, useEffect, KeyboardEvent, FormEvent } from "react";
+import {
+  FC,
+  ReactNode,
+  useId,
+  useState,
+  useRef,
+  useEffect,
+  KeyboardEvent,
+  FormEvent,
+} from "react";
 import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
@@ -15,6 +24,60 @@ export type {
   SearchContextData,
   ChatContextItem,
 } from "@/lib/chat/types";
+
+/**
+ * Small pill toggle used above the chat input (RAG / thinking). Shares the
+ * active/inactive styling and shows a rich hover card describing the option.
+ */
+function TogglePill({
+  active,
+  onClick,
+  icon,
+  label,
+  tooltipTitle,
+  tooltipText,
+  dense = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
+  tooltipTitle: string;
+  tooltipText: string;
+  dense?: boolean;
+}) {
+  const tooltipId = useId();
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        aria-describedby={tooltipId}
+        className={`flex items-center rounded-radius-md border font-medium transition-colors ${
+          dense ? "gap-1 px-1.5 py-[3px] text-xs" : "gap-1.5 px-2.5 py-1 text-xs"
+        } ${
+          active
+            ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
+            : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
+        }`}
+      >
+        {icon}
+        {label}
+      </button>
+      <div
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+      >
+        <span className="text-xs font-semibold text-text">{tooltipTitle}</span>
+        <span className="text-[11px] leading-snug text-text-tertiary">
+          {tooltipText}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface ChatInterfaceProps {
   /** Compact mode for the inspector sidebar mini-chat */
@@ -56,6 +119,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const {
     thinkingMode,
     toggleThinking,
+    useRag,
+    toggleRag,
     restoredMessages,
     updateRefs,
   } = useChatPersistence({
@@ -79,6 +144,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     selectedNotes,
     selectedFolders,
     thinkingMode,
+    useRag,
     onSessionCreated,
     onStreamComplete,
   });
@@ -97,10 +163,24 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     updateRefs({ messages, sessionId, loading });
   }, [messages, sessionId, loading, updateRefs]);
 
-  // auto-scroll
+  // auto-scroll: follow streaming output only while the user is pinned to the
+  // bottom. If they scroll up to read, stop following so the view stays put
+  // while the reply keeps generating below.
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pinnedToBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedToBottomRef.current = distanceFromBottom <= 80;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!pinnedToBottomRef.current) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
   // input state (local to this component -- not worth extracting)
@@ -112,6 +192,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const handleSend = () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    // sending a message always re-pins the view to the bottom
+    pinnedToBottomRef.current = true;
 
     setInput("");
     if (inputRef.current) {
@@ -135,7 +218,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   if (compact) {
     return (
       <div className={`flex flex-col h-full ${className}`}>
-        <div className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]"
+        >
           {messages.map((m) => (
             <CompactMessageBubble key={m.id} message={m} />
           ))}
@@ -145,6 +232,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         </div>
 
         <div className="flex-shrink-0 border-t border-border-subtle px-2 py-1.5">
+          <div className="mb-1.5 flex items-center gap-1 px-0.5">
+            <TogglePill
+              dense
+              active={useRag}
+              onClick={toggleRag}
+              icon={<DocumentTextIcon className="h-3 w-3" />}
+              label={t("chat.use_notes_short")}
+              tooltipTitle={t("chat.rag_title")}
+              tooltipText={t("chat.rag_tooltip")}
+            />
+            <TogglePill
+              dense
+              active={thinkingActive}
+              onClick={toggleThinking}
+              icon={<span aria-hidden="true">◆</span>}
+              label={thinkingActive ? t("Thinking") : t("Think")}
+              tooltipTitle={t("chat.thinking_title")}
+              tooltipText={t("chat.thinking_tooltip")}
+            />
+          </div>
           <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-md px-2.5 py-[5px] focus-within:border-primary-500/50 transition-colors">
             <input
               ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -156,18 +263,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               disabled={loading}
               className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
-            <button
-              type="button"
-              onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1 text-xs font-medium px-1.5 py-[3px] rounded-radius-sm border transition-colors ${
-                thinkingActive
-                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20"
-                  : "text-text-tertiary border-border-subtle hover:text-text-secondary"
-              }`}
-              title={thinkingActive ? t("Thinking on") : t("Thinking off")}
-            >
-              ◆ {thinkingActive ? t("Thinking") : t("Think")}
-            </button>
             <button
               onClick={handleSend}
               disabled={loading || !input.trim()}
@@ -185,7 +280,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar"
+      >
         <div className="mx-auto flex w-full max-w-3xl flex-col space-y-2.5">
           {messages.length === 0 ? (
             <ChatSplash />
@@ -250,6 +349,24 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
+          <div className="mb-2 flex items-center gap-1.5 px-1">
+            <TogglePill
+              active={useRag}
+              onClick={toggleRag}
+              icon={<DocumentTextIcon className="h-3 w-3" />}
+              label={t("chat.use_notes")}
+              tooltipTitle={t("chat.rag_title")}
+              tooltipText={t("chat.rag_tooltip")}
+            />
+            <TogglePill
+              active={thinkingActive}
+              onClick={toggleThinking}
+              icon={<span aria-hidden="true">◆</span>}
+              label={thinkingActive ? t("Thinking") : t("Think")}
+              tooltipTitle={t("chat.thinking_title")}
+              tooltipText={t("chat.thinking_tooltip")}
+            />
+          </div>
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
@@ -272,22 +389,6 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               className="flex-1 bg-transparent text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none resize-none disabled:opacity-50"
               style={{ minHeight: "20px", maxHeight: "96px" }}
             />
-            <button
-              type="button"
-              onClick={toggleThinking}
-              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-radius-md border transition-colors ${
-                thinkingActive
-                  ? "text-primary-300 bg-primary-500/10 border-primary-500/20 hover:bg-primary-500/15"
-                  : "text-text-tertiary border-border-subtle hover:text-text-secondary hover:border-border"
-              }`}
-              title={
-                thinkingActive
-                  ? t("Thinking on — click to disable")
-                  : t("Thinking off — click to enable")
-              }
-            >
-              ◆ {thinkingActive ? t("Thinking") : t("Think")}
-            </button>
             {loading ? (
               <button
                 type="button"

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import usePortalStore from "@/lib/notes/state/portal";
+import useGlobalSearchStore from "@/lib/global-search/state";
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -75,7 +75,6 @@ const IconNav: FC = () => {
     setActiveNav,
     rightPanelOpen,
     rightPanelTab,
-    openRightPanelTab,
   } = useLayoutStore();
   const { t } = useI18n();
 
@@ -95,17 +94,14 @@ const IconNav: FC = () => {
                 : activeNav;
   const handleNavClick = (item: NavItem) => {
     if (item.section === "search") {
-      usePortalStore.getState().search.open();
+      useGlobalSearchStore.getState().open();
       return;
     }
-    // AI chat: toggle right panel on /notes (where the inspector exists),
-    // otherwise navigate to the full /chat page
+
+    // Global AI chat entry should always open a fresh full-screen chat.
     if (item.section === "chat") {
-      if (pathname?.startsWith("/notes")) {
-        openRightPanelTab("ai");
-      } else {
-        router.push("/chat");
-      }
+      setActiveNav(item.section);
+      router.push("/chat");
       return;
     }
     setActiveNav(item.section);

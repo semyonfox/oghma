@@ -1,6 +1,6 @@
 import sql from "@/database/pgsql.js";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth.js";
-import { generateSecureToken, hashToken } from "@/lib/tokens.js";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth";
+import { generateSecureToken, hashToken } from "@/lib/tokens";
 import { sendVerificationEmail } from "@/lib/email.js";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";

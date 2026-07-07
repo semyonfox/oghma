@@ -26,11 +26,19 @@ import { parseJobCourses, processCourse } from "./import-discovery.js";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // ── Legacy single-pass pipeline ─────────────────────────────────────────────
 // used by the "canvas-import" message type; kept for in-flight messages
 // during the transition to two-phase (discover + per-file) processing.
 
-async function runJobPipeline(jobId, userId, courses) {
+async function runJobPipeline(
+  jobId: string,
+  userId: string,
+  courses: Array<unknown>,
+): Promise<void> {
   await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
 
   const [creds] =
@@ -48,7 +56,7 @@ async function runJobPipeline(jobId, userId, courses) {
 
 // ── Job entry point (legacy single-pass) ────────────────────────────────────
 
-export async function processImportJob(jobId) {
+export async function processImportJob(jobId: string): Promise<boolean> {
   console.log(`[${new Date().toISOString()}] Processing import job: ${jobId}`);
   try {
     const [job] =
@@ -74,7 +82,7 @@ export async function processImportJob(jobId) {
         JOIN app.canvas_imports ci ON ci.note_id = c.document_id
         WHERE ci.job_id = ${jobId}::uuid AND c.user_id = ${job.user_id}::uuid
       `;
-      const chunkIds = chunks.map((r) => r.id);
+      const chunkIds = chunks.map((r: { id: string }) => r.id);
       if (chunkIds.length > 0) {
         const { seedQuestionsAfterImport } =
           await import("../quiz/generate-background.ts");
@@ -84,7 +92,7 @@ export async function processImportJob(jobId) {
         );
       }
     } catch (seedErr) {
-      console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);
+      console.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
     }
 
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
@@ -92,7 +100,7 @@ export async function processImportJob(jobId) {
     return true;
   } catch (error) {
     console.error(`Job failed: ${jobId}`, error);
-    await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${error.message}, updated_at = NOW() WHERE id = ${jobId}`;
+    await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${errorMessage(error)}, updated_at = NOW() WHERE id = ${jobId}`;
     return false;
   }
 }

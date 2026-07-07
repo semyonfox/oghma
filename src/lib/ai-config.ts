@@ -7,9 +7,14 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
-const DEFAULT_LLM_MAX_TOOL_STEPS = 50;
+const DEFAULT_LLM_MAX_TOOL_STEPS = 10;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
 const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
+const DEFAULT_RERANK_TOP_N = 5;
+const DEFAULT_RERANK_MIN_RELEVANCE = 0.25;
+const DEFAULT_CHAT_MAX_DISTANCE = 0.75;
+const DEFAULT_EMBEDDING_BATCH_SIZE = 96;
+const DEFAULT_RAG_CHUNK_SIZE = 500;
 
 export type LlmThinkingMode = "auto" | "off";
 
@@ -22,6 +27,18 @@ function readBoundedInt(
   max: number,
 ): number {
   const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed < min) return fallback;
+  if (parsed > max) return max;
+  return parsed;
+}
+
+function readBoundedFloat(
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = Number.parseFloat(value ?? "");
   if (!Number.isFinite(parsed) || parsed < min) return fallback;
   if (parsed > max) return max;
   return parsed;
@@ -92,6 +109,39 @@ export function getCohereTimeoutMs(
     1_000,
     20_000,
   );
+}
+
+export function getRerankTopN(env: NodeJS.ProcessEnv = process.env): number {
+  return readBoundedInt(env.RERANK_TOP_N, DEFAULT_RERANK_TOP_N, 1, 100);
+}
+
+export function getRerankMinRelevance(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return readBoundedFloat(
+    env.RERANK_MIN_RELEVANCE,
+    DEFAULT_RERANK_MIN_RELEVANCE,
+    0,
+    1,
+  );
+}
+
+export function getChatMaxDistance(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return readBoundedFloat(env.CHAT_MAX_DISTANCE, DEFAULT_CHAT_MAX_DISTANCE, 0, 1);
+}
+
+export function getEmbeddingBatchSize(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return readBoundedInt(env.EMBEDDING_BATCH_SIZE, DEFAULT_EMBEDDING_BATCH_SIZE, 1, 500);
+}
+
+export function getRagChunkSize(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return readBoundedInt(env.RAG_CHUNK_SIZE, DEFAULT_RAG_CHUNK_SIZE, 50, 4_000);
 }
 
 export function createLlmProvider(env: NodeJS.ProcessEnv = process.env) {

@@ -7,13 +7,28 @@ import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-
 import logger from "@/lib/logger";
 import { streamText, generateText } from "ai";
 
-import { runRagPipeline, buildSystemPrompt, runKeywordFallback } from "@/lib/chat/rag-pipeline";
+import {
+  runRagPipeline,
+  buildSystemPrompt,
+  buildPlainSystemPrompt,
+  runKeywordFallback,
+  type RagResult,
+} from "@/lib/chat/rag-pipeline";
 import { persistMessage, type ChatMessage } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
-import { buildRetrievalInfo, buildFallbackReply } from "@/lib/chat/rag-context";
+import {
+  buildRetrievalInfo,
+  buildFallbackReply,
+  type RetrievalInfo,
+} from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
+import {
+  TOOL_CALL_LIMIT_USER_MESSAGE,
+  appendToolCallLimitMessage,
+  isToolCallLimitFinish,
+} from "@/lib/chat/tool-budget";
 import {
   type SseWriter,
   sendConnected,
@@ -34,6 +49,22 @@ function resolveChatThinkingMode(
   if (requestedThinkingMode !== undefined) return "auto";
   return getLlmThinkingMode();
 }
+
+// neutral results used when note retrieval (RAG) is turned off for a message
+const EMPTY_RAG_RESULT: RagResult = {
+  searchResults: [],
+  semanticMatches: [],
+  embeddingAvailable: false,
+  ragFailed: false,
+};
+
+const EMPTY_RETRIEVAL: RetrievalInfo = {
+  scopeMode: "global",
+  availableCount: 0,
+  availableFiles: [],
+  semanticHits: [],
+  usedFiles: [],
+};
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -56,6 +87,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     history: requestHistory = [],
     stream = false,
     thinkingMode: requestedThinkingMode,
+    useRag = true,
   }: {
     message: string;
     noteId?: string;
@@ -68,6 +100,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     history?: ChatMessage[];
     stream?: boolean;
     thinkingMode?: unknown;
+    useRag?: boolean;
   } = body;
 
   const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
@@ -87,13 +120,66 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   // ── streaming response ─────────────────────────────────────────────────────
   if (stream) {
+    const chatStreamId = crypto.randomUUID();
+    const startedAt = Date.now();
+    let clientDisconnected = false;
+    let streamClosed = false;
+    let bytesSent = 0;
+    let lastEvent = "init";
+
+    const markClientDisconnected = (reason: unknown) => {
+      if (clientDisconnected) return;
+      clientDisconnected = true;
+      logger.warn("Chat stream client disconnected", {
+        chatStreamId,
+        elapsedMs: Date.now() - startedAt,
+        bytesSent,
+        lastEvent,
+        reason:
+          reason instanceof Error
+            ? reason.message
+            : typeof reason === "string"
+              ? reason
+              : String(reason ?? "unknown"),
+      });
+    };
+
     return new NextResponse(
       new ReadableStream({
         start(controller) {
           void (async () => {
-            const writer: SseWriter = controller;
+            const writer: SseWriter = {
+              enqueue(chunk) {
+                if (clientDisconnected || streamClosed) return;
+                try {
+                  controller.enqueue(chunk);
+                  bytesSent += chunk.byteLength;
+                } catch (error) {
+                  markClientDisconnected(error);
+                }
+              },
+              close() {
+                if (streamClosed) return;
+                streamClosed = true;
+                if (clientDisconnected) return;
+                try {
+                  controller.close();
+                } catch (error) {
+                  markClientDisconnected(error);
+                }
+              },
+            };
             try {
+              logger.info("Chat stream started", {
+                chatStreamId,
+                userId,
+                requestedSession: Boolean(requestedSessionId),
+                scopedNoteCount: noteIds.length + (noteId ? 1 : 0),
+                scopedFolderCount: folderIds.length,
+                thinkingMode,
+              });
               sendConnected(writer);
+              lastEvent = "connected";
 
               const scope = await normalizeScope(
                 userId,
@@ -104,24 +190,23 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 requestHistory,
               );
 
-              const ragResult = await runRagPipeline(
-                userId,
-                message,
-                scope.scopedNoteIds,
-              );
+              const ragResult = useRag
+                ? await runRagPipeline(userId, message, scope.scopedNoteIds)
+                : EMPTY_RAG_RESULT;
 
-              const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
-                ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-                : [];
-              const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
+              const fallbackResults =
+                useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
+                  ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+                  : [];
+              const systemPrompt = useRag
+                ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
+                : buildPlainSystemPrompt();
               const sessionMemoryPrompt = buildSessionMemoryPrompt(
                 scope.sessionContext,
               );
-              const { uniqueSources, retrieval } = await buildRetrievalInfo(
-                userId,
-                scope.scopedNoteIds,
-                ragResult,
-              );
+              const { uniqueSources, retrieval } = useRag
+                ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
+                : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
 
               const {
                 model,
@@ -140,6 +225,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 systemPrompt,
                 sessionMemoryPrompt,
                 thinkingMode,
+                retrievalEnabled: useRag,
                 requestOrigin: request.nextUrl.origin,
                 referer: request.headers.get("referer"),
               });
@@ -152,7 +238,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 !ragResult.ragFailed,
                 llmAvailable,
               );
+              lastEvent = "meta";
               sendSearch(writer, scope.scopedNoteIds, ragResult.searchResults);
+              lastEvent = "search";
 
               if (!llmAvailable) {
                 const fallback = buildFallbackReply(
@@ -167,6 +255,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   { sources: uniqueSources },
                 );
                 sendDone(writer);
+                lastEvent = "done";
+                logger.info("Chat stream completed with fallback response", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
@@ -238,6 +334,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     reply += part.text;
                     pendingText += part.text;
                     sendToken(writer, part.text);
+                    lastEvent = "token";
                   } else if (part.type === "tool-call") {
                     toolCallCount += 1;
                     flushText();
@@ -247,6 +344,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       label: labelForTool(part.toolName),
                     });
                     sendToolCall(writer, part.toolName);
+                    lastEvent = "tool-call";
                   } else if (part.type === "finish-step") {
                     stepCount += 1;
                     finishReason = part.finishReason;
@@ -269,6 +367,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 const interrupted =
                   "Response interrupted while generating. Partial output was saved.";
                 logger.error("LLM stream interrupted", {
+                  chatStreamId,
                   error: detail,
                   model: getLlmModel(),
                   thinkingMode,
@@ -298,6 +397,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   });
                 }
                 sendError(writer, interrupted);
+                lastEvent = "error";
                 writer.close();
                 return;
               } finally {
@@ -307,9 +407,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               flushText();
               void Metrics.llmLatency(Date.now() - t0);
 
-              if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
-                const limitMessage =
-                  "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
+              if (
+                isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)
+              ) {
                 logger.warn("LLM stream hit tool-call step limit", {
                   model: getLlmModel(),
                   thinkingMode,
@@ -317,16 +417,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   stepCount,
                   toolCallCount,
                 });
-                parts.push({ type: "error", text: limitMessage });
+                const limitNotice = appendToolCallLimitMessage(reply);
+                reply = limitNotice.reply;
+                pendingText += limitNotice.delta;
+                sendToken(writer, limitNotice.delta);
+                lastEvent = "token";
+                flushText();
                 await persistAssistant(
                   reply,
                   buildMetadata({
                     partial: true,
-                    error: limitMessage,
+                    error: TOOL_CALL_LIMIT_USER_MESSAGE,
                     toolCallLimitHit: true,
                   }),
                 );
-                sendError(writer, limitMessage);
+                sendDone(writer);
+                lastEvent = "done";
+                logger.warn("Chat stream completed after tool-call limit", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
@@ -335,10 +448,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 const emptyReply =
                   "I couldn't generate an answer this time. Please try again.";
                 logger.error("LLM stream returned empty response", {
+                  chatStreamId,
                   model: getLlmModel(),
                   thinkingMode,
                 });
                 sendToken(writer, emptyReply);
+                lastEvent = "token";
                 await persistMessage(
                   scope.sessionId,
                   "assistant",
@@ -349,26 +464,57 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   },
                 );
                 sendDone(writer);
+                lastEvent = "done";
+                logger.info("Chat stream completed with empty-response fallback", {
+                  chatStreamId,
+                  sessionId: scope.sessionId,
+                  elapsedMs: Date.now() - startedAt,
+                  bytesSent,
+                  clientDisconnected,
+                });
                 writer.close();
                 return;
               }
 
               await persistAssistant(reply, buildMetadata());
               sendDone(writer);
+              lastEvent = "done";
+              logger.info("Chat stream completed", {
+                chatStreamId,
+                sessionId: scope.sessionId,
+                elapsedMs: Date.now() - startedAt,
+                bytesSent,
+                clientDisconnected,
+                replyLength: reply.length,
+                thinkingLength: thinking.length,
+                stepCount,
+                toolCallCount,
+                finishReason,
+                rawFinishReason,
+              });
               writer.close();
             } catch (error) {
               void Metrics.llmError();
               const detail =
                 error instanceof Error ? error.message : String(error);
               logger.error("LLM stream failed", {
+                chatStreamId,
                 error: detail,
                 model: getLlmModel(),
                 thinkingMode,
+                elapsedMs: Date.now() - startedAt,
+                bytesSent,
+                clientDisconnected,
+                lastEvent,
               });
               sendError(writer, "Failed to generate response");
+              lastEvent = "error";
               writer.close();
             }
           })();
+        },
+        cancel(reason) {
+          markClientDisconnected(reason);
         },
       }),
       {
@@ -393,22 +539,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     requestHistory,
   );
 
-  const ragResult = await runRagPipeline(
-    userId,
-    message,
-    scope.scopedNoteIds,
-  );
+  const ragResult = useRag
+    ? await runRagPipeline(userId, message, scope.scopedNoteIds)
+    : EMPTY_RAG_RESULT;
 
-  const fallbackResults = scope.scopedNoteIds && ragResult.searchResults.length === 0
-    ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-    : [];
-  const systemPrompt = buildSystemPrompt([...ragResult.searchResults, ...fallbackResults]);
+  const fallbackResults =
+    useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
+      ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
+      : [];
+  const systemPrompt = useRag
+    ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
+    : buildPlainSystemPrompt();
   const sessionMemoryPrompt = buildSessionMemoryPrompt(scope.sessionContext);
-  const { uniqueSources, retrieval } = await buildRetrievalInfo(
-    userId,
-    scope.scopedNoteIds,
-    ragResult,
-  );
+  const { uniqueSources, retrieval } = useRag
+    ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
+    : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
 
   const { model, llmCallOptions, canvasMcpClient, maxToolSteps } =
     await buildLlmCall({
@@ -422,6 +567,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       systemPrompt,
       sessionMemoryPrompt,
       thinkingMode,
+      retrievalEnabled: useRag,
       requestOrigin: request.nextUrl.origin,
       referer: request.headers.get("referer"),
     });
@@ -475,23 +621,33 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       toolCallCount,
     };
 
-    if (finishReason === "tool-calls" && stepCount >= maxToolSteps) {
-      const limitMessage =
-        "I hit the tool-call limit before I could finish. Please try again with a narrower request.";
-      await persistMessage(scope.sessionId, "assistant", reply, {
+    if (isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)) {
+      const limitNotice = appendToolCallLimitMessage(reply);
+      await persistMessage(scope.sessionId, "assistant", limitNotice.reply, {
         parts: [
           ...(reply ? [{ type: "text" as const, text: reply }] : []),
-          { type: "error" as const, text: limitMessage },
+          { type: "text" as const, text: limitNotice.delta },
         ],
         sources: uniqueSources,
         metadata: {
           ...metadata,
           partial: true,
-          error: limitMessage,
+          error: TOOL_CALL_LIMIT_USER_MESSAGE,
           toolCallLimitHit: true,
         },
       });
-      return tracedError(limitMessage, 502);
+      return NextResponse.json({
+        reply: limitNotice.reply,
+        sources: uniqueSources,
+        retrieval,
+        llmAvailable: true,
+        ragAvailable: !ragResult.ragFailed,
+        sessionId: scope.sessionId,
+        searchContext,
+        partial: true,
+        error: TOOL_CALL_LIMIT_USER_MESSAGE,
+        toolCallLimitHit: true,
+      });
     }
 
     await persistMessage(scope.sessionId, "assistant", reply, {

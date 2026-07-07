@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { validateSession } from "@/lib/auth.js";
+import { validateSession } from "@/lib/auth";
 import { getLinkedProviders } from "@/lib/auth-oauth";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";

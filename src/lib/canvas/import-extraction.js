@@ -866,6 +866,12 @@ export async function processMarkerComplete(msg) {
           source: "marker",
           markerImages: images,
           markerMetadata: metadata,
+          // runpod marker echoes the applied page_range in its response, so a
+          // stored page-limited result is recorded as partial coverage
+          pageRange:
+            typeof markerOutput.page_range === "string" && markerOutput.page_range
+              ? markerOutput.page_range
+              : null,
         },
       },
       findOrCreateNote,

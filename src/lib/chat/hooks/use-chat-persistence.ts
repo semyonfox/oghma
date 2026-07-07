@@ -6,6 +6,15 @@ import { normalizeMessageParts } from "@/lib/chat/types";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
+const USE_RAG_KEY = "chat-use-rag";
+
+function logChatPersistence(
+  message: string,
+  details: Record<string, unknown> = {},
+): void {
+  if (typeof console === "undefined") return;
+  console.debug(`[chat-persistence] ${message}`, details);
+}
 
 interface PersistenceRefs {
   messages: Message[];
@@ -21,6 +30,9 @@ interface UseChatPersistenceOptions {
 interface UseChatPersistenceResult {
   thinkingMode: LlmThinkingMode;
   toggleThinking: () => void;
+  /** whether note retrieval (RAG) is enabled for new messages */
+  useRag: boolean;
+  toggleRag: () => void;
   restoredMessages: Message[] | null;
   restored: boolean;
   /** keep refs in sync so unload handlers see fresh values */
@@ -56,6 +68,26 @@ export function useChatPersistence(
     if (typeof window === "undefined") return;
     window.localStorage.setItem(THINKING_MODE_KEY, thinkingMode);
   }, [thinkingMode]);
+
+  // note retrieval (RAG) toggle — defaults on
+  const [useRag, setUseRag] = useState<boolean>(true);
+
+  const toggleRag = useCallback(() => {
+    setUseRag((current) => !current);
+  }, []);
+
+  // restore RAG preference from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(USE_RAG_KEY);
+    setUseRag(saved === null ? true : saved !== "false");
+  }, []);
+
+  // persist RAG preference changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(USE_RAG_KEY, String(useRag));
+  }, [useRag]);
 
   // session restore
   const [restored, setRestored] = useState(false);
@@ -184,10 +216,19 @@ export function useChatPersistence(
     const saveDraft = () => {
       if (!loadingRef.current) return;
       const sid = sessionIdRef.current;
-      if (!sid) return;
+      if (!sid) {
+        logChatPersistence("skipped draft save without session id");
+        return;
+      }
       const msgs = messagesRef.current;
       const last = msgs[msgs.length - 1];
-      if (!last || last.role !== "assistant" || !last.content) return;
+      if (!last || last.role !== "assistant" || !last.content) {
+        logChatPersistence("skipped draft save without assistant content", {
+          hasLastMessage: Boolean(last),
+          lastRole: last?.role,
+        });
+        return;
+      }
 
       const draft = {
         content: last.content,
@@ -197,14 +238,33 @@ export function useChatPersistence(
       };
       try {
         sessionStorage.setItem(`chat-draft:${sid}`, JSON.stringify(draft));
+        logChatPersistence("saved partial draft", {
+          sessionId: sid,
+          contentLength: last.content.length,
+          hasThinking: Boolean(last.thinking),
+        });
       } catch {
+        logChatPersistence("failed to save partial draft", {
+          sessionId: sid,
+          contentLength: last.content.length,
+        });
         // sessionStorage quota exceeded or unavailable
       }
     };
 
-    const handleBeforeUnload = () => saveDraft();
+    const handleBeforeUnload = () => {
+      logChatPersistence("beforeunload while streaming", {
+        loading: loadingRef.current,
+      });
+      saveDraft();
+    };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") saveDraft();
+      if (document.visibilityState === "hidden") {
+        logChatPersistence("document hidden while streaming", {
+          loading: loadingRef.current,
+        });
+        saveDraft();
+      }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -218,6 +278,8 @@ export function useChatPersistence(
   return {
     thinkingMode,
     toggleThinking,
+    useRag,
+    toggleRag,
     restoredMessages,
     restored,
     updateRefs,

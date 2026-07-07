@@ -1,7 +1,7 @@
 import sql from "@/database/pgsql.js";
 import { sendPasswordResetEmail } from "@/lib/email.js";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth.js";
-import { generateSecureToken, hashToken } from "@/lib/tokens.js";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth";
+import { generateSecureToken, hashToken } from "@/lib/tokens";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";

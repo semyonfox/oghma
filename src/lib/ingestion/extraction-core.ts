@@ -10,6 +10,8 @@ export interface ExtractionResult {
   source: ExtractionSource;
   markerImages?: MarkerImages;
   markerMetadata?: unknown;
+  // page range marker was asked to extract; null/absent means full document
+  pageRange?: string | null;
 }
 
 interface ExtractContentParams {
@@ -59,6 +61,7 @@ export async function extractContentFromBuffer({
         source: "marker",
         markerImages: marker.images ?? {},
         markerMetadata: marker.metadata ?? null,
+        pageRange: marker.pageRange,
       };
     } catch {
       // fall through to pdf-parse / skipped

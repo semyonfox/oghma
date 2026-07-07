@@ -12,6 +12,16 @@ function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function logChatStream(
+  level: "debug" | "info" | "warn" | "error",
+  message: string,
+  details: Record<string, unknown> = {},
+): void {
+  if (typeof console === "undefined") return;
+  const logger = console[level] ?? console.log;
+  logger(`[chat-stream] ${message}`, details);
+}
+
 interface UseChatStreamOptions {
   /** translate function from i18n */
   t: (key: string) => string;
@@ -20,6 +30,8 @@ interface UseChatStreamOptions {
   selectedNotes: ChatContextItem[];
   selectedFolders: ChatContextItem[];
   thinkingMode: LlmThinkingMode;
+  /** whether to retrieve note context (RAG). Off = plain chat, saves tokens. */
+  useRag: boolean;
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** called when a stream completes — useful for refreshing session list order */
   onStreamComplete?: () => void;
@@ -143,6 +155,7 @@ export function useChatStream(
     selectedNotes,
     selectedFolders,
     thinkingMode,
+    useRag,
     onSessionCreated,
     onStreamComplete,
   } = options;
@@ -204,6 +217,14 @@ export function useChatStream(
 
         const controller = new AbortController();
         abortControllerRef.current = controller;
+        logChatStream("info", "starting request", {
+          endpoint,
+          assistantId,
+          hasSessionId: Boolean(sessionId),
+          noteCount: selectedNotes.length,
+          folderCount: selectedFolders.length,
+          thinkingMode,
+        });
 
         const res = await fetch(endpoint, {
           method: "POST",
@@ -221,6 +242,7 @@ export function useChatStream(
             history,
             stream: true,
             thinkingMode,
+            useRag,
             clientDateTime: (() => {
               const d = new Date();
               const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -270,6 +292,10 @@ export function useChatStream(
         }
 
         const { timeBlockChanged } = await consumeStream(res.body, assistantId, text);
+        logChatStream("info", "stream completed", {
+          assistantId,
+          sessionId: sessionIdRef.current,
+        });
         const completionTime = Date.now();
         setMessages((prev) =>
           prev.map((m) =>
@@ -282,9 +308,20 @@ export function useChatStream(
         clearDraft(sessionIdRef.current);
         onStreamComplete?.();
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
+        if (err instanceof Error && err.name === "AbortError") {
+          logChatStream("warn", "request aborted by client", {
+            assistantId,
+            sessionId: sessionIdRef.current,
+          });
+          return;
+        }
         const errMsg =
           err instanceof Error ? err.message : t("error.something_went_wrong");
+        logChatStream("error", "stream failed", {
+          assistantId,
+          sessionId: sessionIdRef.current,
+          error: errMsg,
+        });
         const friendlyMessage = toFriendlyChatError(errMsg);
         setError(
           friendlyMessage.includes("temporarily unavailable")
@@ -304,6 +341,7 @@ export function useChatStream(
       selectedFolders,
       sessionId,
       thinkingMode,
+      useRag,
       loading,
     ],
   );
@@ -337,6 +375,8 @@ export function useChatStream(
     userText: string,
   ): Promise<{ timeBlockChanged: boolean }> {
     let timeBlockChanged = false;
+    let sawDone = false;
+    let frameCount = 0;
     const reader = body.getReader();
     const decoder = new TextDecoder();
     const parseState = { buffer: "" };
@@ -349,8 +389,18 @@ export function useChatStream(
 
       if (chunk) {
         for (const frame of parseSseBlocks(chunk, parseState)) {
+          frameCount += 1;
           const update = parseSseFrame(frame);
           if (!update) continue;
+
+          if (update.type === "done") {
+            sawDone = true;
+            logChatStream("debug", "received done event", {
+              assistantId,
+              frameCount,
+            });
+            continue;
+          }
 
           if (update.type === "error") {
             setMessages((prev) =>
@@ -365,6 +415,11 @@ export function useChatStream(
 
           if (update.type === "meta") {
             handleNewSession(update.sessionId, userText);
+            logChatStream("debug", "received metadata", {
+              assistantId,
+              sessionId: update.sessionId,
+              sources: update.sources?.length ?? 0,
+            });
           }
 
           if (
@@ -389,6 +444,14 @@ export function useChatStream(
 
       // yield to the macrotask queue so React can flush pending renders
       await new Promise<void>((r) => setTimeout(r, 0));
+    }
+    if (!sawDone) {
+      logChatStream("warn", "stream ended without done event", {
+        assistantId,
+        frameCount,
+        bufferedBytes: parseState.buffer.length,
+      });
+      throw new Error("Response stream ended before completion");
     }
     return { timeBlockChanged };
   }

@@ -1,6 +1,6 @@
 // tool definitions, parent folder hints, and LLM call options assembly
 
-import { tool, stepCountIs } from "ai";
+import { tool } from "ai";
 import type { ToolSet } from "ai";
 import { z } from "zod";
 import sql from "@/database/pgsql.js";
@@ -9,11 +9,16 @@ import { addNoteToTree, moveNoteInTree } from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
-import { processExtractedText } from "@/lib/canvas/text-processing.js";
+import { processExtractedText } from "@/lib/canvas/text-processing";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
+import {
+  buildToolBudgetInstruction,
+  buildToolBudgetControls,
+  type ToolBudgetControls,
+} from "@/lib/chat/tool-budget";
 import {
   type ChatMessage,
   type ChatSessionContext,
@@ -63,6 +68,8 @@ export interface BuildLlmCallParams {
   systemPrompt: string;
   sessionMemoryPrompt: string;
   thinkingMode: LlmThinkingMode;
+  /** when false, the note-retrieval tools + SEARCH instruction are omitted (RAG off) */
+  retrievalEnabled?: boolean;
   clientDateTime?: string;
   requestOrigin: string;
   referer: string | null;
@@ -75,7 +82,8 @@ export interface LlmCallResult {
     messages: ChatMessage[];
     maxOutputTokens: number;
     temperature?: number;
-    stopWhen: ReturnType<typeof stepCountIs>;
+    stopWhen: ToolBudgetControls["stopWhen"];
+    prepareStep: ToolBudgetControls["prepareStep"];
     tools: ToolSet;
     providerOptions: { openrouter: { reasoning?: LlmReasoningOptions } };
   };
@@ -122,18 +130,24 @@ async function resolveParentFolderHint(
 function buildToolInstruction(
   scopedParentHint: string,
   canvasInstruction: string,
+  toolBudgetInstruction: string,
+  retrievalEnabled: boolean,
   clientDateTime?: string,
 ): string {
   const now = clientDateTime ?? new Date().toISOString();
+  const searchInstruction = retrievalEnabled
+    ? "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
+      "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n"
+    : "";
   return (
     `Current date/time: ${now}\n\n` +
     "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
-    "SEARCH: getChunks → readNote. Start with getChunks (prefer scope='session', use 'all' when session isn't enough). Use readNote only after getChunks identifies the right note.\n" +
-    "IMPORTANT: When notes or folders are listed in SESSION MEMORY scope, the user has explicitly attached them. If NOTES CONTEXT is empty or thin, ALWAYS call getChunks(scope='session', mode='both') before answering any question about those notes. If getChunks still returns nothing, call readNote(noteId) directly using the note IDs from SESSION MEMORY — readNote returns the full content up to 20,000 characters.\n" +
+    searchInstruction +
     "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
     "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
     "CALENDAR: getTimeBlocks lists existing calendar blocks for a date range. addTimeBlock creates a new scheduled study block with pomodoro tracking. completeTimeBlock marks a block done. These are NOT notes.\n\n" +
-    "Key distinction: scheduling/study blocks/time blocks/calendar → addTimeBlock. Writing/saving/documenting → makeMDNote. Never create a note when the user wants a calendar block." +
+    "Key distinction: scheduling/study blocks/time blocks/calendar → addTimeBlock. Writing/saving/documenting → makeMDNote. Never create a note when the user wants a calendar block.\n\n" +
+    toolBudgetInstruction +
     scopedParentHint +
     (canvasInstruction ? `\n\n${canvasInstruction}` : "")
   );
@@ -144,6 +158,7 @@ function createChatTools(
   sessionId: string,
   scopedNoteIds: string[] | null,
   canvasTools: ToolSet,
+  retrievalEnabled: boolean,
 ): { tools: ToolSet } {
   const makeMDNote = tool({
     description:
@@ -521,8 +536,8 @@ function createChatTools(
 
   return {
     tools: {
-      getChunks,
-      readNote,
+      // retrieval tools are omitted when RAG is off (plain-chat mode)
+      ...(retrievalEnabled ? { getChunks, readNote } : {}),
       findFolder,
       makeMDNote,
       moveNote,
@@ -557,17 +572,24 @@ export async function buildLlmCall(
     appOrigin,
   });
 
-  const toolInstruction = buildToolInstruction(
-    scopedParentHint,
-    canvasInstruction,
-    params.clientDateTime,
-  );
-
+  const retrievalEnabled = params.retrievalEnabled ?? true;
   const { tools } = createChatTools(
     params.userId,
     params.sessionId,
     params.scopedNoteIds,
     canvasTools,
+    retrievalEnabled,
+  );
+
+  const reasoning = buildReasoningOptions(params.thinkingMode);
+  const maxToolSteps = getLlmMaxToolSteps();
+  const toolBudget = buildToolBudgetControls(maxToolSteps, tools);
+  const toolInstruction = buildToolInstruction(
+    scopedParentHint,
+    canvasInstruction,
+    buildToolBudgetInstruction(maxToolSteps),
+    retrievalEnabled,
+    params.clientDateTime,
   );
 
   const chatMessages: ChatMessage[] = [
@@ -588,9 +610,6 @@ export async function buildLlmCall(
   const provider = createLlmProvider();
   const model = provider ? provider(getLlmModel()) : null;
 
-  const reasoning = buildReasoningOptions(params.thinkingMode);
-  const maxToolSteps = getLlmMaxToolSteps();
-
   return {
     model,
     llmAvailable: !!model,
@@ -598,8 +617,9 @@ export async function buildLlmCall(
       messages: chatMessages,
       maxOutputTokens: getLlmMaxTokens(),
       ...(params.thinkingMode !== "off" && { temperature: 1 }),
-      stopWhen: stepCountIs(maxToolSteps),
-      tools,
+      stopWhen: toolBudget.stopWhen,
+      prepareStep: toolBudget.prepareStep,
+      tools: toolBudget.tools,
       providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
     },
     canvasMcpClient,

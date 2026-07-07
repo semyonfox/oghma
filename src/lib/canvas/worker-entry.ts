@@ -4,7 +4,7 @@
  * Queue workers for canvas-import + extract-retry queues, plus a DB safety-net
  * that reclaims jobs whose enqueue dropped (atomic UPDATE claims queued orphans).
  *
- * Run: npx tsx src/lib/canvas/worker-entry.js
+ * Run: npx tsx src/lib/canvas/worker-entry.ts
  */
 
 import sql from "../../database/pgsql.js";
@@ -17,6 +17,7 @@ import {
   getQueueConnection,
   parseCloudflareQueueBody,
   pullCloudflareQueueMessages,
+  type CloudflarePulledMessage,
 } from "../queue.ts";
 import {
   processImportJob,
@@ -25,8 +26,8 @@ import {
   processExtractionRetry,
   processDirectExtraction,
   processMarkerComplete,
-} from "./import-worker.js";
-import { processVaultImport } from "../vault/import-worker.js";
+} from "./import-worker";
+import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
@@ -46,7 +47,38 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   10,
 );
 
-async function failStuckJobs() {
+type CanvasJobData = Record<string, unknown>;
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function requireJobData(job: { data?: CanvasJobData }): CanvasJobData {
+  if (!job.data) {
+    throw new Error("Job data is missing");
+  }
+  return job.data;
+}
+
+function requireString(data: CanvasJobData, field: string): string {
+  const value = data[field];
+  if (typeof value !== "string") {
+    throw new Error(`Job data field ${field} is missing or invalid`);
+  }
+  return value;
+}
+
+function requireCanvasFileData(
+  data: CanvasJobData,
+): { importRecordId: string; jobId: string; userId: string } {
+  return {
+    importRecordId: requireString(data, "importRecordId"),
+    jobId: requireString(data, "jobId"),
+    userId: requireString(data, "userId"),
+  };
+}
+
+async function failStuckJobs(): Promise<void> {
   const stuck = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'failed', error_message = 'Job timed out', updated_at = NOW()
@@ -62,7 +94,7 @@ async function failStuckJobs() {
 
 // reclaim queued jobs that never made it onto the BullMQ queue (rare —
 // happens when API enqueue throws or the worker died mid-discovery).
-async function claimOrphanedJobs() {
+async function claimOrphanedJobs(): Promise<boolean> {
   const queuedOrphans = await sql`
     UPDATE app.canvas_import_jobs
     SET status = 'discovering', started_at = NOW()
@@ -91,45 +123,50 @@ async function claimOrphanedJobs() {
     } catch (err) {
       console.error(
         `[${new Date().toISOString()}] orphan re-enqueue failed:`,
-        err?.message,
+        errorMessage(err),
       );
     }
   }
   return true;
 }
 
-export async function processCanvasJob(job) {
+export async function processCanvasJob(job: {
+  data?: Record<string, unknown>;
+  name?: string;
+  id?: string;
+}): Promise<void> {
   const ts = () => new Date().toISOString();
-  const type = job.data?.type ?? job.name;
+  const data = job.data ?? {};
+  const type = typeof data.type === "string" ? data.type : job.name;
   console.log(
-    `[${ts()}] Received ${type}: ${job.data?.jobId ?? job.data?.userId ?? job.id}`,
+    `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
   );
 
   switch (type) {
     case "canvas-discover":
-      await processDiscoverJob(job.data.jobId);
+      await processDiscoverJob(requireString(requireJobData(job), "jobId"));
       return;
     case "canvas-file":
-      await processCanvasFile(job.data);
+      await processCanvasFile(requireCanvasFileData(requireJobData(job)));
       return;
     // legacy message type — kept for any in-flight messages during deploy
     case "canvas-import":
-      await processImportJob(job.data.jobId);
+      await processImportJob(requireString(requireJobData(job), "jobId"));
       return;
     case "extract":
-      await processDirectExtraction(job.data);
+      await processDirectExtraction(requireJobData(job));
       return;
     case "extract-retry":
-      await processExtractionRetry(job.data);
+      await processExtractionRetry(requireJobData(job));
       return;
     case "marker-complete":
-      await processMarkerComplete(job.data);
+      await processMarkerComplete(requireJobData(job));
       return;
     case "vault-export":
-      await processVaultExport(job.data);
+      await processVaultExport(requireJobData(job));
       return;
     case "vault-import":
-      await processVaultImport(job.data);
+      await processVaultImport(requireJobData(job));
       return;
     default:
       console.warn(`[${ts()}] Unknown job type: ${type}`);
@@ -146,20 +183,22 @@ setInterval(async () => {
   try {
     await claimOrphanedJobs();
   } catch (err) {
-    console.error(`[${new Date().toISOString()}] DB poll error:`, err?.message);
+    console.error(`[${new Date().toISOString()}] DB poll error:`, errorMessage(err));
   }
 }, DB_POLL_INTERVAL_MS);
 
-let workers = [];
+let workers: Array<{ close: () => Promise<void> }> = [];
 let shuttingDown = false;
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cloudflareJobFromMessage(message) {
+function cloudflareJobFromMessage(
+  message: CloudflarePulledMessage,
+): { id: string; name: string; data: CanvasJobData } {
   const data = parseCloudflareQueueBody(message);
-  const type = data.type ?? "unknown";
+  const type = typeof data.type === "string" ? data.type : "unknown";
   return {
     id: message.id,
     name: type,
@@ -167,7 +206,7 @@ function cloudflareJobFromMessage(message) {
   };
 }
 
-async function processCloudflareQueueBatch(queueName) {
+async function processCloudflareQueueBatch(queueName: string): Promise<boolean> {
   const batch = await pullCloudflareQueueMessages(queueName, {
     batchSize: MAX_CONCURRENT_JOBS,
     visibilityTimeoutMs: CF_QUEUE_VISIBILITY_TIMEOUT_MS,
@@ -175,8 +214,8 @@ async function processCloudflareQueueBatch(queueName) {
 
   if (batch.messages.length === 0) return false;
 
-  const acks = [];
-  const retries = [];
+  const acks: string[] = [];
+  const retries: { lease_id: string; delay_seconds: number }[] = [];
   await Promise.all(
     batch.messages.map(async (message) => {
       try {
@@ -185,7 +224,7 @@ async function processCloudflareQueueBatch(queueName) {
       } catch (err) {
         console.error(
           `[${new Date().toISOString()}] Cloudflare queue job ${message.id} failed:`,
-          err?.message,
+          errorMessage(err),
         );
         retries.push({
           lease_id: message.lease_id,
@@ -199,7 +238,7 @@ async function processCloudflareQueueBatch(queueName) {
   return true;
 }
 
-async function startCloudflarePullLoop(queueName) {
+async function startCloudflarePullLoop(queueName: string): Promise<void> {
   console.log(
     `[${new Date().toISOString()}] Starting Cloudflare pull consumer for ${queueName}`,
   );
@@ -213,14 +252,14 @@ async function startCloudflarePullLoop(queueName) {
     } catch (err) {
       console.error(
         `[${new Date().toISOString()}] Cloudflare pull error for ${queueName}:`,
-        err?.message,
+        errorMessage(err),
       );
       await sleep(CF_QUEUE_EMPTY_POLL_INTERVAL_MS);
     }
   }
 }
 
-async function startBullMqWorkers() {
+async function startBullMqWorkers(): Promise<void> {
   const { Worker } = await import("bullmq");
   const connection = getQueueConnection();
 
@@ -243,11 +282,11 @@ async function startBullMqWorkers() {
     w.on("failed", (job, err) => {
       console.error(
         `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
-        err?.message,
+        errorMessage(err),
       );
     });
     w.on("error", (err) => {
-      console.error(`[${new Date().toISOString()}] Worker error:`, err?.message);
+      console.error(`[${new Date().toISOString()}] Worker error:`, errorMessage(err));
     });
   }
 
@@ -261,7 +300,7 @@ if (getQueueProvider() === "cloudflare") {
   await startBullMqWorkers();
 }
 
-const shutdown = async (signal) => {
+const shutdown = async (signal: string): Promise<void> => {
   shuttingDown = true;
   console.log(
     `[${new Date().toISOString()}] received ${signal}, draining workers`,

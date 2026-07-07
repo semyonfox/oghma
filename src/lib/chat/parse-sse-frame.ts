@@ -1,6 +1,7 @@
 import type { SseFrame } from "@/lib/chat/sse";
 import type { Message, SearchContextData } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
+import { Metrics } from "@/lib/metrics";
 
 export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 
@@ -11,6 +12,7 @@ export type MessageUpdate =
   | { type: "thinking"; text: string }
   | { type: "token"; text: string; thinkingDuration?: number }
   | { type: "tool-call"; label: string; toolName: string }
+  | { type: "done" }
   | { type: "error"; message: string };
 
 /**
@@ -22,6 +24,12 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
   try {
     payload = JSON.parse(frame.data);
   } catch {
+    console.warn("Malformed SSE frame payload", {
+      event: frame.event,
+      payloadPreview: frame.data.slice(0, 120),
+      payloadLength: frame.data.length,
+    });
+    void Metrics.sseParseError();
     payload = {};
   }
 
@@ -36,11 +44,16 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     }
 
     case "search": {
+      const scopeSize =
+        typeof payload.scopeSize === "number" ? payload.scopeSize : null;
+      const resultsFound =
+        typeof payload.resultsFound === "number" ? payload.resultsFound : 0;
+
       return {
         type: "search",
         searchContext: {
-          scopeSize: (payload.scopeSize as number) ?? null,
-          resultsFound: (payload.resultsFound as number) ?? 0,
+          scopeSize,
+          resultsFound,
           results: Array.isArray(payload.results)
             ? (payload.results as SearchContextData["results"])
             : [],
@@ -70,6 +83,9 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       const message = typeof payload.message === "string" ? payload.message : "";
       return { type: "error", message };
     }
+
+    case "done":
+      return { type: "done" };
 
     default:
       return null;

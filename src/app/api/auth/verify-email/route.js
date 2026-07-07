@@ -3,8 +3,8 @@ import {
   createAuthSession,
   createErrorResponse,
   parseJsonBody,
-} from "@/lib/auth.js";
-import { verifyTokenHash } from "@/lib/tokens.js";
+} from "@/lib/auth";
+import { verifyTokenHash } from "@/lib/tokens";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";

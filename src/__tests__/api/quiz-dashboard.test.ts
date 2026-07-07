@@ -13,6 +13,7 @@ vi.mock("@/lib/auth", () => ({
 import sql from "@/database/pgsql.js";
 import { validateSession } from "@/lib/auth";
 import { GET as getDashboard } from "@/app/api/quiz/dashboard/route";
+import { NextRequest } from "next/server";
 
 describe("GET /api/quiz/dashboard", () => {
   beforeEach(() => {
@@ -30,7 +31,9 @@ describe("GET /api/quiz/dashboard", () => {
   });
 
   it("filters archived courses in aggregate card and review queries", async () => {
-    const response = await getDashboard();
+    const response = await getDashboard(
+      new NextRequest("http://localhost/api/quiz/dashboard"),
+    );
 
     expect(response.status).toBe(200);
 

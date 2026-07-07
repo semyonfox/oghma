@@ -7,12 +7,62 @@ import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import { Checkbox, CheckboxField } from "@/components/catalyst/checkbox";
 import { inputClass, saveBtnClass } from "./settings-utils";
 
+const FALLBACK_ACTIVE_MODEL = "deepseek/deepseek-v3.2";
+
+const MODEL_OPTIONS = [
+  {
+    value: "deepseek/deepseek-v3.2",
+    label: "DeepSeek V3.2",
+    usageLabel: "1x usage",
+  },
+  {
+    value: "kimi-k2.5",
+    label: "Kimi K2.5",
+    usageLabel: "higher usage",
+  },
+  {
+    value: "kimi-k2.7",
+    label: "Kimi K2.7",
+    usageLabel: "premium usage",
+  },
+  {
+    value: "custom-openrouter",
+    label: "Custom OpenRouter model",
+    usageLabel: "BYOK",
+  },
+];
+
+function getModelOptions(activeModel) {
+  if (MODEL_OPTIONS.some((option) => option.value === activeModel)) {
+    return MODEL_OPTIONS;
+  }
+
+  return [
+    {
+      value: activeModel,
+      label: activeModel,
+      usageLabel: "server configured",
+    },
+    ...MODEL_OPTIONS,
+  ];
+}
+
 export default function AISection() {
   const { t } = useI18n();
   const settings = useSettingsStore((state) => state.settings);
   const updateSettings = useSettingsStore((state) => state.updateSettings);
   const [canvasAccessEnabled, setCanvasAccessEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
+  const activeModel =
+    typeof settings?.ai_model === "string" && settings.ai_model.trim()
+      ? settings.ai_model.trim()
+      : FALLBACK_ACTIVE_MODEL;
+  const modelOptions = getModelOptions(activeModel);
+
+  const modelOptionLabel = (option) => {
+    const stateLabel = option.value === activeModel ? "current" : "planned";
+    return `${option.label} (${stateLabel}, ${option.usageLabel})`;
+  };
 
   useEffect(() => {
     setCanvasAccessEnabled(Boolean(settings?.ai_canvas_access));
@@ -57,16 +107,27 @@ export default function AISection() {
           <p className="mt-1 text-sm text-text-tertiary">
             {t("Powers chat, search, and study features.")}
           </p>
-          <div className="mt-2 sm:max-w-xs">
+          <div className="mt-2 sm:max-w-md">
             <select
               id="ai-model"
               className={`${inputClass} appearance-auto`}
-              defaultValue="kimi-k2.5"
-              disabled
+              value={activeModel}
+              onChange={() => {}}
             >
-              <option value="kimi-k2.5">Kimi K2.5</option>
+              {modelOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.value !== activeModel}
+                >
+                  {modelOptionLabel(option)}
+                </option>
+              ))}
             </select>
           </div>
+          <p className="mt-2 text-xs text-text-tertiary">
+            {t("Server-managed during beta.")}
+          </p>
         </div>
 
         <div className="border-t border-border pt-6">
@@ -79,7 +140,9 @@ export default function AISection() {
             </span>
           </div>
           <p className="mt-1 text-sm text-text-tertiary">
-            {t("Bring Your Own Key is not available yet for beta users.")}
+            {t(
+              "Bring Your Own Key and per-user model selection are not available yet for beta users.",
+            )}
           </p>
         </div>
 

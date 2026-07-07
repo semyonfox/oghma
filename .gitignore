@@ -84,3 +84,22 @@ aws-export/
 
 # private business / internal docs — share via discord / private repo, never commit
 docs/internal/
+
+# local diagram/render scratch
+diagrams/demo-architecture-*.mmd
+diagrams/puppeteer-config.json
+diagrams/rendered/
+screenshots/demo-architecture-*.png
+screenshots/demo-architecture-*.svg
+
+# local Marker/RunPod experiments
+infra/runpod-marker/
+scripts/benchmark-marker.mjs
+scripts/generate-marker-bench-urls.mjs
+scripts/runpod-marker-quick-deploy.sh
+scripts/runpod-marker-tail.sh
+
+# python (marker server + tests)
+__pycache__/
+*.pyc
+.pytest_cache/

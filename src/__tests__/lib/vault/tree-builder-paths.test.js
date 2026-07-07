@@ -8,7 +8,7 @@ vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
   addNoteToTree: vi.fn(),
 }));
 
-import { sanitizePath, shouldIgnore } from "@/lib/vault/tree-builder.js";
+import { sanitizePath, shouldIgnore } from "@/lib/vault/tree-builder";
 
 describe("shouldIgnore", () => {
   it("ignores known metadata/system files", () => {

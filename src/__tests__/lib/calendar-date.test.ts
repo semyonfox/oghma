@@ -2,7 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   addMonthsClamped,
   isoToDateKey,
+  localDateKeyBoundaryToIso,
+  localDateKeyRangeToIso,
 } from "@/lib/notes/utils/calendar-date";
+
+function withTimeZone<T>(timeZone: string, run: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
 
 describe("isoToDateKey", () => {
   it("maps UTC timestamps to the correct local day in Europe/Dublin", () => {
@@ -39,6 +55,40 @@ describe("isoToDateKey", () => {
     expect(isoToDateKey("2026-04-03T09:00:00Z", "Mars/Olympus_Mons")).toMatch(
       /^\d{4}-\d{2}-\d{2}$/,
     );
+  });
+});
+
+describe("localDateKeyBoundaryToIso", () => {
+  it("uses the local start of day instead of UTC midnight", () => {
+    withTimeZone("Europe/Dublin", () => {
+      expect(localDateKeyBoundaryToIso("2026-03-30", "start")).toBe(
+        "2026-03-29T23:00:00.000Z",
+      );
+    });
+  });
+
+  it("keeps the full visible local day across the Europe/Dublin DST transition", () => {
+    withTimeZone("Europe/Dublin", () => {
+      expect(localDateKeyBoundaryToIso("2026-03-29", "start")).toBe(
+        "2026-03-29T00:00:00.000Z",
+      );
+      expect(localDateKeyBoundaryToIso("2026-03-29", "end")).toBe(
+        "2026-03-29T22:59:59.999Z",
+      );
+    });
+  });
+
+  it("builds week fetch ranges from local date boundaries", () => {
+    withTimeZone("Europe/Dublin", () => {
+      expect(localDateKeyRangeToIso("2026-03-23", "2026-03-29")).toEqual({
+        start: "2026-03-23T00:00:00.000Z",
+        end: "2026-03-29T22:59:59.999Z",
+      });
+    });
+  });
+
+  it("returns invalid date keys unchanged", () => {
+    expect(localDateKeyBoundaryToIso("not-a-date", "start")).toBe("not-a-date");
   });
 });
 

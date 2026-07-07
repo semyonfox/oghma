@@ -124,6 +124,49 @@ describe("processMarkerComplete", () => {
         ),
     ).toBe(false);
   });
+
+  it("records the applied page_range from a stored page-limited result", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ status: "pending" }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    vi.mocked(getStorageProvider).mockReturnValue({
+      getObject: vi
+        .fn()
+        .mockResolvedValue(
+          Buffer.from('{"output":"# preview","page_range":"0-2"}'),
+        ),
+    } as never);
+
+    vi.mocked(processRagPipeline).mockResolvedValue({
+      noteId: "note-123",
+      chunksStored: 1,
+    } as never);
+
+    await processMarkerComplete({
+      noteId: "note-123",
+      userId: "user-123",
+      resultKey: "marker-results/note-123.json",
+      filename: "lecture.pdf",
+      mimeType: "application/pdf",
+      parentFolderId: null,
+    });
+
+    expect(processRagPipeline).toHaveBeenCalledWith(
+      "note-123",
+      "user-123",
+      null,
+      null,
+      expect.objectContaining({
+        extractionOverride: expect.objectContaining({
+          source: "marker",
+          pageRange: "0-2",
+        }),
+      }),
+      expect.any(Function),
+    );
+  });
 });
 
 describe("processExtractionRetry", () => {
@@ -157,7 +200,7 @@ describe("processExtractionRetry", () => {
       attempt: 1,
     });
 
-    const updateQueries = vi
+    const updateQueries: string[] = vi
       .mocked(sql)
       .mock.calls.map((call: any[]) => call[0]?.join(""))
       .filter((query: string | undefined) =>

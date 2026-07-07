@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install marker-pdf + server dependencies
+# pinned to match infra/runpod-marker/requirements.txt so both serving paths
+# run the same marker version and benchmark comparisons hold
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
   pip install --no-cache-dir \
-  'marker-pdf>=0.6.0' \
+  'marker-pdf[full]==1.10.2' \
   fastapi \
   uvicorn \
   python-multipart \
@@ -29,8 +31,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Create working directory
 WORKDIR /marker
 
-# Copy simple server wrapper
+# Copy server wrapper + converter pool (server.py imports converter_pool)
 COPY infra/marker/server.py /marker/server.py
+COPY infra/marker/converter_pool.py /marker/converter_pool.py
 
 # Keep as root for now (Marker may need elevated permissions for GPU)
 # If needed, add non-root user later after verifying service works

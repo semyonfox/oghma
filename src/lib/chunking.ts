@@ -1,51 +1,91 @@
 // splits text into sentence-aligned chunks of ~500 characters for embedding
 // no overlap — chunks split at sentence boundaries to preserve coherence
 
-export const chunkText = (text: string, chunkSize = 500): string[] => {
+import { getRagChunkSize } from "@/lib/ai-config";
+
+const HARD_LIMIT_MULTIPLIER = 2;
+const CLAUSE_BOUNDARY_CHARACTERS = [".", ",", ";", ":"];
+
+function splitAtBestBoundary(segment: string, chunkLimit: number): number {
+  let splitAt = segment.lastIndexOf("\n");
+  for (const delimiter of CLAUSE_BOUNDARY_CHARACTERS) {
+    const candidate = segment.lastIndexOf(delimiter);
+    if (candidate > splitAt) splitAt = candidate;
+  }
+
+  return splitAt > chunkLimit * 0.5 ? splitAt : chunkLimit;
+}
+
+function splitOversizedSegment(segment: string, chunkSize: number): string[] {
+  const hardLimit = chunkSize * HARD_LIMIT_MULTIPLIER;
+  const chunks: string[] = [];
+  let remaining = segment.trim();
+
+  while (remaining.length > hardLimit) {
+    const window = remaining.slice(0, hardLimit);
+    const splitAt = splitAtBestBoundary(window, chunkSize);
+    const chunk = remaining.slice(0, splitAt + 1).trim();
+    if (chunk) chunks.push(chunk);
+    remaining = remaining.slice(splitAt + 1).trim();
+  }
+
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+export const chunkText = (
+  text: string,
+  chunkSize = getRagChunkSize(),
+): string[] => {
     // Handle empty or whitespace-only text
     if (!text || text.trim().length === 0) {
         return [];
     }
 
     const sentences = text.split(/(?<=[.?!])\s+/);
-    const chunks: string[] = [];
-    let current = '';
+  const chunks: string[] = [];
+  let current = "";
 
-    const pushLongSegment = (segment: string) => {
-        let piece = segment.trim();
-        while (piece.length > chunkSize) {
-            const window = piece.slice(0, chunkSize);
-            const splitAt = Math.max(
-                window.lastIndexOf('\n'),
-                window.lastIndexOf(' '),
-            );
-            const end = splitAt > chunkSize * 0.5 ? splitAt : chunkSize;
-            const chunk = piece.slice(0, end).trim();
-            if (chunk) chunks.push(chunk);
-            piece = piece.slice(end).trim();
-        }
-        if (piece) chunks.push(piece);
-    };
+  const flushCurrent = () => {
+    const trimmed = current.trim();
+    if (trimmed) chunks.push(trimmed);
+  };
 
-    for (const sentence of sentences) {
-        if (sentence.length > chunkSize) {
-            const trimmed = current.trim();
-            if (trimmed) chunks.push(trimmed);
-            current = '';
-            pushLongSegment(sentence);
-            continue;
-        }
+  const append = (segment: string) => {
+    const normalized = segment.trim();
+    if (!normalized) return;
 
-        if ((current + sentence).length > chunkSize) {
-            const trimmed = current.trim();
-            if (trimmed) chunks.push(trimmed);
-            current = sentence;
-        } else {
-            current += ' ' + sentence;
-        }
+    if (!current.trim()) {
+      current = normalized;
+      return;
     }
 
-    const finalTrimmed = current.trim();
-    if (finalTrimmed) chunks.push(finalTrimmed);
-    return chunks;
+    if ((current + " " + normalized).length > chunkSize) {
+      flushCurrent();
+      current = normalized;
+      return;
+    }
+
+    current = `${current} ${normalized}`;
+  };
+
+  for (const sentence of sentences) {
+    const safeSentence = sentence.trim();
+    if (!safeSentence) continue;
+
+    if (safeSentence.length > chunkSize) {
+      flushCurrent();
+      current = "";
+
+      for (const chunk of splitOversizedSegment(safeSentence, chunkSize)) {
+        append(chunk);
+      }
+      continue;
+    }
+
+    append(safeSentence);
+  }
+
+  flushCurrent();
+  return chunks;
 };

@@ -4,7 +4,7 @@ vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
 }));
 
-import { generateJWTToken, verifyJWTToken } from "@/lib/auth.js";
+import { generateJWTToken, verifyJWTToken } from "@/lib/auth";
 
 // JWT_SECRET is set in setup.ts
 
