@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql.js";
-import { createErrorResponse, parseJsonBody } from "@/lib/auth.js";
+import { createErrorResponse, parseJsonBody } from "@/lib/auth";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";

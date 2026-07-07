@@ -14,9 +14,9 @@ import {
   createErrorResponse,
   createValidationErrorResponse,
   parseJsonBody,
-} from "@/lib/auth.js";
+} from "@/lib/auth";
 import { generateUUID } from "@/lib/utils/uuid";
-import { generateSecureToken, hashToken } from "@/lib/tokens.js";
+import { generateSecureToken, hashToken } from "@/lib/tokens";
 import { sendVerificationEmail } from "@/lib/email.js";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";

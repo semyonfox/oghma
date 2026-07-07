@@ -14,7 +14,7 @@ vi.mock("@/database/pgsql.js", () => {
   return { default: sqlMock };
 });
 
-vi.mock("@/lib/auth.js", () => ({
+vi.mock("@/lib/auth", () => ({
   validateSession: vi.fn(),
   createSuccessResponse: vi.fn(),
   createErrorResponse: vi.fn(),
@@ -52,7 +52,7 @@ import {
   PATCH as notePATCH,
   DELETE as noteDELETE,
 } from "@/app/api/notes/[id]/route";
-import { validateSession } from "@/lib/auth.js";
+import { validateSession } from "@/lib/auth";
 import sql from "@/database/pgsql.js";
 
 const MOCK_USER = { user_id: "user-uuid-1", email: "test@example.com" };

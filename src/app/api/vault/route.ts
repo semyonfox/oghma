@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
+import { validateSession } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rateLimiter';
 import { getStorageProvider } from '@/lib/storage/init';
 import { withErrorHandler, tracedError } from '@/lib/api-error';

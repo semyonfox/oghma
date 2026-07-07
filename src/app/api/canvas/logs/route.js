@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth.js';
+import { validateSession } from '@/lib/auth';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 

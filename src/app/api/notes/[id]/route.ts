@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth.js";
+import { validateSession } from "@/lib/auth";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { removeNoteFromTree } from "@/lib/notes/storage/pg-tree.js";
 import { deleteNoteAnnotations } from "@/lib/notes/storage/pdf-annotations.js";

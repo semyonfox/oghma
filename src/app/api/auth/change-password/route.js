@@ -4,7 +4,7 @@ import {
   validateSession,
   createErrorResponse,
   parseJsonBody,
-} from "@/lib/auth.js";
+} from "@/lib/auth";
 import { validatePassword } from "@/lib/validation.js";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
