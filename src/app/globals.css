@@ -673,3 +673,20 @@ html.light .md-rendered .hljs-function .hljs-title {
     scroll-behavior: auto !important;
   }
 }
+
+/* CodeMirror-backed Write mode: Notion-ish editing while markdown remains canonical. */
+.oghma-write-editor {
+  color: var(--color-text);
+}
+
+.oghma-write-editor .cm-editor {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.oghma-write-editor .cm-content {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.75;
+  padding: 0;
+}
