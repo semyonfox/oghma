@@ -132,10 +132,36 @@ const writeThemeSpec = {
 };
 
 const oghmaHighlightStyle = HighlightStyle.define([
-  { tag: t.heading, color: "var(--md-heading-3)", fontWeight: "700" },
-  { tag: t.heading1, color: "var(--md-heading-1)", fontWeight: "750" },
-  { tag: t.heading2, color: "var(--md-heading-2)", fontWeight: "700" },
-  { tag: t.heading3, color: "var(--md-heading-3)", fontWeight: "650" },
+  {
+    tag: t.heading,
+    color: "var(--md-heading-3)",
+    fontWeight: "700",
+    letterSpacing: "-0.025em",
+  },
+  {
+    tag: t.heading1,
+    color: "var(--md-heading-1)",
+    fontSize: "2.65em",
+    fontWeight: "750",
+    lineHeight: "1.08",
+    letterSpacing: "-0.025em",
+  },
+  {
+    tag: t.heading2,
+    color: "var(--md-heading-2)",
+    fontSize: "2.05em",
+    fontWeight: "700",
+    lineHeight: "1.12",
+    letterSpacing: "-0.025em",
+  },
+  {
+    tag: t.heading3,
+    color: "var(--md-heading-3)",
+    fontSize: "1.55em",
+    fontWeight: "650",
+    lineHeight: "1.2",
+    letterSpacing: "-0.025em",
+  },
   { tag: t.strong, color: "var(--md-strong)", fontWeight: "750" },
   { tag: t.emphasis, color: "var(--md-emphasis)", fontStyle: "italic" },
   { tag: t.strikethrough, color: "var(--md-strike)", textDecoration: "line-through" },
