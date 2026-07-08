@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import sql from "@/database/pgsql.js";
 
 const MAX_TEXT_LENGTH = 512;
@@ -218,6 +219,6 @@ export async function recordMarketingEvent(
   return true;
 }
 
-export function marketingEventResponse(ok: boolean, status = 202): Response {
-  return Response.json({ ok }, { status });
+export function marketingEventResponse(ok: boolean, status = 202): NextResponse {
+  return NextResponse.json({ ok }, { status });
 }
