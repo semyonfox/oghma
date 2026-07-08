@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { trackMarketingEvent } from "@/lib/marketing/client";
+import {
+  getMarketingContext,
+  trackMarketingEvent,
+} from "@/lib/marketing/client";
 
 function messageLengthBucket(value) {
   const length = typeof value === "string" ? value.trim().length : 0;
@@ -49,13 +52,6 @@ export default function ContactForm({ source = "contact" }) {
     event.preventDefault();
     setIsLoading(true);
 
-    const accessKey = process.env.NEXT_PUBLIC_WEB3FORMS_KEY;
-    if (!accessKey) {
-      setResult(t("contact.not_configured"));
-      setIsLoading(false);
-      return;
-    }
-
     trackMarketingEvent("contact_form_submit", {
       source: "contact_form",
       properties: {
@@ -66,19 +62,22 @@ export default function ContactForm({ source = "contact" }) {
     });
 
     const formData = new FormData(event.target);
-    formData.append("access_key", accessKey);
-    formData.append("subject", "OghmaNotes website lead");
-    formData.append("from_name", "OghmaNotes website");
+    const payload = {
+      ...Object.fromEntries(formData.entries()),
+      source,
+      marketing: getMarketingContext(),
+    };
 
     try {
-      const response = await fetch("https://api.web3forms.com/submit", {
+      const response = await fetch("/api/contact", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.success) {
         trackMarketingEvent("contact_form_success", {
           source: "contact_form",
           properties: {
