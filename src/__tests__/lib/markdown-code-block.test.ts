@@ -37,7 +37,7 @@ describe("CodeBlock", () => {
     expect(screen.getByText("Copied")).toBeTruthy();
   });
 
-  it("falls back to CODE for unknown languages and toggles wrapping quietly", () => {
+  it("falls back to CODE for unknown languages without exposing word-wrap chrome", () => {
     const { container } = render(
       React.createElement(
         CodeBlock,
@@ -48,14 +48,9 @@ describe("CodeBlock", () => {
 
     expect(screen.getByText("CODE")).toBeTruthy();
     expect(screen.queryByText("Wrap")).toBeNull();
-
-    const wrapButton = screen.getByRole("button", { name: "Enable line wrap" });
-    const pre = container.querySelector("pre");
-    expect(pre?.className).not.toContain("whitespace-pre-wrap");
-
-    fireEvent.click(wrapButton);
-
-    expect(screen.getByRole("button", { name: "Disable line wrap" })).toBeTruthy();
-    expect(pre?.className).toContain("whitespace-pre-wrap");
+    expect(screen.queryByRole("button", { name: /line wrap/i })).toBeNull();
+    expect(container.querySelector("pre")?.className).not.toContain(
+      "whitespace-pre-wrap",
+    );
   });
 });

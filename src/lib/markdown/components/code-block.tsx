@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ThemedToken } from "shiki/core";
-import {
-  ArrowPathRoundedSquareIcon,
-  CheckIcon,
-  ClipboardDocumentIcon,
-} from "@heroicons/react/24/outline";
+import { CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { highlightCode, type HighlightedCode } from "../shiki-highlighter";
 
@@ -148,7 +144,6 @@ export default function CodeBlock({
 }: CodeBlockProps) {
   const { t = (key: string) => key } = useI18n();
   const [copied, setCopied] = useState(false);
-  const [wrapped, setWrapped] = useState(false);
   const [highlighted, setHighlighted] = useState<HighlightedCode | null>(null);
   const [highlightError, setHighlightError] = useState(false);
   const requestId = useRef(0);
@@ -217,16 +212,6 @@ export default function CodeBlock({
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setWrapped((value) => !value)}
-            className="rounded-md border border-white/10 bg-white/[0.03] p-1.5 text-slate-400 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-            aria-pressed={wrapped}
-            aria-label={wrapped ? t("Disable line wrap") : t("Enable line wrap")}
-            title={wrapped ? t("Disable line wrap") : t("Enable line wrap")}
-          >
-            <ArrowPathRoundedSquareIcon className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
             aria-label={t("Copy code")}
@@ -243,9 +228,7 @@ export default function CodeBlock({
       </div>
 
       <pre
-        className={`m-0 overflow-x-auto bg-slate-950/95 p-4 text-[0.86rem] leading-6 text-slate-100 [tab-size:2] ${
-          wrapped ? "whitespace-pre-wrap break-words" : ""
-        } ${className ?? ""}`}
+        className={`m-0 overflow-x-auto bg-slate-950/95 p-4 text-[0.86rem] leading-6 text-slate-100 [tab-size:2] ${className ?? ""}`}
         data-shiki-state={
           highlighted ? "highlighted" : highlightError ? "fallback" : "loading"
         }
