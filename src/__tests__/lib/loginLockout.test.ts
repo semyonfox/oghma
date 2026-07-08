@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
+
+process.env.AUTH_LOCKOUT_FAIL_OPEN = "true";
 
 // force in-memory fallback — no redis in tests
 vi.mock("@/lib/redis", () => ({
   redis: {},
   redisReady: false,
+  ensureRedisReady: vi.fn(async () => false),
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -30,6 +33,10 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+afterAll(() => {
+  delete process.env.AUTH_LOCKOUT_FAIL_OPEN;
 });
 
 // --- isAccountLocked ---

@@ -39,7 +39,7 @@ describe("Cloudflare queue adapter", () => {
         method: "POST",
         body: JSON.stringify({
           body: { type: "canvas-discover", jobId: "job-1", userId: "user-1" },
-          contentType: "json",
+          content_type: "json",
         }),
       }),
     );
@@ -60,8 +60,8 @@ describe("Cloudflare queue adapter", () => {
       expect.objectContaining({
         body: JSON.stringify({
           body: { type: "extract-retry", noteId: "note-1" },
-          contentType: "json",
-          delaySeconds: 120,
+          content_type: "json",
+          delay_seconds: 120,
         }),
       }),
     );

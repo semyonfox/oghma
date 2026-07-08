@@ -8,8 +8,8 @@ export type QueueProvider = "bullmq" | "cloudflare";
 
 interface CloudflareQueueMessage {
   body: Record<string, unknown>;
-  contentType?: "json";
-  delaySeconds?: number;
+  content_type?: "json";
+  delay_seconds?: number;
 }
 
 interface CloudflareQueueConfig {
@@ -31,8 +31,51 @@ function getConnection(): IORedis {
   return _connection;
 }
 
-export const CANVAS_IMPORT_QUEUE = "canvas-import";
-export const EXTRACT_RETRY_QUEUE = "extract-retry";
+const BASE_CANVAS_IMPORT_QUEUE = "canvas-import";
+const BASE_EXTRACT_RETRY_QUEUE = "extract-retry";
+
+function sanitizeQueuePrefix(value: string | undefined): string | null {
+  const sanitized = value
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return sanitized || null;
+}
+
+function queuePrefixFromUrl(value: string | undefined): string | null {
+  if (!value) return null;
+
+  try {
+    return sanitizeQueuePrefix(new URL(value).hostname);
+  } catch {
+    return sanitizeQueuePrefix(value);
+  }
+}
+
+export function getQueuePrefix(): string {
+  return (
+    sanitizeQueuePrefix(process.env.QUEUE_PREFIX) ??
+    sanitizeQueuePrefix(process.env.BULLMQ_QUEUE_PREFIX) ??
+    sanitizeQueuePrefix(process.env.DEPLOY_ENV) ??
+    queuePrefixFromUrl(
+      process.env.NEXT_PUBLIC_APP_URL ??
+        process.env.APP_BASE_URL ??
+        process.env.NEXTAUTH_URL,
+    ) ??
+    sanitizeQueuePrefix(process.env.STORAGE_PREFIX) ??
+    sanitizeQueuePrefix(process.env.NODE_ENV) ??
+    "local"
+  );
+}
+
+function prefixedQueueName(baseName: string): string {
+  return `${getQueuePrefix()}-${baseName}`;
+}
+
+export const CANVAS_IMPORT_QUEUE = prefixedQueueName(BASE_CANVAS_IMPORT_QUEUE);
+export const EXTRACT_RETRY_QUEUE = prefixedQueueName(BASE_EXTRACT_RETRY_QUEUE);
 
 export function getQueueProvider(): QueueProvider {
   const provider = process.env.QUEUE_PROVIDER?.toLowerCase();
@@ -171,8 +214,8 @@ export async function enqueueCanvasJob(
   if (getQueueProvider() === "cloudflare") {
     await sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
       body: { type, ...data },
-      contentType: "json",
-      delaySeconds: delayMillisToSeconds(opts.delay),
+      content_type: "json",
+      delay_seconds: delayMillisToSeconds(opts.delay),
     });
     return;
   }
@@ -190,7 +233,7 @@ export async function enqueueCanvasJobBatch(
       payloads.map((data) =>
         sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
           body: { type, ...data },
-          contentType: "json",
+          content_type: "json",
         }),
       ),
     );
@@ -213,8 +256,8 @@ export async function enqueueExtractRetryJob(
   if (getQueueProvider() === "cloudflare") {
     await sendCloudflareQueueMessage(EXTRACT_RETRY_QUEUE, {
       body: { type: "extract-retry", ...data },
-      contentType: "json",
-      delaySeconds,
+      content_type: "json",
+      delay_seconds: delaySeconds,
     });
     return;
   }

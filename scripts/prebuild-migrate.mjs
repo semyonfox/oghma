@@ -59,8 +59,7 @@ async function bootstrap(dbUrl) {
 try {
   const dbUrl = process.env.MIGRATION_DATABASE_URL;
   if (!dbUrl) {
-    console.log('[prebuild-migrate] MIGRATION_DATABASE_URL not set, skipping');
-    process.exit(0);
+    throw new Error('MIGRATION_DATABASE_URL is required');
   }
 
   console.log('[prebuild-migrate] running pending migrations...');

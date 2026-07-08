@@ -13,13 +13,15 @@ import { SESSION_DEFAULTS } from "@/lib/quiz/types";
 import { isFillAnswerCorrect } from "@/lib/quiz/fill-answer";
 import sql from "@/database/pgsql.js";
 
-// Compute correctness server-side using the same fill-in normalization as the client.
 function checkAnswerCorrect(
-  _questionType: string,
+  questionType: string,
   userAnswer: string,
   correctAnswer: string,
 ): boolean {
-  return isFillAnswerCorrect(userAnswer, correctAnswer);
+  if (questionType === "fill_in") {
+    return isFillAnswerCorrect(userAnswer, correctAnswer);
+  }
+  return userAnswer.trim() === correctAnswer.trim();
 }
 
 export const POST = withErrorHandler(
