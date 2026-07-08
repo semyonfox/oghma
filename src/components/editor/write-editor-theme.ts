@@ -45,15 +45,32 @@ const writeThemeSpec = {
     borderLeftColor: "var(--md-text)",
   },
   ".cm-header": {
-    color: "var(--md-text)",
     letterSpacing: "-0.025em",
   },
-  ".cm-header-1": { fontSize: "2em", fontWeight: "750", lineHeight: "1.2" },
-  ".cm-header-2": { fontSize: "1.55em", fontWeight: "700", lineHeight: "1.25" },
-  ".cm-header-3": { fontSize: "1.25em", fontWeight: "650", lineHeight: "1.3" },
-  ".cm-strong": { fontWeight: "750", color: "var(--md-text)" },
-  ".cm-em": { fontStyle: "italic" },
-  ".cm-strikethrough": { textDecoration: "line-through" },
+  ".cm-header-1": {
+    color: "var(--md-heading-1)",
+    fontSize: "2em",
+    fontWeight: "750",
+    lineHeight: "1.2",
+  },
+  ".cm-header-2": {
+    color: "var(--md-heading-2)",
+    fontSize: "1.55em",
+    fontWeight: "700",
+    lineHeight: "1.25",
+  },
+  ".cm-header-3": {
+    color: "var(--md-heading-3)",
+    fontSize: "1.25em",
+    fontWeight: "650",
+    lineHeight: "1.3",
+  },
+  ".cm-strong": { fontWeight: "750", color: "var(--md-strong)" },
+  ".cm-em": { color: "var(--md-emphasis)", fontStyle: "italic" },
+  ".cm-strikethrough": {
+    color: "var(--md-strike)",
+    textDecoration: "line-through",
+  },
   ".cm-url, .cm-link": {
     color: "var(--md-link)",
     textDecoration: "underline",
@@ -63,13 +80,22 @@ const writeThemeSpec = {
     fontFamily: editorMono,
   },
   ".cm-inlineCode": {
-    backgroundColor: "var(--md-surface-subtle)",
+    backgroundColor: "var(--md-inline-code-bg)",
+    border: "1px solid var(--md-inline-code-border)",
     borderRadius: "0.25rem",
-    color: "var(--md-text)",
+    color: "var(--md-inline-code-text)",
     padding: "0.1em 0.35em",
   },
   ".cm-formatting, .cm-meta": {
     color: "var(--md-text-faint)",
+  },
+  ".cm-formatting-header": {
+    color: "var(--md-heading-marker)",
+    fontWeight: "650",
+  },
+  ".cm-quote": {
+    color: "var(--md-quote-text)",
+    backgroundColor: "var(--md-quote-bg)",
   },
   ".cm-md-render-marker": {
     color: "var(--md-accent)",
@@ -94,13 +120,13 @@ const writeThemeSpec = {
 };
 
 const oghmaHighlightStyle = HighlightStyle.define([
-  { tag: t.heading, color: "var(--md-text)", fontWeight: "700" },
-  { tag: t.heading1, color: "var(--md-text)", fontWeight: "750" },
-  { tag: t.heading2, color: "var(--md-text)", fontWeight: "700" },
-  { tag: t.heading3, color: "var(--md-text)", fontWeight: "650" },
-  { tag: t.strong, color: "var(--md-text)", fontWeight: "750" },
-  { tag: t.emphasis, fontStyle: "italic" },
-  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.heading, color: "var(--md-heading-3)", fontWeight: "700" },
+  { tag: t.heading1, color: "var(--md-heading-1)", fontWeight: "750" },
+  { tag: t.heading2, color: "var(--md-heading-2)", fontWeight: "700" },
+  { tag: t.heading3, color: "var(--md-heading-3)", fontWeight: "650" },
+  { tag: t.strong, color: "var(--md-strong)", fontWeight: "750" },
+  { tag: t.emphasis, color: "var(--md-emphasis)", fontStyle: "italic" },
+  { tag: t.strikethrough, color: "var(--md-strike)", textDecoration: "line-through" },
   {
     tag: [t.link, t.url],
     color: "var(--md-link)",
@@ -108,7 +134,7 @@ const oghmaHighlightStyle = HighlightStyle.define([
   },
   {
     tag: [t.monospace, t.processingInstruction],
-    color: "var(--md-syntax-base)",
+    color: "var(--md-inline-code-text)",
     fontFamily: editorMono,
   },
   { tag: [t.meta, t.punctuation], color: "var(--md-text-faint)" },

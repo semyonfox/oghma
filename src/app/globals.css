@@ -115,10 +115,24 @@
   --md-text: var(--color-text);
   --md-text-muted: var(--color-text-secondary);
   --md-text-faint: var(--color-text-tertiary);
+  --md-heading-1: #c4b5fd;
+  --md-heading-2: #93c5fd;
+  --md-heading-3: #5eead4;
+  --md-heading-marker: rgb(129 140 248 / 0.68);
   --md-link: var(--color-primary-400);
   --md-link-hover: var(--color-primary-300);
   --md-accent: var(--color-primary-400);
   --md-accent-soft: rgb(99 102 241 / 0.18);
+  --md-strong: #f8fafc;
+  --md-emphasis: #fde68a;
+  --md-strike: #94a3b8;
+  --md-list-marker: #a5b4fc;
+  --md-quote-text: #cbd5e1;
+  --md-quote-border: rgb(99 102 241 / 0.72);
+  --md-quote-bg: rgb(99 102 241 / 0.07);
+  --md-inline-code-text: #fbbf24;
+  --md-inline-code-bg: rgb(15 23 42 / 0.62);
+  --md-inline-code-border: rgb(255 255 255 / 0.08);
   --md-selection: rgb(99 102 241 / 0.28);
   --md-active-line: rgb(255 255 255 / 0.035);
   --md-syntax-base: #dbe4f0;
@@ -153,10 +167,24 @@ html.light {
   --md-text: var(--color-text);
   --md-text-muted: var(--color-text-secondary);
   --md-text-faint: var(--color-text-tertiary);
+  --md-heading-1: #4338ca;
+  --md-heading-2: #1d4ed8;
+  --md-heading-3: #0f766e;
+  --md-heading-marker: rgb(79 70 229 / 0.56);
   --md-link: var(--color-primary-600);
   --md-link-hover: var(--color-primary-700);
   --md-accent: var(--color-primary-600);
   --md-accent-soft: rgb(79 70 229 / 0.12);
+  --md-strong: #020617;
+  --md-emphasis: #92400e;
+  --md-strike: #64748b;
+  --md-list-marker: #4f46e5;
+  --md-quote-text: #334155;
+  --md-quote-border: rgb(79 70 229 / 0.5);
+  --md-quote-bg: rgb(79 70 229 / 0.055);
+  --md-inline-code-text: #9a3412;
+  --md-inline-code-bg: rgb(241 245 249 / 0.95);
+  --md-inline-code-border: rgb(15 23 42 / 0.1);
   --md-selection: rgb(99 102 241 / 0.22);
   --md-active-line: rgb(15 23 42 / 0.035);
   --md-syntax-base: #1e293b;
@@ -325,28 +353,98 @@ body {
 .markdown-preview {
   font-size: 1rem;
   line-height: 1.6;
+  color: var(--md-text);
 }
 
 .markdown-preview p {
   margin: 0 0 1rem;
+  color: var(--md-text-muted);
 }
 
 .markdown-preview h1,
 .markdown-preview h2,
 .markdown-preview h3 {
   line-height: 1.1;
+  letter-spacing: -0.025em;
 }
 
 .markdown-preview h1 {
   margin: 2rem 0 1rem;
+  color: var(--md-heading-1);
 }
 
 .markdown-preview h2 {
   margin: 1.75rem 0 0.75rem;
+  color: var(--md-heading-2);
 }
 
 .markdown-preview h3 {
   margin: 1.5rem 0 0.5rem;
+  color: var(--md-heading-3);
+}
+
+.markdown-preview h1::after,
+.markdown-preview h2::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 1px;
+  margin-top: 0.65rem;
+  background: linear-gradient(90deg, var(--md-accent), transparent 78%);
+  opacity: 0.42;
+}
+
+.markdown-preview a,
+.md-rendered a {
+  color: var(--md-link);
+  text-decoration-color: color-mix(in srgb, var(--md-link) 58%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.markdown-preview a:hover,
+.md-rendered a:hover {
+  color: var(--md-link-hover);
+}
+
+.markdown-preview strong,
+.md-rendered strong {
+  color: var(--md-strong);
+}
+
+.markdown-preview em,
+.md-rendered em {
+  color: var(--md-emphasis);
+}
+
+.markdown-preview del,
+.md-rendered del {
+  color: var(--md-strike);
+}
+
+.markdown-preview ul ::marker,
+.markdown-preview ol ::marker,
+.md-rendered ul ::marker,
+.md-rendered ol ::marker {
+  color: var(--md-list-marker);
+  font-weight: 700;
+}
+
+.markdown-preview blockquote,
+.md-rendered blockquote {
+  border-color: var(--md-quote-border);
+  background: var(--md-quote-bg);
+  color: var(--md-quote-text);
+  border-radius: 0 var(--radius-radius-md) var(--radius-radius-md) 0;
+}
+
+.markdown-preview :not(pre) > code,
+.md-rendered :not(pre) > code {
+  border: 1px solid var(--md-inline-code-border);
+  border-radius: var(--radius-radius-sm);
+  background: var(--md-inline-code-bg);
+  color: var(--md-inline-code-text);
+  padding: 0.08rem 0.32rem;
+  font-size: 0.88em;
 }
 
 /* react-complex-tree - obsidian-style overrides */
@@ -536,7 +634,8 @@ html.light .glass-card-active {
 .md-rendered pre > code.hljs {
   display: block;
   overflow-x: auto;
-  border-radius: 0;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--radius-radius-lg);
   padding: 1.25rem 1.5rem;
   background: var(--md-code-bg);
   color: var(--md-syntax-base);
