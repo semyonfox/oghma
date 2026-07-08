@@ -16,6 +16,10 @@ import CanvasProgressPanel from "./canvas/canvas-progress-panel";
 import CanvasCourseSelector from "./canvas/canvas-course-selector";
 import useCanvasImport from "./canvas/use-canvas-import";
 import { toFriendlyCanvasError } from "@/lib/friendly-errors";
+import {
+  getMarketingContext,
+  trackMarketingEvent,
+} from "@/lib/marketing/client";
 
 /**
  * CanvasIntegration
@@ -207,6 +211,12 @@ export default function CanvasIntegration() {
 
     setIsConnecting(true);
     setConnectionError(null);
+    trackMarketingEvent("canvas_connect_attempt", {
+      source: "settings_canvas",
+      properties: {
+        location: "settings",
+      },
+    });
 
     try {
       const token = rawToken;
@@ -217,16 +227,30 @@ export default function CanvasIntegration() {
       const res = await fetch("/api/canvas/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, token }),
+        body: JSON.stringify({ domain, token, marketing: getMarketingContext() }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        trackMarketingEvent("canvas_connect_error", {
+          source: "settings_canvas",
+          properties: {
+            location: "settings",
+            error_type: "api_error",
+          },
+        });
         setConnectionError(toFriendlyCanvasError(data.error));
         return;
       }
 
+      trackMarketingEvent("canvas_connect_success", {
+        source: "settings_canvas",
+        properties: {
+          location: "settings",
+          course_count: Array.isArray(data.courses) ? data.courses.length : 0,
+        },
+      });
       setIsConnected(true);
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);
@@ -235,6 +259,13 @@ export default function CanvasIntegration() {
       const validIds = (data.courses ?? []).map((c) => c.id);
       setSelectedCourseIds(savedIds.filter((id) => validIds.includes(id)));
     } catch {
+      trackMarketingEvent("canvas_connect_error", {
+        source: "settings_canvas",
+        properties: {
+          location: "settings",
+          error_type: "network_error",
+        },
+      });
       setConnectionError(toFriendlyCanvasError("network"));
     } finally {
       setIsConnecting(false);

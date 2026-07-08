@@ -80,6 +80,14 @@ export function getFirstTouchUtm() {
   return readTouch(FIRST_TOUCH_KEY);
 }
 
+export function getMarketingContext() {
+  return {
+    sessionId: getMarketingSessionId(),
+    utm: getCurrentUtm(),
+    firstTouch: getFirstTouchUtm(),
+  };
+}
+
 function getReferrer() {
   if (typeof document === "undefined") return null;
   return document.referrer || null;

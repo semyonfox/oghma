@@ -8,6 +8,7 @@
  * 5. Return success response (requires verification)
  */
 
+import { after } from "next/server";
 import sql from "@/database/pgsql.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import {
@@ -22,6 +23,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
+import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
 
 const GETTING_STARTED_TITLE = "Getting Started";
@@ -142,6 +144,30 @@ export const POST = withErrorHandler(async (request) => {
       });
       // account is created but email failed -- user can resend later
     }
+
+    after(() =>
+      recordMarketingEvent(
+        {
+          eventName: "registration_success",
+          sessionId: body.marketing?.sessionId,
+          userId: user.user_id,
+          path: "/register",
+          source: "auth_register",
+          utm: body.marketing?.utm,
+          properties: {
+            method: "email",
+            requires_verification: true,
+            email_delivery_attempted: true,
+            first_touch: body.marketing?.firstTouch,
+          },
+        },
+        request,
+      ).catch((eventError) => {
+        logger.warn("failed to record registration marketing event", {
+          error: eventError.message,
+        });
+      }),
+    );
 
     // 9. Return success with requiresVerification flag (no session created)
     return new Response(
