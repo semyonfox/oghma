@@ -21,7 +21,7 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
       remarkPlugins={[remarkBreaks]}
       rehypePlugins={[
         rehypeRaw,
-        rehypeHighlight,
+        [rehypeHighlight, { ignoreMissing: true }],
         [rehypeSanitize, markdownSanitizeSchema],
       ]}
       components={{

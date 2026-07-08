@@ -8,6 +8,30 @@ import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 
+function parseCodeFenceTitle(meta: unknown): string | undefined {
+  if (typeof meta !== "string") return undefined;
+  const match = /(?:^|\s)title=(?:"([^"]+)"|'([^']+)'|([^\s]+))/.exec(meta);
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function remarkCodeFenceMeta() {
+  return (tree: any) => {
+    const visit = (node: any) => {
+      if (!node || typeof node !== "object") return;
+      if (node.type === "code" && typeof node.meta === "string") {
+        node.data = node.data ?? {};
+        node.data.hProperties = {
+          ...(node.data.hProperties ?? {}),
+          dataMeta: node.meta,
+        };
+      }
+      if (Array.isArray(node.children)) node.children.forEach(visit);
+    };
+
+    visit(tree);
+  };
+}
+
 export interface MarkdownRendererProps {
   children: string;
   className?: string;
@@ -35,15 +59,28 @@ const baseComponents: Partial<Components> = {
     const codeEl = (children as any)?.props;
     const cls: string = codeEl?.className ?? "";
     const lang = /language-([a-z0-9_-]+)/i.exec(cls)?.[1];
+    const title = parseCodeFenceTitle(
+      codeEl?.dataMeta ??
+        codeEl?.["data-meta"] ??
+        codeEl?.node?.meta ??
+        codeEl?.node?.data?.meta ??
+        codeEl?.meta,
+    );
     const rawContent =
       typeof codeEl?.children === "string" ? codeEl.children : undefined;
     return (
-      <CodeBlock language={lang} rawContent={rawContent}>
+      <CodeBlock language={lang} title={title} rawContent={rawContent}>
         {children}
       </CodeBlock>
     );
   },
-  code: ({ children, className, ...props }: any) => {
+  code: ({
+    children,
+    className,
+    node: _node,
+    dataMeta: _dataMeta,
+    ...props
+  }: any) => {
     const isInline = !className;
     if (isInline) {
       return (
@@ -80,7 +117,12 @@ export default function MarkdownRenderer({
   return (
     <div className={wrapperClass}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, ...(remarkPlugins ?? [])]}
+        remarkPlugins={[
+          remarkGfm,
+          remarkMath,
+          remarkCodeFenceMeta,
+          ...(remarkPlugins ?? []),
+        ]}
         rehypePlugins={[...(rehypePlugins ?? []), rehypeKatex]}
         components={merged}
       >

@@ -6,6 +6,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface CodeBlockProps {
   language?: string;
+  title?: string;
   className?: string;
   children: React.ReactNode;
   /** raw text content for clipboard — extracted from children by the renderer */
@@ -14,6 +15,7 @@ interface CodeBlockProps {
 
 export default function CodeBlock({
   language,
+  title,
   className,
   children,
   rawContent,
@@ -35,10 +37,12 @@ export default function CodeBlock({
 
   return (
     <div className="relative group my-4 rounded-lg overflow-hidden border border-[var(--md-code-border)] bg-[var(--md-code-bg)]">
-      {language && (
+      {(language || title) && (
         <div className="flex items-center justify-between px-4 py-2.5 bg-[var(--md-surface-subtle)] border-b border-[var(--md-code-border)]">
-          <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
-            {language}
+          <span className="text-xs font-semibold tracking-wider text-text-secondary">
+            {title ? <span>{title}</span> : null}
+            {title && language ? <span className="mx-2 text-text-tertiary">·</span> : null}
+            {language ? <span className="uppercase">{language}</span> : null}
           </span>
           <button
             type="button"
