@@ -1,11 +1,6 @@
 "use client";
 
-import remarkBreaks from "remark-breaks";
-import rehypeHighlight from "rehype-highlight";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
 import MarkdownRenderer from "@/lib/markdown/renderer";
-import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface PreviewRendererProps {
@@ -17,13 +12,8 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
   const { t } = useI18n();
   return (
     <MarkdownRenderer
+      variant="note"
       className="markdown-preview w-full max-w-none"
-      remarkPlugins={[remarkBreaks]}
-      rehypePlugins={[
-        rehypeRaw,
-        [rehypeHighlight, { ignoreMissing: true }],
-        [rehypeSanitize, markdownSanitizeSchema],
-      ]}
       components={{
         img: ({ node: _node, src, alt, ...props }) => {
           const rawSrc = typeof src === "string" ? src.trim() : "";

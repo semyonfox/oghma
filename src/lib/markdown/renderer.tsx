@@ -3,10 +3,52 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
-import type { PluggableList } from "unified";
+import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
+import { markdownSanitizeSchema } from "./sanitize-schema";
+
+export type MarkdownRendererVariant = "note" | "chat" | "quiz";
+
+interface MarkdownVariantConfig {
+  /** Enables hard line breaks in markdown. */
+  breaks: boolean;
+  /** Parses raw HTML into the markdown tree before sanitization. */
+  allowRawHtml: boolean;
+  /** Runs rehype-sanitize with the shared markdown schema. */
+  sanitize: boolean;
+  /** Runs the current Highlight.js-backed code highlighter. */
+  highlight: boolean;
+}
+
+export const markdownRendererVariants: Record<
+  MarkdownRendererVariant,
+  MarkdownVariantConfig
+> = {
+  note: {
+    breaks: true,
+    allowRawHtml: true,
+    sanitize: true,
+    highlight: true,
+  },
+  chat: {
+    breaks: true,
+    allowRawHtml: false,
+    sanitize: true,
+    highlight: true,
+  },
+  quiz: {
+    breaks: false,
+    allowRawHtml: false,
+    sanitize: true,
+    highlight: true,
+  },
+};
 
 function parseCodeFenceTitle(meta: unknown): string | undefined {
   if (typeof meta !== "string") return undefined;
@@ -35,7 +77,10 @@ function remarkCodeFenceMeta() {
 export interface MarkdownRendererProps {
   children: string;
   className?: string;
+  variant?: MarkdownRendererVariant;
+  /** Additional remark plugins appended after the variant defaults. */
   remarkPlugins?: PluggableList;
+  /** Additional rehype plugins appended after the variant defaults, before KaTeX. */
   rehypePlugins?: PluggableList;
   /** merged with (and overrides) base components */
   components?: Partial<Components>;
@@ -104,9 +149,50 @@ const baseComponents: Partial<Components> = {
   em: ({ children }: any) => <em className="italic">{children}</em>,
 };
 
+function buildRemarkPlugins(
+  variant: MarkdownRendererVariant,
+  extraPlugins: PluggableList = [],
+): PluggableList {
+  const config = markdownRendererVariants[variant];
+  const plugins: PluggableList = [remarkGfm, remarkMath, remarkCodeFenceMeta];
+
+  if (config.breaks) {
+    plugins.push(remarkBreaks);
+  }
+
+  plugins.push(...extraPlugins);
+  return plugins;
+}
+
+function buildRehypePlugins(
+  variant: MarkdownRendererVariant,
+  extraPlugins: PluggableList = [],
+): PluggableList {
+  const config = markdownRendererVariants[variant];
+  const plugins: PluggableList = [];
+  const sanitizePlugin = [
+    rehypeSanitize,
+    markdownSanitizeSchema,
+  ] as unknown as Pluggable;
+
+  if (config.allowRawHtml) {
+    plugins.push(rehypeRaw as Pluggable);
+  }
+  if (config.highlight) {
+    plugins.push([rehypeHighlight, { ignoreMissing: true }] as unknown as Pluggable);
+  }
+  if (config.sanitize) {
+    plugins.push(sanitizePlugin);
+  }
+
+  plugins.push(...extraPlugins, rehypeKatex as Pluggable);
+  return plugins;
+}
+
 export default function MarkdownRenderer({
   children,
   className,
+  variant = "note",
   remarkPlugins,
   rehypePlugins,
   components,
@@ -115,15 +201,10 @@ export default function MarkdownRenderer({
   const wrapperClass = ["md-rendered", className].filter(Boolean).join(" ");
 
   return (
-    <div className={wrapperClass}>
+    <div className={wrapperClass} data-markdown-variant={variant}>
       <ReactMarkdown
-        remarkPlugins={[
-          remarkGfm,
-          remarkMath,
-          remarkCodeFenceMeta,
-          ...(remarkPlugins ?? []),
-        ]}
-        rehypePlugins={[...(rehypePlugins ?? []), rehypeKatex]}
+        remarkPlugins={buildRemarkPlugins(variant, remarkPlugins)}
+        rehypePlugins={buildRehypePlugins(variant, rehypePlugins)}
         components={merged}
       >
         {children}
