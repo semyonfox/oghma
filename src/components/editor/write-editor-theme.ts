@@ -123,6 +123,38 @@ const writeThemeSpec = {
     minWidth: "1.45ch",
     paddingRight: "0.35ch",
   },
+  ".cm-math-inline": {
+    color: "var(--md-strong)",
+    display: "inline-block",
+    fontFamily: "KaTeX_Main, var(--font-serif), serif",
+    padding: "0 0.08em",
+    verticalAlign: "baseline",
+  },
+  ".cm-math-inline .katex": {
+    fontSize: "1.02em",
+  },
+  ".cm-math-display": {
+    backgroundColor: "color-mix(in srgb, var(--md-inline-code-bg) 62%, transparent)",
+    border: "1px solid var(--md-inline-code-border)",
+    borderRadius: "0.75rem",
+    color: "var(--md-text)",
+    display: "block",
+    margin: "0.6rem 0",
+    overflowX: "auto",
+    padding: "0.85rem 1rem",
+    textAlign: "center",
+  },
+  ".cm-math-display .katex-display": {
+    margin: "0",
+  },
+  ".cm-math-inline .katex-error, .cm-math-display .katex-error": {
+    color: "var(--md-text-faint)",
+  },
+  ".cm-math-invalid": {
+    color: "var(--md-text-faint)",
+    fontFamily: editorMono,
+    fontSize: "0.95em",
+  },
   "@media (min-width: 768px)": {
     ".cm-scroller": {
       paddingLeft: "2rem",

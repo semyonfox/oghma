@@ -4,6 +4,7 @@ import ThemeProvider from "@/components/providers/ThemeProvider";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import MarketingTracker from "@/components/marketing-tracker";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const dmSans = DM_Sans({

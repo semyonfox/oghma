@@ -26,6 +26,7 @@ import {
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
+import katex from "katex";
 import { themeExtensions } from "./write-editor-theme";
 
 interface WriteEditorProps {
@@ -70,6 +71,13 @@ export interface MarkdownTaskMarker {
   checked: boolean;
 }
 
+export interface MathRenderRange {
+  from: number;
+  to: number;
+  tex: string;
+  displayMode: boolean;
+}
+
 const themeCompartment = new Compartment();
 const externalValueSync = Annotation.define<boolean>();
 
@@ -110,6 +118,42 @@ class MarkdownMarkerWidget extends WidgetType {
       this.taskMarker?.checkboxTo === other.taskMarker?.checkboxTo &&
       this.taskMarker?.checked === other.taskMarker?.checked
     );
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+class MathRenderWidget extends WidgetType {
+  constructor(
+    private readonly tex: string,
+    private readonly displayMode: boolean,
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const wrapper = document.createElement(this.displayMode ? "div" : "span");
+    wrapper.className = this.displayMode ? "cm-math-display" : "cm-math-inline";
+
+    try {
+      katex.render(this.tex, wrapper, {
+        displayMode: this.displayMode,
+        throwOnError: false,
+        strict: "ignore",
+        trust: false,
+      });
+    } catch {
+      wrapper.classList.add("cm-math-invalid");
+      wrapper.textContent = this.displayMode ? `$$${this.tex}$$` : `$${this.tex}$`;
+    }
+
+    return wrapper;
+  }
+
+  eq(other: MathRenderWidget) {
+    return this.tex === other.tex && this.displayMode === other.displayMode;
   }
 
   ignoreEvent() {
@@ -196,6 +240,108 @@ function addInlinePairRanges(
   }
 }
 
+function isEscaped(text: string, index: number): boolean {
+  let slashCount = 0;
+  for (let pos = index - 1; pos >= 0 && text[pos] === "\\"; pos -= 1) {
+    slashCount += 1;
+  }
+  return slashCount % 2 === 1;
+}
+
+function codeSpanRangesForLine(lineText: string): Array<{ from: number; to: number }> {
+  const ranges: Array<{ from: number; to: number }> = [];
+  let start = -1;
+
+  for (let index = 0; index < lineText.length; index += 1) {
+    if (lineText[index] !== "`" || isEscaped(lineText, index)) continue;
+    if (start === -1) {
+      start = index;
+    } else {
+      ranges.push({ from: start, to: index + 1 });
+      start = -1;
+    }
+  }
+
+  return ranges;
+}
+
+function isInsideRanges(
+  index: number,
+  ranges: Array<{ from: number; to: number }>,
+): boolean {
+  return ranges.some((range) => index >= range.from && index < range.to);
+}
+
+export function inlineMathRangesForLine(
+  lineText: string,
+  lineFrom: number,
+): MathRenderRange[] {
+  const ranges: MathRenderRange[] = [];
+  const codeSpans = codeSpanRangesForLine(lineText);
+
+  for (let index = 0; index < lineText.length; index += 1) {
+    if (
+      lineText[index] !== "$" ||
+      isEscaped(lineText, index) ||
+      lineText[index - 1] === "$" ||
+      lineText[index + 1] === "$" ||
+      isInsideRanges(index, codeSpans)
+    ) {
+      continue;
+    }
+
+    for (let end = index + 1; end < lineText.length; end += 1) {
+      if (
+        lineText[end] !== "$" ||
+        isEscaped(lineText, end) ||
+        lineText[end - 1] === "$" ||
+        lineText[end + 1] === "$" ||
+        isInsideRanges(end, codeSpans)
+      ) {
+        continue;
+      }
+
+      const tex = lineText.slice(index + 1, end).trim();
+      if (tex) {
+        ranges.push({
+          from: lineFrom + index,
+          to: lineFrom + end + 1,
+          tex,
+          displayMode: false,
+        });
+      }
+      index = end;
+      break;
+    }
+  }
+
+  return ranges;
+}
+
+function addMathDelimiterRanges(
+  ranges: MarkdownSyntaxRange[],
+  lineText: string,
+  lineFrom: number,
+) {
+  for (const mathRange of inlineMathRangesForLine(lineText, lineFrom)) {
+    ranges.push(
+      { from: mathRange.from, to: mathRange.from + 1 },
+      { from: mathRange.to - 1, to: mathRange.to },
+    );
+  }
+
+  for (const match of lineText.matchAll(/\$\$([^$]+)\$\$/g)) {
+    if (match.index == null || isEscaped(lineText, match.index)) continue;
+    ranges.push(
+      { from: lineFrom + match.index, to: lineFrom + match.index + 2 },
+      {
+        from: lineFrom + match.index + match[0].length - 2,
+        to: lineFrom + match.index + match[0].length,
+      },
+    );
+  }
+}
+
 export function markdownSyntaxRangesForLine(
   lineText: string,
   lineFrom: number,
@@ -249,6 +395,7 @@ export function markdownSyntaxRangesForLine(
   addInlinePairRanges(ranges, lineText, lineFrom, /\*\*([^*]+)\*\*/g, 2);
   addInlinePairRanges(ranges, lineText, lineFrom, /__([^_]+)__/g, 2);
   addInlinePairRanges(ranges, lineText, lineFrom, /`([^`]+)`/g, 1);
+  addMathDelimiterRanges(ranges, lineText, lineFrom);
 
   for (const match of lineText.matchAll(/\[([^\]]+)]\(([^)]+)\)/g)) {
     if (match.index == null || !match[0]) continue;
@@ -263,40 +410,189 @@ export function markdownSyntaxRangesForLine(
   return ranges;
 }
 
+function rangesOverlap(fromA: number, toA: number, fromB: number, toB: number): boolean {
+  return fromA < toB && fromB < toA;
+}
+
+function rangeTouchesLine(range: MathRenderRange, lineFrom: number, lineTo: number): boolean {
+  return rangesOverlap(range.from, range.to, lineFrom, lineTo + 1);
+}
+
+function displayMathRangesForVisibleSpan(
+  view: EditorView,
+  from: number,
+  to: number,
+  activeLineFrom: number,
+): MathRenderRange[] {
+  const ranges: MathRenderRange[] = [];
+  const doc = view.state.doc;
+  let line = doc.lineAt(from);
+  let inFence = false;
+  let open:
+    | {
+        from: number;
+        texStart: number;
+        lineFrom: number;
+      }
+    | null = null;
+
+  while (line.from <= to) {
+    const trimmed = line.text.trimStart();
+    if (trimmed.startsWith("```")) {
+      inFence = !inFence;
+    }
+
+    if (!inFence || open) {
+      let searchFrom = 0;
+      while (searchFrom < line.text.length) {
+        const delimiter = line.text.indexOf("$$", searchFrom);
+        if (delimiter === -1) break;
+        if (isEscaped(line.text, delimiter)) {
+          searchFrom = delimiter + 2;
+          continue;
+        }
+
+        const absoluteDelimiter = line.from + delimiter;
+        if (!open) {
+          open = {
+            from: absoluteDelimiter,
+            texStart: absoluteDelimiter + 2,
+            lineFrom: line.from,
+          };
+          searchFrom = delimiter + 2;
+          continue;
+        }
+
+        const texEnd = absoluteDelimiter;
+        const closeTo = absoluteDelimiter + 2;
+        const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
+        if (activeLine.from < open.lineFrom || activeLine.from > line.from) {
+          const tex = doc.sliceString(open.texStart, texEnd).trim();
+          if (tex) {
+            ranges.push({
+              from: open.from,
+              to: closeTo,
+              tex,
+              displayMode: true,
+            });
+          }
+        }
+        open = null;
+        searchFrom = delimiter + 2;
+      }
+    }
+
+    if (line.to >= to || line.number >= doc.lines) break;
+    line = doc.line(line.number + 1);
+  }
+
+  return ranges.filter((range) => !rangeTouchesLine(range, activeLineFrom, activeLineFrom));
+}
+
+type RenderDecoration = {
+  from: number;
+  to: number;
+  decoration: Decoration;
+  priority: number;
+};
+
 function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
+  const decorations: RenderDecoration[] = [];
   const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
 
-  for (const { from, to } of view.visibleRanges) {
-    let pos = from;
-    while (pos <= to) {
+  for (const visibleRange of view.visibleRanges) {
+    const fromLine = view.state.doc.lineAt(visibleRange.from);
+    const toLine = view.state.doc.lineAt(visibleRange.to);
+    const displayMathRanges = displayMathRangesForVisibleSpan(
+      view,
+      fromLine.from,
+      toLine.to,
+      activeLine.from,
+    );
+
+    for (const mathRange of displayMathRanges) {
+      decorations.push({
+        from: mathRange.from,
+        to: mathRange.to,
+        decoration: Decoration.replace({
+          widget: new MathRenderWidget(mathRange.tex, true),
+          block: true,
+        }),
+        priority: 0,
+      });
+    }
+
+    let pos = visibleRange.from;
+    let inFence = false;
+    while (pos <= visibleRange.to) {
       const line = view.state.doc.lineAt(pos);
+      const lineIsActive = line.from === activeLine.from;
+      const trimmed = line.text.trimStart();
+      if (trimmed.startsWith("```")) {
+        inFence = !inFence;
+      }
+
+      if (!lineIsActive && !inFence) {
+        for (const mathRange of inlineMathRangesForLine(line.text, line.from)) {
+          if (
+            displayMathRanges.some((displayRange) =>
+              rangesOverlap(mathRange.from, mathRange.to, displayRange.from, displayRange.to),
+            )
+          ) {
+            continue;
+          }
+          decorations.push({
+            from: mathRange.from,
+            to: mathRange.to,
+            decoration: Decoration.replace({
+              widget: new MathRenderWidget(mathRange.tex, false),
+            }),
+            priority: 0,
+          });
+        }
+      }
+
       const ranges = markdownSyntaxRangesForLine(
         line.text,
         line.from,
-        line.from === activeLine.from,
+        lineIsActive,
       )
         .filter((range) => range.from < range.to)
         .sort((a, b) => a.from - b.from || a.to - b.to);
 
-      let lastTo = line.from;
       for (const range of ranges) {
-        if (range.from < lastTo) continue;
-        builder.add(
-          range.from,
-          range.to,
-          Decoration.replace({
-            widget: range.replaceWith !== undefined
-              ? new MarkdownMarkerWidget(range.replaceWith, range.className, range.taskMarker)
-              : undefined,
+        decorations.push({
+          from: range.from,
+          to: range.to,
+          decoration: Decoration.replace({
+            widget:
+              range.replaceWith !== undefined
+                ? new MarkdownMarkerWidget(
+                    range.replaceWith,
+                    range.className,
+                    range.taskMarker,
+                  )
+                : undefined,
           }),
-        );
-        lastTo = range.to;
+          priority: 1,
+        });
       }
 
-      if (line.to >= to) break;
+      if (line.to >= visibleRange.to) break;
       pos = line.to + 1;
     }
+  }
+
+  const builder = new RangeSetBuilder<Decoration>();
+  decorations.sort(
+    (a, b) => a.from - b.from || a.priority - b.priority || a.to - b.to,
+  );
+
+  let lastTo = 0;
+  for (const item of decorations) {
+    if (item.from < lastTo || item.from >= item.to) continue;
+    builder.add(item.from, item.to, item.decoration);
+    lastTo = item.to;
   }
 
   return builder.finish();

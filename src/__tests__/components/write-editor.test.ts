@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGES,
+  inlineMathRangesForLine,
   markdownTaskMarkerForLine,
   markdownSyntaxRangesForLine,
   toggleMarkdownTask,
@@ -111,5 +112,26 @@ describe("WriteEditor helpers", () => {
       { from: 18, to: 19 },
       { from: 23, to: 24 },
     ]);
+  });
+
+  it("detects inactive inline math ranges without changing canonical markdown", () => {
+    expect(inlineMathRangesForLine("Use $E=mc^2$ today", 100)).toEqual([
+      { from: 104, to: 112, tex: "E=mc^2", displayMode: false },
+    ]);
+    expect(markdownSyntaxRangesForLine("Use $E=mc^2$ today", 100, false)).toEqual([
+      { from: 104, to: 105 },
+      { from: 111, to: 112 },
+    ]);
+  });
+
+  it("does not treat escaped dollars, display delimiters, or code spans as inline math", () => {
+    expect(inlineMathRangesForLine(String.raw`Cost \$5 and $$x$$`, 0)).toEqual([]);
+    expect(inlineMathRangesForLine("Skip `$x$` but render $y$", 0)).toEqual([
+      { from: 22, to: 25, tex: "y", displayMode: false },
+    ]);
+  });
+
+  it("keeps math syntax visible on the active line", () => {
+    expect(markdownSyntaxRangesForLine("Use $E=mc^2$ today", 100, true)).toEqual([]);
   });
 });
