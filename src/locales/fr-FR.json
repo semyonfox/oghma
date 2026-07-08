@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Votre email a été vérifié. Redirection vers vos notes...",
   "Your institution's Canvas URL e.g.": "Le Canvas URL de votre institution, par ex.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Vos notes sont stockées en toute sécurité et accessibles depuis n'importe quel appareil doté d'un cryptage de niveau entreprise.",
-  "Your session has expired. Please log in again.": "Votre session a expiré. Veuillez vous reconnecter."
+  "Your session has expired. Please log in again.": "Votre session a expiré. Veuillez vous reconnecter.",
+  "AI Chats": "Chats IA",
+  "chat.rag_title": "Rechercher dans mes notes — RAG",
+  "chat.rag_tooltip": "Génération augmentée par récupération : recherche dans vos notes et ajoute les passages les plus pertinents comme contexte pour votre question. Désactivez-la pour répondre uniquement avec les connaissances générales — économise des tokens.",
+  "chat.thinking_title": "Réflexion étendue",
+  "chat.thinking_tooltip": "Le modèle raisonne étape par étape avant de répondre, ce qui aide pour les questions plus difficiles. Désactivez-la pour une réponse directe — économise des tokens.",
+  "chat.use_notes": "Rechercher dans mes notes",
+  "chat.use_notes_short": "Notes",
+  "Destinations": "Destinations",
+  "No matches for \"{query}\"": "Aucun résultat pour \"{query}\"",
+  "No preview": "Aucun aperçu",
+  "No recent results": "Aucun résultat récent",
+  "Open AI Chat": "Ouvrir le chat IA",
+  "Open Notes": "Ouvrir les notes",
+  "Search OghmaNotes": "Rechercher dans OghmaNotes",
+  "Searching...": "Recherche..."
 }

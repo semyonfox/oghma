@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "لقد تم التحقق من بريدك الإلكتروني. جارٍ إعادة التوجيه إلى ملاحظاتك...",
   "Your institution's Canvas URL e.g.": "Canvas URL الخاص بمؤسستك، على سبيل المثال.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "يتم تخزين ملاحظاتك بأمان ويمكن الوصول إليها من أي جهاز مزود بتشفير على مستوى المؤسسة.",
-  "Your session has expired. Please log in again.": "لقد انتهت صلاحية جلستك. الرجاء تسجيل الدخول مرة أخرى."
+  "Your session has expired. Please log in again.": "لقد انتهت صلاحية جلستك. الرجاء تسجيل الدخول مرة أخرى.",
+  "AI Chats": "دردشات الذكاء الاصطناعي",
+  "chat.rag_title": "البحث في ملاحظاتي — RAG",
+  "chat.rag_tooltip": "التوليد المعزز بالاسترجاع: يبحث في ملاحظاتك ويضيف المقاطع الأكثر صلة كسياق لسؤالك. أوقفه للإجابة من المعرفة العامة فقط — يوفر الرموز.",
+  "chat.thinking_title": "تفكير موسع",
+  "chat.thinking_tooltip": "يفكر النموذج خطوة بخطوة قبل الإجابة، وهذا يساعد في الأسئلة الأصعب. أوقفه للحصول على إجابة مباشرة — يوفر الرموز.",
+  "chat.use_notes": "البحث في ملاحظاتي",
+  "chat.use_notes_short": "ملاحظات",
+  "Destinations": "الوجهات",
+  "No matches for \"{query}\"": "لا توجد نتائج لـ \"{query}\"",
+  "No preview": "لا توجد معاينة",
+  "No recent results": "لا توجد نتائج حديثة",
+  "Open AI Chat": "فتح دردشة الذكاء الاصطناعي",
+  "Open Notes": "فتح الملاحظات",
+  "Search OghmaNotes": "البحث في OghmaNotes",
+  "Searching...": "جارٍ البحث..."
 }

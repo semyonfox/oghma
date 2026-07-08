@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Ihre E-Mail-Adresse wurde bestätigt. Weiterleitung zu Ihren Notizen...",
   "Your institution's Canvas URL e.g.": "Canvas URL Ihrer Institution, z.B.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Ihre Notizen werden sicher gespeichert und sind von jedem Gerät aus mit Verschlüsselung auf Unternehmensniveau zugänglich.",
-  "Your session has expired. Please log in again.": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+  "Your session has expired. Please log in again.": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+  "AI Chats": "KI-Chats",
+  "chat.rag_title": "Meine Notizen durchsuchen — RAG",
+  "chat.rag_tooltip": "Retrieval-augmented generation: durchsucht deine Notizen und fügt die relevantesten Passagen als Kontext für deine Frage hinzu. Ausschalten, um nur mit allgemeinem Wissen zu antworten — spart Tokens.",
+  "chat.thinking_title": "Erweitertes Denken",
+  "chat.thinking_tooltip": "Das Modell denkt vor der Antwort Schritt für Schritt, was bei schwierigeren Fragen hilft. Ausschalten für eine direkte Antwort — spart Tokens.",
+  "chat.use_notes": "Meine Notizen durchsuchen",
+  "chat.use_notes_short": "Notizen",
+  "Destinations": "Ziele",
+  "No matches for \"{query}\"": "Keine Treffer für \"{query}\"",
+  "No preview": "Keine Vorschau",
+  "No recent results": "Keine aktuellen Ergebnisse",
+  "Open AI Chat": "KI-Chat öffnen",
+  "Open Notes": "Notizen öffnen",
+  "Search OghmaNotes": "OghmaNotes durchsuchen",
+  "Searching...": "Suche..."
 }

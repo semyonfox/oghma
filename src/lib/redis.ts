@@ -7,6 +7,7 @@ export let redisReady = false;
 // lazy init — next build evaluates this module at page data collection time
 // but REDIS_HOST/PORT aren't available yet (comes from .env.production at runtime)
 let _redis: Cluster | Redis | null = null;
+let _redisReadyWait: Promise<boolean> | null = null;
 
 function initRedis(): Cluster | Redis {
   if (_redis) return _redis;
@@ -45,6 +46,43 @@ function initRedis(): Cluster | Redis {
   });
 
   return _redis;
+}
+
+export function ensureRedisReady(timeoutMs = 750): Promise<boolean> {
+  const instance = initRedis();
+  if (redisReady || instance.status === 'ready') {
+    redisReady = true;
+    return Promise.resolve(true);
+  }
+
+  if (_redisReadyWait) return _redisReadyWait;
+
+  _redisReadyWait = new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      instance.off('ready', onReady);
+      instance.off('error', onUnavailable);
+      instance.off('close', onUnavailable);
+      _redisReadyWait = null;
+      if (ready) redisReady = true;
+      resolve(ready);
+    };
+
+    const onReady = () => finish(true);
+    const onUnavailable = () => finish(false);
+
+    instance.once('ready', onReady);
+    instance.once('error', onUnavailable);
+    instance.once('close', onUnavailable);
+    timer = setTimeout(() => finish(redisReady || instance.status === 'ready'), timeoutMs);
+  });
+
+  return _redisReadyWait;
 }
 
 // proxy so existing `import { redis }` keeps working — defers actual connection to first use

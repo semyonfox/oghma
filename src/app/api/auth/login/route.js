@@ -25,6 +25,7 @@ import {
   clearFailedAttempts,
   isAccountLocked,
   getLockoutMinutesRemaining,
+  isAuthLockoutStoreUnavailableError,
 } from "@/lib/loginLockout.js";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
@@ -75,9 +76,25 @@ export const POST = withErrorHandler(async (request) => {
 
   const user = data[0];
 
+  async function recordFailedAttemptOrUnavailable() {
+    try {
+      await recordFailedAttempt(email);
+      return null;
+    } catch (error) {
+      if (isAuthLockoutStoreUnavailableError(error)) {
+        return createErrorResponse(
+          "Service temporarily unavailable. Please try again shortly.",
+          503,
+        );
+      }
+      throw error;
+    }
+  }
+
   if (!user) {
     // Record failed attempt for security tracking
-    await recordFailedAttempt(email);
+    const unavailable = await recordFailedAttemptOrUnavailable();
+    if (unavailable) return unavailable;
     return createErrorResponse("Invalid email or password", 401);
   }
 
@@ -111,7 +128,8 @@ export const POST = withErrorHandler(async (request) => {
 
   if (!matchingPassword) {
     // Record failed attempt for security tracking
-    await recordFailedAttempt(email);
+    const unavailable = await recordFailedAttemptOrUnavailable();
+    if (unavailable) return unavailable;
     return createErrorResponse("Invalid email or password", 401);
   }
 

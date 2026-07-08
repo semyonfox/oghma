@@ -79,7 +79,7 @@ export async function runExtraction(
       mimeType,
     }),
   );
-  const { rawText, chunks, source, markerImages, markerMetadata } = extracted;
+  const { rawText, chunks, source, markerImages, markerMetadata, pageRange } = extracted;
 
   if (source === "pdf-parse") {
     logger.warn("Marker unavailable, using pdf-parse fallback", {
@@ -129,9 +129,18 @@ export async function runExtraction(
   }
 
   const cleanedText = stripMarkdown(finalMarkdown);
+  const extractionCoverage = JSON.stringify({
+    source,
+    page_range: pageRange ?? null,
+    partial: Boolean(pageRange),
+    extracted_at: new Date().toISOString(),
+  });
   await sql`
         UPDATE app.notes
-        SET content = ${finalMarkdown}, extracted_text = ${cleanedText}, updated_at = NOW()
+        SET content = ${finalMarkdown},
+            extracted_text = ${cleanedText},
+            extraction_coverage = ${extractionCoverage}::jsonb,
+            updated_at = NOW()
         WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
     `;
 

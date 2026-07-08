@@ -1,7 +1,7 @@
 // auth rate limiting — redis-backed with in-memory fallback
 // 5 attempts per 15 min window, 30 min lockout on exceed
 
-import { redis, redisReady } from "@/lib/redis";
+import { ensureRedisReady, redis, redisReady } from "@/lib/redis";
 import logger from "@/lib/logger";
 
 const authProtection = new Map();
@@ -25,8 +25,54 @@ function normalize(email) {
   return email.toLowerCase().trim();
 }
 
-function canUseRedis() {
-  return redisReady;
+export class AuthLockoutStoreUnavailableError extends Error {
+  constructor(message = "redis not ready after initialization") {
+    super(message);
+    this.name = "AuthLockoutStoreUnavailableError";
+  }
+}
+
+export function isAuthLockoutStoreUnavailableError(error) {
+  return (
+    error instanceof AuthLockoutStoreUnavailableError ||
+    error?.name === "AuthLockoutStoreUnavailableError"
+  );
+}
+
+function failOpen() {
+  return process.env.AUTH_LOCKOUT_FAIL_OPEN === "true";
+}
+
+async function canUseRedis() {
+  try {
+    return redisReady || (await ensureRedisReady());
+  } catch (err) {
+    logger.error("redis rate-limit readiness check failed", {
+      fn: "canUseRedis",
+      message: err?.message ?? String(err),
+    });
+    return false;
+  }
+}
+
+function storeUnavailableError(fn, err) {
+  const message = err?.message ?? String(err ?? "redis not ready after initialization");
+  logger.error("redis auth lockout store unavailable", {
+    fn,
+    message,
+    failOpen: failOpen(),
+  });
+  return new AuthLockoutStoreUnavailableError(message);
+}
+
+function redisNotReadyError(fn) {
+  return storeUnavailableError(fn, new Error("redis not ready after initialization"));
+}
+
+function assertPipelineSucceeded(results, fn) {
+  if (!results) throw new Error(`${fn} pipeline returned null`);
+  const commandError = results.find(([error]) => error)?.[0];
+  if (commandError) throw commandError;
 }
 
 async function redisIsAccountLocked(email) {
@@ -75,7 +121,10 @@ async function redisRecordFailedAttempt(email) {
       "EX",
       CONFIG.WINDOW_SECS,
     );
-    await pipeline.exec();
+    assertPipelineSucceeded(
+      await pipeline.exec(),
+      "redisRecordFailedAttempt",
+    );
 
     // first attempt can never trigger lockout (need MAX_ATTEMPTS)
     return;
@@ -185,92 +234,130 @@ function memGetRateLimitResetTime(email) {
 
 export async function isAccountLocked(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       return await redisIsAccountLocked(email);
     } catch (err) {
+      if (!failOpen()) {
+        storeUnavailableError("isAccountLocked", err);
+        return false;
+      }
       logger.warn("redis rate-limit read failed, falling back to memory", {
         fn: "isAccountLocked",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    redisNotReadyError("isAccountLocked");
+    return false;
   }
   return memIsAccountLocked(email);
 }
 
 export async function isRateLimited(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       return await redisIsRateLimited(email);
     } catch (err) {
+      if (!failOpen()) {
+        storeUnavailableError("isRateLimited", err);
+        return true;
+      }
       logger.warn("redis rate-limit read failed, falling back to memory", {
         fn: "isRateLimited",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    redisNotReadyError("isRateLimited");
+    return true;
   }
   return memIsRateLimited(email);
 }
 
 export async function recordFailedAttempt(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       await redisRecordFailedAttempt(email);
       return;
     } catch (err) {
+      if (!failOpen()) throw storeUnavailableError("recordFailedAttempt", err);
       logger.warn("redis rate-limit write failed, falling back to memory", {
         fn: "recordFailedAttempt",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    throw redisNotReadyError("recordFailedAttempt");
   }
   memRecordFailedAttempt(email);
 }
 
 export async function clearFailedAttempts(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       await redisClearFailedAttempts(email);
       return;
     } catch (err) {
+      if (!failOpen()) {
+        storeUnavailableError("clearFailedAttempts", err);
+        return;
+      }
       logger.warn("redis rate-limit write failed, falling back to memory", {
         fn: "clearFailedAttempts",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    redisNotReadyError("clearFailedAttempts");
+    return;
   }
   memClearFailedAttempts(email);
 }
 
 export async function getLockoutMinutesRemaining(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       return await redisGetLockoutMinutesRemaining(email);
     } catch (err) {
+      if (!failOpen()) {
+        storeUnavailableError("getLockoutMinutesRemaining", err);
+        return 0;
+      }
       logger.warn("redis rate-limit read failed, falling back to memory", {
         fn: "getLockoutMinutesRemaining",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    redisNotReadyError("getLockoutMinutesRemaining");
+    return 0;
   }
   return memGetLockoutMinutesRemaining(email);
 }
 
 export async function getRateLimitResetTime(email) {
   email = normalize(email);
-  if (canUseRedis()) {
+  if (await canUseRedis()) {
     try {
       return await redisGetRateLimitResetTime(email);
     } catch (err) {
+      if (!failOpen()) {
+        storeUnavailableError("getRateLimitResetTime", err);
+        return 0;
+      }
       logger.warn("redis rate-limit read failed, falling back to memory", {
         fn: "getRateLimitResetTime",
         message: err.message,
       });
     }
+  } else if (!failOpen()) {
+    redisNotReadyError("getRateLimitResetTime");
+    return 0;
   }
   return memGetRateLimitResetTime(email);
 }

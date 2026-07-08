@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Ваш адрес электронной почты подтвержден. Перенаправление к вашим заметкам...",
   "Your institution's Canvas URL e.g.": "Canvas URL вашего учреждения, например.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Ваши заметки надежно хранятся и доступны с любого устройства с шифрованием корпоративного уровня.",
-  "Your session has expired. Please log in again.": "Срок вашей сессии истек. Пожалуйста, войдите снова."
+  "Your session has expired. Please log in again.": "Срок вашей сессии истек. Пожалуйста, войдите снова.",
+  "AI Chats": "Чаты ИИ",
+  "chat.rag_title": "Искать в моих заметках — RAG",
+  "chat.rag_tooltip": "Генерация с дополнением поиска: ищет по вашим заметкам и добавляет самые релевантные фрагменты как контекст для вопроса. Отключите, чтобы отвечать только на основе общих знаний — экономит токены.",
+  "chat.thinking_title": "Расширенное рассуждение",
+  "chat.thinking_tooltip": "Модель рассуждает пошагово перед ответом, что помогает со сложными вопросами. Отключите для прямого ответа — экономит токены.",
+  "chat.use_notes": "Искать в моих заметках",
+  "chat.use_notes_short": "Заметки",
+  "Destinations": "Направления",
+  "No matches for \"{query}\"": "Нет совпадений для \"{query}\"",
+  "No preview": "Нет предпросмотра",
+  "No recent results": "Нет недавних результатов",
+  "Open AI Chat": "Открыть чат ИИ",
+  "Open Notes": "Открыть заметки",
+  "Search OghmaNotes": "Искать в OghmaNotes",
+  "Searching...": "Поиск..."
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 vi.mock("@/database/pgsql.js", () => {
   const sqlMock = vi.fn();
@@ -33,10 +33,15 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
+vi.mock("@/lib/rateLimiter", () => ({
+  checkRateLimit: vi.fn(),
+}));
+
 import sql from "@/database/pgsql.js";
 import { validateSession } from "@/lib/auth";
 import { embedText } from "@/lib/embedText";
 import { searchChunkVectors } from "@/lib/qdrant";
+import { checkRateLimit } from "@/lib/rateLimiter";
 import { GET } from "@/app/api/global-search/route";
 
 function request(query = "algorithms") {
@@ -49,6 +54,7 @@ describe("GET /api/global-search", () => {
     vi.mocked(validateSession).mockResolvedValue({
       user_id: "user-123",
     } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue(null);
     vi.mocked(sql).mockImplementation((strings: TemplateStringsArray) => {
       const text = strings.join("");
 
@@ -106,6 +112,7 @@ describe("GET /api/global-search", () => {
     const response = await GET(request());
 
     expect(response.status).toBe(401);
+    expect(checkRateLimit).not.toHaveBeenCalled();
   });
 
   it("does not return recent content for a one-character query", async () => {
@@ -118,6 +125,21 @@ describe("GET /api/global-search", () => {
       chats: [],
       quizzes: [],
     });
+    expect(checkRateLimit).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+    expect(embedText).not.toHaveBeenCalled();
+  });
+
+  it("returns the limiter response before searching", async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue(
+      NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+    );
+
+    const response = await GET(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body).toEqual({ error: "Too many requests" });
     expect(sql).not.toHaveBeenCalled();
     expect(embedText).not.toHaveBeenCalled();
   });
@@ -127,6 +149,7 @@ describe("GET /api/global-search", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(checkRateLimit).toHaveBeenCalledWith("global-search", "user-123");
     expect(body.results.notes).toEqual([
       expect.objectContaining({
         id: "note-keyword",
@@ -153,12 +176,31 @@ describe("GET /api/global-search", () => {
         href: "/quiz",
       }),
     );
+    expect(embedText).toHaveBeenCalledTimes(1);
     expect(embedText).toHaveBeenCalledWith("algorithms");
+    expect(searchChunkVectors).toHaveBeenCalledTimes(2);
     expect(searchChunkVectors).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-123",
         excludeDocumentIds: ["note-keyword"],
       }),
     );
+    const sqlTexts = vi
+      .mocked(sql)
+      .mock.calls.map(([strings]) => (strings as TemplateStringsArray).join(""));
+    expect(
+      sqlTexts.some(
+        (text) =>
+          text.includes("FROM app.chunks c") &&
+          text.includes("AND n.user_id = "),
+      ),
+    ).toBe(true);
+    expect(
+      sqlTexts.some(
+        (text) =>
+          text.includes("WITH hit_courses") &&
+          text.includes("AND n.user_id = "),
+      ),
+    ).toBe(true);
   });
 });

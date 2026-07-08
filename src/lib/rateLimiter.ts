@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
-import { redis, redisReady } from '@/lib/redis';
+import { ensureRedisReady, redis, redisReady } from '@/lib/redis';
 import { RATE_LIMITS, type RateLimitRule } from '@/lib/rateLimitConfig';
 import { Metrics } from '@/lib/metrics';
 import sql from '@/database/pgsql.js';
@@ -31,6 +31,8 @@ async function redisCheck(key: string, rule: RateLimitRule, now: number): Promis
 
   const results = await pipeline.exec();
   if (!results) throw new Error('pipeline returned null');
+  const commandError = results.find(([error]) => error)?.[0];
+  if (commandError) throw commandError;
 
   const count = (results[1]?.[1] as number) ?? 0;
 
@@ -108,6 +110,17 @@ function rateLimitStoreUnavailableResponse(): NextResponse {
   );
 }
 
+function failClosedStoreUnavailable(category: string, error: string): NextResponse {
+  logger.error('redis rate limit failed for fail-closed category', {
+    category,
+    error,
+    publicStatus: 503,
+    retryAfterSeconds: 30,
+  });
+  void Metrics.rateLimitViolation(`${category}:store-unavailable`);
+  return rateLimitStoreUnavailableResponse();
+}
+
 export async function checkRateLimit(
   category: string,
   identifier: string,
@@ -124,25 +137,24 @@ export async function checkRateLimit(
 
   let result: RateLimitResult;
 
-  if (redisReady) {
+  const canUseRedis = redisReady || await ensureRedisReady();
+  if (canUseRedis) {
     try {
       result = await redisCheck(key, rule, now);
     } catch (err) {
       const error = (err as Error).message;
       if (rule.failClosedOnStoreError) {
-        logger.error('redis rate limit failed for fail-closed category', {
-          category, error,
-          publicStatus: 503,
-          retryAfterSeconds: 30,
-        });
-        void Metrics.rateLimitViolation(`${category}:store-unavailable`);
-        return rateLimitStoreUnavailableResponse();
+        return failClosedStoreUnavailable(category, error);
       }
 
       logger.warn('redis rate limit failed, falling back to memory', { category, error });
       result = memCheck(key, rule, now);
     }
   } else {
+    if (rule.failClosedOnStoreError) {
+      return failClosedStoreUnavailable(category, 'redis not ready after initialization');
+    }
+
     result = memCheck(key, rule, now);
   }
 

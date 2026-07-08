@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "您的电子邮件已被验证。 正在重定向到您的笔记...",
   "Your institution's Canvas URL e.g.": "您所在机构的 Canvas URL 例如",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "您的笔记可以通过企业级加密的任何设备安全存储和访问。",
-  "Your session has expired. Please log in again.": "您的会话已过期。 请重新登录。"
+  "Your session has expired. Please log in again.": "您的会话已过期。 请重新登录。",
+  "AI Chats": "AI 聊天",
+  "chat.rag_title": "搜索我的笔记 — RAG",
+  "chat.rag_tooltip": "检索增强生成：搜索你的笔记，并将最相关的段落作为问题上下文。关闭后只使用通用知识回答 — 可节省令牌。",
+  "chat.thinking_title": "扩展思考",
+  "chat.thinking_tooltip": "模型在回答前会逐步推理，有助于处理更难的问题。关闭后可获得直接回答 — 可节省令牌。",
+  "chat.use_notes": "搜索我的笔记",
+  "chat.use_notes_short": "笔记",
+  "Destinations": "目标",
+  "No matches for \"{query}\"": "没有匹配“{query}”的结果",
+  "No preview": "无预览",
+  "No recent results": "没有最近结果",
+  "Open AI Chat": "打开 AI 聊天",
+  "Open Notes": "打开笔记",
+  "Search OghmaNotes": "搜索 OghmaNotes",
+  "Searching...": "正在搜索..."
 }

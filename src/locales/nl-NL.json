@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Je e-mailadres is geverifieerd. Je wordt doorgestuurd naar je notities...",
   "Your institution's Canvas URL e.g.": "De Canvas-URL van je instelling, bijv.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Uw notities zijn veilig opgeslagen en toegankelijk vanaf elk apparaat met versleuteling op bedrijfsniveau.",
-  "Your session has expired. Please log in again.": "Je sessie is verlopen. Log opnieuw in."
+  "Your session has expired. Please log in again.": "Je sessie is verlopen. Log opnieuw in.",
+  "AI Chats": "AI-chats",
+  "chat.rag_title": "Mijn notities doorzoeken — RAG",
+  "chat.rag_tooltip": "Retrieval-augmented generation: doorzoekt je notities en voegt de relevantste passages toe als context voor je vraag. Zet dit uit om alleen met algemene kennis te antwoorden — bespaart tokens.",
+  "chat.thinking_title": "Uitgebreid denken",
+  "chat.thinking_tooltip": "Het model redeneert stap voor stap voordat het antwoordt, wat helpt bij moeilijkere vragen. Zet dit uit voor een direct antwoord — bespaart tokens.",
+  "chat.use_notes": "Mijn notities doorzoeken",
+  "chat.use_notes_short": "Notities",
+  "Destinations": "Bestemmingen",
+  "No matches for \"{query}\"": "Geen overeenkomsten voor \"{query}\"",
+  "No preview": "Geen voorbeeld",
+  "No recent results": "Geen recente resultaten",
+  "Open AI Chat": "AI-chat openen",
+  "Open Notes": "Notities openen",
+  "Search OghmaNotes": "OghmaNotes doorzoeken",
+  "Searching...": "Zoeken..."
 }

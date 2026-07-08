@@ -33,7 +33,8 @@ pipeline {
                     env.IMAGE          = "${REGISTRY}:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
                     env.WORKER_IMAGE   = "${REGISTRY}-worker:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
                     env.ENV_FILE       = "${ENV_DIR}/oghma-${env.DEPLOY_ENV}.env"
-                    echo "branch=${branch}  env=${env.DEPLOY_ENV}  image=${env.IMAGE}  worker=${env.WORKER_IMAGE}"
+                    env.QUEUE_PREFIX   = env.DEPLOY_ENV == 'prod' ? 'oghma' : 'oghma-dev'
+                    echo "branch=${branch}  env=${env.DEPLOY_ENV}  queuePrefix=${env.QUEUE_PREFIX}  image=${env.IMAGE}  worker=${env.WORKER_IMAGE}"
                 }
             }
         }
@@ -131,10 +132,30 @@ pipeline {
                     docker run --rm \
                         --network $NETWORK \
                         --env-file $ENV_FILE \
+                        -e DEPLOY_ENV=$DEPLOY_ENV \
+                        -e QUEUE_PREFIX=$QUEUE_PREFIX \
                         -e QDRANT_URL=http://oghma-qdrant:6333 \
                         -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
                         $IMAGE \
                         node scripts/prebuild-migrate.mjs
+                '''
+            }
+        }
+
+        stage('drain pending extraction retries') {
+            steps {
+                sh '''
+                    set -eu
+                    docker run --rm \
+                        --network "$NETWORK" \
+                        --env-file "$ENV_FILE" \
+                        -e MIGRATION_DATABASE_URL= \
+                        -e DEPLOY_ENV="$DEPLOY_ENV" \
+                        -e QUEUE_PREFIX="$QUEUE_PREFIX" \
+                        -e QDRANT_URL=http://oghma-qdrant:6333 \
+                        -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
+                        "$WORKER_IMAGE" \
+                        npm run worker:retry-pending
                 '''
             }
         }
@@ -144,18 +165,100 @@ pipeline {
                 script {
                     def appIp = env.DEPLOY_ENV == 'prod' ? env.PROD_IP : env.DEV_IP
                     sh """
-                        docker stop  "\$CONTAINER" 2>/dev/null || true
-                        docker rm    "\$CONTAINER" 2>/dev/null || true
-                        docker run -d --name "\$CONTAINER" \
-                            --network "\$NETWORK" \
-                            --ip ${appIp} \
-                            --restart unless-stopped \
-                            --env-file "\$ENV_FILE" \
-                            -e QDRANT_URL=http://oghma-qdrant:6333 \
-                            -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
-                            --memory "\$APP_MEM" \
-                            "\$IMAGE"
-                        echo "deployed \$IMAGE to \$CONTAINER (${appIp})"
+                        set -eu
+                        APP_IP="${appIp}"
+                        CANDIDATE="\$CONTAINER-candidate-\$BUILD_NUMBER"
+                        PREVIOUS="\$CONTAINER-previous-\$BUILD_NUMBER"
+
+                        cleanup_candidate() {
+                          docker rm -f "\$CANDIDATE" >/dev/null 2>&1 || true
+                        }
+
+                        rollback_app() {
+                          echo "[deploy app] rolling back to previous app container if available"
+                          docker rm -f "\$CONTAINER" >/dev/null 2>&1 || true
+                          if docker inspect "\$PREVIOUS" >/dev/null 2>&1; then
+                            docker rename "\$PREVIOUS" "\$CONTAINER" || true
+                            docker network connect --ip "\$APP_IP" "\$NETWORK" "\$CONTAINER" >/dev/null 2>&1 || true
+                            docker start "\$CONTAINER" >/dev/null
+                          fi
+                        }
+
+                        trap cleanup_candidate EXIT
+                        docker rm -f "\$CANDIDATE" "\$PREVIOUS" >/dev/null 2>&1 || true
+
+                        docker run -d --name "\$CANDIDATE" \
+                          --network "\$NETWORK" \
+                          --label app=oghma \
+                          --label env="\$DEPLOY_ENV" \
+                          --label role=app-candidate \
+                          --label jenkins-build="\$BUILD_TAG" \
+                          --restart no \
+                          --env-file "\$ENV_FILE" \
+                          -e MIGRATION_DATABASE_URL= \
+                          -e DEPLOY_ENV="\$DEPLOY_ENV" \
+                          -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
+                          -e QDRANT_URL=http://oghma-qdrant:6333 \
+                          -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
+                          --memory "\$APP_MEM" \
+                          "\$IMAGE"
+
+                        for attempt in \$(seq 1 "\$LIVE_SMOKE_HEALTH_RETRIES"); do
+                          if docker exec "\$CANDIDATE" sh -lc "\$HEALTH_CMD"; then
+                            break
+                          fi
+
+                          if [ "\$attempt" -eq "\$LIVE_SMOKE_HEALTH_RETRIES" ]; then
+                            echo "[deploy app] candidate never became healthy"
+                            exit 1
+                          fi
+
+                          echo "[deploy app] waiting for candidate health (\${attempt}/\$LIVE_SMOKE_HEALTH_RETRIES)"
+                          sleep 2
+                        done
+
+                        if docker inspect "\$CONTAINER" >/dev/null 2>&1; then
+                          docker stop "\$CONTAINER" >/dev/null
+                          docker rename "\$CONTAINER" "\$PREVIOUS"
+                          docker network disconnect "\$NETWORK" "\$PREVIOUS" >/dev/null 2>&1 || true
+                        fi
+
+                        if ! docker run -d --name "\$CONTAINER" \
+                          --network "\$NETWORK" \
+                          --ip "\$APP_IP" \
+                          --label app=oghma \
+                          --label env="\$DEPLOY_ENV" \
+                          --label role=app \
+                          --label jenkins-build="\$BUILD_TAG" \
+                          --restart unless-stopped \
+                          --env-file "\$ENV_FILE" \
+                          -e MIGRATION_DATABASE_URL= \
+                          -e DEPLOY_ENV="\$DEPLOY_ENV" \
+                          -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
+                          -e QDRANT_URL=http://oghma-qdrant:6333 \
+                          -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
+                          --memory "\$APP_MEM" \
+                          "\$IMAGE"; then
+                          rollback_app
+                          exit 1
+                        fi
+
+                        for attempt in \$(seq 1 "\$LIVE_SMOKE_HEALTH_RETRIES"); do
+                          if docker exec "\$CONTAINER" sh -lc "\$HEALTH_CMD"; then
+                            docker rm -f "\$CANDIDATE" >/dev/null 2>&1 || true
+                            echo "deployed \$IMAGE to \$CONTAINER (\$APP_IP)"
+                            exit 0
+                          fi
+
+                          if [ "\$attempt" -eq "\$LIVE_SMOKE_HEALTH_RETRIES" ]; then
+                            echo "[deploy app] final app never became healthy; rolling back"
+                            rollback_app
+                            exit 1
+                          fi
+
+                          echo "[deploy app] waiting for final health (\${attempt}/\$LIVE_SMOKE_HEALTH_RETRIES)"
+                          sleep 2
+                        done
                     """
                 }
             }
@@ -168,19 +271,98 @@ pipeline {
                 script {
                     def wrkIp = env.DEPLOY_ENV == 'prod' ? env.PROD_WRK_IP : env.DEV_WRK_IP
                     sh """
-                        docker stop  "\$WORKER" 2>/dev/null || true
-                        docker rm    "\$WORKER" 2>/dev/null || true
-                    docker run -d --name "\$WORKER" \
-                            --network "\$NETWORK" \
-                            --ip ${wrkIp} \
-                            --restart unless-stopped \
-                            --env-file "\$ENV_FILE" \
-                            -e QDRANT_URL=http://oghma-qdrant:6333 \
-                            -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
-                            --memory "\$WORKER_MEM" \
-                        "\$WORKER_IMAGE"
-                    echo "deployed \$WORKER_IMAGE to \$WORKER (${wrkIp})"
-                """
+                        set -eu
+                        WORKER_IP="${wrkIp}"
+                        CANDIDATE="\$WORKER-candidate-\$BUILD_NUMBER"
+                        PREVIOUS="\$WORKER-previous-\$BUILD_NUMBER"
+
+                        cleanup_candidate() {
+                          docker rm -f "\$CANDIDATE" >/dev/null 2>&1 || true
+                        }
+
+                        rollback_worker() {
+                          echo "[deploy worker] rolling back to previous worker container if available"
+                          docker rm -f "\$WORKER" >/dev/null 2>&1 || true
+                          if docker inspect "\$PREVIOUS" >/dev/null 2>&1; then
+                            docker rename "\$PREVIOUS" "\$WORKER" || true
+                            docker network connect --ip "\$WORKER_IP" "\$NETWORK" "\$WORKER" >/dev/null 2>&1 || true
+                            docker start "\$WORKER" >/dev/null
+                          fi
+                        }
+
+                        trap cleanup_candidate EXIT
+                        docker rm -f "\$CANDIDATE" "\$PREVIOUS" >/dev/null 2>&1 || true
+
+                        docker run -d --name "\$CANDIDATE" \
+                          --network "\$NETWORK" \
+                          --label app=oghma-worker \
+                          --label env="\$DEPLOY_ENV" \
+                          --label role=worker-candidate \
+                          --label jenkins-build="\$BUILD_TAG" \
+                          --restart no \
+                          --env-file "\$ENV_FILE" \
+                          -e MIGRATION_DATABASE_URL= \
+                          -e DEPLOY_ENV="\$DEPLOY_ENV" \
+                          -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
+                          -e QDRANT_URL=http://oghma-qdrant:6333 \
+                          -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
+                          --memory "\$WORKER_MEM" \
+                          "\$WORKER_IMAGE"
+                        sleep 10
+                        if [ "\$(docker inspect -f '{{.State.Running}}' "\$CANDIDATE" 2>/dev/null || true)" != "true" ]; then
+                          echo "[deploy worker] candidate worker exited before swap"
+                          docker logs "\$CANDIDATE" || true
+                          exit 1
+                        fi
+                        if ! docker exec "\$CANDIDATE" npm run worker:healthcheck; then
+                          echo "[deploy worker] candidate worker healthcheck failed"
+                          docker logs "\$CANDIDATE" || true
+                          exit 1
+                        fi
+
+                        if docker inspect "\$WORKER" >/dev/null 2>&1; then
+                          docker stop "\$WORKER" >/dev/null
+                          docker rename "\$WORKER" "\$PREVIOUS"
+                          docker network disconnect "\$NETWORK" "\$PREVIOUS" >/dev/null 2>&1 || true
+                        fi
+
+                        if ! docker run -d --name "\$WORKER" \
+                          --network "\$NETWORK" \
+                          --ip "\$WORKER_IP" \
+                          --label app=oghma-worker \
+                          --label env="\$DEPLOY_ENV" \
+                          --label role=worker \
+                          --label jenkins-build="\$BUILD_TAG" \
+                          --restart unless-stopped \
+                          --env-file "\$ENV_FILE" \
+                          -e MIGRATION_DATABASE_URL= \
+                          -e DEPLOY_ENV="\$DEPLOY_ENV" \
+                          -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
+                          -e QDRANT_URL=http://oghma-qdrant:6333 \
+                          -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
+                          --memory "\$WORKER_MEM" \
+                          "\$WORKER_IMAGE"; then
+                          rollback_worker
+                          exit 1
+                        fi
+
+                        sleep 10
+                        if [ "\$(docker inspect -f '{{.State.Running}}' "\$WORKER" 2>/dev/null || true)" != "true" ]; then
+                          echo "[deploy worker] final worker exited after swap; rolling back"
+                          docker logs "\$WORKER" || true
+                          rollback_worker
+                          exit 1
+                        fi
+                        if ! docker exec "\$WORKER" npm run worker:healthcheck; then
+                          echo "[deploy worker] final worker healthcheck failed; rolling back"
+                          docker logs "\$WORKER" || true
+                          rollback_worker
+                          exit 1
+                        fi
+
+                        docker rm -f "\$CANDIDATE" >/dev/null 2>&1 || true
+                        echo "deployed \$WORKER_IMAGE to \$WORKER (\$WORKER_IP)"
+                    """
                 }
             }
         }
@@ -191,6 +373,9 @@ pipeline {
                     final String appIp = env.DEPLOY_ENV == 'prod'
                         ? env.PROD_IP
                         : env.DEV_IP
+                    final String workerIp = env.DEPLOY_ENV == 'prod'
+                        ? env.PROD_WRK_IP
+                        : env.DEV_WRK_IP
                     final String appUrl = "http://${appIp}:3000"
 
                     sh """
@@ -222,6 +407,14 @@ pipeline {
                           APP_BASE_URL=${appUrl} \
                           CORS_ORIGINS=${appUrl} \
                           npm run e2e:smoke:public -- --workers=${env.E2E_SMOKE_WORKERS}
+
+                        docker rm -f \
+                          "\$CONTAINER-previous-\$BUILD_NUMBER" \
+                          "\$WORKER-previous-\$BUILD_NUMBER" \
+                          "\$CONTAINER-candidate-\$BUILD_NUMBER" \
+                          "\$WORKER-candidate-\$BUILD_NUMBER" \
+                          >/dev/null 2>&1 || true
+                        echo "[live smoke] passed; cleaned retained rollback containers (${appIp}, ${workerIp})"
                     """
                 }
             }
@@ -248,7 +441,41 @@ pipeline {
 
     post {
         failure {
-            sh 'docker rm -f "$CONTAINER" 2>/dev/null || true'
+            sh '''
+                set +e
+                if [ -z "${DEPLOY_ENV:-}" ]; then
+                  exit 0
+                fi
+
+                if [ "$DEPLOY_ENV" = "prod" ]; then
+                  APP_IP="$PROD_IP"
+                  WORKER_IP="$PROD_WRK_IP"
+                else
+                  APP_IP="$DEV_IP"
+                  WORKER_IP="$DEV_WRK_IP"
+                fi
+
+                rollback_container() {
+                  current="$1"
+                  previous="$2"
+                  ip="$3"
+                  if docker inspect "$previous" >/dev/null 2>&1; then
+                    echo "[post failure] rolling back $current from $previous"
+                    docker rm -f "$current" >/dev/null 2>&1 || true
+                    if docker rename "$previous" "$current"; then
+                      docker network connect --ip "$ip" "$NETWORK" "$current" >/dev/null 2>&1 || true
+                      docker start "$current" >/dev/null 2>&1 || true
+                    fi
+                  fi
+                }
+
+                rollback_container "$CONTAINER" "$CONTAINER-previous-$BUILD_NUMBER" "$APP_IP"
+                rollback_container "$WORKER" "$WORKER-previous-$BUILD_NUMBER" "$WORKER_IP"
+                docker rm -f \
+                  "$CONTAINER-candidate-$BUILD_NUMBER" \
+                  "$WORKER-candidate-$BUILD_NUMBER" \
+                  >/dev/null 2>&1 || true
+            '''
         }
         always {
             // Workspace Cleanup plugin isn't installed on this jenkins, so
