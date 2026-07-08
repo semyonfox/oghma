@@ -1,54 +1,188 @@
-# Growth Funnel And Analytics Plan
+# Growth Funnel And Analytics
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
-Status: lead-capture scaffolding is implemented; full analytics is not. Do not add non-essential tracking cookies, advertising pixels, or cross-site tracking without updating the cookie notice, privacy policy, and consent posture.
+Status: privacy-light first-party tracking is implemented. There is no GA4, GTM, third-party analytics script, advertising pixel, session replay, heatmap tool, or analytics cookie.
 
 ## Goal
 
 Measure whether the Canvas-first landing page creates the right activation path:
 
-> Visitor understands the promise -> starts signup -> connects Canvas -> sees a limited import -> reaches a useful first study action -> considers semester pricing.
+> Visitor understands the promise -> clicks a Canvas-first CTA -> starts signup -> creates an account -> connects Canvas -> reaches the import/study workflow.
 
-The funnel should validate positioning before optimising paid acquisition.
+The funnel should validate positioning before paid acquisition or heavier analytics.
 
-## Primary Funnel
+## Implemented
 
-| Stage | Event | Why it matters |
+First-party event collection:
+
+- `POST /api/marketing/events`
+- stores into `app.marketing_events`
+- anonymous session id kept in `sessionStorage`
+- no cookies
+- no raw IP storage
+- no third-party analytics provider
+- no note text, Canvas tokens, uploaded documents, names, emails, phone numbers, or contact messages in the event table
+
+First-party lead capture:
+
+- `POST /api/contact`
+- stores contact submissions in `app.marketing_leads`
+- forwards to Web3Forms server-side when `WEB3FORMS_KEY` or `NEXT_PUBLIC_WEB3FORMS_KEY` is configured
+- keeps Web3Forms as delivery, not the only source of truth
+
+Tracked events:
+
+| Event | Source | Purpose |
 |---|---|---|
-| Public page view | `public_page_view` | Baseline traffic by page and source |
-| Hero CTA click | `hero_connect_canvas_click` | Measures whether the new promise is compelling |
-| Comparison CTA click | `notebooklm_compare_click` | Measures competitor-intent interest |
-| Pricing view | `pricing_view` | Measures commercial curiosity |
-| Register started | `register_started` | First high-intent step |
-| Account created | `account_created` | Signup conversion |
-| Email verified | `email_verified` | Activation quality |
-| Canvas connect started | `canvas_connect_started` | Core value path started |
-| Canvas connect completed | `canvas_connect_completed` | Permission/setup success |
-| Import estimate viewed | `canvas_import_estimate_viewed` | Large-import cost control moment |
-| Import confirmed | `canvas_import_confirmed` | Student accepts import workload |
-| Import completed | `canvas_import_completed` | Magic moment delivered |
-| First cited answer | `first_cited_answer` | AI study value reached |
-| First flashcard generated | `first_flashcard_generated` | Active recall value reached |
-| Pricing after activation | `pricing_view_after_import` | Paid conversion intent |
-| Checkout click | `checkout_click` | Paid intent |
-| Checkout completed | `checkout_completed` | Revenue |
+| `page_view` | public pages | traffic by path, referrer, and UTM |
+| `nav_click` | public links | navigation/item-click visibility |
+| `cta_click` | marked CTAs | high-intent CTA conversion |
+| `pricing_click` | pricing CTAs | commercial curiosity |
+| `contact_form_start` | contact form | form engagement |
+| `contact_form_submit` | contact form | submit attempt |
+| `contact_form_success` | contact client/API | submitted lead |
+| `contact_form_error` | contact form | failed lead flow |
+| `registration_form_start` | register page | signup intent |
+| `registration_submit` | register page | validated signup submit |
+| `registration_success` | register client/API | account created; server event is canonical |
+| `registration_error` | register page | validation/API failure bucket |
+| `registration_oauth_start` | register page | OAuth intent |
+| `registration_oauth_unavailable` | register page | provider config issue |
+| `canvas_connect_attempt` | settings Canvas form | core activation attempt |
+| `canvas_connect_success` | settings/API | Canvas connected; server event is canonical |
+| `canvas_connect_error` | settings Canvas form | setup failure bucket |
 
-## Implemented Now
+## Attribution
 
-Contact form lead fields are collected through Web3Forms:
+The client captures these UTM fields from the URL and keeps them in `sessionStorage` for the browser session:
 
-- first name
-- last name
-- email
-- role
-- interest
-- university or organization
-- phone number
-- message
-- hidden subject/from-name fields for lead routing
+- `utm_source`
+- `utm_medium`
+- `utm_campaign`
+- `utm_content`
+- `utm_term`
 
-Public CTAs use UTM-bearing URLs for source attribution scaffolding.
+Events store last-touch UTM fields directly. Registration, Canvas connect, and contact submissions also include the session-scoped first-touch object in sanitized JSON properties.
+
+## Privacy Boundaries
+
+Do not add these without a separate consent/privacy pass:
+
+- GA4/GTM
+- Meta/TikTok/Reddit/LinkedIn pixels
+- PostHog/Mixpanel/Plausible/Umami hosted scripts
+- heatmaps
+- session replay
+- persistent analytics cookies
+- cross-site identifiers
+
+Never send these into `app.marketing_events`:
+
+- names
+- emails
+- phone numbers
+- contact messages
+- passwords
+- Canvas tokens
+- Canvas domain values
+- note text
+- file/document content
+- raw IP addresses
+
+`app.marketing_leads` is the exception for contact details because visitors explicitly submit those fields through the contact form.
+
+## Useful Queries
+
+Daily event counts:
+
+```sql
+SELECT
+  date_trunc('day', occurred_at) AS day,
+  event_name,
+  count(*) AS events
+FROM app.marketing_events
+GROUP BY 1, 2
+ORDER BY 1 DESC, 2;
+```
+
+Homepage CTA conversion by campaign:
+
+```sql
+SELECT
+  utm_campaign,
+  properties->>'location' AS location,
+  properties->>'cta' AS cta,
+  count(*) AS clicks
+FROM app.marketing_events
+WHERE event_name IN ('cta_click', 'pricing_click')
+GROUP BY 1, 2, 3
+ORDER BY clicks DESC;
+```
+
+Signup funnel by session:
+
+```sql
+SELECT
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'page_view' AND path LIKE '/register%') AS register_visitors,
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'registration_form_start') AS form_starts,
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'registration_submit') AS submits,
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'registration_success') AS account_created
+FROM app.marketing_events
+WHERE occurred_at >= now() - interval '30 days';
+```
+
+Canvas activation after signup:
+
+```sql
+SELECT
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'registration_success') AS account_created,
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'canvas_connect_attempt') AS canvas_attempted,
+  count(DISTINCT session_id) FILTER (WHERE event_name = 'canvas_connect_success') AS canvas_connected
+FROM app.marketing_events
+WHERE occurred_at >= now() - interval '30 days';
+```
+
+Contact leads by intent:
+
+```sql
+SELECT
+  interest,
+  role,
+  utm_campaign,
+  count(*) AS leads,
+  count(*) FILTER (WHERE forwarded_to_web3forms) AS forwarded
+FROM app.marketing_leads
+GROUP BY 1, 2, 3
+ORDER BY leads DESC;
+```
+
+## Still Missing
+
+These are intentionally not in this pass:
+
+- analytics dashboard UI
+- email verification event
+- Canvas import started/completed events
+- first cited answer event
+- first flashcard generated event
+- checkout/paid conversion events
+- retention policy job for marketing tables
+
+## Next Product Events
+
+Add these when the relevant surfaces are ready:
+
+- `email_verified`
+- `canvas_import_started`
+- `canvas_import_completed`
+- `first_cited_answer`
+- `first_flashcard_generated`
+- `pricing_view_after_import`
+- `checkout_click`
+- `checkout_completed`
+
+## GEO Monitoring
 
 Machine-readable GEO/AEO routes are implemented:
 
@@ -62,84 +196,6 @@ Machine-readable GEO/AEO routes are implemented:
 - `/agent-api.json`
 - `/agent-sitemap.xml`
 
-## Not Implemented Yet
-
-There is still no first-party analytics or event pipeline:
-
-- no GA4, GTM, Plausible, PostHog, Mixpanel, or Umami
-- no CTA-click event collection
-- no registration attribution persistence
-- no first-party lead table
-- no UTM persistence into contact or user records
-- no dashboard for activation or import funnel metrics
-
-## CTA Naming
-
-Use stable UTM and event names:
-
-- `hero_connect_canvas`
-- `midpage_free_import`
-- `notebooklm_comparison`
-- `pricing_semester`
-- `pricing_academic_year`
-- `student_group_contact`
-- `campus_pilot_contact`
-- `blog_to_register`
-- `footer_contact`
-
-## UTM Policy
-
-Preserve incoming UTMs through signup where possible:
-
-- `utm_source`
-- `utm_medium`
-- `utm_campaign`
-- `utm_content`
-- `utm_term`
-- first landing page
-- referrer
-
-Store attribution server-side after account creation if privacy policy and consent posture allow it. Do not rely only on client local storage for attribution.
-
-## Recommended Initial Dashboard
-
-Track weekly:
-
-- homepage visitors
-- CTA click-through rate
-- register-start rate
-- account-created rate
-- Canvas-connect-start rate
-- Canvas-connect-complete rate
-- import-complete rate
-- first-cited-answer rate
-- first-flashcard rate
-- pricing-after-import rate
-- support/contact messages about privacy or Canvas access
-- import failure rate and median time to indexed material
-
-## Experiment Backlog
-
-Run only one or two changes at a time until there is enough traffic.
-
-1. Hero headline: "Your whole semester, already loaded" vs "Connect Canvas once and start revising".
-2. CTA: "Connect Canvas free" vs "Import one module free".
-3. Pricing anchor: semester-first vs annual-first.
-4. NotebookLM comparison placement: above features vs below features.
-5. Free tier explanation: one-module import vs page-count import.
-
-## Privacy Notes
-
-Current public cookie copy says OghmaNotes does not use non-essential analytics cookies, advertising pixels, or cross-site tracking cookies. If analytics is added:
-
-- update `/cookies`
-- update `/privacy`
-- decide whether consent is needed
-- document provider, retention, and data residency
-- avoid sending note content, Canvas tokens, or course file text to analytics tools
-
-## Bot And GEO Monitoring
-
 Monitor server logs for crawler and answer-engine user agents:
 
 - `OAI-SearchBot`
@@ -148,20 +204,3 @@ Monitor server logs for crawler and answer-engine user agents:
 - `PerplexityBot`
 - `Google-Extended`
 - `Bingbot`
-
-Also set up:
-
-- Google Search Console
-- Bing Webmaster Tools
-- sitemap validation
-- checks that `/llms.txt`, `/llms-full.txt`, `/ai.md`, `/faq.md`, and `/pricing.md` return 200
-
-## Owner Decision Needed
-
-Before implementing analytics code, decide:
-
-- analytics provider
-- consent/cookie posture
-- retention period
-- whether attribution is stored before or after account creation
-- who reviews the dashboard weekly
