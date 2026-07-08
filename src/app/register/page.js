@@ -9,6 +9,10 @@ import Link from "next/link";
 import Image from "next/image";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
+  getMarketingContext,
+  trackMarketingEvent,
+} from "@/lib/marketing/client";
+import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
@@ -22,6 +26,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState(null);
   const errRef = useRef();
+  const startedRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -45,20 +50,48 @@ export default function RegisterPage() {
     setErrMsg("");
 
     if (pwd !== confirmPwd) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "password_mismatch",
+        },
+      });
       setErrMsg(t("Passwords do not match"));
       errRef.current?.focus();
       return;
     }
 
     if (pwd.length < 8) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "password_too_short",
+        },
+      });
       setErrMsg(t("Password must be at least 8 characters"));
       errRef.current?.focus();
       return;
     }
 
     setLoading(true);
+    trackMarketingEvent("registration_submit", {
+      source: "register_form",
+      properties: {
+        method: "email",
+      },
+    });
     try {
-      const result = await register(email, pwd);
+      const result = await register(email, pwd, getMarketingContext());
+      trackMarketingEvent("registration_success", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          requires_verification: Boolean(result.requiresVerification),
+          destination: result.requiresVerification ? "/verify-email" : "/notes",
+        },
+      });
       if (result.requiresVerification) {
         router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
         setTimeout(() => {
@@ -71,6 +104,13 @@ export default function RegisterPage() {
         }, 1000);
       }
     } catch (err) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "api_error",
+        },
+      });
       setErrMsg(getErrorMessage(err));
       setPwd("");
       setConfirmPwd("");
@@ -84,11 +124,39 @@ export default function RegisterPage() {
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
     ) {
+      trackMarketingEvent("registration_oauth_unavailable", {
+        source: "register_form",
+        properties: {
+          method: "oauth",
+          provider,
+          configured: false,
+        },
+      });
       setErrMsg(t("This sign-in provider is not configured right now"));
       return;
     }
 
+    trackMarketingEvent("registration_oauth_start", {
+      source: "register_form",
+      properties: {
+        method: "oauth",
+        provider,
+        configured: true,
+        destination: "/notes",
+      },
+    });
     signIn(provider, buildOAuthSignInOptions("/notes"));
+  };
+
+  const trackFormStart = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackMarketingEvent("registration_form_start", {
+      source: "register_form",
+      properties: {
+        method: "email",
+      },
+    });
   };
 
   const isProviderDisabled = (provider) =>
@@ -115,7 +183,13 @@ export default function RegisterPage() {
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
         <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
-          <form onSubmit={handleSubmit} method="POST" className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            onFocusCapture={trackFormStart}
+            onChangeCapture={trackFormStart}
+            method="POST"
+            className="space-y-6"
+          >
             {errMsg && (
               <div ref={errRef}>
                 <Alert

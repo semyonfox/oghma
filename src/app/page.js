@@ -310,12 +310,20 @@ export default async function Home() {
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <a
                     href="/register?utm_source=homepage&utm_medium=hero_cta&utm_campaign=free_canvas_import"
+                    data-marketing-event="cta_click"
+                    data-marketing-page="home"
+                    data-marketing-location="hero"
+                    data-marketing-cta="connect_canvas_free"
                     className="rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary shadow-xs transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                   >
                     {t("Connect Canvas free")}
                   </a>
                   <a
                     href="#notebooklm"
+                    data-marketing-event="cta_click"
+                    data-marketing-page="home"
+                    data-marketing-location="hero"
+                    data-marketing-cta="compare_notebooklm"
                     className="text-sm/6 font-semibold text-text transition-colors hover:text-primary-400"
                   >
                     {t("Compare with NotebookLM")} <span aria-hidden="true">&rarr;</span>
@@ -469,12 +477,20 @@ export default async function Home() {
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
                   href="/register?utm_source=homepage&utm_medium=midpage_cta&utm_campaign=free_canvas_import"
+                  data-marketing-event="cta_click"
+                  data-marketing-page="home"
+                  data-marketing-location="midpage_cta"
+                  data-marketing-cta="connect_canvas_free"
                   className="rounded-radius-md bg-white px-6 py-3 text-sm font-semibold text-primary-700 shadow-xs transition-colors hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
                   {t("Connect Canvas free")}
                 </a>
                 <a
                   href="/pricing?utm_source=homepage&utm_medium=midpage_cta&utm_campaign=semester_pricing"
+                  data-marketing-event="pricing_click"
+                  data-marketing-page="home"
+                  data-marketing-location="midpage_cta"
+                  data-marketing-cta="view_semester_pricing"
                   className="text-sm/6 font-semibold text-white"
                 >
                   {t("View semester pricing")} <span aria-hidden="true">&rarr;</span>
@@ -562,7 +578,7 @@ export default async function Home() {
           </div>
 
           <div className="px-6 pt-20 pb-24 sm:pb-32 lg:px-8 lg:py-48">
-            <ContactForm />
+            <ContactForm source="home" />
           </div>
         </div>
       </div>

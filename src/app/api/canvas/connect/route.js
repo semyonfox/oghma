@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
 import { encrypt } from "@/lib/crypto";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import logger from "@/lib/logger";
+import { recordMarketingEvent } from "@/lib/marketing/events";
 
 const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
@@ -60,7 +62,7 @@ export const POST = withErrorHandler(async (request) => {
   const limited = await checkRateLimit("canvas-connect", user.user_id);
   if (limited) return limited;
 
-  const { token, domain } = await request.json();
+  const { token, domain, marketing } = await request.json();
   const normalizedToken = typeof token === "string" ? token.trim() : "";
   const normalizedDomain =
     typeof domain === "string" ? domain.trim().toLowerCase() : "";
@@ -91,6 +93,29 @@ export const POST = withErrorHandler(async (request) => {
           SET canvas_token = ${encryptedToken}, canvas_domain = ${normalizedDomain}
           WHERE user_id = ${user.user_id}
       `;
+
+  after(() =>
+    recordMarketingEvent(
+      {
+        eventName: "canvas_connect_success",
+        sessionId: marketing?.sessionId,
+        userId: user.user_id,
+        path: "/settings",
+        source: "canvas_connect",
+        utm: marketing?.utm,
+        properties: {
+          location: "settings",
+          course_count: Array.isArray(courses) ? courses.length : 0,
+          first_touch: marketing?.firstTouch,
+        },
+      },
+      request,
+    ).catch((eventError) => {
+      logger.warn("failed to record canvas marketing event", {
+        error: eventError.message,
+      });
+    }),
+  );
 
   return noStoreJson({ success: true, courses: courses ?? [] });
 });

@@ -91,12 +91,20 @@ export default function AIPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
             href="/register?utm_source=ai_page&utm_medium=cta&utm_campaign=free_canvas_import"
+            data-marketing-event="cta_click"
+            data-marketing-page="ai"
+            data-marketing-location="primary_ctas"
+            data-marketing-cta="connect_canvas_free"
             className="rounded-lg border border-primary-500/40 bg-primary-600 px-5 py-4 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
           >
             Connect Canvas free
           </Link>
           <Link
             href="/contact?utm_source=ai_page&utm_medium=cta&utm_campaign=campus_pilot"
+            data-marketing-event="cta_click"
+            data-marketing-page="ai"
+            data-marketing-location="primary_ctas"
+            data-marketing-cta="ask_about_beta_or_pilot"
             className="rounded-lg border border-border-subtle bg-surface px-5 py-4 text-sm font-semibold text-text hover:border-border"
           >
             Ask about beta access or campus pilots
