@@ -14,22 +14,22 @@ Canvas import economics source of truth: [CANVAS_IMPORT_PRICING_REPORT.md](CANVA
 | AWS | Historical/fallback only unless explicitly retained |
 | Email | Cloudflare Email Sending target; Google Workspace for human inboxes |
 | Base infra cost | Homelab is cheap but ISP-limited; launch hosting costs move to provider trials |
-| Paid launch product | Standard at EUR 10/month |
-| Future paid products | Premium and annual pricing are modelled but should stay disabled until usage is proven |
+| Paid launch product | Semester-first student plan, final price likely EUR 39-49/semester |
+| Future paid products | Academic-year pricing and monthly fallback are modelled but should stay disabled until usage is proven |
 
 ## Pricing Tiers
 
-### Free
+### Free First Import
 
 - Manual note-taking and rich-text / markdown editing
 - Spaced repetition
 - Small AI search allowance
-- No Canvas import
+- Limited first Canvas import or one-module import
 - Limited storage and one vault
 
-Purpose: acquisition and product feedback with minimal marginal cost.
+Purpose: acquisition and product feedback by showing the core "semester appears" moment before payment. This must stay limited because Canvas OCR/indexing is the margin-sensitive path.
 
-### Standard: EUR 10/month
+### Semester: Planning Range EUR 39-49/semester
 
 - Canvas LMS import
 - AI semantic search / chat allowance
@@ -37,11 +37,15 @@ Purpose: acquisition and product feedback with minimal marginal cost.
 - Larger storage allowance
 - Standard OCR/indexing queue
 
-This is the only paid tier that should launch first.
+This is the preferred public paid framing because students think in semesters and exam seasons, not SaaS billing cycles. Keep the allowance model explicit: recurring page allowance, separate onboarding allowance, and large-import confirmation.
 
-### Premium: Future Tier
+### Monthly: Fallback
 
-The public pricing page currently shows EUR 18/month as a placeholder future tier. Do not enable checkout until usage limits, support load, and real demand are clearer.
+Monthly pricing can exist as a fallback, but it should not be the main public anchor. A generic EUR 10/month pitch makes OghmaNotes look like another AI subscription instead of a semester study system.
+
+### Premium / Heavier Usage: Future Tier
+
+Do not enable checkout until usage limits, support load, and real demand are clearer.
 
 Potential differentiators:
 
@@ -53,7 +57,7 @@ Potential differentiators:
 
 ### Annual / Academic-Year Option
 
-Students churn over the summer: cancel in May, maybe resubscribe in September. An annual plan around EUR 80-90 (roughly two months free) captures the summer, smooths cashflow, and is trivial to add in Stripe. This is likely a stronger upsell than pushing people from Standard to Premium.
+Students churn over the summer: cancel in May, maybe resubscribe in September. An annual plan around EUR 80-90 captures the summer, smooths cashflow, and is likely a stronger upsell than pushing people from Standard to Premium.
 
 ### University Licence
 
@@ -62,20 +66,20 @@ Manual sales path for institution deals. Requires data residency docs, procureme
 ## Tier Design Notes
 
 - Three visible tiers with the bottom one **free**, not a cheap paid taster. A ~EUR 5 tier would pay the worst Stripe MoR percentage, attract the highest-churn/highest-support users, and cannibalise Standard signups; the free tier already does the decoy ladder's bottom-rung job.
-- Price is set by what students will pay (EUR 10, anchored against ChatGPT's EUR 8 entry tier). Do not undercut to EUR 8 — that positions Oghma as a discount chatbot. The pitch is "cheaper than a ChatGPT sub *and* has your actual course notes inside". Costs are made to fit under the price via limits and model routing, never by raising Standard.
+- Price is set by what students will pay for a semester outcome, not by generic AI subscription anchoring. The pitch is "your actual semester organised", not "a cheaper chatbot". Costs are made to fit under the price via limits, import allowances, batching, and model routing.
 - Premium differentiates on limits only (more OCR pages, more AI, priority queue) so it costs nothing extra to maintain.
-- If upsell pressure toward Premium is ever wanted, the lever is the price gap: EUR 10 vs EUR 18 reads as "double, no thanks"; a narrower gap pushes harder. At launch, though, bodies on Standard beat ARPU — word-of-mouth inside a university compounds.
+- If upsell pressure toward heavier-usage tiers is ever wanted, the lever is the price gap and allowance design. At launch, activated student users beat ARPU because word-of-mouth inside a university compounds.
 - Launch-week promo: Premium for the price of Standard, first month, time-boxed.
 - The three selectable chat models differ ~3x in cost (DeepSeek vs Kimi). Keep the message cap identical across models rather than inventing credits — users who pick the cheap model quietly improve margin.
 - AI usage should use a weighted allowance, not raw request counts. A low-cost default model can count as 1x while a more expensive model counts at a higher multiplier, such as 4x if the actual provider cost ratio supports it.
 
 ## Unit Economics
 
-Estimated Standard contribution at EUR 10/month:
+Estimated monthly-equivalent contribution for a paid student plan:
 
 | Item | Estimate |
 |---|---:|
-| Gross subscription | EUR 10.00 |
+| Gross monthly-equivalent subscription | About EUR 10.00 |
 | Stripe Managed payment/MoR fee | about EUR 0.82 |
 | AI/OCR/storage variable cost | target below EUR 1 for normal recurring use, excluding unusually large onboarding backlogs |
 | Net contribution | about EUR 8.50/month |

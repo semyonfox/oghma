@@ -2,25 +2,32 @@ import Link from "next/link";
 import PublicInfoPage, { InfoSection } from "@/components/public-info-page";
 
 export const metadata = {
-  title: "Pricing",
-  description: "OghmaNotes launch pricing.",
+  title: "Semester Pricing",
+  description:
+    "OghmaNotes launch pricing for students: free first import during beta, then semester or annual plans for Canvas-connected study.",
+  alternates: {
+    canonical: "/pricing",
+  },
 };
 
 const tiers = [
   {
-    name: "Free",
+    name: "Free first import",
     price: "EUR 0",
-    description: "Basic notes, study tools, and limited AI usage while you try the product.",
+    description:
+      "Try the Canvas-connected workflow before paying. Launch limits may include one module, a page cap, and a one-time import while we protect OCR and AI costs.",
   },
   {
-    name: "Standard",
-    price: "EUR 10 / month",
-    description: "Full study workflow for active students: imports, semantic search, chat, quizzes, and flashcards.",
+    name: "Semester",
+    price: "Around EUR 39-49",
+    description:
+      "Built for assignment and exam season: current modules, Canvas sync, cited answers, flashcards, revision planning, and practical import allowances.",
   },
   {
-    name: "Premium",
-    price: "EUR 18 / month",
-    description: "Higher usage limits for students with heavier course loads and larger document libraries.",
+    name: "Academic year",
+    price: "Around EUR 79-89",
+    description:
+      "For students who want the whole year organised without thinking about monthly SaaS billing. Annual checkout will stay disabled until public pricing is final.",
   },
 ];
 
@@ -28,8 +35,8 @@ export default function PricingPage() {
   return (
     <PublicInfoPage
       eyebrow="Pricing"
-      title="Simple Launch Pricing"
-      description="Start free, then upgrade when OghmaNotes is part of your study routine. Checkout is being rolled out during the launch period."
+      title="Pricing built around semesters"
+      description="Students do not think in SaaS billing cycles. OghmaNotes starts with a limited free import, then prices around the academic term and the real cost of Canvas OCR, AI, storage, and sync."
     >
       <section className="grid gap-5 md:grid-cols-3">
         {tiers.map((tier) => (
@@ -50,16 +57,30 @@ export default function PricingPage() {
 
       <InfoSection title="Launch Status">
         <p>
-          Paid checkout is not required for the current closed beta. Pricing may
-          be adjusted before public launch, and existing users will be told
-          before any renewal changes.
+          Paid checkout is not required for the current closed beta. The exact
+          free import allowance, semester price, and annual price may be adjusted
+          before public launch. Existing beta users will be told before any
+          renewal or plan changes.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Why Canvas import has limits">
+        <p>
+          OghmaNotes has to process real lecture files, scanned slides, and PDFs.
+          Small imports can be quick; large Canvas histories may need background
+          OCR/indexing and queue time. Limits keep the free tier honest while
+          still letting students see their course material assemble before
+          upgrading.
         </p>
       </InfoSection>
 
       <InfoSection title="Questions">
         <p>
-          For beta access or billing questions, contact{" "}
-          <Link className="text-primary-300 hover:text-primary-200" href="/contact">
+          For beta access, billing questions, or student group pilots, contact{" "}
+          <Link
+            className="text-primary-300 hover:text-primary-200"
+            href="/contact?utm_source=pricing&utm_medium=cta&utm_campaign=launch_beta"
+          >
             the team
           </Link>
           .

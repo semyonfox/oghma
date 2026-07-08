@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { blogPosts } from "@/lib/blog-data";
+import {
+  AGENT_RESOURCE_PATHS,
+  AI_USER_AGENTS,
+} from "@/lib/public/agent-content";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 
@@ -18,6 +22,10 @@ describe("sitemap metadata route", () => {
       "https://oghmanotes.ie/cookies",
       "https://oghmanotes.ie/pricing",
       "https://oghmanotes.ie/contact",
+      "https://oghmanotes.ie/ai",
+      ...AGENT_RESOURCE_PATHS.filter((path) => path !== "/ai").map(
+        (path) => `https://oghmanotes.ie${path}`,
+      ),
       ...blogPosts.map((post) => `https://oghmanotes.ie/blog/${post.slug}`),
       "https://oghmanotes.ie/syntax-guide",
     ]);
@@ -34,11 +42,20 @@ describe("sitemap metadata route", () => {
 describe("robots metadata route", () => {
   it("allows crawling and points to the generated sitemap", () => {
     expect(robots()).toEqual({
-      rules: {
-        userAgent: "*",
-        allow: "/",
-      },
-      sitemap: "https://oghmanotes.ie/sitemap.xml",
+      rules: [
+        {
+          userAgent: "*",
+          allow: "/",
+        },
+        {
+          userAgent: AI_USER_AGENTS,
+          allow: ["/", ...AGENT_RESOURCE_PATHS],
+        },
+      ],
+      sitemap: [
+        "https://oghmanotes.ie/sitemap.xml",
+        "https://oghmanotes.ie/agent-sitemap.xml",
+      ],
     });
   });
 });

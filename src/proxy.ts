@@ -12,6 +12,17 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Credentials": "true",
 };
 
+function wantsMarkdown(request: NextRequest) {
+    const format = request.nextUrl.searchParams.get("format")?.toLowerCase();
+    if (format === "md" || format === "markdown") return true;
+
+    const accept = request.headers.get("accept")?.toLowerCase() || "";
+    if (!accept) return false;
+    if (accept.includes("text/markdown") || accept.includes("text/x-markdown")) return true;
+    if (accept.includes("application/markdown")) return true;
+    return accept.includes("text/plain") && !accept.includes("text/html");
+}
+
 function getCORSHeaders(request: NextRequest) {
     const origin = request.headers.get("origin") || "";
     const isAllowed = ALLOWED_ORIGINS.includes(origin);
@@ -21,9 +32,19 @@ function getCORSHeaders(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
     const corsHeaders = getCORSHeaders(request);
+    const { pathname } = request.nextUrl;
 
     if (request.method === "OPTIONS") {
         return new NextResponse(null, { status: 204, headers: corsHeaders });
+    }
+
+    if (pathname === "/ai") {
+        const response = wantsMarkdown(request)
+            ? NextResponse.rewrite(new URL("/ai.md", request.url))
+            : NextResponse.next();
+        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+        response.headers.set("Vary", "Accept");
+        return response;
     }
 
     const session = request.cookies.get("session")?.value;
@@ -33,7 +54,6 @@ export async function proxy(request: NextRequest) {
     const isAuthenticated = !!(session || nextAuthSession);
 
     // redirect authenticated users away from login/register (skip the page load)
-    const { pathname } = request.nextUrl;
     if (isAuthenticated && (pathname === "/login" || pathname === "/register")) {
         const response = NextResponse.redirect(new URL("/notes", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
@@ -58,6 +78,7 @@ export const config = {
     matcher: [
         "/login",
         "/register",
+        "/ai",
         "/dashboard/:path*",
         "/notes/:path*",
         "/upload/:path*",

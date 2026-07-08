@@ -16,7 +16,9 @@ export default function TermsPage() {
         <p>
           You are responsible for your account, the files you upload, and the
           Canvas connection you choose to authorize. Do not upload material you
-          do not have the right to store or process.
+          do not have the right to store or process. Canvas access depends on
+          your institution's settings and the permissions available to your
+          account.
         </p>
       </InfoSection>
 
@@ -32,7 +34,8 @@ export default function TermsPage() {
         <p>
           AI features can be wrong. Treat generated summaries, answers, quiz
           questions, and study advice as study support, not authoritative
-          academic guidance.
+          academic guidance. Always check important answers against original
+          course material, assignment briefs, rubrics, and lecturer guidance.
         </p>
       </InfoSection>
 

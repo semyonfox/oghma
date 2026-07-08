@@ -5,13 +5,13 @@ test.describe("public smoke", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: /OghmaNotes: Semantic Notes & RAG Chat/i,
+        name: /Your whole semester, already loaded/i,
       }),
     ).toBeVisible();
 
     await page.goto("/pricing");
     await expect(
-      page.getByRole("heading", { name: /Simple Launch Pricing/i }),
+      page.getByRole("heading", { name: /Pricing built around semesters/i }),
     ).toBeVisible();
 
     await page.goto("/login");
@@ -30,4 +30,3 @@ test.describe("public smoke", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 });
-

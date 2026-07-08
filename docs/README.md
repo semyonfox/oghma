@@ -27,6 +27,9 @@ This index is the map of canonical docs. Historical plans are kept for context, 
 |---|---|
 | [ROADMAP.md](ROADMAP.md) | Product phases and feature priorities |
 | [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) | Launch blockers, security, compliance, QA, monitoring |
+| [LANDING_PAGE_PIVOT.md](LANDING_PAGE_PIVOT.md) | Canvas-first landing page positioning, CTAs, pricing framing, and NotebookLM comparison |
+| [GROWTH_FUNNEL.md](GROWTH_FUNNEL.md) | Landing-page funnel events, UTM policy, analytics privacy decisions, and GEO monitoring |
+| [HANDOVER_2026-07-07_AGENTIC_GEO_FUNNEL.md](HANDOVER_2026-07-07_AGENTIC_GEO_FUNNEL.md) | Current handover for agentic GEO routes, lead-capture scaffolding, missing analytics, and deploy checks |
 | [PRICING.md](PRICING.md) | Pricing tiers, cost model, infrastructure upgrade triggers |
 | [CANVAS_IMPORT_PRICING_REPORT.md](CANVAS_IMPORT_PRICING_REPORT.md) | Source-of-truth Canvas import page volume, API-vs-GPU cost model, and allowance guidance |
 | [PAYMENT_PROCESSOR_DECISION.md](PAYMENT_PROCESSOR_DECISION.md) | Stripe Managed Payments decision record |
