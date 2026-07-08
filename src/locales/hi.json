@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "आपका ईमेल सत्यापित कर दिया गया है. आपके नोट्स पर पुनर्निर्देशित किया जा रहा है...",
   "Your institution's Canvas URL e.g.": "आपके संस्थान का Canvas URL उदा.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "आपके नोट एंटरप्राइज़-ग्रेड एन्क्रिप्शन वाले किसी भी डिवाइस से सुरक्षित रूप से संग्रहीत और पहुंच योग्य हैं।",
-  "Your session has expired. Please log in again.": "आपका सत्र समाप्त हो गया है। कृपया फिर भाग लें।"
+  "Your session has expired. Please log in again.": "आपका सत्र समाप्त हो गया है। कृपया फिर भाग लें।",
+  "AI Chats": "AI चैट",
+  "chat.rag_title": "मेरे नोट्स खोजें — RAG",
+  "chat.rag_tooltip": "Retrieval-augmented generation: आपके नोट्स खोजता है और आपके प्रश्न के संदर्भ में सबसे प्रासंगिक अंश जोड़ता है। केवल सामान्य ज्ञान से उत्तर देने के लिए इसे बंद करें — टोकन बचते हैं।",
+  "chat.thinking_title": "विस्तृत सोच",
+  "chat.thinking_tooltip": "मॉडल उत्तर देने से पहले चरण-दर-चरण सोचता है, जो कठिन प्रश्नों में मदद करता है। सीधे उत्तर के लिए इसे बंद करें — टोकन बचते हैं।",
+  "chat.use_notes": "मेरे नोट्स खोजें",
+  "chat.use_notes_short": "नोट्स",
+  "Destinations": "गंतव्य",
+  "No matches for \"{query}\"": "\"{query}\" के लिए कोई मिलान नहीं",
+  "No preview": "कोई पूर्वावलोकन नहीं",
+  "No recent results": "कोई हालिया परिणाम नहीं",
+  "Open AI Chat": "AI चैट खोलें",
+  "Open Notes": "नोट्स खोलें",
+  "Search OghmaNotes": "OghmaNotes खोजें",
+  "Searching...": "खोज रहे हैं..."
 }

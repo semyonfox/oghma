@@ -127,11 +127,13 @@ function mockSuccessfulAnswer({
   includeNextCard = false,
   answeredCount = 3,
   mockStreak = false,
+  cardRow = CARD_ROW,
 }: {
   wasCorrect?: boolean;
   includeNextCard?: boolean;
   answeredCount?: number;
   mockStreak?: boolean;
+  cardRow?: typeof CARD_ROW;
 } = {}) {
   const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
   const txMock = sqlMock.__txMock;
@@ -140,7 +142,7 @@ function mockSuccessfulAnswer({
   // 2. SELECT COUNT reviews (answeredSoFar = answeredCount - 1, since we add 1)
   sqlMock.mockResolvedValueOnce([{ count: answeredCount - 1 }]);
   // 3. SELECT card
-  sqlMock.mockResolvedValueOnce([CARD_ROW]);
+  sqlMock.mockResolvedValueOnce([cardRow]);
   // 4-6 run inside sql.begin() via tx
   txMock.mockResolvedValueOnce([]); // UPDATE quiz_cards
   txMock.mockResolvedValueOnce([]); // INSERT quiz_reviews
@@ -259,6 +261,27 @@ describe("POST /api/quiz/sessions/[id]/answer", () => {
     // sessionProgress.correct should reflect server-computed value (wasCorrect=false → lower correct count)
     const body = await res.json();
     expect(body.sessionProgress.correct).toBe(2); // Math.max(0, answeredCount - 1) = 2
+  });
+
+  it("does not apply fill-in fuzzy normalization to MCQ answers", async () => {
+    mockSuccessfulAnswer({
+      wasCorrect: false,
+      answeredCount: 3,
+      cardRow: { ...CARD_ROW, question_type: "mcq", correct_answer: "C++" },
+    });
+
+    const req = makeRequest({ cardId: CARD_ID, userAnswer: "C" });
+    const res = await POST(req, routeParams);
+
+    expect(res.status).toBe(200);
+    const sqlMock = sql as ReturnType<typeof vi.fn> & { __txMock: ReturnType<typeof vi.fn> };
+    const insertReviewCall = sqlMock.__txMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join("").includes("INSERT INTO app.quiz_reviews"),
+    );
+    expect(insertReviewCall).toBeDefined();
+    expect(insertReviewCall).toEqual(
+      expect.arrayContaining([1, "C", false]),
+    );
   });
 
   it("updates card via DB (multiple SQL calls)", async () => {

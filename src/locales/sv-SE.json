@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Din e-postadress har verifierats. Omdirigerar till dina anteckningar...",
   "Your institution's Canvas URL e.g.": "Din institutions Canvas URL t.ex.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Dina anteckningar lagras säkert och är tillgängliga från vilken enhet som helst med kryptering av företagsklass.",
-  "Your session has expired. Please log in again.": "Din session har löpt ut. Logga in igen."
+  "Your session has expired. Please log in again.": "Din session har löpt ut. Logga in igen.",
+  "AI Chats": "AI-chattar",
+  "chat.rag_title": "Sök i mina anteckningar — RAG",
+  "chat.rag_tooltip": "Retrieval-augmented generation: söker i dina anteckningar och lägger till de mest relevanta avsnitten som kontext för din fråga. Stäng av för att svara bara med allmän kunskap — sparar tokens.",
+  "chat.thinking_title": "Utökat tänkande",
+  "chat.thinking_tooltip": "Modellen resonerar steg för steg innan den svarar, vilket hjälper vid svårare frågor. Stäng av för ett direkt svar — sparar tokens.",
+  "chat.use_notes": "Sök i mina anteckningar",
+  "chat.use_notes_short": "Anteckningar",
+  "Destinations": "Mål",
+  "No matches for \"{query}\"": "Inga träffar för \"{query}\"",
+  "No preview": "Ingen förhandsvisning",
+  "No recent results": "Inga senaste resultat",
+  "Open AI Chat": "Öppna AI-chatt",
+  "Open Notes": "Öppna anteckningar",
+  "Search OghmaNotes": "Sök i OghmaNotes",
+  "Searching...": "Söker..."
 }

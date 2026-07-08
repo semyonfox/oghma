@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm pkg delete scripts.prepare && npm ci --legacy-peer-deps --omit=dev
 COPY tsconfig.json ./
+COPY scripts/ ./scripts/
 COPY src/ ./src/
 ENV NODE_ENV=production
 CMD ["npx", "tsx", "src/lib/canvas/worker-entry.ts"]

@@ -4,6 +4,7 @@ import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { searchChunkVectors } from "@/lib/qdrant";
+import { checkRateLimit } from "@/lib/rateLimiter";
 import sql from "@/database/pgsql.js";
 
 type SearchSource = "keyword" | "semantic" | "recent";
@@ -19,6 +20,7 @@ interface GlobalSearchResult {
 }
 
 const LIKE_ESCAPE = "\\";
+type SemanticVector = Awaited<ReturnType<typeof embedText>>;
 
 function cleanSnippet(value: string | null | undefined): string {
   return (value || "")
@@ -92,12 +94,13 @@ async function keywordNotes(
 
 async function semanticNotes(
   userId: string,
-  query: string,
+  vector: SemanticVector | null,
   excludeNoteIds: string[],
   limit = 6,
 ): Promise<GlobalSearchResult[]> {
+  if (!vector) return [];
+
   try {
-    const vector = await embedText(query);
     const hits = await searchChunkVectors({
       userId,
       vector,
@@ -114,6 +117,7 @@ async function semanticNotes(
       FROM app.chunks c
       JOIN app.notes n ON n.note_id = c.document_id
       WHERE c.user_id = ${userId}::uuid
+        AND n.user_id = ${userId}::uuid
         AND c.id = ANY(${chunkIds}::uuid[])
         AND n.deleted_at IS NULL
         AND COALESCE(n.is_folder, false) = false
@@ -150,13 +154,14 @@ async function semanticNotes(
 async function searchNotes(
   userId: string,
   query: string | null,
+  semanticVector: SemanticVector | null,
 ): Promise<GlobalSearchResult[]> {
   if (!query) return recentNotes(userId);
 
   const keyword = await keywordNotes(userId, query);
   const semantic = await semanticNotes(
     userId,
-    query,
+    semanticVector,
     keyword.map((result) => result.id),
   );
 
@@ -238,6 +243,7 @@ async function searchChats(
 async function searchQuizzes(
   userId: string,
   query: string | null,
+  semanticVector: SemanticVector | null,
   limit = 5,
 ): Promise<GlobalSearchResult[]> {
   const filter = query
@@ -294,7 +300,7 @@ async function searchQuizzes(
 
   const semanticResults = await semanticQuizzes(
     userId,
-    query,
+    semanticVector,
     keywordResults.map((result) => result.id),
     limit,
   );
@@ -325,12 +331,13 @@ function formatQuizResult(
 
 async function semanticQuizzes(
   userId: string,
-  query: string,
+  vector: SemanticVector | null,
   excludeCourseIds: string[],
   limit: number,
 ): Promise<GlobalSearchResult[]> {
+  if (!vector) return [];
+
   try {
-    const vector = await embedText(query);
     const hits = await searchChunkVectors({
       userId,
       vector,
@@ -347,6 +354,7 @@ async function semanticQuizzes(
         FROM app.chunks c
         JOIN app.notes n ON n.note_id = c.document_id
         WHERE c.user_id = ${userId}::uuid
+          AND n.user_id = ${userId}::uuid
           AND c.id = ANY(${chunkIds}::uuid[])
           AND n.canvas_course_id IS NOT NULL
           AND n.deleted_at IS NULL
@@ -398,14 +406,23 @@ async function semanticQuizzes(
   }
 }
 
+async function embedGlobalQuery(query: string): Promise<SemanticVector | null> {
+  try {
+    return await embedText(query);
+  } catch (error) {
+    logger.warn("global semantic embedding failed", { error });
+    return null;
+  }
+}
+
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
 
+  const userId = user.user_id;
   const url = new URL(request.url);
   const rawQuery = url.searchParams.get("q")?.trim() ?? "";
   const query = rawQuery.length >= 2 ? rawQuery.slice(0, 200) : null;
-  const userId = user.user_id;
 
   if (rawQuery.length > 0 && !query) {
     return NextResponse.json({
@@ -418,10 +435,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     });
   }
 
+  const limited = await checkRateLimit("global-search", userId);
+  if (limited) return limited;
+
+  const semanticVector = query ? await embedGlobalQuery(query) : null;
   const [notes, chats, quizzes] = await Promise.all([
-    searchNotes(userId, query),
+    searchNotes(userId, query, semanticVector),
     searchChats(userId, query),
-    searchQuizzes(userId, query),
+    searchQuizzes(userId, query, semanticVector),
   ]);
 
   return NextResponse.json({

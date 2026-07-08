@@ -869,5 +869,20 @@
   "Your email has been verified. Redirecting to your notes...": "Fíoraíodh do ríomhphost. Á atreorú chuig do nótaí...",
   "Your institution's Canvas URL e.g.": "Canvas URL d’institiúide e.g.",
   "Your notes are safely stored and accessible from any device with enterprise-grade encryption.": "Stóráiltear do nótaí go sábháilte agus is féidir rochtain a fháil orthu ó aon ghléas a bhfuil criptiú de ghrád fiontair ann.",
-  "Your session has expired. Please log in again.": "Tá do sheisiún imithe in éag. Logáil isteach arís le do thoil."
+  "Your session has expired. Please log in again.": "Tá do sheisiún imithe in éag. Logáil isteach arís le do thoil.",
+  "AI Chats": "Comhráite IS",
+  "chat.rag_title": "Cuardaigh mo nótaí — RAG",
+  "chat.rag_tooltip": "Giniúint le haisghabháil: cuardaíonn sé do nótaí agus cuireann sé na sleachta is ábhartha mar chomhthéacs le do cheist. Múch é chun freagra a fháil ó eolas ginearálta amháin — sábhálann sé comharthaí.",
+  "chat.thinking_title": "Smaointeoireacht leathnaithe",
+  "chat.thinking_tooltip": "Déanann an tsamhail réasúnú céim ar chéim roimh fhreagairt, rud a chabhraíonn le ceisteanna níos deacra. Múch é le haghaidh freagra díreach — sábhálann sé comharthaí.",
+  "chat.use_notes": "Cuardaigh mo nótaí",
+  "chat.use_notes_short": "Nótaí",
+  "Destinations": "Ceann scríbe",
+  "No matches for \"{query}\"": "Níl aon torthaí do \"{query}\"",
+  "No preview": "Gan réamhamharc",
+  "No recent results": "Gan torthaí le déanaí",
+  "Open AI Chat": "Oscail Comhrá IS",
+  "Open Notes": "Oscail Nótaí",
+  "Search OghmaNotes": "Cuardaigh OghmaNotes",
+  "Searching...": "Ag cuardach..."
 }
