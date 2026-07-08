@@ -23,7 +23,7 @@ const baseComponents: Partial<Components> = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-primary-400 underline underline-offset-2 hover:text-primary-300 transition-colors"
+      className="text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"
       {...props}
     >
       {children}
@@ -48,7 +48,7 @@ const baseComponents: Partial<Components> = {
     if (isInline) {
       return (
         <code
-          className="bg-subtle px-1.5 py-0.5 rounded text-xs font-mono"
+          className="bg-[var(--md-surface-subtle)] px-1.5 py-0.5 rounded text-xs font-mono text-[var(--md-text)]"
           {...props}
         >
           {children}

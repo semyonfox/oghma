@@ -26,8 +26,7 @@ import {
 } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
-import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
+import { themeExtensions } from "./write-editor-theme";
 
 interface WriteEditorProps {
   value: string;
@@ -62,88 +61,6 @@ export interface MarkdownSyntaxRange {
   className?: string;
 }
 
-const writeThemeSpec = {
-  "&": {
-    height: "100%",
-    fontSize: "16px",
-    lineHeight: "1.75",
-    backgroundColor: "transparent",
-  },
-  ".cm-scroller": {
-    fontFamily:
-      'var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    padding: "2.75rem 1rem 12rem",
-    overflow: "auto",
-  },
-  ".cm-content": {
-    width: "100%",
-    maxWidth: "72ch",
-    margin: "0 auto",
-    padding: "0",
-    color: "var(--color-text)",
-    caretColor: "var(--color-text)",
-  },
-  ".cm-line": {
-    padding: "0.08rem 0",
-  },
-  ".cm-gutters": {
-    display: "none",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "color-mix(in srgb, var(--color-surface) 42%, transparent)",
-  },
-  ".cm-selectionBackground": {
-    backgroundColor: "rgba(99, 102, 241, 0.28) !important",
-  },
-  "&.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgba(99, 102, 241, 0.28) !important",
-  },
-  ".cm-cursor": {
-    borderLeftColor: "var(--color-text)",
-  },
-  ".cm-header": {
-    color: "var(--color-text)",
-    letterSpacing: "-0.025em",
-  },
-  ".cm-header-1": { fontSize: "2em", fontWeight: "750", lineHeight: "1.2" },
-  ".cm-header-2": { fontSize: "1.55em", fontWeight: "700", lineHeight: "1.25" },
-  ".cm-header-3": { fontSize: "1.25em", fontWeight: "650", lineHeight: "1.3" },
-  ".cm-strong": { fontWeight: "750" },
-  ".cm-em": { fontStyle: "italic" },
-  ".cm-strikethrough": { textDecoration: "line-through" },
-  ".cm-url, .cm-link": {
-    color: "var(--color-primary-400)",
-    textDecoration: "underline",
-    textUnderlineOffset: "3px",
-  },
-  ".cm-monospace, .cm-inlineCode": {
-    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-  },
-  ".cm-formatting, .cm-meta": {
-    color: "var(--color-text-tertiary)",
-  },
-  ".cm-md-render-marker": {
-    color: "var(--color-primary-300)",
-    display: "inline-block",
-    fontWeight: "600",
-    minWidth: "1.25ch",
-    paddingRight: "0.25ch",
-  },
-  ".cm-md-render-checkbox": {
-    color: "var(--color-primary-300)",
-    display: "inline-block",
-    fontWeight: "700",
-    minWidth: "1.45ch",
-    paddingRight: "0.35ch",
-  },
-  "@media (min-width: 768px)": {
-    ".cm-scroller": {
-      paddingLeft: "2rem",
-      paddingRight: "2rem",
-    },
-  },
-};
-
 const themeCompartment = new Compartment();
 const externalValueSync = Annotation.define<boolean>();
 
@@ -174,13 +91,6 @@ class MarkdownMarkerWidget extends WidgetType {
 function isDarkTheme(): boolean {
   if (typeof document === "undefined") return true;
   return !document.documentElement.classList.contains("light");
-}
-
-function themeExtensions(dark: boolean) {
-  return [
-    EditorView.theme(writeThemeSpec, { dark }),
-    syntaxHighlighting(dark ? oneDarkHighlightStyle : defaultHighlightStyle),
-  ];
 }
 
 export function wrapMarkdownSelection(

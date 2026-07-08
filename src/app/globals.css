@@ -105,6 +105,33 @@
   --color-subtle-hover: rgba(255, 255, 255, 0.15);
 }
 
+:root {
+  /* Markdown/editor semantic palette: one source of truth for write + preview. */
+  --md-bg: var(--color-background);
+  --md-surface: var(--color-surface);
+  --md-surface-subtle: rgb(255 255 255 / 0.04);
+  --md-code-bg: rgb(15 23 42 / 0.72);
+  --md-code-border: var(--color-border-subtle);
+  --md-text: var(--color-text);
+  --md-text-muted: var(--color-text-secondary);
+  --md-text-faint: var(--color-text-tertiary);
+  --md-link: var(--color-primary-400);
+  --md-link-hover: var(--color-primary-300);
+  --md-accent: var(--color-primary-400);
+  --md-accent-soft: rgb(99 102 241 / 0.18);
+  --md-selection: rgb(99 102 241 / 0.28);
+  --md-active-line: rgb(255 255 255 / 0.035);
+  --md-syntax-base: #dbe4f0;
+  --md-syntax-comment: #94a3b8;
+  --md-syntax-keyword: #a5b4fc;
+  --md-syntax-string: #86efac;
+  --md-syntax-number: #fbbf24;
+  --md-syntax-function: #93c5fd;
+  --md-syntax-type: #5eead4;
+  --md-syntax-variable: #cbd5e1;
+  --md-syntax-invalid: #f87171;
+}
+
 /* light mode overrides */
 html.light {
   --color-background: #f8fafc;
@@ -118,6 +145,29 @@ html.light {
   --color-input: #ffffff;
   --color-subtle: rgba(0, 0, 0, 0.04);
   --color-subtle-hover: rgba(0, 0, 0, 0.08);
+  --md-bg: var(--color-background);
+  --md-surface: var(--color-surface);
+  --md-surface-subtle: rgb(0 0 0 / 0.035);
+  --md-code-bg: var(--color-surface-elevated);
+  --md-code-border: var(--color-border-subtle);
+  --md-text: var(--color-text);
+  --md-text-muted: var(--color-text-secondary);
+  --md-text-faint: var(--color-text-tertiary);
+  --md-link: var(--color-primary-600);
+  --md-link-hover: var(--color-primary-700);
+  --md-accent: var(--color-primary-600);
+  --md-accent-soft: rgb(79 70 229 / 0.12);
+  --md-selection: rgb(99 102 241 / 0.22);
+  --md-active-line: rgb(15 23 42 / 0.035);
+  --md-syntax-base: #1e293b;
+  --md-syntax-comment: #64748b;
+  --md-syntax-keyword: #4f46e5;
+  --md-syntax-string: #15803d;
+  --md-syntax-number: #b45309;
+  --md-syntax-function: #2563eb;
+  --md-syntax-type: #0f766e;
+  --md-syntax-variable: #334155;
+  --md-syntax-invalid: #dc2626;
 }
 
 html.light .obsidian-scrollbar {
@@ -481,22 +531,22 @@ html.light .glass-card-active {
   box-shadow: 0 0 0 1px rgb(59 130 246 / 0.2);
 }
 
-/* markdown preview code highlighting (aligned with CodeMirror one-dark/one-light) */
+/* markdown preview code highlighting: shared with CodeMirror write editor. */
 .markdown-preview pre > code.hljs,
 .md-rendered pre > code.hljs {
   display: block;
   overflow-x: auto;
   border-radius: 0;
   padding: 1.25rem 1.5rem;
-  background: rgb(23 34 52 / 0.94);
-  color: #abb2bf;
+  background: var(--md-code-bg);
+  color: var(--md-syntax-base);
 }
 
 .markdown-preview .hljs-comment,
 .markdown-preview .hljs-quote,
 .md-rendered .hljs-comment,
 .md-rendered .hljs-quote {
-  color: #5c6370;
+  color: var(--md-syntax-comment);
 }
 
 .markdown-preview .hljs-keyword,
@@ -519,22 +569,20 @@ html.light .glass-card-active {
 .md-rendered .hljs-attr,
 .md-rendered .hljs-built_in,
 .md-rendered .hljs-builtin-name {
-  color: #c678dd;
+  color: var(--md-syntax-keyword);
 }
 
 .markdown-preview .hljs-string,
-.markdown-preview .hljs-title,
 .markdown-preview .hljs-regexp,
 .markdown-preview .hljs-symbol,
 .markdown-preview .hljs-bullet,
 .markdown-preview .hljs-link,
 .md-rendered .hljs-string,
-.md-rendered .hljs-title,
 .md-rendered .hljs-regexp,
 .md-rendered .hljs-symbol,
 .md-rendered .hljs-bullet,
 .md-rendered .hljs-link {
-  color: #98c379;
+  color: var(--md-syntax-string);
 }
 
 .markdown-preview .hljs-number,
@@ -547,95 +595,26 @@ html.light .glass-card-active {
 .md-rendered .hljs-variable,
 .md-rendered .hljs-template-variable,
 .md-rendered .hljs-addition {
-  color: #d19a66;
-}
-
-.markdown-preview .hljs-deletion,
-.md-rendered .hljs-deletion {
-  color: #e06c75;
+  color: var(--md-syntax-number);
 }
 
 .markdown-preview .hljs-title,
 .markdown-preview .hljs-function .hljs-title,
 .md-rendered .hljs-title,
 .md-rendered .hljs-function .hljs-title {
-  color: #61afef;
+  color: var(--md-syntax-function);
 }
 
-html.light .markdown-preview pre > code.hljs,
-html.light .md-rendered pre > code.hljs {
-  background: #fbfcfe;
-  color: #383a42;
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-class .hljs-title,
+.md-rendered .hljs-type,
+.md-rendered .hljs-class .hljs-title {
+  color: var(--md-syntax-type);
 }
 
-html.light .markdown-preview .hljs-comment,
-html.light .markdown-preview .hljs-quote,
-html.light .md-rendered .hljs-comment,
-html.light .md-rendered .hljs-quote {
-  color: #a0a1a7;
-}
-
-html.light .markdown-preview .hljs-keyword,
-html.light .markdown-preview .hljs-selector-tag,
-html.light .markdown-preview .hljs-literal,
-html.light .markdown-preview .hljs-name,
-html.light .markdown-preview .hljs-doctag,
-html.light .markdown-preview .hljs-section,
-html.light .markdown-preview .hljs-type,
-html.light .markdown-preview .hljs-attr,
-html.light .markdown-preview .hljs-built_in,
-html.light .markdown-preview .hljs-builtin-name,
-html.light .md-rendered .hljs-keyword,
-html.light .md-rendered .hljs-selector-tag,
-html.light .md-rendered .hljs-literal,
-html.light .md-rendered .hljs-name,
-html.light .md-rendered .hljs-doctag,
-html.light .md-rendered .hljs-section,
-html.light .md-rendered .hljs-type,
-html.light .md-rendered .hljs-attr,
-html.light .md-rendered .hljs-built_in,
-html.light .md-rendered .hljs-builtin-name {
-  color: #a626a4;
-}
-
-html.light .markdown-preview .hljs-string,
-html.light .markdown-preview .hljs-title,
-html.light .markdown-preview .hljs-regexp,
-html.light .markdown-preview .hljs-symbol,
-html.light .markdown-preview .hljs-bullet,
-html.light .markdown-preview .hljs-link,
-html.light .md-rendered .hljs-string,
-html.light .md-rendered .hljs-title,
-html.light .md-rendered .hljs-regexp,
-html.light .md-rendered .hljs-symbol,
-html.light .md-rendered .hljs-bullet,
-html.light .md-rendered .hljs-link {
-  color: #50a14f;
-}
-
-html.light .markdown-preview .hljs-number,
-html.light .markdown-preview .hljs-meta,
-html.light .markdown-preview .hljs-variable,
-html.light .markdown-preview .hljs-template-variable,
-html.light .markdown-preview .hljs-addition,
-html.light .md-rendered .hljs-number,
-html.light .md-rendered .hljs-meta,
-html.light .md-rendered .hljs-variable,
-html.light .md-rendered .hljs-template-variable,
-html.light .md-rendered .hljs-addition {
-  color: #986801;
-}
-
-html.light .markdown-preview .hljs-deletion,
-html.light .md-rendered .hljs-deletion {
-  color: #e45649;
-}
-
-html.light .markdown-preview .hljs-title,
-html.light .markdown-preview .hljs-function .hljs-title,
-html.light .md-rendered .hljs-title,
-html.light .md-rendered .hljs-function .hljs-title {
-  color: #4078f2;
+.markdown-preview .hljs-deletion,
+.md-rendered .hljs-deletion {
+  color: var(--md-syntax-invalid);
 }
 
 /* accessible touch target — expands hit area to 44px minimum without changing visual size */

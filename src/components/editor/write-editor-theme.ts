@@ -1,0 +1,136 @@
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { EditorView } from "@codemirror/view";
+import { tags as t } from "@lezer/highlight";
+
+const editorMono =
+  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+
+const writeThemeSpec = {
+  "&": {
+    height: "100%",
+    fontSize: "16px",
+    lineHeight: "1.65",
+    backgroundColor: "transparent",
+  },
+  ".cm-scroller": {
+    fontFamily:
+      'var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    padding: "2.75rem 1rem 12rem",
+    overflow: "auto",
+  },
+  ".cm-content": {
+    width: "100%",
+    maxWidth: "72ch",
+    margin: "0 auto",
+    padding: "0",
+    color: "var(--md-text)",
+    caretColor: "var(--md-text)",
+  },
+  ".cm-line": {
+    padding: "0.08rem 0",
+  },
+  ".cm-gutters": {
+    display: "none",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "var(--md-active-line)",
+  },
+  ".cm-selectionBackground": {
+    backgroundColor: "var(--md-selection) !important",
+  },
+  "&.cm-focused .cm-selectionBackground": {
+    backgroundColor: "var(--md-selection) !important",
+  },
+  ".cm-cursor": {
+    borderLeftColor: "var(--md-text)",
+  },
+  ".cm-header": {
+    color: "var(--md-text)",
+    letterSpacing: "-0.025em",
+  },
+  ".cm-header-1": { fontSize: "2em", fontWeight: "750", lineHeight: "1.2" },
+  ".cm-header-2": { fontSize: "1.55em", fontWeight: "700", lineHeight: "1.25" },
+  ".cm-header-3": { fontSize: "1.25em", fontWeight: "650", lineHeight: "1.3" },
+  ".cm-strong": { fontWeight: "750", color: "var(--md-text)" },
+  ".cm-em": { fontStyle: "italic" },
+  ".cm-strikethrough": { textDecoration: "line-through" },
+  ".cm-url, .cm-link": {
+    color: "var(--md-link)",
+    textDecoration: "underline",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-monospace, .cm-inlineCode": {
+    fontFamily: editorMono,
+  },
+  ".cm-inlineCode": {
+    backgroundColor: "var(--md-surface-subtle)",
+    borderRadius: "0.25rem",
+    color: "var(--md-text)",
+    padding: "0.1em 0.35em",
+  },
+  ".cm-formatting, .cm-meta": {
+    color: "var(--md-text-faint)",
+  },
+  ".cm-md-render-marker": {
+    color: "var(--md-accent)",
+    display: "inline-block",
+    fontWeight: "600",
+    minWidth: "1.25ch",
+    paddingRight: "0.25ch",
+  },
+  ".cm-md-render-checkbox": {
+    color: "var(--md-accent)",
+    display: "inline-block",
+    fontWeight: "700",
+    minWidth: "1.45ch",
+    paddingRight: "0.35ch",
+  },
+  "@media (min-width: 768px)": {
+    ".cm-scroller": {
+      paddingLeft: "2rem",
+      paddingRight: "2rem",
+    },
+  },
+};
+
+const oghmaHighlightStyle = HighlightStyle.define([
+  { tag: t.heading, color: "var(--md-text)", fontWeight: "700" },
+  { tag: t.heading1, color: "var(--md-text)", fontWeight: "750" },
+  { tag: t.heading2, color: "var(--md-text)", fontWeight: "700" },
+  { tag: t.heading3, color: "var(--md-text)", fontWeight: "650" },
+  { tag: t.strong, color: "var(--md-text)", fontWeight: "750" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  {
+    tag: [t.link, t.url],
+    color: "var(--md-link)",
+    textDecoration: "underline",
+  },
+  {
+    tag: [t.monospace, t.processingInstruction],
+    color: "var(--md-syntax-base)",
+    fontFamily: editorMono,
+  },
+  { tag: [t.meta, t.punctuation], color: "var(--md-text-faint)" },
+  { tag: t.comment, color: "var(--md-syntax-comment)", fontStyle: "italic" },
+  {
+    tag: [t.keyword, t.atom, t.bool, t.special(t.variableName)],
+    color: "var(--md-syntax-keyword)",
+  },
+  { tag: [t.string, t.regexp], color: "var(--md-syntax-string)" },
+  { tag: [t.number, t.integer, t.float], color: "var(--md-syntax-number)" },
+  {
+    tag: [t.function(t.variableName), t.definition(t.function(t.variableName))],
+    color: "var(--md-syntax-function)",
+  },
+  { tag: [t.typeName, t.className], color: "var(--md-syntax-type)" },
+  { tag: [t.variableName, t.propertyName], color: "var(--md-syntax-variable)" },
+  { tag: [t.deleted, t.invalid], color: "var(--md-syntax-invalid)" },
+]);
+
+export function themeExtensions(dark: boolean) {
+  return [
+    EditorView.theme(writeThemeSpec, { dark }),
+    syntaxHighlighting(oghmaHighlightStyle),
+  ];
+}
