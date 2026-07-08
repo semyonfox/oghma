@@ -9,6 +9,12 @@ import {
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import { saveBtnClass, cn } from "./settings-utils";
+import {
+  EDITOR_WIDTH_OPTIONS,
+  getEditorSizeFromIndex,
+  getEditorWidthIndex,
+  normalizeEditorSize,
+} from "@/lib/notes/editor-width";
 
 export default function EditorThemeSection({
   formState,
@@ -18,6 +24,9 @@ export default function EditorThemeSection({
 }) {
   const { t } = useI18n();
   const { updateSettings } = useSettingsStore();
+  const editorWidth = normalizeEditorSize(formState.editorWidth);
+  const editorWidthIndex = getEditorWidthIndex(editorWidth);
+  const editorWidthOption = EDITOR_WIDTH_OPTIONS[editorWidthIndex];
 
   // theme persists immediately on change — no Save needed
   const handleThemeChange = (value) => {
@@ -37,7 +46,7 @@ export default function EditorThemeSection({
     try {
       await updateSettings({
         theme: formState.theme,
-        editorsize: formState.editorWidth === "small" ? "small" : "large",
+        editorsize: normalizeEditorSize(formState.editorWidth),
       });
       localStorage.setItem("ogma-theme", formState.theme);
       toast.success(t("Editor settings saved"));
@@ -117,33 +126,51 @@ export default function EditorThemeSection({
                 "Controls the max width of the note editor. Can also be overridden per note.",
               )}
             </p>
-            <div className="flex gap-3">
-              {[
-                { label: t("Small"), value: "small" },
-                { label: t("Large"), value: "large" },
-              ].map((size) => (
-                <label
-                  key={size.value}
-                  className="flex items-center cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="editor-width"
-                    value={size.value}
-                    checked={formState.editorWidth === size.value}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        editorWidth: e.target.value,
-                      }))
-                    }
-                    className="mr-2 accent-primary-500"
-                  />
-                  <span className="text-sm text-text-secondary">
-                    {size.label}
+            <div className="max-w-lg">
+              <div className="mb-3 flex items-baseline justify-between gap-4">
+                <span className="text-sm font-medium text-text">
+                  {t(editorWidthOption.label)}
+                </span>
+                <span className="text-xs text-text-tertiary">
+                  {t(editorWidthOption.detail)}
+                </span>
+              </div>
+              <input
+                type="range"
+                name="editor-width"
+                min="0"
+                max={EDITOR_WIDTH_OPTIONS.length - 1}
+                step="1"
+                value={editorWidthIndex}
+                aria-label={t("Editor Width")}
+                aria-valuetext={`${t(editorWidthOption.label)} ${t(
+                  editorWidthOption.detail,
+                )}`}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    editorWidth: getEditorSizeFromIndex(e.target.value),
+                  }))
+                }
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-border-subtle accent-primary-500 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary-500"
+              />
+              <div className="mt-2 grid grid-cols-4 text-[11px] font-medium text-text-tertiary">
+                {EDITOR_WIDTH_OPTIONS.map((size, index) => (
+                  <span
+                    key={size.value}
+                    className={cn(
+                      index === 0 && "text-left",
+                      index > 0 &&
+                        index < EDITOR_WIDTH_OPTIONS.length - 1 &&
+                        "text-center",
+                      index === EDITOR_WIDTH_OPTIONS.length - 1 && "text-right",
+                      editorWidth === size.value && "text-text-secondary",
+                    )}
+                  >
+                    {t(size.label)}
                   </span>
-                </label>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -13,10 +13,12 @@ import dynamic from "next/dynamic";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
+import { getEditorWidthStyle } from "@/lib/notes/editor-width";
 
 // CodeMirror accesses browser APIs on import, so lazy-load the writing surface client-side only.
 const WriteEditor = dynamic(() => import("./write-editor"), {
@@ -46,6 +48,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const fetchNote = useNoteStore((s) => s.fetchNote);
   const mutateNote = useNoteStore((s) => s.mutateNote);
   const { markModified, markSynced } = useSyncStatusStore();
+  const editorSize = useSettingsStore((s) => s.settings?.editorsize);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+  const [resolvedEditorSize, setResolvedEditorSize] = useState<unknown>();
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
   // stable identity for this editor instance (cross-pane sync)
@@ -55,6 +60,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const serverUpdatedAt = useRef<string | undefined>(undefined);
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorWidth = getEditorWidthStyle(resolvedEditorSize ?? editorSize);
 
   // keep refs in sync so event listeners always read current values
   const localContentRef = useRef(localContent);
@@ -62,6 +68,29 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     isDirtyRef.current = isDirty;
     localContentRef.current = localContent;
   }, [isDirty, localContent]);
+
+  useEffect(() => {
+    if (editorSize) setResolvedEditorSize(editorSize);
+  }, [editorSize]);
+
+  useEffect(() => {
+    if (editorSize) return;
+
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((settings) => {
+        if (!cancelled && settings) {
+          setSettings(settings);
+          setResolvedEditorSize(settings.editorsize);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editorSize, setSettings]);
 
   // flush draft and warn on page close to prevent data loss
   useEffect(() => {
@@ -334,7 +363,14 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden bg-app-page">
+      <div
+        className="flex-1 overflow-hidden bg-app-page"
+        style={
+          {
+            "--editor-write-max-width": editorWidth.sourceMaxWidth,
+          } as React.CSSProperties
+        }
+      >
         {loaded ? (
           <div className="h-full min-h-0 w-full">
             <WriteEditor

@@ -18,6 +18,10 @@ import {
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import { cn } from "@/components/settings/settings-utils";
+import {
+  DEFAULT_EDITOR_SIZE,
+  normalizeEditorSize,
+} from "@/lib/notes/editor-width";
 
 import dynamic from "next/dynamic";
 import AccountSection from "@/components/settings/account-section";
@@ -66,7 +70,7 @@ export default function SettingsPage() {
     email: "",
     timezone: "UTC",
     theme: "system",
-    editorWidth: "large",
+    editorWidth: DEFAULT_EDITOR_SIZE,
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -152,8 +156,7 @@ export default function SettingsPage() {
           setFormState((prev) => ({
             ...prev,
             theme: settingsData.theme || "system",
-            editorWidth:
-              settingsData.editorsize === "small" ? "small" : "large",
+            editorWidth: normalizeEditorSize(settingsData.editorsize),
             timezone: settingsData.timezone || "UTC",
             ...(settingsData.firstName
               ? { firstName: settingsData.firstName }

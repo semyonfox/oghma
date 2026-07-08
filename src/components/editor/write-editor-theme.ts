@@ -20,7 +20,7 @@ const writeThemeSpec = {
   },
   ".cm-content": {
     width: "100%",
-    maxWidth: "72ch",
+    maxWidth: "var(--editor-write-max-width, 72ch)",
     margin: "0 auto",
     padding: "0",
     color: "var(--md-text)",
