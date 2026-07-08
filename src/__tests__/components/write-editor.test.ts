@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGES,
+  markdownTaskMarkerForLine,
   markdownSyntaxRangesForLine,
+  toggleMarkdownTask,
   wrapMarkdownSelection,
 } from "@/components/editor/write-editor";
 
@@ -44,10 +46,58 @@ describe("WriteEditor helpers", () => {
       {
         from: 30,
         to: 36,
-        replaceWith: "☐",
+        replaceWith: "",
         className: "cm-md-render-checkbox",
+        taskMarker: {
+          from: 30,
+          to: 36,
+          checkboxFrom: 33,
+          checkboxTo: 34,
+          checked: false,
+        },
       },
     ]);
+  });
+
+  it("finds task checkbox ranges for indented unchecked and checked markdown tasks", () => {
+    expect(markdownTaskMarkerForLine("  - [ ] task", 10)).toEqual({
+      from: 12,
+      to: 18,
+      checkboxFrom: 15,
+      checkboxTo: 16,
+      checked: false,
+    });
+
+    expect(markdownTaskMarkerForLine("* [X] done", 20)).toEqual({
+      from: 20,
+      to: 26,
+      checkboxFrom: 23,
+      checkboxTo: 24,
+      checked: true,
+    });
+
+    expect(markdownSyntaxRangesForLine("* [x] done", 20, false)).toEqual([
+      {
+        from: 20,
+        to: 26,
+        replaceWith: "✓",
+        className: "cm-md-render-checkbox cm-md-render-checkbox-checked",
+        taskMarker: {
+          from: 20,
+          to: 26,
+          checkboxFrom: 23,
+          checkboxTo: 24,
+          checked: true,
+        },
+      },
+    ]);
+  });
+
+  it("toggles only the canonical markdown task checkbox character", () => {
+    expect(toggleMarkdownTask("- [ ] task", 3)).toBe("- [x] task");
+    expect(toggleMarkdownTask("- [x] task", 3)).toBe("- [ ] task");
+    expect(toggleMarkdownTask("- [X] task", 3)).toBe("- [ ] task");
+    expect(toggleMarkdownTask("- [-] task", 3)).toBe("- [-] task");
   });
 
   it("keeps markdown syntax visible on the active line", () => {

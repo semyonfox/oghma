@@ -804,3 +804,37 @@ html.light .glass-card-active {
   line-height: 1.75;
   padding: 0;
 }
+
+.oghma-write-editor .cm-md-render-checkbox {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.45rem;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -0.12em;
+  border: 1.5px solid var(--color-border);
+  border-radius: 0.3rem;
+  color: var(--color-text-on-primary);
+  background: var(--color-surface);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.oghma-write-editor .cm-md-render-checkbox:hover {
+  border-color: var(--md-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-accent) 14%, transparent);
+}
+
+.oghma-write-editor .cm-md-render-checkbox-checked {
+  border-color: var(--md-accent);
+  background: var(--md-accent);
+}

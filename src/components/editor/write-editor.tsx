@@ -59,6 +59,15 @@ export interface MarkdownSyntaxRange {
   to: number;
   replaceWith?: string;
   className?: string;
+  taskMarker?: MarkdownTaskMarker;
+}
+
+export interface MarkdownTaskMarker {
+  from: number;
+  to: number;
+  checkboxFrom: number;
+  checkboxTo: number;
+  checked: boolean;
 }
 
 const themeCompartment = new Compartment();
@@ -68,6 +77,7 @@ class MarkdownMarkerWidget extends WidgetType {
   constructor(
     private readonly text: string,
     private readonly className = "cm-md-render-marker",
+    private readonly taskMarker?: MarkdownTaskMarker,
   ) {
     super();
   }
@@ -76,11 +86,30 @@ class MarkdownMarkerWidget extends WidgetType {
     const span = document.createElement("span");
     span.className = this.className;
     span.textContent = this.text;
+    if (this.taskMarker) {
+      span.setAttribute("role", "checkbox");
+      span.setAttribute("aria-checked", String(this.taskMarker.checked));
+      span.setAttribute(
+        "aria-label",
+        this.taskMarker.checked ? "Mark task incomplete" : "Mark task complete",
+      );
+      span.dataset.taskCheckbox = "true";
+      span.dataset.checkboxFrom = String(this.taskMarker.checkboxFrom);
+      span.dataset.checkboxTo = String(this.taskMarker.checkboxTo);
+      span.dataset.checked = String(this.taskMarker.checked);
+      span.tabIndex = -1;
+    }
     return span;
   }
 
   eq(other: MarkdownMarkerWidget) {
-    return this.text === other.text && this.className === other.className;
+    return (
+      this.text === other.text &&
+      this.className === other.className &&
+      this.taskMarker?.checkboxFrom === other.taskMarker?.checkboxFrom &&
+      this.taskMarker?.checkboxTo === other.taskMarker?.checkboxTo &&
+      this.taskMarker?.checked === other.taskMarker?.checked
+    );
   }
 
   ignoreEvent() {
@@ -107,6 +136,42 @@ export function wrapMarkdownSelection(
     anchor: from + before.length,
     head: from + before.length + selected.length,
   };
+}
+
+export function markdownTaskMarkerForLine(
+  lineText: string,
+  lineFrom: number,
+): MarkdownTaskMarker | null {
+  const leadingWhitespace = lineText.match(/^\s*/)?.[0].length ?? 0;
+  const text = lineText.slice(leadingWhitespace);
+  const todo = text.match(/^([-*+]\s+\[)([ xX])(]\s+)/);
+  if (!todo) return null;
+
+  const markerFrom = lineFrom + leadingWhitespace;
+  const checkboxFrom = markerFrom + todo[1].length;
+
+  return {
+    from: markerFrom,
+    to: markerFrom + todo[0].length,
+    checkboxFrom,
+    checkboxTo: checkboxFrom + 1,
+    checked: todo[2].toLowerCase() === "x",
+  };
+}
+
+export function toggleMarkdownTask(
+  text: string,
+  checkboxFrom: number,
+  checkboxTo = checkboxFrom + 1,
+) {
+  const current = text.slice(checkboxFrom, checkboxTo);
+  if (current === " ") {
+    return `${text.slice(0, checkboxFrom)}x${text.slice(checkboxTo)}`;
+  }
+  if (current === "x" || current === "X") {
+    return `${text.slice(0, checkboxFrom)} ${text.slice(checkboxTo)}`;
+  }
+  return text;
 }
 
 function addInlinePairRanges(
@@ -154,13 +219,16 @@ export function markdownSyntaxRangesForLine(
     ranges.push({ from: contentStart, to: contentStart + heading[0].length });
   }
 
-  const todo = text.match(/^[-*+] \[([ xX])]\s+/);
-  if (todo) {
+  const taskMarker = markdownTaskMarkerForLine(lineText, lineFrom);
+  if (taskMarker) {
     ranges.push({
-      from: contentStart,
-      to: contentStart + todo[0].length,
-      replaceWith: todo[1].toLowerCase() === "x" ? "☑" : "☐",
-      className: "cm-md-render-checkbox",
+      from: taskMarker.from,
+      to: taskMarker.to,
+      replaceWith: taskMarker.checked ? "✓" : "",
+      className: taskMarker.checked
+        ? "cm-md-render-checkbox cm-md-render-checkbox-checked"
+        : "cm-md-render-checkbox",
+      taskMarker,
     });
   } else {
     const unorderedList = text.match(/^[-*+]\s+/);
@@ -218,8 +286,8 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
           range.from,
           range.to,
           Decoration.replace({
-            widget: range.replaceWith
-              ? new MarkdownMarkerWidget(range.replaceWith, range.className)
+            widget: range.replaceWith !== undefined
+              ? new MarkdownMarkerWidget(range.replaceWith, range.className, range.taskMarker)
               : undefined,
           }),
         );
@@ -233,6 +301,70 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
 
   return builder.finish();
 }
+
+function taskCheckboxElement(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest<HTMLElement>("[data-task-checkbox='true']");
+}
+
+function toggleTaskCheckboxFromDom(view: EditorView, target: EventTarget | null): boolean {
+  const checkbox = taskCheckboxElement(target);
+  if (!checkbox) return false;
+
+  const checkboxFrom = Number(checkbox.dataset.checkboxFrom);
+  const checkboxTo = Number(checkbox.dataset.checkboxTo);
+  const docLength = view.state.doc.length;
+  if (
+    !Number.isInteger(checkboxFrom) ||
+    !Number.isInteger(checkboxTo) ||
+    checkboxFrom < 0 ||
+    checkboxTo > docLength
+  ) {
+    return true;
+  }
+
+  const docText = view.state.doc.toString();
+  const line = view.state.doc.lineAt(checkboxFrom);
+  const taskMarker = markdownTaskMarkerForLine(line.text, line.from);
+  const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
+  if (
+    !taskMarker ||
+    line.from === activeLine.from ||
+    taskMarker.checkboxFrom !== checkboxFrom ||
+    taskMarker.checkboxTo !== checkboxTo
+  ) {
+    return true;
+  }
+
+  const toggled = toggleMarkdownTask(docText, checkboxFrom, checkboxTo);
+  if (toggled === docText) return true;
+
+  view.dispatch({
+    changes: {
+      from: checkboxFrom,
+      to: checkboxTo,
+      insert: taskMarker.checked ? " " : "x",
+    },
+    scrollIntoView: false,
+  });
+  view.focus();
+  return true;
+}
+
+const taskCheckboxInteraction = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (!taskCheckboxElement(event.target)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return toggleTaskCheckboxFromDom(view, event.target);
+  },
+  click(event) {
+    if (!taskCheckboxElement(event.target)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  },
+});
 
 const markdownRenderDecorations = ViewPlugin.fromClass(
   class {
@@ -303,6 +435,7 @@ export default function WriteEditor({
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
+        taskCheckboxInteraction,
         markdownRenderDecorations,
         themeCompartment.of(themeExtensions(isDarkTheme())),
         EditorView.lineWrapping,
