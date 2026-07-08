@@ -70,7 +70,7 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
         // custom blockquote styling: consistent margins and dark mode support
         blockquote: ({ node: _node, children, ...props }) => (
           <blockquote
-            className="border-l-4 border-primary-500 pl-4 italic my-4 text-text-secondary"
+            className="border-l-4 border-[var(--md-accent)] pl-4 italic my-4 text-[var(--md-text-muted)]"
             {...props}
           >
             {children}
@@ -140,7 +140,7 @@ export default function PreviewRenderer({ content, noteId }: PreviewRendererProp
               <input
                 type="checkbox"
                 {...props}
-                className={["mr-2 align-middle accent-primary-500", className]
+                className={["mr-2 align-middle accent-[var(--md-accent)]", className]
                   .filter(Boolean)
                   .join(" ")}
               />
