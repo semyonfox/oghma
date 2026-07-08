@@ -50,10 +50,34 @@ export const markdownRendererVariants: Record<
   },
 };
 
-function parseCodeFenceTitle(meta: unknown): string | undefined {
-  if (typeof meta !== "string") return undefined;
-  const match = /(?:^|\s)title=(?:"([^"]+)"|'([^']+)'|([^\s]+))/.exec(meta);
-  return match?.[1] ?? match?.[2] ?? match?.[3];
+type HastNode = {
+  type?: string;
+  tagName?: string;
+  value?: string;
+  children?: HastNode[];
+  properties?: Record<string, unknown>;
+  data?: { meta?: string };
+};
+
+function textFromHast(node: HastNode | undefined): string {
+  if (!node) return "";
+  if (typeof node.value === "string") return node.value;
+  return node.children?.map(textFromHast).join("") ?? "";
+}
+
+export function parseCodeFenceTitle(meta?: string): string | undefined {
+  if (!meta) return undefined;
+
+  const quoted = /(?:title|filename|file)=(['"])(.*?)\1/i.exec(meta);
+  if (quoted?.[2]) return quoted[2].trim() || undefined;
+
+  const bare = /(?:title|filename|file)=([^\s{}]+)/i.exec(meta);
+  if (bare?.[1]) return bare[1].trim() || undefined;
+
+  const firstQuoted = /(['"])(.*?)\1/.exec(meta);
+  if (firstQuoted?.[2]) return firstQuoted[2].trim() || undefined;
+
+  return undefined;
 }
 
 function remarkCodeFenceMeta() {
@@ -104,28 +128,25 @@ const baseComponents: Partial<Components> = {
     const codeEl = (children as any)?.props;
     const cls: string = codeEl?.className ?? "";
     const lang = /language-([a-z0-9_-]+)/i.exec(cls)?.[1];
-    const title = parseCodeFenceTitle(
+    const codeNode = codeEl?.node as HastNode | undefined;
+    const rawContent = textFromHast(codeNode) || undefined;
+    const meta =
       codeEl?.dataMeta ??
-        codeEl?.["data-meta"] ??
-        codeEl?.node?.meta ??
-        codeEl?.node?.data?.meta ??
-        codeEl?.meta,
-    );
-    const rawContent =
-      typeof codeEl?.children === "string" ? codeEl.children : undefined;
+      codeEl?.["data-meta"] ??
+      codeEl?.meta ??
+      codeNode?.data?.meta ??
+      (typeof codeNode?.properties?.dataMeta === "string"
+        ? codeNode.properties.dataMeta
+        : undefined);
+    const title = parseCodeFenceTitle(meta);
+
     return (
-      <CodeBlock language={lang} title={title} rawContent={rawContent}>
+      <CodeBlock language={lang} rawContent={rawContent} title={title}>
         {children}
       </CodeBlock>
     );
   },
-  code: ({
-    children,
-    className,
-    node: _node,
-    dataMeta: _dataMeta,
-    ...props
-  }: any) => {
+  code: ({ children, className, node: _node, dataMeta: _dataMeta, ...props }: any) => {
     const isInline = !className;
     if (isInline) {
       return (

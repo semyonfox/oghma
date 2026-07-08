@@ -17,6 +17,7 @@ markdownSanitizeSchema.attributes = {
     "dataMeta",
     ["className", /^language-[a-z0-9_-]+$/i, "hljs"],
     ["className", "math-inline", "math-display"],
+    "dataMeta",
   ],
   span: [
     ...(markdownSanitizeSchema.attributes?.span ?? []),

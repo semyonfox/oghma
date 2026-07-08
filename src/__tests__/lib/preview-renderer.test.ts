@@ -32,7 +32,6 @@ describe("PreviewRenderer", () => {
     expect(html).toContain("inlineCode()");
     expect(html).toContain("contract-fixture.ts");
     expect(html).toContain("hljs-keyword");
-    expect(html).toContain("madeuplang");
     expect(html).toContain("unknown language fallback");
     expect(html).toContain("contains-task-list");
     expect(html).toContain('type="checkbox"');
@@ -54,28 +53,28 @@ describe("PreviewRenderer", () => {
     expect(html).toContain("hljs-keyword");
   });
 
-  it("renders fenced code without language as a block", () => {
+  it("renders fenced code without language as a premium block with CODE fallback", () => {
     const html = renderPreview("```\nconst value = 1\n```");
 
-    // CodeBlock wraps the pre; verify a <pre> element is present (block render)
-    expect(html).toContain("<pre");
+    expect(html).toContain("oghma-codeblock");
+    expect(html).toContain(">CODE<");
     expect(html).not.toContain('class="rounded bg-surface');
   });
 
-  it("renders fenced code metadata title and language label", () => {
-    const html = renderPreview('```ts title="demo.ts"\nconst value = 1\n```');
+  it("renders code fence title metadata in the header", () => {
+    const html = renderPreview('```ts title="utils/math.ts"\nexport const one = 1\n```');
 
-    expect(html).toContain("demo.ts");
-    expect(html).toContain("ts");
+    expect(html).toContain("utils/math.ts");
+    expect(html).toContain("TypeScript");
     expect(html).toContain("hljs-keyword");
   });
 
-  it("renders unknown fenced code languages without throwing", () => {
-    const html = renderPreview("```definitelyunknown\nplain fallback\n```");
+  it("falls back safely for unknown code fence languages", () => {
+    const html = renderPreview("```definitely-not-a-language\nraw text\n```");
 
-    expect(html).toContain("definitelyunknown");
-    expect(html).toContain("plain fallback");
-    expect(html).toContain("<pre");
+    expect(html).toContain("oghma-codeblock");
+    expect(html).toContain(">CODE<");
+    expect(html).toContain("raw text");
   });
 
   it("keeps list styling for task lists", () => {

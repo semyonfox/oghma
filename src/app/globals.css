@@ -663,6 +663,20 @@ html.light .glass-card-active {
   color: var(--md-syntax-base);
 }
 
+.markdown-preview .oghma-codeblock pre > code.hljs,
+.md-rendered .oghma-codeblock pre > code.hljs {
+  overflow-x: visible;
+  border: 0;
+  border-radius: 0;
+  padding: 1.15rem 1.35rem 1.25rem;
+  background: transparent;
+}
+
+.markdown-preview .oghma-codeblock pre,
+.md-rendered .oghma-codeblock pre {
+  scrollbar-color: rgb(148 163 184 / 0.35) transparent;
+}
+
 .markdown-preview .hljs-comment,
 .markdown-preview .hljs-quote,
 .md-rendered .hljs-comment,
