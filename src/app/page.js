@@ -1,66 +1,195 @@
 import {
   ArrowPathIcon,
-  BuildingOffice2Icon,
-  CloudArrowUpIcon,
-  Cog6ToothIcon,
+  CalendarDaysIcon,
+  ChatBubbleLeftRightIcon,
+  CheckCircleIcon,
+  CloudArrowDownIcon,
+  DocumentMagnifyingGlassIcon,
   EnvelopeIcon,
-  FingerPrintIcon,
-  LockClosedIcon,
-  PhoneIcon,
-  ServerIcon,
+  RectangleStackIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-import TestimonialSection from "@/components/testimonial-section";
 import ContactForm from "@/components/contact-form";
 import FadeIn from "@/components/public/fade-in";
 import FAQDisclosure from "@/components/public/faq-disclosure";
 import { getServerI18n } from "@/lib/i18n/server";
 
+export const metadata = {
+  title: "Your whole semester, already loaded",
+  description:
+    "Connect Canvas once. OghmaNotes pulls in lectures, deadlines, and course material, then turns them into cited answers, flashcards, and exam revision planning.",
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "Canvas study app",
+    "Canvas LMS study planner",
+    "AI study assistant for Canvas",
+    "university revision planner",
+    "lecture PDF flashcards",
+    "cited answers from lecture notes",
+    "NotebookLM alternative for students",
+    "Canvas assignment tracker",
+    "study app for University of Galway",
+  ],
+  openGraph: {
+    title: "OghmaNotes - Your whole semester, already loaded",
+    description:
+      "Connect Canvas once and turn your actual lectures, deadlines, and course material into cited answers, flashcards, and a revision plan.",
+    url: "https://oghmanotes.ie",
+    siteName: "OghmaNotes",
+    type: "website",
+    images: [
+      {
+        url: "/notes-screenshot.png",
+        width: 1440,
+        height: 900,
+        alt: "OghmaNotes study workspace with course notes, files, and AI chat",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OghmaNotes - Your whole semester, already loaded",
+    description:
+      "A Canvas-connected study system that imports course material and turns it into cited answers, flashcards, and revision planning.",
+    images: ["/notes-screenshot.png"],
+  },
+};
+
+const homeStructuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "OghmaNotes",
+    applicationCategory: "EducationalApplication",
+    operatingSystem: "Web",
+    url: "https://oghmanotes.ie",
+    image: "https://oghmanotes.ie/notes-screenshot.png",
+    description:
+      "OghmaNotes is a Canvas-connected study system for university students. It imports course material and deadlines, then helps students ask cited questions, generate flashcards, and plan revision around exams.",
+    audience: {
+      "@type": "EducationalAudience",
+      educationalRole: "student",
+    },
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free first import",
+        price: "0",
+        priceCurrency: "EUR",
+        url: "https://oghmanotes.ie/pricing",
+      },
+    ],
+    featureList: [
+      "Canvas LMS course import",
+      "Lecture PDF and document ingestion",
+      "Cited answers from course material",
+      "Flashcard generation and spaced repetition",
+      "Deadline and assignment awareness",
+      "Exam-focused revision planning",
+      "Data export",
+    ],
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "What is OghmaNotes?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "OghmaNotes is a Canvas-connected study system that imports university course material, deadlines, and available feedback, then helps students study with cited answers, flashcards, and revision planning.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How is this different from NotebookLM?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "NotebookLM is excellent for documents you upload manually. OghmaNotes is designed for the course you are actually taking: it starts from Canvas course material, deadlines, and available course context.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "What does Canvas import include?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "OghmaNotes is built to import Canvas courses, files, assignments, and deadline workflows. Grades, rubric feedback, and other course details depend on the permissions and data your Canvas account exposes.",
+        },
+      },
+    ],
+  },
+];
+
 function getHomeFeatures(t) {
   return [
     {
-      name: t("Rich Markdown Editor"),
+      name: t("Ask your lectures anything"),
       description: t(
-        "Write beautiful, formatted notes with live preview, syntax highlighting, and seamless organization.",
+        "Get answers grounded in your actual slides, readings, and notes, with citations back to the material OghmaNotes can index.",
       ),
-      icon: Cog6ToothIcon,
+      icon: ChatBubbleLeftRightIcon,
     },
     {
-      name: t("AI-Powered Insights"),
+      name: t("Flashcards that schedule themselves"),
       description: t(
-        "Get intelligent summaries, key concepts, and study questions generated automatically from your notes.",
+        "Turn course material into active-recall cards and review them on a spaced schedule instead of rebuilding decks by hand.",
       ),
-      icon: CloudArrowUpIcon,
+      icon: RectangleStackIcon,
     },
     {
-      name: t("Canvas Integration"),
+      name: t("Never lose a deadline again"),
       description: t(
-        "Seamlessly sync notes from your Canvas courses and keep all study materials in one place.",
+        "Bring Canvas assignments and due dates into the same workspace as your notes, files, revision, and study questions.",
+      ),
+      icon: CalendarDaysIcon,
+    },
+    {
+      name: t("Reads messy scanned slides"),
+      description: t(
+        "Import lecture PDFs, including scanned or image-heavy slides, and let background extraction make them searchable where possible.",
+      ),
+      icon: DocumentMagnifyingGlassIcon,
+    },
+    {
+      name: t("Revision built around exams"),
+      description: t(
+        "Plan what to review next from the modules and deadlines in front of you, instead of guessing what matters during exam season.",
       ),
       icon: ArrowPathIcon,
     },
     {
-      name: t("Secure Cloud Storage"),
+      name: t("Export everything, no lock-in"),
       description: t(
-        "Your notes are safely stored and accessible from any device with enterprise-grade encryption.",
+        "Keep control of your notes and study material with export workflows, clear account controls, and transparent beta limits.",
       ),
-      icon: LockClosedIcon,
+      icon: CloudArrowDownIcon,
+    },
+  ];
+}
+
+function getComparisonRows(t) {
+  return [
+    {
+      tool: t("NotebookLM"),
+      problem: t("Excellent for documents you upload, but you still have to feed and organise it manually."),
     },
     {
-      name: t("Collaborative Learning"),
-      description: t(
-        "Share notes with classmates, collaborate on study materials, and learn together in real-time.",
-      ),
-      icon: FingerPrintIcon,
+      tool: t("ChatGPT or Gemini"),
+      problem: t("Powerful general assistants, but they do not automatically know your course, deadlines, or Canvas files."),
     },
     {
-      name: t("Multi-User Support"),
-      description: t(
-        "Built for university teams with secure authentication, role-based access, and session management.",
-      ),
-      icon: ServerIcon,
+      tool: t("Quizlet or Anki"),
+      problem: t("Useful for flashcards, but disconnected from your lectures, assignments, and exam calendar."),
+    },
+    {
+      tool: t("OghmaNotes"),
+      problem: t("Starts from Canvas so your lectures, deadlines, files, and available feedback are already part of the study system."),
     },
   ];
 }
@@ -70,56 +199,54 @@ function getHomeFAQs(t) {
     {
       question: t("What is OghmaNotes?"),
       answer: t(
-        "OghmaNotes is a RAG-powered learning platform that combines Markdown notes with semantic search and AI. Upload PDFs from lectures, ask questions about your materials with cited answers, and get adaptive quizzes and flashcards personalized to your learning pace.",
+        "OghmaNotes is a study system that assembles itself from Canvas. Connect once, import your course material, and use it for cited answers, flashcards, deadlines, and revision planning.",
       ),
     },
     {
-      question: t("How does the RAG chat work?"),
+      question: t("How is this different from NotebookLM?"),
       answer: t(
-        "Upload any PDF or document. The system extracts text, chunks it semantically, and stores embeddings in our vector database. When you ask a question, it retrieves relevant material and generates answers with direct citations so you know where information came from.",
+        "NotebookLM is great for documents you upload. OghmaNotes is for the course you are actually taking: it starts with Canvas files, assignments, deadlines, and available course context so there is less setup.",
       ),
     },
     {
-      question: t("Can I integrate Canvas deadlines?"),
+      question: t("What does Canvas import include?"),
       answer: t(
-        "Yes. Connect your Canvas account and OghmaNotes automatically syncs your courses, assignments, and deadlines daily. All your course materials are organized in one place with integrated calendar views.",
+        "OghmaNotes is built to import Canvas courses, files, assignments, and deadline workflows. Grades, rubric feedback, and other course details depend on the permissions and data your Canvas account exposes.",
       ),
     },
     {
-      question: t("What are spaced repetition flashcards?"),
+      question: t("Do I have to pay before seeing it work?"),
       answer: t(
-        "We use the SM-2 algorithm to schedule flashcard reviews at optimal intervals. The system learns which cards you struggle with and prioritizes them, scientifically proven to improve long-term retention.",
+        "No. The intended launch flow is a free first import or one-module import so you can see your semester appear before deciding whether to upgrade.",
       ),
     },
     {
-      question: t("Do you generate quizzes automatically?"),
+      question: t("Can OghmaNotes make flashcards and quizzes?"),
       answer: t(
-        "Absolutely. OghmaNotes generates adaptive quizzes from your notes and materials. Questions scale in difficulty based on your performance, giving you targeted practice on weak areas.",
+        "Yes. It can generate study questions and flashcards from imported material, then help you review them with spaced repetition instead of manually building decks from scratch.",
       ),
     },
     {
-      question: t("Can I access my notes offline?"),
+      question: t("Is OghmaNotes affiliated with University of Galway?"),
       answer: t(
-        "Yes! OghmaNotes is a Progressive Web App. Write and edit notes offline, and they sync automatically when you reconnect. Perfect for lecture halls and studying anywhere.",
+        "No. OghmaNotes is built by students at University of Galway, but it is an independent product and not an official university service.",
       ),
     },
   ];
 }
 
-// screenshot of the actual notes editor
 function HeroMockup() {
   return (
     <div className="relative mt-16 sm:mt-24 rounded-radius-2xl ring-1 ring-border-subtle shadow-2xl overflow-hidden">
       <Image
         src="/notes-screenshot.png"
-        alt="OghmaNotes editor with file tree, rich text editing, and AI chat"
+        alt="OghmaNotes workspace with course files, notes, and study chat"
         width={1440}
         height={900}
         sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1280px"
         className="w-full h-auto block"
         priority
       />
-      {/* smooth fade-out blending into the page */}
       <div
         className="absolute inset-x-0 bottom-0 pointer-events-none"
         style={{
@@ -136,10 +263,17 @@ export default async function Home() {
   const { t } = await getServerI18n();
   const features = getHomeFeatures(t);
   const faqs = getHomeFAQs(t);
+  const comparisonRows = getComparisonRows(t);
 
   return (
     <div className="bg-landing">
       <Header />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homeStructuredData),
+        }}
+      />
 
       <div className="relative isolate pt-14">
         <div
@@ -156,32 +290,35 @@ export default async function Home() {
         </div>
         <div className="py-24 sm:py-32 lg:pb-40">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
+            <div className="mx-auto max-w-3xl text-center">
               <FadeIn>
-                <h1 className="font-serif text-5xl font-semibold tracking-tight text-balance text-text sm:text-7xl">
-                  {t("OghmaNotes: Semantic Notes & RAG Chat")}
+                <p className="text-sm/6 font-semibold text-primary-400">
+                  {t("Canvas-connected study system")}
+                </p>
+                <h1 className="mt-4 font-serif text-5xl font-semibold tracking-tight text-balance text-text sm:text-7xl">
+                  {t("Your whole semester, already loaded.")}
                 </h1>
               </FadeIn>
               <FadeIn delay={0.1}>
                 <p className="mt-8 text-lg font-medium text-pretty text-text-secondary sm:text-xl/8">
                   {t(
-                    "Upload PDFs. Ask questions with cited answers. Generate adaptive quizzes. Master your materials with spaced-repetition flashcards and Canvas sync. Offline-first learning, designed for busy students.",
+                    "Connect Canvas once. OghmaNotes pulls in your lectures, deadlines and course material, then turns them into cited answers, flashcards and an exam revision plan.",
                   )}
                 </p>
               </FadeIn>
               <FadeIn delay={0.2}>
-                <div className="mt-10 flex items-center justify-center gap-x-6">
+                <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <a
-                    href="/register"
-                    className="rounded-radius-md bg-primary-600 px-3.5 py-2.5 text-sm font-semibold text-text-on-primary shadow-xs transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                    href="/register?utm_source=homepage&utm_medium=hero_cta&utm_campaign=free_canvas_import"
+                    className="rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary shadow-xs transition-colors hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
                   >
-                    {t("Get started free")}
+                    {t("Connect Canvas free")}
                   </a>
                   <a
-                    href="#features"
+                    href="#notebooklm"
                     className="text-sm/6 font-semibold text-text transition-colors hover:text-primary-400"
                   >
-                    {t("Learn more")} <span aria-hidden="true">&rarr;</span>
+                    {t("Compare with NotebookLM")} <span aria-hidden="true">&rarr;</span>
                   </a>
                 </div>
               </FadeIn>
@@ -206,15 +343,14 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Features Section */}
       <div id="features" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <FadeIn>
             <h2 className="text-center text-base/7 font-semibold text-primary-400">
-              {t("Core Features")}
+              {t("What changes once Canvas is connected")}
             </h2>
-            <p className="mx-auto mt-2 max-w-lg text-center font-serif text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
-              {t("Everything you need for RAG-powered learning")}
+            <p className="mx-auto mt-2 max-w-3xl text-center font-serif text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+              {t("The study work starts already organised.")}
             </p>
           </FadeIn>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
@@ -242,31 +378,106 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Testimonials Section */}
-      <TestimonialSection />
+      <div id="notebooklm" className="py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <FadeIn>
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-base/7 font-semibold text-primary-400">
+                {t("Why not just use NotebookLM?")}
+              </h2>
+              <p className="mt-2 font-serif text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+                {t("NotebookLM is great for documents you upload.")}
+              </p>
+              <p className="mt-6 text-lg/8 text-text-secondary">
+                {t(
+                  "OghmaNotes is for the course you are actually taking. It starts from Canvas, so lectures, deadlines and available course context are already part of the workspace.",
+                )}
+              </p>
+            </div>
+          </FadeIn>
+          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-radius-xl border border-border-subtle bg-surface">
+            {comparisonRows.map((row, index) => (
+              <div
+                key={row.tool}
+                className={`grid gap-4 p-6 sm:grid-cols-[12rem_1fr] ${
+                  index > 0 ? "border-t border-border-subtle" : ""
+                }`}
+              >
+                <div className="font-serif text-lg font-semibold text-text">
+                  {row.tool}
+                </div>
+                <div className="text-base/7 text-text-secondary">
+                  {row.problem}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      {/* CTA Section */}
+      <div className="py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+            <FadeIn>
+              <div>
+                <h2 className="font-serif text-4xl font-semibold tracking-tight text-text sm:text-5xl">
+                  {t("Built by students. Clear about the beta.")}
+                </h2>
+                <p className="mt-6 text-lg/8 text-text-secondary">
+                  {t(
+                    "OghmaNotes is built by students at University of Galway. It is independent, early, and focused on making Canvas less painful during real assignment and exam weeks.",
+                  )}
+                </p>
+              </div>
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <div className="rounded-radius-xl border border-border-subtle bg-surface p-6">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  {[
+                    t("Free first import before upgrade pressure"),
+                    t("Export workflows so your notes are not trapped"),
+                    t("Canvas data access depends on your permissions"),
+                    t("Not an official University of Galway service"),
+                  ].map((item) => (
+                    <div key={item} className="flex gap-3">
+                      <CheckCircleIcon
+                        aria-hidden="true"
+                        className="mt-1 size-5 flex-none text-primary-400"
+                      />
+                      <p className="text-sm/6 text-text-secondary">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </div>
+
       <div className="py-16 sm:py-24">
         <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
           <div className="relative isolate overflow-hidden bg-primary-600 px-6 py-24 after:pointer-events-none after:absolute after:inset-0 after:inset-ring after:inset-ring-white/15 sm:rounded-radius-2xl sm:px-24 after:sm:rounded-radius-2xl xl:py-32">
             <FadeIn>
               <h2 className="mx-auto max-w-3xl text-center font-serif text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                {t("Ready to master your materials?")}
+                {t("See your semester assemble itself.")}
               </h2>
-              <p className="mx-auto mt-6 max-w-lg text-center text-lg text-primary-100">
+              <p className="mx-auto mt-6 max-w-2xl text-center text-lg text-primary-100">
                 {t(
-                  "Start with OghmaNotes today. Semantic search, RAG chat, adaptive quizzes, and spaced repetition—everything for RAG-powered learning.",
+                  "Start with a free Canvas import. If OghmaNotes does not make your course feel easier to study, do not upgrade.",
                 )}
               </p>
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
-                  href="/register"
+                  href="/register?utm_source=homepage&utm_medium=midpage_cta&utm_campaign=free_canvas_import"
                   className="rounded-radius-md bg-white px-6 py-3 text-sm font-semibold text-primary-700 shadow-xs transition-colors hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
-                  {t("Get started free")}
+                  {t("Connect Canvas free")}
                 </a>
-                <a href="/login" className="text-sm/6 font-semibold text-white">
-                  {t("Sign in")} <span aria-hidden="true">&rarr;</span>
+                <a
+                  href="/pricing?utm_source=homepage&utm_medium=midpage_cta&utm_campaign=semester_pricing"
+                  className="text-sm/6 font-semibold text-white"
+                >
+                  {t("View semester pricing")} <span aria-hidden="true">&rarr;</span>
                 </a>
               </div>
             </FadeIn>
@@ -300,54 +511,21 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Contact Section */}
       <div id="contact" className="relative isolate">
         <div className="mx-auto grid max-w-7xl grid-cols-1 lg:grid-cols-2">
-          {/* Contact Info */}
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
             <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
               <FadeIn>
                 <h2 className="font-serif text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
-                  {t("Get in touch")}
+                  {t("Beta access, feedback, or data questions")}
                 </h2>
                 <p className="mt-6 text-lg/8 text-text-secondary">
                   {t(
-                    "Questions about OghmaNotes? Feedback from users helps us improve. Reach out to the development team and we'll get back to you.",
+                    "Talk to the OghmaNotes team about beta access, Canvas import support, pricing, privacy, or data export requests.",
                   )}
                 </p>
               </FadeIn>
               <dl className="mt-10 space-y-4 text-base/7 text-text-secondary">
-                <div className="flex gap-x-4">
-                  <dt className="flex-none">
-                    <span className="sr-only">{t("Address")}</span>
-                    <BuildingOffice2Icon
-                      aria-hidden="true"
-                      className="h-7 w-6 text-text-tertiary"
-                    />
-                  </dt>
-                  <dd>
-                    {t("School of Computer Science")}
-                    <br />
-                    {t("University of Galway, Ireland")}
-                  </dd>
-                </div>
-                <div className="flex gap-x-4">
-                  <dt className="flex-none">
-                    <span className="sr-only">{t("Telephone")}</span>
-                    <PhoneIcon
-                      aria-hidden="true"
-                      className="h-7 w-6 text-text-tertiary"
-                    />
-                  </dt>
-                  <dd>
-                    <a
-                      href="tel:+353-91-495556"
-                      className="transition-colors hover:text-text"
-                    >
-                      +353 (91) 495-556
-                    </a>
-                  </dd>
-                </div>
                 <div className="flex gap-x-4">
                   <dt className="flex-none">
                     <span className="sr-only">{t("Email")}</span>
@@ -365,18 +543,30 @@ export default async function Home() {
                     </a>
                   </dd>
                 </div>
+                <div className="flex gap-x-4">
+                  <dt className="flex-none">
+                    <span className="sr-only">{t("Privacy")}</span>
+                    <ShieldCheckIcon
+                      aria-hidden="true"
+                      className="h-7 w-6 text-text-tertiary"
+                    />
+                  </dt>
+                  <dd>
+                    {t(
+                      "Built by students at University of Galway; independent from the university and clear about data access.",
+                    )}
+                  </dd>
+                </div>
               </dl>
             </div>
           </div>
 
-          {/* Contact Form */}
           <div className="px-6 pt-20 pb-24 sm:pb-32 lg:px-8 lg:py-48">
             <ContactForm />
           </div>
         </div>
       </div>
 
-      {/* FAQ Section */}
       <div>
         <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40">
           <div className="mx-auto max-w-4xl">

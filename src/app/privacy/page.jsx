@@ -17,15 +17,16 @@ export default function PrivacyPage() {
           We store account details, authentication state, notes, uploaded files,
           Canvas import metadata, study activity, settings, and support messages
           you send us. If you connect Canvas, we store the token needed to sync
-          selected course material.
+          selected course material. Canvas tokens are treated as sensitive
+          account data and are kept server-side.
         </p>
       </InfoSection>
 
       <InfoSection title="How We Use It">
         <p>
-          We use your data to provide notes, search, chat, quiz generation,
-          flashcards, imports, exports, and account support. We do not sell
-          student data.
+          We use your data to provide Canvas import, notes, cited answers,
+          search, quiz generation, flashcards, revision workflows, exports, and
+          account support. We do not sell student data.
         </p>
       </InfoSection>
 
@@ -33,7 +34,9 @@ export default function PrivacyPage() {
         <p>
           When you use AI features, relevant note or file excerpts may be sent
           to configured AI providers so the feature can respond. Provider access
-          is limited to the content required for the request.
+          is limited to the content required for the request. OghmaNotes does
+          not use student notes, Canvas files, or uploaded files to train its own
+          general-purpose AI model.
         </p>
       </InfoSection>
 

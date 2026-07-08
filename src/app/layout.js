@@ -25,12 +25,12 @@ export const metadata = {
     template: "%s | OghmaNotes",
   },
   description:
-    "AI-enhanced study platform with semantic notes, RAG chat, adaptive quizzes, and Canvas LMS sync. Built for university students.",
+    "Canvas-connected study system for university students. Import course material, ask cited questions, make flashcards, and plan revision around deadlines and exams.",
   metadataBase: new URL("https://oghmanotes.ie"),
   openGraph: {
     title: "OghmaNotes",
     description:
-      "AI-enhanced study platform with semantic notes, RAG chat, and adaptive quizzes.",
+      "Connect Canvas once and turn your lectures, deadlines, and course material into cited answers, flashcards, and revision planning.",
     url: "https://oghmanotes.ie",
     siteName: "OghmaNotes",
     type: "website",
@@ -46,7 +46,7 @@ export const metadata = {
   twitter: {
     card: "summary_large_image",
     title: "OghmaNotes",
-    description: "AI-enhanced study platform for students.",
+    description: "Your whole semester, already loaded.",
     images: ["/notes-screenshot.png"],
   },
 };

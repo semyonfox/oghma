@@ -13,6 +13,9 @@ function localizeText(node, t) {
   if (!React.isValidElement(node)) {
     return node;
   }
+  if (node.props.dangerouslySetInnerHTML) {
+    return node;
+  }
 
   return React.cloneElement(node, {
     ...node.props,

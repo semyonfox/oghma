@@ -28,9 +28,9 @@ const academicImages = [
 ];
 
 const getStats = (t) => [
-  { label: t("Notes organized daily"), value: "100K+" },
-  { label: t("Learning time saved"), value: "500K hrs" },
-  { label: t("Active learners"), value: "50K+" },
+  { label: t("Launch focus"), value: "Canvas" },
+  { label: t("Current stage"), value: "Beta" },
+  { label: t("Built in"), value: "Galway" },
 ];
 const getValues = (t) => [
   {
@@ -184,11 +184,11 @@ export default async function About() {
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
                   <h1 className="text-5xl font-semibold tracking-tight text-pretty text-text sm:text-7xl">
-                    {t("We're changing the way people learn")}
+                    {t("We are building the study system students do not have to set up")}
                   </h1>
                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
                     {t(
-                      "OghmaNotes empowers students and professionals to take better notes, stay organized, and learn more effectively. Our AI-powered platform transforms how you capture and manage knowledge.",
+                      "OghmaNotes is an independent student-built product from University of Galway students. It starts with Canvas, then helps turn real course material into cited answers, flashcards, deadlines, and revision planning.",
                     )}
                   </p>
                 </div>
@@ -265,12 +265,12 @@ export default async function About() {
               <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
                 <p className="text-xl/8 text-text-secondary">
                   {t(
-                    "At OghmaNotes, we believe that better note-taking leads to better learning. That's why we've built a platform designed to help you capture, organize, and understand information more effectively.",
+                    "At OghmaNotes, we believe the biggest study bottleneck is setup. Students should not have to rebuild their semester by hand before they can revise.",
                   )}
                 </p>
                 <p className="mt-10 max-w-xl text-base/7 text-text-tertiary">
                   {t(
-                    "Whether you're in the classroom, attending lectures, or conducting research, OghmaNotes is designed to help you learn smarter, faster, and with greater retention.",
+                    "The product connects to Canvas, imports the course structure and files your account can access, and turns that material into a workspace for cited answers, active recall, and exam planning.",
                   )}
                 </p>
               </div>
@@ -310,11 +310,11 @@ export default async function About() {
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
             <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
-              {t("Powerful features")}
+              {t("Built around the real semester")}
             </h2>
             <p className="mt-6 text-lg/8 text-text-secondary">
               {t(
-                "Everything you need to take better notes and learn more effectively.",
+                "The public launch focus is Canvas import, course-aware study, and honest beta limits.",
               )}
             </p>
           </div>
@@ -326,11 +326,11 @@ export default async function About() {
                 <span className="text-3xl">✨</span>
               </div>
               <h3 className="text-lg font-semibold text-text">
-                {t("AI-Powered Insights")}
+                {t("Cited course answers")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
                 {t(
-                  "Get intelligent summaries, key takeaways, and smart suggestions as you take notes.",
+                  "Ask questions from imported notes, slides, and course files, with answers grounded in available source material.",
                 )}
               </p>
             </div>
@@ -342,11 +342,11 @@ export default async function About() {
                 <span className="text-3xl">🔗</span>
               </div>
               <h3 className="text-lg font-semibold text-text">
-                {t("Seamless Canvas Integration")}
+                {t("Canvas-first import")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
                 {t(
-                  "Auto-sync assignments, deadlines, and course materials directly from Canvas.",
+                  "Bring lectures, files, assignments, and deadlines into one study workspace, subject to Canvas permissions.",
                 )}
               </p>
             </div>
@@ -358,11 +358,11 @@ export default async function About() {
                 <span className="text-3xl">📚</span>
               </div>
               <h3 className="text-lg font-semibold text-text">
-                {t("Smart Organization")}
+                {t("Study structure")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
                 {t(
-                  "Auto-categorize notes, tag content intelligently, and find anything in seconds.",
+                  "Keep modules, notes, imported files, flashcards, and revision work connected to the course they came from.",
                 )}
               </p>
             </div>
@@ -374,11 +374,11 @@ export default async function About() {
                 <span className="text-3xl">📱</span>
               </div>
               <h3 className="text-lg font-semibold text-text">
-                {t("Work Anywhere")}
+                {t("Export and account control")}
               </h3>
               <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
                 {t(
-                  "Access your notes on desktop, tablet, or phone with full offline support.",
+                  "Use export and account controls so your study material is not trapped in a beta product.",
                 )}
               </p>
             </div>

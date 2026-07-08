@@ -21,6 +21,8 @@ export default function ContactForm() {
 
     const formData = new FormData(event.target);
     formData.append("access_key", accessKey);
+    formData.append("subject", "OghmaNotes website lead");
+    formData.append("from_name", "OghmaNotes website");
 
     try {
       const response = await fetch("https://api.web3forms.com/submit", {
@@ -77,6 +79,73 @@ export default function ContactForm() {
               name="last_name"
               type="text"
               required
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+            />
+          </div>
+        </div>
+        <div>
+          <label
+            htmlFor="role"
+            className="block text-sm/6 font-semibold text-text"
+          >
+            {t("I am a")}
+          </label>
+          <div className="mt-2.5">
+            <select
+              id="role"
+              name="role"
+              required
+              defaultValue=""
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+            >
+              <option value="" disabled>
+                {t("Select a role")}
+              </option>
+              <option value="student">{t("Student")}</option>
+              <option value="lecturer">{t("Lecturer")}</option>
+              <option value="university_staff">{t("University staff")}</option>
+              <option value="partner_or_press">{t("Partner or press")}</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label
+            htmlFor="interest"
+            className="block text-sm/6 font-semibold text-text"
+          >
+            {t("I need help with")}
+          </label>
+          <div className="mt-2.5">
+            <select
+              id="interest"
+              name="interest"
+              required
+              defaultValue=""
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+            >
+              <option value="" disabled>
+                {t("Select an option")}
+              </option>
+              <option value="beta_access">{t("Beta access")}</option>
+              <option value="campus_pilot">{t("Campus pilot")}</option>
+              <option value="support">{t("Support")}</option>
+              <option value="billing">{t("Billing")}</option>
+              <option value="partnership">{t("Partnership")}</option>
+            </select>
+          </div>
+        </div>
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="institution"
+            className="block text-sm/6 font-semibold text-text"
+          >
+            {t("University or organization")}
+          </label>
+          <div className="mt-2.5">
+            <input
+              id="institution"
+              name="institution"
+              type="text"
               className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
