@@ -23,10 +23,13 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'register':       { limit: 5,   windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'password-reset': { limit: 3,   windowSeconds: 3600,  keyType: 'email', failClosedOnStoreError: true },
   'password-verify':{ limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
+  'resend-verification': { limit: 3,  windowSeconds: 3600, keyType: 'email', failClosedOnStoreError: true },
+  'verify-email':   { limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
 
   // tier 3 — resource protection
   'upload':         { limit: 30,  windowSeconds: 3600,  keyType: 'userId' },
   'vault-delete':   { limit: 1,   windowSeconds: 86400, keyType: 'userId', failClosedOnStoreError: true },
   'contact':        { limit: 5,   windowSeconds: 3600,  keyType: 'ip' },
   'share':          { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
+  'global-search':  { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
 };

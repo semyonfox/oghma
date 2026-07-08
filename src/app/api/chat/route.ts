@@ -18,6 +18,7 @@ import { persistMessage, type ChatMessage } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
+import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
 import {
   buildRetrievalInfo,
   buildFallbackReply,
@@ -88,6 +89,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     stream = false,
     thinkingMode: requestedThinkingMode,
     useRag = true,
+    clientDateTime: rawClientDateTime,
   }: {
     message: string;
     noteId?: string;
@@ -101,9 +103,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     stream?: boolean;
     thinkingMode?: unknown;
     useRag?: boolean;
+    clientDateTime?: unknown;
   } = body;
 
   const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
+  const clientDateTime = normalizeClientDateTime(rawClientDateTime);
 
   if (!message?.trim()) return tracedError("message is required", 400);
   if (message.length > 2000)
@@ -226,6 +230,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 sessionMemoryPrompt,
                 thinkingMode,
                 retrievalEnabled: useRag,
+                clientDateTime,
                 requestOrigin: request.nextUrl.origin,
                 referer: request.headers.get("referer"),
               });
@@ -568,6 +573,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       sessionMemoryPrompt,
       thinkingMode,
       retrievalEnabled: useRag,
+      clientDateTime,
       requestOrigin: request.nextUrl.origin,
       referer: request.headers.get("referer"),
     });

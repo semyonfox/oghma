@@ -27,6 +27,10 @@ jobs:
         run: npm run lint
         continue-on-error: false
 
+      - name: i18n audit
+        run: npm run i18n:audit
+        continue-on-error: false
+
       - name: Build
         run: npm run build
         continue-on-error: false
