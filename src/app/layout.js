@@ -3,6 +3,7 @@ import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
 import GlobalSearchRoot from "@/components/search/global-search-root";
+import MarketingTracker from "@/components/marketing-tracker";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -71,6 +72,7 @@ export default function RootLayout({ children }) {
           <ThemeProvider>
             <PomodoroIntegration />
             <GlobalSearchRoot />
+            <MarketingTracker />
             {children}
           </ThemeProvider>
         </I18nRootProvider>
