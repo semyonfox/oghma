@@ -1,11 +1,22 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Annotation, EditorState, Compartment, Transaction } from "@codemirror/state";
 import {
+  Annotation,
+  EditorState,
+  Compartment,
+  RangeSetBuilder,
+  Transaction,
+} from "@codemirror/state";
+import {
+  Decoration,
+  DecorationSet,
   EditorView,
   keymap,
   placeholder as cmPlaceholder,
+  ViewPlugin,
+  ViewUpdate,
+  WidgetType,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -43,6 +54,13 @@ export const CODE_BLOCK_LANGUAGES = {
   py: "Python",
   python: "Python",
 };
+
+export interface MarkdownSyntaxRange {
+  from: number;
+  to: number;
+  replaceWith?: string;
+  className?: string;
+}
 
 const writeThemeSpec = {
   "&": {
@@ -104,6 +122,20 @@ const writeThemeSpec = {
   ".cm-formatting, .cm-meta": {
     color: "var(--color-text-tertiary)",
   },
+  ".cm-md-render-marker": {
+    color: "var(--color-primary-300)",
+    display: "inline-block",
+    fontWeight: "600",
+    minWidth: "1.25ch",
+    paddingRight: "0.25ch",
+  },
+  ".cm-md-render-checkbox": {
+    color: "var(--color-primary-300)",
+    display: "inline-block",
+    fontWeight: "700",
+    minWidth: "1.45ch",
+    paddingRight: "0.35ch",
+  },
   "@media (min-width: 768px)": {
     ".cm-scroller": {
       paddingLeft: "2rem",
@@ -114,6 +146,30 @@ const writeThemeSpec = {
 
 const themeCompartment = new Compartment();
 const externalValueSync = Annotation.define<boolean>();
+
+class MarkdownMarkerWidget extends WidgetType {
+  constructor(
+    private readonly text: string,
+    private readonly className = "cm-md-render-marker",
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = this.className;
+    span.textContent = this.text;
+    return span;
+  }
+
+  eq(other: MarkdownMarkerWidget) {
+    return this.text === other.text && this.className === other.className;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
 
 function isDarkTheme(): boolean {
   if (typeof document === "undefined") return true;
@@ -142,6 +198,150 @@ export function wrapMarkdownSelection(
     head: from + before.length + selected.length,
   };
 }
+
+function addInlinePairRanges(
+  ranges: MarkdownSyntaxRange[],
+  lineText: string,
+  lineFrom: number,
+  pattern: RegExp,
+  markerLength: number,
+) {
+  for (const match of lineText.matchAll(pattern)) {
+    if (match.index == null || !match[0]) continue;
+    ranges.push(
+      {
+        from: lineFrom + match.index,
+        to: lineFrom + match.index + markerLength,
+      },
+      {
+        from: lineFrom + match.index + match[0].length - markerLength,
+        to: lineFrom + match.index + match[0].length,
+      },
+    );
+  }
+}
+
+export function markdownSyntaxRangesForLine(
+  lineText: string,
+  lineFrom: number,
+  isActiveLine: boolean,
+): MarkdownSyntaxRange[] {
+  if (isActiveLine) return [];
+
+  const ranges: MarkdownSyntaxRange[] = [];
+  const leadingWhitespace = lineText.match(/^\s*/)?.[0].length ?? 0;
+  const contentStart = lineFrom + leadingWhitespace;
+  const text = lineText.slice(leadingWhitespace);
+
+  const fence = text.match(/^```.*$/);
+  if (fence) {
+    ranges.push({ from: contentStart, to: lineFrom + lineText.length });
+    return ranges;
+  }
+
+  const heading = text.match(/^(#{1,6})\s+/);
+  if (heading) {
+    ranges.push({ from: contentStart, to: contentStart + heading[0].length });
+  }
+
+  const todo = text.match(/^[-*+] \[([ xX])]\s+/);
+  if (todo) {
+    ranges.push({
+      from: contentStart,
+      to: contentStart + todo[0].length,
+      replaceWith: todo[1].toLowerCase() === "x" ? "☑" : "☐",
+      className: "cm-md-render-checkbox",
+    });
+  } else {
+    const unorderedList = text.match(/^[-*+]\s+/);
+    if (unorderedList) {
+      ranges.push({
+        from: contentStart,
+        to: contentStart + unorderedList[0].length,
+        replaceWith: "•",
+      });
+    }
+  }
+
+  const blockquote = text.match(/^>\s*/);
+  if (blockquote) {
+    ranges.push({ from: contentStart, to: contentStart + blockquote[0].length });
+  }
+
+  addInlinePairRanges(ranges, lineText, lineFrom, /\*\*([^*]+)\*\*/g, 2);
+  addInlinePairRanges(ranges, lineText, lineFrom, /__([^_]+)__/g, 2);
+  addInlinePairRanges(ranges, lineText, lineFrom, /`([^`]+)`/g, 1);
+
+  for (const match of lineText.matchAll(/\[([^\]]+)]\(([^)]+)\)/g)) {
+    if (match.index == null || !match[0]) continue;
+    const textStart = match.index + 1;
+    const textEnd = textStart + match[1].length;
+    ranges.push(
+      { from: lineFrom + match.index, to: lineFrom + textStart },
+      { from: lineFrom + textEnd, to: lineFrom + match.index + match[0].length },
+    );
+  }
+
+  return ranges;
+}
+
+function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
+
+  for (const { from, to } of view.visibleRanges) {
+    let pos = from;
+    while (pos <= to) {
+      const line = view.state.doc.lineAt(pos);
+      const ranges = markdownSyntaxRangesForLine(
+        line.text,
+        line.from,
+        line.from === activeLine.from,
+      )
+        .filter((range) => range.from < range.to)
+        .sort((a, b) => a.from - b.from || a.to - b.to);
+
+      let lastTo = line.from;
+      for (const range of ranges) {
+        if (range.from < lastTo) continue;
+        builder.add(
+          range.from,
+          range.to,
+          Decoration.replace({
+            widget: range.replaceWith
+              ? new MarkdownMarkerWidget(range.replaceWith, range.className)
+              : undefined,
+          }),
+        );
+        lastTo = range.to;
+      }
+
+      if (line.to >= to) break;
+      pos = line.to + 1;
+    }
+  }
+
+  return builder.finish();
+}
+
+const markdownRenderDecorations = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = buildMarkdownRenderDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        this.decorations = buildMarkdownRenderDecorations(update.view);
+      }
+    }
+  },
+  {
+    decorations: (plugin) => plugin.decorations,
+  },
+);
 
 export default function WriteEditor({
   value,
@@ -193,6 +393,7 @@ export default function WriteEditor({
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
+        markdownRenderDecorations,
         themeCompartment.of(themeExtensions(isDarkTheme())),
         EditorView.lineWrapping,
         cmPlaceholder(placeholder),
