@@ -5,7 +5,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
-import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import type { Components } from "react-markdown";
@@ -22,8 +21,6 @@ interface MarkdownVariantConfig {
   allowRawHtml: boolean;
   /** Runs rehype-sanitize with the shared markdown schema. */
   sanitize: boolean;
-  /** Runs the current Highlight.js-backed code highlighter. */
-  highlight: boolean;
 }
 
 export const markdownRendererVariants: Record<
@@ -34,19 +31,16 @@ export const markdownRendererVariants: Record<
     breaks: true,
     allowRawHtml: true,
     sanitize: true,
-    highlight: true,
   },
   chat: {
     breaks: true,
     allowRawHtml: false,
     sanitize: true,
-    highlight: true,
   },
   quiz: {
     breaks: false,
     allowRawHtml: false,
     sanitize: true,
-    highlight: true,
   },
 };
 
@@ -122,8 +116,7 @@ const baseComponents: Partial<Components> = {
       {children}
     </a>
   ),
-  // pre extracts language and delegates to CodeBlock;
-  // code passes through hljs classes so rehype-highlight tokens survive
+  // pre extracts language and delegates to CodeBlock; CodeBlock owns async Shiki highlighting.
   pre: ({ children }: any) => {
     const codeEl = (children as any)?.props;
     const cls: string = codeEl?.className ?? "";
@@ -198,9 +191,6 @@ function buildRehypePlugins(
 
   if (config.allowRawHtml) {
     plugins.push(rehypeRaw as Pluggable);
-  }
-  if (config.highlight) {
-    plugins.push([rehypeHighlight, { ignoreMissing: true }] as unknown as Pluggable);
   }
   if (config.sanitize) {
     plugins.push(sanitizePlugin);

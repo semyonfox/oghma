@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import PreviewRenderer from "@/components/editor/preview-renderer";
+import { highlightCode } from "@/lib/markdown/shiki-highlighter";
 
 function renderPreview(content: string, noteId?: string) {
   return renderToStaticMarkup(
@@ -31,7 +32,6 @@ describe("PreviewRenderer", () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain("inlineCode()");
     expect(html).toContain("contract-fixture.ts");
-    expect(html).toContain("hljs-keyword");
     expect(html).toContain("unknown language fallback");
     expect(html).toContain("contains-task-list");
     expect(html).toContain('type="checkbox"');
@@ -42,15 +42,18 @@ describe("PreviewRenderer", () => {
       'src="/api/notes/note-contract/assets?name=_page_1_Figure_2.png"',
     );
     expect(html).toContain("<mark>Safe highlight</mark>");
+    expect(html).toContain('data-shiki-state="loading"');
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("onerror=");
     expect(html).not.toContain('href="javascript:');
   });
 
-  it("preserves syntax token classes for highlighted code", () => {
+  it("renders fenced code through the CodeBlock Shiki path", () => {
     const html = renderPreview("```javascript\nconst value = 1\n```");
 
-    expect(html).toContain("hljs-keyword");
+    expect(html).toContain('data-shiki-state="loading"');
+    expect(html).toContain('class="language-javascript"');
+    expect(html).toContain("const value = 1");
   });
 
   it("renders fenced code without language as a premium block with CODE fallback", () => {
@@ -66,7 +69,6 @@ describe("PreviewRenderer", () => {
 
     expect(html).toContain("utils/math.ts");
     expect(html).toContain("TypeScript");
-    expect(html).toContain("hljs-keyword");
   });
 
   it("falls back safely for unknown code fence languages", () => {
@@ -100,10 +102,11 @@ describe("PreviewRenderer", () => {
     expect(html).not.toContain('href="javascript:');
   });
 
-  it("keeps syntax highlighting while sanitizing code fence contents", () => {
+  it("escapes unsafe html inside code fences before async highlighting", () => {
     const html = renderPreview("```html\n<script>alert(1)</script>\n```");
 
-    expect(html).toContain("hljs");
+    expect(html).toContain('class="language-html"');
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).not.toContain("<script>");
   });
 
@@ -113,5 +116,29 @@ describe("PreviewRenderer", () => {
     expect(html).toContain("katex");
     expect(html).not.toContain("$x^2$");
     expect(html).not.toContain("$$x^2$$");
+  });
+
+  it("preserves fenced-code metadata in the CodeBlock chrome", () => {
+    const html = renderPreview('```ts title="demo.ts" {1}\nconst value = 1\n```');
+
+    expect(html).toContain("demo.ts");
+  });
+});
+
+describe("Shiki highlighter", () => {
+  it("highlights supported language aliases", async () => {
+    const result = await highlightCode("const value = 1", "js");
+
+    expect(result.lang).toBe("javascript");
+    expect(result.tokens.flat().some((token) => token.color)).toBe(true);
+  });
+
+  it("falls back to plaintext for unsupported languages", async () => {
+    const result = await highlightCode("const value = 1", "madeuplang");
+
+    expect(result.lang).toBe("plaintext");
+    expect(result.tokens.flat().map((token) => token.content).join("")).toBe(
+      "const value = 1",
+    );
   });
 });

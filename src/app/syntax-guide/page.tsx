@@ -13,7 +13,7 @@ export default async function SyntaxGuidePage() {
             href="/notes"
             className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
           >
-            {t("&larr; Back to Notes")}
+            {t("← Back to Notes")}
           </Link>
         </div>
         <SyntaxGuideClient />

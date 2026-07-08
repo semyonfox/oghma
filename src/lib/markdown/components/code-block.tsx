@@ -1,19 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import type { ThemedToken } from "shiki/core";
 import {
   ArrowPathRoundedSquareIcon,
   CheckIcon,
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { highlightCode, type HighlightedCode } from "../shiki-highlighter";
 
 export interface CodeBlockProps {
   language?: string;
   title?: string;
   className?: string;
   children?: React.ReactNode;
-  /** raw text content for clipboard — extracted from the markdown AST by the renderer */
+  /** raw text content for clipboard/highlighting — extracted from the markdown AST by the renderer */
   rawContent?: string;
 }
 
@@ -39,6 +42,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
   ruby: "Ruby",
   rust: "Rust",
   shell: "Shell",
+  shellscript: "Shell",
   sql: "SQL",
   swift: "Swift",
   text: "Plain text",
@@ -85,6 +89,56 @@ export function normalizeLanguage(language?: string): {
   };
 }
 
+function tokenStyle(token: ThemedToken): CSSProperties | undefined {
+  if (token.htmlStyle) return token.htmlStyle as CSSProperties;
+
+  const style: CSSProperties = {};
+  if (token.color) style.color = token.color;
+  if (token.bgColor) style.backgroundColor = token.bgColor;
+
+  if (token.fontStyle) {
+    // Shiki's FontStyle enum is bitwise: 1 italic, 2 bold, 4 underline.
+    if (token.fontStyle & 1) style.fontStyle = "italic";
+    if (token.fontStyle & 2) style.fontWeight = 700;
+    if (token.fontStyle & 4) style.textDecoration = "underline";
+  }
+
+  return Object.keys(style).length ? style : undefined;
+}
+
+function renderHighlightedLines(tokens: ThemedToken[][]): ReactNode[] {
+  return tokens.flatMap((line, lineIndex) => [
+    <span className="line" key={`line-${lineIndex}`}>
+      {line.length
+        ? line.map((token, tokenIndex) => (
+            <span key={tokenIndex} style={tokenStyle(token)}>
+              {token.content}
+            </span>
+          ))
+        : ""}
+    </span>,
+    lineIndex < tokens.length - 1 ? "\n" : null,
+  ]);
+}
+
+function extractPlainText(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) {
+    return children.map((child) => extractPlainText(child)).join("");
+  }
+  if (
+    children &&
+    typeof children === "object" &&
+    "props" in children &&
+    (children as { props?: { children?: React.ReactNode } }).props
+  ) {
+    return extractPlainText(
+      (children as { props: { children?: React.ReactNode } }).props.children,
+    );
+  }
+  return "";
+}
+
 export default function CodeBlock({
   language,
   title,
@@ -95,13 +149,44 @@ export default function CodeBlock({
   const { t = (key: string) => key } = useI18n();
   const [copied, setCopied] = useState(false);
   const [wrapped, setWrapped] = useState(false);
+  const [highlighted, setHighlighted] = useState<HighlightedCode | null>(null);
+  const [highlightError, setHighlightError] = useState(false);
+  const requestId = useRef(0);
   const languageInfo = useMemo(() => normalizeLanguage(language), [language]);
+  const code = useMemo(
+    () => rawContent ?? extractPlainText(children),
+    [children, rawContent],
+  );
+
+  useEffect(() => {
+    if (!code) {
+      setHighlighted(null);
+      setHighlightError(false);
+      return;
+    }
+
+    let active = true;
+    const currentRequest = ++requestId.current;
+    setHighlightError(false);
+    setHighlighted(null);
+
+    highlightCode(code, languageInfo.normalized)
+      .then((result) => {
+        if (active && requestId.current === currentRequest) setHighlighted(result);
+      })
+      .catch(() => {
+        if (active && requestId.current === currentRequest) setHighlightError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [code, languageInfo.normalized]);
 
   const handleCopy = async () => {
-    const text = rawContent ?? (typeof children === "string" ? children : "");
-    if (!text || !navigator.clipboard?.writeText) return;
+    if (!code || !navigator.clipboard?.writeText) return;
 
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(code);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
@@ -158,11 +243,16 @@ export default function CodeBlock({
       </div>
 
       <pre
-        className={`m-0 overflow-x-auto bg-[var(--md-code-bg)] text-[0.86rem] leading-6 text-[var(--md-syntax-base)] [tab-size:2] ${
+        className={`m-0 overflow-x-auto bg-slate-950/95 p-4 text-[0.86rem] leading-6 text-slate-100 [tab-size:2] ${
           wrapped ? "whitespace-pre-wrap break-words" : ""
         } ${className ?? ""}`}
+        data-shiki-state={
+          highlighted ? "highlighted" : highlightError ? "fallback" : "loading"
+        }
       >
-        {children}
+        <code className={language ? `language-${language}` : undefined}>
+          {highlighted ? renderHighlightedLines(highlighted.tokens) : code}
+        </code>
       </pre>
     </figure>
   );

@@ -67,11 +67,12 @@ describe("MarkdownRenderer variants", () => {
     }
   });
 
-  it("renders fenced code blocks with Highlight.js classes", () => {
+  it("renders fenced code blocks through the lazy Shiki CodeBlock path", () => {
     const html = renderMarkdown("```javascript\nconst value = 1\n```", "quiz");
 
     expect(html).toContain("<pre");
-    expect(html).toContain("hljs-keyword");
+    expect(html).toContain('data-shiki-state="loading"');
+    expect(html).toContain('class="language-javascript"');
     expect(html).not.toContain('class="rounded bg-surface');
   });
 
