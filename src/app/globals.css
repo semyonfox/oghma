@@ -363,24 +363,46 @@ body {
 
 .markdown-preview h1,
 .markdown-preview h2,
-.markdown-preview h3 {
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
   line-height: 1.1;
   letter-spacing: -0.025em;
+  font-weight: 750;
 }
 
 .markdown-preview h1 {
   margin: 2rem 0 1rem;
   color: var(--md-heading-1);
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
 }
 
 .markdown-preview h2 {
   margin: 1.75rem 0 0.75rem;
   color: var(--md-heading-2);
+  font-size: clamp(2rem, 3.7vw, 2.65rem);
 }
 
 .markdown-preview h3 {
   margin: 1.5rem 0 0.5rem;
   color: var(--md-heading-3);
+  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+}
+
+.markdown-preview h4 {
+  margin: 1.25rem 0 0.45rem;
+  color: var(--md-heading-3);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.markdown-preview h5,
+.markdown-preview h6 {
+  margin: 1rem 0 0.35rem;
+  color: var(--md-heading-3);
+  font-size: 1.08rem;
+  line-height: 1.3;
 }
 
 .markdown-preview h1::after,
