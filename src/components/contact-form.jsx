@@ -1,12 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { trackMarketingEvent } from "@/lib/marketing/client";
 
-export default function ContactForm() {
+function messageLengthBucket(value) {
+  const length = typeof value === "string" ? value.trim().length : 0;
+  if (length <= 100) return "0-100";
+  if (length <= 500) return "101-500";
+  return "500+";
+}
+
+function formAnalyticsPayload(form) {
+  const formData = new FormData(form);
+  const institution = formData.get("institution");
+  const phone = formData.get("phone");
+  const message = formData.get("message");
+
+  return {
+    role: formData.get("role") || undefined,
+    interest: formData.get("interest") || undefined,
+    has_institution:
+      typeof institution === "string" && institution.trim().length > 0,
+    has_phone: typeof phone === "string" && phone.trim().length > 0,
+    message_length_bucket: messageLengthBucket(message),
+  };
+}
+
+export default function ContactForm({ source = "contact" }) {
   const { t } = useI18n();
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const startedRef = useRef(false);
+
+  const trackStart = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackMarketingEvent("contact_form_start", {
+      source: "contact_form",
+      properties: {
+        page: source,
+        form: "contact",
+      },
+    });
+  };
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -18,6 +55,15 @@ export default function ContactForm() {
       setIsLoading(false);
       return;
     }
+
+    trackMarketingEvent("contact_form_submit", {
+      source: "contact_form",
+      properties: {
+        page: source,
+        form: "contact",
+        ...formAnalyticsPayload(event.currentTarget),
+      },
+    });
 
     const formData = new FormData(event.target);
     formData.append("access_key", accessKey);
@@ -33,13 +79,38 @@ export default function ContactForm() {
       const data = await response.json();
 
       if (data.success) {
+        trackMarketingEvent("contact_form_success", {
+          source: "contact_form",
+          properties: {
+            page: source,
+            form: "contact",
+            ...formAnalyticsPayload(event.currentTarget),
+          },
+        });
         setResult(t("Message sent successfully!"));
         event.target.reset();
+        startedRef.current = false;
         setTimeout(() => setResult(""), 5000);
       } else {
+        trackMarketingEvent("contact_form_error", {
+          source: "contact_form",
+          properties: {
+            page: source,
+            form: "contact",
+            error_type: "provider_error",
+          },
+        });
         setResult(t("Error sending message. Please try again."));
       }
     } catch (_error) {
+      trackMarketingEvent("contact_form_error", {
+        source: "contact_form",
+        properties: {
+          page: source,
+          form: "contact",
+          error_type: "network_error",
+        },
+      });
       setResult(t("Error sending message. Please try again."));
     } finally {
       setIsLoading(false);
@@ -47,7 +118,12 @@ export default function ContactForm() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-xl lg:mr-0 lg:max-w-lg">
+    <form
+      onSubmit={onSubmit}
+      onFocusCapture={trackStart}
+      onChangeCapture={trackStart}
+      className="mx-auto max-w-xl lg:mr-0 lg:max-w-lg"
+    >
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
         <div>
           <label

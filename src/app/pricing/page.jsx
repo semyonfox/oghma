@@ -80,6 +80,10 @@ export default function PricingPage() {
           <Link
             className="text-primary-300 hover:text-primary-200"
             href="/contact?utm_source=pricing&utm_medium=cta&utm_campaign=launch_beta"
+            data-marketing-event="cta_click"
+            data-marketing-page="pricing"
+            data-marketing-location="questions"
+            data-marketing-cta="contact_team"
           >
             the team
           </Link>

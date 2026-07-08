@@ -35,7 +35,7 @@ export default function ContactPage() {
       </InfoSection>
 
       <section>
-        <ContactForm />
+        <ContactForm source="contact" />
       </section>
     </PublicInfoPage>
   );
