@@ -18,7 +18,9 @@ test.describe("chat full smoke with deterministic stream", () => {
     });
 
     await page.goto("/chat");
-    await expect(page.getByRole("main").or(page.locator("body"))).toContainText(/chat|ask|message/i);
+
+    const chatMain = page.getByRole("main");
+    await expect(chatMain).toContainText(/chat|ask|message/i);
   });
 });
 
