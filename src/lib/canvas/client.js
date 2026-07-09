@@ -283,6 +283,26 @@ export class CanvasClient {
   }
 
   /**
+   * Generic read-only Canvas API helper for export/archive code.
+   *
+   * @param {string} path - API path under /api/v1, e.g. '/courses/123/pages'
+   * @returns {Promise<{ data: any|null, forbidden: boolean, error?: string }>}
+   */
+  async getPath(path) {
+    return this.#get(path);
+  }
+
+  /**
+   * Generic paginated read-only Canvas API helper for export/archive code.
+   *
+   * @param {string} path - API path under /api/v1, e.g. '/courses/123/files'
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getPaginatedPath(path) {
+    return this.#getPaginated(path);
+  }
+
+  /**
    * Downloads a file's binary content from Canvas.
    * The URL comes from the file metadata returned by getFile().
    * Returns a Node.js Buffer ready to pass to S3.

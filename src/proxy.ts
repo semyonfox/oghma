@@ -38,9 +38,15 @@ export async function proxy(request: NextRequest) {
         return new NextResponse(null, { status: 204, headers: corsHeaders });
     }
 
-    if (pathname === "/ai") {
+    const markdownRouteMap: Record<string, string> = {
+        "/ai": "/ai.md",
+        "/info": "/info.md",
+        "/pricing": "/pricing.md",
+    };
+    const markdownTarget = markdownRouteMap[pathname];
+    if (markdownTarget) {
         const response = wantsMarkdown(request)
-            ? NextResponse.rewrite(new URL("/ai.md", request.url))
+            ? NextResponse.rewrite(new URL(markdownTarget, request.url))
             : NextResponse.next();
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         response.headers.set("Vary", "Accept");
@@ -79,6 +85,8 @@ export const config = {
         "/login",
         "/register",
         "/ai",
+        "/info",
+        "/pricing",
         "/dashboard/:path*",
         "/notes/:path*",
         "/upload/:path*",

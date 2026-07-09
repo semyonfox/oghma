@@ -56,6 +56,8 @@ export default function CanvasIntegration() {
 
   // UI state
   const [courseListOpen, setCourseListOpen] = useState(true);
+  const [isDownloadingCanvasFiles, setIsDownloadingCanvasFiles] =
+    useState(false);
 
   // import/polling state (custom hook)
   const {
@@ -300,6 +302,60 @@ export default function CanvasIntegration() {
     }
   };
 
+  const handleDownloadCanvasFiles = async () => {
+    setIsDownloadingCanvasFiles(true);
+    setConnectionError(null);
+
+    try {
+      const selectedCourses =
+        selectedCourseIds.length > 0
+          ? courses
+              .filter((c) => selectedCourseIds.includes(c.id))
+              .map((c) => ({
+                id: c.id,
+                name: c.name,
+                course_code: c.course_code,
+                term: c.term ?? null,
+              }))
+          : null;
+
+      const res = await fetch("/api/canvas/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          selectedCourses ? { courseIds: selectedCourses } : {},
+        ),
+      });
+
+      if (!res.ok) {
+        let message = "download failed";
+        try {
+          const data = await res.json();
+          message = data.error ?? message;
+        } catch {}
+        setConnectionError(toFriendlyCanvasError(message));
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const filename =
+        disposition.match(/filename="([^"]+)"/)?.[1] ?? "canvas-files.zip";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch {
+      setConnectionError(toFriendlyCanvasError("network"));
+    } finally {
+      setIsDownloadingCanvasFiles(false);
+    }
+  };
+
   const toggleCourse = (courseId) => {
     setSelectedCourseIds((prev) =>
       prev.includes(courseId)
@@ -420,7 +476,7 @@ export default function CanvasIntegration() {
           )}
 
           {/* Action buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             {isImporting ? (
               <button
                 type="button"
@@ -441,7 +497,30 @@ export default function CanvasIntegration() {
             )}
             <button
               type="button"
-              disabled={isImporting || isSyncing || !syncAvailable}
+              disabled={
+                isImporting ||
+                isSyncing ||
+                isDownloadingCanvasFiles
+              }
+              onClick={handleDownloadCanvasFiles}
+              className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDownloadingCanvasFiles
+                ? t("Preparing archive...")
+                : `${t("Download full Canvas archive")}${
+                    selectedCourseIds.length > 0
+                      ? ` (${selectedCourseIds.length})`
+                      : ` (${t("all courses")})`
+                  }`}
+            </button>
+            <button
+              type="button"
+              disabled={
+                isImporting ||
+                isSyncing ||
+                isDownloadingCanvasFiles ||
+                !syncAvailable
+              }
               onClick={handleSync}
               className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
               title={t("Check for new files in previously imported courses")}

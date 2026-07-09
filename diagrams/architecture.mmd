@@ -12,21 +12,19 @@ flowchart TD
         AppProd["oghma-prod\nNext.js SSR + /api/chat"]
         AppDev["oghma-dev\nNext.js SSR + /api/chat"]
         Worker["oghma-{env}-worker\nBullMQ canvas-import + extract-retry"]
-        Postgres[("PostgreSQL 17\n+ pgvector")]
+        Postgres[("PostgreSQL 17\napp schema")]
+        Qdrant[("Qdrant\nchunk vectors")]
         Redis[("Redis 7\nBullMQ + cache + rate-limit")]
         Rustfs[("rustfs\nS3-compatible store")]
-    end
-
-    subgraph aws["AWS  eu-west-1"]
-        SES["SES\nnoreply@oghmanotes.ie"]
-        SesFwd["Lambda\nses-email-forwarder"]
+        Marker["marker OCR\nFastAPI + converter pool"]
     end
 
     subgraph external["External Services"]
-        LLM["Kimi K2.5\nMoonshot AI"]
+        LLM["LLM provider\nserver-managed model"]
         Embed["SiliconFlow\nQwen3-Embedding-8B (4096d)"]
         Rerank["OpenRouter\nQwen3-Reranker-8B"]
-        Datalab["Datalab API\nPDF extraction (optional)"]
+        Email["Cloudflare Email Service\ntransactional mail"]
+        RunPod["RunPod GPU pod\non-demand marker OCR"]
         CanvasLMS["Canvas LMS API"]
         OAuth["GitHub / Google OAuth"]
     end
@@ -35,27 +33,29 @@ flowchart TD
     Nginx --> AppProd
     Nginx --> AppDev
     AppProd --> Postgres
+    AppProd --> Qdrant
     AppProd --> Redis
     AppProd --> Rustfs
     AppProd --> CanvasLMS
     AppProd --> Embed
     AppProd --> Rerank
     AppProd --> LLM
-    AppProd --> SES
+    AppProd --> Email
     AppDev --> Postgres
     AppDev --> Redis
     AppDev --> Rustfs
     Worker --> Postgres
+    Worker --> Qdrant
     Worker --> Redis
     Worker --> Rustfs
     Worker --> CanvasLMS
     Worker --> Embed
-    Worker --> Datalab
+    Worker -.-> Marker
+    Worker -.-> RunPod
     Browser --> OAuth
-    SES --> SesFwd
 
     classDef plain fill:#ffffff,color:#111111,stroke:#111111
     classDef shaded fill:#e8e8e8,color:#111111,stroke:#111111
     classDef endpoint fill:#f0f0f0,color:#111111,stroke:#333333,font-weight:bold
-    class Postgres,Redis,Rustfs shaded
+    class Postgres,Qdrant,Redis,Rustfs shaded
     class Browser endpoint
