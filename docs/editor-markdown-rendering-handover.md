@@ -11,6 +11,24 @@ Important distinction:
 - MDX means Markdown + JSX/React components. That is probably **not** the product goal for Oghma notes.
 - The product goal is better described as: **single-view Markdown-backed rich editor**.
 
+## Current decision
+
+Decision recovered from prior Discord/Codex-thread context:
+
+- **Do not migrate the main editor package now.**
+- Keep **CodeMirror 6** as the current write-surface engine for the next production version.
+- Build product behaviour around **canonical Markdown**, with CodeMirror as adapter v1.
+- Keep **Milkdown / Crepe** as a future editor-engine candidate only if CodeMirror polish proves insufficient; do not carry the old spike branch as active work.
+- Do **not** use MDX/MDXEditor as the main note syntax/editor direction.
+- Use **Shiki** for renderer/code-block highlighting polish, not as an editor replacement.
+- Keep the UI as a single Notion-like writing surface: inactive Markdown syntax hides; raw syntax appears only where useful.
+- Code-block chrome should stay minimal: copy-only/no always-visible word-wrap unless deliberately reintroduced later.
+
+Source breadcrumbs:
+
+- Discord session: `20260708_212713_8ccb8c`, message `50242`, “Markdown Editor Handover Setup”. Key quote: “**do not migrate the main editor package now** … **Keep CodeMirror as the editor engine** … **Milkdown is the escape hatch, not the first move**.”
+- Discord session: `20260709_192556_2c1d6e60`, message `53464`, memory update: “Canonical MD/Notion-like editor, inactive syntax hides; avoid heavy editor stacks; Shiki renderer polish only; code blocks minimal chrome/copy-only/no always-visible word-wrap.”
+
 ## Current state on `dev`
 
 ### Active editor path
