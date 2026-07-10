@@ -245,7 +245,14 @@ describe("Canvas raw archive export", () => {
       },
     ]);
 
-    expect(archive.downloads.map((entry) => entry.path)).toEqual(
+    const downloadPaths = archive.downloads.map(
+      (entry: { path: string }) => entry.path,
+    );
+    const textEntryPaths = archive.textEntries.map(
+      (entry: { path: string }) => entry.path,
+    );
+
+    expect(downloadPaths).toEqual(
       expect.arrayContaining([
         "CT216-Software-Engineering/modules/Week 1/files/slides.pdf",
         "CT216-Software-Engineering/files/all-course-files/course-file.pdf",
@@ -256,7 +263,7 @@ describe("Canvas raw archive export", () => {
         "_groups/Project Group/files/downloads/group-file.pdf",
       ]),
     );
-    expect(archive.textEntries.map((entry) => entry.path)).toEqual(
+    expect(textEntryPaths).toEqual(
       expect.arrayContaining([
         "_account/account-notifications.json",
         "CT216-Software-Engineering/pages/week-1.md",

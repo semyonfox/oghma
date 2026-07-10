@@ -125,7 +125,7 @@ describe("checkRateLimit fail-closed categories", () => {
         [null, 1],
       ]),
     };
-    redisState.pipeline.mockReturnValue(pipeline);
+    redisState.pipeline.mockReturnValue(pipeline as never);
     const { checkRateLimit } = await import("@/lib/rateLimiter");
 
     const response = await checkRateLimit("password-reset", "user@example.com");
@@ -159,7 +159,7 @@ describe("checkRateLimit fail-closed categories", () => {
         [null, 1],
       ]),
     };
-    redisState.pipeline.mockReturnValue(pipeline);
+    redisState.pipeline.mockReturnValue(pipeline as never);
 
     const { checkRateLimit } = await import("@/lib/rateLimiter");
 
