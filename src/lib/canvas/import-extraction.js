@@ -18,6 +18,7 @@ import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
 
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 export const PROCESSABLE_TYPES = new Set([
@@ -445,6 +446,7 @@ async function checkAndCompleteJob(jobId, userId) {
   if (!weCompleted) return;
 
   console.log(`[${new Date().toISOString()}] Job completed: ${jobId}`);
+
   try {
     const chunks = await sql`
       SELECT c.id FROM app.chunks c
@@ -457,6 +459,7 @@ async function checkAndCompleteJob(jobId, userId) {
         await import("../quiz/generate-background.ts");
       const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
       console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
+
     }
   } catch (seedErr) {
     console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);

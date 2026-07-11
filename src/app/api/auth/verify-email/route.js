@@ -8,6 +8,7 @@ import { verifyTokenHash } from "@/lib/tokens";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
+import { recordActivationMilestone } from "@/lib/marketing/events";
 
 export async function POST(request) {
   try {
@@ -48,6 +49,9 @@ export async function POST(request) {
         `;
 
     // auto-login: create session for the verified user
+    void recordActivationMilestone("email_verified", matchedUser.user_id, request).catch(
+      (eventError) => logger.warn("failed to record email verification milestone", { error: eventError.message }),
+    );
     return await createAuthSession(matchedUser, 1);
   } catch (error) {
     logger.error("email verification error", { error });

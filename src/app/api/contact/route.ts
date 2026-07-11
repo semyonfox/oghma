@@ -5,6 +5,7 @@ import { withErrorHandler } from "@/lib/api-error";
 import logger from "@/lib/logger";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import { recordMarketingEvent } from "@/lib/marketing/events";
+import { cleanAttribution } from "@/lib/marketing/attribution";
 
 const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
@@ -103,6 +104,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const body = parsed.data;
+  const attribution = cleanAttribution(body.marketing?.utm);
   const forward = await forwardToWeb3Forms(body);
 
   await sql`
@@ -116,7 +118,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       phone,
       message,
       source,
-      session_id,
       utm_source,
       utm_medium,
       utm_campaign,
@@ -124,8 +125,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       utm_term,
       first_touch,
       forwarded_to_web3forms,
-      forward_error,
-      user_agent
+      forward_error
     )
     VALUES (
       ${body.first_name},
@@ -136,34 +136,30 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ${body.institution || null},
       ${body.phone || null},
       ${body.message},
-      ${body.source},
-      ${body.marketing?.sessionId ?? null},
-      ${body.marketing?.utm?.source ?? null},
-      ${body.marketing?.utm?.medium ?? null},
-      ${body.marketing?.utm?.campaign ?? null},
-      ${body.marketing?.utm?.content ?? null},
-      ${body.marketing?.utm?.term ?? null},
-      ${sql.json(body.marketing?.firstTouch ?? {})},
+      ${"contact_form"},
+      ${attribution.source ?? null},
+      ${attribution.medium ?? null},
+      ${attribution.campaign ?? null},
+      ${attribution.content ?? null},
+      ${attribution.term ?? null},
+      ${sql.json({})},
       ${forward.forwarded},
-      ${forward.error},
-      ${request.headers.get("user-agent")?.slice(0, 300) ?? null}
+      ${forward.error}
     )
   `;
 
   await recordMarketingEvent(
     {
       eventName: "contact_form_success",
-      sessionId: body.marketing?.sessionId,
       path: request.nextUrl.pathname,
-      source: "contact_api",
-      utm: body.marketing?.utm,
+      utm: attribution,
       properties: {
         ...leadAnalyticsProperties(body),
         forwarded_to_web3forms: forward.forwarded,
-        first_touch: body.marketing?.firstTouch,
       },
     },
     request,
+    { trusted: false },
   ).catch((eventError) => {
     logger.warn("failed to record contact marketing event", {
       error: eventError.message,

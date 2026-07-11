@@ -26,6 +26,7 @@ import { parseJobCourses, processCourse } from "./import-discovery.js";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
 
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -90,12 +91,14 @@ export async function processImportJob(jobId: string): Promise<boolean> {
         console.log(
           `Quiz seed: ${seeded} questions generated for job ${jobId}`,
         );
+
       }
     } catch (seedErr) {
       console.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
     }
 
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
+
     console.log(`Job completed: ${jobId}`);
     return true;
   } catch (error) {

@@ -25,6 +25,7 @@ import {
   type RetrievalInfo,
 } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
+import { recordActivationMilestone } from "@/lib/marketing/events";
 import {
   TOOL_CALL_LIMIT_USER_MESSAGE,
   appendToolCallLimitMessage,
@@ -482,6 +483,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
 
               await persistAssistant(reply, buildMetadata());
+              if (uniqueSources.length > 0) {
+                void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
+                  logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+                );
+              }
               sendDone(writer);
               lastEvent = "done";
               logger.info("Chat stream completed", {
@@ -660,6 +666,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       sources: uniqueSources,
       metadata,
     });
+    if (uniqueSources.length > 0) {
+      void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
+        logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+      );
+    }
     return NextResponse.json({
       reply,
       thinking: reasoningText || undefined,

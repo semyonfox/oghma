@@ -5,6 +5,7 @@ import sql from "@/database/pgsql.js";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { recordActivationMilestone } from "@/lib/marketing/events";
 
 /**
  * POST /api/canvas/import
@@ -64,6 +65,10 @@ export const POST = withErrorHandler(async (request) => {
       error: queueErr.message,
     });
   }
+
+  await recordActivationMilestone("canvas_import_started", user.user_id, request).catch(
+    (eventError) => logger.warn("failed to record Canvas import start milestone", { error: eventError.message }),
+  );
 
   return NextResponse.json({ success: true, queued: true, jobId });
 });

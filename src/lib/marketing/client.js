@@ -1,6 +1,8 @@
 "use client";
 
-const SESSION_KEY = "oghma_marketing_session";
+import { cleanAttribution } from "./attribution";
+
+const LEGACY_SESSION_KEY = "oghma_marketing_session";
 const FIRST_TOUCH_KEY = "oghma_marketing_first_touch";
 const LAST_TOUCH_KEY = "oghma_marketing_last_touch";
 
@@ -20,72 +22,41 @@ function safeSessionStorage() {
   }
 }
 
-function randomId() {
-  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  return `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+export function marketingAnalyticsAllowed() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const gpc = navigator.globalPrivacyControl === true;
+  const dnt = navigator.doNotTrack || window.doNotTrack;
+  return !gpc && dnt !== "1" && dnt !== "yes";
 }
 
-export function getMarketingSessionId() {
-  if (typeof window === "undefined") return null;
-
-  const storage = safeSessionStorage();
-  if (!storage) return randomId();
-
-  const existing = storage.getItem(SESSION_KEY);
-  if (existing) return existing;
-
-  const sessionId = randomId();
-  storage.setItem(SESSION_KEY, sessionId);
-  return sessionId;
-}
-
-function readTouch(key) {
-  const storage = safeSessionStorage();
-  if (!storage) return {};
-  try {
-    return JSON.parse(storage.getItem(key) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function writeTouch(key, value) {
+function clearAnalyticsStorage() {
   const storage = safeSessionStorage();
   if (!storage) return;
-  storage.setItem(key, JSON.stringify(value));
+  storage.removeItem(LEGACY_SESSION_KEY);
+  storage.removeItem(FIRST_TOUCH_KEY);
+  storage.removeItem(LAST_TOUCH_KEY);
+}
+
+function retireAnalyticsStorage() {
+  // Clear keys created by earlier analytics versions, then remain storage-free.
+  clearAnalyticsStorage();
 }
 
 export function getCurrentUtm() {
-  if (typeof window === "undefined") return {};
+  retireAnalyticsStorage();
+  if (!marketingAnalyticsAllowed()) return {};
 
   const params = new URLSearchParams(window.location.search);
   const current = {};
   for (const key of UTM_KEYS) {
     const value = params.get(key);
-    if (value) current[key.replace("utm_", "")] = value.slice(0, 120);
+    if (value) current[key.replace("utm_", "")] = value;
   }
-
-  if (Object.keys(current).length > 0) {
-    if (Object.keys(readTouch(FIRST_TOUCH_KEY)).length === 0) {
-      writeTouch(FIRST_TOUCH_KEY, current);
-    }
-    writeTouch(LAST_TOUCH_KEY, current);
-    return current;
-  }
-
-  return readTouch(LAST_TOUCH_KEY);
-}
-
-export function getFirstTouchUtm() {
-  return readTouch(FIRST_TOUCH_KEY);
+  return cleanAttribution(current);
 }
 
 export function getMarketingContext() {
-  return {
-    sessionId: getMarketingSessionId(),
-    utm: getCurrentUtm(),
-    firstTouch: getFirstTouchUtm(),
-  };
+  return { utm: getCurrentUtm() };
 }
 
 function getReferrer() {
@@ -94,30 +65,31 @@ function getReferrer() {
 }
 
 export function trackMarketingEvent(eventName, options = {}) {
-  if (typeof window === "undefined") return;
+  if (!marketingAnalyticsAllowed()) {
+    clearAnalyticsStorage();
+    return;
+  }
 
-  const sessionId = getMarketingSessionId();
   const payload = {
     eventName,
-    sessionId,
-    path: `${window.location.pathname}${window.location.search}`,
+    // Never send query strings, browser identifiers, user agent, or client time.
+    path: window.location.pathname,
     referrer: getReferrer(),
     source: options.source,
     targetUrl: options.targetUrl,
+    // Navigation fields are coarse allowlisted values; the server independently validates them.
+    fromPath: options.fromPath,
+    toPath: options.toPath,
+    originClass: options.originClass,
+    placement: options.placement,
+    action: options.action,
     utm: options.utm || getCurrentUtm(),
-    occurredAt: new Date().toISOString(),
-    properties: {
-      ...options.properties,
-      first_touch: getFirstTouchUtm(),
-    },
+    properties: { ...options.properties },
   };
 
   fetch("/api/marketing/events", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Oghma-Marketing-Session": sessionId,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     keepalive: true,
   }).catch(() => {

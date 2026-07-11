@@ -84,14 +84,7 @@ export default function RegisterPage() {
     });
     try {
       const result = await register(email, pwd, getMarketingContext());
-      trackMarketingEvent("registration_success", {
-        source: "register_form",
-        properties: {
-          method: "email",
-          requires_verification: Boolean(result.requiresVerification),
-          destination: result.requiresVerification ? "/verify-email" : "/notes",
-        },
-      });
+      // Account creation is recorded once by the server as the canonical milestone.
       if (result.requiresVerification) {
         router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
         setTimeout(() => {

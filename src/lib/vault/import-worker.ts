@@ -25,6 +25,7 @@ import {
 } from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email.js";
 
+
 const PROCESSABLE_EXTS = new Set([
   "pdf",
   "docx",
@@ -486,6 +487,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
           await import("../quiz/generate-background.ts");
         const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
         console.log(`[${ts()}] Quiz seed: ${seeded} questions generated`);
+
       }
     } catch (seedErr) {
       console.warn(
