@@ -18,6 +18,7 @@ import {
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
+
 import {
   PROCESSABLE_TYPES,
   FILE_CONCURRENCY,
@@ -514,6 +515,7 @@ export async function processDiscoverJob(jobId) {
 
     if (total === 0) {
       await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
+
       console.log(
         `Job ${jobId}: no processable files found, completed immediately`,
       );

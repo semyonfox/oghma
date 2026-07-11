@@ -246,13 +246,7 @@ export default function CanvasIntegration() {
         return;
       }
 
-      trackMarketingEvent("canvas_connect_success", {
-        source: "settings_canvas",
-        properties: {
-          location: "settings",
-          course_count: Array.isArray(data.courses) ? data.courses.length : 0,
-        },
-      });
+      // Successful connection is recorded once by the server as a canonical milestone.
       setIsConnected(true);
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);

@@ -30,6 +30,19 @@ export default function PrivacyPage() {
         </p>
       </InfoSection>
 
+      <InfoSection title="Privacy-First Analytics">
+        <p>
+          We use limited first-party, aggregate-oriented events to understand
+          public-page acquisition and account activation. We do not use
+          analytics cookies, advertising pixels, session replay, anonymous
+          browser identifiers, raw IP addresses, query strings, or user-agent
+          fingerprints or browser storage. Campaign attribution is attached only
+          to the event generated from the current page URL, raw events are
+          retained for up to 30 days, and Do Not Track or Global Privacy Control
+          disables this collection.
+        </p>
+      </InfoSection>
+
       <InfoSection title="AI Processing">
         <p>
           When you use AI features, relevant note or file excerpts may be sent
@@ -53,7 +66,7 @@ export default function PrivacyPage() {
       </InfoSection>
 
       <InfoSection title="Last Updated">
-        <p>May 26, 2026.</p>
+        <p>July 11, 2026.</p>
       </InfoSection>
     </PublicInfoPage>
   );

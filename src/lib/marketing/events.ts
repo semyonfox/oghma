@@ -1,222 +1,181 @@
-import { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import sql from "@/database/pgsql.js";
+import { cleanAttribution } from "./attribution";
 
 const MAX_TEXT_LENGTH = 512;
-const MAX_USER_AGENT_LENGTH = 300;
-const MAX_PROPERTY_KEYS = 24;
-const MAX_ARRAY_ITEMS = 12;
-const MAX_PROPERTY_DEPTH = 2;
 
 const ALLOWED_EVENTS = new Set([
-  "page_view",
-  "cta_click",
-  "nav_click",
-  "pricing_click",
-  "contact_form_start",
-  "contact_form_submit",
-  "contact_form_success",
-  "contact_form_error",
-  "registration_form_start",
-  "registration_submit",
-  "registration_success",
-  "registration_error",
-  "registration_oauth_start",
-  "registration_oauth_unavailable",
-  "canvas_connect_attempt",
-  "canvas_connect_success",
-  "canvas_connect_error",
+  "page_view", "navigation_transition", "cta_click", "nav_click", "pricing_click",
+  "contact_form_start", "contact_form_submit", "contact_form_success", "contact_form_error",
+  "registration_form_start", "registration_submit", "registration_success", "registration_error",
+  "registration_oauth_start", "registration_oauth_unavailable", "canvas_connect_attempt",
+  "canvas_connect_success", "canvas_connect_error",
+  "email_verified", "canvas_import_started", "canvas_import_completed",
+  "first_cited_answer", "first_flashcard_generated",
 ]);
 
-const SENSITIVE_KEY_PATTERN =
-  /(email|e-mail|password|token|secret|phone|name|message|content|note|document|canvas_token|domain)/i;
-
-const SAFE_AGGREGATE_KEYS = new Set([
-  "has_phone",
-  "has_institution",
-  "message_length_bucket",
+/** Server-canonical, once-per-account first-value milestones. */
+export const ACTIVATION_MILESTONES = new Set([
+  "email_verified",
+  "canvas_import_started",
+  "canvas_import_completed",
+  "first_cited_answer",
+  "first_flashcard_generated",
 ]);
+
+// Navigation accepts only stable, public routes. Dynamic IDs and arbitrary paths are excluded.
+const NAVIGATION_PATHS = new Set([
+  "/", "/about", "/ai", "/agents.md", "/blog", "/contact", "/cookies", "/faq.md",
+  "/llms.txt", "/login", "/pricing", "/privacy", "/register", "/syntax-guide", "/terms",
+]);
+const NAVIGATION_ORIGINS = new Set(["direct", "external", "internal"]);
+const NAVIGATION_PLACEMENTS = new Set([
+  "header", "footer", "hero", "midpage_cta", "primary_ctas", "questions",
+]);
+const NAVIGATION_ACTIONS = new Set([
+  "nav_link", "connect_canvas_free", "compare_notebooklm", "view_semester_pricing",
+  "ask_about_beta_or_pilot", "contact_team",
+]);
+
+const CONTACT_ROLES = new Set(["student", "lecturer", "university_staff", "partner_or_press"]);
+const CONTACT_INTERESTS = new Set(["beta_access", "campus_pilot", "support", "billing", "partnership"]);
+const MESSAGE_LENGTH_BUCKETS = new Set(["0-100", "101-500", "500+"]);
 
 export interface MarketingEventInput {
   eventName?: unknown;
   event?: unknown;
-  sessionId?: unknown;
   userId?: string | null;
   path?: unknown;
   referrer?: unknown;
   source?: unknown;
   targetUrl?: unknown;
-  utm?: {
-    source?: unknown;
-    medium?: unknown;
-    campaign?: unknown;
-    content?: unknown;
-    term?: unknown;
-  };
+  fromPath?: unknown;
+  toPath?: unknown;
+  originClass?: unknown;
+  placement?: unknown;
+  action?: unknown;
+  utm?: { source?: unknown; medium?: unknown; campaign?: unknown; content?: unknown; term?: unknown };
   properties?: unknown;
-  occurredAt?: unknown;
 }
 
 function cleanText(value: unknown, maxLength = MAX_TEXT_LENGTH): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized) return null;
-  return normalized.slice(0, maxLength);
+  return normalized ? normalized.slice(0, maxLength) : null;
 }
 
 function cleanEventName(input: MarketingEventInput): string | null {
   const eventName = cleanText(input.eventName ?? input.event, 96);
-  if (!eventName || !ALLOWED_EVENTS.has(eventName)) return null;
-  return eventName;
+  return eventName && ALLOWED_EVENTS.has(eventName) ? eventName : null;
 }
 
-function cleanPath(value: unknown): string | null {
+export function cleanPath(value: unknown): string | null {
   const text = cleanText(value, 300);
   if (!text) return null;
-  if (text.startsWith("/")) return text.slice(0, 300);
-  try {
-    const url = new URL(text);
-    return `${url.pathname}${url.search}`.slice(0, 300);
-  } catch {
-    return null;
-  }
+  if (text.startsWith("/")) return text.split(/[?#]/, 1)[0].slice(0, 300);
+  try { return new URL(text).pathname.slice(0, 300); } catch { return null; }
 }
 
-function cleanUrl(value: unknown): string | null {
-  const text = cleanText(value, 300);
-  if (!text) return null;
-  if (text.startsWith("/")) return text.slice(0, 300);
-  try {
-    const url = new URL(text);
-    return `${url.pathname}${url.search}`.slice(0, 300);
-  } catch {
-    return null;
-  }
+export function cleanUrl(value: unknown): string | null {
+  return cleanPath(value);
 }
+
+/** Only stable public paths are accepted for navigation aggregation. */
+export function cleanNavigationPath(value: unknown): string | null {
+  const path = cleanPath(value);
+  if (!path) return null;
+  if (NAVIGATION_PATHS.has(path)) return path;
+  return /^\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path) ? path : null;
+}
+
+function cleanNavigationValue(value: unknown, allowlist: Set<string>): string | null {
+  const text = cleanText(value, 80);
+  return text && allowlist.has(text) ? text : null;
+}
+
+export const cleanNavigationOrigin = (value: unknown) => cleanNavigationValue(value, NAVIGATION_ORIGINS);
+export const cleanNavigationPlacement = (value: unknown) => cleanNavigationValue(value, NAVIGATION_PLACEMENTS);
+export const cleanNavigationAction = (value: unknown) => cleanNavigationValue(value, NAVIGATION_ACTIONS);
 
 function cleanReferrer(value: unknown): string | null {
   const text = cleanText(value, 300);
   if (!text) return null;
-  try {
-    const url = new URL(text);
-    return url.hostname.slice(0, 160);
-  } catch {
-    return null;
-  }
+  try { return new URL(text).hostname.slice(0, 160); } catch { return null; }
 }
 
-function cleanPropertyValue(value: unknown, depth = 0): unknown {
-  if (value === null) return null;
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string") return cleanText(value, 160);
-  if (Array.isArray(value)) {
-    return value
-      .slice(0, MAX_ARRAY_ITEMS)
-      .map((item) => cleanPropertyValue(item, depth + 1))
-      .filter((item) => item !== null && item !== undefined);
-  }
-  if (typeof value === "object" && depth < MAX_PROPERTY_DEPTH) {
-    return cleanProperties(value as Record<string, unknown>, depth + 1);
-  }
-  return null;
-}
-
-export function cleanProperties(
-  value: unknown,
-  depth = 0,
-): Record<string, unknown> {
+/**
+ * Properties are a closed aggregate schema. Never retain free-form browser or
+ * form values merely because their key does not look sensitive.
+ */
+export function cleanProperties(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-
+  const input = value as Record<string, unknown>;
   const output: Record<string, unknown> = {};
-  for (const [rawKey, rawValue] of Object.entries(value).slice(
-    0,
-    MAX_PROPERTY_KEYS,
-  )) {
-    const key = rawKey.replace(/[^a-zA-Z0-9_:-]/g, "_").slice(0, 80);
-    if (
-      !key ||
-      (!SAFE_AGGREGATE_KEYS.has(key) && SENSITIVE_KEY_PATTERN.test(key))
-    ) {
-      continue;
-    }
-
-    const cleanValue = cleanPropertyValue(rawValue, depth);
-    if (cleanValue !== null && cleanValue !== undefined) {
-      output[key] = cleanValue;
-    }
+  if (typeof input.has_phone === "boolean") output.has_phone = input.has_phone;
+  if (typeof input.has_institution === "boolean") output.has_institution = input.has_institution;
+  if (typeof input.forwarded_to_web3forms === "boolean") output.forwarded_to_web3forms = input.forwarded_to_web3forms;
+  if (input.form === "contact") output.form = "contact";
+  if (typeof input.role === "string" && CONTACT_ROLES.has(input.role)) output.role = input.role;
+  if (typeof input.interest === "string" && CONTACT_INTERESTS.has(input.interest)) output.interest = input.interest;
+  if (typeof input.message_length_bucket === "string" && MESSAGE_LENGTH_BUCKETS.has(input.message_length_bucket)) {
+    output.message_length_bucket = input.message_length_bucket;
   }
   return output;
 }
 
-function cleanOccurredAt(value: unknown): Date | null {
-  if (typeof value !== "string") return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const now = Date.now();
-  const skewMs = Math.abs(now - date.getTime());
-  if (skewMs > 24 * 60 * 60 * 1000) return null;
-  return date;
+export function hasPrivacySignal(request: Request | NextRequest): boolean {
+  const dnt = request.headers.get("dnt")?.toLowerCase();
+  return request.headers.get("sec-gpc") === "1" || dnt === "1" || dnt === "yes";
 }
 
-export function getMarketingSessionId(request: Request | NextRequest): string | null {
-  return cleanText(request.headers.get("x-oghma-marketing-session"), 96);
-}
-
-export async function recordMarketingEvent(
-  input: MarketingEventInput,
-  request?: Request | NextRequest,
-): Promise<boolean> {
+export async function recordMarketingEvent(input: MarketingEventInput, request?: Request | NextRequest, options: { trusted?: boolean } = {}): Promise<boolean> {
+  if (request && hasPrivacySignal(request)) return false;
   const eventName = cleanEventName(input);
   if (!eventName) return false;
-
-  const sessionId =
-    cleanText(input.sessionId, 96) ??
-    (request ? getMarketingSessionId(request) : null);
-  const userAgent = request
-    ? cleanText(request.headers.get("user-agent"), MAX_USER_AGENT_LENGTH)
-    : null;
-  const occurredAt = cleanOccurredAt(input.occurredAt) ?? new Date();
+  const fromPath = cleanNavigationPath(input.fromPath);
+  const toPath = cleanNavigationPath(input.toPath);
+  const originClass = cleanNavigationOrigin(input.originClass);
+  const placement = cleanNavigationPlacement(input.placement);
+  const action = cleanNavigationAction(input.action);
+  // Navigation observations must be useful, coarse dimensions rather than arbitrary payloads.
+  if (eventName === "navigation_transition" && (!toPath || !originClass)) return false;
+  // Public ingestion cannot associate an observation with an account or retain
+  // free-form path, source, target, or attribution values.
+  const isPublicIngestion = options.trusted === false;
+  const userId = isPublicIngestion ? null : input.userId ?? null;
+  const attribution = cleanAttribution(input.utm);
 
   await sql`
     INSERT INTO app.marketing_events (
-      event_name,
-      session_id,
-      user_id,
-      path,
-      referrer,
-      source,
-      target_url,
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      utm_content,
-      utm_term,
-      properties,
-      user_agent,
-      occurred_at
-    )
-    VALUES (
-      ${eventName},
-      ${sessionId},
-      ${input.userId ?? null},
-      ${cleanPath(input.path)},
-      ${cleanReferrer(input.referrer)},
-      ${cleanText(input.source, 120)},
-      ${cleanUrl(input.targetUrl)},
-      ${cleanText(input.utm?.source, 120)},
-      ${cleanText(input.utm?.medium, 120)},
-      ${cleanText(input.utm?.campaign, 120)},
-      ${cleanText(input.utm?.content, 120)},
-      ${cleanText(input.utm?.term, 120)},
-      ${sql.json(cleanProperties(input.properties))},
-      ${userAgent},
-      ${occurredAt}
-    )
-  `;
-
+      event_name, user_id, path, referrer, source, target_url,
+      from_path, to_path, origin_class, placement, action,
+      utm_source, utm_medium, utm_campaign, utm_content, utm_term, properties, occurred_at
+    ) VALUES (
+      ${eventName}, ${userId}, ${isPublicIngestion ? cleanNavigationPath(input.path) : cleanPath(input.path)}, ${isPublicIngestion ? null : cleanReferrer(input.referrer)}, ${isPublicIngestion ? null : cleanText(input.source, 120)}, ${isPublicIngestion ? null : cleanUrl(input.targetUrl)},
+      ${fromPath}, ${toPath}, ${originClass}, ${placement}, ${action},
+      ${attribution.source ?? null}, ${attribution.medium ?? null}, ${attribution.campaign ?? null}, ${attribution.content ?? null}, ${attribution.term ?? null}, ${sql.json(cleanProperties(input.properties))}, ${new Date()}
+    )`;
   return true;
+}
+
+/**
+ * Records an authenticated first-value milestone once. This intentionally accepts
+ * neither paths nor properties: account ID + milestone name are all it stores.
+ * The partial unique index from migration 038 is the idempotence boundary.
+ */
+export async function recordActivationMilestone(
+  eventName: string,
+  userId: string | null | undefined,
+  request?: Request | NextRequest,
+): Promise<boolean> {
+  if (!userId || !ACTIVATION_MILESTONES.has(eventName) || (request && hasPrivacySignal(request))) return false;
+  const inserted = await sql`
+    INSERT INTO app.marketing_events (event_name, user_id, properties, occurred_at)
+    VALUES (${eventName}, ${userId}, '{}'::jsonb, ${new Date()})
+    ON CONFLICT DO NOTHING
+    RETURNING id
+  `;
+  return inserted.length > 0;
 }
 
 export function marketingEventResponse(ok: boolean, status = 202): NextResponse {
