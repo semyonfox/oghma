@@ -44,6 +44,8 @@ import { searchChunkVectors } from "@/lib/qdrant";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { GET } from "@/app/api/global-search/route";
 
+type SqlCall = [TemplateStringsArray, ...unknown[]];
+
 function request(query = "algorithms") {
   return new NextRequest(`http://localhost/api/global-search?q=${query}`);
 }
@@ -185,9 +187,9 @@ describe("GET /api/global-search", () => {
         excludeDocumentIds: ["note-keyword"],
       }),
     );
-    const sqlTexts = vi
-      .mocked(sql)
-      .mock.calls.map(([strings]) => (strings as TemplateStringsArray).join(""));
+    const sqlTexts = (vi.mocked(sql).mock.calls as unknown as SqlCall[]).map(
+      ([strings]) => (strings as TemplateStringsArray).join(""),
+    );
     expect(
       sqlTexts.some(
         (text) =>
