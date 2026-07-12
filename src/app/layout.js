@@ -3,8 +3,6 @@ import I18nRootProvider from "@/components/providers/I18nRootProvider";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import PomodoroIntegration from "@/components/PomodoroIntegration";
 import GlobalSearchRoot from "@/components/search/global-search-root";
-import MarketingTracker from "@/components/marketing-tracker";
-import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -22,19 +20,59 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata = {
+  applicationName: "OghmaNotes",
   title: {
     default: "OghmaNotes",
     template: "%s | OghmaNotes",
   },
   description:
-    "Canvas-connected study system for university students. Import course material, ask cited questions, make flashcards, and plan revision around deadlines and exams.",
+    "AI-enhanced study platform for university students with semantic notes, cited RAG chat, adaptive quizzes, spaced repetition, PDF ingestion, and Canvas LMS sync.",
   metadataBase: new URL("https://oghmanotes.ie"),
+  alternates: {
+    canonical: "/",
+  },
+  keywords: [
+    "OghmaNotes",
+    "AI study platform",
+    "RAG chat",
+    "student notes",
+    "semantic search",
+    "Canvas LMS",
+    "adaptive quizzes",
+    "spaced repetition",
+    "PDF study assistant",
+  ],
+  authors: [{ name: "OghmaNotes Team", url: "https://oghmanotes.ie/about" }],
+  creator: "OghmaNotes",
+  publisher: "OghmaNotes",
+  category: "education",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  other: {
+    "compact-info": "https://oghmanotes.ie/info.md",
+    "llms-txt": "https://oghmanotes.ie/llms.txt",
+    "llms-full": "https://oghmanotes.ie/llms-full.txt",
+    "ai-profile": "https://oghmanotes.ie/ai.md",
+    "agent-guide": "https://oghmanotes.ie/agents.md",
+    "agent-api": "https://oghmanotes.ie/agent-api.json",
+    "openapi": "https://oghmanotes.ie/openapi.json",
+  },
   openGraph: {
     title: "OghmaNotes",
     description:
-      "Connect Canvas once and turn your lectures, deadlines, and course material into cited answers, flashcards, and revision planning.",
+      "AI-enhanced study platform with semantic notes, cited RAG chat, Canvas sync, adaptive quizzes, and spaced repetition.",
     url: "https://oghmanotes.ie",
     siteName: "OghmaNotes",
+    locale: "en_IE",
     type: "website",
     images: [
       {
@@ -48,7 +86,8 @@ export const metadata = {
   twitter: {
     card: "summary_large_image",
     title: "OghmaNotes",
-    description: "Your whole semester, already loaded.",
+    description:
+      "AI-enhanced study platform for notes, PDFs, cited RAG chat, quizzes, flashcards, and Canvas sync.",
     images: ["/notes-screenshot.png"],
   },
 };
@@ -67,13 +106,42 @@ export default function RootLayout({ children }) {
       <head>
         {/* theme init script uses hardcoded string only, no user input - safe */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href="/info.md"
+          title="OghmaNotes compact Markdown info"
+        />
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href="/ai.md"
+          title="OghmaNotes full AI profile"
+        />
+        <link
+          rel="alternate"
+          type="text/plain"
+          href="/llms.txt"
+          title="OghmaNotes llms.txt"
+        />
+        <link
+          rel="service-desc"
+          type="application/json"
+          href="/openapi.json"
+          title="OghmaNotes OpenAPI"
+        />
+        <link
+          rel="sitemap"
+          type="application/xml"
+          href="/agent-sitemap.xml"
+          title="OghmaNotes agent sitemap"
+        />
       </head>
       <body className="font-sans antialiased bg-background text-text">
         <I18nRootProvider>
           <ThemeProvider>
             <PomodoroIntegration />
             <GlobalSearchRoot />
-            <MarketingTracker />
             {children}
           </ThemeProvider>
         </I18nRootProvider>

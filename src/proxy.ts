@@ -12,6 +12,12 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Credentials": "true",
 };
 
+const MARKDOWN_REWRITES = new Map([
+    ["/ai", "/ai.md"],
+    ["/info", "/info.md"],
+    ["/pricing", "/pricing.md"],
+]);
+
 function wantsMarkdown(request: NextRequest) {
     const format = request.nextUrl.searchParams.get("format")?.toLowerCase();
     if (format === "md" || format === "markdown") return true;
@@ -38,12 +44,7 @@ export async function proxy(request: NextRequest) {
         return new NextResponse(null, { status: 204, headers: corsHeaders });
     }
 
-    const markdownRouteMap: Record<string, string> = {
-        "/ai": "/ai.md",
-        "/info": "/info.md",
-        "/pricing": "/pricing.md",
-    };
-    const markdownTarget = markdownRouteMap[pathname];
+    const markdownTarget = MARKDOWN_REWRITES.get(pathname);
     if (markdownTarget) {
         const response = wantsMarkdown(request)
             ? NextResponse.rewrite(new URL(markdownTarget, request.url))

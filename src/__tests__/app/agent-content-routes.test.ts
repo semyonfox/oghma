@@ -4,7 +4,12 @@ import { GET as agentSitemap } from "@/app/agent-sitemap.xml/route";
 import { GET as agentApi } from "@/app/agent-api.json/route";
 import { GET as aiMarkdown } from "@/app/ai.md/route";
 import { GET as agentsMarkdown } from "@/app/agents.md/route";
+import { GET as faqMarkdown } from "@/app/faq.md/route";
+import { GET as infoMarkdown } from "@/app/info.md/route";
+import { GET as llmsFullText } from "@/app/llms-full.txt/route";
 import { GET as llmsText } from "@/app/llms.txt/route";
+import { GET as openApi } from "@/app/openapi.json/route";
+import { GET as pricingMarkdown } from "@/app/pricing.md/route";
 
 describe("agent-readable content routes", () => {
   it("serves the canonical AI profile as markdown", async () => {
@@ -16,18 +21,59 @@ describe("agent-readable content routes", () => {
       "https://oghmanotes.ie/ai.md",
     );
     expect(body).toContain("# OghmaNotes Agent Profile");
-    expect(body).toContain("Canvas-connected study system");
+    expect(body).toContain("## Quick Route Matrix");
     expect(body).toContain("## Agent Action Guide");
     expect(body).toContain("POST https://oghmanotes.ie/api/auth/register");
     expect(body).toContain("GET https://oghmanotes.ie/ai?format=md");
+    expect(body).toContain("GET https://oghmanotes.ie/info?format=md");
   });
 
-  it("serves llms.txt as the same canonical agent profile", async () => {
-    const markdown = await agentsMarkdown().text();
-    const text = await llmsText().text();
+  it("serves compact and full LLM text resources separately", async () => {
+    const compactResponse = llmsText();
+    const text = await compactResponse.text();
+    const fullText = await llmsFullText().text();
+    const agentText = await agentsMarkdown().text();
 
-    expect(llmsText().headers.get("content-type")).toContain("text/plain");
-    expect(text).toBe(markdown);
+    expect(compactResponse.headers.get("content-type")).toContain(
+      "text/plain",
+    );
+    expect(compactResponse.headers.get("content-location")).toBe(
+      "https://oghmanotes.ie/llms.txt",
+    );
+    expect(text).toContain("# OghmaNotes Info");
+    expect(text).toContain("> OghmaNotes is an AI study workspace");
+    expect(text).toContain(
+      "[OpenAPI](https://oghmanotes.ie/openapi.json)",
+    );
+    expect(text).toContain("## Endpoint Quickstart");
+    expect(fullText).toContain("# OghmaNotes Agent Profile");
+    expect(fullText).toBe(agentText);
+    expect(text).not.toBe(fullText);
+  });
+
+  it("serves a compact markdown info page", async () => {
+    const response = infoMarkdown();
+    const body = await response.text();
+
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+    expect(response.headers.get("content-location")).toBe(
+      "https://oghmanotes.ie/info.md",
+    );
+    expect(body).toContain("# OghmaNotes Info");
+    expect(body).toContain("## Agent And LLM Files");
+    expect(body).toContain("https://oghmanotes.ie/agent-api.json");
+    expect(body).toContain("https://oghmanotes.ie/openapi.json");
+  });
+
+  it("serves FAQ and pricing as purpose-specific markdown", async () => {
+    const faq = await faqMarkdown().text();
+    const pricing = await pricingMarkdown().text();
+
+    expect(faq).toContain("# OghmaNotes FAQ");
+    expect(faq).toContain("## What is OghmaNotes?");
+    expect(pricing).toContain("# OghmaNotes Pricing");
+    expect(pricing).toContain("| Standard | EUR 10 / month |");
+    expect(faq).not.toBe(pricing);
   });
 
   it("serves an agent sitemap with machine-readable resources", async () => {
@@ -35,10 +81,14 @@ describe("agent-readable content routes", () => {
     const body = await response.text();
 
     expect(response.headers.get("content-type")).toContain("application/xml");
+    expect(body).toContain("<loc>https://oghmanotes.ie/info</loc>");
+    expect(body).toContain("<loc>https://oghmanotes.ie/info.md</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/ai.md</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/agents.md</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/agent-api.json</loc>");
+    expect(body).toContain("<loc>https://oghmanotes.ie/openapi.json</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/llms.txt</loc>");
+    expect(body).toContain("<loc>https://oghmanotes.ie/llms-full.txt</loc>");
   });
 
   it("serves a structured agent API document", async () => {
@@ -47,9 +97,83 @@ describe("agent-readable content routes", () => {
 
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(body.openapi).toBe("3.1.0");
+    expect(body.tags.map((tag: { name: string }) => tag.name)).toEqual([
+      "Discovery",
+      "Auth",
+      "Notes",
+      "Search",
+      "Chat",
+      "Canvas",
+      "Assignments",
+      "Calendar",
+      "MCP",
+      "Contact",
+    ]);
+    expect(body.components.securitySchemes.sessionCookie).toMatchObject({
+      type: "apiKey",
+      in: "cookie",
+      name: "session",
+    });
+    expect(body.components.securitySchemes.internalMcpBearer).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+    });
+    expect(body.paths["/info"].get.summary).toBe(
+      "Compact human and agent-readable product profile",
+    );
+    expect(body.paths["/api/notes"].get.summary).toBe(
+      "List authenticated user's notes",
+    );
+    expect(body.paths["/api/notes"].get.operationId).toBe("getNotes");
+    expect(body.paths["/api/notes"].get.tags).toEqual(["Notes"]);
+    expect(body.paths["/api/notes"].get.security).toEqual([
+      { sessionCookie: [] },
+    ]);
+    expect(body.paths["/api/notes"].get["x-private-data"]).toBe(true);
+    expect(body.paths["/api/notes"].post["x-human-confirmation-required"]).toBe(
+      true,
+    );
+    expect(body.paths["/api/search"].get.summary).toBe("Search notes");
+    expect(body.paths["/api/canvas/connect"].post.summary).toBe(
+      "Connect Canvas",
+    );
     expect(body.paths["/api/auth/register"].post.summary).toBe(
       "Create a user account",
     );
+    expect(
+      body.paths["/api/auth/register"].post[
+        "x-human-confirmation-required"
+      ],
+    ).toBe(true);
     expect(body.paths["/api/chat"].post.requestBody.required).toBe(true);
+    expect(body.paths["/api/chat"].post["x-private-data"]).toBe(true);
+    expect(body.paths["/api/chat"].post["x-human-confirmation-required"]).toBe(
+      true,
+    );
+    expect(body.paths["/api/mcp/canvas"].post.operationId).toBe(
+      "postMcpCanvas",
+    );
+    expect(body.paths["/api/mcp/canvas"].post.security).toEqual([
+      { internalMcpBearer: [] },
+    ]);
+    expect(body.paths["/api/mcp/canvas"].post["x-internal-only"]).toBe(true);
+  });
+
+  it("serves the same API document from the conventional OpenAPI alias", async () => {
+    const agentResponse = agentApi();
+    const openApiResponse = openApi();
+
+    expect(openApiResponse.headers.get("content-type")).toContain(
+      "application/json",
+    );
+    expect(openApiResponse.headers.get("content-location")).toBe(
+      "https://oghmanotes.ie/openapi.json",
+    );
+    expect(openApiResponse.headers.get("link")).toContain(
+      "https://oghmanotes.ie/agent-api.json",
+    );
+    await expect(openApiResponse.json()).resolves.toEqual(
+      await agentResponse.json(),
+    );
   });
 });

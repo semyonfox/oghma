@@ -1,9 +1,9 @@
 import Link from "next/link";
 import PublicInfoPage, { InfoSection } from "@/components/public-info-page";
 import {
-  AGENT_RESOURCE_PATHS,
-  agentActions,
+  agentEndpointGuide,
   agentFacts,
+  agentResourceComparison,
 } from "@/lib/public/agent-content";
 
 export const metadata = {
@@ -25,7 +25,7 @@ export const metadata = {
 export default function InfoPage() {
   return (
     <PublicInfoPage
-      eyebrow="Info"
+      eyebrow="AI Index"
       title="OghmaNotes product and agent info"
       description="A compact factsheet for students, search engines, AI assistants, and agents that need Markdown resources or documented endpoints."
     >
@@ -88,30 +88,18 @@ export default function InfoPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {AGENT_RESOURCE_PATHS.map((path) => (
-                <tr key={path}>
+              {agentResourceComparison.map((resource) => (
+                <tr key={resource.path}>
                   <td className="py-3 pr-4">
                     <Link
                       className="text-primary-300 hover:text-primary-200"
-                      href={path}
+                      href={resource.path}
                     >
-                      {path}
+                      {resource.path}
                     </Link>
                   </td>
-                  <td className="py-3 pr-4">
-                    {path.endsWith(".json")
-                      ? "JSON"
-                      : path.endsWith(".xml")
-                        ? "XML"
-                        : path.endsWith(".txt")
-                          ? "Plain text"
-                          : path.endsWith(".md")
-                            ? "Markdown"
-                            : "HTML"}
-                  </td>
-                  <td className="py-3">
-                    Public product context and agent-readable OghmaNotes facts.
-                  </td>
+                  <td className="py-3 pr-4">{resource.format}</td>
+                  <td className="py-3">{resource.purpose}</td>
                 </tr>
               ))}
             </tbody>
@@ -142,7 +130,7 @@ export default function InfoPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {agentActions.map((endpoint) => (
+              {agentEndpointGuide.map((endpoint) => (
                 <tr key={`${endpoint.method}-${endpoint.path}`}>
                   <td className="py-3 pr-4">
                     <code>{endpoint.method}</code>
@@ -150,10 +138,8 @@ export default function InfoPage() {
                   <td className="py-3 pr-4">
                     <code>{endpoint.path}</code>
                   </td>
-                  <td className="py-3 pr-4">
-                    {endpoint.path.startsWith("/api/chat") ? "Session" : "Public/user"}
-                  </td>
-                  <td className="py-3">{endpoint.summary}</td>
+                  <td className="py-3 pr-4">{endpoint.auth}</td>
+                  <td className="py-3">{endpoint.purpose}</td>
                 </tr>
               ))}
             </tbody>

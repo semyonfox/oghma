@@ -5,6 +5,6 @@ import {
 
 export function GET() {
   return new Response(buildAgentMarkdown(), {
-    headers: agentMarkdownHeaders("text/plain"),
+    headers: agentMarkdownHeaders("text/plain", "/llms-full.txt", "/ai"),
   });
 }

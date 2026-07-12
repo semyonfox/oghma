@@ -5,6 +5,7 @@ import {
 } from "@/lib/public/agent-content";
 
 const BASE_URL = getBaseUrl();
+
 const AI_READABLE_PATHS = ["/", ...AGENT_RESOURCE_PATHS];
 
 export default function robots() {

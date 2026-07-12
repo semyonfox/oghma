@@ -1,10 +1,10 @@
 import {
   agentMarkdownHeaders,
-  buildAgentMarkdown,
+  buildFaqMarkdown,
 } from "@/lib/public/agent-content";
 
 export function GET() {
-  return new Response(buildAgentMarkdown(), {
-    headers: agentMarkdownHeaders("text/markdown"),
+  return new Response(buildFaqMarkdown(), {
+    headers: agentMarkdownHeaders("text/markdown", "/faq.md", "/ai"),
   });
 }

@@ -9,14 +9,15 @@ export default function Footer() {
 
   const navigation = {
     features: [
+      { name: t("RAG Chat"), href: "/#features" },
+      { name: t("Adaptive Quizzes"), href: "/#features" },
+      { name: t("Spaced Repetition"), href: "/#features" },
       { name: t("Canvas Integration"), href: "/#features" },
-      { name: t("Cited Answers"), href: "/#features" },
-      { name: t("Scheduled Flashcards"), href: "/#features" },
-      { name: t("Deadline Tracking"), href: "/#features" },
     ],
     support: [
       { name: t("Documentation"), href: "/syntax-guide" },
       { name: t("Guides"), href: "/syntax-guide" },
+      { name: t("AI Index"), href: "/info" },
       { name: t("AI Index"), href: "/ai" },
       { name: t("LLMs.txt"), href: "/llms.txt" },
       { name: t("Agent Guide"), href: "/agents.md" },
@@ -86,7 +87,7 @@ export default function Footer() {
             </div>
             <p className="text-sm/6 text-balance text-text-tertiary">
               {t(
-                "Canvas-connected study system for university students. Connect once, import course material, and turn the semester into cited answers, flashcards, and revision planning.",
+                "RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.",
               )}
             </p>
             <div className="flex gap-x-6">

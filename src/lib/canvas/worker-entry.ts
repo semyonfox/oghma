@@ -29,10 +29,12 @@ import {
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
+import { cleanupMarketingData } from "../marketing/retention";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
+const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
 const CF_QUEUE_VISIBILITY_TIMEOUT_MS = parseInt(
   process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS ?? `${12 * 60 * 60 * 1000}`,
@@ -88,6 +90,20 @@ async function failStuckJobs(): Promise<void> {
   if (stuck.length > 0) {
     console.log(
       `[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`,
+    );
+  }
+}
+
+async function runMarketingCleanup(): Promise<void> {
+  try {
+    const result = await cleanupMarketingData();
+    console.log(
+      `[${new Date().toISOString()}] Marketing retention cleanup: ${result.eventsDeleted} event(s), ${result.leadsDeleted} lead(s) deleted`,
+    );
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] Marketing retention cleanup failed:`,
+      errorMessage(err),
     );
   }
 }
@@ -178,7 +194,9 @@ console.log(
 );
 
 await failStuckJobs();
+await runMarketingCleanup();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
+setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();
