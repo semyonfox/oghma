@@ -1,92 +1,92 @@
-# Setup
+# Local setup
 
-Use `npm` for all package and script commands.
+> **Status:** Current developer guide
+> **Last reviewed:** 2026-07-11
+> **Source of truth for:** Running OghmaNotes locally
+
+Use `npm` for every package and script command.
 
 ## Requirements
 
-- Node.js 18+
-- Docker, for local PostgreSQL and supporting services
-- A `.env.local` copied from `.env.example`
+- Node.js 22
+- npm
+- Docker with Compose support
 
-## Local Development
+## Recommended: disposable mock environment
+
+This path starts PostgreSQL, Redis, Qdrant, MinIO, Mailpit, and a deterministic fake AI provider. It uses synthetic data and does not need production credentials.
 
 ```bash
 npm install
+cp .env.mock.example .env.mock
+npm run mock:up
+npm run mock:seed
+npm run dev:mock
+```
+
+Open `http://127.0.0.1:3311/login` and sign in with:
+
+- Email: `student.e2e@example.com`
+- Password: `E2ePassword123!`
+
+The seed includes a sample paper and Markdown note. Keyword search works normally; the fake embedding provider returns a constant vector, so semantic-result ordering is intentionally not representative.
+
+When finished, stop the services and delete their disposable volumes:
+
+```bash
+npm run mock:down
+```
+
+## Develop against your own services
+
+Copy the committed template, then provide services you control:
+
+```bash
 cp .env.example .env.local
-docker-compose up
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`.
+The app runs at `http://localhost:3000`. `.env.example` is the key inventory; keep real values only in ignored environment files or a secret store.
 
-Fill at least these local values in `.env.local`:
+At minimum, configure these groups for the features you exercise:
 
-| Area | Keys |
+| Area | Configuration |
 |---|---|
-| Database | `DATABASE_URL` |
-| Storage | `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET` |
-| Auth | `JWT_SECRET`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, `SERVER_ENCRYPTION_SECRET` |
-| Redis / queues | `REDIS_HOST`, `REDIS_PORT` |
-| AI / RAG | `LLM_API_URL`, `LLM_API_KEY`, `LLM_MODEL`, `EMBEDDING_API_URL`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`, `RERANK_API_URL`, `RERANK_API_KEY`, `RERANK_MODEL` |
-| Email | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `EMAIL_FROM` |
+| Database | `DATABASE_URL`; use `MIGRATION_DATABASE_URL` only for migrations |
+| Vector search | `QDRANT_URL`, `QDRANT_COLLECTION`, and `QDRANT_API_KEY` when required by the provider |
+| Object storage | `STORAGE_*` endpoint, bucket, region, credentials, and path-style settings |
+| Authentication | App/auth signing secrets, encryption secret, and any enabled OAuth provider |
+| Queues | Redis/BullMQ settings for the local worker, or the explicitly selected queue provider |
+| AI | LLM, embedding, rerank, and optional OCR/Marker provider settings |
+| Email | Cloudflare Email Sending account/token/from-address settings when testing real mail |
 
-`MARKER_API_URL` enables Marker OCR. If it is unset, extraction falls back to the configured non-Marker paths where supported. Datalab or similar managed document APIs are emergency/benchmark-only, not the steady-state Canvas import path; see [docs/CANVAS_IMPORT_PRICING_REPORT.md](docs/CANVAS_IMPORT_PRICING_REPORT.md).
-
-## Commands
-
-```bash
-npm run dev       # local Next.js dev server
-npm run worker    # local BullMQ worker
-npm run build     # production build
-npm start         # run built app
-npm run lint      # lint
-npm run test:ci   # test suite
-npm run migrate   # apply database migrations
-```
-
-## Mock Database (offline dev / sign-in testing)
-
-Run the app against a disposable local stack instead of the real DB, with a synthetic
-seeded login. No real user data is involved. Needs Docker.
+Start the background worker in a second terminal when testing imports or vault jobs:
 
 ```bash
-cp .env.mock.example .env.mock   # one-time
-npm run mock:up                  # start postgres/redis/minio/fake-ai (docker-compose.e2e.yml)
-npm run mock:seed                # migrate + seed the synthetic login, notes, quiz, and a sample PDF
-npm run dev:mock                 # next dev on http://127.0.0.1:3311
-npm run mock:down                # stop and wipe volumes
+npm run worker
 ```
 
-Sign in at `http://127.0.0.1:3311/login` with `student.e2e@example.com` / `E2ePassword123!`.
-The seed also loads a real paper (`scripts/e2e/fixtures/sample-paper.pdf`) plus a markdown
-note, chunked and embedded so semantic and keyword search both return results.
+## Common commands
 
-> Note: the mock AI provider returns a constant embedding, so semantic ranking is trivial
-> (search returns the paper but cannot rank by true relevance). Use the real self-hosted
-> embedding service for meaningful ranking.
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start the normal development server |
+| `npm run dev:mock` | Start the app against `.env.mock` on port 3311 |
+| `npm run worker` | Start the background worker |
+| `npm run build` | Create a production build |
+| `npm run start` | Run the production build |
+| `npm run lint` | Run ESLint |
+| `npm run test:ci` | Run the test suite once |
+| `npm run test:integration` | Run integration tests against configured test services |
+| `npm run e2e:smoke` | Run the Playwright smoke suite |
+| `npm run migrate` | Apply migrations using the migration connection |
 
-## Current Homelab Production And Dev Deploys
+## Troubleshooting
 
-Production is not on AWS Amplify/RDS. Both live environments run on the homelab Docker/Jenkins stack:
+- **Mock services are unhealthy:** run `docker compose -f docker-compose.e2e.yml ps` and inspect the failing service logs.
+- **Imports never advance:** make sure `npm run worker` uses the same database, queue prefix, Redis, storage, and Qdrant configuration as the app.
+- **Uploads fail:** verify that the bucket exists and that endpoint/path-style settings match the storage provider.
+- **Search fails:** verify Qdrant connectivity and that the configured collection matches the environment.
+- **Schema errors appear:** apply migrations with the intended migration connection; never point a migration command at an unverified database.
 
-- `dev` branch -> `oghma-dev` Jenkins job -> `dev.oghmanotes.ie`
-- `main` branch -> `oghma-prod` Jenkins job -> `oghmanotes.ie`
-
-Deploy flow is `dev` to `main` via PR. Do not push directly to `main`.
-
-Jenkins builds app and worker images, runs `node scripts/prebuild-migrate.mjs` against `MIGRATION_DATABASE_URL`, then replaces the relevant app and worker containers. Runtime env files are on the homelab:
-
-- `/home/semyon/jenkins/env/oghma-dev.env`
-- `/home/semyon/jenkins/env/oghma-prod.env`
-
-See [infra/HOMELAB.md](infra/HOMELAB.md) for the running stack, [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md) for the launch migration target, and [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md) for historical/fallback AWS notes.
-
-## Common Issues
-
-**Database will not start:** check `docker-compose ps` and confirm `DATABASE_URL`.
-
-**Uploads fail:** confirm the bucket exists, credentials are valid, and path-style settings match the storage provider.
-
-**Worker jobs do not move:** start `npm run worker` locally, then check Redis settings and `app.canvas_import_jobs` rows.
-
-**Production looks stale:** confirm the branch reached the matching Jenkins job, then check the live image/container logs on the homelab.
+Deployment is intentionally out of scope here. See [infra/HOMELAB.md](infra/HOMELAB.md) for the running environment and [docs/operations/import-worker.md](docs/operations/import-worker.md) for workload-specific operations.

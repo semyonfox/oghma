@@ -1,244 +1,275 @@
 # canvas-mcp
 
-An MCP server for Canvas LMS, written in TypeScript. One server, the whole
-Canvas REST surface — built to be useful for students, teachers, academic
-staff, and administrators alike. Everything's on by default; trim what
-you don't want rather than flip flags to turn things on.
+> Status: Experimental; multi-request transport lifecycle is a deployment blocker
+>
+> Audience: Maintainers and operators integrating Canvas LMS with MCP clients
+>
+> Last verified: 2026-07-11 against the registered tool arrays and server entry
 
-The project started as a union of the twelve existing open-source Canvas
-MCP servers — all MIT or ISC licensed — normalised, deduped, and merged
-into a single maintainable codebase. `ATTRIBUTION.md` names every repo
-the design borrows from; full credit goes to their authors.
+`canvas-mcp` is a TypeScript Streamable HTTP MCP server over the Canvas LMS
+REST API. It exposes 129 registered tools across 15 domains.
 
-## Scope
+**All 129 tools are registered by default.** The surface includes reads,
+self-state updates, creates, grading, messaging, and destructive
+educator/admin operations. Canvas permissions limit what a token can do, but
+they do not replace caller authentication, least privilege, human
+confirmation, or agent policy.
 
-Canvas has a big API. This server aims to expose the useful parts of it in
-a way that makes sense to both a language model and a human. Fifteen
-Canvas domains are covered:
+Read [the tool manifest](TOOL_MANIFEST.md) before connecting any model.
 
-courses, assignments, submissions, grades, modules, pages, calendar,
-announcements, discussions, files, messages, notifications, profile,
-quizzes, rubrics.
+## Security Boundary
 
-129 tools registered out of the box — reads, writes, creates, deletes,
-the full surface. Every tool has a unit test against a mocked Canvas
-client. `TOOL_MANIFEST.md` lists them all with endpoints, inputs, and the
-source repos each one is cribbed from.
+This server is suitable only for a trusted local environment or behind an
+authenticated, authorized proxy that controls who can call it and which Canvas
+domains/tokens they may use.
 
-Canvas enforces its own permission model on every call, so a student token
-will only be able to do student things regardless of what's registered —
-the server doesn't try to gate anything it doesn't need to. If you want a
-narrower tool surface for a specific deployment (a student agent, say,
-that should never see `canvas_delete_course`), delete or comment the tools
-you don't want from `src/tools/<domain>.ts` and rebuild. No feature flags,
-no env toggle — the fork point is a visible code change.
+The server itself does **not** provide:
 
-Two tools are honest stubs because Canvas requires multi-step client-side
-flows the server can't transparently wrap: `canvas_upload_file` (three-step
-upload handshake) and the `online_upload`/`media_recording` paths of
-`canvas_submit_assignment`. Text and URL submissions work end-to-end.
-`canvas_download_file_to_disk` returns a pre-authenticated URL rather than
-writing to disk — callers can fetch it directly.
+- application-layer caller authentication;
+- OAuth or user identity;
+- a Canvas-domain allowlist;
+- per-tool authorization or feature flags;
+- human-confirmation prompts;
+- audit logging;
+- tenant isolation beyond selecting credentials for one request.
 
-## Getting it running
+Do not expose the server directly to the public Internet. Do not treat a
+student token as proof that an arbitrary caller is the student. Instructor and
+admin tokens have a much larger blast radius.
+
+Use a least-privileged Canvas token, narrow the registered tools in code, and
+put the service behind a trusted boundary before connecting an agent.
+
+### Transport lifecycle blocker
+
+The current entry point creates one stateless `StreamableHTTPServerTransport`
+and reuses it across HTTP requests. The installed MCP SDK's stateless pattern
+requires a fresh transport per request. Treat multi-request operation as broken
+or at least unverified; do not deploy or connect a real agent until the server
+lifecycle is corrected and a test proves two or more sequential MCP requests.
+
+## Tool Surface
+
+The registered domains are:
+
+- courses;
+- assignments;
+- submissions;
+- grades;
+- modules;
+- pages;
+- calendar and planner;
+- announcements;
+- discussions;
+- files and folders;
+- conversations/messages;
+- notifications/activity;
+- profile/settings;
+- quizzes;
+- rubrics.
+
+The manifest separates primarily read-oriented tools from mutating or
+elevated-permission tools for review. That grouping is descriptive only:
+both groups are live in `tools/list`.
+
+Notable limitations:
+
+- `canvas_upload_file` is an explicit stub because Canvas upload is a
+  multi-step multipart handshake.
+- upload/media paths of `canvas_submit_assignment` are not a complete file
+  transfer implementation; text and URL paths are the supported direct cases.
+- `canvas_download_file_to_disk` returns a pre-authenticated URL and ignores
+  the destination path. It does not write to the server filesystem.
+
+Pre-authenticated download URLs are credentials until they expire. Do not log
+or expose them unnecessarily.
+
+## Requirements
+
+- Node.js 22 or newer
+- npm
+- a Canvas user API token and Canvas host for local single-user use, or a
+  trusted proxy that supplies them per request
+
+## Local Trusted Use
+
+The native server calls `listen(port)` without a host argument, so it can bind
+on every available interface. The HTTP client URL below does **not** restrict
+the server to loopback. Prefer the loopback-published Docker example in the
+next section; use the native development server only on an isolated host with
+firewall rules that prevent untrusted access.
+
+From this directory, for an isolated native run:
 
 ```bash
 cp .env.example .env
-# fill in CANVAS_API_TOKEN and CANVAS_DOMAIN
+# Fill CANVAS_API_TOKEN and CANVAS_DOMAIN in the ignored .env file.
+chmod 600 .env
 npm install
-npm run dev     # watch mode
-# or
-npm run build && npm start
+npm run build
+node --env-file=.env dist/index.js
 ```
 
-Requires Node 22+.
+For a production build:
 
-### Environment
+```bash
+npm run build
+npm start
+```
 
-All Canvas-related env vars are optional — if unset, the server expects
-per-request headers from callers (see the next section).
+`GET /health` returns `{"ok":true}`. MCP Streamable HTTP traffic is handled at
+the root path on port `3001` by default.
 
-| Variable | Required | Default | Notes |
-|---|---|---|---|
-| `CANVAS_API_TOKEN` | no | — | Fallback Canvas user API token. Used when the caller doesn't send `X-Canvas-Token`. Handy for personal/dev use. |
-| `CANVAS_DOMAIN` | no | — | Fallback Canvas host (no scheme). Used when the caller doesn't send `X-Canvas-Domain`. |
-| `PORT` | no | `3001` | HTTP port. |
-| `LOG_LEVEL` | no | `info` | `debug`, `info`, `warn`, `error`. |
-
-### Per-request credentials
-
-The server can operate in two modes, picked per-request:
-
-- **Shared single-tenant.** Set `CANVAS_API_TOKEN` and `CANVAS_DOMAIN` in the
-  environment. Clients send plain MCP calls; the server uses the env
-  credentials for everything. Simple, good for personal use.
-- **Multi-tenant passthrough.** Leave the env unset. Each MCP call must
-  carry `X-Canvas-Token` and `X-Canvas-Domain` headers, which the server
-  uses to build a per-request Canvas client. The token is never stored —
-  it's only held in memory for the duration of the request. Ideal when
-  upstream callers (e.g. an app backend) already hold per-user Canvas
-  credentials and want to forward them.
-
-The two modes mix cleanly: env acts as a fallback when a header is absent.
-Requests with no token available (neither header nor env) get a `401` with
-an explanatory JSON body and no Canvas call is made.
-
-## Transport
-
-Streamable-http — the current MCP transport standard. Same code path for
-local dev and anything you deploy it behind. `GET /health` returns
-`{"ok": true}` for load-balancer probes; MCP traffic is on the same port
-at the root path, per the streamable-http spec.
-
-Example client config:
+Example local client configuration:
 
 ```json
 {
   "mcpServers": {
     "canvas": {
       "type": "http",
-      "url": "http://localhost:3001"
+      "url": "http://127.0.0.1:3001"
     }
   }
 }
 ```
 
+Keep the service on a trusted interface/network unless a proper proxy boundary
+has been added.
+
+## Environment
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `CANVAS_API_TOKEN` | No | None | Fallback Canvas token when the request has no `X-Canvas-Token` |
+| `CANVAS_DOMAIN` | No | None | Fallback Canvas host, without a scheme |
+| `PORT` | No | `3001` | HTTP listen port |
+| `LOG_LEVEL` | No | `info` | Parsed log level: `debug`, `info`, `warn`, or `error` |
+
+If neither the request nor environment supplies both token and domain, the
+server returns `401` before making a Canvas request.
+
+## Credential Modes
+
+### Environment fallback
+
+Set `CANVAS_API_TOKEN` and `CANVAS_DOMAIN` for a personal or single-user
+trusted deployment. Store the token in an ignored env file or deployment
+secret, never in the image or repository.
+
+### Per-request headers
+
+Requests may supply:
+
+- `X-Canvas-Token`;
+- `X-Canvas-Domain`.
+
+The token is held in memory for the request and the environment acts as a
+fallback for a missing header.
+
+This is a credential-passthrough mechanism, **not multi-tenant
+authentication**. The server does not authenticate the caller or allowlist the
+domain. Use it only when a trusted upstream service has already authenticated
+the user, authorized the Canvas account, constrained the destination, and
+protected the headers in transit.
+
+## Intended Request Flow
+
+After the transport lifecycle blocker above is fixed:
+
+1. The Node HTTP server handles `/health` or passes the request to the
+   Streamable HTTP transport.
+2. Token and domain are resolved from headers, then environment fallbacks.
+3. A request-scoped `CanvasClient` is placed in `AsyncLocalStorage`.
+4. MCP validates tool arguments with the tool's Zod schema.
+5. The handler calls Canvas and returns JSON as MCP text content.
+6. Canvas failures become MCP error results with status/message context.
+
+The intended design has no response cache, queue, or MCP session state.
+
 ## Docker
+
+From this directory:
 
 ```bash
 docker build -t canvas-mcp .
-docker run --rm -p 3001:3001 \
-  -e CANVAS_API_TOKEN=... \
-  -e CANVAS_DOMAIN=... \
+docker run --rm -p 127.0.0.1:3001:3001 \
+  --env-file .env \
   canvas-mcp
 ```
 
-Two-stage build, distroless runtime, runs as non-root. The image has no
-shell.
+The image uses a two-stage build, a distroless Node 22 runtime, and a non-root
+user. Binding to loopback in the example is intentional.
 
 ## Deployment
 
-Nothing about the server assumes any particular host. It's a node process
-listening on a port. Run it wherever you run containers or long-lived
-processes.
+The target deployment is a long-lived Node process or container behind a
+trusted network/proxy boundary. The current transport lifecycle blocker must be
+fixed first. The process handles `SIGTERM`/`SIGINT` for graceful shutdown.
 
-The transport runs in stateless mode — each MCP call is self-contained,
-no session state held between requests — so Lambda-style serverless hosts
-work as well as long-lived containers. Graceful shutdown on `SIGTERM` is
-handled, so rolling deploys on Fargate/Cloud Run/Fly won't drop in-flight
-requests.
+The code calls `http.listen()` and does not export a Lambda/function handler.
+Stateless MCP transport does not by itself make this package deployable on a
+function platform; an explicit adapter and lifecycle tests would be required.
 
-Rough fit:
+Any remote deployment must add, outside or inside this package:
 
-- **Lambda + function URL** — cheapest for low-to-medium traffic, free tier
-  covers most small apps. Cold start ~300-500ms on a fresh container.
-- **Cloud Run** — scales to zero like Lambda, no cold-start penalty if min
-  instances ≥ 1. Generous free tier.
-- **Fargate / ECS** — always warm, pay-per-hour. Worth it once traffic is
-  steady enough that cold-start latency becomes annoying.
+- TLS;
+- caller authentication;
+- authorization and domain constraints;
+- rate limits and request-size limits;
+- structured audit logs with credential redaction;
+- explicit confirmation for state-changing tools;
+- monitoring and incident response.
 
-If you set env-level fallback credentials (`CANVAS_API_TOKEN` /
-`CANVAS_DOMAIN`), source them from a proper secret store rather than
-baking them into the image.
+## Narrowing Tools
 
-## How it works
+There is no runtime tool allowlist. To create a narrower build:
 
-The server is a thin wrapper around the Canvas REST API. End-to-end, a
-single tool call goes like this:
+1. remove unwanted tool objects from `src/tools/<domain>.ts`;
+2. update tests and `TOOL_MANIFEST.md`;
+3. run the full package verification;
+4. rebuild and inspect `tools/list`;
+5. review the resulting token permissions and agent policy.
 
-1. **HTTP request hits the server.** `GET /health` short-circuits to a
-   200; everything else is MCP traffic over streamable-http.
-2. **Credentials are resolved.** The server reads `X-Canvas-Token` and
-   `X-Canvas-Domain` from the request headers, falling back to
-   `CANVAS_API_TOKEN` / `CANVAS_DOMAIN` env vars if unset. Missing
-   credentials → `401`, no further work.
-3. **A per-request `CanvasClient` is built** with those credentials and
-   scoped to the request via `AsyncLocalStorage`. Tool handlers read it
-   through the `ToolContext` they're given — they never touch headers
-   directly.
-4. **MCP dispatches** the `tools/call` to the matching tool handler in
-   `src/tools/<domain>.ts`. The handler's zod schema validates inputs,
-   then it uses `canvas.get` / `canvas.post` / etc. to hit the real
-   Canvas endpoint.
-5. **Canvas's JSON response is stringified** and returned as MCP text
-   content. Canvas errors become MCP error responses with the status
-   and original message preserved.
+Removing destructive tools in code is preferable to relying only on prompting.
 
-No caching, no queuing, no state kept between calls. If you want to add
-a tool, you're adding one file entry plus one test — see `CONTRIBUTING.md`.
+## Verification
 
-## Trimming the tool surface
-
-To narrow the set of tools exposed to a particular client, open the
-relevant `src/tools/<domain>.ts` file and delete or comment out the tool
-objects you don't want. Each tool is a standalone object in the domain's
-array — no cross-tool coupling, no shared state, no feature flag — so
-removing one is a local change. Rebuild and that tool is gone from the
-`tools/list` response.
-
-## Testing
-
-Unit tests run against a mocked fetch:
+Local verification:
 
 ```bash
 npm test
 npm run typecheck
+npm run build
 ```
 
-For live-fire verification against a real Canvas instance,
-`scripts/verify-tools.mjs` walks every active tool, discovering IDs as it
-goes and logging every call:
-
-```bash
-CANVAS_API_TOKEN=... CANVAS_DOMAIN=... node scripts/verify-tools.mjs
-```
-
-It skips the three side-effect tools by default
-(`mark_module_item_read`, `mark_module_item_done`,
-`mark_conversation_read`); edit the `SIDE_EFFECT` set in the script if
-you want to exercise them too.
+`scripts/verify-tools.mjs` is a representative, read-focused live smoke script,
+not exhaustive verification of all 129 tools. It prints response previews and
+currently calls a tool that returns a pre-authenticated file URL. **Do not run
+the current script against a real Canvas account until URL and credential
+redaction is implemented and verified.** Unit tests, type checking, a build,
+and inspection of `tools/list` are the supported verification path for now.
 
 ## Contributing
 
-PRs welcome. See `CONTRIBUTING.md` for the full guide — including a
-copy-paste recipe for adding a new tool, test patterns, and the
-`exactOptionalPropertyTypes` gotcha that trips most first-time
-contributors.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Every tool change must update code,
+tests, and the manifest together. Changes to mutating tools also require a
+security and confirmation-boundary review.
 
-## Things deliberately left out for now
+## Provenance and License
 
-- Per-user OAuth / multi-tenant auth (single token per deployment).
-- Response caching.
-- MCP prompts and resources (only tools are exposed).
-- stdio transport — streamable-http handles local and remote use.
+The package was synthesized from multiple open-source Canvas MCP projects.
+[ATTRIBUTION.md](ATTRIBUTION.md) records known influences and unresolved
+license-label questions. Verify upstream licenses at the relevant revisions
+before redistributing derived code.
 
-All of the above are reasonable future additions; none are blocking for
-the current use cases.
+The local license text is in [LICENSE](LICENSE). The package is not affiliated
+with or endorsed by Instructure.
 
 ## Disclaimer
 
-This server exposes Canvas LMS to a language model. Any MCP client connected
-to it can call any of the 129 registered tools, and most of those tools can
-create, modify, or delete real data in a real Canvas account. The AI on the
-other end will do whatever its prompting steers it to do; there is no
-confirmation step between "model decides to call a tool" and "the call
-happens." Canvas logs every API call but does not undo them.
+Any connected client can call every registered tool. A privileged Canvas token
+can allow an agent to alter courses, assignments, grades, messages, files, or
+accounts. Canvas may log calls, but that does not make changes reversible.
 
-If you hand this server an instructor token, an AI assistant can post
-announcements, grade submissions, and delete assignments on your behalf. If
-you hand it an admin token, the blast radius is the entire institution
-account the token can reach. Scope the token down to the least privilege
-that does the job, trim tools you don't need before building, and don't
-point an open-ended chat agent at a privileged token without understanding
-the consequences.
-
-This is provided as-is under the MIT licence. It's not affiliated with or
-endorsed by Instructure. I make no warranty that it's safe, correct, or fit
-for any purpose, and accept no liability for anything that happens when you
-or an AI running through this server interact with Canvas. You are
-responsible for how you deploy it, what token you give it, and what any
-connected model does with that access.
-
-## License
-
-MIT. See `LICENSE`.
+You are responsible for deployment security, token scope, tool selection,
+human confirmation, and the actions of connected clients.

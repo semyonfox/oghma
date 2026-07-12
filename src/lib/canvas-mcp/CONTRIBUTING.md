@@ -1,40 +1,55 @@
 # Contributing
 
-Thanks for looking. The codebase is deliberately small and standard so
-that adding or changing a tool is a short, predictable task. This guide
-covers the full workflow for the most common change — adding a new tool
-— plus the one TypeScript quirk that catches everyone the first time.
+> Status: Active contributor guide
+>
+> Audience: Maintainers adding, changing, or removing Canvas MCP tools
+>
+> Last verified: 2026-07-11
 
-## Ground rules
+The package is intentionally small, but its impact is not: all 129 tool objects
+are registered, including mutating and elevated-permission operations. Treat
+tool changes as API and security changes.
 
-- Tool names: `canvas_<verb>_<noun>` in snake_case. `canvas_list_courses`,
-  `canvas_get_assignment`, `canvas_delete_rubric`. Keeps the surface
-  predictable when a client lists available tools.
-- One file per Canvas domain under `src/tools/`. Tests mirror that path
-  under `tests/tools/`.
-- Every tool gets a unit test against a mocked `CanvasClient`. No
-  exceptions — the test is how you document what endpoint the tool hits.
-- `TOOL_MANIFEST.md` is the canonical list. New tools get a row in the
-  relevant domain table; removed tools get removed from it. The tests
-  assert behaviour; the manifest documents intent.
-- Commit messages: short, present-tense, no AI attribution.
+## Ground Rules
 
-## Adding a new tool, end to end
+- Name tools `canvas_<verb>_<noun>` in snake case.
+- Keep one source file per Canvas domain under `src/tools/`.
+- Mirror each domain with tests under `tests/tools/`.
+- Update `TOOL_MANIFEST.md` in the same change.
+- Update `ATTRIBUTION.md` when new external code or design materially informs
+  the implementation.
+- Never add a live token, authenticated URL, response fixture with private
+  Canvas data, or institution-specific secret.
+- Do not describe a tool as disabled unless it is absent from the exported
+  arrays and verified absent from `tools/list`.
 
-Say you want a tool that lists a course's external tools (the
-`/api/v1/courses/:id/external_tools` endpoint, which we don't currently
-wrap). It's a read, paginated, course-scoped — a good small example.
+## Before Adding a Tool
 
-### 1. Add the tool to its domain file
+1. Check the manifest and source for an equivalent endpoint.
+2. Classify the operation:
+   - read-only;
+   - self-state mutation;
+   - content creation/update;
+   - destructive;
+   - educator/admin.
+3. Read the current official Canvas API documentation.
+4. Decide whether the operation can be safe as one bounded call.
+5. For uploads or multi-step browser/client flows, prefer an explicit stub or
+   omit the tool rather than pretending the operation is complete.
+6. Record any external implementation influence and license uncertainty.
 
-Since it's course-scoped, it lives in `src/tools/courses.ts`. Open that
-file and add an entry to the `courseTools` array:
+Do not add a duplicate merely because another reference project uses a
+different name.
+
+## Implement a Tool
+
+Add a `ToolDef` object to the relevant exported domain array:
 
 ```ts
 {
     name: "canvas_list_external_tools",
     description:
-        "List external tools (LTI integrations) available in a course.",
+        "List external tools available in a course. Requires course access.",
     inputSchema: z.object({
         course_id: z.number().int().positive(),
         search_term: z.string().optional(),
@@ -44,7 +59,9 @@ file and add an entry to the `courseTools` array:
             `/api/v1/courses/${args.course_id}/external_tools`,
             {
                 per_page: 100,
-                ...(args.search_term ? { search_term: args.search_term } : {}),
+                ...(args.search_term
+                    ? { search_term: args.search_term }
+                    : {}),
             },
         );
         return jsonResult(tools);
@@ -52,60 +69,79 @@ file and add an entry to the `courseTools` array:
 },
 ```
 
-Notes on the shape:
+Use:
 
-- `inputSchema` is a zod object. Numeric IDs are `z.number().int().positive()`.
-- Optional fields use `z.string().optional()` (or whatever the type).
-- In the handler body, spread optional fields conditionally:
-  `...(args.foo ? { foo: args.foo } : {})`. This is mandatory — see
-  "The `exactOptionalPropertyTypes` gotcha" below.
-- Use `canvas.collectPaginated` for any Canvas endpoint that honours
-  `per_page` and returns a list. Use `canvas.get` for single-resource
-  endpoints. Use `canvas.post` / `canvas.put` / `canvas.delete` for the
-  corresponding verbs.
-- Return with `jsonResult(value)` — it stringifies and wraps the payload
-  in the MCP text-content envelope.
+- `canvas.collectPaginated` for paginated lists;
+- `canvas.get` for a single read;
+- `canvas.post`, `canvas.put`, and `canvas.delete` only when the operation is
+  intentionally mutating;
+- `jsonResult` for JSON output;
+- `textResult` only when text output is deliberate.
 
-### 2. Add the test
+Descriptions must state important permission and mutation behavior. They are
+shown directly to connected models.
 
-Open `tests/tools/courses.test.ts` and add:
+## `exactOptionalPropertyTypes`
+
+The package enables `exactOptionalPropertyTypes`. Do not pass
+`string | undefined` as an explicitly present property:
 
 ```ts
-it("canvas_list_external_tools calls collectPaginated with the course's endpoint", async () => {
-    const collect = vi.fn().mockResolvedValue([
-        { id: 7, name: "Panopto" },
-    ]);
-    const tool = findTool("canvas_list_external_tools");
-    const result = await tool.handler(
-        { course_id: 42 },
-        { canvas: fakeCanvas({ collectPaginated: collect }) },
-    );
-    expect(collect).toHaveBeenCalledWith(
-        "/api/v1/courses/42/external_tools",
-        expect.objectContaining({ per_page: 100 }),
-    );
-    expect(result.content[0].text).toContain("Panopto");
-});
+// Incorrect
+const body = {
+    name: args.name,
+    description: args.description,
+};
+
+// Correct
+const body = {
+    name: args.name,
+    ...(args.description !== undefined
+        ? { description: args.description }
+        : {}),
+};
 ```
 
-The `findTool` and `fakeCanvas` helpers are already in the test file.
-Every test in every domain follows this same shape: mock the client
-method, call the handler, assert the endpoint and returned payload
-preview.
+Use `!== undefined` for optional numbers and booleans so valid falsy values are
+not dropped.
 
-### 3. Add a manifest entry
+## Add Tests
 
-Open `TOOL_MANIFEST.md`, find the `## courses` table, add a row:
+Every tool needs a unit test that:
 
-```markdown
-| canvas_list_external_tools | GET /api/v1/courses/:course_id/external_tools | course_id, search_term? | — | paginated |
-```
+- finds the registered tool by exact name;
+- validates representative input;
+- asserts the HTTP method and Canvas path;
+- asserts relevant query/body serialization;
+- checks the returned MCP content;
+- covers permission/error mapping when behavior is special;
+- verifies stub behavior without making a mutation.
 
-Source column is 1-3 reference repos (under `reference/`) whose
-implementation most directly informed yours. If it's a fresh addition,
-leave it as `—` or put your GitHub handle.
+For a mutating tool, mock the client. Do not prove correctness by changing a
+real course.
 
-### 4. Verify
+Also test edge cases that could widen impact, such as empty bulk arrays,
+unbounded recipient lists, unexpected IDs, or ignored destination paths.
+
+## Update the Manifest
+
+Add or update exactly one row for the registered name:
+
+- include the actual Canvas endpoint or label a composite/stub honestly;
+- list the Zod input fields, not every upstream API option;
+- place self-state mutations and elevated operations where their risk is
+  visible;
+- name external source projects only when they materially informed the tool.
+
+After editing, compare the unique manifest names with the names in
+`src/tools/*.ts`. The sets and count should match.
+
+`TOOL_MANIFEST.md` is the human inventory. Runtime schemas and handlers remain
+the behavioral authority.
+
+## Verify Locally
+
+Run from this directory:
 
 ```bash
 npm test
@@ -113,82 +149,61 @@ npm run typecheck
 npm run build
 ```
 
-All three must pass. If typecheck complains about an optional property,
-see the gotcha below.
+Then inspect the built server's `tools/list` when tool registration changed.
+Transport changes also require an integration test that sends at least two
+sequential MCP requests and proves each request receives a fresh stateless
+transport lifecycle.
 
-### 5. Commit
+## Live Smoke Verification
 
-```bash
-git add src/tools/courses.ts tests/tools/courses.test.ts TOOL_MANIFEST.md
-git commit -m "add canvas_list_external_tools"
-```
+After `npm run build`, `scripts/verify-tools.mjs` runs a representative,
+read-focused smoke pass against a real Canvas account. It does not enumerate or
+validate all registered tools.
 
-That's it. No router wiring, no tool registration — `src/tools/index.ts`
-picks up the new entry automatically via the domain's exported array.
+The current script prints response previews and may include a pre-authenticated
+download URL. Do not run it against a real Canvas account until URL and
+credential redaction is implemented and verified.
 
-## The `exactOptionalPropertyTypes` gotcha
+After that safety gap is fixed, any live check must:
 
-The tsconfig has `exactOptionalPropertyTypes: true`. This means:
+- use a dedicated least-privileged test account;
+- review the script before running it;
+- use an ignored environment for credentials;
+- never use production instructor/admin tokens;
+- keep verifier output private and redact authenticated capabilities;
+- do not expand the smoke pass to mutations without explicit approval and
+  disposable test data.
 
-```ts
-// Does NOT typecheck
-const body = {
-    name: args.name,
-    description: args.description,  // error if description is `string | undefined`
-};
-```
+Unit tests and official Canvas API review remain required even when the smoke
+pass succeeds.
 
-You have to write:
+## Removing or Narrowing Tools
 
-```ts
-const body = {
-    name: args.name,
-    ...(args.description ? { description: args.description } : {}),
-};
-```
+There is no runtime feature flag or allowlist. To narrow a build:
 
-For optional numeric fields (where `0` is a valid value) use
-`!== undefined` instead of a truthiness check:
+1. remove the tool object from the domain array;
+2. remove or update its tests;
+3. remove its manifest row;
+4. rebuild;
+5. verify it is absent from `tools/list`.
 
-```ts
-...(args.points_possible !== undefined ? { points_possible: args.points_possible } : {}),
-```
+Do not only change a comment or table heading; comments do not affect
+registration.
 
-Same rule applies whenever a tool passes optional fields to
-`canvas.get` / `canvas.post` etc. — query objects and body objects both
-follow this pattern. Every existing tool does it; copy the closest
-neighbour if you're unsure.
+## Security Review for Mutations
 
-## Live verification
+Before merging a new state-changing tool, answer:
 
-`scripts/verify-tools.mjs` walks every active tool against a real
-Canvas instance. Useful when you're:
+- What user-visible or institution-visible state changes?
+- Can the operation affect other users?
+- What token role is required?
+- Is the input bounded?
+- Is a retry idempotent?
+- Can the user undo it?
+- What confirmation should the upstream agent require?
+- What audit evidence exists without logging private content?
+- Should this tool be absent from the default build instead?
 
-- Adding a tool and want to check the real Canvas response shape.
-- Upgrading the MCP SDK or zod.
-- Pointing the server at a new institution for the first time.
-
-```bash
-CANVAS_API_TOKEN=... CANVAS_DOMAIN=... node scripts/verify-tools.mjs
-```
-
-The script discovers IDs as it goes (first course, first assignment,
-etc.) and logs each call. It skips the three side-effect tools
-(`mark_module_item_read`, `mark_module_item_done`,
-`mark_conversation_read`) by default — edit the `SIDE_EFFECT` set in
-the script if you want to exercise them too.
-
-## Trimming and forking
-
-If you want a canvas-mcp variant that only exposes a subset — say, a
-student-safe read-only build — delete or comment out the tool objects
-you don't want from the relevant domain files and rebuild. Tools are
-standalone entries in an array; removing one has no side effects on
-the others.
-
-## Found a duplicate?
-
-If you notice a tool that duplicates another (same endpoint, trivially
-different params), open an issue instead of adding a third variant.
-The original cross-reference sweep aimed to collapse these; anything
-missed should be collapsed, not multiplied.
+Canvas permissions are necessary but not sufficient. Deployment authentication,
+tool authorization, confirmation, and audit controls sit outside the current
+server and must be documented by the operator.

@@ -1,0 +1,64 @@
+# Markdown Editing and Rendering
+
+> **Status:** Active compatibility contract
+>
+> **Last reviewed:** 2026-07-11
+>
+> **Source of truth:** Editor/renderer code and [`src/__tests__/fixtures/markdown-contract.md`](../../src/__tests__/fixtures/markdown-contract.md)
+
+OghmaNotes stores notes as portable Markdown and presents them through one writing surface. This contract protects that storage format, the current editor decision, and the safe rendering boundary.
+
+## Editor decision
+
+The locally committed decision in `3bb62096` is still in force:
+
+- canonical note content is plain Markdown;
+- CodeMirror 6 remains the production editor engine in [`write-editor.tsx`](../../src/components/editor/write-editor.tsx);
+- Markdown syntax may be visually quiet when inactive, but remains directly editable and portable;
+- MDX/JSX is not the note format;
+- do not migrate the editor engine without a focused spike proving Markdown round-trip fidelity, selection/keyboard behaviour, mobile usability, performance, and security.
+
+Milkdown or another Markdown-first rich editor remains an escape hatch if the CodeMirror surface reaches a demonstrated UX ceiling. It is not an active migration plan.
+
+## Shared renderer
+
+[`MarkdownRenderer`](../../src/lib/markdown/renderer.tsx) centralizes the note, chat, and quiz pipelines.
+
+| Variant | Hard breaks | Raw HTML | Sanitized |
+|---|---:|---:|---:|
+| `note` | Yes | Parsed, then sanitized | Yes |
+| `chat` | Yes | No | Yes |
+| `quiz` | No | No | Yes |
+
+All variants share GFM, math parsing, KaTeX, safe links, inline-code styling, and the same code-block component. Variant differences must stay explicit rather than growing separate plugin stacks.
+
+## Note rendering contract
+
+The note preview supports:
+
+- ATX headings, emphasis, strikethrough, links, blockquotes, ordered and unordered lists;
+- GFM task lists and tables;
+- inline and fenced code, including optional `title`, `filename`, or `file` fence metadata;
+- inline and display math through KaTeX;
+- lazy images and Marker-style note-asset rewriting when a note ID is available;
+- a small sanitized raw-HTML subset used by notes, including `mark`, `details`, `summary`, `kbd`, `sup`, and `sub`.
+
+Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-block.tsx) and highlighted lazily with **Shiki**, not `rehype-highlight`. Known aliases are normalized; unsupported languages fall back to plaintext; missing languages display a `CODE` label. Highlighting must never turn code content into executable HTML.
+
+Mermaid, wikilinks/backlinks, callouts, footnotes, frontmatter rendering, arbitrary local paths, and MDX components are not part of this contract unless added deliberately with tests.
+
+## Security boundary
+
+Markdown is untrusted input.
+
+- When raw HTML is enabled, `rehype-raw` must run before `rehype-sanitize` with `markdownSanitizeSchema`.
+- Scripts, event attributes, and unsafe protocols such as `javascript:` must be removed.
+- Code fence content is text even when it looks like HTML.
+- New renderer variants must choose raw-HTML and sanitization behaviour explicitly.
+- Do not insert user Markdown or raw code through `dangerouslySetInnerHTML`.
+
+## Verification
+
+The compatibility fixture is [`src/__tests__/fixtures/markdown-contract.md`](../../src/__tests__/fixtures/markdown-contract.md). Focused assertions live in [`src/__tests__/lib/preview-renderer.test.ts`](../../src/__tests__/lib/preview-renderer.test.ts) and cover core syntax, safe/unsafe HTML, links, code metadata, Shiki fallback, math, tables, tasks, and note assets.
+
+Any editor or renderer change must keep this fixture green or update this document and the fixture together to record an intentional compatibility change.

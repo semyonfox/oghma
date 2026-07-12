@@ -1,8 +1,36 @@
-# canvas-mcp tool manifest
+# canvas-mcp Tool Manifest
 
-The full tool surface across 15 Canvas domains, produced from a cross-reference sweep of 12 open-source Canvas MCP reference repos (see `ATTRIBUTION.md`). All 129 tools are registered by default — reads, writes, creates, deletes — and Canvas's own permission model gates what any given token can actually do. The tables below preserve the historical split between student-safe reads (**active**) and instructor/admin writes (**admin / educator**) for readability only; both sections are live in code.
+> Status: Active hand-maintained tool inventory
+>
+> Audience: Integrators, security reviewers, and contributors
+>
+> Last verified: 2026-07-11 against `src/tools/*.ts`
 
-All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas LMS REST API paths (`/api/v1/...`). Where the Canvas API supports `include[]`, pagination, or `enrollment_state` filters, these are called out in the notes column. "Sources" lists 1-3 reference repos whose implementations most directly informed the tool design; it is not exhaustive.
+The server registers all 129 standalone tool objects across 15 Canvas domains.
+That count includes reads, self-state updates, creates, submissions, grading,
+messaging, and destructive educator/admin operations. Every listed tool is
+visible in `tools/list`; section placement does not disable it.
+
+The tables separate primarily read-oriented tools from mutating or
+elevated-permission tools to make review easier. The safety column deliberately
+does not guess a Canvas role: permissions vary by institution, enrollment, and
+resource. `Confirm; verify Canvas permission` means both checks are required;
+it does not imply that only an educator or administrator can call the tool.
+Some tools in the first group still change the authenticated user's state, such
+as marking an item complete or a conversation read. Review the HTTP method,
+description, and source before allowing an agent to call any tool. Treat
+pre-authenticated download URLs as sensitive bearer capabilities until expiry.
+Treat every `DELETE` endpoint and bulk-removal tool as potentially irreversible;
+require explicit confirmation immediately before the call.
+
+Canvas permission checks constrain the supplied token, but the server has no
+caller authentication, domain allowlist, per-tool authorization, or
+confirmation layer. See `README.md` before deployment.
+
+Tool names in this manifest were matched to code on the verification date.
+Runtime Zod schemas and handlers remain authoritative for exact inputs and
+behavior. “Sources” records the reference projects that most directly informed
+a tool; it is provenance context, not a license conclusion.
 
 ---
 
@@ -10,25 +38,15 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
-| canvas_list_courses | GET /api/v1/courses | enrollment_state?, state[]?, include[]?, per_page? | vishalsachdev, r-huijts, DMontgomery40 | paginated; include[] supports `term`, `teachers`, `total_students`, `favorites` |
+| canvas_list_courses | GET /api/v1/courses | enrollment_state?, include[]? | vishalsachdev, r-huijts, DMontgomery40 | paginated internally |
 | canvas_get_course | GET /api/v1/courses/:id | course_id, include[]? | r-huijts, DMontgomery40 | include[] supports `syllabus_body`, `term`, `course_progress`, `public_description` |
-| canvas_get_course_syllabus | GET /api/v1/courses/:id | course_id | ahnopologetic, DMontgomery40 | convenience wrapper returning `syllabus_body` only |
-| canvas_list_sections | GET /api/v1/courses/:id/sections | course_id, include[]? | r-huijts, DMontgomery40 | paginated; include[] supports `students`, `enrollments`, `total_students` |
-| canvas_list_enrollments | GET /api/v1/courses/:id/enrollments | course_id, type[]?, state[]?, user_id? | mtgibbs, ahnopologetic | paginated; filter by own user for student use |
-| canvas_list_course_tabs | GET /api/v1/courses/:id/tabs | course_id | ahnopologetic | returns visible nav tabs |
-| canvas_list_favorite_courses | GET /api/v1/users/self/favorites/courses | — | Kuria-Mbatia, ahnopologetic | |
-| canvas_get_dashboard_cards | GET /api/v1/dashboard/dashboard_cards | — | DMontgomery40 | student-oriented dashboard summary |
+| canvas_list_sections | GET /api/v1/courses/:id/sections | course_id | r-huijts, DMontgomery40 | paginated internally |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_course | POST /api/v1/accounts/:account_id/courses | ADMIN |
-| canvas_update_course | PUT /api/v1/courses/:id | EDUCATOR |
-| canvas_delete_course | DELETE /api/v1/courses/:id | ADMIN |
-| canvas_enroll_user | POST /api/v1/courses/:id/enrollments | ADMIN |
-| canvas_add_favorite_course | POST /api/v1/users/self/favorites/courses/:id | EDUCATOR |
-| canvas_remove_favorite_course | DELETE /api/v1/users/self/favorites/courses/:id | EDUCATOR |
+| canvas_create_course | POST /api/v1/accounts/:account_id/courses | Confirm; verify Canvas permission |
 
 ---
 
@@ -41,16 +59,16 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_assignment_groups | GET /api/v1/courses/:course_id/assignment_groups | course_id, include[]? | r-huijts, ahnopologetic, DMontgomery40 | include[] supports `assignments`, `submission` |
 | canvas_list_missing_assignments | GET /api/v1/users/self/missing_submissions | course_ids[]?, include[]?, filter[]? | mtgibbs | student-facing; filter[] supports `submittable`, `current_grading_period` |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_assignment | POST /api/v1/courses/:course_id/assignments | EDUCATOR |
-| canvas_update_assignment | PUT /api/v1/courses/:course_id/assignments/:id | EDUCATOR |
-| canvas_delete_assignment | DELETE /api/v1/courses/:course_id/assignments/:id | EDUCATOR |
-| canvas_create_assignment_group | POST /api/v1/courses/:course_id/assignment_groups | EDUCATOR |
-| canvas_bulk_update_assignment_dates | PUT /api/v1/courses/:course_id/assignments/bulk_update | EDUCATOR |
-| canvas_assign_peer_review | POST /api/v1/courses/:course_id/assignments/:id/peer_reviews | EDUCATOR |
+| canvas_create_assignment | POST /api/v1/courses/:course_id/assignments | Confirm; verify Canvas permission |
+| canvas_update_assignment | PUT /api/v1/courses/:course_id/assignments/:id | Confirm; verify Canvas permission |
+| canvas_delete_assignment | DELETE /api/v1/courses/:course_id/assignments/:id | Confirm; verify Canvas permission |
+| canvas_create_assignment_group | POST /api/v1/courses/:course_id/assignment_groups | Confirm; verify Canvas permission |
+| canvas_bulk_update_assignment_dates | PUT /api/v1/courses/:course_id/assignments/bulk_update | Confirm; verify Canvas permission |
+| canvas_assign_peer_review | POST /api/v1/courses/:course_id/assignments/:id/peer_reviews | Confirm; verify Canvas permission |
 
 ---
 
@@ -64,15 +82,15 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_peer_reviews_todo | GET /api/v1/users/self/todo | — | vishalsachdev | filters todo items for `reviewing` type |
 | canvas_list_peer_reviews_for_assignment | GET /api/v1/courses/:course_id/assignments/:assignment_id/peer_reviews | course_id, assignment_id, include[]? | vishalsachdev, Kuria-Mbatia | include[] supports `submission_comments`, `user` |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_submit_assignment | POST /api/v1/courses/:course_id/assignments/:id/submissions | ADMIN |
-| canvas_grade_submission | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | EDUCATOR |
-| canvas_bulk_grade_submissions | POST /api/v1/courses/:course_id/assignments/:id/submissions/update_grades | EDUCATOR |
-| canvas_post_submission_comment | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id (comment[]) | EDUCATOR |
-| canvas_list_section_submissions | GET /api/v1/sections/:section_id/students/submissions | EDUCATOR |
+| canvas_submit_assignment | POST /api/v1/courses/:course_id/assignments/:id/submissions | Self-mutation; confirm |
+| canvas_grade_submission | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | Confirm; verify Canvas permission |
+| canvas_bulk_grade_submissions | POST /api/v1/courses/:course_id/assignments/:id/submissions/update_grades | Confirm; verify Canvas permission |
+| canvas_post_submission_comment | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id (comment[]) | Confirm; verify Canvas permission |
+| canvas_list_section_submissions | GET /api/v1/sections/:section_id/students/submissions | Confirm; verify Canvas permission |
 
 ---
 
@@ -84,13 +102,13 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_get_assignment_feedback | GET /api/v1/courses/:course_id/assignments/:id/submissions/self | course_id, assignment_id | mtgibbs | wraps grading comments + rubric assessment |
 | canvas_get_grading_standards | GET /api/v1/courses/:course_id/grading_standards | course_id | r-huijts | letter-grade thresholds for the course |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_submit_grade | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | EDUCATOR |
-| canvas_get_all_students_status | GET /api/v1/courses/:course_id/students/submissions | EDUCATOR |
-| canvas_get_comprehensive_status | (composite grade + submission roll-up) | EDUCATOR |
+| canvas_submit_grade | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id | Confirm; verify Canvas permission |
+| canvas_get_all_students_status | GET /api/v1/courses/:course_id/students/submissions | Confirm; verify Canvas permission |
+| canvas_get_comprehensive_status | (composite grade + submission roll-up) | Confirm; verify Canvas permission |
 
 ---
 
@@ -103,20 +121,20 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_module_items | GET /api/v1/courses/:course_id/modules/:module_id/items | course_id, module_id, include[]? | vishalsachdev, r-huijts, DMontgomery40 | paginated; include[] supports `content_details` |
 | canvas_get_module_item | GET /api/v1/courses/:course_id/modules/:module_id/items/:id | course_id, module_id, item_id | DMontgomery40 | |
 | canvas_get_module_item_sequence | GET /api/v1/courses/:course_id/module_item_sequence | course_id, asset_type, asset_id | Kuria-Mbatia | next/prev navigation |
-| canvas_mark_module_item_read | POST /api/v1/courses/:course_id/modules/:module_id/items/:id/mark_read | course_id, module_id, item_id | Kuria-Mbatia | student progress side-effect, safe |
-| canvas_mark_module_item_done | PUT /api/v1/courses/:course_id/modules/:module_id/items/:id/done | course_id, module_id, item_id | DMontgomery40, Kuria-Mbatia | student progress side-effect, safe |
+| canvas_mark_module_item_read | POST /api/v1/courses/:course_id/modules/:module_id/items/:id/mark_read | course_id, module_id, item_id | Kuria-Mbatia | mutates student progress state |
+| canvas_mark_module_item_done | PUT /api/v1/courses/:course_id/modules/:module_id/items/:id/done | course_id, module_id, item_id | DMontgomery40, Kuria-Mbatia | mutates student progress state |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_module | POST /api/v1/courses/:course_id/modules | EDUCATOR |
-| canvas_update_module | PUT /api/v1/courses/:course_id/modules/:id | EDUCATOR |
-| canvas_delete_module | DELETE /api/v1/courses/:course_id/modules/:id | EDUCATOR |
-| canvas_add_module_item | POST /api/v1/courses/:course_id/modules/:module_id/items | EDUCATOR |
-| canvas_update_module_item | PUT /api/v1/courses/:course_id/modules/:module_id/items/:id | EDUCATOR |
-| canvas_delete_module_item | DELETE /api/v1/courses/:course_id/modules/:module_id/items/:id | EDUCATOR |
-| canvas_toggle_module_publish | PUT /api/v1/courses/:course_id/modules/:id | EDUCATOR |
+| canvas_create_module | POST /api/v1/courses/:course_id/modules | Confirm; verify Canvas permission |
+| canvas_update_module | PUT /api/v1/courses/:course_id/modules/:id | Confirm; verify Canvas permission |
+| canvas_delete_module | DELETE /api/v1/courses/:course_id/modules/:id | Confirm; verify Canvas permission |
+| canvas_add_module_item | POST /api/v1/courses/:course_id/modules/:module_id/items | Confirm; verify Canvas permission |
+| canvas_update_module_item | PUT /api/v1/courses/:course_id/modules/:module_id/items/:id | Confirm; verify Canvas permission |
+| canvas_delete_module_item | DELETE /api/v1/courses/:course_id/modules/:module_id/items/:id | Confirm; verify Canvas permission |
+| canvas_toggle_module_publish | PUT /api/v1/courses/:course_id/modules/:id | Confirm; verify Canvas permission |
 
 ---
 
@@ -130,15 +148,14 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_page_revisions | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions | course_id, page_url_or_id | r-huijts | paginated |
 | canvas_get_page_revision | GET /api/v1/courses/:course_id/pages/:url_or_id/revisions/:revision_id | course_id, page_url_or_id, revision_id, summary? | r-huijts | |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_page | POST /api/v1/courses/:course_id/pages | EDUCATOR |
-| canvas_update_page | PUT /api/v1/courses/:course_id/pages/:url_or_id | EDUCATOR |
-| canvas_delete_page | DELETE /api/v1/courses/:course_id/pages/:url_or_id | EDUCATOR |
-| canvas_revert_page_revision | POST /api/v1/courses/:course_id/pages/:url_or_id/revisions/:revision_id | EDUCATOR |
-| canvas_bulk_update_pages | (composite PUT over page list) | EDUCATOR |
+| canvas_create_page | POST /api/v1/courses/:course_id/pages | Confirm; verify Canvas permission |
+| canvas_update_page | PUT /api/v1/courses/:course_id/pages/:url_or_id | Confirm; verify Canvas permission |
+| canvas_delete_page | DELETE /api/v1/courses/:course_id/pages/:url_or_id | Confirm; verify Canvas permission |
+| canvas_revert_page_revision | POST /api/v1/courses/:course_id/pages/:url_or_id/revisions/:revision_id | Confirm; verify Canvas permission |
 
 ---
 
@@ -151,17 +168,17 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_planner_items | GET /api/v1/planner/items | start_date?, end_date?, context_codes[]? | ahnopologetic, Kuria-Mbatia | student planner surface |
 | canvas_list_todo_items | GET /api/v1/users/self/todo | — | vishalsachdev, mtgibbs | todo entries: grading, submitting, reviewing |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_calendar_event | POST /api/v1/calendar_events | EDUCATOR |
-| canvas_update_calendar_event | PUT /api/v1/calendar_events/:id | EDUCATOR |
-| canvas_delete_calendar_event | DELETE /api/v1/calendar_events/:id | EDUCATOR |
-| canvas_create_planner_note | POST /api/v1/planner_notes | EDUCATOR |
-| canvas_update_planner_note | PUT /api/v1/planner_notes/:id | EDUCATOR |
-| canvas_delete_planner_note | DELETE /api/v1/planner_notes/:id | EDUCATOR |
-| canvas_mark_planner_item_complete | PUT /api/v1/planner/overrides/:id | EDUCATOR |
+| canvas_create_calendar_event | POST /api/v1/calendar_events | Confirm; verify Canvas permission |
+| canvas_update_calendar_event | PUT /api/v1/calendar_events/:id | Confirm; verify Canvas permission |
+| canvas_delete_calendar_event | DELETE /api/v1/calendar_events/:id | Confirm; verify Canvas permission |
+| canvas_create_planner_note | POST /api/v1/planner_notes | Confirm; verify Canvas permission |
+| canvas_update_planner_note | PUT /api/v1/planner_notes/:id | Confirm; verify Canvas permission |
+| canvas_delete_planner_note | DELETE /api/v1/planner_notes/:id | Confirm; verify Canvas permission |
+| canvas_mark_planner_item_complete | PUT /api/v1/planner/overrides/:id | Self-mutation; confirm |
 
 ---
 
@@ -174,13 +191,13 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_get_announcement | GET /api/v1/courses/:course_id/discussion_topics/:topic_id | course_id, announcement_id | vishalsachdev | announcements are discussion topics with `is_announcement=true` |
 | canvas_list_account_notifications | GET /api/v1/accounts/self/account_notifications | — | Kuria-Mbatia | global institution-wide notices |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_announcement | POST /api/v1/courses/:course_id/discussion_topics | EDUCATOR |
-| canvas_delete_announcement | DELETE /api/v1/courses/:course_id/discussion_topics/:id | EDUCATOR |
-| canvas_bulk_delete_announcements | (composite) | EDUCATOR |
+| canvas_create_announcement | POST /api/v1/courses/:course_id/discussion_topics | Confirm; verify Canvas permission |
+| canvas_delete_announcement | DELETE /api/v1/courses/:course_id/discussion_topics/:id | Confirm; verify Canvas permission |
+| canvas_bulk_delete_announcements | (composite) | Confirm; verify Canvas permission |
 
 ---
 
@@ -194,14 +211,14 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_discussion_entries | GET /api/v1/courses/:course_id/discussion_topics/:topic_id/entries | course_id, topic_id | vishalsachdev | paginated |
 | canvas_get_discussion_entry | GET /api/v1/courses/:course_id/discussion_topics/:topic_id/entries/:entry_id | course_id, topic_id, entry_id | vishalsachdev | |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_discussion_topic | POST /api/v1/courses/:course_id/discussion_topics | EDUCATOR |
-| canvas_post_discussion_entry | POST /api/v1/courses/:course_id/discussion_topics/:topic_id/entries | EDUCATOR |
-| canvas_reply_to_discussion_entry | POST /api/v1/courses/:course_id/discussion_topics/:topic_id/entries/:entry_id/replies | EDUCATOR |
-| canvas_delete_discussion_topic | DELETE /api/v1/courses/:course_id/discussion_topics/:id | EDUCATOR |
+| canvas_create_discussion_topic | POST /api/v1/courses/:course_id/discussion_topics | Confirm; verify Canvas permission |
+| canvas_post_discussion_entry | POST /api/v1/courses/:course_id/discussion_topics/:topic_id/entries | Confirm; verify Canvas permission |
+| canvas_reply_to_discussion_entry | POST /api/v1/courses/:course_id/discussion_topics/:topic_id/entries/:entry_id/replies | Confirm; verify Canvas permission |
+| canvas_delete_discussion_topic | DELETE /api/v1/courses/:course_id/discussion_topics/:id | Confirm; verify Canvas permission |
 
 ---
 
@@ -213,15 +230,15 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_folders | GET /api/v1/courses/:course_id/folders | course_id | DMontgomery40 | paginated |
 | canvas_list_folder_files | GET /api/v1/folders/:folder_id/files | folder_id | DMontgomery40 | paginated |
 | canvas_get_file | GET /api/v1/files/:id | file_id, include[]? | ahnopologetic, DMontgomery40 | include[] supports `user`, `usage_rights` |
-| canvas_get_file_download_url | GET /api/v1/files/:id | file_id | aryankeluskar, Kuria-Mbatia | returns pre-authenticated `url` field for client download |
+| canvas_get_file_download_url | GET /api/v1/files/:id | file_id | aryankeluskar, Kuria-Mbatia | returns a credential-sensitive pre-authenticated `url`; do not log it |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_upload_file | POST /api/v1/courses/:course_id/files (3-step flow) | ADMIN |
-| canvas_delete_file | DELETE /api/v1/files/:id | EDUCATOR |
-| canvas_download_file_to_disk | (server-side download, not student-safe) | ADMIN |
+| canvas_upload_file | POST /api/v1/courses/:course_id/files (3-step flow) | Confirm; verify Canvas permission |
+| canvas_delete_file | DELETE /api/v1/files/:id | Confirm; verify Canvas permission |
+| canvas_download_file_to_disk | GET /api/v1/files/:id | Sensitive URL output; ignores `destination_path`; do not log |
 
 ---
 
@@ -232,16 +249,16 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_conversations | GET /api/v1/conversations | scope?, filter[]?, include[]? | vishalsachdev, mtgibbs, DMontgomery40 | paginated; scope supports `unread`, `starred`, `archived`, `sent` |
 | canvas_get_conversation | GET /api/v1/conversations/:id | conversation_id, include[]? | vishalsachdev, DMontgomery40 | include[] supports `participant_avatars` |
 | canvas_get_unread_count | GET /api/v1/conversations/unread_count | — | vishalsachdev, mtgibbs | |
-| canvas_mark_conversation_read | PUT /api/v1/conversations/:id | conversation_id, workflow_state? | vishalsachdev | safe self-state toggle; `workflow_state=read` |
+| canvas_mark_conversation_read | PUT /api/v1/conversations/:id | conversation_id, workflow_state? | vishalsachdev | mutates conversation read state |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_send_conversation | POST /api/v1/conversations | EDUCATOR |
-| canvas_reply_to_conversation | POST /api/v1/conversations/:id/add_message | EDUCATOR |
-| canvas_send_bulk_messages | POST /api/v1/conversations (recipients[]) | EDUCATOR |
-| canvas_delete_conversation | DELETE /api/v1/conversations/:id | EDUCATOR |
+| canvas_send_conversation | POST /api/v1/conversations | Confirm; verify Canvas permission |
+| canvas_reply_to_conversation | POST /api/v1/conversations/:id/add_message | Confirm; verify Canvas permission |
+| canvas_send_bulk_messages | POST /api/v1/conversations (recipients[]) | Confirm; verify Canvas permission |
+| canvas_delete_conversation | DELETE /api/v1/conversations/:id | Confirm; verify Canvas permission |
 
 ---
 
@@ -249,17 +266,16 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 
 | Tool | Endpoint | Inputs | Sources | Notes |
 |------|----------|--------|---------|-------|
-| canvas_list_account_notifications | GET /api/v1/accounts/self/account_notifications | — | Kuria-Mbatia | institutional banners |
 | canvas_list_activity_stream | GET /api/v1/users/self/activity_stream | only_active_courses? | DMontgomery40, Kuria-Mbatia | paginated; consolidates announcements, discussions, submissions, conversations |
 | canvas_get_activity_stream_summary | GET /api/v1/users/self/activity_stream/summary | — | DMontgomery40 | counts by category |
 | canvas_list_communication_channels | GET /api/v1/users/self/communication_channels | — | DMontgomery40 | returns email/push channels (used to interpret notification preferences) |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_dismiss_account_notification | DELETE /api/v1/accounts/self/account_notifications/:id | EDUCATOR |
-| canvas_update_notification_preference | PUT /api/v1/users/self/communication_channels/:id/notification_preferences/:notification | EDUCATOR |
+| canvas_dismiss_account_notification | DELETE /api/v1/accounts/self/account_notifications/:id | Confirm; verify Canvas permission |
+| canvas_update_notification_preference | PUT /api/v1/users/self/communication_channels/:id/notification_preferences/:notification | Confirm; verify Canvas permission |
 
 ---
 
@@ -271,13 +287,13 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_get_user_profile | GET /api/v1/users/:user_id/profile | user_id | DMontgomery40 | student can fetch visible profiles in shared courses |
 | canvas_get_my_settings | GET /api/v1/users/self/settings | — | DMontgomery40 | |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_update_user_profile | PUT /api/v1/users/:id | EDUCATOR |
-| canvas_update_my_settings | PUT /api/v1/users/self/settings | EDUCATOR |
-| canvas_create_user | POST /api/v1/accounts/:account_id/users | ADMIN |
+| canvas_update_user_profile | PUT /api/v1/users/:id | Confirm; verify Canvas permission |
+| canvas_update_my_settings | PUT /api/v1/users/self/settings | Confirm; verify Canvas permission |
+| canvas_create_user | POST /api/v1/accounts/:account_id/users | Confirm; verify Canvas permission |
 
 ---
 
@@ -290,19 +306,19 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_list_my_quiz_submissions | GET /api/v1/courses/:course_id/quizzes/:quiz_id/submissions | course_id, quiz_id | DMontgomery40 | filters by self; includes score/attempts |
 | canvas_get_my_quiz_submission | GET /api/v1/courses/:course_id/quizzes/:quiz_id/submissions/self | course_id, quiz_id | DMontgomery40 | |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_quiz | POST /api/v1/courses/:course_id/quizzes | EDUCATOR |
-| canvas_update_quiz | PUT /api/v1/courses/:course_id/quizzes/:id | EDUCATOR |
-| canvas_delete_quiz | DELETE /api/v1/courses/:course_id/quizzes/:id | EDUCATOR |
-| canvas_list_quiz_questions | GET /api/v1/courses/:course_id/quizzes/:quiz_id/questions | EDUCATOR |
-| canvas_create_quiz_question | POST /api/v1/courses/:course_id/quizzes/:quiz_id/questions | EDUCATOR |
-| canvas_update_quiz_question | PUT /api/v1/courses/:course_id/quizzes/:quiz_id/questions/:id | EDUCATOR |
-| canvas_delete_quiz_question | DELETE /api/v1/courses/:course_id/quizzes/:quiz_id/questions/:id | EDUCATOR |
-| canvas_list_quiz_question_groups | GET /api/v1/courses/:course_id/quizzes/:quiz_id/groups | EDUCATOR |
-| canvas_start_quiz_attempt | POST /api/v1/courses/:course_id/quizzes/:quiz_id/submissions | ADMIN |
+| canvas_create_quiz | POST /api/v1/courses/:course_id/quizzes | Confirm; verify Canvas permission |
+| canvas_update_quiz | PUT /api/v1/courses/:course_id/quizzes/:id | Confirm; verify Canvas permission |
+| canvas_delete_quiz | DELETE /api/v1/courses/:course_id/quizzes/:id | Confirm; verify Canvas permission |
+| canvas_list_quiz_questions | GET /api/v1/courses/:course_id/quizzes/:quiz_id/questions | Confirm; verify Canvas permission |
+| canvas_create_quiz_question | POST /api/v1/courses/:course_id/quizzes/:quiz_id/questions | Confirm; verify Canvas permission |
+| canvas_update_quiz_question | PUT /api/v1/courses/:course_id/quizzes/:quiz_id/questions/:id | Confirm; verify Canvas permission |
+| canvas_delete_quiz_question | DELETE /api/v1/courses/:course_id/quizzes/:quiz_id/questions/:id | Confirm; verify Canvas permission |
+| canvas_list_quiz_question_groups | GET /api/v1/courses/:course_id/quizzes/:quiz_id/groups | Confirm; verify Canvas permission |
+| canvas_start_quiz_attempt | POST /api/v1/courses/:course_id/quizzes/:quiz_id/submissions | Self-mutation; confirm |
 
 ---
 
@@ -315,12 +331,12 @@ All tool names follow `canvas_<verb>_<noun>` in snake_case. Endpoints are Canvas
 | canvas_get_rubric_statistics | GET /api/v1/courses/:course_id/rubrics/:id (include[]=assessments) | course_id, rubric_id | r-huijts | computed client-side from assessments |
 | canvas_get_my_rubric_assessment | GET /api/v1/courses/:course_id/assignments/:assignment_id/submissions/self (include[]=rubric_assessment) | course_id, assignment_id | vishalsachdev | student's own rubric scoring for an assignment |
 
-### Admin / educator (commented out in code)
+### Mutating or elevated-permission tools (registered)
 
-| Tool | Endpoint | Marker |
+| Tool | Endpoint | Safety |
 |------|----------|--------|
-| canvas_create_rubric | POST /api/v1/courses/:course_id/rubrics | EDUCATOR |
-| canvas_update_rubric | PUT /api/v1/courses/:course_id/rubrics/:id | EDUCATOR |
-| canvas_delete_rubric | DELETE /api/v1/courses/:course_id/rubrics/:id | EDUCATOR |
-| canvas_associate_rubric | POST /api/v1/courses/:course_id/rubric_associations | EDUCATOR |
-| canvas_grade_with_rubric | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id (rubric_assessment) | EDUCATOR |
+| canvas_create_rubric | POST /api/v1/courses/:course_id/rubrics | Confirm; verify Canvas permission |
+| canvas_update_rubric | PUT /api/v1/courses/:course_id/rubrics/:id | Confirm; verify Canvas permission |
+| canvas_delete_rubric | DELETE /api/v1/courses/:course_id/rubrics/:id | Confirm; verify Canvas permission |
+| canvas_associate_rubric | POST /api/v1/courses/:course_id/rubric_associations | Confirm; verify Canvas permission |
+| canvas_grade_with_rubric | PUT /api/v1/courses/:course_id/assignments/:id/submissions/:user_id (rubric_assessment) | Confirm; verify Canvas permission |
