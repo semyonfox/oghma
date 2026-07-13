@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   settings: {
     ai_canvas_access: false,
-    ai_model: "deepseek/deepseek-v3.2",
+    ai_model: "deepseek/deepseek-v4-flash",
   },
   updateSettings: vi.fn().mockResolvedValue(undefined),
 }));
@@ -42,7 +42,7 @@ describe("AISection model selector", () => {
   beforeEach(() => {
     mocks.settings = {
       ai_canvas_access: false,
-      ai_model: "deepseek/deepseek-v3.2",
+      ai_model: "deepseek/deepseek-v4-flash",
     };
     vi.clearAllMocks();
   });
@@ -54,9 +54,9 @@ describe("AISection model selector", () => {
     const options = Array.from(select.options);
 
     expect(select.disabled).toBe(false);
-    expect(select.value).toBe("deepseek/deepseek-v3.2");
+    expect(select.value).toBe("deepseek/deepseek-v4-flash");
     expect(
-      options.find((option) => option.value === "deepseek/deepseek-v3.2")
+      options.find((option) => option.value === "deepseek/deepseek-v4-flash")
         ?.disabled,
     ).toBe(false);
     expect(options.find((option) => option.value === "kimi-k2.5")?.disabled).toBe(
@@ -65,7 +65,7 @@ describe("AISection model selector", () => {
     expect(
       options.find((option) => option.value === "custom-openrouter")?.disabled,
     ).toBe(true);
-    expect(select.textContent).toContain("DeepSeek V3.2");
+    expect(select.textContent).toContain("DeepSeek V4 Flash (Max)");
     expect(select.textContent).toContain("Custom OpenRouter model");
   });
 

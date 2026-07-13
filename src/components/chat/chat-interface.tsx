@@ -188,6 +188,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const thinkingActive = thinkingMode !== "off";
+  const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");
 
   const handleSend = () => {
     const text = input.trim();
@@ -247,7 +248,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               active={thinkingActive}
               onClick={toggleThinking}
               icon={<span aria-hidden="true">◆</span>}
-              label={thinkingActive ? t("Thinking") : t("Think")}
+              label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
             />
@@ -362,7 +363,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               active={thinkingActive}
               onClick={toggleThinking}
               icon={<span aria-hidden="true">◆</span>}
-              label={thinkingActive ? t("Thinking") : t("Think")}
+              label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
             />

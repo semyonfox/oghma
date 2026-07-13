@@ -31,4 +31,12 @@ describe("chat SSE utils", () => {
     const frames = parseSseBlocks("event: done\r\ndata: {}\r\n\r\n", state);
     expect(frames).toEqual([{ event: "done", data: "{}" }]);
   });
+
+  it("ignores heartbeat comments without corrupting the next event", () => {
+    const state = { buffer: "" };
+    expect(parseSseBlocks(": heartbeat\n\n", state)).toEqual([]);
+    expect(parseSseBlocks("event: done\ndata: {}\n\n", state)).toEqual([
+      { event: "done", data: "{}" },
+    ]);
+  });
 });

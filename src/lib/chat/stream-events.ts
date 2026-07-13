@@ -73,6 +73,10 @@ export function sendError(writer: SseWriter, message: string): void {
   send(writer, "error", { message, traceId: getTraceId() });
 }
 
+export function sendHeartbeat(writer: SseWriter): void {
+  writer.enqueue(encoder.encode(": heartbeat\n\n"));
+}
+
 export function buildSearchContext(
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],

@@ -6,6 +6,7 @@ import {
   createLlmProvider,
   getLlmMaxTokens,
   getLlmModel,
+  getLlmReasoningEffort,
   getLlmThinkingMode,
 } from "@/lib/ai-config";
 import { generateText } from "ai";
@@ -145,7 +146,10 @@ async function callLLM(prompt: string): Promise<string> {
   if (!provider) throw new Error("LLM not configured");
 
   const thinkingMode = getLlmThinkingMode();
-  const reasoning = buildReasoningOptions(thinkingMode);
+  const reasoning = buildReasoningOptions(
+    thinkingMode,
+    getLlmReasoningEffort(),
+  );
 
   const { text } = await generateText({
     model: provider(getLlmModel()),
@@ -153,7 +157,7 @@ async function callLLM(prompt: string): Promise<string> {
     maxOutputTokens: getLlmMaxTokens(),
     ...(thinkingMode !== "off" && { temperature: 1 }),
     maxRetries: 3,
-    providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
+    providerOptions: { openrouter: { reasoning } },
   });
 
   return text;

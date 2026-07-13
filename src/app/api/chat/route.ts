@@ -5,7 +5,12 @@ import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 import logger from "@/lib/logger";
-import { streamText, generateText } from "ai";
+import {
+  streamText,
+  generateText,
+  type FinishReason,
+  type ModelMessage,
+} from "ai";
 
 import {
   runRagPipeline,
@@ -25,6 +30,10 @@ import {
   type RetrievalInfo,
 } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
+import {
+  shouldSynthesizeFinalAnswer,
+  streamFinalAnswer,
+} from "@/lib/chat/final-answer";
 import { recordActivationMilestone } from "@/lib/marketing/events";
 import {
   TOOL_CALL_LIMIT_USER_MESSAGE,
@@ -41,6 +50,7 @@ import {
   sendToolCall,
   sendDone,
   sendError,
+  sendHeartbeat,
   buildSearchContext,
 } from "@/lib/chat/stream-events";
 
@@ -174,6 +184,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 }
               },
             };
+            const heartbeatId = setInterval(() => {
+              if (!streamClosed && !clientDisconnected) sendHeartbeat(writer);
+            }, 15_000);
             try {
               logger.info("Chat stream started", {
                 chatStreamId,
@@ -282,11 +295,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               let thinking = "";
               let thinkingStartedAt: number | null = null;
               let thinkingDuration: number | undefined;
-              let finishReason: string | undefined;
+              let finishReason: FinishReason | undefined;
               let rawFinishReason: string | undefined;
               let stepCount = 0;
               let toolCallCount = 0;
               let assistantPersisted = false;
+              let responseMessages: ModelMessage[] = [];
               const parts: MessagePart[] = [];
               let pendingText = "";
               const flushText = () => {
@@ -364,6 +378,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       : new Error(String(part.error));
                   }
                 }
+                responseMessages = (await result.response).messages;
               } catch (error) {
                 void Metrics.llmError();
                 closeThinkingWindow();
@@ -411,12 +426,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
               closeThinkingWindow();
               flushText();
-              void Metrics.llmLatency(Date.now() - t0);
 
               if (
-                isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)
+                isToolCallLimitFinish(
+                  finishReason,
+                  toolCallCount,
+                  maxToolSteps,
+                )
               ) {
-                logger.warn("LLM stream hit tool-call step limit", {
+                logger.warn("LLM stream hit tool-call limit", {
                   model: getLlmModel(),
                   thinkingMode,
                   maxToolSteps,
@@ -437,6 +455,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     toolCallLimitHit: true,
                   }),
                 );
+                void Metrics.llmLatency(Date.now() - t0);
                 sendDone(writer);
                 lastEvent = "done";
                 logger.warn("Chat stream completed after tool-call limit", {
@@ -451,37 +470,52 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
 
               if (!reply.trim()) {
-                const emptyReply =
-                  "I couldn't generate an answer this time. Please try again.";
-                logger.error("LLM stream returned empty response", {
+                if (!shouldSynthesizeFinalAnswer(reply, finishReason)) {
+                  throw new Error(
+                    `Model ended without an answer (${finishReason})`,
+                  );
+                }
+                logger.warn("LLM stream returned reasoning without an answer", {
                   chatStreamId,
                   model: getLlmModel(),
                   thinkingMode,
+                  stepCount,
+                  toolCallCount,
                 });
-                sendToken(writer, emptyReply);
-                lastEvent = "token";
-                await persistMessage(
-                  scope.sessionId,
-                  "assistant",
-                  emptyReply,
-                  {
-                    sources: uniqueSources,
-                    metadata: buildMetadata(),
+                closeThinkingWindow();
+                const finalAnswer = await streamFinalAnswer({
+                  model: model!,
+                  messages: [
+                    ...llmCallOptions.messages,
+                    ...responseMessages,
+                  ],
+                  maxOutputTokens: llmCallOptions.maxOutputTokens,
+                  onTextDelta(text) {
+                    reply += text;
+                    pendingText += text;
+                    sendToken(writer, text);
+                    lastEvent = "token";
                   },
-                );
-                sendDone(writer);
-                lastEvent = "done";
-                logger.info("Chat stream completed with empty-response fallback", {
-                  chatStreamId,
-                  sessionId: scope.sessionId,
-                  elapsedMs: Date.now() - startedAt,
-                  bytesSent,
-                  clientDisconnected,
                 });
-                writer.close();
-                return;
+                stepCount += 1;
+                finishReason = finalAnswer.finishReason;
+                rawFinishReason = finalAnswer.rawFinishReason;
+                if (!reply.trim()) {
+                  throw new Error(
+                    "Model returned no answer after final synthesis",
+                  );
+                }
+                flushText();
+                logger.info("Recovered reasoning-only LLM response", {
+                  chatStreamId,
+                  model: getLlmModel(),
+                  finishReason,
+                  rawFinishReason,
+                  replyLength: reply.length,
+                });
               }
 
+              void Metrics.llmLatency(Date.now() - t0);
               await persistAssistant(reply, buildMetadata());
               if (uniqueSources.length > 0) {
                 void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
@@ -521,6 +555,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               sendError(writer, "Failed to generate response");
               lastEvent = "error";
               writer.close();
+            } finally {
+              clearInterval(heartbeatId);
             }
           })();
         },

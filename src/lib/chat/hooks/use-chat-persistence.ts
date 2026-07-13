@@ -3,7 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
 import { normalizeMessageParts } from "@/lib/chat/types";
-import type { LlmThinkingMode } from "@/lib/ai-config";
+import {
+  nextLlmThinkingMode,
+  type LlmThinkingMode,
+} from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
 const USE_RAG_KEY = "chat-use-rag";
@@ -51,9 +54,9 @@ export function useChatPersistence(
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
-  // toggle off <-> auto.
+  // Toggle normal high-effort reasoning on or off.
   const toggleThinking = useCallback(() => {
-    setThinkingMode((current) => (current === "off" ? "auto" : "off"));
+    setThinkingMode(nextLlmThinkingMode);
   }, []);
 
   // restore thinking mode from localStorage on mount

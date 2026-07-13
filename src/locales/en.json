@@ -199,7 +199,7 @@
   "chat.rag_title": "Search my notes — RAG",
   "chat.rag_tooltip": "Retrieval-augmented generation: searches your notes and adds the most relevant passages as context for your question. Turn it off to answer from general knowledge only — saves tokens.",
   "chat.thinking_title": "Extended thinking",
-  "chat.thinking_tooltip": "The model reasons step-by-step before answering, which helps on harder questions. Turn it off for a direct answer — saves tokens.",
+  "chat.thinking_tooltip": "On uses the model's cheaper high reasoning level. Turn it off for the fastest direct answer.",
   "chat.title": "AI Chat",
   "chat.use_notes": "Search my notes",
   "chat.use_notes_short": "Notes",

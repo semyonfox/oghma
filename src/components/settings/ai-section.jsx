@@ -7,12 +7,12 @@ import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import { Checkbox, CheckboxField } from "@/components/catalyst/checkbox";
 import { inputClass, saveBtnClass } from "./settings-utils";
 
-const FALLBACK_ACTIVE_MODEL = "deepseek/deepseek-v3.2";
+const FALLBACK_ACTIVE_MODEL = "deepseek/deepseek-v4-flash";
 
 const MODEL_OPTIONS = [
   {
-    value: "deepseek/deepseek-v3.2",
-    label: "DeepSeek V3.2",
+    value: "deepseek/deepseek-v4-flash",
+    label: "DeepSeek V4 Flash (Max)",
     usageLabel: "1x usage",
   },
   {

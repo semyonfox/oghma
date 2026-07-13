@@ -28,7 +28,7 @@ const ORIGINAL_LLM_MODEL = process.env.LLM_MODEL;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.LLM_MODEL = "deepseek/deepseek-v3.2";
+  process.env.LLM_MODEL = "deepseek/deepseek-v4-flash";
   vi.mocked(validateSession).mockResolvedValue(MOCK_USER as never);
   vi.mocked(getSettingsFromS3).mockResolvedValue({ locale: "en" });
 });
@@ -51,7 +51,7 @@ describe("GET /api/settings", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       locale: "en",
-      ai_model: "deepseek/deepseek-v3.2",
+      ai_model: "deepseek/deepseek-v4-flash",
     });
   });
 });
@@ -85,7 +85,7 @@ describe("POST /api/settings", () => {
       lastName: "Lovelace",
       timezone: "Europe/Dublin",
       editorsize: "small",
-      ai_model: "deepseek/deepseek-v3.2",
+      ai_model: "deepseek/deepseek-v4-flash",
     });
   });
 
@@ -108,7 +108,7 @@ describe("POST /api/settings", () => {
     });
     expect(body).toMatchObject({
       ai_canvas_access: true,
-      ai_model: "deepseek/deepseek-v3.2",
+      ai_model: "deepseek/deepseek-v4-flash",
     });
   });
 
@@ -133,6 +133,6 @@ describe("POST /api/settings", () => {
     expect(saveSettingsToS3).toHaveBeenCalledWith("user-123", {
       locale: "en",
     });
-    expect(body.ai_model).toBe("deepseek/deepseek-v3.2");
+    expect(body.ai_model).toBe("deepseek/deepseek-v4-flash");
   });
 });

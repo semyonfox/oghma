@@ -63,7 +63,7 @@ describe("tool budget controls", () => {
     expect(result).toBeUndefined();
   });
 
-  it("disables tools after the model receives the out-of-tool-calls result", async () => {
+  it("disables tools immediately after the final allowed call", async () => {
     const controls = buildToolBudgetControls(1, {
       lookup: tool({
         inputSchema: z.object({}),
@@ -71,13 +71,12 @@ describe("tool budget controls", () => {
       }),
     });
     await controls.tools.lookup.execute?.({}, toolOptions);
-    await controls.tools.lookup.execute?.({}, toolOptions);
 
     const result = await controls.prepareStep({
-      steps: Array.from({ length: 2 }, () => ({})) as Parameters<
+      steps: Array.from({ length: 1 }, () => ({})) as Parameters<
         typeof controls.prepareStep
       >[0]["steps"],
-      stepNumber: 2,
+      stepNumber: 1,
       model: {} as Parameters<typeof controls.prepareStep>[0]["model"],
       messages: [{ role: "user", content: "summarise" }],
       experimental_context: undefined,
@@ -138,7 +137,7 @@ describe("tool-call limit fallback message", () => {
     });
   });
 
-  it("detects only tool-call finishes at or beyond the budget", () => {
+  it("detects only tool-call finishes at or beyond the call budget", () => {
     expect(isToolCallLimitFinish("tool-calls", 2, 2)).toBe(true);
     expect(isToolCallLimitFinish("tool-calls", 1, 2)).toBe(false);
     expect(isToolCallLimitFinish("stop", 2, 2)).toBe(false);

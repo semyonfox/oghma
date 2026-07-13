@@ -7,6 +7,8 @@ import {
   getRagChunkSize,
   getLlmMaxTokens,
   getLlmModel,
+  getLlmReasoningEffort,
+  nextLlmThinkingMode,
   getRerankMinRelevance,
   getRerankTopN,
   getChatMaxDistance,
@@ -112,15 +114,34 @@ describe("ai-config", () => {
   it("returns the model from env or default", () => {
     expect(
       getLlmModel({
-        LLM_MODEL: "deepseek/deepseek-v3.2",
+        LLM_MODEL: "deepseek/deepseek-v4-flash",
       } as unknown as NodeJS.ProcessEnv),
-    ).toBe("deepseek/deepseek-v3.2");
+    ).toBe("deepseek/deepseek-v4-flash");
     expect(getLlmModel({ LLM_MODEL: "" } as unknown as NodeJS.ProcessEnv)).toBe(
-      "deepseek/deepseek-v3.2",
+      "deepseek/deepseek-v4-flash",
     );
     expect(getLlmModel({} as unknown as NodeJS.ProcessEnv)).toBe(
-      "deepseek/deepseek-v3.2",
+      "deepseek/deepseek-v4-flash",
     );
+  });
+
+  it("uses high reasoning by default and validates overrides", () => {
+    expect(getLlmReasoningEffort({} as NodeJS.ProcessEnv)).toBe("high");
+    expect(
+      getLlmReasoningEffort({
+        LLM_REASONING_EFFORT: " high ",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("high");
+    expect(
+      getLlmReasoningEffort({
+        LLM_REASONING_EFFORT: "xhigh",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("xhigh");
+    expect(
+      getLlmReasoningEffort({
+        LLM_REASONING_EFFORT: "unsupported",
+      } as unknown as NodeJS.ProcessEnv),
+    ).toBe("high");
   });
 
   it("resolves thinking mode defaults and aliases", () => {
@@ -143,8 +164,23 @@ describe("ai-config", () => {
   });
 
   it("maps thinking mode to OpenRouter reasoning effort", () => {
-    expect(buildReasoningOptions("auto")).toEqual({ enabled: true });
-    expect(buildReasoningOptions("off")).toBeUndefined();
+    expect(buildReasoningOptions("auto")).toEqual({
+      enabled: true,
+      effort: "high",
+    });
+    expect(buildReasoningOptions("auto", "high")).toEqual({
+      enabled: true,
+      effort: "high",
+    });
+    expect(buildReasoningOptions("off", "high")).toEqual({
+      enabled: false,
+      effort: "none",
+    });
+  });
+
+  it("toggles thinking on and off", () => {
+    expect(nextLlmThinkingMode("auto")).toBe("off");
+    expect(nextLlmThinkingMode("off")).toBe("auto");
   });
 
   it("returns null provider when no API key is set", () => {

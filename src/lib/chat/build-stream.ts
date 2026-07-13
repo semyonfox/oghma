@@ -32,6 +32,7 @@ import {
   getLlmMaxTokens,
   getLlmMaxToolSteps,
   getLlmModel,
+  getLlmReasoningEffort,
   type LlmReasoningOptions,
   type LlmThinkingMode,
 } from "@/lib/ai-config";
@@ -85,7 +86,7 @@ export interface LlmCallResult {
     stopWhen: ToolBudgetControls["stopWhen"];
     prepareStep: ToolBudgetControls["prepareStep"];
     tools: ToolSet;
-    providerOptions: { openrouter: { reasoning?: LlmReasoningOptions } };
+    providerOptions: { openrouter: { reasoning: LlmReasoningOptions } };
   };
   canvasMcpClient: MCPClient | null;
   maxToolSteps: number;
@@ -581,7 +582,10 @@ export async function buildLlmCall(
     retrievalEnabled,
   );
 
-  const reasoning = buildReasoningOptions(params.thinkingMode);
+  const reasoning = buildReasoningOptions(
+    params.thinkingMode,
+    getLlmReasoningEffort(),
+  );
   const maxToolSteps = getLlmMaxToolSteps();
   const toolBudget = buildToolBudgetControls(maxToolSteps, tools);
   const toolInstruction = buildToolInstruction(
@@ -620,7 +624,7 @@ export async function buildLlmCall(
       stopWhen: toolBudget.stopWhen,
       prepareStep: toolBudget.prepareStep,
       tools: toolBudget.tools,
-      providerOptions: { openrouter: { ...(reasoning && { reasoning }) } },
+      providerOptions: { openrouter: { reasoning } },
     },
     canvasMcpClient,
     maxToolSteps,
