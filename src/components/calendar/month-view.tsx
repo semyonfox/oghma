@@ -202,41 +202,46 @@ export default function MonthView() {
       <div className="flex flex-1 bg-subtle text-xs text-text-tertiary">
         <div className="w-full grid grid-cols-7 grid-rows-6 gap-px">
           {days.map((day) => (
-            <button
+            <div
               key={day.date}
-              type="button"
-              onClick={() => setSelectedDate(day.date)}
               className={`
                 relative group bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-elevated
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
                 ${day.isSelected ? "ring-1 ring-inset ring-primary-500/50" : ""}
               `}
             >
-              <time
-                dateTime={day.date}
-                className={`
-                  inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
-                  ${day.isToday ? "bg-primary-600 font-semibold text-text-on-primary" : ""}
-                  ${day.isSelected && !day.isToday ? "bg-subtle font-semibold text-text-secondary" : ""}
-                  ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
-                `}
+              <button
+                type="button"
+                onClick={() => setSelectedDate(day.date)}
+                className="absolute inset-0 z-0 text-left"
+                aria-label={t("Select {date}", { date: day.date })}
               >
-                {dayOfMonth(day.date)}
-              </time>
+                <time
+                  dateTime={day.date}
+                  className={`
+                    absolute left-2 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs
+                    ${day.isToday ? "bg-primary-600 font-semibold text-text-on-primary" : ""}
+                    ${day.isSelected && !day.isToday ? "bg-subtle font-semibold text-text-secondary" : ""}
+                    ${!day.isToday && !day.isSelected ? "text-text-secondary" : ""}
+                  `}
+                >
+                  {dayOfMonth(day.date)}
+                </time>
+              </button>
 
               {/* ogham streak badge */}
               {reviewDates.has(day.date) && (
-                <span className="absolute top-1 right-1.5 text-xs text-text-tertiary opacity-60 leading-4">
+                <span className="pointer-events-none absolute top-1 right-1.5 z-10 text-xs text-text-tertiary opacity-60 leading-4">
                   ᚑ
                 </span>
               )}
 
               {/* events */}
-              <div className="mt-1 space-y-0.5">
+              <div className="pointer-events-none relative z-10 mt-7 space-y-0.5">
                 {day.assignments.slice(0, 2).map((a) => (
                   <div
                     key={a.id}
-                    className="group/a relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
+                    className="group/a pointer-events-none relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
                     style={{
                       borderColor: a.courseColor ?? "var(--color-primary-500)",
                     }}
@@ -249,7 +254,7 @@ export default function MonthView() {
                           status: a.status === "done" ? "upcoming" : "done",
                         });
                       }}
-                      className="shrink-0"
+                      className="pointer-events-auto shrink-0"
                       aria-label={
                         a.status === "done"
                           ? t("Mark incomplete")
@@ -272,7 +277,7 @@ export default function MonthView() {
                   .map((tb) => (
                     <div
                       key={tb.id}
-                      className="group/tb relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
+                      className="group/tb pointer-events-none relative flex items-center gap-0.5 rounded-radius-md px-1 py-0.5 text-xs leading-snug border-l-2 bg-surface-elevated shadow-sm"
                       style={{
                         borderColor: tb.courseColor ?? "var(--color-primary-500)",
                       }}
@@ -283,7 +288,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void toggleTimeBlockCompleted(tb.id);
                         }}
-                        className="shrink-0"
+                        className="pointer-events-auto shrink-0"
                         aria-label={
                           tb.completed
                             ? t("Mark incomplete")
@@ -305,7 +310,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void deleteTimeBlock(tb.id);
                         }}
-                        className="absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle transition"
+                        className="pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle transition"
                         aria-label={t("Delete study block")}
                         title={t("Delete study block")}
                       >
@@ -321,7 +326,7 @@ export default function MonthView() {
                   </span>
                 )}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>
