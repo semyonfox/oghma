@@ -65,6 +65,7 @@ export const metadata = {
     "agent-guide": "https://oghmanotes.ie/agents.md",
     "agent-api": "https://oghmanotes.ie/agent-api.json",
     "openapi": "https://oghmanotes.ie/openapi.json",
+    "agent-registration": "https://oghmanotes.ie/auth.md",
   },
   openGraph: {
     title: "OghmaNotes",
@@ -129,6 +130,12 @@ export default function RootLayout({ children }) {
           type="application/json"
           href="/openapi.json"
           title="OghmaNotes OpenAPI"
+        />
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href="/auth.md"
+          title="Agent-initiated new-user registration"
         />
         <link
           rel="sitemap"

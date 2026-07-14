@@ -23,12 +23,11 @@ describe("agent-readable content routes", () => {
     expect(response.headers.get("content-location")).toBe(
       "https://oghmanotes.ie/ai.md",
     );
-    expect(body).toContain("# OghmaNotes Agent Profile");
+    expect(body).toContain("# OghmaNotes Agent Guide");
     expect(body).toContain("## Quick Route Matrix");
     expect(body).toContain("## Agent Action Guide");
-    expect(body).toContain("POST https://oghmanotes.ie/api/auth/register");
-    expect(body).toContain("GET https://oghmanotes.ie/ai?format=md");
-    expect(body).toContain("GET https://oghmanotes.ie/info?format=md");
+    expect(body).toContain("https://oghmanotes.ie/auth.md");
+    expect(body).toContain("https://oghmanotes.ie/openapi.json");
   });
 
   it("publishes auth.md discovery without advertising private API access", async () => {
@@ -38,8 +37,10 @@ describe("agent-readable content routes", () => {
     const authorizationServer = await authorizationServerMetadata().json();
 
     expect(response.headers.get("content-type")).toContain("text/markdown");
-    expect(body).toContain("agent-initiated registration for new users only");
-    expect(body).toContain("does not issue agent access tokens");
+    expect(body).toContain("Start registration for a new user");
+    expect(body).toContain("does not grant the agent account or API access");
+    expect(body).toContain('"claim": {');
+    expect(body).toContain("claim.verification_uri");
     expect(protectedResource.scopes_supported).toEqual([]);
     expect(authorizationServer.agent_auth).toMatchObject({
       skill: "https://oghmanotes.ie/auth.md",
@@ -60,13 +61,15 @@ describe("agent-readable content routes", () => {
     expect(compactResponse.headers.get("content-location")).toBe(
       "https://oghmanotes.ie/llms.txt",
     );
-    expect(text).toContain("# OghmaNotes Info");
-    expect(text).toContain("> OghmaNotes is an AI study workspace");
-    expect(text).toContain(
-      "[OpenAPI](https://oghmanotes.ie/openapi.json)",
-    );
-    expect(text).toContain("## Endpoint Quickstart");
-    expect(fullText).toContain("# OghmaNotes Agent Profile");
+    expect(text).toContain("# OghmaNotes");
+    expect(text).toContain("Study workspace for university students");
+    expect(text).toContain("[OpenAPI](https://oghmanotes.ie/openapi.json)");
+    expect(text).toContain("## Register A New User As An Agent");
+    expect(text).toContain("POST https://oghmanotes.ie/agent/identity");
+    expect(text).toContain("claim.verification_uri");
+    expect(text.length).toBeLessThan(1500);
+    expect(fullText).toContain("# OghmaNotes Agent Guide");
+    expect(fullText.length).toBeLessThan(2500);
     expect(fullText).toBe(agentText);
     expect(text).not.toBe(fullText);
   });
@@ -79,9 +82,9 @@ describe("agent-readable content routes", () => {
     expect(response.headers.get("content-location")).toBe(
       "https://oghmanotes.ie/info.md",
     );
-    expect(body).toContain("# OghmaNotes Info");
-    expect(body).toContain("## Agent And LLM Files");
-    expect(body).toContain("https://oghmanotes.ie/agent-api.json");
+    expect(body).toContain("# OghmaNotes");
+    expect(body).toContain("## Register A New User As An Agent");
+    expect(body).toContain("https://oghmanotes.ie/auth.md");
     expect(body).toContain("https://oghmanotes.ie/openapi.json");
   });
 
