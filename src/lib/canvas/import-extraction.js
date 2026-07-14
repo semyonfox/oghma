@@ -17,7 +17,7 @@ import { processRagPipeline } from "./import-embedding.js";
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
-
+import { recordActivationMilestone } from "../marketing/events.ts";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -446,6 +446,14 @@ async function checkAndCompleteJob(jobId, userId) {
   if (!weCompleted) return;
 
   console.log(`[${new Date().toISOString()}] Job completed: ${jobId}`);
+
+  await recordActivationMilestone("canvas_import_completed", userId).catch(
+    (eventError) => {
+      console.warn(
+        `Failed to record Canvas completion milestone: ${eventError.message}`,
+      );
+    },
+  );
 
   try {
     const chunks = await sql`

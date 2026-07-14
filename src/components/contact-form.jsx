@@ -78,14 +78,6 @@ export default function ContactForm({ source = "contact" }) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        trackMarketingEvent("contact_form_success", {
-          source: "contact_form",
-          properties: {
-            page: source,
-            form: "contact",
-            ...formAnalyticsPayload(event.currentTarget),
-          },
-        });
         setResult(t("Message sent successfully!"));
         event.target.reset();
         startedRef.current = false;
@@ -124,6 +116,16 @@ export default function ContactForm({ source = "contact" }) {
       className="mx-auto max-w-xl lg:mr-0 lg:max-w-lg"
     >
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+        <div aria-hidden="true" className="hidden">
+          <label htmlFor="website">Website</label>
+          <input
+            id="website"
+            name="website"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+          />
+        </div>
         <div>
           <label
             htmlFor="first-name"

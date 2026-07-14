@@ -24,7 +24,7 @@ import {
   ensureFolderPath,
 } from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email.js";
-
+import { recordActivationMilestone } from "../marketing/events";
 
 const PROCESSABLE_EXTS = new Set([
   "pdf",
@@ -505,6 +505,14 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       console.log(`[${ts()}] Import ${jobId} finished but row was already terminal (cancelled/failed); skipping email`);
       return;
     }
+
+    await recordActivationMilestone("canvas_import_completed", userId).catch(
+      (eventError) => {
+        console.warn(
+          `[${ts()}] Failed to record import completion milestone: ${errorMessage(eventError)}`,
+        );
+      },
+    );
 
     try {
       const [user] =

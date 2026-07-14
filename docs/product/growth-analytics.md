@@ -39,9 +39,9 @@ The browser sends storage-free first-party observations to `POST /api/marketing/
 | `canvas_connect_attempt`, `canvas_connect_success`, `canvas_connect_error` | Canvas settings/API | connection funnel |
 | `email_verified` | verification API | first verified-account milestone |
 | `canvas_import_started` | import API | first import-start milestone |
-| `canvas_import_completed` | reserved; no current producer | first completed-import milestone |
+| `canvas_import_completed` | import workers | first completed-import milestone |
 | `first_cited_answer` | chat API | first cited-answer milestone |
-| `first_flashcard_generated` | reserved; no current producer | first generated-flashcard milestone |
+| `first_flashcard_generated` | quiz generation | first generated-flashcard milestone |
 
 Authenticated milestones are idempotent through the partial unique index in migration `038_activation_milestones.sql`.
 
@@ -80,14 +80,13 @@ The Canvas worker runs cleanup at startup and every 24 hours:
 
 Values are bounded to 30-3,650 days. Migration 036 also provides `app.purge_expired_marketing_events(interval)` for operational use.
 
-## Lead Delivery Gaps
+## Lead Delivery
 
-- The contact route reads `WEB3FORMS_KEY` or
-  `NEXT_PUBLIC_WEB3FORMS_KEY`, while the tracked templates also advertise the
-  unused `WEB3FORMS_ACCESS_KEY`. Standardise on a server-only name.
-- Web3Forms forwarding currently happens before the database insert. A
-  successful forward therefore does not prove that the durable lead row was
-  stored; define and test the intended failure semantics before deployment.
+Contact submissions are validated, rate-limited, and checked with an HTML-form
+honeypot before durable storage. The lead row is inserted before the server
+attempts Web3Forms notification delivery. `WEB3FORMS_ACCESS_KEY` is server-only;
+delivery failures are recorded on the durable lead and do not ask the browser
+to retry an already stored submission.
 
 ## Verification
 
@@ -98,10 +97,8 @@ Before production deployment:
 - confirm signed-out redirect, non-admin 404, and admin aggregate rendering;
 - verify GPC/DNT requests produce no stored event;
 - verify unexpected paths, properties, campaigns, and event names are rejected;
-- implement and test producers for `canvas_import_completed` and
-  `first_flashcard_generated`, or remove those reserved milestones from the
-  active allowlist and dashboard;
-- resolve the Web3Forms key and forward-before-insert gaps above;
+- verify the completion and flashcard milestone producers against a
+  non-production database;
 - observe one cleanup run against non-production data.
 
 ## Next Events

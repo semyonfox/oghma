@@ -12,6 +12,7 @@ import {
 import { generateText } from "ai";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
+import { recordActivationMilestone } from "@/lib/marketing/events";
 
 const MAX_CHUNK_CHARS = 4000;
 
@@ -283,6 +284,17 @@ export async function generateQuestion(
         INSERT INTO app.quiz_cards (id, user_id, question_id)
         VALUES (${cardId}::uuid, ${userId}::uuid, ${id}::uuid)
       `;
+      await recordActivationMilestone(
+        "first_flashcard_generated",
+        userId,
+      ).catch((eventError) => {
+        logger.warn("failed to record first flashcard milestone", {
+          error:
+            eventError instanceof Error
+              ? eventError.message
+              : String(eventError),
+        });
+      });
     }
   } catch (err) {
     logger.error("quiz generation: failed to save question", {

@@ -25,7 +25,7 @@ import { pooled } from "./async-limiter.js";
 import { parseJobCourses, processCourse } from "./import-discovery.js";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
-
+import { recordActivationMilestone } from "../marketing/events";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -98,6 +98,15 @@ export async function processImportJob(jobId: string): Promise<boolean> {
     }
 
     await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
+
+    await recordActivationMilestone(
+      "canvas_import_completed",
+      job.user_id,
+    ).catch((eventError) => {
+      console.warn(
+        `Failed to record Canvas completion milestone: ${errorMessage(eventError)}`,
+      );
+    });
 
     console.log(`Job completed: ${jobId}`);
     return true;

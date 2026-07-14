@@ -11,18 +11,19 @@ const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
   last_name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255),
-  role: z
-    .enum(["student", "lecturer", "university_staff", "partner_or_press"])
-    .or(z.string().trim().min(1).max(80)),
-  interest: z
-    .enum(["beta_access", "campus_pilot", "support", "billing", "partnership"])
-    .or(z.string().trim().min(1).max(80)),
+  role: z.enum(["student", "lecturer", "university_staff", "partner_or_press"]),
+  interest: z.enum([
+    "beta_access",
+    "campus_pilot",
+    "support",
+    "billing",
+    "partnership",
+  ]),
   institution: z.string().trim().max(200).optional().default(""),
   phone: z.string().trim().max(80).optional().default(""),
   message: z.string().trim().min(1).max(5000),
   marketing: z
     .object({
-      sessionId: z.string().max(96).optional(),
       utm: z
         .object({
           source: z.string().max(120).optional(),
@@ -32,10 +33,10 @@ const contactSchema = z.object({
           term: z.string().max(120).optional(),
         })
         .optional(),
-      firstTouch: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
-  source: z.string().trim().max(120).optional().default("contact_form"),
+  source: z.enum(["contact", "home"]).optional().default("contact"),
+  website: z.string().trim().max(200).optional().default(""),
 });
 
 function leadAnalyticsProperties(body: z.infer<typeof contactSchema>) {
@@ -48,13 +49,16 @@ function leadAnalyticsProperties(body: z.infer<typeof contactSchema>) {
     has_institution: body.institution.length > 0,
     has_phone: body.phone.length > 0,
     message_length_bucket:
-      messageLength <= 100 ? "0-100" : messageLength <= 500 ? "101-500" : "500+",
+      messageLength <= 100
+        ? "0-100"
+        : messageLength <= 500
+          ? "101-500"
+          : "500+",
   };
 }
 
 async function forwardToWeb3Forms(body: z.infer<typeof contactSchema>) {
-  const accessKey =
-    process.env.WEB3FORMS_KEY || process.env.NEXT_PUBLIC_WEB3FORMS_KEY;
+  const accessKey = process.env.WEB3FORMS_ACCESS_KEY;
   if (!accessKey) {
     return { forwarded: false, error: "web3forms_not_configured" };
   }
@@ -76,6 +80,7 @@ async function forwardToWeb3Forms(body: z.infer<typeof contactSchema>) {
     const response = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       body: formData,
+      signal: AbortSignal.timeout(5_000),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.success) {
@@ -104,10 +109,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   }
 
   const body = parsed.data;
-  const attribution = cleanAttribution(body.marketing?.utm);
-  const forward = await forwardToWeb3Forms(body);
+  // Silently accept honeypot submissions so bots do not learn which field
+  // triggered the rejection. Do not store or forward them.
+  if (body.website) {
+    return NextResponse.json({ success: true, forwardedToWeb3Forms: false });
+  }
 
-  await sql`
+  const attribution = cleanAttribution(body.marketing?.utm);
+  const [lead] = await sql`
     INSERT INTO app.marketing_leads (
       first_name,
       last_name,
@@ -143,10 +152,31 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ${attribution.content ?? null},
       ${attribution.term ?? null},
       ${sql.json({})},
-      ${forward.forwarded},
-      ${forward.error}
+      false,
+      null
     )
+    RETURNING id
   `;
+
+  const forward = await forwardToWeb3Forms(body);
+  try {
+    await sql`
+      UPDATE app.marketing_leads
+      SET forwarded_to_web3forms = ${forward.forwarded},
+          forward_error = ${forward.error}
+      WHERE id = ${lead.id}::uuid
+    `;
+  } catch (updateError) {
+    // The submission is already durable. Do not invite a duplicate browser
+    // retry merely because recording notification delivery failed.
+    logger.warn("failed to update contact forwarding status", {
+      leadId: lead.id,
+      error:
+        updateError instanceof Error
+          ? updateError.message
+          : String(updateError),
+    });
+  }
 
   await recordMarketingEvent(
     {
