@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useQuizStore from "@/lib/notes/state/quiz";
@@ -13,14 +13,23 @@ import {
 } from "@/components/course-visibility/manager";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
+import type {
+  QuizDashboardCourse,
+  QuizDashboardSummary,
+} from "@/app/quiz/server-data";
 
-export default function QuizDashboard() {
+export default function QuizDashboard({
+  initialDashboard,
+  initialCourses,
+}: {
+  initialDashboard: QuizDashboardSummary;
+  initialCourses: QuizDashboardCourse[];
+}) {
   const router = useRouter();
   const { t } = useI18n();
   const {
     dashboardData,
     courses,
-    dashboardLoading,
     setDashboard,
     setCourses,
     setDashboardLoading,
@@ -29,6 +38,10 @@ export default function QuizDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [startingSession, setStartingSession] = useState<string | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
+  const skippedInitialLoad = useRef(false);
+
+  const visibleDashboard = dashboardData ?? initialDashboard;
+  const visibleCourses = dashboardData ? courses : initialCourses;
 
   const {
     settings,
@@ -62,6 +75,14 @@ export default function QuizDashboard() {
   }, [fetchSettings]);
 
   useEffect(() => {
+    if (!skippedInitialLoad.current) {
+      skippedInitialLoad.current = true;
+      setDashboard(initialDashboard);
+      setCourses(initialCourses);
+      setDashboardLoading(false);
+      if (!showArchived) return;
+    }
+
     async function load() {
       setDashboardLoading(true);
       try {
@@ -85,12 +106,20 @@ export default function QuizDashboard() {
       }
     }
     void load();
-  }, [loadServerData, setDashboard, setDashboardLoading]);
+  }, [
+    initialCourses,
+    initialDashboard,
+    loadServerData,
+    setCourses,
+    setDashboard,
+    setDashboardLoading,
+    showArchived,
+  ]);
 
   const visibilityItems = useMemo(
     () =>
       mergeCourseVisibilityItems(
-        courses.map((course) => ({
+        visibleCourses.map((course) => ({
           courseId: course.courseId,
           courseName: course.courseName,
           isActive: course.isActive,
@@ -105,7 +134,7 @@ export default function QuizDashboard() {
         })),
         settings,
       ),
-    [courses, settings, t],
+    [settings, t, visibleCourses],
   );
 
   const handleSetCourseVisibility = async (
@@ -195,14 +224,6 @@ export default function QuizDashboard() {
     setStartingSession(null);
   };
 
-  if (dashboardLoading || !dashboardData) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-text-tertiary text-sm">{t("quiz.loading")}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-container-content mx-auto px-6 py-8">
       <div className="flex justify-between items-start mb-6">
@@ -212,8 +233,8 @@ export default function QuizDashboard() {
           </h1>
           <p className="text-text-tertiary text-xs mt-1">
             {t("quiz.cards_due_summary", {
-              dueCount: dashboardData.dueCount,
-              totalCards: dashboardData.totalCards,
+              dueCount: visibleDashboard.dueCount,
+              totalCards: visibleDashboard.totalCards,
             })}
           </p>
         </div>
@@ -221,8 +242,8 @@ export default function QuizDashboard() {
           onClick={() => startReview("all")}
           disabled={
             !!startingSession ||
-            (dashboardData.dueCount === 0 &&
-              (dashboardData.totalCards > 0 || !dashboardData.hasContent))
+            (visibleDashboard.dueCount === 0 &&
+              (visibleDashboard.totalCards > 0 || !visibleDashboard.hasContent))
           }
           className="bg-primary-600 text-text-on-primary px-4 py-2 rounded-radius-lg text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -231,26 +252,26 @@ export default function QuizDashboard() {
       </div>
 
       <StatsRow
-        mastery={dashboardData.mastery}
-        dueCount={dashboardData.dueCount}
-        reviewedToday={dashboardData.reviewedToday}
-        weekAccuracy={dashboardData.weekAccuracy}
-        currentStreak={dashboardData.currentStreak}
+        mastery={visibleDashboard.mastery}
+        dueCount={visibleDashboard.dueCount}
+        reviewedToday={visibleDashboard.reviewedToday}
+        weekAccuracy={visibleDashboard.weekAccuracy}
+        currentStreak={visibleDashboard.currentStreak}
       />
 
       <div className="mt-6">
         <CourseList
-          courses={courses}
+          courses={visibleCourses}
           onSelectCourse={(courseId) => {
             if (courseId === 0) startReview("all");
             else startReview("course", courseId);
           }}
           allNotesStats={
-            dashboardData.totalCards > 0
+            visibleDashboard.totalCards > 0
               ? {
-                  totalCards: dashboardData.totalCards,
-                  dueCount: dashboardData.dueCount,
-                  mastery: dashboardData.mastery,
+                  totalCards: visibleDashboard.totalCards,
+                  dueCount: visibleDashboard.dueCount,
+                  mastery: visibleDashboard.mastery,
                 }
               : null
           }

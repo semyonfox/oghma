@@ -113,6 +113,28 @@ vi.mock("@/components/course-visibility/manager", () => ({
 
 import QuizDashboard from "@/components/quiz/dashboard";
 
+const initialDashboard = {
+  dueCount: 2,
+  totalCards: 5,
+  mastery: 40,
+  reviewedToday: 1,
+  weekAccuracy: 50,
+  currentStreak: 3,
+  longestStreak: 4,
+  hasContent: true,
+};
+
+const initialCourses = [
+  {
+    courseId: 42,
+    courseName: "Course A",
+    totalCards: 3,
+    dueCount: 1,
+    mastery: 33,
+    isActive: true,
+  },
+];
+
 function okJson(body: unknown) {
   return {
     ok: true,
@@ -126,7 +148,12 @@ async function renderDashboard() {
   const root = createRoot(container);
 
   await act(async () => {
-    root.render(React.createElement(QuizDashboard));
+    root.render(
+      React.createElement(QuizDashboard, {
+        initialDashboard,
+        initialCourses,
+      }),
+    );
   });
 
   return { container, root };
@@ -144,8 +171,6 @@ describe("QuizDashboard archive refresh", () => {
   it("refetches server-backed quiz data after archiving a course", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(okJson({ dueCount: 2, totalCards: 5, mastery: 40, reviewedToday: 1, weekAccuracy: 50, currentStreak: 3, longestStreak: 4, hasContent: true }))
-      .mockResolvedValueOnce(okJson({ courses: [{ courseId: 42, courseName: "Course A", totalCards: 3, dueCount: 1, mastery: 33, isActive: true }] }))
       .mockResolvedValueOnce(okJson({ dueCount: 1, totalCards: 2, mastery: 50, reviewedToday: 1, weekAccuracy: 50, currentStreak: 3, longestStreak: 4, hasContent: true }))
       .mockResolvedValueOnce(okJson({ courses: [{ courseId: 42, courseName: "Course A", totalCards: 3, dueCount: 1, mastery: 33, isActive: false }] }));
     vi.stubGlobal("fetch", fetchMock);
@@ -161,8 +186,8 @@ describe("QuizDashboard archive refresh", () => {
 
     expect(mocks.archiveCourse).toHaveBeenCalledWith(42, "Course A");
     expect(mocks.fetchSettings).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/quiz/dashboard");
-    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/quiz/dashboard/courses");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses");
     expect(mocks.setCourses).toHaveBeenLastCalledWith([
       {
         courseId: 42,
@@ -187,5 +212,17 @@ describe("QuizDashboard archive refresh", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses?includeArchived=1");
+  });
+
+  it("renders server-provided dashboard data without an initial browser fetch", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = await renderDashboard();
+
+    expect(container.textContent).toContain("quiz.title");
+    expect(mocks.setDashboard).toHaveBeenCalledWith(initialDashboard);
+    expect(mocks.setCourses).toHaveBeenCalledWith(initialCourses);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
