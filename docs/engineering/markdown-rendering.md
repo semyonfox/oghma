@@ -30,7 +30,7 @@ Milkdown or another Markdown-first rich editor remains an escape hatch if the Co
 | `chat` | Yes | No | Yes |
 | `quiz` | No | No | Yes |
 
-All variants share GFM, math parsing, KaTeX, safe links, inline-code styling, and the same code-block component. Variant differences must stay explicit rather than growing separate plugin stacks.
+All variants share GFM, math parsing, KaTeX, safe links, inline-code styling, and the same code-block component. They also inherit one document typography layer from `.md-rendered`; the `chat` variant changes density, not component design. Variant differences must stay explicit rather than growing separate plugin stacks or per-surface element overrides.
 
 ## Note rendering contract
 
@@ -44,6 +44,8 @@ The note preview supports:
 - a small sanitized raw-HTML subset used by notes, including `mark`, `details`, `summary`, `kbd`, `sup`, and `sub`.
 
 Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-block.tsx) and highlighted lazily with **Shiki**, not `rehype-highlight`. Known aliases are normalized; unsupported languages fall back to plaintext; missing languages display a `CODE` label. Highlighting must never turn code content into executable HTML.
+
+Rendered notes, chat answers, and quiz content use the same semantic colours, spacing rhythm, code chrome, table treatment, task controls, and display-math surface. Compact contexts may reduce type and spacing through their renderer variant, but must not redefine Markdown elements component-by-component. Write-mode math uses the same surface tokens so switching between editing and rendered content does not introduce a new visual language.
 
 Mermaid, wikilinks/backlinks, callouts, footnotes, frontmatter rendering, arbitrary local paths, and MDX components are not part of this contract unless added deliberately with tests.
 

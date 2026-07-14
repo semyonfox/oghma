@@ -144,7 +144,6 @@ const baseComponents: Partial<Components> = {
     if (isInline) {
       return (
         <code
-          className="bg-[var(--md-surface-subtle)] px-1.5 py-0.5 rounded text-xs font-mono text-[var(--md-text)]"
           {...props}
         >
           {children}
@@ -161,6 +160,9 @@ const baseComponents: Partial<Components> = {
     <strong className="font-semibold text-text">{children}</strong>
   ),
   em: ({ children }: any) => <em className="italic">{children}</em>,
+  input: ({ type, node: _node, ...props }: any) => (
+    <input type={type} {...props} tabIndex={type === "checkbox" ? -1 : undefined} />
+  ),
 };
 
 function buildRemarkPlugins(

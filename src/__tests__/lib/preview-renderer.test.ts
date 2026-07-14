@@ -83,7 +83,8 @@ describe("PreviewRenderer", () => {
     const html = renderPreview("- [x] done\n- [ ] todo");
 
     expect(html).toContain("contains-task-list");
-    expect(html).toContain("list-disc");
+    expect(html).toContain('class="task-list-item"');
+    expect(html).toContain('tabindex="-1"');
   });
 
   it("allows safe inline html used in syntax guide", () => {

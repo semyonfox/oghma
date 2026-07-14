@@ -191,19 +191,19 @@ export default function CodeBlock({
 
   return (
     <figure
-      className="oghma-codeblock group my-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.95)] ring-1 ring-white/[0.03]"
+      className="oghma-codeblock group"
       data-code-language={languageInfo.normalized ?? "code"}
     >
-      <div className="flex min-h-11 items-center justify-between gap-3 border-b border-white/[0.08] bg-gradient-to-r from-slate-900/95 via-slate-900/80 to-slate-950/95 px-4 py-2.5">
+      <div className="oghma-codeblock-header">
         <figcaption className="min-w-0">
           {title ? (
-            <div className="truncate text-[0.82rem] font-medium text-slate-100">
+            <div className="oghma-codeblock-title">
               {title}
             </div>
           ) : null}
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-indigo-400/80 shadow-[0_0_12px_rgba(129,140,248,0.75)]" />
-            <span className="text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-slate-400">
+            <span className="oghma-codeblock-dot" />
+            <span className="oghma-codeblock-language">
               {languageInfo.label}
             </span>
           </div>
@@ -213,12 +213,12 @@ export default function CodeBlock({
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            className="oghma-codeblock-copy"
             aria-label={t("Copy code")}
             title={copied ? t("Copied") : t("Copy")}
           >
             {copied ? (
-              <CheckIcon className="h-4 w-4 text-emerald-300" />
+              <CheckIcon className="h-4 w-4 text-success-400" />
             ) : (
               <ClipboardDocumentIcon className="h-4 w-4" />
             )}
@@ -228,7 +228,7 @@ export default function CodeBlock({
       </div>
 
       <pre
-        className={`m-0 overflow-x-auto bg-slate-950/95 p-4 text-[0.86rem] leading-6 text-slate-100 [tab-size:2] ${className ?? ""}`}
+        className={className}
         data-shiki-state={
           highlighted ? "highlighted" : highlightError ? "fallback" : "loading"
         }

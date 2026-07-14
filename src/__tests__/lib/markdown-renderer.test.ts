@@ -76,7 +76,7 @@ describe("MarkdownRenderer variants", () => {
     expect(html).not.toContain('class="rounded bg-surface');
   });
 
-  it("preserves explicit surface styling through thin chat and quiz wrappers", () => {
+  it("uses the shared document surface with explicit chat and quiz variants", () => {
     const chatHtml = renderToStaticMarkup(
       React.createElement(ChatMarkdown, null, "line one\nline two"),
     );
@@ -88,7 +88,7 @@ describe("MarkdownRenderer variants", () => {
     );
 
     expect(chatHtml).toContain('data-markdown-variant="chat"');
-    expect(chatHtml).toContain("text-sm leading-relaxed");
+    expect(chatHtml).toContain('class="md-rendered"');
     expect(chatHtml).toContain("<br/>");
     expect(quizHtml).toContain('data-markdown-variant="quiz"');
     expect(quizHtml).toContain("quiz-copy");
