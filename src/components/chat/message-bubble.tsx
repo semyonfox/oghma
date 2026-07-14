@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, Fragment, useState } from "react";
+import { FC, Fragment, memo, useState } from "react";
 import {
   ChevronDownIcon,
   ClipboardDocumentIcon,
@@ -215,7 +215,7 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
 };
 
 // full-page message bubble
-export const FullMessageBubble: FC<{
+const FullMessageBubbleComponent: FC<{
   message: Message;
   sessionId?: string | null;
 }> = ({ message: m }) => {
@@ -289,8 +289,10 @@ export const FullMessageBubble: FC<{
   );
 };
 
+export const FullMessageBubble = memo(FullMessageBubbleComponent);
+
 // compact message bubble (sidebar variant)
-export const CompactMessageBubble: FC<{ message: Message }> = ({
+const CompactMessageBubbleComponent: FC<{ message: Message }> = ({
   message: m,
 }) => {
   const isThinkingStreaming =
@@ -344,3 +346,5 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
     </div>
   );
 };
+
+export const CompactMessageBubble = memo(CompactMessageBubbleComponent);

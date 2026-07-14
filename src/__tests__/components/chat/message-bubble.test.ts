@@ -10,6 +10,21 @@ import {
 } from "@/components/chat/message-bubble";
 import type { Message } from "@/components/chat/chat-interface";
 
+const markdownRender = vi.hoisted(() => vi.fn());
+
+vi.mock("@/components/chat/chat-markdown", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/components/chat/chat-markdown")
+  >("@/components/chat/chat-markdown");
+
+  return {
+    default: ({ children }: { children: string }) => {
+      markdownRender(children);
+      return React.createElement(actual.default, undefined, children);
+    },
+  };
+});
+
 function makeMessage(overrides: Partial<Message>): Message {
   return {
     id: "message-1",
@@ -26,6 +41,7 @@ describe("message bubble copy actions", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     writeText.mockClear();
+    markdownRender.mockClear();
     Object.assign(navigator, {
       clipboard: {
         writeText,
@@ -141,5 +157,50 @@ describe("message bubble copy actions", () => {
         "const x = 2",
       );
     }
+  });
+
+  it("does not re-render historical Markdown when a streaming message changes", () => {
+    const historical = makeMessage({
+      id: "historical",
+      content: "**finished response**",
+    });
+    const streaming = makeMessage({
+      id: "streaming",
+      content: "partial",
+    });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        React.createElement(
+          React.Fragment,
+          undefined,
+          React.createElement(FullMessageBubble, { message: historical }),
+          React.createElement(FullMessageBubble, { message: streaming }),
+        ),
+      );
+    });
+
+    const updatedStreaming = { ...streaming, content: "partial response" };
+    act(() => {
+      root.render(
+        React.createElement(
+          React.Fragment,
+          undefined,
+          React.createElement(FullMessageBubble, { message: historical }),
+          React.createElement(FullMessageBubble, {
+            message: updatedStreaming,
+          }),
+        ),
+      );
+    });
+
+    expect(markdownRender.mock.calls).toEqual([
+      ["**finished response**"],
+      ["partial"],
+      ["partial response"],
+    ]);
   });
 });

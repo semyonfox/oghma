@@ -1,11 +1,14 @@
 "use client";
 
+import { memo } from "react";
 import MarkdownRenderer from "@/lib/markdown/renderer";
 
-export default function ChatMarkdown({ children }: { children: string }) {
+function ChatMarkdown({ children }: { children: string }) {
   return (
     <MarkdownRenderer variant="chat">
       {children}
     </MarkdownRenderer>
   );
 }
+
+export default memo(ChatMarkdown);
