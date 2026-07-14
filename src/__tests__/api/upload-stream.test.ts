@@ -130,6 +130,21 @@ describe("GET /api/upload?stream=1", () => {
     expect(res.headers.get("Content-Length")).toBe("13");
   });
 
+  it("forces legacy SVG attachments to download instead of rendering them", async () => {
+    mockStorage.hasObject.mockResolvedValue(true);
+    mockStorage.getObjectStream.mockResolvedValue({
+      body: Readable.from([Buffer.from('<svg><script>alert(1)</script></svg>')]),
+      contentType: "image/svg+xml",
+    });
+
+    const res = await GET(makeGet("notes/some-note/legacy.svg"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
+    expect(res.headers.get("Content-Disposition")).toBe("attachment");
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
   it("returns 404 for unowned paths without touching storage", async () => {
     (sql as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 

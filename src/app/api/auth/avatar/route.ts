@@ -9,6 +9,7 @@ import {
 } from "@/lib/notes/storage/s3-storage";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rateLimiter";
 
 /** resolve user_id from either Auth.js (OAuth) or custom JWT session */
 async function resolveUserId(): Promise<string | number | null> {
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const limited = await checkRateLimit("avatar-upload", String(userId));
+    if (limited) return limited;
+
     const formData = await request.formData();
     const file = formData.get("avatar") as File | null;
 
@@ -147,7 +151,16 @@ export async function POST(request: NextRequest) {
 
     // persist key in settings JSON (merge with existing settings)
     const currentSettings = await getSettingsFromS3(userId as number);
+    const previousAvatarKey: string | undefined = currentSettings.avatarKey;
     await saveSettingsToS3(userId as number, { ...currentSettings, avatarKey });
+
+    if (previousAvatarKey && previousAvatarKey !== avatarKey) {
+      try {
+        await storage.deleteObject(previousAvatarKey);
+      } catch (error) {
+        logger.warn("failed to delete replaced avatar", { key: previousAvatarKey, error });
+      }
+    }
 
     return NextResponse.json({ success: true, avatarUrl: "/api/auth/avatar/image", avatarKey });
   } catch (error) {

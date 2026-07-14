@@ -292,6 +292,8 @@ async function streamAndProcessZip(
   const entryQueue = new EntryQueue(FILE_CONCURRENCY);
   let entryCount = 0;
   let totalSize = 0;
+  let header = Buffer.alloc(0);
+  let zipSignatureChecked = false;
 
   return new Promise((resolve, reject) => {
     const unzip = new Unzip((stream) => {
@@ -345,9 +347,29 @@ async function streamAndProcessZip(
       res.Body as AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
     );
     readable.on("data", (chunk) => {
-      unzip.push(Buffer.isBuffer(chunk) ? new Uint8Array(chunk) : chunk);
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (!zipSignatureChecked) {
+        header = Buffer.concat([header, bytes]);
+        if (header.length < 4) return;
+        const signature = header.subarray(0, 4).toString("hex");
+        // Local file header or an empty ZIP end-of-central-directory record.
+        if (signature !== "504b0304" && signature !== "504b0506") {
+          reject(new Error("Uploaded object is not a ZIP file"));
+          readable.destroy();
+          return;
+        }
+        zipSignatureChecked = true;
+        unzip.push(new Uint8Array(header));
+        header = Buffer.alloc(0);
+        return;
+      }
+      unzip.push(new Uint8Array(bytes));
     });
     readable.on("end", () => {
+      if (!zipSignatureChecked) {
+        reject(new Error("Uploaded object is not a ZIP file"));
+        return;
+      }
       unzip.push(new Uint8Array(0), true);
       entryQueue
         .finish()

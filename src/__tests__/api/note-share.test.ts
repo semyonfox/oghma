@@ -17,6 +17,7 @@ const {
   getStorageProviderMock: vi.fn(),
   storageMock: {
     copyObject: vi.fn(),
+    deleteObject: vi.fn(),
     getObject: vi.fn(),
     putObject: vi.fn(),
   },
@@ -74,6 +75,7 @@ import { POST } from "@/app/api/notes/[id]/share/route";
 describe("POST /api/notes/[id]/share", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sqlMock.mockReset();
 
     requireAuthMock.mockResolvedValue({
       user_id: "11111111-1111-1111-1111-111111111111",
@@ -85,6 +87,7 @@ describe("POST /api/notes/[id]/share", () => {
     addNoteToTreeMock.mockResolvedValue(undefined);
 
     storageMock.copyObject.mockResolvedValue(undefined);
+    storageMock.deleteObject.mockResolvedValue(undefined);
     storageMock.getObject.mockResolvedValue("ignored");
     storageMock.putObject.mockResolvedValue(undefined);
     getStorageProviderMock.mockReturnValue(storageMock);
@@ -105,6 +108,30 @@ describe("POST /api/notes/[id]/share", () => {
       .mockResolvedValueOnce([
         { note_id: "99999999-9999-9999-9999-999999999999" },
       ]);
+  });
+
+  it("rejects an invalid target parent before copying or inserting a clone", async () => {
+    sqlMock.mockReset();
+    sqlMock
+      .mockResolvedValueOnce([{ user_id: "22222222-2222-2222-2222-222222222222" }])
+      .mockResolvedValueOnce([{ note_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", title: "Shared PDF", content: null, s3_key: "notes/source/file.pdf", is_folder: false }])
+      .mockResolvedValueOnce([]);
+
+    await expect(POST(new Request("http://localhost/api/notes/a/share", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: "22222222-2222-2222-2222-222222222222", targetParentId: "33333333-3333-3333-3333-333333333333" }),
+    }) as never, { params: Promise.resolve({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }) })).rejects.toMatchObject({ statusCode: 400 });
+    expect(storageMock.copyObject).not.toHaveBeenCalled();
+    expect(sqlMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not insert a clone when storage copying fails", async () => {
+    storageMock.copyObject.mockRejectedValueOnce(new Error("storage offline"));
+    await expect(POST(new Request("http://localhost/api/notes/a/share", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: "22222222-2222-2222-2222-222222222222" }),
+    }) as never, { params: Promise.resolve({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }) })).rejects.toMatchObject({ statusCode: 502 });
+    expect(sqlMock).toHaveBeenCalledTimes(2);
   });
 
   it("copies S3 object using copyObject for binary-safe cloning", async () => {

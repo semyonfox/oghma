@@ -83,12 +83,13 @@ export default function DataExportSection() {
         const err = await presignRes.json();
         throw new Error(err.error || t("Failed to get upload URL"));
       }
-      const { uploadUrl, s3Key } = await presignRes.json();
+      const { uploadUrl, s3Key, contentLength } = await presignRes.json();
 
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadUrl, true);
         xhr.setRequestHeader("Content-Type", "application/zip");
+        xhr.setRequestHeader("x-amz-meta-expected-size", String(contentLength));
         xhr.upload.onprogress = (evt) => {
           if (evt.lengthComputable) {
             setUploadProgress(Math.round((evt.loaded / evt.total) * 100));

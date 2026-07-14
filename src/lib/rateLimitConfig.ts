@@ -30,6 +30,7 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
 
   // tier 3 — resource protection
   'upload':         { limit: 30,  windowSeconds: 3600,  keyType: 'userId' },
+  'avatar-upload':  { limit: 10,  windowSeconds: 3600,  keyType: 'userId', failClosedOnStoreError: true },
   'vault-delete':   { limit: 1,   windowSeconds: 86400, keyType: 'userId', failClosedOnStoreError: true },
   'contact':        { limit: 5,   windowSeconds: 3600,  keyType: 'ip' },
   'share':          { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },

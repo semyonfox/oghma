@@ -17,12 +17,24 @@ export const POST = withErrorHandler(async (request) => {
 
   const { filename, contentLength } = await request.json();
 
-  if (!filename?.endsWith(".zip")) {
+  if (typeof filename !== "string") {
+    throw new ApiError(400, "filename is required");
+  }
+  const normalizedFilename = filename.normalize("NFKC");
+  if (
+    normalizedFilename.length === 0 || normalizedFilename.length > 255 ||
+    normalizedFilename.includes("/") || normalizedFilename.includes("\\") ||
+    /[\x00-\x1f\x7f]/.test(normalizedFilename) || normalizedFilename === "." || normalizedFilename === ".." ||
+    !normalizedFilename.toLowerCase().endsWith(".zip")
+  ) {
     throw new ApiError(400, "Only .zip files are accepted");
   }
 
-  // 10GB max
-  if (contentLength && contentLength > 10 * 1024 * 1024 * 1024) {
+  const expectedSize = Number(contentLength);
+  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
+    throw new ApiError(400, "contentLength must be a positive integer");
+  }
+  if (expectedSize > 10 * 1024 * 1024 * 1024) {
     throw new ApiError(400, "File too large (max 10GB)");
   }
 
@@ -31,7 +43,7 @@ export const POST = withErrorHandler(async (request) => {
 
   const uploadId = uuidv4();
   const prefix = process.env.STORAGE_PREFIX || "oghma";
-  const s3Key = `vault-uploads/${user.user_id}/${uploadId}/${filename}`;
+  const s3Key = `vault-uploads/${user.user_id}/${uploadId}/${normalizedFilename}`;
   const fullKey = `${prefix}/${s3Key}`;
 
   const s3 = new S3Client({
@@ -44,9 +56,11 @@ export const POST = withErrorHandler(async (request) => {
       Bucket: bucket,
       Key: fullKey,
       ContentType: "application/zip",
+      ContentLength: expectedSize,
+      Metadata: { "expected-size": String(expectedSize) },
     }),
     { expiresIn: 900 }, // 15 minutes
   );
 
-  return NextResponse.json({ uploadUrl, s3Key, uploadId });
+  return NextResponse.json({ uploadUrl, s3Key, uploadId, contentLength: expectedSize });
 });

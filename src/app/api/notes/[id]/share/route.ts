@@ -77,33 +77,46 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
 
   const note = sourceNote[0];
 
+  // Validate the destination before creating any side effects. In particular,
+  // do not copy storage or insert a clone that cannot be placed in its tree.
+  if (targetParentId) {
+    const parentCheck = await sql`
+      SELECT note_id FROM app.notes
+      WHERE note_id = ${targetParentId}::uuid
+        AND user_id = ${targetUserId}::uuid
+        AND is_folder = true
+        AND deleted_at IS NULL
+    `;
+    if (!parentCheck.length) {
+      throw new ApiError(
+        400,
+        "targetParentId is not a valid folder for the target user",
+      );
+    }
+  }
+
   // Generate UUID v7 for clone
   const cloneId = generateUUID();
 
-  // copy S3 object so the clone is independent of the original
-  // if the owner later deletes their note, the shared copy survives
+  // Copy before the DB record so a failed copy cannot produce a broken clone.
+  // Later failures explicitly remove this object.
   let clonedS3Key: string | null = null;
+  const storage = getStorageProvider();
   if (note.s3_key) {
     try {
-      const storage = getStorageProvider();
       const filename = note.s3_key.split("/").pop() ?? "file";
       clonedS3Key = `notes/${cloneId}/${filename}`;
       await storage.copyObject(note.s3_key, clonedS3Key, {});
     } catch (err) {
-      logger.warn(
-        "failed to copy S3 object for share, clone will have no file",
-        {
-          sourceKey: note.s3_key,
-          error: err,
-        },
-      );
-      clonedS3Key = null;
+      logger.warn("failed to copy S3 object for share", { sourceKey: note.s3_key, error: err });
+      throw new ApiError(502, "Failed to copy shared file");
     }
   }
 
-  // Create clone in target user's notes
-  const cloned = await sql`
-    INSERT INTO app.notes (
+  let clonedNoteId: string | null = null;
+  try {
+    const cloned = await sql`
+      INSERT INTO app.notes (
       note_id,
       user_id,
       title,
@@ -124,33 +137,27 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       NOW(),
       NOW()
     )
-    RETURNING note_id
-  `;
-
-  // verify targetParentId belongs to the target user before placing the clone
-  if (targetParentId) {
-    const parentCheck = await sql`
-      SELECT note_id FROM app.notes
-      WHERE note_id = ${targetParentId}::uuid
-        AND user_id = ${targetUserId}::uuid
-        AND is_folder = true
-        AND deleted_at IS NULL
+      RETURNING note_id
     `;
-    if (!parentCheck.length) {
-      throw new ApiError(
-        400,
-        "targetParentId is not a valid folder for the target user",
+    clonedNoteId = cloned[0].note_id;
+
+    await addNoteToTree(targetUserId, clonedNoteId, targetParentId || null);
+  } catch (err) {
+    if (clonedNoteId) {
+      await sql`DELETE FROM app.notes WHERE note_id = ${clonedNoteId}::uuid`.catch(() => {});
+    }
+    if (clonedS3Key) {
+      await storage.deleteObject(clonedS3Key).catch((cleanupError) =>
+        logger.error("failed to clean up shared storage object", { key: clonedS3Key, error: cleanupError }),
       );
     }
+    throw err;
   }
-
-  // Add clone to target user's tree
-  await addNoteToTree(targetUserId, cloned[0].note_id, targetParentId || null);
 
   return NextResponse.json(
     {
       success: true,
-      clonedNoteId: cloned[0].note_id,
+      clonedNoteId,
       message: "Note cloned to target user",
     },
     { status: 201 },
