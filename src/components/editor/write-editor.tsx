@@ -78,6 +78,17 @@ export interface MathRenderRange {
   displayMode: boolean;
 }
 
+export interface MarkdownCodeFenceRange {
+  from: number;
+  to: number;
+  openFrom: number;
+  openTo: number;
+  closeFrom?: number;
+  closeTo?: number;
+  language?: string;
+  title?: string;
+}
+
 const themeCompartment = new Compartment();
 const externalValueSync = Annotation.define<boolean>();
 
@@ -158,6 +169,41 @@ class MathRenderWidget extends WidgetType {
 
   ignoreEvent() {
     return false;
+  }
+}
+
+class CodeFenceHeaderWidget extends WidgetType {
+  constructor(
+    private readonly language?: string,
+    private readonly title?: string,
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const header = document.createElement("span");
+    header.className = "cm-code-cell-header";
+
+    const language = document.createElement("span");
+    language.className = "cm-code-cell-language";
+    language.textContent = this.language
+      ? CODE_BLOCK_LANGUAGES[this.language as keyof typeof CODE_BLOCK_LANGUAGES] ??
+        this.language.toUpperCase()
+      : "Code";
+    header.append(language);
+
+    if (this.title) {
+      const title = document.createElement("span");
+      title.className = "cm-code-cell-title";
+      title.textContent = this.title;
+      header.append(title);
+    }
+
+    return header;
+  }
+
+  eq(other: CodeFenceHeaderWidget) {
+    return this.language === other.language && this.title === other.title;
   }
 }
 
@@ -246,6 +292,77 @@ function isEscaped(text: string, index: number): boolean {
     slashCount += 1;
   }
   return slashCount % 2 === 1;
+}
+
+function codeFenceTitle(meta: string): string | undefined {
+  const quoted = /(?:title|filename|file)=(['"])(.*?)\1/i.exec(meta);
+  if (quoted?.[2]) return quoted[2].trim() || undefined;
+
+  const bare = /(?:title|filename|file)=([^\s{}]+)/i.exec(meta);
+  return bare?.[1]?.trim() || undefined;
+}
+
+export function markdownCodeFenceRanges(text: string): MarkdownCodeFenceRange[] {
+  const ranges: MarkdownCodeFenceRange[] = [];
+  const lines = text.split("\n");
+  let offset = 0;
+  let open:
+    | {
+        from: number;
+        to: number;
+        marker: string;
+        language?: string;
+        title?: string;
+      }
+    | undefined;
+
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    const indent = line.length - trimmed.length;
+
+    if (!open) {
+      const match = /^(\`{3,}|~{3,})([^\s`]*)?(.*)$/.exec(trimmed);
+      if (match) {
+        open = {
+          from: offset + indent,
+          to: offset + line.length,
+          marker: match[1][0],
+          language: match[2]?.trim().toLowerCase() || undefined,
+          title: codeFenceTitle(match[3] ?? ""),
+        };
+      }
+    } else {
+      const closePattern = open.marker === "`" ? /^\`{3,}\s*$/ : /^~{3,}\s*$/;
+      if (closePattern.test(trimmed)) {
+        ranges.push({
+          from: open.from,
+          to: offset + line.length,
+          openFrom: open.from,
+          openTo: open.to,
+          closeFrom: offset + indent,
+          closeTo: offset + line.length,
+          language: open.language,
+          title: open.title,
+        });
+        open = undefined;
+      }
+    }
+
+    offset += line.length + 1;
+  }
+
+  if (open) {
+    ranges.push({
+      from: open.from,
+      to: text.length,
+      openFrom: open.from,
+      openTo: open.to,
+      language: open.language,
+      title: open.title,
+    });
+  }
+
+  return ranges;
 }
 
 function codeSpanRangesForLine(lineText: string): Array<{ from: number; to: number }> {
@@ -494,11 +611,45 @@ type RenderDecoration = {
   to: number;
   decoration: Decoration;
   priority: number;
+  point?: boolean;
 };
 
 function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
   const decorations: RenderDecoration[] = [];
   const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
+  const codeFences = markdownCodeFenceRanges(view.state.doc.toString());
+
+  for (const fence of codeFences) {
+    const firstLine = view.state.doc.lineAt(fence.openFrom);
+    const lastLine = view.state.doc.lineAt(fence.closeFrom ?? fence.to);
+    let line = firstLine;
+
+    while (line.number <= lastLine.number) {
+      const classes = ["cm-code-cell-line"];
+      if (line.number === firstLine.number) classes.push("cm-code-cell-first");
+      if (line.number === lastLine.number) classes.push("cm-code-cell-last");
+      decorations.push({
+        from: line.from,
+        to: line.from,
+        decoration: Decoration.line({ class: classes.join(" ") }),
+        priority: 0,
+        point: true,
+      });
+      if (line.number === lastLine.number) break;
+      line = view.state.doc.line(line.number + 1);
+    }
+
+    if (activeLine.from !== firstLine.from) {
+      decorations.push({
+        from: fence.openFrom,
+        to: fence.openTo,
+        decoration: Decoration.replace({
+          widget: new CodeFenceHeaderWidget(fence.language, fence.title),
+        }),
+        priority: 0,
+      });
+    }
+  }
 
   for (const visibleRange of view.visibleRanges) {
     const fromLine = view.state.doc.lineAt(visibleRange.from);
@@ -523,7 +674,9 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
     }
 
     let pos = visibleRange.from;
-    let inFence = false;
+    let inFence = codeFences.some(
+        (fence) => fromLine.from > fence.openFrom && fromLine.from <= fence.to,
+      );
     while (pos <= visibleRange.to) {
       const line = view.state.doc.lineAt(pos);
       const lineIsActive = line.from === activeLine.from;
@@ -590,6 +743,10 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
 
   let lastTo = 0;
   for (const item of decorations) {
+    if (item.point) {
+      builder.add(item.from, item.to, item.decoration);
+      continue;
+    }
     if (item.from < lastTo || item.from >= item.to) continue;
     builder.add(item.from, item.to, item.decoration);
     lastTo = item.to;

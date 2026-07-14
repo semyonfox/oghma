@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGES,
   inlineMathRangesForLine,
+  markdownCodeFenceRanges,
   markdownTaskMarkerForLine,
   markdownSyntaxRangesForLine,
   toggleMarkdownTask,
@@ -18,6 +19,39 @@ describe("WriteEditor helpers", () => {
       sql: "SQL",
       python: "Python",
     });
+  });
+
+  it("finds fenced code cells without changing their markdown", () => {
+    const markdown = 'Before\n```python title="Example"\nprint("hi")\n```\nAfter';
+
+    expect(markdownCodeFenceRanges(markdown)).toEqual([
+      {
+        from: 7,
+        to: 48,
+        openFrom: 7,
+        openTo: 32,
+        closeFrom: 45,
+        closeTo: 48,
+        language: "python",
+        title: "Example",
+      },
+    ]);
+    expect(markdown.slice(7, 48)).toBe(
+      '```python title="Example"\nprint("hi")\n```',
+    );
+  });
+
+  it("supports tilde and unfinished fenced code cells", () => {
+    expect(markdownCodeFenceRanges("~~~sql\nselect 1")).toEqual([
+      {
+        from: 0,
+        to: 15,
+        openFrom: 0,
+        openTo: 6,
+        language: "sql",
+        title: undefined,
+      },
+    ]);
   });
 
   it("wraps the current markdown selection and keeps the selection inside the markers", () => {
