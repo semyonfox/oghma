@@ -10,6 +10,7 @@ export type AgentRegistrationClaim = {
   status: "pending" | "registered" | "verified";
   expires_at: Date;
   created_user_id: string | null;
+  created_at: Date;
 };
 
 export function generateUserCode(): string {
@@ -18,7 +19,7 @@ export function generateUserCode(): string {
 
 export async function findOpenAgentRegistrationByEmail(email: string) {
   const [claim] = await sql<AgentRegistrationClaim[]>`
-    SELECT id, email, status, expires_at, created_user_id
+    SELECT id, email, status, expires_at, created_user_id, created_at
     FROM app.agent_registration_claims
     WHERE LOWER(email) = LOWER(${email})
       AND status IN ('pending', 'registered')
@@ -38,14 +39,14 @@ export async function createAgentRegistrationClaim(email: string) {
     ) VALUES (
       ${email}, ${hashToken(claimToken)}, ${hashToken(userCode)}, ${expiresAt}
     )
-    RETURNING id, email, status, expires_at, created_user_id
+    RETURNING id, email, status, expires_at, created_user_id, created_at
   `;
   return { claim, claimToken, userCode };
 }
 
 export async function findAgentRegistrationClaim(claimToken: string) {
   const [claim] = await sql<AgentRegistrationClaim[]>`
-    SELECT id, email, status, expires_at, created_user_id
+    SELECT id, email, status, expires_at, created_user_id, created_at
     FROM app.agent_registration_claims
     WHERE claim_token_hash = ${hashToken(claimToken)}
     LIMIT 1
@@ -59,7 +60,7 @@ export async function validateAgentRegistrationForSignup(
   email: string,
 ) {
   const [claim] = await sql<AgentRegistrationClaim[]>`
-    SELECT id, email, status, expires_at, created_user_id
+    SELECT id, email, status, expires_at, created_user_id, created_at
     FROM app.agent_registration_claims
     WHERE claim_token_hash = ${hashToken(claimToken)}
       AND user_code_hash = ${hashToken(userCode)}
@@ -71,23 +72,35 @@ export async function validateAgentRegistrationForSignup(
   return claim ?? null;
 }
 
-export async function markAgentRegistrationRegistered(
-  claimId: string,
+export async function completeOAuthAgentRegistration(
+  claimToken: string,
+  userCode: string,
   userId: string,
+  email: string,
 ) {
-  await sql`
-    UPDATE app.agent_registration_claims
-    SET status = 'registered', created_user_id = ${userId}::uuid, registered_at = NOW()
-    WHERE id = ${claimId}::uuid AND status = 'pending'
+  const [claim] = await sql<AgentRegistrationClaim[]>`
+    UPDATE app.agent_registration_claims AS claim
+    SET status = 'verified',
+        created_user_id = ${userId}::uuid,
+        registered_at = NOW(),
+        verified_at = NOW()
+    WHERE claim.claim_token_hash = ${hashToken(claimToken)}
+      AND claim.user_code_hash = ${hashToken(userCode)}
+      AND claim.status = 'pending'
+      AND claim.expires_at > NOW()
+      AND LOWER(claim.email) = LOWER(${email})
+      AND EXISTS (
+        SELECT 1
+        FROM app.login AS login
+        JOIN app.oauth_accounts AS oauth ON oauth.user_id = login.user_id
+        WHERE login.user_id = ${userId}::uuid
+          AND login.email_verified = true
+          AND login.created_at >= claim.created_at
+          AND LOWER(login.email) = LOWER(claim.email)
+          AND LOWER(oauth.email) = LOWER(claim.email)
+      )
+    RETURNING claim.id, claim.email, claim.status, claim.expires_at,
+              claim.created_user_id, claim.created_at
   `;
-}
-
-export async function markAgentRegistrationVerified(userId: string) {
-  await sql`
-    UPDATE app.agent_registration_claims
-    SET status = 'verified', verified_at = NOW()
-    WHERE created_user_id = ${userId}::uuid
-      AND status = 'registered'
-      AND expires_at > NOW()
-  `;
+  return claim ?? null;
 }

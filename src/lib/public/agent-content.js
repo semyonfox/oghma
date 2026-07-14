@@ -44,7 +44,7 @@ export const agentActions = [
     method: "POST",
     path: "/agent/identity",
     summary:
-      "Starts a 15-minute auth.md registration claim for an email that does not yet have an account. The person must complete password creation and email verification in the browser. No private API access is granted.",
+      "Starts a 15-minute auth.md registration claim for an email that does not yet have an account. The person completes matching verified Google/GitHub OAuth or password plus email-link verification in the browser. No private API access is granted.",
   },
   {
     name: "Create account",
@@ -1131,6 +1131,34 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
           responses: {
             "200": { description: "Current claim status" },
             "400": { description: "Invalid or expired claim" },
+            "429": { description: "Rate limited" },
+          },
+        },
+      },
+      "/agent/identity/claim/complete": {
+        post: {
+          summary: "Complete an agent registration claim with OAuth",
+          description:
+            "Requires an Auth.js browser session whose provider-verified email matches the new-user claim. It never returns an API credential.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["claim_token", "user_code"],
+                  properties: {
+                    claim_token: { type: "string", minLength: 64, maxLength: 64 },
+                    user_code: { type: "string", pattern: "^[0-9]{6}$" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Registration verified" },
+            "400": { description: "Mismatched or expired claim" },
+            "401": { description: "OAuth browser session required" },
             "429": { description: "Rate limited" },
           },
         },

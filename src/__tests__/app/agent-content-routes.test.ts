@@ -172,6 +172,9 @@ describe("agent-readable content routes", () => {
     expect(body.paths["/agent/identity/claim"].post.summary).toBe(
       "Poll an agent registration claim",
     );
+    expect(body.paths["/agent/identity/claim/complete"].post.summary).toBe(
+      "Complete an agent registration claim with OAuth",
+    );
     expect(
       body.paths["/api/auth/register"].post[
         "x-human-confirmation-required"

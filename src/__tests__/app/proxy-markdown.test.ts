@@ -32,4 +32,16 @@ describe("markdown content negotiation proxy", () => {
       "https://oghmanotes.ie/pricing.md",
     );
   });
+
+  it("allows an authenticated OAuth callback to finish an agent registration", async () => {
+    const response = await proxy(
+      new NextRequest(
+        "https://oghmanotes.ie/register?agent_claim_token=claim&agent_oauth=complete",
+        { headers: { cookie: "authjs.session-token=session" } },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
 });

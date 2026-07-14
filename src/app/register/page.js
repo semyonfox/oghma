@@ -48,10 +48,37 @@ export default function RegisterPage() {
   }, []);
 
   useEffect(() => {
-    setAgentClaimToken(
-      new URLSearchParams(window.location.search).get("agent_claim_token") || "",
-    );
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const claimToken = params.get("agent_claim_token") || "";
+    setAgentClaimToken(claimToken);
+
+    if (claimToken && params.get("agent_oauth") === "complete") {
+      const storageKey = `agent-registration-code:${claimToken}`;
+      const userCode = window.sessionStorage.getItem(storageKey) || "";
+      if (!/^\d{6}$/.test(userCode)) {
+        setErrMsg(t("Enter the six-digit agent registration code and try OAuth again."));
+        return;
+      }
+
+      setLoading(true);
+      fetch("/agent/identity/claim/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claim_token: claimToken,
+          user_code: userCode,
+        }),
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "OAuth claim failed");
+          window.sessionStorage.removeItem(storageKey);
+          router.replace("/notes");
+        })
+        .catch((error) => setErrMsg(error.message))
+        .finally(() => setLoading(false));
+    }
+  }, [router, t]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -144,6 +171,12 @@ export default function RegisterPage() {
       return;
     }
 
+    if (agentClaimToken && !/^\d{6}$/.test(agentUserCode)) {
+      setErrMsg(t("Enter the six-digit agent registration code first."));
+      errRef.current?.focus();
+      return;
+    }
+
     trackMarketingEvent("registration_oauth_start", {
       source: "register_form",
       properties: {
@@ -153,7 +186,16 @@ export default function RegisterPage() {
         destination: "/notes",
       },
     });
-    signIn(provider, buildOAuthSignInOptions("/notes"));
+    const callbackUrl = agentClaimToken
+      ? `/register?agent_claim_token=${encodeURIComponent(agentClaimToken)}&agent_oauth=complete`
+      : "/notes";
+    if (agentClaimToken) {
+      window.sessionStorage.setItem(
+        `agent-registration-code:${agentClaimToken}`,
+        agentUserCode,
+      );
+    }
+    signIn(provider, buildOAuthSignInOptions(callbackUrl));
   };
 
   const trackFormStart = () => {
@@ -314,7 +356,7 @@ export default function RegisterPage() {
           </form>
 
           {/* Social signup section */}
-          {!agentClaimToken && <div>
+          <div>
             <div className="mt-10 flex items-center gap-x-6">
               <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
@@ -374,7 +416,7 @@ export default function RegisterPage() {
                 <span className="text-sm/6 font-semibold">GitHub</span>
               </button>
             </div>
-          </div>}
+          </div>
         </div>
 
         <p className="mt-8 text-center text-sm/6 text-text-tertiary">

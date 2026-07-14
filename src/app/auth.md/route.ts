@@ -18,13 +18,18 @@ The email must not already belong to an OghmaNotes account. The response contain
 
 ## Claim and completion
 
-The person opens \`verification_uri\`, enters the code, chooses a password, and verifies their email. Poll \`POST ${baseUrl}/agent/identity/claim\` with \`{ "claim_token": "..." }\` to learn whether the claim is pending, registered, or verified. Poll no more than once every five seconds.
+The person opens \`verification_uri\`, enters the code, and proves ownership using one of the options shown by OghmaNotes:
+
+- Google or GitHub OAuth with a provider-verified email matching the claim; or
+- a password followed by OghmaNotes email-link verification.
+
+The agent never receives the OAuth token, password, session cookie, or email verification link. Poll \`POST ${baseUrl}/agent/identity/claim\` with \`{ "claim_token": "..." }\` to learn whether the claim is pending, registered, or verified. Poll no more than once every five seconds.
 
 ## Limits
 
 - Claims expire after 15 minutes.
 - Claims are for previously unknown email addresses only.
-- Completion creates a normal OghmaNotes account and follows the normal email-verification requirement.
+- Completion creates a normal OghmaNotes account. OAuth email ownership is accepted only from a verified provider response; password registrations require the normal email link.
 - A verified claim is proof of completed registration only; it is not an API credential.
 `;
 

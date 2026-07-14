@@ -56,6 +56,11 @@ export const agentRegistrationClaimSchema = z.object({
   claim_token: z.string().length(64),
 });
 
+export const agentRegistrationCompleteSchema = z.object({
+  claim_token: z.string().length(64),
+  user_code: z.string().regex(/^\d{6}$/),
+});
+
 export const quizSessionCreateSchema = z.object({
   filterType: z.enum([
     "course",
