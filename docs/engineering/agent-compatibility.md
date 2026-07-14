@@ -39,6 +39,7 @@ All rows below describe current code, not desired future behavior.
 | `/ai.md`, `/agents.md` | Full public `text/markdown` agent profile and action guide. | Discovery/read-only |
 | `/info.md`, `/faq.md`, `/pricing.md` | Purpose-specific compact facts, FAQ, and pricing documents using `text/markdown`. | Discovery/read-only |
 | `/llms.txt`, `/llms-full.txt` | Compact index and full profile using `text/plain`. | Discovery/read-only |
+| `/auth.md` | Agent-initiated registration instructions for previously unknown users. The person still chooses a password and verifies their email in the browser. | Discovery/low-risk intent capture |
 | `/agent-api.json`, `/openapi.json` | Public OpenAPI 3.1 JSON aliases for the documented agent surface. Operations include IDs, tags, security hints, and agent-safety metadata. This is not a promise that every app API is autonomous-agent safe. | Discovery |
 | `/agent-sitemap.xml` | Lists the agent-resource paths from `AGENT_RESOURCE_PATHS`. | Discovery |
 | `/sitemap.xml` | Includes public product pages, agent resources, blog posts, and the syntax guide. | Discovery |
@@ -58,6 +59,7 @@ highest-risk boundaries:
 |---|---|---|
 | `POST /api/auth/register` | Creates an account and starts verification. | Prefer the visible registration flow; never ask for or retain a password. Confirm before submission. |
 | `POST /api/auth/login` | Creates an authenticated browser session. | Keep credential entry under user control. Do not request cookies or credentials in chat. |
+| `POST /agent/identity` | Starts a short-lived registration claim for a new email address. | Give the person the returned URI and six-digit code; never request a password, cookie, or email-verification token. This does not issue an API credential. |
 | `POST /api/chat` | Uses a signed-in user's private study context and may persist chat state. | Require an explicit user request and the normal session/ownership checks. |
 | `GET /contact` | Opens the human-readable contact page. No first-party public contact POST API is documented. | Draft or navigate only; confirm before submitting the visible form. |
 

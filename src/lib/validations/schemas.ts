@@ -40,6 +40,20 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   email: z.string().email().max(255).trim(),
   password: z.string().min(8).max(128),
+  agentClaimToken: z.string().length(64).optional(),
+  agentUserCode: z.string().regex(/^\d{6}$/).optional(),
+}).refine(
+  (data) => Boolean(data.agentClaimToken) === Boolean(data.agentUserCode),
+  { message: "Agent registration claims require both a token and a six-digit code" },
+);
+
+export const agentRegistrationSchema = z.object({
+  type: z.literal("service_auth"),
+  login_hint: z.string().email().max(255).trim(),
+});
+
+export const agentRegistrationClaimSchema = z.object({
+  claim_token: z.string().length(64),
 });
 
 export const quizSessionCreateSchema = z.object({

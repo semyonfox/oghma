@@ -27,6 +27,7 @@ export const AGENT_RESOURCE_PATHS = [
   "/openapi.json",
   "/faq.md",
   "/pricing.md",
+  "/auth.md",
   "/agent-sitemap.xml",
 ];
 
@@ -38,6 +39,13 @@ export const agentFacts = [
 ];
 
 export const agentActions = [
+  {
+    name: "Start new-user registration",
+    method: "POST",
+    path: "/agent/identity",
+    summary:
+      "Starts a 15-minute auth.md registration claim for an email that does not yet have an account. The person must complete password creation and email verification in the browser. No private API access is granted.",
+  },
   {
     name: "Create account",
     method: "POST",
@@ -128,6 +136,11 @@ export const agentResourceComparison = [
     path: "/pricing.md",
     format: "text/markdown",
     purpose: "Pricing-only Markdown page for plan and launch-pricing questions.",
+  },
+  {
+    path: "/auth.md",
+    format: "text/markdown",
+    purpose: "Agent registration instructions for new OghmaNotes users. It does not grant agent access to private APIs.",
   },
 ];
 
@@ -733,6 +746,7 @@ const HTTP_METHODS = new Set([
 
 const SENSITIVE_OPERATIONS = new Set([
   "post /api/auth/register",
+  "post /agent/identity",
   "post /api/notes",
   "patch /api/notes/{id}",
   "delete /api/notes/{id}",
@@ -768,6 +782,7 @@ const PRIVATE_DATA_OPERATIONS = new Set([
 ]);
 
 const TAG_BY_PREFIX = [
+  ["/agent/identity", "Auth"],
   ["/api/auth", "Auth"],
   ["/api/notes", "Notes"],
   ["/api/search", "Search"],
@@ -1052,6 +1067,71 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
                 "text/markdown": { schema: { type: "string" } },
               },
             },
+          },
+        },
+      },
+      "/auth.md": {
+        get: {
+          summary: "auth.md new-user registration instructions",
+          description:
+            "Agent registration instructions. This v1 flow never issues an API credential or private-data access.",
+          responses: {
+            "200": {
+              description: "auth.md instructions",
+              content: { "text/markdown": { schema: { type: "string" } } },
+            },
+          },
+        },
+      },
+      "/agent/identity": {
+        post: {
+          summary: "Start an agent-initiated new-user registration",
+          description:
+            "Creates a 15-minute claim for an email that does not already have an OghmaNotes account. The user must complete password creation and email verification in the browser. No access token is issued.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["type", "login_hint"],
+                  properties: {
+                    type: { type: "string", enum: ["service_auth"] },
+                    login_hint: { type: "string", format: "email", maxLength: 255 },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "201": { description: "Claim URI and user code returned" },
+            "400": { description: "Invalid registration request" },
+            "409": { description: "Existing account or pending claim" },
+            "429": { description: "Rate limited" },
+          },
+        },
+      },
+      "/agent/identity/claim": {
+        post: {
+          summary: "Poll an agent registration claim",
+          description:
+            "Reports pending, registered, or verified status. It never returns an API credential.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["claim_token"],
+                  properties: { claim_token: { type: "string", minLength: 64, maxLength: 64 } },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Current claim status" },
+            "400": { description: "Invalid or expired claim" },
+            "429": { description: "Rate limited" },
           },
         },
       },

@@ -9,6 +9,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import { recordActivationMilestone } from "@/lib/marketing/events";
+import { markAgentRegistrationVerified } from "@/lib/agent-registration";
 
 export async function POST(request) {
   try {
@@ -47,6 +48,8 @@ export async function POST(request) {
             SET email_verified = true, verification_token = NULL, verification_token_expires = NULL
             WHERE user_id = ${matchedUser.user_id}
         `;
+
+    await markAgentRegistrationVerified(matchedUser.user_id);
 
     // auto-login: create session for the verified user
     void recordActivationMilestone("email_verified", matchedUser.user_id, request).catch(

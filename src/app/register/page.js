@@ -25,6 +25,8 @@ export default function RegisterPage() {
   const [errMsg, setErrMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState(null);
+  const [agentClaimToken, setAgentClaimToken] = useState("");
+  const [agentUserCode, setAgentUserCode] = useState("");
   const errRef = useRef();
   const startedRef = useRef(false);
   const router = useRouter();
@@ -43,6 +45,12 @@ export default function RegisterPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    setAgentClaimToken(
+      new URLSearchParams(window.location.search).get("agent_claim_token") || "",
+    );
   }, []);
 
   const handleSubmit = async (e) => {
@@ -83,7 +91,14 @@ export default function RegisterPage() {
       },
     });
     try {
-      const result = await register(email, pwd, getMarketingContext());
+      const result = await register(
+        email,
+        pwd,
+        getMarketingContext(),
+        agentClaimToken
+          ? { agentClaimToken, agentUserCode }
+          : undefined,
+      );
       // Account creation is recorded once by the server as the canonical milestone.
       if (result.requiresVerification) {
         router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
@@ -214,6 +229,34 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {agentClaimToken && (
+              <div>
+                <label
+                  htmlFor="agent-user-code"
+                  className="block text-sm/6 font-medium text-text"
+                >
+                  {t("Agent registration code")}
+                </label>
+                <div className="mt-2">
+                  <input
+                    id="agent-user-code"
+                    name="agent-user-code"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    required
+                    value={agentUserCode}
+                    onChange={(e) =>
+                      setAgentUserCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {t("Enter the six-digit code shown by the agent that started this registration.")}
+                </p>
+              </div>
+            )}
+
             <div>
               <label
                 htmlFor="password"
@@ -271,7 +314,7 @@ export default function RegisterPage() {
           </form>
 
           {/* Social signup section */}
-          <div>
+          {!agentClaimToken && <div>
             <div className="mt-10 flex items-center gap-x-6">
               <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
@@ -331,7 +374,7 @@ export default function RegisterPage() {
                 <span className="text-sm/6 font-semibold">GitHub</span>
               </button>
             </div>
-          </div>
+          </div>}
         </div>
 
         <p className="mt-8 text-center text-sm/6 text-text-tertiary">

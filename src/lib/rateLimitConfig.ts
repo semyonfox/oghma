@@ -25,6 +25,8 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'password-verify':{ limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'resend-verification': { limit: 3,  windowSeconds: 3600, keyType: 'email', failClosedOnStoreError: true },
   'verify-email':   { limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
+  'agent-registration': { limit: 3, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },
+  'agent-registration-claim': { limit: 60, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },
 
   // tier 3 — resource protection
   'upload':         { limit: 30,  windowSeconds: 3600,  keyType: 'userId' },
