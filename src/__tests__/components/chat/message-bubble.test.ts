@@ -112,4 +112,34 @@ describe("message bubble copy actions", () => {
       expect(writeText).toHaveBeenLastCalledWith("compact assistant text"),
     );
   });
+
+  it("renders user markdown, display math, and fenced code in both bubble sizes", () => {
+    const content = "**Formatted**\n\n$$x^2$$\n\n```js\nconst x = 2\n```";
+    const container = renderNode(
+      React.createElement(
+        "div",
+        undefined,
+        React.createElement(FullMessageBubble, {
+          message: makeMessage({ role: "user", content }),
+        }),
+        React.createElement(CompactMessageBubble, {
+          message: makeMessage({ role: "user", content }),
+        }),
+      ),
+    );
+
+    const userMarkdown = container.querySelectorAll(
+      '[data-markdown-variant="chat"]',
+    );
+    expect(userMarkdown).toHaveLength(2);
+
+    for (const rendered of userMarkdown) {
+      expect(rendered.querySelector("strong")?.textContent).toBe("Formatted");
+      expect(rendered.querySelector(".katex")).not.toBeNull();
+      expect(rendered.querySelector(".oghma-codeblock")).not.toBeNull();
+      expect(rendered.querySelector("code.language-js")?.textContent).toContain(
+        "const x = 2",
+      );
+    }
+  });
 });

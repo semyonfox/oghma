@@ -224,9 +224,9 @@ export const FullMessageBubble: FC<{
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="group/msg max-w-[70%]">
-          <div className="px-3 py-2.5 rounded-radius-xl rounded-br-[4px] bg-primary-500/85 text-text-on-primary text-sm leading-relaxed">
-            <p>{m.content}</p>
+        <div className="group/msg min-w-0 max-w-[90%]">
+          <div className="rounded-radius-xl rounded-br-[4px] border border-primary-500/25 bg-primary-500/10 px-3 py-2.5 text-sm leading-relaxed text-text">
+            <ChatMarkdown>{m.content}</ChatMarkdown>
           </div>
           <div className="mt-0.5 flex items-center justify-end gap-1.5 text-xs text-text-tertiary">
             {hasContent && (
@@ -302,7 +302,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
     <div
       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      <div className="group/msg max-w-[78%] space-y-1.5">
+      <div className="group/msg min-w-0 max-w-[90%] space-y-1.5">
         {m.role === "assistant" && m.thinking && (
           <ThinkingBlock
             text={m.thinking}
@@ -314,7 +314,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
         <div
           className={`px-2 py-[5px] rounded-radius-md text-xs leading-relaxed ${
             m.role === "user"
-              ? "bg-primary-500/70 text-text-on-primary rounded-br-[4px]"
+              ? "border border-primary-500/25 bg-primary-500/10 text-text rounded-br-[4px]"
               : "bg-surface border border-border-subtle text-text-secondary rounded-bl-[4px]"
           }`}
         >
@@ -325,7 +325,7 @@ export const CompactMessageBubble: FC<{ message: Message }> = ({
               <TypingDots />
             )
           ) : (
-            m.content
+            <ChatMarkdown>{m.content}</ChatMarkdown>
           )}
         </div>
 
