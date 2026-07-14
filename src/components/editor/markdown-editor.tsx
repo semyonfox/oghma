@@ -10,6 +10,7 @@ import {
   useRef,
 } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
@@ -37,6 +38,7 @@ const DRAFT_DEBOUNCE_MS = 1000;
  * Markdown stays canonical underneath; the beta UI just softens the editing layer.
  */
 const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
+  const router = useRouter();
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -112,6 +114,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   useEffect(() => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
+    setLoaded(false);
     setIsDirty(false);
     serverUpdatedAt.current = undefined;
 
@@ -158,6 +161,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       // fetch from API for freshness
       try {
         const result = await fetchNote(file.fileId);
+        if (!cancelled && !result && currentFileId.current === stale) {
+          router.replace("/notes");
+          return;
+        }
         if (!cancelled && result && currentFileId.current === stale) {
           serverUpdatedAt.current = result.updatedAt;
 
@@ -200,7 +207,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         );
       }
     };
-  }, [file.fileId, fetchNote, t]);
+  }, [file.fileId, fetchNote, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -388,8 +395,23 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             />
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-            {t("Loading...")}
+          <div
+            className="h-full min-h-0 w-full overflow-hidden"
+            aria-busy="true"
+            aria-label={t("Loading...")}
+          >
+            <div
+              className="mx-auto h-full w-full px-6 py-8 sm:px-10"
+              style={{ maxWidth: editorWidth.sourceMaxWidth }}
+            >
+              <div className="h-5 w-2/5 animate-pulse rounded-radius-sm bg-subtle" />
+              <div className="mt-7 space-y-3" aria-hidden="true">
+                <div className="h-3 w-full animate-pulse rounded-radius-sm bg-subtle" />
+                <div className="h-3 w-11/12 animate-pulse rounded-radius-sm bg-subtle" />
+                <div className="h-3 w-4/5 animate-pulse rounded-radius-sm bg-subtle" />
+              </div>
+              <span className="sr-only">{t("Loading...")}</span>
+            </div>
           </div>
         )}
       </div>

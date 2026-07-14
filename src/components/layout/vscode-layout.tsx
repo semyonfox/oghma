@@ -9,7 +9,6 @@ import IconNav from "@/components/sidebar/icon-nav";
 import FileTreePanel from "@/components/sidebar/file-tree-panel";
 import SplitPane from "@/components/editor/split-pane";
 import NotesInspectorSidebar from "@/components/panels/notes-inspector-sidebar";
-import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 
 /**
@@ -52,45 +51,15 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     }
 
     const fileId = route.noteId;
-
-    let cancelled = false;
-
-    const syncPaneFromRoute = async () => {
-      try {
-        const response = await fetch(
-          `/api/notes/${fileId}?fields=note_id,title,content`,
-        );
-        if (!response.ok) {
-          if (!cancelled) router.replace("/notes");
-          return;
-        }
-
-        const note = await response.json();
-        if (!cancelled) {
-          setPaneA(
-            buildFileSpec({
-              id: note.note_id || fileId,
-              title: note.title || fileId,
-              content: note.content,
-            }),
-          );
-        }
-      } catch {
-        if (!cancelled && fileId !== paneAFileId) {
-          setPaneA({
-            fileId,
-            fileType: "note",
-            title: fileId,
-          });
-        }
-      }
-    };
-
-    void syncPaneFromRoute();
-
-    return () => {
-      cancelled = true;
-    };
+    if (fileId !== paneAFileId) {
+      // The editor owns loading note content. Tree/sidebar navigation has already
+      // supplied richer metadata when available; direct links only need an ID.
+      setPaneA({
+        fileId,
+        fileType: "note",
+        title: fileId,
+      });
+    }
     // router is a stable Next.js ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneAFileId, setPaneA]);
