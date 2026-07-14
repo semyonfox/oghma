@@ -142,6 +142,23 @@ Interactive `psql` and `redis-cli` sessions are privileged mutation surfaces,
 not read-only checks. Use them only through the private operations workflow.
 Do not include env-file contents in diagnostics.
 
+## Rate-limiter degradation
+
+`GET /api/health` is the app liveness check: it remains HTTP 200 while the
+database is reachable, including when Redis is unavailable, but returns
+`{"status":"degraded"}` in that case. Monitoring authenticated with
+`x-health-secret: $HEALTH_CHECK_SECRET` also receives
+`rateLimiter.redisReady` and `rateLimiter.status`. Alert on a degraded status
+or `redisReady: false`; do not treat a successful container liveness check as
+proof of distributed rate limiting.
+
+In homelab and launch-provider deployments, Redis loss makes sensitive public
+auth categories fail closed with HTTP 503 rather than use per-process memory
+fallbacks. Other categories may retain the memory fallback to keep authenticated
+product traffic available. Local development follows the same code path; run
+Redis when validating shared rate limits, or expect sensitive auth flows to
+return 503.
+
 ## Failure and Rollback Boundary
 
 During a Jenkins build, the pipeline restores the build-specific `previous`
