@@ -25,6 +25,7 @@ import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
+import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
 
 const GETTING_STARTED_TITLE = "Getting Started";
 const GETTING_STARTED_CONTENT = `# Welcome to OghmaNotes
@@ -73,7 +74,7 @@ export const POST = withErrorHandler(async (request) => {
     const zodResult = validateBody(registerSchema, body);
     if (!zodResult.success) return zodResult.response;
 
-    const { email, password } = body;
+    const { email, password, agentClaimToken, agentUserCode } = zodResult.data;
 
     // 2. Validate credentials format and password strength
     const validation = validateAuthCredentials(email, password, true);
@@ -90,6 +91,20 @@ export const POST = withErrorHandler(async (request) => {
 
     if (existingUser.length > 0) {
       return createErrorResponse("User already exists", 409);
+    }
+
+    const agentClaim = agentClaimToken
+      ? await validateAgentRegistrationForSignup(
+          agentClaimToken,
+          agentUserCode || "",
+          email,
+        )
+      : null;
+    if (agentClaimToken && !agentClaim) {
+      return createErrorResponse(
+        "Invalid, expired, or incomplete agent registration claim",
+        400,
+      );
     }
 
     // 4. Hash password
@@ -122,6 +137,14 @@ export const POST = withErrorHandler(async (request) => {
         INSERT INTO app.tree_items (user_id, note_id, parent_id)
         VALUES (${userId}::uuid, ${gettingStartedNoteId}::uuid, NULL)
       `;
+
+      if (agentClaim) {
+        await tx`
+          UPDATE app.agent_registration_claims
+          SET status = 'registered', created_user_id = ${userId}::uuid, registered_at = NOW()
+          WHERE id = ${agentClaim.id}::uuid AND status = 'pending'
+        `;
+      }
 
       return createdUser;
     });

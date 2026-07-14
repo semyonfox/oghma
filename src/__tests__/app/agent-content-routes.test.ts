@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { GET as agentSitemap } from "@/app/agent-sitemap.xml/route";
 import { GET as agentApi } from "@/app/agent-api.json/route";
 import { GET as aiMarkdown } from "@/app/ai.md/route";
+import { GET as authMarkdown } from "@/app/auth.md/route";
+import { GET as authorizationServerMetadata } from "@/app/.well-known/oauth-authorization-server/route";
+import { GET as protectedResourceMetadata } from "@/app/.well-known/oauth-protected-resource/route";
 import { GET as agentsMarkdown } from "@/app/agents.md/route";
 import { GET as faqMarkdown } from "@/app/faq.md/route";
 import { GET as infoMarkdown } from "@/app/info.md/route";
@@ -26,6 +29,23 @@ describe("agent-readable content routes", () => {
     expect(body).toContain("POST https://oghmanotes.ie/api/auth/register");
     expect(body).toContain("GET https://oghmanotes.ie/ai?format=md");
     expect(body).toContain("GET https://oghmanotes.ie/info?format=md");
+  });
+
+  it("publishes auth.md discovery without advertising private API access", async () => {
+    const response = authMarkdown();
+    const body = await response.text();
+    const protectedResource = await protectedResourceMetadata().json();
+    const authorizationServer = await authorizationServerMetadata().json();
+
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+    expect(body).toContain("agent-initiated registration for new users only");
+    expect(body).toContain("does not issue agent access tokens");
+    expect(protectedResource.scopes_supported).toEqual([]);
+    expect(authorizationServer.agent_auth).toMatchObject({
+      skill: "https://oghmanotes.ie/auth.md",
+      identity_types_supported: ["service_auth"],
+      credentials_issued: false,
+    });
   });
 
   it("serves compact and full LLM text resources separately", async () => {
@@ -89,6 +109,7 @@ describe("agent-readable content routes", () => {
     expect(body).toContain("<loc>https://oghmanotes.ie/openapi.json</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/llms.txt</loc>");
     expect(body).toContain("<loc>https://oghmanotes.ie/llms-full.txt</loc>");
+    expect(body).toContain("<loc>https://oghmanotes.ie/auth.md</loc>");
   });
 
   it("serves a structured agent API document", async () => {
@@ -139,6 +160,20 @@ describe("agent-readable content routes", () => {
     );
     expect(body.paths["/api/auth/register"].post.summary).toBe(
       "Create a user account",
+    );
+    expect(body.paths["/agent/identity"].post.summary).toBe(
+      "Start an agent-initiated new-user registration",
+    );
+    expect(
+      body.paths["/agent/identity"].post[
+        "x-human-confirmation-required"
+      ],
+    ).toBe(true);
+    expect(body.paths["/agent/identity/claim"].post.summary).toBe(
+      "Poll an agent registration claim",
+    );
+    expect(body.paths["/agent/identity/claim/complete"].post.summary).toBe(
+      "Complete an agent registration claim with OAuth",
     );
     expect(
       body.paths["/api/auth/register"].post[

@@ -59,9 +59,12 @@ export async function proxy(request: NextRequest) {
     const nextAuthSession = request.cookies.get("authjs.session-token")?.value
         || request.cookies.get("__Secure-authjs.session-token")?.value;
     const isAuthenticated = !!(session || nextAuthSession);
+    const isAgentRegistration =
+        pathname === "/register" &&
+        request.nextUrl.searchParams.has("agent_claim_token");
 
     // redirect authenticated users away from login/register (skip the page load)
-    if (isAuthenticated && (pathname === "/login" || pathname === "/register")) {
+    if (isAuthenticated && !isAgentRegistration && (pathname === "/login" || pathname === "/register")) {
         const response = NextResponse.redirect(new URL("/notes", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
