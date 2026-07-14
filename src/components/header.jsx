@@ -42,6 +42,7 @@ export default function Header() {
               alt={t("OghmaNotes")}
               width={32}
               height={32}
+              preload
             />
             <span className="font-serif text-lg font-semibold text-text hidden sm:block">
               {t("OghmaNotes")}

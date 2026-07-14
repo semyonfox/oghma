@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, Suspense, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import I18nProvider from "@/lib/i18n/provider";
 import { Locale } from "@/locales";
 import enDict from "@/locales/en.json";
@@ -10,6 +11,24 @@ const SETTINGS_CACHE_KEY = "settings-cache";
 const LOCALE_STORAGE_KEY = "ogma-locale";
 // revalidate from network after 10 min, but always serve cache instantly
 const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const PRIVATE_APP_PATHS = [
+  "/analytics",
+  "/calendar",
+  "/chat",
+  "/dashboard",
+  "/notes",
+  "/quiz",
+  "/settings",
+  "/trash",
+  "/upload",
+];
+
+export function shouldRevalidateSettings(pathname: string) {
+  return PRIVATE_APP_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
 
 interface CachedSettings {
   locale: string;
@@ -28,6 +47,7 @@ async function loadLocaleDict(locale: string) {
 }
 
 function I18nRootProviderContent({ children }: Props) {
+  const pathname = usePathname();
   const [localeData, setLocaleData] = useState<{
     locale: string;
     dict: Record<string, string>;
@@ -53,6 +73,10 @@ function I18nRootProviderContent({ children }: Props) {
         if (instantLocale && instantLocale !== Locale.EN) {
           setLocaleData(await loadLocaleDict(instantLocale));
         }
+
+        // Public pages use the locale cookie/cache and do not need authenticated
+        // settings. Private app pages periodically reconcile with the server.
+        if (!shouldRevalidateSettings(pathname)) return;
 
         // skip revalidation if cache is still fresh
         const isStale =
@@ -82,7 +106,7 @@ function I18nRootProviderContent({ children }: Props) {
     };
 
     loadLocale();
-  }, []);
+  }, [pathname]);
 
   return (
     <I18nProvider locale={localeData.locale} lngDict={localeData.dict}>
