@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGES,
+  htmlTableRanges,
   inlineMathRangesForLine,
   markdownCodeFenceAt,
   markdownCodeFenceRanges,
@@ -79,6 +80,23 @@ describe("WriteEditor helpers", () => {
     expect(markdown.slice(7, 58)).toBe(
       "| Topic | Score |\n| :--- | ---: |\n| Math | **95** |",
     );
+  });
+
+  it("finds safe HTML table blocks without executing their contents", () => {
+    const markdown =
+      'Before\n<table><tr><th>Topic</th><th>Score</th></tr><tr><td>Math</td><td><strong>95</strong></td></tr></table>\nAfter';
+
+    expect(htmlTableRanges(markdown)).toEqual([
+      {
+        from: 7,
+        to: 109,
+        source:
+          "<table><tr><th>Topic</th><th>Score</th></tr><tr><td>Math</td><td><strong>95</strong></td></tr></table>",
+        header: ["Topic", "Score"],
+        rows: [["Math", "95"]],
+        alignments: [undefined, undefined],
+      },
+    ]);
   });
 
   it("wraps the current markdown selection and keeps the selection inside the markers", () => {
@@ -187,6 +205,34 @@ describe("WriteEditor helpers", () => {
       { from: 31, to: 33 },
     ]);
     expect(markdownSyntaxRangesForLine("snake_case_value", 0, false)).toEqual([]);
+  });
+
+  it("hides all combined bold and italic markers on inactive lines", () => {
+    expect(markdownSyntaxRangesForLine("***both*** and ___also___", 0, false)).toEqual([
+      { from: 0, to: 3 },
+      { from: 7, to: 10 },
+      { from: 15, to: 18 },
+      { from: 22, to: 25 },
+    ]);
+  });
+
+  it("renders safe inline HTML only while its line is inactive", () => {
+    expect(markdownSyntaxRangesForLine("Press <kbd>Ctrl</kbd>", 0, false)).toContainEqual({
+      from: 6,
+      to: 21,
+      inlineHtml: { tag: "kbd", text: "Ctrl" },
+    });
+    expect(markdownSyntaxRangesForLine("Press <kbd>Ctrl</kbd>", 0, true)).toEqual([]);
+  });
+
+  it("renders standard horizontal rules while inactive and keeps source active", () => {
+    for (const rule of ["---", "***", "___"]) {
+      expect(markdownSyntaxRangesForLine(rule, 10, false)).toEqual([
+        { from: 10, to: 13, horizontalRule: true },
+      ]);
+      expect(markdownSyntaxRangesForLine(rule, 10, true)).toEqual([]);
+    }
+    expect(markdownSyntaxRangesForLine("===", 10, false)).toEqual([]);
   });
 
   it("detects inactive inline math ranges without changing canonical markdown", () => {

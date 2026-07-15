@@ -61,6 +61,11 @@ export interface MarkdownSyntaxRange {
   replaceWith?: string;
   className?: string;
   taskMarker?: MarkdownTaskMarker;
+  inlineHtml?: {
+    tag: "mark" | "sub" | "sup" | "kbd";
+    text: string;
+  };
+  horizontalRule?: boolean;
 }
 
 export interface MarkdownTaskMarker {
@@ -142,6 +147,34 @@ class MarkdownMarkerWidget extends WidgetType {
 
   ignoreEvent() {
     return false;
+  }
+}
+
+class SafeInlineHtmlWidget extends WidgetType {
+  constructor(
+    private readonly tag: "mark" | "sub" | "sup" | "kbd",
+    private readonly text: string,
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const element = document.createElement(this.tag);
+    element.className = `cm-md-inline-html cm-md-inline-html-${this.tag}`;
+    element.textContent = this.text;
+    return element;
+  }
+
+  eq(other: SafeInlineHtmlWidget) {
+    return this.tag === other.tag && this.text === other.text;
+  }
+}
+
+class HorizontalRuleWidget extends WidgetType {
+  toDOM() {
+    const rule = document.createElement("span");
+    rule.className = "cm-md-horizontal-rule";
+    return rule;
   }
 }
 
@@ -227,6 +260,19 @@ function plainMarkdownTableCell(value: string): string {
     .trim();
 }
 
+function plainHtmlTableCell(value: string): string {
+  return value
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .trim();
+}
+
 class MarkdownTableWidget extends WidgetType {
   constructor(private readonly tableRange: MarkdownTableRange) {
     super();
@@ -237,24 +283,29 @@ class MarkdownTableWidget extends WidgetType {
     wrapper.className = "cm-md-table-scroll";
     const table = document.createElement("table");
     table.className = "cm-md-table";
-    const head = table.createTHead();
-    const headerRow = head.insertRow();
-
-    this.tableRange.header.forEach((value, index) => {
-      const cell = document.createElement("th");
-      cell.textContent = plainMarkdownTableCell(value);
-      cell.style.textAlign = this.tableRange.alignments[index] ?? "left";
-      headerRow.append(cell);
-    });
+    if (this.tableRange.header.length > 0) {
+      const head = table.createTHead();
+      const headerRow = head.insertRow();
+      this.tableRange.header.forEach((value, index) => {
+        const cell = document.createElement("th");
+        cell.textContent = plainMarkdownTableCell(value);
+        cell.style.textAlign = this.tableRange.alignments[index] ?? "left";
+        headerRow.append(cell);
+      });
+    }
 
     const body = table.createTBody();
+    const columnCount = Math.max(
+      this.tableRange.header.length,
+      ...this.tableRange.rows.map((row) => row.length),
+    );
     for (const row of this.tableRange.rows) {
       const tableRow = body.insertRow();
-      this.tableRange.header.forEach((_, index) => {
+      for (let index = 0; index < columnCount; index += 1) {
         const cell = tableRow.insertCell();
         cell.textContent = plainMarkdownTableCell(row[index] ?? "");
         cell.style.textAlign = this.tableRange.alignments[index] ?? "left";
-      });
+      }
     }
 
     wrapper.append(table);
@@ -510,6 +561,42 @@ export function markdownTableRanges(text: string): MarkdownTableRange[] {
   return ranges;
 }
 
+export function htmlTableRanges(text: string): MarkdownTableRange[] {
+  const ranges: MarkdownTableRange[] = [];
+  for (const tableMatch of text.matchAll(/<table\b[^>]*>[\s\S]*?<\/table\s*>/gi)) {
+    if (tableMatch.index == null) continue;
+    const source = tableMatch[0];
+    const parsedRows: Array<{ cells: string[]; header: boolean }> = [];
+
+    for (const rowMatch of source.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi)) {
+      const cells: string[] = [];
+      let header = false;
+      for (const cellMatch of rowMatch[1].matchAll(
+        /<(th|td)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi,
+      )) {
+        header ||= cellMatch[1].toLowerCase() === "th";
+        cells.push(plainHtmlTableCell(cellMatch[2]));
+      }
+      if (cells.length > 0) parsedRows.push({ cells, header });
+    }
+
+    if (parsedRows.length === 0) continue;
+    const firstRowIsHeader = parsedRows[0].header;
+    const header = firstRowIsHeader ? parsedRows[0].cells : [];
+    const rows = parsedRows.slice(firstRowIsHeader ? 1 : 0).map((row) => row.cells);
+    const columnCount = Math.max(header.length, ...rows.map((row) => row.length));
+    ranges.push({
+      from: tableMatch.index,
+      to: tableMatch.index + source.length,
+      source,
+      header,
+      rows,
+      alignments: Array.from({ length: columnCount }, () => undefined),
+    });
+  }
+  return ranges;
+}
+
 function codeSpanRangesForLine(lineText: string): Array<{ from: number; to: number }> {
   const ranges: Array<{ from: number; to: number }> = [];
   let start = -1;
@@ -616,6 +703,16 @@ export function markdownSyntaxRangesForLine(
   const contentStart = lineFrom + leadingWhitespace;
   const text = lineText.slice(leadingWhitespace);
 
+  if (/^((\*\s*){3,}|(-\s*){3,}|(_\s*){3,})$/.test(text)) {
+    return [
+      {
+        from: contentStart,
+        to: lineFrom + lineText.length,
+        horizontalRule: true,
+      },
+    ];
+  }
+
   const fence = text.match(/^```.*$/);
   if (fence) {
     ranges.push({ from: contentStart, to: lineFrom + lineText.length });
@@ -654,8 +751,22 @@ export function markdownSyntaxRangesForLine(
     ranges.push({ from: contentStart, to: contentStart + blockquote[0].length });
   }
 
-  addInlinePairRanges(ranges, lineText, lineFrom, /\*\*([^*]+)\*\*/g, 2);
-  addInlinePairRanges(ranges, lineText, lineFrom, /__([^_]+)__/g, 2);
+  addInlinePairRanges(ranges, lineText, lineFrom, /\*\*\*([^*]+)\*\*\*/g, 3);
+  addInlinePairRanges(ranges, lineText, lineFrom, /___([^_]+)___/g, 3);
+  addInlinePairRanges(
+    ranges,
+    lineText,
+    lineFrom,
+    /(?<!\*)\*\*([^*]+)\*\*(?!\*)/g,
+    2,
+  );
+  addInlinePairRanges(
+    ranges,
+    lineText,
+    lineFrom,
+    /(?<!_)__([^_]+)__(?!_)/g,
+    2,
+  );
   addInlinePairRanges(
     ranges,
     lineText,
@@ -676,6 +787,20 @@ export function markdownSyntaxRangesForLine(
       { from: lineFrom + match.index, to: lineFrom + textStart },
       { from: lineFrom + textEnd, to: lineFrom + match.index + match[0].length },
     );
+  }
+
+  for (const match of lineText.matchAll(
+    /<(mark|sub|sup|kbd)\b[^>]*>([^<]*)<\/\1\s*>/gi,
+  )) {
+    if (match.index == null) continue;
+    ranges.push({
+      from: lineFrom + match.index,
+      to: lineFrom + match.index + match[0].length,
+      inlineHtml: {
+        tag: match[1].toLowerCase() as "mark" | "sub" | "sup" | "kbd",
+        text: match[2],
+      },
+    });
   }
 
   return ranges;
@@ -912,7 +1037,14 @@ function buildMarkdownRenderDecorations(
           to: range.to,
           decoration: Decoration.replace({
             widget:
-              range.replaceWith !== undefined
+              range.horizontalRule
+                ? new HorizontalRuleWidget()
+                : range.inlineHtml
+                ? new SafeInlineHtmlWidget(
+                    range.inlineHtml.tag,
+                    range.inlineHtml.text,
+                  )
+                : range.replaceWith !== undefined
                 ? new MarkdownMarkerWidget(
                     range.replaceWith,
                     range.className,
@@ -1020,7 +1152,10 @@ const markdownRenderDecorations = ViewPlugin.fromClass(
 
     constructor(view: EditorView) {
       this.codeFences = markdownCodeFenceRanges(view.state.doc.toString());
-      this.tables = markdownTableRanges(view.state.doc.toString());
+      this.tables = [
+        ...markdownTableRanges(view.state.doc.toString()),
+        ...htmlTableRanges(view.state.doc.toString()),
+      ].sort((a, b) => a.from - b.from);
       this.decorations = buildMarkdownRenderDecorations(
         view,
         this.codeFences,
@@ -1032,7 +1167,10 @@ const markdownRenderDecorations = ViewPlugin.fromClass(
       if (update.docChanged) {
         const documentText = update.state.doc.toString();
         this.codeFences = markdownCodeFenceRanges(documentText);
-        this.tables = markdownTableRanges(documentText);
+        this.tables = [
+          ...markdownTableRanges(documentText),
+          ...htmlTableRanges(documentText),
+        ].sort((a, b) => a.from - b.from);
       }
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildMarkdownRenderDecorations(

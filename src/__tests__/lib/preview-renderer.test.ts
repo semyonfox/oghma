@@ -93,6 +93,17 @@ describe("PreviewRenderer", () => {
     expect(html).toContain("<mark>highlighted</mark>");
   });
 
+  it("renders sanitized HTML tables and safe inline study markup", () => {
+    const html = renderPreview(
+      "<table><tbody><tr><td>Cell</td></tr></tbody></table>\n\nH<sub>2</sub>O <kbd>Ctrl</kbd>",
+    );
+
+    expect(html).toContain("<table>");
+    expect(html).toContain("<td>Cell</td>");
+    expect(html).toContain("H<sub>2</sub>O");
+    expect(html).toContain("<kbd>Ctrl</kbd>");
+  });
+
   it("strips unsafe html and javascript links", () => {
     const html = renderPreview(
       '[x](javascript:alert(1))\n\n<script>alert(1)</script><img src="x" onerror="alert(1)" />',

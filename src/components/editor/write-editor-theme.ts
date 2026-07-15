@@ -175,6 +175,36 @@ const writeThemeSpec = {
   ".cm-md-table th:last-child, .cm-md-table td:last-child": {
     borderRight: "0",
   },
+  ".cm-md-inline-html-mark": {
+    backgroundColor: "color-mix(in srgb, var(--md-accent) 24%, transparent)",
+    borderRadius: "0.18rem",
+    color: "var(--md-text)",
+    padding: "0 0.12em",
+  },
+  ".cm-md-inline-html-kbd": {
+    backgroundColor: "var(--md-surface-subtle)",
+    border: "1px solid var(--md-code-border)",
+    borderBottomWidth: "2px",
+    borderRadius: "0.28rem",
+    color: "var(--md-text)",
+    fontFamily: editorMono,
+    fontSize: "0.82em",
+    padding: "0.08em 0.35em",
+  },
+  ".cm-md-inline-html-sub, .cm-md-inline-html-sup": {
+    fontSize: "0.75em",
+    lineHeight: "0",
+    position: "relative",
+    verticalAlign: "baseline",
+  },
+  ".cm-md-inline-html-sub": { bottom: "-0.25em" },
+  ".cm-md-inline-html-sup": { top: "-0.5em" },
+  ".cm-md-horizontal-rule": {
+    borderTop: "1px solid var(--md-code-border)",
+    display: "inline-block",
+    margin: "0.8rem 0 0.3rem",
+    width: "100%",
+  },
   ".cm-formatting, .cm-meta": {
     color: "var(--md-text-faint)",
   },
