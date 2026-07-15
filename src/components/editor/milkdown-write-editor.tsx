@@ -77,6 +77,16 @@ function iconButton(label: string, className: string, icon: string) {
   return button;
 }
 
+function removeControlText(button: HTMLButtonElement) {
+  const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    if (!(node.parentElement?.closest("svg"))) textNodes.push(node);
+  }
+  textNodes.forEach((node) => node.remove());
+}
+
 /** Adds the spike-only T3-style controls without changing serialized Markdown. */
 export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>(".milkdown-code-block").forEach((block) => {
@@ -113,21 +123,27 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     }
 
     const controls = block.querySelector<HTMLElement>(".tools-button-group");
-    if (!controls || controls.querySelector(".oghma-code-wrap")) return;
+    if (!controls) return;
 
     const scroller = block.querySelector<HTMLElement>(".cm-scroller");
-    const wrap = iconButton("Wrap lines", "oghma-code-wrap", WRAP_ICON);
-    wrap.setAttribute("aria-pressed", "false");
-    wrap.addEventListener("click", () => {
-      const pressed = wrap.getAttribute("aria-pressed") !== "true";
-      wrap.setAttribute("aria-pressed", String(pressed));
-      wrap.title = pressed ? "Stop wrapping lines" : "Wrap lines";
-      scroller?.classList.toggle("oghma-code-lines-wrapped", pressed);
-    });
-    controls.prepend(wrap);
+    let wrap = controls.querySelector<HTMLButtonElement>(".oghma-code-wrap");
+    if (!wrap) {
+      wrap = iconButton("Wrap lines", "oghma-code-wrap", WRAP_ICON);
+      wrap.setAttribute("aria-pressed", "false");
+      wrap.addEventListener("click", () => {
+        const pressed = wrap?.getAttribute("aria-pressed") !== "true";
+        wrap?.setAttribute("aria-pressed", String(pressed));
+        if (wrap) wrap.title = pressed ? "Stop wrapping lines" : "Wrap lines";
+        scroller?.classList.toggle("oghma-code-lines-wrapped", pressed);
+      });
+      controls.prepend(wrap);
+    }
 
-    const copy = controls.querySelector<HTMLButtonElement>("button:not(.oghma-code-wrap)");
-    if (copy) {
+    const copy = controls.querySelector<HTMLButtonElement>(
+      "button:not(.oghma-code-wrap):not(.preview-toggle-button)",
+    );
+    if (copy && !copy.dataset.oghmaEnhanced) {
+      copy.innerHTML = COPY_ICON;
       copy.title = "Copy code";
       copy.setAttribute("aria-label", "Copy code");
       copy.addEventListener("click", () => {
@@ -141,6 +157,24 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
           copy.setAttribute("aria-label", "Copy code");
         }, 1600);
       });
+      copy.dataset.oghmaEnhanced = "true";
+    }
+
+    const previewToggle = controls.querySelector<HTMLButtonElement>(
+      ".preview-toggle-button",
+    );
+    if (previewToggle) {
+      const controlText = previewToggle.textContent ?? "";
+      const label = controlText.includes("Edit")
+        ? "Edit diagram source"
+        : controlText.includes("Hide")
+          ? "Hide diagram preview"
+          : previewToggle.getAttribute("aria-label");
+      if (label) {
+        previewToggle.title = label;
+        previewToggle.setAttribute("aria-label", label);
+      }
+      removeControlText(previewToggle);
     }
   });
 }

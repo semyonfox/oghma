@@ -12,7 +12,7 @@ describe("Milkdown spike code controls", () => {
         <div class="milkdown-code-block">
           <div class="tools">
             <button class="language-button">ts<span class="expand-icon"></span></button>
-            <div class="tools-button-group"><button>Copy</button></div>
+            <div class="tools-button-group"><button>Copy</button><button class="preview-toggle-button"><svg></svg>Hide</button></div>
           </div>
           <div class="codemirror-host"><div class="cm-scroller"><div class="cm-content"><div class="cm-line">const answer = 42;</div><div class="cm-line">export {};</div></div></div></div>
         </div>
@@ -24,9 +24,13 @@ describe("Milkdown spike code controls", () => {
     const language = root.querySelector<HTMLButtonElement>(".language-button")!;
     const wrap = root.querySelector<HTMLButtonElement>(".oghma-code-wrap")!;
     const copy = root.querySelectorAll<HTMLButtonElement>(".tools-button-group button")[1];
+    const preview = root.querySelector<HTMLButtonElement>(".preview-toggle-button")!;
     expect(language.getAttribute("aria-label")).toContain("TypeScript");
     expect(wrap.getAttribute("aria-pressed")).toBe("false");
     expect(copy.getAttribute("aria-label")).toBe("Copy code");
+    expect(copy.textContent).toBe("");
+    expect(preview.textContent).toBe("");
+    expect(preview.getAttribute("aria-label")).toBe("Hide diagram preview");
     expect(root.querySelector<HTMLElement>(".codemirror-host")?.style.getPropertyValue("--oghma-code-host-min-height")).toBe("4rem");
 
     fireEvent.click(wrap);
