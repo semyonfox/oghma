@@ -60,22 +60,34 @@ describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     layoutState.paneA.fileId = "";
+    vi.stubGlobal("fetch", vi.fn());
   });
 
-  it("assigns a direct note route without fetching note content", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  it("hydrates a direct PDF route before choosing its renderer", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          title: "lecture.pdf",
+          content: "",
+          s3Key: "notes/550e8400-e29b-41d4-a716-446655440000/lecture.pdf",
+        }),
+      ),
+    );
 
     render(React.createElement(NotesWorkspace));
 
     await waitFor(() => {
       expect(mocks.setPaneA).toHaveBeenCalledWith({
         fileId: "550e8400-e29b-41d4-a716-446655440000",
-        fileType: "note",
-        title: "550e8400-e29b-41d4-a716-446655440000",
+        fileType: "pdf",
+        title: "lecture.pdf",
+        sourcePath: "notes/550e8400-e29b-41d4-a716-446655440000/lecture.pdf",
       });
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    fetchSpy.mockRestore();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/notes/550e8400-e29b-41d4-a716-446655440000",
+      { signal: expect.any(AbortSignal) },
+    );
   });
 });

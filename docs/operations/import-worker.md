@@ -22,7 +22,7 @@ workloads. General container deployment, migrations, and rollback belong in
 | Optional provider | Cloudflare Queues HTTP publish/pull when `QUEUE_PROVIDER=cloudflare` |
 | Object storage | S3-compatible provider selected by the `STORAGE_*` environment |
 | Vector storage | Qdrant, with per-environment collections injected by Jenkins |
-| Extraction | Local parsers, with optional Marker when `MARKER_API_URL` is set |
+| Extraction | Local parsers, with optional Marker when `MARKER_API_URL` is set and `MARKER_OCR_ENABLED` is not false |
 
 The queue provider is selected through the facade. API routes and workers
 should not bypass it with provider-specific calls.
@@ -63,6 +63,7 @@ There are three distinct values to discuss:
 | `CANVAS_EMBED_CONCURRENCY` | `3` | `1` |
 | `CANVAS_FILE_TIMEOUT_MS` | `600000` in the import extraction path | `600000` |
 | `CANVAS_POLL_INTERVAL_MS` | `3000` | `3000` |
+| `MARKER_OCR_ENABLED` | `true` | `true` |
 | `QUEUE_PROVIDER` | `bullmq` | `bullmq` |
 | `REDIS_HOST` | `localhost` | `oghma-redis` |
 | `REDIS_PORT` | `6379` | `6379` |

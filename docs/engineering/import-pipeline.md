@@ -57,7 +57,7 @@ variable.
   jobs.
 - Vault jobs persist progress and support cooperative cancellation between files.
 - Marker page ranges produce explicit extraction-coverage metadata, but there is no automatic full-document enrichment pass after a successful partial preview.
-- `pdf-parse` is a text-layer fallback, not OCR; scanned PDFs may need Marker to become useful.
+- `MARKER_OCR_ENABLED=false` bypasses Marker even when `MARKER_API_URL` is configured. `pdf-parse` remains a text-layer fallback, not OCR, so scanned PDFs will not become searchable while OCR is disabled.
 - Qdrant updates go through [`src/lib/rag/indexing.ts`](../../src/lib/rag/indexing.ts), keeping vector-provider details out of the import stages.
 
 ## Important implementation files

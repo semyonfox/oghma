@@ -10,6 +10,7 @@ import NoteTreePanel from "@/components/notes/note-tree-panel";
 import SplitEditorPane from "@/components/editor/split-editor-pane";
 import NoteInspectorPanel from "@/components/notes/note-inspector-panel";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
+import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
 /**
  * Main notes workspace, coordinating navigation, the note tree, editors, and inspector.
@@ -51,15 +52,26 @@ export default function NotesWorkspace() {
     }
 
     const fileId = route.noteId;
-    if (fileId !== paneAFileId) {
-      // The editor owns loading note content. Tree/sidebar navigation has already
-      // supplied richer metadata when available; direct links only need an ID.
-      setPaneA({
-        fileId,
-        fileType: "note",
-        title: fileId,
+    if (fileId === paneAFileId) return;
+
+    // Sidebar navigation already supplies a complete FileSpec. Direct URL
+    // navigation (including the redirect after upload) only has an ID, so load
+    // the metadata before choosing a renderer. Treating every route as Markdown
+    // prevents PDF/media viewers from ever mounting.
+    const controller = new AbortController();
+    void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`note fetch failed: ${response.status}`);
+        const note = await response.json();
+        setPaneA(buildFileSpec(note));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error("Failed to resolve note route metadata:", error);
+        setPaneA({ fileId, fileType: "note", title: fileId });
       });
-    }
+
+    return () => controller.abort();
     // router is a stable Next.js ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneAFileId, setPaneA]);
