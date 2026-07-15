@@ -13,7 +13,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 // so it must be excluded from SSR to avoid crashing in Node.js
 const PDFViewer = dynamic(() => import("./pdf-viewer"), { ssr: false });
 
-interface FileRouterProps {
+interface FileRendererProps {
   pane: "A" | "B";
   file: FileSpec;
 }
@@ -46,7 +46,7 @@ const ErrorFallback = ({ message }: { message: string }) => {
   );
 };
 
-const FileRouter: FC<FileRouterProps> = ({ pane, file }) => {
+const FileRenderer: FC<FileRendererProps> = ({ pane, file }) => {
   switch (file.fileType) {
     case "note":
       return (
@@ -81,4 +81,4 @@ const FileRouter: FC<FileRouterProps> = ({ pane, file }) => {
   }
 };
 
-export default FileRouter;
+export default FileRenderer;

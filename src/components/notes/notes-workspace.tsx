@@ -7,7 +7,7 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import NoteTreePanel from "@/components/notes/note-tree-panel";
-import SplitEditorPane from "@/components/editor/split-pane";
+import SplitEditorPane from "@/components/editor/split-editor-pane";
 import NoteInspectorPanel from "@/components/notes/note-inspector-panel";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 

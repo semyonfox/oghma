@@ -73,4 +73,13 @@ describe("PrimaryNavigation AI chat entry", () => {
     expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
     expect(mocks.push).not.toHaveBeenCalled();
   });
+
+  it("identifies the current destination accessibly", () => {
+    render(React.createElement(PrimaryNavigation));
+
+    expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
+    ).toBe("page");
+  });
 });

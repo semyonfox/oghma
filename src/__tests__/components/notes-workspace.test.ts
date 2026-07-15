@@ -49,7 +49,7 @@ vi.mock("@/components/navigation/primary-navigation", () => ({ default: () => nu
 vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => null,
 }));
-vi.mock("@/components/editor/split-pane", () => ({ default: () => null }));
+vi.mock("@/components/editor/split-editor-pane", () => ({ default: () => null }));
 vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
 }));

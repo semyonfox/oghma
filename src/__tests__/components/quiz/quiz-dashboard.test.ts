@@ -103,7 +103,7 @@ vi.mock("@/components/quiz/course-list", () => ({
   },
 }));
 
-vi.mock("@/components/course-visibility/manager", () => ({
+vi.mock("@/components/course-visibility/course-visibility-manager", () => ({
   CourseVisibilityDialog: (props: any) => {
     mocks.lastManagerProps = props;
     return React.createElement("div");
@@ -111,7 +111,7 @@ vi.mock("@/components/course-visibility/manager", () => ({
   mergeCourseVisibilityItems: (items: any) => items,
 }));
 
-import QuizDashboard from "@/components/quiz/dashboard";
+import QuizDashboard from "@/components/quiz/quiz-dashboard";
 
 const initialDashboard = {
   dueCount: 2,

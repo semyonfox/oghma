@@ -10,7 +10,7 @@ import {
   CourseVisibilityDialog,
   mergeCourseVisibilityItems,
   type CourseVisibilityItem,
-} from "@/components/course-visibility/manager";
+} from "@/components/course-visibility/course-visibility-manager";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
 import type {

@@ -108,7 +108,10 @@ const PrimaryNavigation: FC = () => {
   };
 
   return (
-    <div className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2">
+    <nav
+      className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2"
+      aria-label={t("Main navigation")}
+    >
       {/* Logo/Branding */}
       <Link
         href="/"
@@ -128,6 +131,8 @@ const PrimaryNavigation: FC = () => {
             <button
               key={item.id}
               onClick={() => handleNavClick(item)}
+              aria-label={translatedLabel}
+              aria-current={isActive ? "page" : undefined}
               aria-describedby={`tooltip-${item.id}`}
               className={`
                 relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors
@@ -170,6 +175,8 @@ const PrimaryNavigation: FC = () => {
           })
         }
         aria-describedby="tooltip-settings"
+        aria-label={t("Settings")}
+        aria-current={derivedActiveSection === "settings" ? "page" : undefined}
         className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors group relative ${
           derivedActiveSection === "settings"
             ? "bg-primary-500/10 text-primary-400"
@@ -186,7 +193,7 @@ const PrimaryNavigation: FC = () => {
           {t("Settings")}
         </div>
       </button>
-    </div>
+    </nav>
   );
 };
 

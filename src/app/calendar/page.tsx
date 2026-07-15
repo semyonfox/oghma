@@ -11,7 +11,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
-import AssignmentTracker from "@/components/panels/assignment-tracker";
+import AssignmentTracker from "@/components/assignments/assignment-tracker";
 
 export default function CalendarPage() {
   const { t } = useI18n();

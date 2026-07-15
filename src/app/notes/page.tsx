@@ -1,6 +1,6 @@
 "use client";
 
-import NotesProviders from "@/components/notes/providers";
+import NotesProviders from "@/components/notes/notes-providers";
 import NotesWorkspace from "@/components/notes/notes-workspace";
 
 /**

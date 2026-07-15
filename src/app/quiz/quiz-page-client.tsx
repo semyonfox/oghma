@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
-import QuizDashboard from "@/components/quiz/dashboard";
+import QuizDashboard from "@/components/quiz/quiz-dashboard";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import type { QuizDashboardInitialData } from "./server-data";
 
