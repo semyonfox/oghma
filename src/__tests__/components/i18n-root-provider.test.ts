@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldRevalidateSettings } from "@/components/providers/I18nRootProvider";
+import { shouldRevalidateSettings } from "@/components/providers/i18n-root-provider";
 
 describe("shouldRevalidateSettings", () => {
   it.each([

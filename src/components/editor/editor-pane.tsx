@@ -17,7 +17,7 @@ import useNoteStore from "@/lib/notes/state/note";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 import { toast } from "sonner";
 
-const FileRouter = dynamic(() => import("./file-router"), { ssr: false });
+const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 
 interface EditorPaneProps {
   pane: "A" | "B";
@@ -270,7 +270,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
 
       {/* File Renderer */}
       <div className="flex-1 overflow-auto bg-background">
-        <FileRouter key={file.fileId} pane={pane} file={file} />
+        <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
   );

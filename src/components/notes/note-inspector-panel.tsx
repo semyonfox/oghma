@@ -18,8 +18,8 @@ const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
   { ssr: false }
 );
-const AssignmentTracker = dynamic(
-  () => import("@/components/panels/assignment-tracker"),
+const TodoTab = dynamic(
+  () => import("@/components/notes/todo-tab"),
   { ssr: false }
 );
 
@@ -32,7 +32,7 @@ interface InspectorNote {
   note_id?: string;
 }
 
-export default function NotesInspectorSidebar() {
+export default function NoteInspectorPanel() {
   const { t } = useI18n();
   const {
     activePane,
@@ -338,11 +338,7 @@ export default function NotesInspectorSidebar() {
         )}
 
         {/* Tasks Tab */}
-        {activeTab === "tasks" && (
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <AssignmentTracker />
-          </div>
-        )}
+        {activeTab === "tasks" && <TodoTab />}
       </div>
     </div>
   );

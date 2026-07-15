@@ -22,13 +22,13 @@ import {
 } from "@/lib/marketing/client";
 
 /**
- * CanvasIntegration
+ * CanvasIntegrationSettings
  *
  * Handles the full Canvas LMS connection flow on the settings page.
  * Progress is persisted in localStorage so navigating away and back
  * doesn't lose the ongoing import state.
  */
-export default function CanvasIntegration() {
+export default function CanvasIntegrationSettings() {
   const { t } = useI18n();
 
   // Connection form state

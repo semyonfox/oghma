@@ -62,20 +62,17 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Icon-only navigation sidebar (48px fixed width)
- * VSCode-style left navigation with hover tooltips
+ * Primary app navigation rail (48px fixed width) with hover tooltips.
  * NOTE: Parent container is responsible for overflow behavior (overflow-hidden).
  * This component should never be scrollable; it fills full height.
  */
-const IconNav: FC = () => {
+const PrimaryNavigation: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const {
-    activeNav,
-    setActiveNav,
-    rightPanelOpen,
-    rightPanelTab,
-  } = useLayoutStore();
+  const activeNav = useLayoutStore((state) => state.activeNav);
+  const setActiveNav = useLayoutStore((state) => state.setActiveNav);
+  const rightPanelOpen = useLayoutStore((state) => state.rightPanelOpen);
+  const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
 
   const derivedActiveSection: NavItem["section"] | "settings" =
@@ -111,7 +108,10 @@ const IconNav: FC = () => {
   };
 
   return (
-    <div className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2">
+    <nav
+      className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2"
+      aria-label={t("Main navigation")}
+    >
       {/* Logo/Branding */}
       <Link
         href="/"
@@ -131,6 +131,8 @@ const IconNav: FC = () => {
             <button
               key={item.id}
               onClick={() => handleNavClick(item)}
+              aria-label={translatedLabel}
+              aria-current={isActive ? "page" : undefined}
               aria-describedby={`tooltip-${item.id}`}
               className={`
                 relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors
@@ -173,6 +175,8 @@ const IconNav: FC = () => {
           })
         }
         aria-describedby="tooltip-settings"
+        aria-label={t("Settings")}
+        aria-current={derivedActiveSection === "settings" ? "page" : undefined}
         className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors group relative ${
           derivedActiveSection === "settings"
             ? "bg-primary-500/10 text-primary-400"
@@ -189,8 +193,8 @@ const IconNav: FC = () => {
           {t("Settings")}
         </div>
       </button>
-    </div>
+    </nav>
   );
 };
 
-export default IconNav;
+export default PrimaryNavigation;

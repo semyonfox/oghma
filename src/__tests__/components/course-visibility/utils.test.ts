@@ -3,7 +3,7 @@ import {
   groupCourseVisibilityItems,
   mergeCourseVisibilityItems,
   type CourseVisibilityItemSource,
-} from "@/components/course-visibility/manager";
+} from "@/components/course-visibility/course-visibility-manager";
 import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
 
 const settings: CourseSetting[] = [

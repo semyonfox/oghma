@@ -1,7 +1,7 @@
 "use client";
 
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import CanvasIntegration from "./canvas-integration";
+import CanvasIntegrationSettings from "./canvas-integration-settings";
 
 export default function CanvasSection() {
   const { t } = useI18n();
@@ -27,7 +27,7 @@ export default function CanvasSection() {
           <h3 className="text-sm/6 font-medium text-text mb-4">
             {t("Connect Canvas Account")}
           </h3>
-          <CanvasIntegration />
+          <CanvasIntegrationSettings />
         </div>
       </div>
     </div>

@@ -10,7 +10,7 @@ import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import EditorPane from "./editor-pane";
 
 /**
- * Main editor pane component with VS Code-style split behavior.
+ * Main editor area with an optional side-by-side editing pane.
  *
  * - Single pane by default (Pane A fills the space)
  * - Pane B appears only when explicitly triggered via "Open in split right" context menu

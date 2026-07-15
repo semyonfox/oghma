@@ -1,21 +1,21 @@
 "use client";
 
-import { FC, ReactNode, useEffect } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
-import IconNav from "@/components/sidebar/icon-nav";
-import FileTreePanel from "@/components/sidebar/file-tree-panel";
-import SplitPane from "@/components/editor/split-pane";
-import NotesInspectorSidebar from "@/components/panels/notes-inspector-sidebar";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
+import NoteTreePanel from "@/components/notes/note-tree-panel";
+import SplitEditorPane from "@/components/editor/split-editor-pane";
+import NoteInspectorPanel from "@/components/notes/note-inspector-panel";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 
 /**
- * Main VSCode-style 4-pane layout container
+ * Main notes workspace, coordinating navigation, the note tree, editors, and inspector.
  *
  * Layout:
- * [48px Icon Nav] [220px Tree] [Flex Editor] [0-280px Inspector (hidden by default)]
+ * [48px Navigation] [220px Note tree] [Flexible editor] [0-280px Inspector]
  *
  * Uses CSS Grid for precise control and localStorage for persistent sizing
  *
@@ -23,7 +23,7 @@ import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
  * - Tab: Switch between pane A and pane B (when in split mode)
  * - Escape: Close right panel
  */
-const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
+export default function NotesWorkspace() {
   const pathname = usePathname();
   const router = useRouter();
   // granular selectors — only re-render when the specific values this
@@ -44,7 +44,7 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
     // hammering the server with requests it will always reject with 400
     if (route.type === "redirect") {
       console.warn(
-        `[layout] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
+        `[notes-workspace] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
       );
       router.replace("/notes");
       return;
@@ -103,28 +103,26 @@ const VSCodeLayout: FC<{ children?: ReactNode }> = () => {
       >
         {/* Pane 1: Icon Navigation (Fixed 48px) */}
         <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
-          <IconNav />
+          <PrimaryNavigation />
         </div>
 
         {/* Pane 2: File Tree (Resizable, default 220px) */}
         <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
-          <FileTreePanel />
+          <NoteTreePanel />
         </div>
 
         {/* Pane 3: Main Editor (Flex fill) */}
         <div className="bg-background overflow-hidden flex flex-col">
-          <SplitPane />
+          <SplitEditorPane />
         </div>
 
         {/* Pane 4: Right Panel (Collapsible, default 280px) */}
         {rightPanelOpen && (
           <div className="glass-panel overflow-hidden flex flex-col">
-            <NotesInspectorSidebar />
+            <NoteInspectorPanel />
           </div>
         )}
       </div>
     </div>
   );
-};
-
-export default VSCodeLayout;
+}

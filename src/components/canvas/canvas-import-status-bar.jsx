@@ -8,7 +8,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
  * Sits at the very bottom of the viewport as a thin strip — not a floating toast.
  * Auto-hides after completion (with a brief "done" message).
  */
-export default function CanvasImportToast({
+export default function CanvasImportStatusBar({
   show,
   onClose,
   progress,

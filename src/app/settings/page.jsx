@@ -27,7 +27,7 @@ import dynamic from "next/dynamic";
 import AccountSection from "@/components/settings/account-section";
 import CourseVisibilityManager, {
   mergeCourseVisibilityItems,
-} from "@/components/course-visibility/manager";
+} from "@/components/course-visibility/course-visibility-manager";
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";

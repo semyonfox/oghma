@@ -27,7 +27,7 @@ import {
   CourseVisibilityDialog,
   mergeCourseVisibilityItems,
   type CourseVisibilityItem,
-} from "@/components/course-visibility/manager";
+} from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
 
 // -- concentric activity rings ---------------------------------------------

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import LanguageSelector from "@/components/common/LanguageSelector";
+import LanguageSelector from "@/components/common/language-selector";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { inputClass, cn, saveBtnClass } from "./settings-utils";
 

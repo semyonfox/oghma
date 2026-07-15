@@ -3,14 +3,13 @@
 import { useEffect, useRef } from "react";
 import usePomodoroStore from '@/lib/notes/state/pomodoro.zustand'
 import { triggerCelebration } from "@/lib/celebration";
-import PomodoroBar from './pomodoro/PomodoroBar'
+import PomodoroStatusBar from "./pomodoro-status-bar";
 
 /**
  * Wrapper component that manages Pomodoro timer globally.
- * Mirrors the CanvasIntegration pattern -- thin client boundary
- * that reads Zustand state and renders the bottom bar.
+ * Thin client boundary that reads timer state and renders the status bar.
  */
-export default function PomodoroIntegration() {
+export default function PomodoroTimerController() {
   const {
     phase,
     paused,
@@ -40,7 +39,7 @@ export default function PomodoroIntegration() {
   if (phase === 'idle') return null
 
   return (
-    <PomodoroBar
+    <PomodoroStatusBar
       phase={phase}
       paused={paused}
       assignmentTitle={assignmentTitle}

@@ -11,7 +11,7 @@ import {
 import type { PomodoroPhase } from "@/lib/notes/state/pomodoro.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-interface PomodoroBarProps {
+interface PomodoroStatusBarProps {
   phase: PomodoroPhase;
   paused: boolean;
   assignmentTitle: string | null;
@@ -29,7 +29,7 @@ interface PomodoroBarProps {
   stop: () => void;
 }
 
-export default function PomodoroBar({
+export default function PomodoroStatusBar({
   phase,
   paused,
   assignmentTitle,
@@ -45,7 +45,7 @@ export default function PomodoroBar({
   resume,
   skip,
   stop,
-}: PomodoroBarProps) {
+}: PomodoroStatusBarProps) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
 
@@ -79,7 +79,7 @@ export default function PomodoroBar({
     return () => clearInterval(interval);
   }, [phase, paused, tick]);
 
-  // auto-hide after completion (same pattern as CanvasImportToast)
+  // auto-hide after completion
   useEffect(() => {
     if (isComplete) {
       let innerTimer: ReturnType<typeof setTimeout>;
