@@ -54,24 +54,6 @@ const LANGUAGE_NAMES: Record<string, string> = {
   bash: "Shell",
 };
 
-const LANGUAGE_ICONS: Record<string, string> = {
-  js: "JS",
-  javascript: "JS",
-  jsx: "JSX",
-  ts: "TS",
-  typescript: "TS",
-  tsx: "TSX",
-  html: "</>",
-  css: "#",
-  json: "{}",
-  py: "Py",
-  python: "Py",
-  diff: "±",
-  mermaid: "◇",
-  sh: ">_",
-  bash: ">_",
-};
-
 const INLINE_HTML_TAGS = new Set(["mark", "kbd", "sup", "sub"]);
 
 function sanitizeRawHtml(value: string): string {
@@ -210,14 +192,6 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
       block.dataset.oghmaLanguage = language.toLowerCase();
       languageButton.title = `Language: ${label}`;
       languageButton.setAttribute("aria-label", `Code language: ${label}. Change language`);
-      const icon = LANGUAGE_ICONS[language.toLowerCase()];
-      if (icon && languageButton.firstChild) {
-        const badge = document.createElement("span");
-        badge.className = "oghma-code-language-icon";
-        badge.setAttribute("aria-hidden", "true");
-        badge.textContent = icon;
-        languageButton.replaceChild(badge, languageButton.firstChild);
-      }
       languageButton.dataset.oghmaEnhanced = "true";
     }
 

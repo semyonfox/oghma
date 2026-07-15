@@ -29,6 +29,7 @@ describe("Milkdown spike code controls", () => {
     const copy = root.querySelectorAll<HTMLButtonElement>(".tools-button-group button")[1];
     const preview = root.querySelector<HTMLButtonElement>(".preview-toggle-button")!;
     expect(language.getAttribute("aria-label")).toContain("TypeScript");
+    expect(language.childNodes[0]?.textContent).toBe("ts");
     expect(wrap.getAttribute("aria-pressed")).toBe("false");
     expect(copy.getAttribute("aria-label")).toBe("Copy code");
     expect(copy.textContent).toBe("");

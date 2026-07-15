@@ -1112,18 +1112,6 @@ html.light .glass-card-active {
   max-height: 16rem;
 }
 
-.oghma-milkdown-editor .oghma-code-language-icon {
-  display: inline-grid;
-  min-width: 1.35rem;
-  height: 1.35rem;
-  place-items: center;
-  border-radius: 0.25rem;
-  background: color-mix(in srgb, var(--color-primary-500) 18%, transparent);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: -0.04em;
-}
-
 .oghma-milkdown-editor .milkdown-code-block button:focus-visible {
   outline: 2px solid var(--color-primary-400);
   outline-offset: 2px;
