@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MutableRefObject } from "react";
 import { applyUpdate } from "@/lib/chat/hooks/use-chat-stream";
+import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
 import type { Message } from "@/lib/chat/types";
 
 function ref(): MutableRefObject<number | null> {
@@ -92,6 +93,31 @@ describe("applyUpdate — token + tool-call parts", () => {
     expect(msg.parts).toEqual([
       { type: "text", text: "partial" },
       { type: "error", text: "Tool-call limit reached" },
+    ]);
+  });
+});
+
+describe("background chat restore", () => {
+  it("maps a persisted background answer back to the live message shape", () => {
+    expect(
+      mapStoredChatMessages([
+        {
+          id: "answer-1",
+          role: "assistant",
+          content: "Finished while away",
+          parts: [{ type: "text", text: "Finished while away" }],
+          metadata: { thinkingDuration: 4 },
+          created_at: "2026-07-15T00:00:00.000Z",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        id: "answer-1",
+        role: "assistant",
+        content: "Finished while away",
+        parts: [{ type: "text", text: "Finished while away" }],
+        thinkingDuration: 4,
+      }),
     ]);
   });
 });

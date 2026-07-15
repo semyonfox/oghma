@@ -20,10 +20,40 @@ import {
   createEmptyChatSessionContext,
   loadHistory,
   normalizeChatSessionContext,
+  persistMessage,
   recordSessionAccesses,
   recordSessionCreatedNote,
   setSessionScope,
 } from "@/lib/chat/session";
+
+describe("chat generation ownership", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(sql).mockResolvedValue([]);
+  });
+
+  it("marks a session as generating when the user message is persisted", async () => {
+    await persistMessage(
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "user",
+      "Explain this",
+    );
+
+    expect(vi.mocked(sql)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(sql).mock.calls[1]).toContain("generating");
+  });
+
+  it("marks a session idle only after the assistant message is persisted", async () => {
+    await persistMessage(
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "assistant",
+      "Here is the answer",
+    );
+
+    expect(vi.mocked(sql)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(sql).mock.calls[1]).toContain("idle");
+  });
+});
 
 describe("chat session context", () => {
   beforeEach(() => {

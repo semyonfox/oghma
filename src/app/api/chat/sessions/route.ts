@@ -14,7 +14,8 @@ export const GET = withErrorHandler(async () => {
     }
 
     const sessions = await sql`
-            SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context, s.created_at, s.updated_at,
+            SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context,
+                   s.generation_status, s.created_at, s.updated_at,
                    COUNT(m.id)::int AS message_count
             FROM app.chat_sessions s
             LEFT JOIN app.notes n

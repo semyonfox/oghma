@@ -248,6 +248,20 @@ export async function persistMessage(
       ${metadata ? JSON.stringify(metadata) : "{}"}::jsonb
     )
   `;
+  await sql`
+    UPDATE app.chat_sessions
+    SET generation_status = ${role === "user" ? "generating" : "idle"},
+        updated_at = NOW()
+    WHERE id = ${sessionId}::uuid
+  `;
+}
+
+export async function markChatGenerationFailed(sessionId: string): Promise<void> {
+  await sql`
+    UPDATE app.chat_sessions
+    SET generation_status = 'failed', updated_at = NOW()
+    WHERE id = ${sessionId}::uuid
+  `;
 }
 
 // create a new session or verify an existing one belongs to the user

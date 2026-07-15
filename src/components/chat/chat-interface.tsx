@@ -122,6 +122,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     useRag,
     toggleRag,
     restoredMessages,
+    backgroundLoading,
     updateRefs,
   } = useChatPersistence({
     compact,
@@ -148,6 +149,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     onSessionCreated,
     onStreamComplete,
   });
+  const busy = loading || backgroundLoading;
 
   // apply restored session messages when available
   useEffect(() => {
@@ -160,8 +162,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   // keep persistence refs in sync for unload handlers
   useEffect(() => {
-    updateRefs({ messages, sessionId, loading });
-  }, [messages, sessionId, loading, updateRefs]);
+    updateRefs({ messages, sessionId, loading: busy });
+  }, [messages, sessionId, busy, updateRefs]);
 
   // auto-scroll: follow streaming output only while the user is pinned to the
   // bottom. If they scroll up to read, stop following so the view stays put
@@ -181,7 +183,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (!pinnedToBottomRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, loading]);
+  }, [messages, busy]);
 
   // input state (local to this component -- not worth extracting)
   const [input, setInput] = useState("");
@@ -192,7 +194,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || busy) return;
 
     // sending a message always re-pins the view to the bottom
     pinnedToBottomRef.current = true;
@@ -261,12 +263,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
-              disabled={loading}
+              disabled={busy}
               className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={loading || !input.trim()}
+              disabled={busy || !input.trim()}
               className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
@@ -385,19 +387,26 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
-              disabled={loading}
+              disabled={busy}
               rows={1}
               className="flex-1 bg-transparent text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none resize-none disabled:opacity-50"
               style={{ minHeight: "20px", maxHeight: "96px" }}
             />
-            {loading ? (
+            {busy ? (
               <button
                 type="button"
-                onClick={cancel}
-                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors"
-                title={t("Stop generating")}
+                onClick={loading ? cancel : undefined}
+                disabled={backgroundLoading}
+                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors disabled:cursor-wait disabled:opacity-60"
+                title={
+                  backgroundLoading
+                    ? t("Generating in background")
+                    : t("Stop generating")
+                }
               >
-                <StopCircleIcon className="w-3.5 h-3.5" />
+                <StopCircleIcon
+                  className={`w-3.5 h-3.5 ${backgroundLoading ? "animate-pulse" : ""}`}
+                />
               </button>
             ) : (
               <button

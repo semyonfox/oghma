@@ -19,7 +19,11 @@ import {
   runKeywordFallback,
   type RagResult,
 } from "@/lib/chat/rag-pipeline";
-import { persistMessage, type ChatMessage } from "@/lib/chat/session";
+import {
+  markChatGenerationFailed,
+  persistMessage,
+  type ChatMessage,
+} from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
@@ -141,6 +145,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     let streamClosed = false;
     let bytesSent = 0;
     let lastEvent = "init";
+    let activeSessionId: string | null = null;
 
     const markClientDisconnected = (reason: unknown) => {
       if (clientDisconnected) return;
@@ -207,6 +212,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 message,
                 requestHistory,
               );
+              activeSessionId = scope.sessionId;
 
               const ragResult = useRag
                 ? await runRagPipeline(userId, message, scope.scopedNoteIds)
@@ -552,6 +558,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 clientDisconnected,
                 lastEvent,
               });
+              if (activeSessionId) {
+                await markChatGenerationFailed(activeSessionId).catch(
+                  (statusError) =>
+                    logger.error("Failed to mark chat generation as failed", {
+                      chatStreamId,
+                      error:
+                        statusError instanceof Error
+                          ? statusError.message
+                          : String(statusError),
+                    }),
+                );
+              }
               sendError(writer, "Failed to generate response");
               lastEvent = "error";
               writer.close();
@@ -725,6 +743,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       model: getLlmModel(),
       thinkingMode,
     });
+    await markChatGenerationFailed(scope.sessionId).catch((statusError) =>
+      logger.error("Failed to mark chat generation as failed", {
+        error:
+          statusError instanceof Error
+            ? statusError.message
+            : String(statusError),
+      }),
+    );
     return tracedError("Failed to generate response", 502);
   }
 });
