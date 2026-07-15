@@ -365,6 +365,13 @@ export function markdownCodeFenceRanges(text: string): MarkdownCodeFenceRange[] 
   return ranges;
 }
 
+export function markdownCodeFenceAt(
+  ranges: MarkdownCodeFenceRange[],
+  position: number,
+): MarkdownCodeFenceRange | undefined {
+  return ranges.find((range) => position >= range.from && position <= range.to);
+}
+
 function codeSpanRangesForLine(lineText: string): Array<{ from: number; to: number }> {
   const ranges: Array<{ from: number; to: number }> = [];
   let start = -1;
@@ -511,6 +518,15 @@ export function markdownSyntaxRangesForLine(
 
   addInlinePairRanges(ranges, lineText, lineFrom, /\*\*([^*]+)\*\*/g, 2);
   addInlinePairRanges(ranges, lineText, lineFrom, /__([^_]+)__/g, 2);
+  addInlinePairRanges(
+    ranges,
+    lineText,
+    lineFrom,
+    /(?<![\w_])_([^_\n]+)_(?![\w_])/g,
+    1,
+  );
+  addInlinePairRanges(ranges, lineText, lineFrom, /(?<!\*)\*([^*\n]+)\*(?!\*)/g, 1);
+  addInlinePairRanges(ranges, lineText, lineFrom, /~~([^~\n]+)~~/g, 2);
   addInlinePairRanges(ranges, lineText, lineFrom, /`([^`]+)`/g, 1);
   addMathDelimiterRanges(ranges, lineText, lineFrom);
 
@@ -614,10 +630,16 @@ type RenderDecoration = {
   point?: boolean;
 };
 
-function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
+function buildMarkdownRenderDecorations(
+  view: EditorView,
+  codeFences: MarkdownCodeFenceRange[],
+): DecorationSet {
   const decorations: RenderDecoration[] = [];
   const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
-  const codeFences = markdownCodeFenceRanges(view.state.doc.toString());
+  const activeCodeFence = markdownCodeFenceAt(
+    codeFences,
+    view.state.selection.main.head,
+  );
 
   for (const fence of codeFences) {
     const firstLine = view.state.doc.lineAt(fence.openFrom);
@@ -639,7 +661,7 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
       line = view.state.doc.line(line.number + 1);
     }
 
-    if (activeLine.from !== firstLine.from) {
+    if (activeCodeFence !== fence) {
       decorations.push({
         from: fence.openFrom,
         to: fence.openTo,
@@ -674,16 +696,21 @@ function buildMarkdownRenderDecorations(view: EditorView): DecorationSet {
     }
 
     let pos = visibleRange.from;
-    let inFence = codeFences.some(
-        (fence) => fromLine.from > fence.openFrom && fromLine.from <= fence.to,
-      );
+    let fenceIndex = codeFences.findIndex((fence) => fence.to >= fromLine.from);
     while (pos <= visibleRange.to) {
       const line = view.state.doc.lineAt(pos);
       const lineIsActive = line.from === activeLine.from;
-      const trimmed = line.text.trimStart();
-      if (trimmed.startsWith("```")) {
-        inFence = !inFence;
+      while (
+        fenceIndex >= 0 &&
+        fenceIndex < codeFences.length &&
+        codeFences[fenceIndex].to < line.from
+      ) {
+        fenceIndex += 1;
       }
+      const fence = fenceIndex >= 0 ? codeFences[fenceIndex] : undefined;
+      const inFence = Boolean(
+        fence && line.from >= fence.openFrom && line.from <= fence.to,
+      );
 
       if (!lineIsActive && !inFence) {
         for (const mathRange of inlineMathRangesForLine(line.text, line.from)) {
@@ -822,14 +849,22 @@ const taskCheckboxInteraction = EditorView.domEventHandlers({
 const markdownRenderDecorations = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
+    codeFences: MarkdownCodeFenceRange[];
 
     constructor(view: EditorView) {
-      this.decorations = buildMarkdownRenderDecorations(view);
+      this.codeFences = markdownCodeFenceRanges(view.state.doc.toString());
+      this.decorations = buildMarkdownRenderDecorations(view, this.codeFences);
     }
 
     update(update: ViewUpdate) {
+      if (update.docChanged) {
+        this.codeFences = markdownCodeFenceRanges(update.state.doc.toString());
+      }
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
-        this.decorations = buildMarkdownRenderDecorations(update.view);
+        this.decorations = buildMarkdownRenderDecorations(
+          update.view,
+          this.codeFences,
+        );
       }
     }
   },

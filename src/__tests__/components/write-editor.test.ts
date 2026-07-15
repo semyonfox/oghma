@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGES,
   inlineMathRangesForLine,
+  markdownCodeFenceAt,
   markdownCodeFenceRanges,
   markdownTaskMarkerForLine,
   markdownSyntaxRangesForLine,
@@ -52,6 +53,13 @@ describe("WriteEditor helpers", () => {
         title: undefined,
       },
     ]);
+  });
+
+  it("treats the whole fenced code cell as active source", () => {
+    const ranges = markdownCodeFenceRanges("Before\n```ts\nconst value = 1\n```\nAfter");
+
+    expect(markdownCodeFenceAt(ranges, 20)).toBe(ranges[0]);
+    expect(markdownCodeFenceAt(ranges, 3)).toBeUndefined();
   });
 
   it("wraps the current markdown selection and keeps the selection inside the markers", () => {
@@ -146,6 +154,20 @@ describe("WriteEditor helpers", () => {
       { from: 18, to: 19 },
       { from: 23, to: 24 },
     ]);
+  });
+
+  it("hides emphasis and strike markers while their line is inactive", () => {
+    expect(
+      markdownSyntaxRangesForLine("read _this_, *that*, and ~~gone~~", 0, false),
+    ).toEqual([
+      { from: 5, to: 6 },
+      { from: 10, to: 11 },
+      { from: 13, to: 14 },
+      { from: 18, to: 19 },
+      { from: 25, to: 27 },
+      { from: 31, to: 33 },
+    ]);
+    expect(markdownSyntaxRangesForLine("snake_case_value", 0, false)).toEqual([]);
   });
 
   it("detects inactive inline math ranges without changing canonical markdown", () => {
