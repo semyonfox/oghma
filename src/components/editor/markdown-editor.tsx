@@ -11,7 +11,9 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import useLayoutStore, {
+  FileSpec,
+} from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
@@ -36,7 +38,7 @@ const DRAFT_DEBOUNCE_MS = 1000;
  * Markdown editor with one Notion-ish writing surface.
  * Markdown stays canonical underneath; the beta UI just softens the editing layer.
  */
-const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
+const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
   const router = useRouter();
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -48,6 +50,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   // fetched a different note because both shared the same singleton state.
   const fetchNote = useNoteStore((s) => s.fetchNote);
   const mutateNote = useNoteStore((s) => s.mutateNote);
+  const dismissUnavailablePane = useLayoutStore(
+    (s) => s.dismissUnavailablePane,
+  );
   const { markModified, markSynced } = useSyncStatusStore();
   const editorSize = useSettingsStore((s) => s.settings?.editorsize);
   const setSettings = useSettingsStore((s) => s.setSettings);
@@ -168,7 +173,12 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       try {
         const result = await fetchNote(file.fileId);
         if (!cancelled && !result && currentFileId.current === stale) {
-          router.replace("/notes");
+          const survivingFile = dismissUnavailablePane(pane, file.fileId);
+          if (pane === "A" && survivingFile !== undefined) {
+            router.replace(
+              survivingFile?.fileId ? `/notes/${survivingFile.fileId}` : "/notes",
+            );
+          }
           return;
         }
         if (!cancelled && result && currentFileId.current === stale) {
@@ -217,7 +227,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
         );
       }
     };
-  }, [file.fileId, fetchNote, router, t]);
+  }, [dismissUnavailablePane, file.fileId, fetchNote, pane, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.

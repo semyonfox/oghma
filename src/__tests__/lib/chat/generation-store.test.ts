@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const sqlMock = vi.hoisted(() => vi.fn());
+const sqlMock = vi.hoisted(() =>
+  Object.assign(vi.fn(), { json: vi.fn((value: unknown) => value) }),
+);
 const redisMock = vi.hoisted(() => ({
   call: vi.fn(),
   del: vi.fn(),
@@ -17,6 +19,8 @@ vi.mock("@/lib/utils/uuid", () => ({
 import {
   appendChatGenerationEvent,
   createChatGeneration,
+  loadChatGeneration,
+  loadOwnedChatGeneration,
   readChatGenerationEvents,
 } from "@/lib/chat/generation-store";
 
@@ -46,9 +50,52 @@ describe("resumable chat generation store", () => {
 
     expect(id).toBe("11111111-1111-1111-1111-111111111111");
     expect(sqlMock).toHaveBeenCalledOnce();
-    expect(sqlMock.mock.calls[0]).toContainEqual(
-      expect.stringContaining("Explain streams"),
+    expect(sqlMock.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Explain streams" }),
     );
+  });
+
+  it("loads payloads written as JSON strings by the original background stream", async () => {
+    const payload = {
+      userId: "22222222-2222-2222-2222-222222222222",
+      sessionId: "33333333-3333-3333-3333-333333333333",
+      message: "Explain streams",
+      scope: { sessionContext: {}, scopedNoteIds: null, scopedInputNoteIds: [], history: [] },
+      useRag: true,
+      thinkingMode: "auto",
+      requestOrigin: "https://oghmanotes.ie",
+      respectPrivacySignal: false,
+    };
+    sqlMock.mockResolvedValueOnce([
+      {
+        id: "11111111-1111-1111-1111-111111111111",
+        session_id: payload.sessionId,
+        user_id: payload.userId,
+        status: "failed",
+        request_payload: JSON.stringify(payload),
+        error_message: "old failure",
+      },
+    ]);
+
+    await expect(loadChatGeneration("11111111-1111-1111-1111-111111111111"))
+      .resolves.toEqual(expect.objectContaining({ request_payload: payload }));
+  });
+
+  it("keeps payloads already decoded by postgres unchanged", async () => {
+    const payload = { message: "Already decoded" } as never;
+    const row = {
+      id: "11111111-1111-1111-1111-111111111111",
+      session_id: "33333333-3333-3333-3333-333333333333",
+      user_id: "22222222-2222-2222-2222-222222222222",
+      status: "running",
+      request_payload: payload,
+      error_message: null,
+    };
+    sqlMock.mockResolvedValueOnce([row]);
+
+    await expect(
+      loadOwnedChatGeneration(row.id, row.user_id),
+    ).resolves.toEqual(row);
   });
 
   it("stores bounded SSE events and refreshes their expiry", async () => {

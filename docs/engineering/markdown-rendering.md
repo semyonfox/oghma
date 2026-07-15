@@ -2,7 +2,7 @@
 
 > **Status:** Active compatibility contract
 >
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-07-15
 >
 > **Source of truth:** Editor/renderer code and [`src/__tests__/fixtures/markdown-contract.md`](../../src/__tests__/fixtures/markdown-contract.md)
 
@@ -10,15 +10,12 @@ OghmaNotes stores notes as portable Markdown and presents them through one writi
 
 ## Editor decision
 
-The locally committed decision in `3bb62096` is still in force:
-
 - canonical note content is plain Markdown;
-- CodeMirror 6 remains the production editor engine in [`write-editor.tsx`](../../src/components/editor/write-editor.tsx);
+- Milkdown Crepe is the production editor surface in [`milkdown-write-editor.tsx`](../../src/components/editor/milkdown-write-editor.tsx);
+- Milkdown's embedded CodeMirror owns fenced-code editing; the retired standalone CodeMirror editor is not a fallback path;
 - Markdown syntax may be visually quiet when inactive, but remains directly editable and portable;
 - MDX/JSX is not the note format;
-- do not migrate the editor engine without a focused spike proving Markdown round-trip fidelity, selection/keyboard behaviour, mobile usability, performance, and security.
-
-Milkdown or another Markdown-first rich editor remains an escape hatch if the CodeMirror surface reaches a demonstrated UX ceiling. It is not an active migration plan.
+- editor changes must preserve Markdown round-trip fidelity, selection/keyboard behaviour, mobile usability, performance, and security.
 
 ## Shared renderer
 

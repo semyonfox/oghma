@@ -188,7 +188,7 @@ Requirements:
 
 ### Phase 0: freeze and fixtures
 
-- Do not add more non-critical live-preview widgets to `write-editor.tsx`.
+- Treat the retired standalone CodeMirror editor as historical; add editor behavior only through the Milkdown surface and its compatibility contract.
 - Expand `src/__tests__/fixtures/markdown-contract.md` with representative nested quotes/lists, multiple code languages, `diff`, complex math, hard breaks, safe HTML, opaque HTML, and malformed HTML.
 - Add real imported-note fixtures separately when they can remain private/untracked; do not commit private note contents.
 - Define semantic comparison rules so harmless Markdown normalization does not fail the spike.

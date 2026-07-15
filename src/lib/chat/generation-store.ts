@@ -32,6 +32,18 @@ export interface ChatGenerationRecord {
   error_message: string | null;
 }
 
+function normalizeGenerationRecord(
+  row: ChatGenerationRecord | undefined,
+): ChatGenerationRecord | null {
+  if (!row) return null;
+  if (typeof row.request_payload !== "string") return row;
+
+  return {
+    ...row,
+    request_payload: JSON.parse(row.request_payload) as ChatGenerationPayload,
+  };
+}
+
 function eventKey(generationId: string): string {
   return `chat-generation:${generationId}:events`;
 }
@@ -47,7 +59,7 @@ export async function createChatGeneration(
       ${payload.sessionId}::uuid,
       ${payload.userId}::uuid,
       'queued',
-      ${JSON.stringify(payload)}::jsonb
+      ${sql.json(payload)}
     )
   `;
   return generationId;
@@ -62,7 +74,7 @@ export async function loadChatGeneration(
     WHERE id = ${generationId}::uuid
     LIMIT 1
   `;
-  return (rows[0] as ChatGenerationRecord | undefined) ?? null;
+  return normalizeGenerationRecord(rows[0] as ChatGenerationRecord | undefined);
 }
 
 export async function loadOwnedChatGeneration(
@@ -75,7 +87,7 @@ export async function loadOwnedChatGeneration(
     WHERE id = ${generationId}::uuid AND user_id = ${userId}::uuid
     LIMIT 1
   `;
-  return (rows[0] as ChatGenerationRecord | undefined) ?? null;
+  return normalizeGenerationRecord(rows[0] as ChatGenerationRecord | undefined);
 }
 
 export async function claimChatGeneration(generationId: string): Promise<boolean> {

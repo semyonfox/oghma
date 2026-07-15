@@ -52,6 +52,10 @@ interface LayoutState {
   setActiveNav: (nav: NavSection) => void;
   setPaneA: (file: FileSpec | undefined) => void;
   setPaneB: (file: FileSpec | undefined) => void;
+  dismissUnavailablePane: (
+    pane: "A" | "B",
+    fileId: string,
+  ) => FileSpec | null | undefined;
   setActivePane: (pane: "A" | "B") => void;
   swapPanes: () => void;
   setPaneEditMode: (pane: "A" | "B", editMode: boolean) => void;
@@ -102,6 +106,41 @@ const useLayoutStore = create<LayoutState>()(
         } else {
           set({ paneB: { ...file, lastOpened: Date.now() } });
         }
+      },
+
+      // Remove a file only if the failed request still belongs to that pane.
+      // When pane A disappears, promote pane B so the surviving editor remains
+      // usable and the URL can follow it without remounting stale pane state.
+      dismissUnavailablePane: (pane, fileId) => {
+        let survivingFile: FileSpec | null | undefined;
+
+        set((state) => {
+          const currentFile = pane === "A" ? state.paneA : state.paneB;
+          if (!currentFile || currentFile.fileId !== fileId) {
+            survivingFile = undefined;
+            return state;
+          }
+
+          if (pane === "B") {
+            survivingFile = state.paneA.fileId ? state.paneA : null;
+            return {
+              paneB: null,
+              activePane: "A",
+              selectedNode: state.paneA.fileId || null,
+            };
+          }
+
+          const promoted = state.paneB;
+          survivingFile = promoted;
+          return {
+            paneA: promoted || { fileId: "", fileType: "note" as FileType },
+            paneB: null,
+            activePane: "A",
+            selectedNode: promoted?.fileId || null,
+          };
+        });
+
+        return survivingFile;
       },
 
       // Set active pane (for keyboard focus tracking)
