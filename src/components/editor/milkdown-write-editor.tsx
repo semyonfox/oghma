@@ -84,6 +84,7 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     if (languageButton && !languageButton.dataset.oghmaEnhanced) {
       const language = languageButton.childNodes[0]?.textContent?.trim() || "Text";
       const label = LANGUAGE_NAMES[language.toLowerCase()] ?? language;
+      block.dataset.oghmaLanguage = language.toLowerCase();
       languageButton.title = `Language: ${label}`;
       languageButton.setAttribute("aria-label", `Code language: ${label}. Change language`);
       const icon = LANGUAGE_ICONS[language.toLowerCase()];
@@ -95,6 +96,20 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
         languageButton.replaceChild(badge, languageButton.firstChild);
       }
       languageButton.dataset.oghmaEnhanced = "true";
+    }
+
+    const codeMirrorHost = block.querySelector<HTMLElement>(".codemirror-host");
+    if (codeMirrorHost) {
+      const renderedLines = block.querySelectorAll(".cm-content .cm-line").length;
+      const placeholder = block.querySelector<HTMLElement>(
+        ".milkdown-code-block-placeholder",
+      );
+      const sourceLines = (placeholder?.textContent?.split("\n").length ?? 0);
+      const lineCount = Math.max(renderedLines, sourceLines, 1);
+      codeMirrorHost.style.setProperty(
+        "--oghma-code-host-min-height",
+        `${lineCount * 1.5 + 1}rem`,
+      );
     }
 
     const controls = block.querySelector<HTMLElement>(".tools-button-group");

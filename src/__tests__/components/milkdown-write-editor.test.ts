@@ -14,7 +14,7 @@ describe("Milkdown spike code controls", () => {
             <button class="language-button">ts<span class="expand-icon"></span></button>
             <div class="tools-button-group"><button>Copy</button></div>
           </div>
-          <div class="cm-scroller"><div class="cm-content">const answer = 42;</div></div>
+          <div class="codemirror-host"><div class="cm-scroller"><div class="cm-content"><div class="cm-line">const answer = 42;</div><div class="cm-line">export {};</div></div></div></div>
         </div>
       </div>`;
     const root = document.querySelector<HTMLElement>("#root")!;
@@ -27,11 +27,12 @@ describe("Milkdown spike code controls", () => {
     expect(language.getAttribute("aria-label")).toContain("TypeScript");
     expect(wrap.getAttribute("aria-pressed")).toBe("false");
     expect(copy.getAttribute("aria-label")).toBe("Copy code");
+    expect(root.querySelector<HTMLElement>(".codemirror-host")?.style.getPropertyValue("--oghma-code-host-min-height")).toBe("4rem");
 
     fireEvent.click(wrap);
     expect(wrap.getAttribute("aria-pressed")).toBe("true");
     expect(root.querySelector(".cm-scroller")?.classList).toContain("oghma-code-lines-wrapped");
-    expect(root.querySelector(".cm-content")?.textContent).toBe("const answer = 42;");
+    expect(root.querySelector(".cm-content")?.textContent).toBe("const answer = 42;export {};");
 
     fireEvent.click(copy);
     expect(copy.getAttribute("aria-label")).toBe("Code copied");

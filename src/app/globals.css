@@ -1094,6 +1094,23 @@ html.light .glass-card-active {
   min-height: 6rem;
 }
 
+.oghma-milkdown-editor .milkdown-code-block .codemirror-host {
+  min-height: var(--oghma-code-host-min-height, 2.5rem);
+}
+
+.oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .preview-panel .preview {
+  display: grid;
+  height: 18rem;
+  min-height: 18rem;
+  place-items: center;
+  overflow: auto;
+}
+
+.oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .oghma-mermaid-diagram,
+.oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .oghma-mermaid-diagram svg {
+  max-height: 16rem;
+}
+
 .oghma-milkdown-editor .oghma-code-language-icon {
   display: inline-grid;
   min-width: 1.35rem;
@@ -1149,7 +1166,9 @@ html.light .glass-card-active {
 }
 
 .oghma-mermaid-preview {
+  height: 18rem;
   padding: 1.25rem;
+  overflow: auto;
 }
 
 .oghma-mermaid-diagram {
@@ -1160,7 +1179,7 @@ html.light .glass-card-active {
   width: auto;
   max-width: 100%;
   height: auto;
-  max-height: 36rem;
+  max-height: 16rem;
 }
 
 .oghma-mermaid-block pre[data-mermaid-state="fallback"] {

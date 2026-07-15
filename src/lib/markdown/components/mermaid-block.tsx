@@ -20,6 +20,7 @@ export default function MermaidBlock({ code, title }: MermaidBlockProps) {
       .then((preview) => {
         if (!active || !previewRef.current) return;
         previewRef.current.replaceChildren(preview);
+        previewRef.current.setAttribute("aria-busy", "false");
       })
       .catch(() => {
         if (active) setFailed(true);
