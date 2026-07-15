@@ -145,6 +145,36 @@ const writeThemeSpec = {
     textTransform: "none",
     whiteSpace: "nowrap",
   },
+  ".cm-md-table-scroll": {
+    margin: "0.7rem 0",
+    maxWidth: "100%",
+    overflowX: "auto",
+  },
+  ".cm-md-table": {
+    border: "1px solid var(--md-code-border)",
+    borderCollapse: "separate",
+    borderRadius: "0.65rem",
+    borderSpacing: "0",
+    color: "var(--md-text-muted)",
+    minWidth: "100%",
+    overflow: "hidden",
+  },
+  ".cm-md-table th, .cm-md-table td": {
+    borderBottom: "1px solid var(--md-code-border)",
+    borderRight: "1px solid var(--md-code-border)",
+    minWidth: "7rem",
+    padding: "0.6rem 0.8rem",
+    verticalAlign: "top",
+  },
+  ".cm-md-table th": {
+    backgroundColor: "var(--md-surface-subtle)",
+    color: "var(--md-text)",
+    fontWeight: "650",
+  },
+  ".cm-md-table tr:last-child td": { borderBottom: "0" },
+  ".cm-md-table th:last-child, .cm-md-table td:last-child": {
+    borderRight: "0",
+  },
   ".cm-formatting, .cm-meta": {
     color: "var(--md-text-faint)",
   },

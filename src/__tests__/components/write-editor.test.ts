@@ -6,6 +6,7 @@ import {
   markdownCodeFenceRanges,
   markdownTaskMarkerForLine,
   markdownSyntaxRangesForLine,
+  markdownTableRanges,
   toggleMarkdownTask,
   wrapMarkdownSelection,
 } from "@/components/editor/write-editor";
@@ -60,6 +61,24 @@ describe("WriteEditor helpers", () => {
 
     expect(markdownCodeFenceAt(ranges, 20)).toBe(ranges[0]);
     expect(markdownCodeFenceAt(ranges, 3)).toBeUndefined();
+  });
+
+  it("finds GFM table blocks without changing their markdown", () => {
+    const markdown = "Before\n| Topic | Score |\n| :--- | ---: |\n| Math | **95** |\nAfter";
+
+    expect(markdownTableRanges(markdown)).toEqual([
+      {
+        from: 7,
+        to: 58,
+        source: "| Topic | Score |\n| :--- | ---: |\n| Math | **95** |",
+        header: ["Topic", "Score"],
+        rows: [["Math", "**95**"]],
+        alignments: ["left", "right"],
+      },
+    ]);
+    expect(markdown.slice(7, 58)).toBe(
+      "| Topic | Score |\n| :--- | ---: |\n| Math | **95** |",
+    );
   });
 
   it("wraps the current markdown selection and keeps the selection inside the markers", () => {

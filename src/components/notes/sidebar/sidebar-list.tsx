@@ -509,7 +509,7 @@ const SidebarList = () => {
       {/* delete confirmation overlay */}
       {deleteConfirmTarget && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50"
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div

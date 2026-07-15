@@ -89,6 +89,15 @@ export interface MarkdownCodeFenceRange {
   title?: string;
 }
 
+export interface MarkdownTableRange {
+  from: number;
+  to: number;
+  source: string;
+  header: string[];
+  rows: string[][];
+  alignments: Array<"left" | "center" | "right" | undefined>;
+}
+
 const themeCompartment = new Compartment();
 const externalValueSync = Annotation.define<boolean>();
 
@@ -204,6 +213,56 @@ class CodeFenceHeaderWidget extends WidgetType {
 
   eq(other: CodeFenceHeaderWidget) {
     return this.language === other.language && this.title === other.title;
+  }
+}
+
+function plainMarkdownTableCell(value: string): string {
+  return value
+    .replace(/!\[([^\]]*)]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/(\*\*|__|~~|`)(.*?)\1/g, "$2")
+    .replace(/(?<![\w_])_([^_]+)_(?![\w_])/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/\\\|/g, "|")
+    .trim();
+}
+
+class MarkdownTableWidget extends WidgetType {
+  constructor(private readonly tableRange: MarkdownTableRange) {
+    super();
+  }
+
+  toDOM() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cm-md-table-scroll";
+    const table = document.createElement("table");
+    table.className = "cm-md-table";
+    const head = table.createTHead();
+    const headerRow = head.insertRow();
+
+    this.tableRange.header.forEach((value, index) => {
+      const cell = document.createElement("th");
+      cell.textContent = plainMarkdownTableCell(value);
+      cell.style.textAlign = this.tableRange.alignments[index] ?? "left";
+      headerRow.append(cell);
+    });
+
+    const body = table.createTBody();
+    for (const row of this.tableRange.rows) {
+      const tableRow = body.insertRow();
+      this.tableRange.header.forEach((_, index) => {
+        const cell = tableRow.insertCell();
+        cell.textContent = plainMarkdownTableCell(row[index] ?? "");
+        cell.style.textAlign = this.tableRange.alignments[index] ?? "left";
+      });
+    }
+
+    wrapper.append(table);
+    return wrapper;
+  }
+
+  eq(other: MarkdownTableWidget) {
+    return this.tableRange.source === other.tableRange.source;
   }
 }
 
@@ -370,6 +429,85 @@ export function markdownCodeFenceAt(
   position: number,
 ): MarkdownCodeFenceRange | undefined {
   return ranges.find((range) => position >= range.from && position <= range.to);
+}
+
+function markdownTableCells(line: string): string[] {
+  const trimmed = line.trim();
+  const content = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
+  const withoutTrailingPipe = content.endsWith("|")
+    ? content.slice(0, -1)
+    : content;
+  const cells: string[] = [];
+  let cell = "";
+
+  for (let index = 0; index < withoutTrailingPipe.length; index += 1) {
+    const character = withoutTrailingPipe[index];
+    if (character === "|" && withoutTrailingPipe[index - 1] !== "\\") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += character;
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+export function markdownTableRanges(text: string): MarkdownTableRange[] {
+  const sourceLines = text.split("\n");
+  const offsets: number[] = [];
+  let offset = 0;
+  for (const line of sourceLines) {
+    offsets.push(offset);
+    offset += line.length + 1;
+  }
+
+  const ranges: MarkdownTableRange[] = [];
+  for (let index = 0; index < sourceLines.length - 1; index += 1) {
+    if (!sourceLines[index].includes("|")) continue;
+    const header = markdownTableCells(sourceLines[index]);
+    const delimiters = markdownTableCells(sourceLines[index + 1]);
+    if (
+      header.length < 2 ||
+      delimiters.length !== header.length ||
+      !delimiters.every((cell) => /^:?-{3,}:?$/.test(cell))
+    ) {
+      continue;
+    }
+
+    const rows: string[][] = [];
+    let lastLineIndex = index + 1;
+    while (
+      lastLineIndex + 1 < sourceLines.length &&
+      sourceLines[lastLineIndex + 1].includes("|")
+    ) {
+      const row = markdownTableCells(sourceLines[lastLineIndex + 1]);
+      if (row.length !== header.length) break;
+      rows.push(row);
+      lastLineIndex += 1;
+    }
+
+    const from = offsets[index];
+    const to = offsets[lastLineIndex] + sourceLines[lastLineIndex].length;
+    ranges.push({
+      from,
+      to,
+      source: text.slice(from, to),
+      header,
+      rows,
+      alignments: delimiters.map((cell) =>
+        cell.startsWith(":") && cell.endsWith(":")
+          ? "center"
+          : cell.endsWith(":")
+            ? "right"
+            : cell.startsWith(":")
+              ? "left"
+              : undefined,
+      ),
+    });
+    index = lastLineIndex;
+  }
+  return ranges;
 }
 
 function codeSpanRangesForLine(lineText: string): Array<{ from: number; to: number }> {
@@ -633,6 +771,7 @@ type RenderDecoration = {
 function buildMarkdownRenderDecorations(
   view: EditorView,
   codeFences: MarkdownCodeFenceRange[],
+  tables: MarkdownTableRange[],
 ): DecorationSet {
   const decorations: RenderDecoration[] = [];
   const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
@@ -640,6 +779,33 @@ function buildMarkdownRenderDecorations(
     codeFences,
     view.state.selection.main.head,
   );
+  const activeTable = tables.find(
+    (table) =>
+      view.state.selection.main.head >= table.from &&
+      view.state.selection.main.head <= table.to,
+  );
+
+  for (const table of tables) {
+    if (
+      activeTable !== table &&
+      !codeFences.some((fence) =>
+        rangesOverlap(table.from, table.to, fence.from, fence.to),
+      ) &&
+      view.visibleRanges.some((range) =>
+        rangesOverlap(table.from, table.to, range.from, range.to),
+      )
+    ) {
+      decorations.push({
+        from: table.from,
+        to: table.to,
+        decoration: Decoration.replace({
+          widget: new MarkdownTableWidget(table),
+          block: true,
+        }),
+        priority: 0,
+      });
+    }
+  }
 
   for (const fence of codeFences) {
     const firstLine = view.state.doc.lineAt(fence.openFrom);
@@ -850,20 +1016,29 @@ const markdownRenderDecorations = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     codeFences: MarkdownCodeFenceRange[];
+    tables: MarkdownTableRange[];
 
     constructor(view: EditorView) {
       this.codeFences = markdownCodeFenceRanges(view.state.doc.toString());
-      this.decorations = buildMarkdownRenderDecorations(view, this.codeFences);
+      this.tables = markdownTableRanges(view.state.doc.toString());
+      this.decorations = buildMarkdownRenderDecorations(
+        view,
+        this.codeFences,
+        this.tables,
+      );
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged) {
-        this.codeFences = markdownCodeFenceRanges(update.state.doc.toString());
+        const documentText = update.state.doc.toString();
+        this.codeFences = markdownCodeFenceRanges(documentText);
+        this.tables = markdownTableRanges(documentText);
       }
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildMarkdownRenderDecorations(
           update.view,
           this.codeFences,
+          this.tables,
         );
       }
     }
