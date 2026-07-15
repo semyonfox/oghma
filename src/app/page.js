@@ -364,9 +364,9 @@ export default async function Home() {
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3">
             {features.map((feature, i) => (
               <FadeIn key={feature.name} delay={i * 0.05}>
-                <dl className="h-full rounded-radius-xl bg-surface border border-border-subtle p-6 transition-colors duration-200 hover:border-border">
+                <dl className="group h-full rounded-radius-xl bg-surface border border-border-subtle p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary-500/30 hover:shadow-xl hover:shadow-primary-950/5">
                   <dt>
-                    <div className="bg-primary-500/10 rounded-radius-lg p-2 w-fit mb-4">
+                    <div className="bg-primary-500/10 rounded-radius-lg p-2 w-fit mb-4 transition-colors group-hover:bg-primary-500/15">
                       <feature.icon
                         aria-hidden="true"
                         className="size-8 text-primary-400"
@@ -403,13 +403,13 @@ export default async function Home() {
               </p>
             </div>
           </FadeIn>
-          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-radius-xl border border-border-subtle bg-surface">
+          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-radius-2xl border border-border-subtle bg-surface shadow-xl shadow-primary-950/5">
             {comparisonRows.map((row, index) => (
               <div
                 key={row.tool}
-                className={`grid gap-4 p-6 sm:grid-cols-[12rem_1fr] ${
+                className={`grid gap-4 p-6 transition-colors sm:grid-cols-[12rem_1fr] ${
                   index > 0 ? "border-t border-border-subtle" : ""
-                }`}
+                } ${row.tool === t("OghmaNotes") ? "bg-primary-500/10" : ""}`}
               >
                 <div className="font-serif text-lg font-semibold text-text">
                   {row.tool}
