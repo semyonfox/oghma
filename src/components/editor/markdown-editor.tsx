@@ -21,8 +21,8 @@ import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
 import { getEditorWidthStyle } from "@/lib/notes/editor-width";
 
-// CodeMirror accesses browser APIs on import, so lazy-load the writing surface client-side only.
-const WriteEditor = dynamic(() => import("./write-editor"), {
+// Milkdown accesses browser APIs on import, so load the writing surface client-side only.
+const MilkdownWriteEditor = dynamic(() => import("./milkdown-write-editor"), {
   ssr: false,
 });
 
@@ -422,7 +422,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       >
         {loaded ? (
           <div className="h-full min-h-0 w-full">
-            <WriteEditor
+            <MilkdownWriteEditor
               value={displayContent}
               onChange={(val, programmaticUpdate) => {
                 setLocalContent(val);
@@ -435,7 +435,6 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 }
               }}
               onSave={handleSave}
-              noteId={file.fileId}
               placeholder={t("Start writing...")}
             />
           </div>

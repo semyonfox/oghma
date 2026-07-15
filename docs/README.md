@@ -40,6 +40,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Import pipeline](engineering/import-pipeline.md) | Canvas/vault processing stages and tuning model |
 | [Design system](engineering/design-system.md) | UI tokens and component conventions |
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
+| [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
 | [Performance](engineering/performance.md) | Repeatable performance-audit workflow and evidence rules |
 | [Demo flow](engineering/demo-flow.md) | Product walkthrough without duplicating architecture |
 | [Agent compatibility](engineering/agent-compatibility.md) | Verified discovery/action surfaces and agent-safety gaps |
