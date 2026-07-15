@@ -1072,6 +1072,40 @@ html.light .glass-card-active {
   color: var(--md-strong);
 }
 
+.oghma-milkdown-editor .oghma-html-token-hidden { display: none; }
+.oghma-milkdown-editor .oghma-html-mark {
+  border-radius: 0.2em;
+  background: color-mix(in srgb, #facc15 35%, transparent);
+  padding: 0 0.12em;
+}
+.oghma-milkdown-editor .oghma-html-kbd {
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  background: var(--color-surface);
+  padding: 0.08rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.oghma-milkdown-editor .oghma-html-sup { vertical-align: super; font-size: 0.75em; }
+.oghma-milkdown-editor .oghma-html-sub { vertical-align: sub; font-size: 0.75em; }
+.oghma-milkdown-editor .oghma-html-preview { display: block; margin: 0.75rem 0; }
+.oghma-milkdown-editor .oghma-html-preview > table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.oghma-milkdown-editor .oghma-html-preview th,
+.oghma-milkdown-editor .oghma-html-preview td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+}
+.oghma-milkdown-editor .oghma-html-preview[data-show-source="true"] {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
 .oghma-milkdown-editor .milkdown-code-block {
   overflow: visible;
   border: 1px solid var(--color-border);

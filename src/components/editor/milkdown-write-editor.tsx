@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
 import { Slice } from "@milkdown/kit/prose/model";
+import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { $prose } from "@milkdown/kit/utils";
+import DOMPurify from "dompurify";
 import { renderMermaidElement } from "@/lib/markdown/mermaid";
+import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 
 interface MilkdownWriteEditorProps {
   value: string;
@@ -66,6 +71,114 @@ const LANGUAGE_ICONS: Record<string, string> = {
   sh: ">_",
   bash: ">_",
 };
+
+const INLINE_HTML_TAGS = new Set(["mark", "kbd", "sup", "sub"]);
+
+function sanitizeRawHtml(value: string): string {
+  const allowedAttributes = new Set<string>();
+  Object.values(markdownSanitizeSchema.attributes ?? {}).forEach((attributes) => {
+    attributes?.forEach((attribute) => {
+      if (typeof attribute === "string") allowedAttributes.add(attribute);
+      else if (Array.isArray(attribute) && typeof attribute[0] === "string") {
+        allowedAttributes.add(attribute[0]);
+      }
+    });
+  });
+
+  return DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: markdownSanitizeSchema.tagNames ?? [],
+    ALLOWED_ATTR: [...allowedAttributes],
+  });
+}
+
+export function createSafeHtmlPreview(value: string): HTMLElement | null {
+  const trimmed = value.trim();
+  const isCompleteElement =
+    /^<([a-z][\w-]*)\b[^>]*>[\s\S]*<\/\1>$/i.test(trimmed) ||
+    /^<(?:img|hr|br)\b[^>]*\/?\s*>$/i.test(trimmed);
+  if (!isCompleteElement) return null;
+
+  const sanitized = sanitizeRawHtml(value);
+  if (!sanitized.trim()) return null;
+
+  const preview = document.createElement("span");
+  preview.className = "oghma-html-preview";
+  preview.contentEditable = "false";
+  preview.dataset.rawHtml = value;
+  preview.setAttribute("aria-label", "Rendered HTML. Double-click to show source.");
+  preview.innerHTML = sanitized;
+  preview.addEventListener("dblclick", () => {
+    const showingSource = preview.dataset.showSource === "true";
+    preview.dataset.showSource = String(!showingSource);
+    preview.textContent = showingSource ? "" : value;
+    if (showingSource) preview.innerHTML = sanitized;
+  });
+  return preview;
+}
+
+function rawHtmlDecorations(doc: any) {
+  const decorations: Decoration[] = [];
+
+  doc.descendants((parent: any, parentPos: number) => {
+    if (!parent.isTextblock) return true;
+
+    const openTags = new Map<string, number[]>();
+    parent.forEach((node: any, offset: number) => {
+      if (node.type.name !== "html") return;
+      const value = String(node.attrs.value ?? "").trim();
+      const match = /^<(\/)?([a-z][\w-]*)\s*>$/i.exec(value);
+      if (!match) return;
+      const tag = match[2].toLowerCase();
+      if (!INLINE_HTML_TAGS.has(tag)) return;
+
+      const pos = parentPos + 1 + offset;
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: "oghma-html-token-hidden",
+        }),
+      );
+
+      if (!match[1]) {
+        const positions = openTags.get(tag) ?? [];
+        positions.push(pos + node.nodeSize);
+        openTags.set(tag, positions);
+        return;
+      }
+
+      const positions = openTags.get(tag);
+      const from = positions?.pop();
+      if (from !== undefined && from < pos) {
+        decorations.push(
+          Decoration.inline(from, pos, { class: `oghma-html-${tag}` }),
+        );
+      }
+    });
+    return false;
+  });
+
+  return DecorationSet.create(doc, decorations);
+}
+
+const safeRawHtmlPlugin = $prose(
+  () =>
+    new Plugin({
+      props: {
+        decorations: (state) => rawHtmlDecorations(state.doc),
+        nodeViews: {
+          html: (node) => {
+            const preview = createSafeHtmlPreview(String(node.attrs.value ?? ""));
+            if (preview) return { dom: preview };
+
+            const source = document.createElement("span");
+            source.dataset.type = "html";
+            source.dataset.value = String(node.attrs.value ?? "");
+            source.textContent = String(node.attrs.value ?? "");
+            return { dom: source };
+          },
+        },
+      },
+    }),
+);
 
 function iconButton(label: string, className: string, icon: string) {
   const button = document.createElement("button");
@@ -223,6 +336,7 @@ export default function MilkdownWriteEditor({
         },
       },
     });
+    crepe.editor.use(safeRawHtmlPlugin);
 
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
