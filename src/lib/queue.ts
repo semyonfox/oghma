@@ -33,6 +33,7 @@ function getConnection(): IORedis {
 
 const BASE_CANVAS_IMPORT_QUEUE = "canvas-import";
 const BASE_EXTRACT_RETRY_QUEUE = "extract-retry";
+const BASE_CHAT_GENERATION_QUEUE = "chat-generation";
 
 function sanitizeQueuePrefix(value: string | undefined): string | null {
   const sanitized = value
@@ -76,6 +77,7 @@ function prefixedQueueName(baseName: string): string {
 
 export const CANVAS_IMPORT_QUEUE = prefixedQueueName(BASE_CANVAS_IMPORT_QUEUE);
 export const EXTRACT_RETRY_QUEUE = prefixedQueueName(BASE_EXTRACT_RETRY_QUEUE);
+export const CHAT_GENERATION_QUEUE = prefixedQueueName(BASE_CHAT_GENERATION_QUEUE);
 
 export function getQueueProvider(): QueueProvider {
   const provider = process.env.QUEUE_PROVIDER?.toLowerCase();
@@ -86,6 +88,7 @@ export function getQueueProvider(): QueueProvider {
 
 let _canvasImportQueue: Queue | null = null;
 let _extractRetryQueue: Queue | null = null;
+let _chatGenerationQueue: Queue | null = null;
 
 export function getCanvasImportQueue(): Queue {
   if (_canvasImportQueue) return _canvasImportQueue;
@@ -101,6 +104,31 @@ export function getExtractRetryQueue(): Queue {
     connection: getConnection(),
   });
   return _extractRetryQueue;
+}
+
+export function getChatGenerationQueue(): Queue {
+  if (_chatGenerationQueue) return _chatGenerationQueue;
+  _chatGenerationQueue = new Queue(CHAT_GENERATION_QUEUE, {
+    connection: getConnection(),
+  });
+  return _chatGenerationQueue;
+}
+
+export async function enqueueChatGeneration(generationId: string): Promise<void> {
+  if (getQueueProvider() !== "bullmq") {
+    throw new Error("Chat generation currently requires the BullMQ queue provider");
+  }
+  await getChatGenerationQueue().add(
+    "chat-generation",
+    { type: "chat-generation", generationId },
+    {
+      jobId: generationId,
+      attempts: 2,
+      backoff: { type: "exponential", delay: 2_000 },
+      removeOnComplete: { count: 200 },
+      removeOnFail: { count: 200 },
+    },
+  );
 }
 
 // `attempts: 3` is safe for canvas-import (workers check terminal states before

@@ -7,6 +7,7 @@ export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =
+  | { type: "reset" }
   | { type: "meta"; sessionId?: string; sources?: { id: string; title: string }[]; retrieval?: Message["retrieval"] }
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
@@ -34,6 +35,8 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
   }
 
   switch (frame.event) {
+    case "reset":
+      return { type: "reset" };
     case "meta": {
       return {
         type: "meta",

@@ -40,6 +40,7 @@ interface UseChatPersistenceResult {
   restored: boolean;
   /** true when the server still owns generation for a reopened session */
   backgroundLoading: boolean;
+  backgroundGenerationId: string | null;
   /** keep refs in sync so unload handlers see fresh values */
   updateRefs: (refs: PersistenceRefs) => void;
 }
@@ -139,10 +140,12 @@ export function useChatPersistence(
   const [restored, setRestored] = useState(false);
   const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!controlledSessionId) {
       setBackgroundLoading(false);
+      setBackgroundGenerationId(null);
       setRestored(true);
       return;
     }
@@ -161,6 +164,11 @@ export function useChatPersistence(
         const generating = data.session?.generation_status === "generating";
         if (cancelled) return;
         setBackgroundLoading(generating);
+        setBackgroundGenerationId(
+          generating && typeof data.session?.active_generation_id === "string"
+            ? data.session.active_generation_id
+            : null,
+        );
 
         // check sessionStorage for a partial assistant message saved on unload
         const draftKey = `chat-draft:${controlledSessionId}`;
@@ -299,6 +307,7 @@ export function useChatPersistence(
     restoredMessages,
     restored,
     backgroundLoading,
+    backgroundGenerationId,
     updateRefs,
   };
 }

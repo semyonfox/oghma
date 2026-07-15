@@ -98,6 +98,21 @@ describe("applyUpdate — token + tool-call parts", () => {
 });
 
 describe("background chat restore", () => {
+  it("clears partial output when a durable worker attempt is retried", () => {
+    const message = baseMsg("partial answer", [
+      { type: "text", text: "partial answer" },
+    ]);
+
+    expect(applyUpdate(message, { type: "reset" }, ref())).toEqual(
+      expect.objectContaining({
+        content: "",
+        parts: [],
+        thinking: undefined,
+        error: undefined,
+      }),
+    );
+  });
+
   it("maps a persisted background answer back to the live message shape", () => {
     expect(
       mapStoredChatMessages([

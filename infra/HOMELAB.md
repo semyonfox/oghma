@@ -42,14 +42,14 @@ app/worker/Qdrant shape; it is not the persistent homelab stack definition.
 | Container | Ownership | Role |
 |---|---|---|
 | `oghma-postgres` | Persistent stack | PostgreSQL 17 application databases |
-| `oghma-redis` | Persistent stack | BullMQ, cache, and rate limiting |
+| `oghma-redis` | Persistent stack | BullMQ, resumable chat replay, cache, and rate limiting |
 | `oghma-rustfs` | Persistent stack | S3-compatible object storage |
 | `oghma-nginx` | Persistent stack | Routes production and development app traffic |
 | `oghma-cloudflared-prod` | Persistent stack | Tunnel for `oghmanotes.ie` |
 | `oghma-cloudflared-dev` | Persistent stack | Tunnel for `dev.oghmanotes.ie` |
 | `oghma-qdrant` | Ensured by Jenkins | Vector storage with a persistent Docker volume |
 | `oghma-prod` / `oghma-dev` | Replaced by Jenkins | Next.js app |
-| `oghma-prod-worker` / `oghma-dev-worker` | Replaced by Jenkins | Long-running Node import/vault worker |
+| `oghma-prod-worker` / `oghma-dev-worker` | Replaced by Jenkins | Long-running Node chat/import/vault worker |
 
 Jenkins injects separate Qdrant collections:
 
@@ -110,6 +110,11 @@ The current homelab provider is BullMQ on `oghma-redis:6379`.
 `src/lib/queue.ts` applies an environment prefix. Exact queue names, job lanes,
 and tuning values are owned by the
 [import worker runbook](../docs/operations/import-worker.md).
+
+The same persistent Redis instance carries the environment-prefixed
+`chat-generation` queue and bounded, one-hour Redis Streams used to replay
+missed SSE events after browser navigation. PostgreSQL remains authoritative
+for generation status and completed chat messages.
 
 The consumer is `src/lib/canvas/worker-entry.ts`. Producers use the queue
 facade in `src/lib/queue.ts`; they should not depend directly on BullMQ.

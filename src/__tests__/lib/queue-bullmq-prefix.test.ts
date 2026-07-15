@@ -39,19 +39,28 @@ describe("BullMQ queue prefixing", () => {
     const {
       CANVAS_IMPORT_QUEUE,
       EXTRACT_RETRY_QUEUE,
+      CHAT_GENERATION_QUEUE,
       getCanvasImportQueue,
+      getChatGenerationQueue,
       getExtractRetryQueue,
     } = await import("@/lib/queue");
 
     expect(CANVAS_IMPORT_QUEUE).toBe("oghma-dev-canvas-import");
     expect(EXTRACT_RETRY_QUEUE).toBe("oghma-dev-extract-retry");
+    expect(CHAT_GENERATION_QUEUE).toBe("oghma-dev-chat-generation");
 
     getCanvasImportQueue();
     getExtractRetryQueue();
+    getChatGenerationQueue();
 
     expect(queueConstructor).toHaveBeenNthCalledWith(
       1,
       "oghma-dev-canvas-import",
+      expect.objectContaining({ connection: expect.anything() }),
+    );
+    expect(queueConstructor).toHaveBeenNthCalledWith(
+      3,
+      "oghma-dev-chat-generation",
       expect.objectContaining({ connection: expect.anything() }),
     );
     expect(queueConstructor).toHaveBeenNthCalledWith(

@@ -123,6 +123,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     toggleRag,
     restoredMessages,
     backgroundLoading,
+    backgroundGenerationId,
     updateRefs,
   } = useChatPersistence({
     compact,
@@ -138,6 +139,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     error,
     send,
     cancel,
+    resume,
   } = useChatStream({
     t,
     noteId,
@@ -150,15 +152,42 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     onStreamComplete,
   });
   const busy = loading || backgroundLoading;
+  const resumedGenerationRef = useRef<string | null>(null);
 
   // apply restored session messages when available
+  const restoredAppliedRef = useRef(false);
   useEffect(() => {
-    if (!restoredMessages) return;
+    if (
+      !restoredMessages ||
+      (restoredAppliedRef.current && (backgroundLoading || loading))
+    ) {
+      return;
+    }
+    restoredAppliedRef.current = true;
     if (controlledSessionId) {
       setSessionId(controlledSessionId);
     }
     setMessages(restoredMessages);
-  }, [restoredMessages, controlledSessionId, setMessages, setSessionId]);
+  }, [
+    restoredMessages,
+    controlledSessionId,
+    backgroundLoading,
+    loading,
+    setMessages,
+    setSessionId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !restoredAppliedRef.current ||
+      !backgroundGenerationId ||
+      resumedGenerationRef.current === backgroundGenerationId
+    ) {
+      return;
+    }
+    resumedGenerationRef.current = backgroundGenerationId;
+    void resume(backgroundGenerationId);
+  }, [backgroundGenerationId, restoredMessages, resume]);
 
   // keep persistence refs in sync for unload handlers
   useEffect(() => {

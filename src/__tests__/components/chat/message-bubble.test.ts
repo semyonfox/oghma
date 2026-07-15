@@ -3,7 +3,8 @@
 import React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Root } from "react-dom/client";
 import {
   CompactMessageBubble,
   FullMessageBubble,
@@ -37,6 +38,7 @@ function makeMessage(overrides: Partial<Message>): Message {
 
 describe("message bubble copy actions", () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
+  const roots: Root[] = [];
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -49,10 +51,17 @@ describe("message bubble copy actions", () => {
     });
   });
 
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      act(() => root.unmount());
+    }
+  });
+
   function renderNode(node: React.ReactNode) {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
+    roots.push(root);
     act(() => {
       root.render(node);
     });
@@ -171,6 +180,7 @@ describe("message bubble copy actions", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
+    roots.push(root);
 
     act(() => {
       root.render(

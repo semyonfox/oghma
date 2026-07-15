@@ -1,4 +1,5 @@
 export interface SseFrame {
+  id?: string;
   event: string;
   data: string;
 }
@@ -24,13 +25,17 @@ export function parseSseBlocks(
       .find((line) => line.startsWith("event:"))
       ?.slice(6)
       .trim();
+    const id = lines
+      .find((line) => line.startsWith("id:"))
+      ?.slice(3)
+      .trim();
     const data = lines
       .find((line) => line.startsWith("data:"))
       ?.slice(5)
       .trim();
 
     if (data !== undefined) {
-      frames.push({ event: event || "message", data });
+      frames.push({ ...(id && { id }), event: event || "message", data });
     }
 
     divider = state.buffer.indexOf("\n\n");

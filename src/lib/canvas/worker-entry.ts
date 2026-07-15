@@ -10,6 +10,7 @@
 import sql from "../../database/pgsql.js";
 import {
   CANVAS_IMPORT_QUEUE,
+  CHAT_GENERATION_QUEUE,
   EXTRACT_RETRY_QUEUE,
   ackCloudflareQueueMessages,
   enqueueCanvasJob,
@@ -19,6 +20,7 @@ import {
   pullCloudflareQueueMessages,
   type CloudflarePulledMessage,
 } from "../queue.ts";
+import { processChatGeneration } from "../chat/generate-background";
 import {
   processImportJob,
   processDiscoverJob,
@@ -296,7 +298,25 @@ async function startBullMqWorkers(): Promise<void> {
     stalledInterval: 30_000,
   });
 
-  for (const w of [canvasWorker, retryWorker]) {
+  const chatWorker = new Worker(
+    CHAT_GENERATION_QUEUE,
+    async (job) => {
+      const generationId = requireString(job.data ?? {}, "generationId");
+      await processChatGeneration(
+        generationId,
+        job.attemptsStarted,
+        job.opts.attempts ?? 1,
+      );
+    },
+    {
+      connection,
+      concurrency: parseInt(process.env.CHAT_GENERATION_CONCURRENCY ?? "2", 10),
+      lockDuration: 60_000,
+      stalledInterval: 30_000,
+    },
+  );
+
+  for (const w of [canvasWorker, retryWorker, chatWorker]) {
     w.on("failed", (job, err) => {
       console.error(
         `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
@@ -308,7 +328,7 @@ async function startBullMqWorkers(): Promise<void> {
     });
   }
 
-  workers = [canvasWorker, retryWorker];
+  workers = [canvasWorker, retryWorker, chatWorker];
 }
 
 if (getQueueProvider() === "cloudflare") {

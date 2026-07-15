@@ -57,6 +57,12 @@ import {
   sendHeartbeat,
   buildSearchContext,
 } from "@/lib/chat/stream-events";
+import {
+  createChatGeneration,
+  failChatGeneration,
+} from "@/lib/chat/generation-store";
+import { enqueueChatGeneration } from "@/lib/queue";
+import { hasPrivacySignal } from "@/lib/marketing/events";
 
 function resolveChatThinkingMode(
   requestedThinkingMode: unknown,
@@ -102,6 +108,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     sessionId: requestedSessionId,
     history: requestHistory = [],
     stream = false,
+    background = false,
     thinkingMode: requestedThinkingMode,
     useRag = true,
     clientDateTime: rawClientDateTime,
@@ -116,6 +123,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     sessionId?: string;
     history?: ChatMessage[];
     stream?: boolean;
+    background?: boolean;
     thinkingMode?: unknown;
     useRag?: boolean;
     clientDateTime?: unknown;
@@ -136,6 +144,47 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     selectedNotes,
     selectedFolders,
   };
+
+  if (stream && background) {
+    const scope = await normalizeScope(
+      userId,
+      scopeParams,
+      body,
+      requestedSessionId,
+      message,
+      requestHistory,
+    );
+    const generationId = await createChatGeneration({
+      userId,
+      sessionId: scope.sessionId,
+      message,
+      scope: {
+        sessionContext: scope.sessionContext,
+        scopedNoteIds: scope.scopedNoteIds,
+        scopedInputNoteIds: scope.scopedInputNoteIds,
+        history: scope.history,
+      },
+      useRag,
+      thinkingMode,
+      clientDateTime,
+      requestOrigin: request.nextUrl.origin,
+      referer: request.headers.get("referer") ?? undefined,
+      respectPrivacySignal: hasPrivacySignal(request),
+    });
+    try {
+      await enqueueChatGeneration(generationId);
+    } catch (error) {
+      await failChatGeneration(
+        generationId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+    return NextResponse.json(
+      { generationId, sessionId: scope.sessionId },
+      { status: 202 },
+    );
+  }
 
   // ── streaming response ─────────────────────────────────────────────────────
   if (stream) {

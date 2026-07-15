@@ -50,6 +50,7 @@ interface UseChatStreamResult {
     history: { role: string; content: string }[],
   ) => Promise<void>;
   cancel: () => void;
+  resume: (generationId: string) => Promise<void>;
 }
 
 /**
@@ -74,6 +75,18 @@ export function applyUpdate(
   thinkingStartRef: React.MutableRefObject<number | null>,
 ): Message {
   switch (update.type) {
+    case "reset":
+      thinkingStartRef.current = null;
+      return {
+        ...msg,
+        content: "",
+        parts: [],
+        thinking: undefined,
+        thinkingDuration: undefined,
+        partial: undefined,
+        error: undefined,
+      };
+
     case "meta": {
       const changes: Partial<Message> = {};
       if (update.sources) changes.sources = update.sources;
@@ -241,6 +254,7 @@ export function useChatStream(
             sessionId,
             history,
             stream: true,
+            background: true,
             thinkingMode,
             useRag,
             clientDateTime: (() => {
@@ -265,6 +279,18 @@ export function useChatStream(
         // non-streaming JSON fallback
         if (contentType.includes("application/json")) {
           const data = await res.json();
+          if (typeof data.generationId === "string") {
+            handleNewSession(data.sessionId, text);
+            await consumeGeneration(
+              data.generationId,
+              assistantId,
+              text,
+              controller.signal,
+            );
+            clearDraft(data.sessionId || sessionIdRef.current);
+            onStreamComplete?.();
+            return;
+          }
           handleNewSession(data.sessionId, text);
           setMessages((prev) =>
             prev.map((m) =>
@@ -373,6 +399,7 @@ export function useChatStream(
     body: ReadableStream<Uint8Array>,
     assistantId: string,
     userText: string,
+    onEventId?: (id: string) => void,
   ): Promise<{ timeBlockChanged: boolean }> {
     let timeBlockChanged = false;
     let sawDone = false;
@@ -389,6 +416,7 @@ export function useChatStream(
 
       if (chunk) {
         for (const frame of parseSseBlocks(chunk, parseState)) {
+          if (frame.id) onEventId?.(frame.id);
           frameCount += 1;
           const update = parseSseFrame(frame);
           if (!update) continue;
@@ -456,6 +484,75 @@ export function useChatStream(
     return { timeBlockChanged };
   }
 
+  async function consumeGeneration(
+    generationId: string,
+    assistantId: string,
+    userText: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let afterId = "0-0";
+    let attempts = 0;
+    while (!signal.aborted) {
+      try {
+        const response = await fetch(
+          `/api/chat/generations/${generationId}/stream?after=${encodeURIComponent(afterId)}`,
+          { headers: { Accept: "text/event-stream" }, signal },
+        );
+        if (!response.ok || !response.body) {
+          throw new Error(`Unable to resume response (${response.status})`);
+        }
+        await consumeStream(response.body, assistantId, userText, (id) => {
+          afterId = id;
+        });
+        return;
+      } catch (error) {
+        if (signal.aborted) throw error;
+        attempts += 1;
+        if (attempts >= 4) throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, attempts * 500));
+      }
+    }
+  }
+
+  const resume = useCallback(
+    async (generationId: string) => {
+      if (!generationId || loading) return;
+      const assistantId = makeId();
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") return prev;
+        return [
+          ...prev,
+          {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            parts: [],
+            sources: [],
+            timestamp: Date.now(),
+          },
+        ];
+      });
+      setLoading(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      try {
+        await consumeGeneration(generationId, assistantId, "", controller.signal);
+        onStreamComplete?.();
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError")) {
+          setError(t("error.something_went_wrong"));
+        }
+      } finally {
+        abortControllerRef.current = null;
+        setLoading(false);
+      }
+    },
+    // consumeGeneration intentionally reads current hook callbacks/state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loading],
+  );
+
   return {
     messages,
     setMessages,
@@ -466,5 +563,6 @@ export function useChatStream(
     setError,
     send,
     cancel,
+    resume,
   };
 }

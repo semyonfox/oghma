@@ -130,6 +130,12 @@ describe("parseSseFrame — search events", () => {
 });
 
 describe("parseSseFrame — lifecycle events", () => {
+  it("parses reset events used before replaying a retried generation", () => {
+    expect(parseSseFrame({ event: "reset", data: "{}" })).toEqual({
+      type: "reset",
+    });
+  });
+
   it("parses done events as explicit stream completion", () => {
     expect(parseSseFrame({ event: "done", data: "{}" })).toEqual({
       type: "done",
