@@ -966,13 +966,13 @@ function rangeTouchesLine(range: MathRenderRange, lineFrom: number, lineTo: numb
 }
 
 function displayMathRangesForVisibleSpan(
-  view: EditorView,
+  state: EditorState,
   from: number,
   to: number,
   activeLineFrom: number,
 ): MathRenderRange[] {
   const ranges: MathRenderRange[] = [];
-  const doc = view.state.doc;
+  const doc = state.doc;
   let line = doc.lineAt(from);
   let inFence = false;
   let open:
@@ -1012,8 +1012,7 @@ function displayMathRangesForVisibleSpan(
 
         const texEnd = absoluteDelimiter;
         const closeTo = absoluteDelimiter + 2;
-        const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
-        if (activeLine.from < open.lineFrom || activeLine.from > line.from) {
+        if (activeLineFrom < open.lineFrom || activeLineFrom > line.from) {
           const tex = doc.sliceString(open.texStart, texEnd).trim();
           if (tex) {
             ranges.push({
@@ -1035,6 +1034,38 @@ function displayMathRangesForVisibleSpan(
 
   return ranges.filter((range) => !rangeTouchesLine(range, activeLineFrom, activeLineFrom));
 }
+
+function buildDisplayMathDecorationSet(state: EditorState): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const activeLine = state.doc.lineAt(state.selection.main.head);
+  const ranges = displayMathRangesForVisibleSpan(
+    state,
+    0,
+    state.doc.length,
+    activeLine.from,
+  );
+
+  for (const range of ranges) {
+    builder.add(
+      range.from,
+      range.to,
+      Decoration.replace({
+        widget: new MathRenderWidget(range.tex, true),
+        block: true,
+      }),
+    );
+  }
+  return builder.finish();
+}
+
+export const markdownDisplayMathDecorations = StateField.define<DecorationSet>({
+  create: buildDisplayMathDecorationSet,
+  update(value, transaction) {
+    if (!transaction.docChanged && !transaction.selection) return value;
+    return buildDisplayMathDecorationSet(transaction.state);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 type RenderDecoration = {
   from: number;
@@ -1090,23 +1121,11 @@ function buildMarkdownRenderDecorations(
     const fromLine = view.state.doc.lineAt(visibleRange.from);
     const toLine = view.state.doc.lineAt(visibleRange.to);
     const displayMathRanges = displayMathRangesForVisibleSpan(
-      view,
+      view.state,
       fromLine.from,
       toLine.to,
       activeLine.from,
     );
-
-    for (const mathRange of displayMathRanges) {
-      decorations.push({
-        from: mathRange.from,
-        to: mathRange.to,
-        decoration: Decoration.replace({
-          widget: new MathRenderWidget(mathRange.tex, true),
-          block: true,
-        }),
-        priority: 0,
-      });
-    }
 
     let pos = visibleRange.from;
     let fenceIndex = codeFences.findIndex((fence) => fence.to >= fromLine.from);
@@ -1282,7 +1301,7 @@ const taskCheckboxInteraction = EditorView.domEventHandlers({
   },
 });
 
-const markdownRenderDecorations = ViewPlugin.fromClass(
+export const markdownRenderDecorations = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     codeFences: MarkdownCodeFenceRange[];
@@ -1362,6 +1381,7 @@ export default function WriteEditor({
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         taskCheckboxInteraction,
         markdownTableDecorations,
+        markdownDisplayMathDecorations,
         markdownRenderDecorations,
         themeCompartment.of(themeExtensions(isDarkTheme())),
         EditorView.lineWrapping,
