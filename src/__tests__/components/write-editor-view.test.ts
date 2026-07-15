@@ -19,8 +19,16 @@ describe("WriteEditor table decorations", () => {
       }),
     });
 
-    expect(parent.querySelector("table.cm-md-table")).not.toBeNull();
+    const renderedTable = parent.querySelector("table.cm-md-table");
+    expect(renderedTable).not.toBeNull();
     expect(parent.textContent).toContain("After");
+
+    renderedTable?.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, clientX: 1, clientY: 1 }),
+    );
+    expect(view.state.selection.main.head).toBe(0);
+    expect(parent.querySelector("table.cm-md-table")).toBeNull();
+    expect(parent.textContent).toContain("| Topic | Score |");
 
     view.destroy();
     parent.remove();

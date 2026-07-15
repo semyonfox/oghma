@@ -320,9 +320,18 @@ class MarkdownTableWidget extends WidgetType {
     super();
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrapper = document.createElement("div");
     wrapper.className = "cm-md-table-scroll";
+    wrapper.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      view.dispatch({
+        selection: { anchor: this.tableRange.from },
+        scrollIntoView: true,
+      });
+      view.focus();
+    });
     const table = document.createElement("table");
     table.className = "cm-md-table";
     if (this.tableRange.header.length > 0) {
