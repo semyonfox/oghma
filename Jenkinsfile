@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         REGISTRY     = 'oghma'
-        ENV_DIR      = '/home/semyon/jenkins/env'
+        OGHMA_ENV_DIR = '/home/semyon/jenkins/env'
         NETWORK      = 'oghma'
         HEALTH_CMD   = 'node -e "require(\'http\').get(\'http://localhost:3000/api/health\', r => process.exit(r.statusCode===200?0:1))"'
         APP_MEM      = '512m'
@@ -32,7 +32,7 @@ pipeline {
                     env.WORKER         = "oghma-${env.DEPLOY_ENV}-worker"
                     env.IMAGE          = "${REGISTRY}:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
                     env.WORKER_IMAGE   = "${REGISTRY}-worker:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
-                    env.ENV_FILE       = "${ENV_DIR}/oghma-${env.DEPLOY_ENV}.env"
+                    env.ENV_FILE       = "${OGHMA_ENV_DIR}/oghma-${env.DEPLOY_ENV}.env"
                     env.QUEUE_PREFIX   = env.DEPLOY_ENV == 'prod' ? 'oghma' : 'oghma-dev'
                     echo "branch=${branch}  env=${env.DEPLOY_ENV}  queuePrefix=${env.QUEUE_PREFIX}  image=${env.IMAGE}  worker=${env.WORKER_IMAGE}"
                 }
