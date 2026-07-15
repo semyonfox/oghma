@@ -35,7 +35,7 @@ describe("Milkdown spike code controls", () => {
 
     fireEvent.click(wrap);
     expect(wrap.getAttribute("aria-pressed")).toBe("true");
-    expect(root.querySelector(".cm-scroller")?.classList).toContain("oghma-code-lines-wrapped");
+    expect(root.querySelector(".cm-content")?.classList).toContain("cm-lineWrapping");
     expect(root.querySelector(".cm-content")?.textContent).toBe("const answer = 42;export {};");
 
     fireEvent.click(copy);

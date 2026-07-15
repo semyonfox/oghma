@@ -1123,11 +1123,6 @@ html.light .glass-card-active {
   letter-spacing: -0.04em;
 }
 
-.oghma-milkdown-editor .milkdown-code-block .oghma-code-lines-wrapped .cm-content {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .oghma-milkdown-editor .milkdown-code-block button:focus-visible {
   outline: 2px solid var(--color-primary-400);
   outline-offset: 2px;

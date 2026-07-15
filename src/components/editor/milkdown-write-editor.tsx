@@ -125,7 +125,7 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     const controls = block.querySelector<HTMLElement>(".tools-button-group");
     if (!controls) return;
 
-    const scroller = block.querySelector<HTMLElement>(".cm-scroller");
+    const content = block.querySelector<HTMLElement>(".cm-content");
     let wrap = controls.querySelector<HTMLButtonElement>(".oghma-code-wrap");
     if (!wrap) {
       wrap = iconButton("Wrap lines", "oghma-code-wrap", WRAP_ICON);
@@ -134,10 +134,14 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
         const pressed = wrap?.getAttribute("aria-pressed") !== "true";
         wrap?.setAttribute("aria-pressed", String(pressed));
         if (wrap) wrap.title = pressed ? "Stop wrapping lines" : "Wrap lines";
-        scroller?.classList.toggle("oghma-code-lines-wrapped", pressed);
+        content?.classList.toggle("cm-lineWrapping", pressed);
       });
       controls.prepend(wrap);
     }
+    content?.classList.toggle(
+      "cm-lineWrapping",
+      wrap.getAttribute("aria-pressed") === "true",
+    );
 
     const copy = controls.querySelector<HTMLButtonElement>(
       "button:not(.oghma-code-wrap):not(.preview-toggle-button)",
