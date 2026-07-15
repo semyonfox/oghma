@@ -51,6 +51,11 @@ describe("PreviewRenderer", () => {
   it("renders fenced code through the CodeBlock Shiki path", () => {
     const html = renderPreview("```javascript\nconst value = 1\n```");
 
+    expect(html).toContain("oghma-codeblock-header");
+    expect(html).toContain("oghma-codeblock-language");
+    expect(html).toContain("JavaScript");
+    expect(html).toContain("oghma-codeblock-copy");
+    expect(html).toContain('aria-label="Copy code"');
     expect(html).toContain('data-shiki-state="loading"');
     expect(html).toContain('class="language-javascript"');
     expect(html).toContain("const value = 1");

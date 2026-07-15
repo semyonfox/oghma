@@ -3,6 +3,7 @@ import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import GlobalSearchRoot from "@/components/search/global-search-root";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const dmSans = DM_Sans({
