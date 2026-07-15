@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
-import { replaceAll } from "@milkdown/kit/utils";
+import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
+import { Slice } from "@milkdown/kit/prose/model";
 import { renderMermaidElement } from "@/lib/markdown/mermaid";
 
 interface MilkdownWriteEditorProps {
@@ -10,6 +11,18 @@ interface MilkdownWriteEditorProps {
   onChange: (value: string, programmaticUpdate?: boolean) => void;
   onSave?: () => void;
   placeholder?: string;
+}
+
+function replaceExternalMarkdown(crepe: Crepe, markdown: string) {
+  crepe.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const doc = ctx.get(parserCtx)(markdown);
+    if (!doc) return;
+    const transaction = view.state.tr
+      .replace(0, view.state.doc.content.size, new Slice(doc.content, 0, 0))
+      .setMeta("addToHistory", false);
+    view.dispatch(transaction);
+  });
 }
 
 const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 13H3.5A1.5 1.5 0 0 1 2 11.5v-8A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
@@ -126,7 +139,6 @@ export default function MilkdownWriteEditor({
   const rootRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const onChangeRef = useRef(onChange);
-  const externalValueRef = useRef<string | null>(null);
   const latestValueRef = useRef(value);
 
   useEffect(() => {
@@ -161,9 +173,7 @@ export default function MilkdownWriteEditor({
 
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
-        const programmaticUpdate = externalValueRef.current === markdown;
-        if (programmaticUpdate) externalValueRef.current = null;
-        onChangeRef.current(markdown, programmaticUpdate);
+        onChangeRef.current(markdown, false);
       });
     });
 
@@ -172,8 +182,7 @@ export default function MilkdownWriteEditor({
       if (!root.isConnected) return;
       crepeRef.current = crepe;
       if (crepe.getMarkdown() !== latestValueRef.current) {
-        externalValueRef.current = latestValueRef.current;
-        crepe.editor.action(replaceAll(latestValueRef.current));
+        replaceExternalMarkdown(crepe, latestValueRef.current);
       }
       enhanceMilkdownCodeBlocks(root);
       observer = new MutationObserver(() => enhanceMilkdownCodeBlocks(root));
@@ -193,8 +202,7 @@ export default function MilkdownWriteEditor({
     latestValueRef.current = value;
     const crepe = crepeRef.current;
     if (!crepe || crepe.getMarkdown() === value) return;
-    externalValueRef.current = value;
-    crepe.editor.action(replaceAll(value));
+    replaceExternalMarkdown(crepe, value);
   }, [value]);
 
   return (

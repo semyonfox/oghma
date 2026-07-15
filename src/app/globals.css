@@ -995,9 +995,9 @@ html.light .glass-card-active {
   --crepe-color-hover: color-mix(in srgb, var(--md-accent) 10%, var(--color-surface));
   --crepe-color-selected: var(--md-selection);
   --crepe-color-inline-area: var(--md-inline-code-bg);
-  --crepe-font-title: var(--font-sans);
-  --crepe-font-default: var(--font-sans);
-  --crepe-font-code: var(--font-mono);
+  --crepe-font-title: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-default: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.22);
   --crepe-shadow-2: 0 8px 24px rgb(0 0 0 / 0.3);
 }
@@ -1010,6 +1010,8 @@ html.light .glass-card-active {
   min-height: 100%;
   max-width: var(--editor-write-max-width);
   margin-inline: auto;
+  font-size: 1rem;
+  line-height: 1.65;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h1 {
@@ -1052,9 +1054,17 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown-code-block {
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-radius-lg);
+}
+
+.oghma-milkdown-editor .milkdown-code-block .language-picker {
+  z-index: 50;
+}
+
+.oghma-milkdown-editor .milkdown-code-block .list-wrapper {
+  border: 1px solid var(--color-border);
 }
 
 .oghma-milkdown-editor .milkdown-code-block .tools-button-group button,
@@ -1078,6 +1088,10 @@ html.light .glass-card-active {
 .oghma-milkdown-editor .milkdown-code-block .tools-button-group {
   flex-shrink: 0;
   gap: 0.25rem;
+}
+
+.oghma-milkdown-editor .milkdown-code-block .preview-panel .preview {
+  min-height: 6rem;
 }
 
 .oghma-milkdown-editor .oghma-code-language-icon {
