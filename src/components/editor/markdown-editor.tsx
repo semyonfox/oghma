@@ -352,31 +352,20 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
-      {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
-        <div className="flex h-7 items-center gap-2 text-xs text-text-tertiary">
-          <span className="inline-flex h-6 items-center rounded-radius-sm bg-primary-500/12 px-2.5 font-medium text-primary-300">
-            {t("Write")}
-          </span>
-          <span className="hidden sm:inline-flex h-6 items-center rounded-radius-sm border border-border-subtle px-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
-            {t("Beta")}
-          </span>
-        </div>
-
-        {/* Save Status + Guide link */}
-        <div className="flex h-7 items-center gap-2">
+    <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
+      {/* Actions share the visual row owned by Crepe's formatting toolbar. */}
+      <div className="absolute right-3 top-0 z-30 flex h-11 items-center gap-1.5">
           <Link
             href="/syntax-guide"
             target="_blank"
-            className="inline-flex h-6 items-center rounded-radius-sm px-2 text-xs text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors"
+            className="hidden h-7 items-center rounded-radius-sm px-2 text-xs text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary xl:inline-flex"
           >
             {t("Syntax Guide")}
           </Link>
           {isDirty && !isSaving ? (
             <button
               onClick={handleSave}
-              className="inline-flex h-6 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 hover:bg-yellow-500/10 hover:text-yellow-400 transition-colors"
+              className="inline-flex h-7 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 transition-colors hover:bg-yellow-500/10 hover:text-yellow-400"
               title={t("Save (Ctrl+S)")}
             >
               <svg
@@ -393,7 +382,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </button>
           ) : (
             <span
-              className={`inline-flex h-6 items-center rounded-radius-sm px-2 text-xs font-mono ${
+              className={`inline-flex h-7 items-center rounded-radius-sm px-2 text-xs font-mono ${
                 isSaving
                   ? "text-yellow-500"
                   : saveError
@@ -408,7 +397,6 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                   : t("Saved")}
             </span>
           )}
-        </div>
       </div>
 
       {/* Content Area */}
