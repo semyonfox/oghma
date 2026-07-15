@@ -19,16 +19,19 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
 
-vi.mock("@/lib/notes/state/layout.zustand", () => ({
-  __esModule: true,
-  default: () => ({
+vi.mock("@/lib/notes/state/layout.zustand", () => {
+  const state = {
     activeNav: "notes",
     setActiveNav: mocks.setActiveNav,
     rightPanelOpen: true,
     rightPanelTab: "ai",
     openRightPanelTab: mocks.openRightPanelTab,
-  }),
-}));
+  };
+  return {
+    __esModule: true,
+    default: (selector: (value: typeof state) => unknown) => selector(state),
+  };
+});
 
 vi.mock("@/lib/notes/hooks/use-i18n", () => ({
   __esModule: true,
@@ -44,16 +47,16 @@ vi.mock("@/lib/global-search/state", () => ({
   },
 }));
 
-import IconNav from "@/components/sidebar/icon-nav";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 
-describe("IconNav AI chat entry", () => {
+describe("PrimaryNavigation AI chat entry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pathname = "/notes";
   });
 
-  it("opens a fresh full-screen chat from the sidebar", async () => {
-    render(React.createElement(IconNav));
+  it("opens a fresh full-screen chat from the navigation rail", async () => {
+    render(React.createElement(PrimaryNavigation));
 
     fireEvent.click(screen.getByTitle("AI Chat"));
 
@@ -62,8 +65,8 @@ describe("IconNav AI chat entry", () => {
     expect(mocks.openRightPanelTab).not.toHaveBeenCalled();
   });
 
-  it("opens global search from the sidebar search icon", async () => {
-    render(React.createElement(IconNav));
+  it("opens global search from the navigation rail", async () => {
+    render(React.createElement(PrimaryNavigation));
 
     fireEvent.click(screen.getByTitle("Search"));
 

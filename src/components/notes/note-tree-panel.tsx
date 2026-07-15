@@ -14,10 +14,9 @@ import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 /**
- * Obsidian-style file tree panel
- * clean header with action buttons, scrollable tree, no search box in header
+ * Initialises note-tree dependencies and renders the scrollable note tree.
  */
-const FileTreePanel: FC = () => {
+const NoteTreePanel: FC = () => {
   const { t: _t } = useI18n();
 
   // API hooks
@@ -64,4 +63,4 @@ const FileTreePanel: FC = () => {
   );
 };
 
-export default FileTreePanel;
+export default NoteTreePanel;

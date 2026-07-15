@@ -11,7 +11,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
-import IconNav from "@/components/sidebar/icon-nav";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 
@@ -318,7 +318,7 @@ export default function ChatPageClient() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-app-page text-text">
       <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
-        <IconNav />
+        <PrimaryNavigation />
       </div>
 
       <aside className="w-64 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">

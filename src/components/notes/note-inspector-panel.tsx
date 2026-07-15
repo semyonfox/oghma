@@ -32,7 +32,7 @@ interface InspectorNote {
   note_id?: string;
 }
 
-export default function NotesInspectorSidebar() {
+export default function NoteInspectorPanel() {
   const { t } = useI18n();
   const {
     activePane,

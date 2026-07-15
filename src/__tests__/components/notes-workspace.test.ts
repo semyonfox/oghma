@@ -45,18 +45,18 @@ vi.mock("@/lib/notes/prefetch", () => ({
   schedulePrefetch: mocks.schedulePrefetch,
 }));
 
-vi.mock("@/components/sidebar/icon-nav", () => ({ default: () => null }));
-vi.mock("@/components/sidebar/file-tree-panel", () => ({
+vi.mock("@/components/navigation/primary-navigation", () => ({ default: () => null }));
+vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => null,
 }));
 vi.mock("@/components/editor/split-pane", () => ({ default: () => null }));
-vi.mock("@/components/panels/notes-inspector-sidebar", () => ({
+vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
 }));
 
-import VSCodeLayout from "@/components/layout/vscode-layout";
+import NotesWorkspace from "@/components/notes/notes-workspace";
 
-describe("VSCodeLayout note route synchronization", () => {
+describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     layoutState.paneA.fileId = "";
@@ -65,7 +65,7 @@ describe("VSCodeLayout note route synchronization", () => {
   it("assigns a direct note route without fetching note content", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    render(React.createElement(VSCodeLayout));
+    render(React.createElement(NotesWorkspace));
 
     await waitFor(() => {
       expect(mocks.setPaneA).toHaveBeenCalledWith({

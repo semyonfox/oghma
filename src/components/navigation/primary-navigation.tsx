@@ -62,20 +62,17 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Icon-only navigation sidebar (48px fixed width)
- * VSCode-style left navigation with hover tooltips
+ * Primary app navigation rail (48px fixed width) with hover tooltips.
  * NOTE: Parent container is responsible for overflow behavior (overflow-hidden).
  * This component should never be scrollable; it fills full height.
  */
-const IconNav: FC = () => {
+const PrimaryNavigation: FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const {
-    activeNav,
-    setActiveNav,
-    rightPanelOpen,
-    rightPanelTab,
-  } = useLayoutStore();
+  const activeNav = useLayoutStore((state) => state.activeNav);
+  const setActiveNav = useLayoutStore((state) => state.setActiveNav);
+  const rightPanelOpen = useLayoutStore((state) => state.rightPanelOpen);
+  const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
 
   const derivedActiveSection: NavItem["section"] | "settings" =
@@ -193,4 +190,4 @@ const IconNav: FC = () => {
   );
 };
 
-export default IconNav;
+export default PrimaryNavigation;

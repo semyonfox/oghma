@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import NotesProviders from '@/components/notes/providers';
-import VSCodeLayout from '@/components/layout/vscode-layout';
+import NotesProviders from "@/components/notes/providers";
+import NotesWorkspace from "@/components/notes/notes-workspace";
 
 /**
- * Notes page with VSCode-style layout
+ * Full notes workspace.
  * Features:
  * - Icon navigation (left)
  * - File tree (collapsible sections)
@@ -14,7 +14,7 @@ import VSCodeLayout from '@/components/layout/vscode-layout';
 function NotesPage() {
   return (
     <NotesProviders>
-      <VSCodeLayout />
+      <NotesWorkspace />
     </NotesProviders>
   );
 }

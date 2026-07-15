@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import IconNav from "@/components/sidebar/icon-nav";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import QuizDashboard from "@/components/quiz/dashboard";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import type { QuizDashboardInitialData } from "./server-data";
@@ -19,7 +19,7 @@ export default function QuizPageClient({
 
   return (
     <div className="flex h-screen bg-app-page text-text">
-      <IconNav />
+      <PrimaryNavigation />
       <div className="flex-1 overflow-y-auto">
         <QuizDashboard
           initialDashboard={initialData.dashboard}

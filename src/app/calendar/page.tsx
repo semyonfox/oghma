@@ -8,7 +8,7 @@ import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import IconNav from "@/components/sidebar/icon-nav";
+import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
 import AssignmentTracker from "@/components/panels/assignment-tracker";
@@ -48,7 +48,7 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-screen bg-app-page text-text">
-      <IconNav />
+      <PrimaryNavigation />
 
       <div className="flex flex-1 min-w-0">
         {/* main calendar area */}
