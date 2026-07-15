@@ -32,7 +32,7 @@ pipeline {
                     env.WORKER         = "oghma-${env.DEPLOY_ENV}-worker"
                     env.IMAGE          = "${REGISTRY}:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
                     env.WORKER_IMAGE   = "${REGISTRY}-worker:${env.DEPLOY_ENV}-${env.GIT_COMMIT.take(7)}"
-                    env.ENV_FILE       = "${OGHMA_ENV_DIR}/oghma-${env.DEPLOY_ENV}.env"
+                    env.OGHMA_ENV_FILE = "${OGHMA_ENV_DIR}/oghma-${env.DEPLOY_ENV}.env"
                     env.QUEUE_PREFIX   = env.DEPLOY_ENV == 'prod' ? 'oghma' : 'oghma-dev'
                     echo "branch=${branch}  env=${env.DEPLOY_ENV}  queuePrefix=${env.QUEUE_PREFIX}  image=${env.IMAGE}  worker=${env.WORKER_IMAGE}"
                 }
@@ -131,7 +131,7 @@ pipeline {
                 sh '''
                     docker run --rm \
                         --network $NETWORK \
-                        --env-file $ENV_FILE \
+                        --env-file $OGHMA_ENV_FILE \
                         -e DEPLOY_ENV=$DEPLOY_ENV \
                         -e QUEUE_PREFIX=$QUEUE_PREFIX \
                         -e QDRANT_URL=http://oghma-qdrant:6333 \
@@ -148,7 +148,7 @@ pipeline {
                     set -eu
                     docker run --rm \
                         --network "$NETWORK" \
-                        --env-file "$ENV_FILE" \
+                        --env-file "$OGHMA_ENV_FILE" \
                         -e MIGRATION_DATABASE_URL= \
                         -e DEPLOY_ENV="$DEPLOY_ENV" \
                         -e QUEUE_PREFIX="$QUEUE_PREFIX" \
@@ -194,7 +194,7 @@ pipeline {
                           --label role=app-candidate \
                           --label jenkins-build="\$BUILD_TAG" \
                           --restart no \
-                          --env-file "\$ENV_FILE" \
+                          --env-file "\$OGHMA_ENV_FILE" \
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
@@ -231,7 +231,7 @@ pipeline {
                           --label role=app \
                           --label jenkins-build="\$BUILD_TAG" \
                           --restart unless-stopped \
-                          --env-file "\$ENV_FILE" \
+                          --env-file "\$OGHMA_ENV_FILE" \
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
@@ -300,7 +300,7 @@ pipeline {
                           --label role=worker-candidate \
                           --label jenkins-build="\$BUILD_TAG" \
                           --restart no \
-                          --env-file "\$ENV_FILE" \
+                          --env-file "\$OGHMA_ENV_FILE" \
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
@@ -334,7 +334,7 @@ pipeline {
                           --label role=worker \
                           --label jenkins-build="\$BUILD_TAG" \
                           --restart unless-stopped \
-                          --env-file "\$ENV_FILE" \
+                          --env-file "\$OGHMA_ENV_FILE" \
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
