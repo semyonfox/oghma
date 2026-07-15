@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@milkdown/crepe/theme/common/style.css";
 @import "@milkdown/crepe/theme/classic.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -974,28 +975,15 @@ html.light .glass-card-active {
   background: var(--md-accent);
 }
 
-/* Milkdown writing surface. Keep its third-party theme overrides locally scoped. */
+/* Stock Crepe presentation with only OghmaNotes sizing and code-control additions. */
 .oghma-milkdown-editor .milkdown {
   min-height: 100%;
-  color: var(--color-text);
-  background: var(--color-app-page);
-  --crepe-color-background: var(--color-app-page);
-  --crepe-color-surface: var(--color-surface);
-  --crepe-color-surface-low: var(--color-surface-elevated);
-  --crepe-color-on-background: var(--color-text);
-  --crepe-color-on-surface: var(--color-text);
-  --crepe-color-on-surface-variant: var(--color-text-secondary);
-  --crepe-color-primary: var(--color-primary-400);
-  --crepe-color-outline: var(--color-border);
-  --crepe-font-default: var(--font-sans);
-  --crepe-font-code: var(--font-mono);
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror {
   min-height: 100%;
   max-width: var(--editor-write-max-width);
   margin-inline: auto;
-  padding: 2rem 1.5rem 8rem;
 }
 
 .oghma-milkdown-editor .milkdown-code-block {
