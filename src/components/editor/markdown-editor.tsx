@@ -15,7 +15,6 @@ import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
-import Link from "next/link";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
@@ -355,13 +354,6 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
       {/* Actions share the visual row owned by Crepe's formatting toolbar. */}
       <div className="absolute right-3 top-0 z-30 flex h-11 items-center gap-1.5">
-          <Link
-            href="/syntax-guide"
-            target="_blank"
-            className="hidden h-7 items-center rounded-radius-sm px-2 text-xs text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary xl:inline-flex"
-          >
-            {t("Syntax Guide")}
-          </Link>
           {isDirty && !isSaving ? (
             <button
               onClick={handleSave}

@@ -1009,7 +1009,7 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown-top-bar .top-bar-inner {
-  padding-right: 10.5rem;
+  padding-right: 5.5rem;
 }
 
 .oghma-milkdown-editor .milkdown-top-bar .top-bar-heading-selector {
@@ -1023,12 +1023,6 @@ html.light .glass-card-active {
 .oghma-milkdown-editor .milkdown-top-bar .top-bar-divider {
   height: 1.4rem;
   margin: 0.35rem;
-}
-
-@media (max-width: 1279px) {
-  .oghma-milkdown-editor .milkdown-top-bar .top-bar-inner {
-    padding-right: 5.5rem;
-  }
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror {
