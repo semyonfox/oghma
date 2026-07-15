@@ -205,6 +205,28 @@ const writeThemeSpec = {
     margin: "0.8rem 0 0.3rem",
     width: "100%",
   },
+  ".cm-md-image": {
+    display: "inline-block",
+    margin: "0.65rem 0",
+    maxWidth: "100%",
+    verticalAlign: "top",
+  },
+  ".cm-md-image img": {
+    borderRadius: "0.65rem",
+    display: "block",
+    height: "auto",
+    maxWidth: "100%",
+  },
+  ".cm-md-image-invalid": {
+    color: "var(--md-text-faint)",
+    fontStyle: "italic",
+  },
+  ".cm-md-blockquote-line": {
+    backgroundColor: "var(--md-quote-bg)",
+    borderLeft: "3px solid var(--md-quote-border)",
+    color: "var(--md-quote-text)",
+    paddingLeft: "0.8rem",
+  },
   ".cm-formatting, .cm-meta": {
     color: "var(--md-text-faint)",
   },

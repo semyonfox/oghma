@@ -235,6 +235,37 @@ describe("WriteEditor helpers", () => {
     expect(markdownSyntaxRangesForLine("===", 10, false)).toEqual([]);
   });
 
+  it("reveals escaped Markdown literally while inactive", () => {
+    expect(markdownSyntaxRangesForLine(String.raw`\*Not italic\*`, 0, false)).toEqual([
+      { from: 0, to: 1 },
+      { from: 12, to: 13 },
+    ]);
+  });
+
+  it("renders basic images while inactive and restores source on their line", () => {
+    expect(
+      markdownSyntaxRangesForLine(
+        '![Markdown](https://example.com/logo.png "Logo")',
+        0,
+        false,
+      ),
+    ).toContainEqual({
+      from: 0,
+      to: 48,
+      image: {
+        alt: "Markdown",
+        src: "https://example.com/logo.png",
+        title: "Logo",
+      },
+    });
+  });
+
+  it("hides every nested blockquote marker while inactive", () => {
+    expect(markdownSyntaxRangesForLine("> > nested", 10, false)).toEqual([
+      { from: 10, to: 14 },
+    ]);
+  });
+
   it("detects inactive inline math ranges without changing canonical markdown", () => {
     expect(inlineMathRangesForLine("Use $E=mc^2$ today", 100)).toEqual([
       { from: 104, to: 112, tex: "E=mc^2", displayMode: false },

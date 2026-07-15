@@ -6,6 +6,7 @@ import {
   EditorState,
   Compartment,
   RangeSetBuilder,
+  StateField,
   Transaction,
 } from "@codemirror/state";
 import {
@@ -66,6 +67,11 @@ export interface MarkdownSyntaxRange {
     text: string;
   };
   horizontalRule?: boolean;
+  image?: {
+    alt: string;
+    src: string;
+    title?: string;
+  };
 }
 
 export interface MarkdownTaskMarker {
@@ -175,6 +181,42 @@ class HorizontalRuleWidget extends WidgetType {
     const rule = document.createElement("span");
     rule.className = "cm-md-horizontal-rule";
     return rule;
+  }
+}
+
+class MarkdownImageWidget extends WidgetType {
+  constructor(
+    private readonly alt: string,
+    private readonly src: string,
+    private readonly title?: string,
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const wrapper = document.createElement("span");
+    wrapper.className = "cm-md-image";
+    const safeSource = /^(https?:\/\/|\/|\.\.?\/)/i.test(this.src);
+    if (!safeSource) {
+      wrapper.textContent = this.alt || this.src;
+      wrapper.classList.add("cm-md-image-invalid");
+      return wrapper;
+    }
+    const image = document.createElement("img");
+    image.src = this.src;
+    image.alt = this.alt;
+    image.loading = "lazy";
+    if (this.title) image.title = this.title;
+    wrapper.append(image);
+    return wrapper;
+  }
+
+  eq(other: MarkdownImageWidget) {
+    return (
+      this.alt === other.alt &&
+      this.src === other.src &&
+      this.title === other.title
+    );
   }
 }
 
@@ -383,6 +425,13 @@ function addInlinePairRanges(
 ) {
   for (const match of lineText.matchAll(pattern)) {
     if (match.index == null || !match[0]) continue;
+    const closingMarker = match.index + match[0].length - markerLength;
+    if (
+      isEscaped(lineText, match.index) ||
+      isEscaped(lineText, closingMarker)
+    ) {
+      continue;
+    }
     ranges.push(
       {
         from: lineFrom + match.index,
@@ -746,7 +795,7 @@ export function markdownSyntaxRangesForLine(
     }
   }
 
-  const blockquote = text.match(/^>\s*/);
+  const blockquote = text.match(/^(?:>\s*)+/);
   if (blockquote) {
     ranges.push({ from: contentStart, to: contentStart + blockquote[0].length });
   }
@@ -779,8 +828,20 @@ export function markdownSyntaxRangesForLine(
   addInlinePairRanges(ranges, lineText, lineFrom, /`([^`]+)`/g, 1);
   addMathDelimiterRanges(ranges, lineText, lineFrom);
 
+  for (const match of lineText.matchAll(
+    /!\[([^\]]*)]\(([^\s)]+)(?:\s+["']([^"']*)["'])?\)/g,
+  )) {
+    if (match.index == null || isEscaped(lineText, match.index)) continue;
+    ranges.push({
+      from: lineFrom + match.index,
+      to: lineFrom + match.index + match[0].length,
+      image: { alt: match[1], src: match[2], title: match[3] },
+    });
+  }
+
   for (const match of lineText.matchAll(/\[([^\]]+)]\(([^)]+)\)/g)) {
     if (match.index == null || !match[0]) continue;
+    if (match.index > 0 && lineText[match.index - 1] === "!") continue;
     const textStart = match.index + 1;
     const textEnd = textStart + match[1].length;
     ranges.push(
@@ -803,12 +864,93 @@ export function markdownSyntaxRangesForLine(
     });
   }
 
+  for (const match of lineText.matchAll(/\\[\\`*_[\]{}()#+\-.!>|]/g)) {
+    if (match.index == null) continue;
+    ranges.push({
+      from: lineFrom + match.index,
+      to: lineFrom + match.index + 1,
+    });
+  }
+
   return ranges;
 }
 
 function rangesOverlap(fromA: number, toA: number, fromB: number, toB: number): boolean {
   return fromA < toB && fromB < toA;
 }
+
+interface TableDecorationState {
+  decorations: DecorationSet;
+  tables: MarkdownTableRange[];
+  codeFences: MarkdownCodeFenceRange[];
+}
+
+function parseTableDecorationState(documentText: string) {
+  return {
+    tables: [
+      ...markdownTableRanges(documentText),
+      ...htmlTableRanges(documentText),
+    ].sort((a, b) => a.from - b.from),
+    codeFences: markdownCodeFenceRanges(documentText),
+  };
+}
+
+function buildTableDecorationSet(
+  state: EditorState,
+  tables: MarkdownTableRange[],
+  codeFences: MarkdownCodeFenceRange[],
+): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const cursor = state.selection.main.head;
+
+  for (const table of tables) {
+    const active = cursor >= table.from && cursor <= table.to;
+    const insideCodeFence = codeFences.some((fence) =>
+      rangesOverlap(table.from, table.to, fence.from, fence.to),
+    );
+    if (active || insideCodeFence) continue;
+    builder.add(
+      table.from,
+      table.to,
+      Decoration.replace({
+        widget: new MarkdownTableWidget(table),
+        block: true,
+      }),
+    );
+  }
+  return builder.finish();
+}
+
+export const markdownTableDecorations = StateField.define<TableDecorationState>({
+  create(state) {
+    const parsed = parseTableDecorationState(state.doc.toString());
+    return {
+      ...parsed,
+      decorations: buildTableDecorationSet(
+        state,
+        parsed.tables,
+        parsed.codeFences,
+      ),
+    };
+  },
+  update(value, transaction) {
+    const parsed = transaction.docChanged
+      ? parseTableDecorationState(transaction.state.doc.toString())
+      : value;
+    if (!transaction.docChanged && !transaction.selection) return value;
+    return {
+      tables: parsed.tables,
+      codeFences: parsed.codeFences,
+      decorations: buildTableDecorationSet(
+        transaction.state,
+        parsed.tables,
+        parsed.codeFences,
+      ),
+    };
+  },
+  provide: (field) =>
+    EditorView.decorations.from(field, (value) => value.decorations),
+});
 
 function rangeTouchesLine(range: MathRenderRange, lineFrom: number, lineTo: number): boolean {
   return rangesOverlap(range.from, range.to, lineFrom, lineTo + 1);
@@ -896,7 +1038,6 @@ type RenderDecoration = {
 function buildMarkdownRenderDecorations(
   view: EditorView,
   codeFences: MarkdownCodeFenceRange[],
-  tables: MarkdownTableRange[],
 ): DecorationSet {
   const decorations: RenderDecoration[] = [];
   const activeLine = view.state.doc.lineAt(view.state.selection.main.head);
@@ -904,34 +1045,6 @@ function buildMarkdownRenderDecorations(
     codeFences,
     view.state.selection.main.head,
   );
-  const activeTable = tables.find(
-    (table) =>
-      view.state.selection.main.head >= table.from &&
-      view.state.selection.main.head <= table.to,
-  );
-
-  for (const table of tables) {
-    if (
-      activeTable !== table &&
-      !codeFences.some((fence) =>
-        rangesOverlap(table.from, table.to, fence.from, fence.to),
-      ) &&
-      view.visibleRanges.some((range) =>
-        rangesOverlap(table.from, table.to, range.from, range.to),
-      )
-    ) {
-      decorations.push({
-        from: table.from,
-        to: table.to,
-        decoration: Decoration.replace({
-          widget: new MarkdownTableWidget(table),
-          block: true,
-        }),
-        priority: 0,
-      });
-    }
-  }
-
   for (const fence of codeFences) {
     const firstLine = view.state.doc.lineAt(fence.openFrom);
     const lastLine = view.state.doc.lineAt(fence.closeFrom ?? fence.to);
@@ -1003,6 +1116,16 @@ function buildMarkdownRenderDecorations(
         fence && line.from >= fence.openFrom && line.from <= fence.to,
       );
 
+      if (!lineIsActive && !inFence && /^\s*>/.test(line.text)) {
+        decorations.push({
+          from: line.from,
+          to: line.from,
+          decoration: Decoration.line({ class: "cm-md-blockquote-line" }),
+          priority: 0,
+          point: true,
+        });
+      }
+
       if (!lineIsActive && !inFence) {
         for (const mathRange of inlineMathRangesForLine(line.text, line.from)) {
           if (
@@ -1039,6 +1162,12 @@ function buildMarkdownRenderDecorations(
             widget:
               range.horizontalRule
                 ? new HorizontalRuleWidget()
+                : range.image
+                  ? new MarkdownImageWidget(
+                      range.image.alt,
+                      range.image.src,
+                      range.image.title,
+                    )
                 : range.inlineHtml
                 ? new SafeInlineHtmlWidget(
                     range.inlineHtml.tag,
@@ -1148,35 +1277,21 @@ const markdownRenderDecorations = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     codeFences: MarkdownCodeFenceRange[];
-    tables: MarkdownTableRange[];
 
     constructor(view: EditorView) {
       this.codeFences = markdownCodeFenceRanges(view.state.doc.toString());
-      this.tables = [
-        ...markdownTableRanges(view.state.doc.toString()),
-        ...htmlTableRanges(view.state.doc.toString()),
-      ].sort((a, b) => a.from - b.from);
-      this.decorations = buildMarkdownRenderDecorations(
-        view,
-        this.codeFences,
-        this.tables,
-      );
+      this.decorations = buildMarkdownRenderDecorations(view, this.codeFences);
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged) {
         const documentText = update.state.doc.toString();
         this.codeFences = markdownCodeFenceRanges(documentText);
-        this.tables = [
-          ...markdownTableRanges(documentText),
-          ...htmlTableRanges(documentText),
-        ].sort((a, b) => a.from - b.from);
       }
       if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildMarkdownRenderDecorations(
           update.view,
           this.codeFences,
-          this.tables,
         );
       }
     }
@@ -1237,6 +1352,7 @@ export default function WriteEditor({
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         taskCheckboxInteraction,
+        markdownTableDecorations,
         markdownRenderDecorations,
         themeCompartment.of(themeExtensions(isDarkTheme())),
         EditorView.lineWrapping,

@@ -62,6 +62,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const serverUpdatedAt = useRef<string | undefined>(undefined);
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editRevision = useRef(0);
+  const saveInFlight = useRef(false);
+  const saveQueued = useRef(false);
+  const saveLatest = useRef<() => void>(() => {});
   const editorWidth = getEditorWidthStyle(resolvedEditorSize ?? editorSize);
 
   // keep refs in sync so event listeners always read current values
@@ -116,6 +120,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     currentFileId.current = file.fileId;
     setLoaded(false);
     setIsDirty(false);
+    isDirtyRef.current = false;
+    editRevision.current = 0;
+    saveQueued.current = false;
     serverUpdatedAt.current = undefined;
 
     let cancelled = false;
@@ -185,8 +192,12 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 { duration: 6000 },
               );
             }
-          } else {
+          } else if (editRevision.current === 0) {
+            // The request may have started from the instant IDB-cache view.
+            // Never let that older response replace content after this editor
+            // has accepted even one local edit (including an already-saved one).
             setLocalContent(result.content ?? "");
+            localContentRef.current = result.content ?? "";
             setLoaded(true);
           }
         }
@@ -255,22 +266,44 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
   // save via API
   const handleSave = useCallback(async () => {
-    if (!isDirty || !file.fileId) return;
+    if (!isDirtyRef.current || !file.fileId) return;
+    if (saveInFlight.current) {
+      saveQueued.current = true;
+      return;
+    }
+
+    const contentToSave = localContentRef.current;
+    const revisionToSave = editRevision.current;
+    saveInFlight.current = true;
+    saveQueued.current = false;
+    if (draftTimer.current) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = null;
+    }
 
     setIsSaving(true);
     setSaveError(false);
     try {
-      await mutateNote(file.fileId, { content: localContent });
-      setIsDirty(false);
-      markSynced(file.fileId);
-      // draft successfully pushed to cloud — safe to clear
-      clearDraft(file.fileId).catch(() => {});
+      await mutateNote(file.fileId, { content: contentToSave });
+      const savedCurrentRevision =
+        revisionToSave === editRevision.current &&
+        contentToSave === localContentRef.current;
+      if (savedCurrentRevision) {
+        isDirtyRef.current = false;
+        setIsDirty(false);
+        markSynced(file.fileId);
+        await clearDraft(file.fileId).catch(() => {});
+      } else {
+        isDirtyRef.current = true;
+        setIsDirty(true);
+        markModified(file.fileId);
+      }
       // broadcast to other panes showing this file
       window.dispatchEvent(
         new CustomEvent("note-content-sync", {
           detail: {
             fileId: file.fileId,
-            content: localContent,
+            content: contentToSave,
             sourceId: editorId.current,
           },
         }),
@@ -280,9 +313,18 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       setSaveError(true);
       toast.error(t("Failed to save note"));
     } finally {
+      saveInFlight.current = false;
       setIsSaving(false);
+      if (saveQueued.current && isDirtyRef.current) {
+        saveQueued.current = false;
+        queueMicrotask(() => saveLatest.current());
+      }
     }
-  }, [localContent, file.fileId, isDirty, mutateNote, markSynced, t]);
+  }, [file.fileId, mutateNote, markModified, markSynced, t]);
+
+  saveLatest.current = () => {
+    void handleSave();
+  };
 
   // Ctrl+S handler. CodeMirror also handles it while focused; this catches
   // toolbar/outer-shell focus so the editor still behaves like one mode.
@@ -384,7 +426,10 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
               value={displayContent}
               onChange={(val, programmaticUpdate) => {
                 setLocalContent(val);
+                localContentRef.current = val;
                 if (!programmaticUpdate) {
+                  editRevision.current += 1;
+                  isDirtyRef.current = true;
                   setIsDirty(true);
                   scheduleDraftWrite(val);
                 }
