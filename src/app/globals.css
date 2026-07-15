@@ -1012,6 +1012,45 @@ html.light .glass-card-active {
   margin-inline: auto;
 }
 
+.oghma-milkdown-editor .milkdown .ProseMirror h1 {
+  color: var(--md-heading-1);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror h2 {
+  color: var(--md-heading-2);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror h3 {
+  color: var(--md-heading-3);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror a {
+  color: var(--md-link);
+  text-decoration-color: color-mix(in srgb, var(--md-link) 55%, transparent);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror blockquote {
+  border-color: var(--md-quote-border);
+  border-radius: 0 var(--radius-radius-md) var(--radius-radius-md) 0;
+  background: color-mix(in srgb, var(--md-quote-border) 7%, transparent);
+  color: var(--md-quote-text);
+}
+
+.md-rendered blockquote blockquote,
+.oghma-milkdown-editor .milkdown .ProseMirror blockquote blockquote {
+  margin-block: 0.75rem 0.25rem;
+  background: color-mix(in srgb, var(--md-quote-border) 10%, transparent);
+}
+
+.md-rendered blockquote blockquote blockquote,
+.oghma-milkdown-editor .milkdown .ProseMirror blockquote blockquote blockquote {
+  background: color-mix(in srgb, var(--md-quote-border) 14%, transparent);
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror strong {
+  color: var(--md-strong);
+}
+
 .oghma-milkdown-editor .milkdown-code-block {
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -1027,6 +1066,18 @@ html.light .glass-card-active {
   width: 2rem;
   height: 2rem;
   padding: 0;
+  flex: 0 0 2rem;
+  font-size: 0;
+}
+
+.oghma-milkdown-editor .milkdown-code-block .tools-button-group button svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.oghma-milkdown-editor .milkdown-code-block .tools-button-group {
+  flex-shrink: 0;
+  gap: 0.25rem;
 }
 
 .oghma-milkdown-editor .oghma-code-language-icon {
@@ -1055,4 +1106,49 @@ html.light .glass-card-active {
 .oghma-milkdown-editor .milkdown input:focus-visible {
   outline: 2px solid var(--crepe-color-primary);
   outline-offset: 2px;
+}
+
+.oghma-mermaid-block {
+  margin: calc(var(--md-flow-space) * 1.25) 0;
+  overflow: hidden;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--radius-radius-lg);
+  background: var(--md-code-bg);
+}
+
+.oghma-mermaid-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--md-code-border);
+  padding: 0.65rem 0.85rem;
+  color: var(--md-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.oghma-mermaid-preview,
+.oghma-mermaid-diagram {
+  display: grid;
+  min-height: 8rem;
+  place-items: center;
+}
+
+.oghma-mermaid-preview {
+  padding: 1.25rem;
+}
+
+.oghma-mermaid-diagram {
+  width: 100%;
+}
+
+.oghma-mermaid-diagram svg {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 36rem;
+}
+
+.oghma-mermaid-block pre[data-mermaid-state="fallback"] {
+  margin: 0;
 }

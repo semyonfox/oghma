@@ -40,6 +40,7 @@ The note preview supports:
 - GFM task lists and tables;
 - inline and fenced code, including optional `title`, `filename`, or `file` fence metadata;
 - inline and display math through KaTeX;
+- fenced `mermaid` diagrams with lazy, strict, sanitized SVG rendering and source fallback;
 - lazy images and Marker-style note-asset rewriting when a note ID is available;
 - a small sanitized raw-HTML subset used by notes, including `mark`, `details`, `summary`, `kbd`, `sup`, and `sub`.
 
@@ -47,7 +48,7 @@ Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-
 
 Rendered notes, chat answers, and quiz content use the same semantic colours, spacing rhythm, code chrome, table treatment, task controls, and display-math surface. Compact contexts may reduce type and spacing through their renderer variant, but must not redefine Markdown elements component-by-component. Write-mode math uses the same surface tokens so switching between editing and rendered content does not introduce a new visual language.
 
-Mermaid, wikilinks/backlinks, callouts, footnotes, frontmatter rendering, arbitrary local paths, and MDX components are not part of this contract unless added deliberately with tests.
+Wikilinks/backlinks, callouts, footnotes, frontmatter rendering, arbitrary local paths, and MDX components are not part of this contract unless added deliberately with tests.
 
 ## Security boundary
 
@@ -56,6 +57,7 @@ Markdown is untrusted input.
 - When raw HTML is enabled, `rehype-raw` must run before `rehype-sanitize` with `markdownSanitizeSchema`.
 - Scripts, event attributes, and unsafe protocols such as `javascript:` must be removed.
 - Code fence content is text even when it looks like HTML.
+- Mermaid SVG is generated client-side in strict mode and sanitized before insertion; invalid diagrams retain their fenced source.
 - New renderer variants must choose raw-HTML and sanitization behaviour explicitly.
 - Do not insert user Markdown or raw code through `dangerouslySetInnerHTML`.
 

@@ -23,6 +23,11 @@ unknown language fallback
 print("language preservation")
 ```
 
+```mermaid
+flowchart LR
+  Markdown --> Editor --> Markdown
+```
+
 ## Lists and quotes
 
 - Bullet item

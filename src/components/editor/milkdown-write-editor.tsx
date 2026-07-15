@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { replaceAll } from "@milkdown/kit/utils";
+import { renderMermaidElement } from "@/lib/markdown/mermaid";
 
 interface MilkdownWriteEditorProps {
   value: string;
@@ -30,6 +31,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
   py: "Python",
   python: "Python",
   diff: "Diff",
+  mermaid: "Mermaid",
   sh: "Shell",
   bash: "Shell",
 };
@@ -47,6 +49,7 @@ const LANGUAGE_ICONS: Record<string, string> = {
   py: "Py",
   python: "Py",
   diff: "±",
+  mermaid: "◇",
   sh: ">_",
   bash: ">_",
 };
@@ -146,6 +149,12 @@ export default function MilkdownWriteEditor({
         [CrepeFeature.CodeMirror]: {
           copyIcon: COPY_ICON,
           copyText: "",
+          renderPreview: (language, content, applyPreview) => {
+            if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
+            void renderMermaidElement(content)
+              .then(applyPreview)
+              .catch(() => applyPreview(null));
+          },
         },
       },
     });

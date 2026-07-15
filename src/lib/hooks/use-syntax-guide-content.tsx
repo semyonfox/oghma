@@ -141,7 +141,7 @@ ${t("Supported languages")}: javascript, typescript, python, rust, go, java, c, 
 
 ### ${t("Mermaid (code fence)")}
 
-${t("Mermaid fences are preserved and highlighted as code today. Visual diagram rendering is planned.")}
+${t("Mermaid fences render as diagrams while preserving editable Markdown source.")}
 
 \`\`\`markdown
 \`\`\`mermaid

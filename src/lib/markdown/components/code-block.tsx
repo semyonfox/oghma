@@ -4,8 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ThemedToken } from "shiki/core";
 import { CheckIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import dynamic from "next/dynamic";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { highlightCode, type HighlightedCode } from "../shiki-highlighter";
+
+const MermaidBlock = dynamic(() => import("./mermaid-block"), { ssr: false });
 
 export interface CodeBlockProps {
   language?: string;
@@ -32,6 +35,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
   jsx: "JSX",
   kotlin: "Kotlin",
   markdown: "Markdown",
+  mermaid: "Mermaid",
   php: "PHP",
   plaintext: "Plain text",
   python: "Python",
@@ -186,8 +190,9 @@ export default function CodeBlock({
     window.setTimeout(() => setCopied(false), 1500);
   };
 
-  // future: if (language === "mermaid") return <MermaidBlock>{children}</MermaidBlock>;
-  // use dynamic(() => import("./mermaid-block"), { ssr: false }) to keep Mermaid's ~2MB out of the bundle
+  if (languageInfo.normalized === "mermaid") {
+    return <MermaidBlock code={code} title={title} />;
+  }
 
   return (
     <figure

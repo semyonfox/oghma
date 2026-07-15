@@ -102,7 +102,7 @@ export default function SyntaxGuideContent({ t }: { t: Translate }) {
       <Code>{`function ${t("hello")}() {\n  console.log("${t("Hello, world!")}");\n}`}</Code>
       <p>{t("Supported languages")}: javascript, typescript, python, rust, go, java, c, cpp, html, css, json, yaml, bash, sql, markdown, {t("and more")}.</p>
       <h3 className={subheadingClass}>{t("Mermaid (code fence)")}</h3>
-      <p>{t("Mermaid fences are preserved and highlighted as code today. Visual diagram rendering is planned.")}</p>
+      <p>{t("Mermaid fences render as diagrams while preserving editable Markdown source.")}</p>
       <Code>{`\`\`\`mermaid\ngraph TD\n  A[Upload] --> B[Extract]\n  B --> C[Embed]\n\`\`\``}</Code>
       <Code>{`graph TD\n  A[Upload] --> B[Extract]\n  B --> C[Embed]`}</Code>
       <Rule />
