@@ -169,16 +169,18 @@ function ConversationHistory({
           { label: "Pinned", items: pinnedConversations },
           { label: "Recent", items: recentConversations },
         ].map((section) => section.items.length > 0 && (
-          <section key={section.label} className="mb-2.5">
-            <h3 className="flex h-6 items-center gap-0.5 px-2 text-[10px] font-semibold text-text-tertiary/80">
-              {t(section.label)}
-              <ChevronDownIcon className="h-2.5 w-2.5" aria-hidden="true" />
-            </h3>
+          <section key={section.label} className={section.label === "Pinned" ? "mb-2.5" : ""}>
+            {section.label === "Pinned" && (
+              <h3 className="flex h-6 items-center gap-0.5 px-2 text-[10px] font-semibold text-text-tertiary/80">
+                {t("Pinned")}
+                <ChevronDownIcon className="h-2.5 w-2.5" aria-hidden="true" />
+              </h3>
+            )}
             <div className="space-y-0.5">
             {section.items.map((conv) => (
           <div
             key={conv.id}
-            className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors md:min-h-7 ${
+            className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors md:min-h-8 ${
               conv.id === activeId
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle/70 hover:text-text-secondary"
@@ -186,7 +188,7 @@ function ConversationHistory({
           >
             {editingId === conv.id ? (
               <form
-                className="flex min-h-11 items-center gap-1 px-1.5 md:min-h-7"
+                className="flex min-h-11 items-center gap-1 px-1.5 md:min-h-8"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void finishRename();
@@ -209,7 +211,7 @@ function ConversationHistory({
                     }
                     void finishRename();
                   }}
-                  className="h-8 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-xs text-text-secondary outline-none ring-1 ring-primary-500/20 md:h-7 md:text-[11px]"
+                  className="h-8 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-xs text-text-secondary outline-none ring-1 ring-primary-500/20"
                   aria-label={t("Rename")}
                   autoFocus
                 />
@@ -218,11 +220,11 @@ function ConversationHistory({
               <Link
                 href={`/chat/${conv.id}`}
                 onClick={() => onSelectConversation(conv.id)}
-                className="flex min-h-11 w-full items-center gap-1.5 px-2 pr-28 text-left focus-visible:outline-none md:min-h-7 md:pr-16"
+                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-28 text-left focus-visible:outline-none md:min-h-8 md:pr-20"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
                 {conv.pinned && <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />}
-                <span className="min-w-0 flex-1 truncate text-sm font-medium md:text-[11px] md:font-normal">{conv.title}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium md:text-xs md:font-normal">{conv.title}</span>
               </Link>
             )}
 
@@ -237,13 +239,13 @@ function ConversationHistory({
 
             {editingId !== conv.id && (
               <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 px-1 opacity-100 transition-opacity md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
-                <button type="button" onClick={() => void onTogglePinned(conv.id, !conv.pinned)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-primary-400 md:h-6 md:w-6" title={conv.pinned ? t("Unpin") : t("Pin to favorites")} aria-label={conv.pinned ? t("Unpin") : t("Pin to favorites")}>
+                <button type="button" onClick={() => void onTogglePinned(conv.id, !conv.pinned)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-primary-400 md:h-7 md:w-7" title={conv.pinned ? t("Unpin") : t("Pin to favorites")} aria-label={conv.pinned ? t("Unpin") : t("Pin to favorites")}>
                   <PushPinIcon className={`h-3.5 w-3.5 ${conv.pinned ? "text-primary-400" : ""}`} />
                 </button>
-                <button type="button" onClick={() => beginRename(conv)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-text-secondary md:h-6 md:w-6" title={t("Rename")} aria-label={t("Rename")}>
+                <button type="button" onClick={() => beginRename(conv)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-text-secondary md:h-7 md:w-7" title={t("Rename")} aria-label={t("Rename")}>
                   <PencilSquareIcon className="h-3.5 w-3.5" />
                 </button>
-                <button type="button" onClick={() => onDeleteConversation(conv.id)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-error-400 md:h-6 md:w-6" title={t("chat.delete_conversation")} aria-label={t("chat.delete_conversation")}>
+                <button type="button" onClick={() => onDeleteConversation(conv.id)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-error-400 md:h-7 md:w-7" title={t("chat.delete_conversation")} aria-label={t("chat.delete_conversation")}>
                   <TrashIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
