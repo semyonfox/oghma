@@ -120,17 +120,17 @@ export default function CalendarPage() {
 
         <div className="flex min-w-0 flex-1">
           <main className="flex min-w-0 flex-1 flex-col" aria-label={t("Calendar")}>
-            <header className="relative z-50 hidden shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-app-page px-2 py-2 sm:px-4 md:flex md:px-6 md:py-3">
+            <header className="glass-panel relative z-50 hidden h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 md:flex">
               <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary md:text-base">
                 <time>{weekLabel}</time>
               </h1>
 
-              <div className="flex shrink-0 items-center gap-1.5 md:gap-3">
-                <div className="relative flex h-9 items-center overflow-hidden rounded-radius-md border border-border-subtle bg-surface shadow-sm">
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="relative flex h-8 items-center overflow-hidden rounded-radius-md glass-card">
                   <button
                     type="button"
                     onClick={navigateBack}
-                    className="flex h-9 w-9 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
                     aria-label={t("Previous period")}
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
@@ -138,14 +138,14 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={goToToday}
-                    className="hidden h-9 border-x border-border-subtle px-3 text-xs font-medium text-text-secondary hover:bg-subtle md:block"
+                    className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle md:block"
                   >
                     {t("Today")}
                   </button>
                   <button
                     type="button"
                     onClick={navigateForward}
-                    className="flex h-9 w-9 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
                     aria-label={t("Next period")}
                   >
                     <ChevronRightIcon className="h-4 w-4" />
@@ -155,7 +155,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setTasksOpen(true)}
-                  className="flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface px-2.5 text-xs font-medium text-text-secondary shadow-sm hover:bg-subtle lg:hidden"
+                  className="flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary lg:hidden"
                   aria-label={t("Tasks")}
                 >
                   <ClipboardDocumentListIcon className="h-4 w-4" />
@@ -163,7 +163,7 @@ export default function CalendarPage() {
                 </button>
 
                 <Menu as="div" className="relative z-[60]">
-                  <MenuButton className="flex h-9 min-w-24 items-center justify-between gap-2 rounded-radius-md border border-border-subtle bg-surface px-3 text-xs font-medium text-text-secondary shadow-sm hover:bg-subtle">
+                  <MenuButton className="flex h-8 min-w-24 items-center justify-between gap-2 rounded-radius-md px-3 text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50">
                     <span>{view === "month" ? t("Month") : t("Week")}</span>
                     <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
                   </MenuButton>

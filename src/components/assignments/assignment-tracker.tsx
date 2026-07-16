@@ -488,10 +488,10 @@ export default function AssignmentTracker({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-3 gap-2 px-3 pb-2 pt-3">
+      <div className="space-y-2 px-3 pb-2 pt-3">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
-          <div className="relative z-40 col-span-3 min-w-0">
-            <ListboxButton className="relative flex h-11 w-full items-center rounded-radius-md border border-border-subtle bg-surface py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary shadow-sm transition-colors hover:bg-subtle">
+          <div className="relative z-40 min-w-0">
+            <ListboxButton className="relative flex h-10 w-full items-center rounded-radius-md py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50">
               <span className="min-w-0 truncate">
                 {courseFilter || t("All Courses")}
               </span>
@@ -519,34 +519,36 @@ export default function AssignmentTracker({
           </div>
         </Listbox>
 
-        <button
-          type="button"
-          onClick={() => setIncludeAll(!includeAll)}
-          className={`h-11 min-w-0 rounded-radius-md border px-2 text-xs font-medium transition-colors ${
-            includeAll
-              ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
-              : "border-border-subtle bg-surface text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-          }`}
-          aria-pressed={includeAll}
-        >
-          {includeAll ? t("All") : t("Get all")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCourseManager(true)}
-          className="h-11 min-w-0 rounded-radius-md border border-border-subtle bg-surface px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
-        >
-          {t("Manage")}
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleSync()}
-          disabled={syncing}
-          className="flex h-11 w-full items-center justify-center rounded-radius-md border border-border-subtle bg-surface text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40"
-          aria-label={t("Sync from Canvas")}
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-1 rounded-radius-md bg-subtle p-1">
+          <button
+            type="button"
+            onClick={() => setIncludeAll(!includeAll)}
+            className={`h-9 min-w-0 flex-1 rounded-radius-sm px-2 text-xs font-medium transition-colors ${
+              includeAll
+                ? "bg-surface text-text-secondary shadow-sm"
+                : "text-text-tertiary hover:bg-surface/60 hover:text-text-secondary"
+            }`}
+            aria-pressed={includeAll}
+          >
+            {includeAll ? t("All") : t("Get all")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCourseManager(true)}
+            className="h-9 min-w-0 flex-1 rounded-radius-sm px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-surface/60 hover:text-text-secondary"
+          >
+            {t("Manage")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSync()}
+            disabled={syncing}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-surface/60 hover:text-text-secondary disabled:opacity-40"
+            aria-label={t("Sync from Canvas")}
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       <label className="mx-3 flex min-h-11 cursor-pointer items-center gap-2 text-xs text-text-tertiary">
