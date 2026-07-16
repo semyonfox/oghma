@@ -5,11 +5,15 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   SparklesIcon,
-  DocumentTextIcon,
   ArrowLeftIcon,
   PlusIcon,
   TrashIcon,
   ChatBubbleLeftRightIcon,
+  PencilSquareIcon,
+  BookmarkIcon,
+  Cog6ToothIcon,
+  CheckIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
@@ -32,11 +36,18 @@ interface Conversation {
   };
   messageCount: number;
   createdAt: number;
+  pinned: boolean;
 }
 
 interface ContextItem {
   id: string;
   title: string;
+}
+
+function sortConversations(conversations: Conversation[]): Conversation[] {
+  return [...conversations].sort(
+    (a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt,
+  );
 }
 
 function relativeDate(
@@ -62,6 +73,8 @@ interface ConversationHistoryProps {
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation: (id: string, title: string) => Promise<boolean>;
+  onTogglePinned: (id: string, pinned: boolean) => Promise<boolean>;
   onDismiss: () => void;
   showHeader?: boolean;
 }
@@ -74,9 +87,26 @@ function ConversationHistory({
   onNewConversation,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
+  onTogglePinned,
   onDismiss,
   showHeader = true,
 }: ConversationHistoryProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+
+  const beginRename = (conversation: Conversation) => {
+    setEditingId(conversation.id);
+    setEditTitle(conversation.title);
+  };
+
+  const finishRename = async () => {
+    if (!editingId) return;
+    const title = editTitle.trim();
+    if (!title) return;
+    if (await onRenameConversation(editingId, title)) setEditingId(null);
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden glass-panel">
       {showHeader && (
@@ -109,58 +139,82 @@ function ConversationHistory({
         <button
           type="button"
           onClick={onNewConversation}
-          className="glass-card-interactive flex min-h-[44px] w-full items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
+          className="glass-card-interactive flex h-11 w-full items-center gap-2 rounded-radius-md px-3 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30 md:h-9 md:text-xs"
         >
           <PlusIcon className="h-4 w-4" />
           {t("chat.new_conversation")}
         </button>
       </div>
 
-      <nav className="obsidian-scrollbar flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+      <nav className="obsidian-scrollbar flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
         {conversations.map((conv) => (
           <div
             key={conv.id}
-            className={`group relative min-h-11 overflow-hidden rounded-radius-md text-xs transition-colors ${
+            className={`group relative min-h-11 overflow-hidden rounded-radius-md text-xs transition-colors md:min-h-8 ${
               conv.id === activeId
                 ? "glass-card-active text-text-secondary"
-                : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             } focus-within:ring-1 focus-within:ring-primary-400/30`}
           >
-            <Link
-              href={`/chat/${conv.id}`}
-              onClick={() => onSelectConversation(conv.id)}
-              className="flex min-h-11 w-full items-start px-3 py-2.5 pr-12 text-left focus-visible:outline-none"
-              aria-current={conv.id === activeId ? "page" : undefined}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium leading-5">{conv.title}</p>
-                {conv.noteTitle && (
-                  <div className="mt-0.5 flex min-w-0 items-center gap-1 text-text-tertiary">
-                    <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
-                    <span className="min-w-0 truncate">{conv.noteTitle}</span>
-                  </div>
-                )}
-              </div>
-            </Link>
+            {editingId === conv.id ? (
+              <form
+                className="flex min-h-11 items-center gap-1 px-1.5 md:min-h-8"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void finishRename();
+                }}
+              >
+                <input
+                  value={editTitle}
+                  onChange={(event) => setEditTitle(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setEditingId(null);
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-xs text-text-secondary outline-none ring-1 ring-primary-500/20"
+                  aria-label={t("Rename")}
+                  autoFocus
+                />
+                <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-radius-sm text-primary-400 hover:bg-subtle" aria-label={t("Save")}>
+                  <CheckIcon className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setEditingId(null)} className="flex h-8 w-8 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle" aria-label={t("Cancel")}>
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              </form>
+            ) : (
+              <Link
+                href={`/chat/${conv.id}`}
+                onClick={() => onSelectConversation(conv.id)}
+                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-28 text-left focus-visible:outline-none md:min-h-8 md:pr-20"
+                aria-current={conv.id === activeId ? "page" : undefined}
+              >
+                {conv.pinned && <BookmarkIcon className="h-3 w-3 shrink-0 text-primary-400" />}
+                <span className="min-w-0 flex-1 truncate text-sm font-medium md:text-xs">{conv.title}</span>
+              </Link>
+            )}
 
-            <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-10 items-center justify-end pr-1 md:flex">
+            {editingId !== conv.id && <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-14 items-center justify-end pr-2 md:flex">
               <span
                 className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                 suppressHydrationWarning
               >
                 {relativeDate(conv.createdAt, t)}
               </span>
-            </div>
+            </div>}
 
-            <button
-              type="button"
-              onClick={() => onDeleteConversation(conv.id)}
-              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-tertiary transition-[opacity,transform] duration-150 hover:text-error-400 md:w-10 md:translate-x-full md:opacity-0 md:pointer-events-none md:group-hover:translate-x-0 md:group-hover:opacity-100 md:group-hover:pointer-events-auto md:group-focus-within:translate-x-0 md:group-focus-within:opacity-100 md:group-focus-within:pointer-events-auto"
-              title={t("chat.delete_conversation")}
-              aria-label={t("chat.delete_conversation")}
-            >
-              <TrashIcon className="h-4 w-4 md:h-3.5 md:w-3.5" />
-            </button>
+            {editingId !== conv.id && (
+              <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 bg-surface/95 px-1 opacity-100 transition-opacity md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
+                <button type="button" onClick={() => void onTogglePinned(conv.id, !conv.pinned)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-primary-400 md:h-7 md:w-7" title={conv.pinned ? t("Unpin") : t("Pin to favorites")} aria-label={conv.pinned ? t("Unpin") : t("Pin to favorites")}>
+                  <BookmarkIcon className={`h-3.5 w-3.5 ${conv.pinned ? "text-primary-400" : ""}`} />
+                </button>
+                <button type="button" onClick={() => beginRename(conv)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-text-secondary md:h-7 md:w-7" title={t("Rename")} aria-label={t("Rename")}>
+                  <PencilSquareIcon className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => onDeleteConversation(conv.id)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-error-500/10 hover:text-error-400 md:h-7 md:w-7" title={t("chat.delete_conversation")} aria-label={t("chat.delete_conversation")}>
+                  <TrashIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {loaded && conversations.length === 0 && (
@@ -170,13 +224,15 @@ function ConversationHistory({
         )}
       </nav>
 
-      <div className="flex-shrink-0 border-t border-border-subtle px-3 py-2.5">
+      <div className="flex shrink-0 items-center border-t border-border-subtle px-2 py-2">
         <Link
           href="/settings"
           onClick={onDismiss}
-          className="inline-flex min-h-11 items-center text-xs text-text-tertiary transition-colors hover:text-text-secondary"
+          className="flex h-10 w-10 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-8 md:w-8"
+          title={t("chat.configure_ai")}
+          aria-label={t("chat.configure_ai")}
         >
-          {t("chat.configure_ai")}
+          <Cog6ToothIcon className="h-4 w-4" />
         </Link>
       </div>
     </div>
@@ -333,6 +389,7 @@ export default function ChatPageClient() {
           context: s.context ?? undefined,
           messageCount: s.message_count ?? 0,
           createdAt: new Date(s.created_at).getTime(),
+          pinned: Boolean(s.pinned),
         }));
         setConversations(mapped);
       }
@@ -386,6 +443,7 @@ export default function ChatPageClient() {
             },
             messageCount: 1,
             createdAt: Date.now(),
+            pinned: false,
           },
           ...prev,
         ];
@@ -421,6 +479,33 @@ export default function ChatPageClient() {
       setActiveId(null);
       router.replace(draftHref);
     }
+  };
+
+  const updateConversation = async (
+    id: string,
+    changes: { title?: string; pinned?: boolean },
+  ): Promise<boolean> => {
+    const res = await fetch(`/api/chat/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    if (!res.ok) return false;
+    const updated = await res.json();
+    setConversations((prev) =>
+      sortConversations(
+        prev.map((conversation) =>
+          conversation.id === id
+            ? {
+                ...conversation,
+                title: updated.title ?? conversation.title,
+                pinned: updated.pinned ?? conversation.pinned,
+              }
+            : conversation,
+        ),
+      ),
+    );
+    return true;
   };
 
   const contextPrefix =
@@ -497,6 +582,12 @@ export default function ChatPageClient() {
               onNewConversation={newConversation}
               onSelectConversation={selectConversation}
               onDeleteConversation={(id) => void deleteConversation(id)}
+              onRenameConversation={(id, title) =>
+                updateConversation(id, { title })
+              }
+              onTogglePinned={(id, pinned) =>
+                updateConversation(id, { pinned })
+              }
               onDismiss={() => setHistoryOpen(false)}
             />
           </aside>
@@ -554,6 +645,12 @@ export default function ChatPageClient() {
             onNewConversation={newConversation}
             onSelectConversation={selectConversation}
             onDeleteConversation={(id) => void deleteConversation(id)}
+            onRenameConversation={(id, title) =>
+              updateConversation(id, { title })
+            }
+            onTogglePinned={(id, pinned) =>
+              updateConversation(id, { pinned })
+            }
             onDismiss={() => setHistoryOpen(false)}
             showHeader={false}
           />

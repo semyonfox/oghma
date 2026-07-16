@@ -14,7 +14,7 @@ export const GET = withErrorHandler(async () => {
     }
 
     const sessions = await sql`
-            SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context,
+            SELECT s.id, s.title, s.pinned, s.note_id, n.title AS note_title, s.context,
                    s.generation_status, s.created_at, s.updated_at,
                    COUNT(m.id)::int AS message_count
             FROM app.chat_sessions s
@@ -25,7 +25,7 @@ export const GET = withErrorHandler(async () => {
             LEFT JOIN app.chat_messages m ON m.session_id = s.id
             WHERE s.user_id = ${user.user_id}::uuid
             GROUP BY s.id, n.title
-            ORDER BY s.updated_at DESC
+            ORDER BY s.pinned DESC, s.updated_at DESC
             LIMIT 100
         `;
 

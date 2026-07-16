@@ -9,6 +9,7 @@ const sessions = [
     context: null,
     message_count: 2,
     created_at: "2026-07-16T12:00:00.000Z",
+    pinned: false,
   },
 ];
 
@@ -22,6 +23,24 @@ test.describe("chat responsive smoke", () => {
         return;
       }
       await route.fulfill({ status: 200, json: { sessions } });
+    });
+    await page.route("**/api/chat/sessions/*", async (route) => {
+      if (route.request().method() === "PATCH") {
+        const body = route.request().postDataJSON() as {
+          title?: string;
+          pinned?: boolean;
+        };
+        await route.fulfill({
+          status: 200,
+          json: {
+            id: sessions[0].id,
+            title: body.title ?? sessions[0].title,
+            pinned: body.pinned ?? false,
+          },
+        });
+        return;
+      }
+      await route.continue();
     });
 
     await page.goto("/chat");
@@ -42,6 +61,19 @@ test.describe("chat responsive smoke", () => {
       await expect(
         page.getByRole("button", { name: "Chat history" }),
       ).not.toBeVisible();
+      const conversation = page.getByRole("link", {
+        name: "Mobile chat history",
+      });
+      await conversation.hover();
+      await page.getByRole("button", { name: "Rename" }).click();
+      const rename = page.getByRole("textbox", { name: "Rename" });
+      await rename.fill("Renamed conversation");
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Renamed conversation")).toBeVisible();
+      await page.getByRole("link", { name: "Renamed conversation" }).hover();
+      await page.getByRole("button", { name: "Pin to favorites" }).click();
+      await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
+      await expect(page.getByRole("link", { name: /Configure AI/ })).toBeVisible();
     }
   });
 });

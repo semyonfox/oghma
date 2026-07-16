@@ -75,6 +75,52 @@ export const GET = withErrorHandler(
   },
 );
 
+// PATCH /api/chat/sessions/:id — rename or pin a session
+export const PATCH = withErrorHandler(
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const auth = await authenticate(params);
+    if ("error" in auth) return auth.error;
+    const { user, id } = auth;
+    const body = await req.json();
+    const title = typeof body.title === "string" ? body.title.trim() : undefined;
+    const pinned = typeof body.pinned === "boolean" ? body.pinned : undefined;
+
+    if (title === "" || (title !== undefined && title.length > 200)) {
+      return tracedError("Title must be between 1 and 200 characters", 400);
+    }
+    if (title === undefined && pinned === undefined) {
+      return tracedError("No supported changes provided", 400);
+    }
+
+    const [updated] = title !== undefined && pinned !== undefined
+      ? await sql`
+          UPDATE app.chat_sessions
+          SET title = ${title}, pinned = ${pinned}, updated_at = NOW()
+          WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+          RETURNING id, title, pinned, updated_at
+        `
+      : title !== undefined
+        ? await sql`
+            UPDATE app.chat_sessions
+            SET title = ${title}, updated_at = NOW()
+            WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+            RETURNING id, title, pinned, updated_at
+          `
+        : await sql`
+            UPDATE app.chat_sessions
+            SET pinned = ${pinned!}, updated_at = NOW()
+            WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+            RETURNING id, title, pinned, updated_at
+          `;
+
+    if (!updated) return tracedError("Session not found", 404);
+    return NextResponse.json(updated);
+  },
+);
+
 // DELETE /api/chat/sessions/:id — delete a session and all its messages
 export const DELETE = withErrorHandler(
   async (
