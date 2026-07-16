@@ -138,6 +138,44 @@ describe("message bubble copy actions", () => {
     );
   });
 
+  it("separates process narration and tools from the final answer", async () => {
+    const container = renderNode(
+      React.createElement(FullMessageBubble, {
+        message: makeMessage({
+          content: "Let me check.Final answer",
+          thinking: "Reasoning trace",
+          parts: [
+            { type: "tool", name: "search", label: "Searching notes" },
+            { type: "text", text: "Let me check." },
+            { type: "tool", name: "read", label: "Reading note" },
+            { type: "text", text: "Final answer" },
+          ],
+        }),
+      }),
+    );
+
+    const workLogButton = container.querySelector(
+      "button[aria-expanded]",
+    ) as HTMLButtonElement;
+    expect(workLogButton.textContent).toContain("Work log");
+    expect(container.textContent).toContain("Final answer");
+    expect(container.textContent).not.toContain("Let me check.");
+
+    act(() => workLogButton.click());
+    expect(container.textContent).toContain("Reasoning trace");
+    expect(container.textContent).toContain("Let me check.");
+    expect(container.textContent).toContain("Searching notes");
+    expect(container.textContent).toContain("Reading note");
+
+    const copyButton = container.querySelector(
+      "button[aria-label='Copy message']",
+    ) as HTMLButtonElement;
+    copyButton.click();
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("Final answer"),
+    );
+  });
+
   it("renders user markdown, display math, and fenced code in both bubble sizes", () => {
     const content = "**Formatted**\n\n$$x^2$$\n\n```js\nconst x = 2\n```";
     const container = renderNode(

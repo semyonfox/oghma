@@ -13,7 +13,13 @@ export interface SearchContextData {
  */
 export type MessagePart =
   | { type: "text"; text: string }
-  | { type: "tool"; name: string; label: string; callId?: string; detail?: string }
+  | {
+      type: "tool";
+      name: string;
+      label: string;
+      callId?: string;
+      detail?: string;
+    }
   | { type: "error"; text: string };
 
 export interface MessageMetadata {
@@ -56,7 +62,14 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
   const parts: MessagePart[] = [];
   for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
-    const e = entry as { type?: unknown; text?: unknown; name?: unknown; label?: unknown; callId?: unknown; detail?: unknown };
+    const e = entry as {
+      type?: unknown;
+      text?: unknown;
+      name?: unknown;
+      label?: unknown;
+      callId?: unknown;
+      detail?: unknown;
+    };
     if (e.type === "text" && typeof e.text === "string") {
       parts.push({ type: "text", text: e.text });
     } else if (
@@ -82,7 +95,10 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
 export type MessagePartGroup =
   | { type: "text"; text: string }
   | { type: "error"; text: string }
-  | { type: "tool-group"; tools: { name: string; label: string; detail?: string }[] };
+  | {
+      type: "tool-group";
+      tools: { name: string; label: string; detail?: string }[];
+    };
 
 export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
   const groups: MessagePartGroup[] = [];
@@ -94,7 +110,11 @@ export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
 
     const last = groups[groups.length - 1];
     if (last?.type === "tool-group") {
-      last.tools.push({ name: part.name, label: part.label, detail: part.detail });
+      last.tools.push({
+        name: part.name,
+        label: part.label,
+        detail: part.detail,
+      });
     } else {
       groups.push({
         type: "tool-group",
@@ -103,6 +123,43 @@ export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
     }
   }
   return groups;
+}
+
+export interface MessagePresentationParts {
+  activity: MessagePart[];
+  answer: MessagePart[];
+  answerText: string;
+  toolCount: number;
+}
+
+/**
+ * Split execution activity from the final answer without changing the durable
+ * message shape. Text is narration when another tool follows it; trailing text
+ * is the answer. This intentionally converges to the same result for a fully
+ * restored message and for the final state of an incrementally streamed one.
+ */
+export function partitionMessageParts(
+  parts: MessagePart[] | undefined,
+): MessagePresentationParts {
+  const clean = (parts ?? []).filter(
+    (part) => part.type !== "text" || part.text.trim().length > 0,
+  );
+  const lastToolIndex = clean.findLastIndex((part) => part.type === "tool");
+  const activity = lastToolIndex >= 0 ? clean.slice(0, lastToolIndex + 1) : [];
+  const answer = lastToolIndex >= 0 ? clean.slice(lastToolIndex + 1) : clean;
+
+  return {
+    activity,
+    answer,
+    answerText: answer
+      .filter(
+        (part): part is Extract<MessagePart, { type: "text" }> =>
+          part.type === "text",
+      )
+      .map((part) => part.text)
+      .join(""),
+    toolCount: clean.filter((part) => part.type === "tool").length,
+  };
 }
 
 export interface ChatContextItem {
