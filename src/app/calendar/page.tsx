@@ -120,17 +120,17 @@ export default function CalendarPage() {
 
         <div className="flex min-w-0 flex-1">
           <main className="flex min-w-0 flex-1 flex-col" aria-label={t("Calendar")}>
-            <header className="hidden shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 py-2 sm:px-4 md:flex md:px-6 md:py-3">
+            <header className="relative z-50 hidden shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-app-page px-2 py-2 sm:px-4 md:flex md:px-6 md:py-3">
               <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary md:text-base">
                 <time>{weekLabel}</time>
               </h1>
 
               <div className="flex shrink-0 items-center gap-1.5 md:gap-3">
-                <div className="relative flex items-center rounded-md glass-card">
+                <div className="relative flex h-9 items-center overflow-hidden rounded-radius-md border border-border-subtle bg-surface shadow-sm">
                   <button
                     type="button"
                     onClick={navigateBack}
-                    className="flex h-11 w-11 items-center justify-center rounded-l-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-8 md:w-9"
+                    className="flex h-9 w-9 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
                     aria-label={t("Previous period")}
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
@@ -138,14 +138,14 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={goToToday}
-                    className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle md:block"
+                    className="hidden h-9 border-x border-border-subtle px-3 text-xs font-medium text-text-secondary hover:bg-subtle md:block"
                   >
                     {t("Today")}
                   </button>
                   <button
                     type="button"
                     onClick={navigateForward}
-                    className="flex h-11 w-11 items-center justify-center rounded-r-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-8 md:w-9"
+                    className="flex h-9 w-9 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
                     aria-label={t("Next period")}
                   >
                     <ChevronRightIcon className="h-4 w-4" />
@@ -155,24 +155,24 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setTasksOpen(true)}
-                  className="flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-text-secondary glass-card hover:bg-subtle lg:hidden"
+                  className="flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-radius-md border border-border-subtle bg-surface px-2.5 text-xs font-medium text-text-secondary shadow-sm hover:bg-subtle lg:hidden"
                   aria-label={t("Tasks")}
                 >
                   <ClipboardDocumentListIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">{t("Tasks")}</span>
                 </button>
 
-                <Menu as="div" className="relative">
-                  <MenuButton className="flex h-11 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-text-secondary glass-card hover:bg-subtle md:h-auto md:px-3 md:py-1.5">
+                <Menu as="div" className="relative z-[60]">
+                  <MenuButton className="flex h-9 min-w-24 items-center justify-between gap-2 rounded-radius-md border border-border-subtle bg-surface px-3 text-xs font-medium text-text-secondary shadow-sm hover:bg-subtle">
                     <span>{view === "month" ? t("Month") : t("Week")}</span>
                     <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
                   </MenuButton>
-                  <MenuItems className="absolute right-0 z-30 mt-1 w-36 rounded-md border border-border-subtle bg-surface py-1 shadow-xl">
+                  <MenuItems className="absolute right-0 z-[90] mt-1 w-40 overflow-hidden rounded-radius-md border border-border bg-app-page py-1 shadow-2xl ring-1 ring-black/20 focus:outline-none">
                     <MenuItem>
                       <button
                         type="button"
                         onClick={() => setView("month")}
-                        className="block min-h-11 w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle md:min-h-0"
+                        className="block min-h-11 w-full bg-app-page px-3 py-2 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                       >
                         {t("Month view")}
                       </button>
@@ -181,7 +181,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setView("week")}
-                        className="block min-h-11 w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle md:min-h-0"
+                        className="block min-h-11 w-full bg-app-page px-3 py-2 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                       >
                         {t("Week view")}
                       </button>

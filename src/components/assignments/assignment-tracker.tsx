@@ -488,10 +488,10 @@ export default function AssignmentTracker({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 px-3 pb-1 pt-3">
+      <div className="grid grid-cols-3 gap-2 px-3 pb-2 pt-3">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
-          <div className="relative min-w-0 basis-full">
-            <ListboxButton className="relative flex min-h-11 w-full items-center rounded-radius-md py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary glass-card transition-colors hover:bg-subtle">
+          <div className="relative z-40 col-span-3 min-w-0">
+            <ListboxButton className="relative flex h-11 w-full items-center rounded-radius-md border border-border-subtle bg-surface py-1.5 pl-3 pr-9 text-left text-xs font-medium text-text-secondary shadow-sm transition-colors hover:bg-subtle">
               <span className="min-w-0 truncate">
                 {courseFilter || t("All Courses")}
               </span>
@@ -499,10 +499,10 @@ export default function AssignmentTracker({
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
             </ListboxButton>
-            <ListboxOptions className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-radius-md glass-card py-1 text-xs shadow-lg">
+            <ListboxOptions className="absolute z-[80] mt-1 max-h-56 w-full overflow-auto rounded-radius-md border border-border bg-app-page py-1 text-xs shadow-2xl ring-1 ring-black/20 focus:outline-none">
               <ListboxOption
                 value={null}
-                className="min-h-11 cursor-pointer px-2.5 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                className="min-h-11 cursor-pointer bg-app-page px-3 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
               >
                 {t("All Courses")}
               </ListboxOption>
@@ -510,7 +510,7 @@ export default function AssignmentTracker({
                 <ListboxOption
                   key={course}
                   value={course}
-                  className="min-h-11 cursor-pointer px-2.5 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                  className="min-h-11 cursor-pointer bg-app-page px-3 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                 >
                   {course}
                 </ListboxOption>
@@ -522,7 +522,7 @@ export default function AssignmentTracker({
         <button
           type="button"
           onClick={() => setIncludeAll(!includeAll)}
-          className={`min-h-11 rounded-full border px-3 text-xs font-medium transition-colors ${
+          className={`h-11 min-w-0 rounded-radius-md border px-2 text-xs font-medium transition-colors ${
             includeAll
               ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
               : "border-border-subtle bg-surface text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -534,7 +534,7 @@ export default function AssignmentTracker({
         <button
           type="button"
           onClick={() => setShowCourseManager(true)}
-          className="min-h-11 rounded-full border border-border-subtle bg-surface px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+          className="h-11 min-w-0 rounded-radius-md border border-border-subtle bg-surface px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
         >
           {t("Manage")}
         </button>
@@ -542,7 +542,7 @@ export default function AssignmentTracker({
           type="button"
           onClick={() => void handleSync()}
           disabled={syncing}
-          className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40"
+          className="flex h-11 w-full items-center justify-center rounded-radius-md border border-border-subtle bg-surface text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40"
           aria-label={t("Sync from Canvas")}
         >
           <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
