@@ -8,7 +8,8 @@ import {
 import { toast } from "sonner";
 import type { Message, MessagePart } from "./chat-interface";
 import ChatMarkdown from "./chat-markdown";
-import { ToolCallPill } from "./tool-call-pill";
+import { ToolActivity } from "./tool-call-pill";
+import { groupMessageParts } from "@/lib/chat/types";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 /**
@@ -17,14 +18,16 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
  * text, ToolCallPill for tool indicators). Falls back to whole-message
  * markdown for legacy/draft messages that only carry `content`.
  */
-const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
+const AssistantBody: FC<{ parts?: MessagePart[]; content: string; isStreaming?: boolean }> = ({
   parts,
   content,
+  isStreaming = false,
 }) => {
   if (parts && parts.length > 0) {
+    const groups = groupMessageParts(parts);
     return (
       <>
-        {parts.map((part, i) =>
+        {groups.map((part, i) =>
           part.type === "text" ? (
             <Fragment key={i}>
               <ChatMarkdown>{part.text}</ChatMarkdown>
@@ -37,7 +40,11 @@ const AssistantBody: FC<{ parts?: MessagePart[]; content: string }> = ({
               {part.text}
             </div>
           ) : (
-            <ToolCallPill key={i} label={part.label} />
+            <ToolActivity
+              key={i}
+              tools={part.tools}
+              active={isStreaming && i === groups.length - 1}
+            />
           ),
         )}
       </>
@@ -218,7 +225,8 @@ const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
 const FullMessageBubbleComponent: FC<{
   message: Message;
   sessionId?: string | null;
-}> = ({ message: m }) => {
+  isStreaming?: boolean;
+}> = ({ message: m, isStreaming = false }) => {
   const hasContent = m.content.trim().length > 0;
 
   if (m.role === "user") {
@@ -262,7 +270,7 @@ const FullMessageBubbleComponent: FC<{
 
       <div className="glass-card rounded-radius-xl rounded-bl-[4px] px-3 py-2.5 text-sm leading-relaxed text-text">
         {hasContent || (m.parts && m.parts.length > 0) ? (
-          <AssistantBody parts={m.parts} content={m.content} />
+          <AssistantBody parts={m.parts} content={m.content} isStreaming={isStreaming} />
         ) : !m.thinking ? (
           <TypingDots />
         ) : null}
@@ -292,8 +300,9 @@ const FullMessageBubbleComponent: FC<{
 export const FullMessageBubble = memo(FullMessageBubbleComponent);
 
 // compact message bubble (sidebar variant)
-const CompactMessageBubbleComponent: FC<{ message: Message }> = ({
+const CompactMessageBubbleComponent: FC<{ message: Message; isStreaming?: boolean }> = ({
   message: m,
+  isStreaming = false,
 }) => {
   const isThinkingStreaming =
     !!m.thinking && !m.content.trim() && !m.error && !m.partial;
@@ -322,7 +331,7 @@ const CompactMessageBubbleComponent: FC<{ message: Message }> = ({
         >
           {m.role === "assistant" ? (
             hasContent || (m.parts && m.parts.length > 0) ? (
-              <AssistantBody parts={m.parts} content={m.content} />
+              <AssistantBody parts={m.parts} content={m.content} isStreaming={isStreaming} />
             ) : (
               <TypingDots />
             )

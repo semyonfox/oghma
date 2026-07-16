@@ -255,8 +255,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]"
         >
-          {messages.map((m) => (
-            <CompactMessageBubble key={m.id} message={m} />
+          {messages.map((m, index) => (
+            <CompactMessageBubble
+              key={m.id}
+              message={m}
+              isStreaming={busy && index === messages.length - 1}
+            />
           ))}
 
           {error && <p className="text-xs text-error-400 px-1">{error}</p>}
@@ -325,8 +329,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           {messages.length === 0 ? (
             <ChatSplash />
           ) : (
-            messages.map((m) => (
-              <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
+            messages.map((m, index) => (
+              <FullMessageBubble
+                key={m.id}
+                message={m}
+                sessionId={sessionId}
+                isStreaming={busy && index === messages.length - 1}
+              />
             ))
           )}
 

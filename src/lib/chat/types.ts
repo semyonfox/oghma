@@ -71,6 +71,33 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
   return parts;
 }
 
+/** Group adjacent tool calls for a quieter, progressively disclosed UI. */
+export type MessagePartGroup =
+  | { type: "text"; text: string }
+  | { type: "error"; text: string }
+  | { type: "tool-group"; tools: { name: string; label: string }[] };
+
+export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
+  const groups: MessagePartGroup[] = [];
+  for (const part of parts) {
+    if (part.type !== "tool") {
+      groups.push(part);
+      continue;
+    }
+
+    const last = groups[groups.length - 1];
+    if (last?.type === "tool-group") {
+      last.tools.push({ name: part.name, label: part.label });
+    } else {
+      groups.push({
+        type: "tool-group",
+        tools: [{ name: part.name, label: part.label }],
+      });
+    }
+  }
+  return groups;
+}
+
 export interface ChatContextItem {
   id: string;
   title: string;
