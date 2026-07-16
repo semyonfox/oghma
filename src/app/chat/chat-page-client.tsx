@@ -80,11 +80,11 @@ function ConversationHistory({
   return (
     <div className="flex h-full flex-col overflow-hidden glass-panel">
       {showHeader && (
-        <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-3">
+        <div className="flex min-h-[52px] items-center gap-2 border-b border-border-subtle px-3 py-2">
           <Link
             href="/notes"
             onClick={onDismiss}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+            className="flex h-9 w-9 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
             title={t("chat.back_to_notes")}
           >
             <ArrowLeftIcon className="h-4 w-4" />
@@ -105,7 +105,7 @@ function ConversationHistory({
         </div>
       )}
 
-      <div className="border-t border-border-subtle px-2 pb-2.5 pt-3">
+      <div className="px-2 pb-2 pt-2.5">
         <button
           type="button"
           onClick={onNewConversation}
@@ -503,7 +503,7 @@ export default function ChatPageClient() {
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="glass-panel hidden flex-shrink-0 items-center border-b border-border-subtle px-4 py-2.5 md:flex">
+          <header className="glass-panel hidden min-h-[52px] flex-shrink-0 items-center border-b border-border-subtle px-5 md:flex">
             <h1 className="truncate text-sm font-medium text-text-secondary">
               {conversationTitle}
             </h1>

@@ -317,7 +317,11 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar"
       >
-        <div className="mx-auto flex w-full max-w-3xl flex-col space-y-2.5">
+        <div
+          className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
+            messages.length === 0 ? "min-h-full justify-center pb-12" : ""
+          }`}
+        >
           {messages.length === 0 ? (
             <ChatSplash />
           ) : (
@@ -347,19 +351,19 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
               {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[150px]">{noteTitle}</span>
                 </span>
               )}
               {selectedNotes.map((note) => (
-                <span key={note.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{note.title}</span>
                   {onRemoveNote && (
                     <button
                       onClick={() => onRemoveNote(note.id)}
-                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       title={t("Remove {title}", { title: note.title })}
                     >
                       ×
@@ -368,13 +372,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 </span>
               ))}
               {selectedFolders.map((folder) => (
-                <span key={folder.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <FolderIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{folder.title}</span>
                   {onRemoveFolder && (
                     <button
                       onClick={() => onRemoveFolder(folder.id)}
-                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       title={t("Remove {title}", { title: folder.title })}
                     >
                       ×
@@ -384,7 +388,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
-          <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
             <TogglePill
               active={useRag}
               onClick={toggleRag}
@@ -407,7 +411,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 transition-colors focus-within:border-primary-500/50 md:items-center md:py-2"
+            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 md:items-center md:py-2"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -429,7 +433,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 type="button"
                 onClick={loading ? cancel : undefined}
                 disabled={backgroundLoading}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 disabled:cursor-wait disabled:opacity-60 md:h-auto md:w-auto md:p-1.5"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 disabled:cursor-wait disabled:opacity-60 md:h-8 md:w-8"
                 title={
                   backgroundLoading
                     ? t("Generating in background")
@@ -437,16 +441,16 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 }
               >
                 <StopCircleIcon
-                  className={`w-3.5 h-3.5 ${backgroundLoading ? "animate-pulse" : ""}`}
+                  className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}
                 />
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-auto md:w-auto md:p-1.5"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
               >
-                <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                <PaperAirplaneIcon className="h-4 w-4" />
               </button>
             )}
           </form>
