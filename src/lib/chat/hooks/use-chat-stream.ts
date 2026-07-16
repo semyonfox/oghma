@@ -7,6 +7,7 @@ import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
 import type { Message, MessagePart, ChatContextItem } from "@/lib/chat/types";
+import { noteSearchDetail } from "@/lib/chat/tool-display";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -94,8 +95,24 @@ export function applyUpdate(
       return { ...msg, ...changes };
     }
 
-    case "search":
-      return { ...msg, searchContext: update.searchContext };
+    case "search": {
+      const query = update.searchContext.query;
+      return {
+        ...msg,
+        searchContext: update.searchContext,
+        parts: query
+          ? [
+              ...(msg.parts ?? []),
+              {
+                type: "tool" as const,
+                name: "ragSearch",
+                label: "Searched notes",
+                detail: noteSearchDetail(query, update.searchContext.results),
+              },
+            ]
+          : msg.parts,
+      };
+    }
 
     case "thinking": {
       if (!thinkingStartRef.current) {
@@ -308,7 +325,15 @@ export function useChatStream(
                 ? {
                     ...m,
                     content: data.reply || "",
-                    parts: data.reply ? [{ type: "text", text: data.reply }] : [],
+                    parts: [
+                      ...(data.searchContext?.query ? [{
+                        type: "tool" as const,
+                        name: "ragSearch",
+                        label: "Searched notes",
+                        detail: noteSearchDetail(data.searchContext.query, data.searchContext.results ?? []),
+                      }] : []),
+                      ...(data.reply ? [{ type: "text" as const, text: data.reply }] : []),
+                    ],
                     thinking: data.thinking || undefined,
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,

@@ -1,4 +1,5 @@
 export interface SearchContextData {
+  query?: string;
   scopeSize: number | null; // null = searched all notes
   resultsFound: number;
   results: { noteId: string; title: string; distance: number }[];

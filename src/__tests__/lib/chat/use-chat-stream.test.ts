@@ -19,6 +19,31 @@ function baseMsg(content = "", parts: Message["parts"] = []): Message {
 }
 
 describe("applyUpdate — token + tool-call parts", () => {
+  it("renders the initial RAG search with its query and matched note", () => {
+    const msg = applyUpdate(
+      baseMsg(),
+      {
+        type: "search",
+        searchContext: {
+          query: "invalid HTML syntax",
+          scopeSize: null,
+          resultsFound: 1,
+          results: [{ noteId: "note-1", title: "Complete Syntax", distance: 0.2 }],
+        },
+      },
+      ref(),
+    );
+
+    expect(msg.parts).toEqual([
+      {
+        type: "tool",
+        name: "ragSearch",
+        label: "Searched notes",
+        detail: "“invalid HTML syntax” · Complete Syntax",
+      },
+    ]);
+  });
+
   it("appends a token to the trailing text part", () => {
     const a = applyUpdate(baseMsg(), { type: "token", text: "hello" }, ref());
     expect(a.content).toBe("hello");

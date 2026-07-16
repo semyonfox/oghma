@@ -56,6 +56,7 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       return {
         type: "search",
         searchContext: {
+          query: typeof payload.query === "string" ? payload.query : undefined,
           scopeSize,
           resultsFound,
           results: Array.isArray(payload.results)

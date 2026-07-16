@@ -26,7 +26,7 @@ import {
 } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
-import { toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
+import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
 import {
@@ -315,7 +315,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 llmAvailable,
               );
               lastEvent = "meta";
-              sendSearch(writer, scope.scopedNoteIds, ragResult.searchResults);
+              sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
               lastEvent = "search";
 
               if (!llmAvailable) {
@@ -328,7 +328,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   scope.sessionId,
                   "assistant",
                   fallback,
-                  { sources: uniqueSources },
+                  {
+                    parts: [
+                      ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))) }] : []),
+                      { type: "text", text: fallback },
+                    ],
+                    sources: uniqueSources,
+                  },
                 );
                 sendDone(writer);
                 lastEvent = "done";
@@ -358,7 +364,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               let toolCallCount = 0;
               let assistantPersisted = false;
               let responseMessages: ModelMessage[] = [];
-              const parts: MessagePart[] = [];
+              const parts: MessagePart[] = useRag ? [{
+                type: "tool",
+                name: "ragSearch",
+                label: "Searched notes",
+                detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))),
+              }] : [];
               let pendingText = "";
               const flushText = () => {
                 if (pendingText) {
@@ -700,6 +711,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     });
 
   const searchContext = buildSearchContext(
+    useRag ? message : undefined,
     scope.scopedNoteIds,
     ragResult.searchResults,
   );
@@ -711,6 +723,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ragResult.embeddingAvailable,
     );
     await persistMessage(scope.sessionId, "assistant", fallback, {
+      parts: [
+        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
+        { type: "text", text: fallback },
+      ],
       sources: uniqueSources,
     });
     return NextResponse.json({
@@ -752,6 +768,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       const limitNotice = appendToolCallLimitMessage(reply);
       await persistMessage(scope.sessionId, "assistant", limitNotice.reply, {
         parts: [
+          ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
           ...(reply ? [{ type: "text" as const, text: reply }] : []),
           { type: "text" as const, text: limitNotice.delta },
         ],
@@ -778,6 +795,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     await persistMessage(scope.sessionId, "assistant", reply, {
+      parts: [
+        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
+        ...(reply ? [{ type: "text" as const, text: reply }] : []),
+      ],
       sources: uniqueSources,
       metadata,
     });

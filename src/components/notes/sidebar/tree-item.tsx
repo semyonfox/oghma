@@ -121,7 +121,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {...rctProps}
           {...(isRenaming ? {} : interactiveProps)}
           className={`
-            group/item mb-0.5 flex h-11 items-center pr-1 cursor-pointer select-none md:h-8
+            group/item mb-0.5 flex h-11 items-center pr-1 cursor-pointer select-none md:h-[26px]
             transition-colors duration-75 rounded-radius-sm mx-0.5
             ${isActive ? "bg-subtle text-text-secondary" : ""}
             ${

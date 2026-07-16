@@ -18,7 +18,7 @@ import {
 } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
-import { toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
+import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 import { buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import {
   buildRetrievalInfo,
@@ -149,12 +149,18 @@ export async function processChatGeneration(
     canvasMcpClient = llm.canvasMcpClient;
 
     sendMeta(writer, sessionId, uniqueSources, retrieval, !ragResult.ragFailed, llm.llmAvailable);
-    sendSearch(writer, scope.scopedNoteIds, ragResult.searchResults);
+    sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
 
     if (!llm.model) {
       const fallback = buildFallbackReply(ragResult.searchResults, ragResult.embeddingAvailable);
       sendToken(writer, fallback);
-      await persistMessage(sessionId, "assistant", fallback, { sources: uniqueSources });
+      await persistMessage(sessionId, "assistant", fallback, {
+        parts: [
+          ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))) }] : []),
+          { type: "text", text: fallback },
+        ],
+        sources: uniqueSources,
+      });
       sendDone(writer);
       await writer.flush();
       await completeChatGeneration(generationId);
@@ -171,7 +177,12 @@ export async function processChatGeneration(
     let stepCount = 0;
     let toolCallCount = 0;
     let responseMessages: ModelMessage[] = [];
-    const parts: MessagePart[] = [];
+    const parts: MessagePart[] = useRag ? [{
+      type: "tool",
+      name: "ragSearch",
+      label: "Searched notes",
+      detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))),
+    }] : [];
     let pendingText = "";
     const flushText = () => {
       if (pendingText) {

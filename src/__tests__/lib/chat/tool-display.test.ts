@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
+import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 
 describe("tool activity display details", () => {
   it("shows the search query without exposing result content", () => {
@@ -18,5 +18,12 @@ describe("tool activity display details", () => {
   it("does not put arbitrary tool inputs or note content in the activity UI", () => {
     expect(toolCallDetail("makeMDNote", { content: "private note content" })).toBeUndefined();
     expect(toolResultDetail("readNote", { content: "private note content" })).toBeUndefined();
+  });
+
+  it("summarizes the notes matched by the initial retrieval", () => {
+    expect(noteSearchDetail("invalid HTML", [
+      { title: "Complete Syntax" },
+      { title: "Rendering tests" },
+    ])).toBe("“invalid HTML” · Complete Syntax, Rendering tests");
   });
 });

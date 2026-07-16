@@ -29,3 +29,11 @@ export function toolResultDetail(toolName: string, output: unknown): string | un
   }
   return undefined;
 }
+
+export function noteSearchDetail(query: string, results: { title: string }[]): string {
+  const titles = [...new Set(results.map((result) => result.title.trim()).filter(Boolean))];
+  if (titles.length === 0) return `“${query}” · No matching notes`;
+  const visible = titles.slice(0, 3).join(", ");
+  const remainder = titles.length - 3;
+  return `“${query}” · ${visible}${remainder > 0 ? ` +${remainder} more` : ""}`;
+}

@@ -39,10 +39,12 @@ export function sendMeta(
 
 export function sendSearch(
   writer: SseWriter,
+  query: string | undefined,
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): void {
   send(writer, "search", {
+    query,
     scopeSize: scopedNoteIds?.length ?? null,
     resultsFound: searchResults.length,
     results: searchResults.map((r) => ({
@@ -82,14 +84,17 @@ export function sendHeartbeat(writer: SseWriter): void {
 }
 
 export function buildSearchContext(
+  query: string | undefined,
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): {
+  query?: string;
   scopeSize: number | null;
   resultsFound: number;
   results: { noteId: string; title: string; distance: number }[];
 } {
   return {
+    query,
     scopeSize: scopedNoteIds?.length ?? null,
     resultsFound: searchResults.length,
     results: searchResults.map((r) => ({
