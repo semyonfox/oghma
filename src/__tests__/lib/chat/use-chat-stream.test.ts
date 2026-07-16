@@ -81,6 +81,29 @@ describe("applyUpdate — token + tool-call parts", () => {
     ]);
   });
 
+  it("updates a completed read with the returned note title", () => {
+    const started = applyUpdate(
+      baseMsg(),
+      {
+        type: "tool-call",
+        toolName: "readNote",
+        label: "Reading note",
+        toolCallId: "read-1",
+        detail: "154b1133-54df-4e0e-a154-9b637750f106",
+      },
+      ref(),
+    );
+    const completed = applyUpdate(
+      started,
+      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax" },
+      ref(),
+    );
+
+    expect(completed.parts).toEqual([
+      expect.objectContaining({ type: "tool", detail: "Complete Syntax" }),
+    ]);
+  });
+
   it("records stream errors as partial message parts", () => {
     const msg = applyUpdate(
       baseMsg("partial", [{ type: "text", text: "partial" }]),

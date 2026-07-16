@@ -11,7 +11,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
  * read as "the model paused to do something" without competing with prose.
  */
 export const ToolActivity: FC<{
-  tools: { name: string; label: string }[];
+  tools: { name: string; label: string; detail?: string }[];
   active?: boolean;
 }> = ({ tools, active = false }) => {
   const { t = (key: string) => key } = useI18n();
@@ -23,7 +23,7 @@ export const ToolActivity: FC<{
     : tools.length === 1
       ? tools[0].label
       : t("{count} actions", { count: tools.length });
-  const expandable = active || tools.length > 1;
+  const expandable = active || tools.length > 1 || tools.some((tool) => tool.detail);
   const icon = active ? (
     <span className="h-3 w-3 flex-shrink-0 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary/70" />
   ) : (
@@ -58,7 +58,12 @@ export const ToolActivity: FC<{
           {tools.map((tool, index) => (
             <div key={`${tool.name}-${index}`} className="flex items-center gap-2.5 py-1">
               <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-border-subtle" />
-              <span className="text-xs text-text-tertiary">{tool.label}</span>
+              <span className="min-w-0 text-xs text-text-tertiary">
+                <span>{tool.label}</span>
+                {tool.detail && (
+                  <span className="ml-1 text-text-secondary break-words">· {tool.detail}</span>
+                )}
+              </span>
             </div>
           ))}
         </div>

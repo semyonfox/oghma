@@ -18,6 +18,7 @@ import {
 } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
+import { toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 import { buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import {
   buildRetrievalInfo,
@@ -42,6 +43,7 @@ import {
   sendToken,
   sendThinking,
   sendToolCall,
+  sendToolResult,
   sendDone,
   sendError,
   type SseWriter,
@@ -206,8 +208,16 @@ export async function processChatGeneration(
       } else if (part.type === "tool-call") {
         toolCallCount += 1;
         flushText();
-        parts.push({ type: "tool", name: part.toolName, label: labelForTool(part.toolName) });
-        sendToolCall(writer, part.toolName);
+        const detail = toolCallDetail(part.toolName, part.input);
+        parts.push({ type: "tool", name: part.toolName, label: labelForTool(part.toolName), callId: part.toolCallId, detail });
+        sendToolCall(writer, part.toolName, part.toolCallId, detail);
+      } else if (part.type === "tool-result") {
+        const detail = toolResultDetail(part.toolName, part.output);
+        const stored = parts.find(
+          (item) => item.type === "tool" && item.callId === part.toolCallId,
+        );
+        if (stored?.type === "tool" && detail) stored.detail = detail;
+        sendToolResult(writer, part.toolCallId, detail);
       } else if (part.type === "finish-step") {
         stepCount += 1;
         finishReason = part.finishReason;

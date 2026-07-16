@@ -125,10 +125,20 @@ export function applyUpdate(
         ...msg,
         parts: [
           ...(msg.parts ?? []),
-          { type: "tool", name: update.toolName, label: update.label },
+          { type: "tool", name: update.toolName, label: update.label, callId: update.toolCallId, detail: update.detail },
         ],
       };
     }
+
+    case "tool-result":
+      return {
+        ...msg,
+        parts: (msg.parts ?? []).map((part) =>
+          part.type === "tool" && part.callId === update.toolCallId
+            ? { ...part, detail: update.detail }
+            : part,
+        ),
+      };
 
     case "error":
       return {

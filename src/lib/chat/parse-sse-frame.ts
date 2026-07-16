@@ -12,7 +12,8 @@ export type MessageUpdate =
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
   | { type: "token"; text: string; thinkingDuration?: number }
-  | { type: "tool-call"; label: string; toolName: string }
+  | { type: "tool-call"; label: string; toolName: string; toolCallId?: string; detail?: string }
+  | { type: "tool-result"; toolCallId: string; detail: string }
   | { type: "done" }
   | { type: "error"; message: string };
 
@@ -79,7 +80,19 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     case "tool-call": {
       const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
       const label = toolName ? labelForTool(toolName) : "";
-      return { type: "tool-call", label, toolName };
+      return {
+        type: "tool-call",
+        label,
+        toolName,
+        toolCallId: typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
+        detail: typeof payload.detail === "string" ? payload.detail : undefined,
+      };
+    }
+
+    case "tool-result": {
+      const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : "";
+      const detail = typeof payload.detail === "string" ? payload.detail : "";
+      return toolCallId && detail ? { type: "tool-result", toolCallId, detail } : null;
     }
 
     case "error": {

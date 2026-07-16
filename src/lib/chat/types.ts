@@ -12,7 +12,7 @@ export interface SearchContextData {
  */
 export type MessagePart =
   | { type: "text"; text: string }
-  | { type: "tool"; name: string; label: string }
+  | { type: "tool"; name: string; label: string; callId?: string; detail?: string }
   | { type: "error"; text: string };
 
 export interface MessageMetadata {
@@ -55,7 +55,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
   const parts: MessagePart[] = [];
   for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
-    const e = entry as { type?: unknown; text?: unknown; name?: unknown; label?: unknown };
+    const e = entry as { type?: unknown; text?: unknown; name?: unknown; label?: unknown; callId?: unknown; detail?: unknown };
     if (e.type === "text" && typeof e.text === "string") {
       parts.push({ type: "text", text: e.text });
     } else if (
@@ -63,7 +63,13 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
       typeof e.name === "string" &&
       typeof e.label === "string"
     ) {
-      parts.push({ type: "tool", name: e.name, label: e.label });
+      parts.push({
+        type: "tool",
+        name: e.name,
+        label: e.label,
+        ...(typeof e.callId === "string" && { callId: e.callId }),
+        ...(typeof e.detail === "string" && { detail: e.detail }),
+      });
     } else if (e.type === "error" && typeof e.text === "string") {
       parts.push({ type: "error", text: e.text });
     }
@@ -75,7 +81,7 @@ export function normalizeMessageParts(value: unknown): MessagePart[] | null {
 export type MessagePartGroup =
   | { type: "text"; text: string }
   | { type: "error"; text: string }
-  | { type: "tool-group"; tools: { name: string; label: string }[] };
+  | { type: "tool-group"; tools: { name: string; label: string; detail?: string }[] };
 
 export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
   const groups: MessagePartGroup[] = [];
@@ -87,11 +93,11 @@ export function groupMessageParts(parts: MessagePart[]): MessagePartGroup[] {
 
     const last = groups[groups.length - 1];
     if (last?.type === "tool-group") {
-      last.tools.push({ name: part.name, label: part.label });
+      last.tools.push({ name: part.name, label: part.label, detail: part.detail });
     } else {
       groups.push({
         type: "tool-group",
-        tools: [{ name: part.name, label: part.label }],
+        tools: [{ name: part.name, label: part.label, detail: part.detail }],
       });
     }
   }

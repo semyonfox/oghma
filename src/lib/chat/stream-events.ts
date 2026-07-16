@@ -61,8 +61,12 @@ export function sendThinking(writer: SseWriter, text: string): void {
   send(writer, "thinking", { text });
 }
 
-export function sendToolCall(writer: SseWriter, toolName: string): void {
-  send(writer, "tool-call", { toolName });
+export function sendToolCall(writer: SseWriter, toolName: string, toolCallId?: string, detail?: string): void {
+  send(writer, "tool-call", { toolName, toolCallId, detail });
+}
+
+export function sendToolResult(writer: SseWriter, toolCallId: string, detail?: string): void {
+  if (detail) send(writer, "tool-result", { toolCallId, detail });
 }
 
 export function sendDone(writer: SseWriter): void {

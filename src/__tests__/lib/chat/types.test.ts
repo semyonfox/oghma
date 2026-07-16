@@ -5,10 +5,18 @@ describe("normalizeMessageParts", () => {
   it("accepts a well-formed parts array", () => {
     const input = [
       { type: "text", text: "hi" },
-      { type: "tool", name: "getChunks", label: "Searching notes" },
+      { type: "tool", name: "getChunks", label: "Searching notes", callId: "call-1", detail: "“syntax”" },
       { type: "error", text: "Interrupted" },
     ];
     expect(normalizeMessageParts(input)).toEqual(input);
+  });
+
+  it("preserves safe tool display details across persistence reloads", () => {
+    expect(normalizeMessageParts([
+      { type: "tool", name: "readNote", label: "Reading note", callId: "call-2", detail: "Complete Syntax" },
+    ])).toEqual([
+      { type: "tool", name: "readNote", label: "Reading note", callId: "call-2", detail: "Complete Syntax" },
+    ]);
   });
 
   it("drops malformed entries without throwing", () => {
