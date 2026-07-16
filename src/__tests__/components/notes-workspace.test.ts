@@ -9,18 +9,20 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   setPaneA: vi.fn(),
   schedulePrefetch: vi.fn(),
+  isDesktop: true,
 }));
 
 const layoutState = {
   treeWidth: 220,
   rightPanelWidth: 280,
   rightPanelOpen: false,
+  rightPanelTab: "meta" as const,
   paneA: { fileId: "", fileType: "note" },
   paneB: null,
   activePane: "A",
   setPaneA: mocks.setPaneA,
   setActivePane: vi.fn(),
-  toggleRightPanel: vi.fn(),
+  setRightPanelOpen: vi.fn(),
 };
 
 vi.mock("next/navigation", () => ({
@@ -45,7 +47,28 @@ vi.mock("@/lib/notes/prefetch", () => ({
   schedulePrefetch: mocks.schedulePrefetch,
 }));
 
+vi.mock("@/lib/hooks/use-media-query", () => ({
+  __esModule: true,
+  default: () => mocks.isDesktop,
+}));
+
+vi.mock("@/lib/notes/hooks/use-i18n", () => ({
+  __esModule: true,
+  default: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@/lib/notes/hooks/use-note-tree-initialization", () => ({
+  __esModule: true,
+  default: () => true,
+}));
+
 vi.mock("@/components/navigation/primary-navigation", () => ({ default: () => null }));
+vi.mock("@/components/navigation/mobile-app-header", () => ({
+  default: () => null,
+}));
+vi.mock("@/components/navigation/mobile-drawer", () => ({
+  default: () => null,
+}));
 vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => null,
 }));
@@ -59,7 +82,9 @@ import NotesWorkspace from "@/components/notes/notes-workspace";
 describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isDesktop = true;
     layoutState.paneA.fileId = "";
+    layoutState.rightPanelOpen = false;
     vi.stubGlobal("fetch", vi.fn());
   });
 

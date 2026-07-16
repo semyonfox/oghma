@@ -339,13 +339,15 @@ export default function AssignmentTracker() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* header row: course filter + sync */}
-      <div className="flex items-center gap-2 px-3 pt-3 pb-1">
+      <div className="flex flex-wrap items-center gap-2 px-3 pb-1 pt-3 lg:flex-nowrap">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
-          <div className="relative flex-1">
-            <ListboxButton className="relative w-full rounded-radius-md glass-card py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary transition-colors hover:bg-subtle">
-              {courseFilter || t("All Courses")}
+          <div className="relative min-w-0 flex-[1_1_10rem]">
+            <ListboxButton className="relative flex min-h-11 w-full items-center rounded-radius-md py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary glass-card transition-colors hover:bg-subtle lg:min-h-0">
+              <span className="min-w-0 truncate">
+                {courseFilter || t("All Courses")}
+              </span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2">
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
@@ -371,7 +373,7 @@ export default function AssignmentTracker() {
         </Listbox>
         <button
           onClick={() => setIncludeAll(!includeAll)}
-          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`min-h-11 rounded-full border px-3 py-1 text-xs font-medium transition-colors lg:min-h-0 lg:px-2.5 ${
             includeAll
               ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
               : "border-border-subtle bg-surface text-text-tertiary hover:text-text-secondary hover:bg-subtle"
@@ -385,14 +387,14 @@ export default function AssignmentTracker() {
         <button
           type="button"
           onClick={() => setShowCourseManager(true)}
-          className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
+          className="min-h-11 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle lg:min-h-0 lg:px-2.5"
         >
           {t("Manage")}
         </button>
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="rounded-radius-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors disabled:opacity-40"
+          className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40 lg:h-auto lg:w-auto lg:p-1.5"
           title={t("Sync from Canvas")}
         >
           <ArrowPathIcon
@@ -403,7 +405,7 @@ export default function AssignmentTracker() {
 
       {/* archived toggle */}
       <div className="px-3 pb-2">
-        <label className="flex items-center gap-1.5 text-xs text-text-tertiary cursor-pointer">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-text-tertiary lg:min-h-0">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -424,7 +426,7 @@ export default function AssignmentTracker() {
             key={key}
             onClick={() => setActiveTab(key)}
             className={`
-              flex-1 py-1.5 text-xs font-medium text-center rounded-radius-sm transition-all
+              min-h-11 flex-1 py-1.5 text-xs font-medium text-center rounded-radius-sm transition-all lg:min-h-0
               ${
                 activeTab === key
                   ? "bg-surface text-text-secondary shadow-sm"
@@ -474,7 +476,7 @@ export default function AssignmentTracker() {
                   <div className="flex items-center gap-1.5 min-w-0">
                     <button
                       onClick={() => handleToggleDone(a)}
-                      className="shrink-0 text-text-tertiary hover:text-primary-400 transition-colors"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center text-text-tertiary transition-colors hover:text-primary-400 lg:h-auto lg:w-auto"
                       title={
                         a.status === "done"
                           ? t("Mark as upcoming")
@@ -503,7 +505,7 @@ export default function AssignmentTracker() {
                   {a.status !== "done" && (
                     <button
                       onClick={() => handleStartFocus(a)}
-                      className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-primary-400 hover:bg-primary-500/10 transition-all"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-text-tertiary opacity-100 transition-all hover:bg-primary-500/10 hover:text-primary-400 lg:h-auto lg:w-auto lg:p-1 lg:opacity-0 lg:group-hover:opacity-100"
                       title={t("Start Focus")}
                     >
                       <PlayIcon className="h-3 w-3" />
@@ -560,7 +562,7 @@ export default function AssignmentTracker() {
       <div className="p-3">
         <button
           onClick={() => setShowNewTask(true)}
-          className="w-full rounded-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary hover:text-text-secondary hover:border-border transition-colors flex items-center justify-center gap-1.5"
+          className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
         >
           <PlusIcon className="h-3.5 w-3.5" />
           {t("New Task")}

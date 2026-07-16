@@ -985,6 +985,34 @@ html.light .glass-card-active {
   color: var(--md-heading-1);
 }
 
+@media (max-width: 767px) {
+  .oghma-milkdown-editor .milkdown-top-bar {
+    flex-wrap: nowrap;
+    width: calc(100% - 5.5rem);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-right: 0.5rem;
+    scrollbar-width: none;
+  }
+
+  .oghma-milkdown-editor .milkdown-top-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .oghma-milkdown-editor .milkdown-top-bar .top-bar-inner {
+    width: max-content;
+    min-width: max-content;
+    flex-wrap: nowrap;
+    padding-right: 0;
+  }
+
+  .oghma-milkdown-editor .milkdown .ProseMirror {
+    max-width: none;
+    margin-inline: 0;
+    padding: 2rem 1rem 5rem;
+  }
+}
+
 .oghma-milkdown-editor .milkdown .ProseMirror h2 {
   color: var(--md-heading-2);
 }

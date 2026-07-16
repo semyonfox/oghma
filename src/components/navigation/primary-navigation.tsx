@@ -23,6 +23,11 @@ interface NavItem {
   section: "notes" | "search" | "calendar" | "settings" | "chat" | "quiz";
 }
 
+interface PrimaryNavigationProps {
+  variant?: "rail" | "drawer";
+  onNavigate?: () => void;
+}
+
 const NAV_ITEMS: NavItem[] = [
   {
     id: "notes",
@@ -61,12 +66,18 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-/**
- * Primary app navigation rail (48px fixed width) with hover tooltips.
- * NOTE: Parent container is responsible for overflow behavior (overflow-hidden).
- * This component should never be scrollable; it fills full height.
- */
-const PrimaryNavigation: FC = () => {
+const SETTINGS_ITEM: NavItem = {
+  id: "settings",
+  labelKey: "Settings",
+  icon: Cog6ToothIcon,
+  href: "/settings",
+  section: "settings",
+};
+
+const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
+  variant = "rail",
+  onNavigate,
+}) => {
   const router = useRouter();
   const pathname = usePathname();
   const activeNav = useLayoutStore((state) => state.activeNav);
@@ -75,53 +86,120 @@ const PrimaryNavigation: FC = () => {
   const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
 
-  const derivedActiveSection: NavItem["section"] | "settings" =
-    pathname?.startsWith("/settings")
-      ? "settings"
-      : pathname?.startsWith("/quiz")
-        ? "quiz"
-        : pathname?.startsWith("/calendar")
-          ? "calendar"
-          : pathname?.startsWith("/chat")
+  const derivedActiveSection: NavItem["section"] = pathname?.startsWith(
+    "/settings",
+  )
+    ? "settings"
+    : pathname?.startsWith("/quiz")
+      ? "quiz"
+      : pathname?.startsWith("/calendar")
+        ? "calendar"
+        : pathname?.startsWith("/chat")
+          ? "chat"
+          : pathname?.startsWith("/notes") &&
+              rightPanelOpen &&
+              rightPanelTab === "ai"
             ? "chat"
-            : pathname?.startsWith("/notes") && rightPanelOpen && rightPanelTab === "ai"
-              ? "chat"
-              : pathname?.startsWith("/notes")
-                ? "notes"
-                : activeNav;
+            : pathname?.startsWith("/notes")
+              ? "notes"
+              : activeNav;
+
   const handleNavClick = (item: NavItem) => {
+    onNavigate?.();
+
     if (item.section === "search") {
       useGlobalSearchStore.getState().open();
       return;
     }
 
-    // Global AI chat entry should always open a fresh full-screen chat.
+    setActiveNav(item.section);
     if (item.section === "chat") {
-      setActiveNav(item.section);
       router.push("/chat");
       return;
     }
-    setActiveNav(item.section);
     if (pathname !== item.href) {
       router.push(item.href);
     }
   };
 
+  if (variant === "drawer") {
+    return (
+      <nav
+        className="flex h-full flex-col overflow-y-auto p-3"
+        aria-label={t("Main navigation")}
+      >
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="mb-3 flex min-h-11 items-center gap-3 rounded-radius-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-subtle"
+        >
+          <img src="/oghmanotes.svg" alt="" className="h-6 w-6" />
+          <span>{t("OghmaNotes")}</span>
+        </Link>
+
+        <div className="space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const IconComp = item.icon;
+            const isActive = derivedActiveSection === item.section;
+            const translatedLabel = t(item.labelKey);
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNavClick(item)}
+                aria-label={translatedLabel}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary-500/10 text-primary-400"
+                    : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+                }`}
+                title={translatedLabel}
+              >
+                <IconComp className="h-5 w-5 shrink-0" />
+                <span>{translatedLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-auto border-t border-border-subtle pt-3">
+          <button
+            type="button"
+            onClick={() => handleNavClick(SETTINGS_ITEM)}
+            aria-label={t("Settings")}
+            aria-current={
+              derivedActiveSection === "settings" ? "page" : undefined
+            }
+            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+              derivedActiveSection === "settings"
+                ? "bg-primary-500/10 text-primary-400"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+            }`}
+            title={t("Settings")}
+          >
+            <Cog6ToothIcon className="h-5 w-5 shrink-0" />
+            <span>{t("Settings")}</span>
+          </button>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav
-      className="h-full w-12 shrink-0 flex flex-col items-center py-4 gap-2"
+      className="flex h-full w-12 shrink-0 flex-col items-center gap-2 py-4"
       aria-label={t("Main navigation")}
     >
-      {/* Logo/Branding */}
       <Link
         href="/"
-        className="flex items-center justify-center w-10 h-10 min-h-[44px] min-w-[44px] mb-4 hover:opacity-70 transition-opacity"
+        className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center transition-opacity hover:opacity-70"
       >
-        <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="w-6 h-6" />
+        <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="h-6 w-6" />
       </Link>
 
-      {/* Navigation Items */}
-      <div className="flex flex-col gap-1 flex-1">
+      <div className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
           const isActive = derivedActiveSection === item.section;
@@ -130,28 +208,23 @@ const PrimaryNavigation: FC = () => {
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => handleNavClick(item)}
               aria-label={translatedLabel}
               aria-current={isActive ? "page" : undefined}
               aria-describedby={`tooltip-${item.id}`}
-              className={`
-                relative w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors
-                ${
-                  isActive
-                    ? "bg-primary-500/10 text-primary-400"
-                    : "text-text-tertiary hover:text-text hover:bg-subtle"
-                }
-                group
-              `}
+              className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
+                isActive
+                  ? "bg-primary-500/10 text-primary-400"
+                  : "text-text-tertiary hover:bg-subtle hover:text-text"
+              }`}
               title={translatedLabel}
             >
-              <IconComp className="w-5 h-5" />
-
-              {/* Hover tooltip */}
+              <IconComp className="h-5 w-5" />
               <div
                 id={`tooltip-${item.id}`}
                 role="tooltip"
-                className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded-radius-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+                className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
               >
                 {translatedLabel}
               </div>
@@ -160,35 +233,26 @@ const PrimaryNavigation: FC = () => {
         })}
       </div>
 
-      {/* Divider */}
-      <div className="w-8 h-px bg-border my-2" />
+      <div className="my-2 h-px w-8 bg-border" />
 
-      {/* Settings */}
       <button
-        onClick={() =>
-          handleNavClick({
-            id: "settings",
-            labelKey: "Settings",
-            icon: Cog6ToothIcon,
-            href: "/settings",
-            section: "settings",
-          })
-        }
+        type="button"
+        onClick={() => handleNavClick(SETTINGS_ITEM)}
         aria-describedby="tooltip-settings"
         aria-label={t("Settings")}
         aria-current={derivedActiveSection === "settings" ? "page" : undefined}
-        className={`w-10 h-10 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-radius-md transition-colors group relative ${
+        className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
           derivedActiveSection === "settings"
             ? "bg-primary-500/10 text-primary-400"
-            : "text-text-tertiary hover:text-text hover:bg-subtle"
+            : "text-text-tertiary hover:bg-subtle hover:text-text"
         }`}
         title={t("Settings")}
       >
-        <Cog6ToothIcon className="w-5 h-5" />
+        <Cog6ToothIcon className="h-5 w-5" />
         <div
           id="tooltip-settings"
           role="tooltip"
-          className="absolute left-full ml-2 px-2 py-1 bg-surface text-text-secondary text-xs rounded-radius-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity border border-border-subtle"
+          className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
         >
           {t("Settings")}
         </div>

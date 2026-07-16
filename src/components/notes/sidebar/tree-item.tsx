@@ -121,7 +121,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {...rctProps}
           {...(isRenaming ? {} : interactiveProps)}
           className={`
-            group/item flex items-center h-[26px] pr-1 cursor-pointer select-none
+            group/item flex h-11 items-center pr-1 cursor-pointer select-none md:h-[26px]
             transition-colors duration-75 rounded-radius-sm mx-0.5
             ${isActive ? "bg-subtle text-text-secondary" : ""}
             ${
@@ -252,7 +252,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {!isRenaming && (
             <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
               <button
-                className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
                 onClick={onDotsClick}
                 title={t("More actions")}
                 tabIndex={-1}
@@ -266,7 +266,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 </svg>
               </button>
               <button
-                className="p-0.5 rounded-radius-sm hover:bg-primary-600/20 text-text-tertiary hover:text-primary-300 transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-primary-600/20 hover:text-primary-300 md:h-auto md:w-auto md:p-0.5"
                 onClick={onOpenInAIChat}
                 title={isFolder ? t("Chat with folder") : t("Chat with note")}
                 tabIndex={-1}
@@ -286,7 +286,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
               </button>
               {isFolder && (
                 <button
-                  className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
                   onClick={onAddNote}
                   title={t("New note inside")}
                   tabIndex={-1}

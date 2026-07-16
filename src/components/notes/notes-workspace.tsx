@@ -1,48 +1,42 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { FolderOpenIcon } from "@heroicons/react/24/outline";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
+import useMediaQuery from "@/lib/hooks/use-media-query";
+import useI18n from "@/lib/notes/hooks/use-i18n";
+import useNoteTreeInitialization from "@/lib/notes/hooks/use-note-tree-initialization";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
+import MobileAppHeader from "@/components/navigation/mobile-app-header";
+import MobileDrawer from "@/components/navigation/mobile-drawer";
 import NoteTreePanel from "@/components/notes/note-tree-panel";
 import SplitEditorPane from "@/components/editor/split-editor-pane";
 import NoteInspectorPanel from "@/components/notes/note-inspector-panel";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
-/**
- * Main notes workspace, coordinating navigation, the note tree, editors, and inspector.
- *
- * Layout:
- * [48px Navigation] [220px Note tree] [Flexible editor] [0-280px Inspector]
- *
- * Uses CSS Grid for precise control and localStorage for persistent sizing
- *
- * Keyboard shortcuts:
- * - Tab: Switch between pane A and pane B (when in split mode)
- * - Escape: Close right panel
- */
 export default function NotesWorkspace() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
-  // granular selectors — only re-render when the specific values this
-  // component reads actually change (not on every pane content update)
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const noteDependenciesReady = useNoteTreeInitialization();
+  const [treeDrawerOpen, setTreeDrawerOpen] = useState(false);
   const treeWidth = useLayoutStore((s) => s.treeWidth);
   const rightPanelWidth = useLayoutStore((s) => s.rightPanelWidth);
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
+  const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
+  const setRightPanelOpen = useLayoutStore((s) => s.setRightPanelOpen);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
-  // read paneA.fileId only (not the full object) to avoid re-renders on title/editMode changes
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
 
-  // Load file from URL path (e.g., /notes/<uuid>)
   useEffect(() => {
     const route = resolveNoteRoute(pathname);
     if (route.type === "ignore") return;
 
-    // stale nanoid IDs (pre-UUID migration) — redirect to /notes rather than
-    // hammering the server with requests it will always reject with 400
     if (route.type === "redirect") {
       console.warn(
         `[notes-workspace] non-UUID note id in URL: ${route.noteId} — redirecting to /notes`,
@@ -54,10 +48,6 @@ export default function NotesWorkspace() {
     const fileId = route.noteId;
     if (fileId === paneAFileId) return;
 
-    // Sidebar navigation already supplies a complete FileSpec. Direct URL
-    // navigation (including the redirect after upload) only has an ID, so load
-    // the metadata before choosing a renderer. Treating every route as Markdown
-    // prevents PDF/media viewers from ever mounting.
     const controller = new AbortController();
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
@@ -76,61 +66,148 @@ export default function NotesWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, paneAFileId, setPaneA]);
 
-  // schedule background prefetch once tree finishes initialising
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   useEffect(() => {
     if (initLoaded) schedulePrefetch();
   }, [initLoaded]);
 
-  // Global keyboard shortcuts — reads state from store directly so the
-  // listener never needs re-attaching on pane/panel changes
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    setTreeDrawerOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (rightPanelOpen) setTreeDrawerOpen(false);
+  }, [rightPanelOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       const state = useLayoutStore.getState();
-      // Tab to switch panes (when split view is active)
-      if (e.key === "Tab" && state.paneB && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        e.preventDefault();
+      const target = event.target;
+      const canSwitchPane =
+        target === document.body ||
+        (target instanceof HTMLElement && target.dataset.paneShortcut === "true");
+
+      if (
+        event.key === "Tab" &&
+        isDesktop === true &&
+        canSwitchPane &&
+        state.paneB &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
         state.setActivePane(state.activePane === "A" ? "B" : "A");
       }
-      // Escape to close right panel
-      if (e.key === "Escape" && state.rightPanelOpen) {
-        e.preventDefault();
-        state.toggleRightPanel();
+
+      if (event.key === "Escape" && state.rightPanelOpen) {
+        state.setRightPanelOpen(false);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isDesktop]);
+
+  const inspectorTitle =
+    rightPanelTab === "ai"
+      ? t("AI Chat")
+      : rightPanelTab === "tasks"
+        ? t("Tasks")
+        : t("Meta");
 
   return (
-    <div className="relative h-screen w-screen flex flex-col bg-background">
-      {/* Main 3-pane container using CSS Grid */}
+    <div className="relative flex h-dvh w-screen flex-col bg-background">
+      <MobileAppHeader
+        title={t("Notes")}
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              setRightPanelOpen(false);
+              setTreeDrawerOpen(true);
+            }}
+            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            aria-label={t("Notes list")}
+          >
+            <FolderOpenIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        }
+      />
+
+      {isDesktop === false && (
+        <>
+          <MobileDrawer
+            open={treeDrawerOpen}
+            onClose={() => setTreeDrawerOpen(false)}
+            title={t("Notes")}
+            side="left"
+            className="md:hidden"
+          >
+            <NoteTreePanel onOpenNote={() => setTreeDrawerOpen(false)} />
+          </MobileDrawer>
+
+          <MobileDrawer
+            open={rightPanelOpen}
+            onClose={() => setRightPanelOpen(false)}
+            title={inspectorTitle}
+            side="right"
+            className="md:hidden"
+            panelClassName="w-[94vw] max-w-md"
+          >
+            <NoteInspectorPanel />
+          </MobileDrawer>
+        </>
+      )}
+
       <div
-        className="flex-1 overflow-hidden grid"
-        style={{
-          gridTemplateColumns: `3rem ${treeWidth}px 1fr ${rightPanelOpen ? rightPanelWidth : 0}px`,
-          gap: "0",
-        }}
+        className="min-h-0 flex-1 overflow-hidden md:grid"
+        style={
+          isDesktop === true
+            ? {
+                gridTemplateColumns: `3rem ${treeWidth}px 1fr ${rightPanelOpen ? rightPanelWidth : 0}px`,
+                gap: "0",
+              }
+            : undefined
+        }
       >
-        {/* Pane 1: Icon Navigation (Fixed 48px) */}
-        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
-          <PrimaryNavigation />
-        </div>
+        {isDesktop === true && (
+          <div
+            key="navigation"
+            className="flex flex-col overflow-hidden border-r border-border-subtle bg-background"
+          >
+            <PrimaryNavigation />
+          </div>
+        )}
 
-        {/* Pane 2: File Tree (Resizable, default 220px) */}
-        <div className="bg-background border-r border-border-subtle overflow-hidden flex flex-col">
-          <NoteTreePanel />
-        </div>
+        {isDesktop === true && (
+          <div
+            key="tree"
+            className="flex flex-col overflow-hidden border-r border-border-subtle bg-background"
+          >
+            <NoteTreePanel />
+          </div>
+        )}
 
-        {/* Pane 3: Main Editor (Flex fill) */}
-        <div className="bg-background overflow-hidden flex flex-col">
-          <SplitEditorPane />
-        </div>
+        <main
+          key="editor"
+          aria-label={t("Note editor")}
+          className="h-full min-h-0 overflow-hidden bg-background"
+        >
+          {isDesktop === null || !noteDependenciesReady ? (
+            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+              {t("Loading...")}
+            </div>
+          ) : (
+            <SplitEditorPane />
+          )}
+        </main>
 
-        {/* Pane 4: Right Panel (Collapsible, default 280px) */}
-        {rightPanelOpen && (
-          <div className="glass-panel overflow-hidden flex flex-col">
+        {isDesktop === true && rightPanelOpen && (
+          <div
+            key="inspector"
+            className="glass-panel flex flex-col overflow-hidden"
+          >
             <NoteInspectorPanel />
           </div>
         )}

@@ -188,7 +188,11 @@ export default function MonthView() {
   }, [anchor, assignments, timeBlocks, selectedDate]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="h-full overflow-x-auto overscroll-x-contain"
+      aria-label={t("Month view")}
+    >
+      <div className="flex h-full min-w-[42rem] flex-col md:min-w-0">
       {/* day headers */}
       <div className="grid grid-cols-7 gap-px border-b border-border-subtle bg-subtle text-center text-xs font-medium text-text-tertiary">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
@@ -254,7 +258,7 @@ export default function MonthView() {
                           status: a.status === "done" ? "upcoming" : "done",
                         });
                       }}
-                      className="pointer-events-auto shrink-0"
+                      className="touch-target-44 pointer-events-auto relative shrink-0"
                       aria-label={
                         a.status === "done"
                           ? t("Mark incomplete")
@@ -288,7 +292,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void toggleTimeBlockCompleted(tb.id);
                         }}
-                        className="pointer-events-auto shrink-0"
+                        className="touch-target-44 pointer-events-auto relative shrink-0"
                         aria-label={
                           tb.completed
                             ? t("Mark incomplete")
@@ -301,7 +305,7 @@ export default function MonthView() {
                           <CheckCircleOutline className="h-3 w-3 text-text-tertiary hover:text-primary-500 transition-colors" />
                         )}
                       </button>
-                      <span className={`truncate ${tb.completed ? "text-text-tertiary line-through opacity-60" : "text-text-secondary"}`}>
+                      <span className={`truncate pr-4 ${tb.completed ? "text-text-tertiary line-through opacity-60" : "text-text-secondary"}`}>
                         {tb.title || t("Study block")}
                       </span>
                       <button
@@ -310,7 +314,7 @@ export default function MonthView() {
                           e.stopPropagation();
                           void deleteTimeBlock(tb.id);
                         }}
-                        className="pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-0 group-hover/tb:opacity-100 hover:bg-subtle transition"
+                        className="pointer-events-auto absolute right-0.5 top-0.5 rounded p-0.5 opacity-100 transition hover:bg-subtle md:opacity-0 md:group-hover/tb:opacity-100"
                         aria-label={t("Delete study block")}
                         title={t("Delete study block")}
                       >
@@ -329,6 +333,7 @@ export default function MonthView() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

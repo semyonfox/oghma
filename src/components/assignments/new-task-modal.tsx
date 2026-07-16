@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  DialogTitle,
+} from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -26,8 +31,8 @@ export default function NewTaskModal({
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!title.trim()) return;
 
     setSaving(true);
@@ -40,7 +45,6 @@ export default function NewTaskModal({
     });
     setSaving(false);
 
-    // reset and close
     setTitle("");
     setCourseName("");
     setDueAt("");
@@ -49,33 +53,45 @@ export default function NewTaskModal({
     onClose();
   };
 
+  const inputClassName =
+    "min-h-11 w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-2 text-sm text-text-secondary placeholder:text-text-tertiary focus:border-primary-500/50 focus:outline-none focus:ring-1 focus:ring-primary-500/50";
+
   return (
-    <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="w-full max-w-sm bg-surface border border-border-subtle rounded-radius-lg shadow-xl">
-          <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
+    <Dialog open={open} onClose={onClose} className="relative z-[70]">
+      <DialogBackdrop className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" />
+      <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
+        <DialogPanel
+          data-testid="new-task-panel"
+          className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-surface shadow-xl sm:max-w-sm sm:rounded-radius-lg"
+        >
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-subtle px-4">
             <DialogTitle className="text-sm font-medium text-text-secondary">
               {t("New Task")}
             </DialogTitle>
             <button
+              type="button"
               onClick={onClose}
-              className="rounded p-1 text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+              className="flex h-11 w-11 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              aria-label={t("Close")}
             >
-              <XMarkIcon className="h-4 w-4" />
+              <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <form
+            onSubmit={handleSubmit}
+            className="obsidian-scrollbar min-h-0 space-y-3 overflow-y-auto p-4"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
             <div>
-              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
+              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
                 {t("Title")}
               </label>
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                onChange={(event) => setTitle(event.target.value)}
+                className={inputClassName}
                 placeholder={t("Assignment name...")}
                 autoFocus
                 required
@@ -83,38 +99,38 @@ export default function NewTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
+              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
                 {t("Course")}
               </label>
               <input
                 type="text"
                 value={courseName}
-                onChange={(e) => setCourseName(e.target.value)}
+                onChange={(event) => setCourseName(event.target.value)}
                 list="course-suggestions"
-                className="w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                className={inputClassName}
                 placeholder={t("Course name...")}
               />
               <datalist id="course-suggestions">
-                {courses.map((c) => (
-                  <option key={c} value={c} />
+                {courses.map((course) => (
+                  <option key={course} value={course} />
                 ))}
               </datalist>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
                   {t("Due Date")}
                 </label>
                 <input
                   type="datetime-local"
                   value={dueAt}
-                  onChange={(e) => setDueAt(e.target.value)}
-                  className="w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-1.5 text-sm text-text-secondary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none [color-scheme:dark]"
+                  onChange={(event) => setDueAt(event.target.value)}
+                  className={`${inputClassName} [color-scheme:dark]`}
                 />
               </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
                   {t("Est. Hours")}
                 </label>
                 <input
@@ -122,22 +138,22 @@ export default function NewTaskModal({
                   min="0"
                   step="0.5"
                   value={estimatedHours}
-                  onChange={(e) => setEstimatedHours(e.target.value)}
-                  className="w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none"
+                  onChange={(event) => setEstimatedHours(event.target.value)}
+                  className={inputClassName}
                   placeholder="0"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1">
+              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
                 {t("Description")}
               </label>
               <textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="w-full rounded-radius-md border border-border-subtle bg-surface px-2.5 py-1.5 text-sm text-text-secondary placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none resize-none"
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                className={`${inputClassName} resize-none`}
                 placeholder={t("Optional notes...")}
               />
             </div>
@@ -145,7 +161,7 @@ export default function NewTaskModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-text-on-primary hover:bg-primary-700 transition-colors disabled:opacity-50"
+              className="min-h-11 w-full rounded-radius-md bg-primary-600 py-2 text-sm font-medium text-text-on-primary transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {saving ? t("Creating...") : t("Create Task")}
             </button>

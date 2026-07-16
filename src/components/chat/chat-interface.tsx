@@ -339,7 +339,10 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       </div>
 
       {/* input area */}
-      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
+      <div
+        className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 md:px-8 lg:px-10"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
@@ -381,7 +384,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
-          <div className="mb-2 flex items-center gap-1.5 px-1">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
             <TogglePill
               active={useRag}
               onClick={toggleRag}
@@ -404,7 +407,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
+            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 transition-colors focus-within:border-primary-500/50 md:items-center md:py-2"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -418,7 +421,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               placeholder={t("chat.ask_placeholder")}
               disabled={busy}
               rows={1}
-              className="flex-1 bg-transparent text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none resize-none disabled:opacity-50"
+              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:py-0"
               style={{ minHeight: "20px", maxHeight: "96px" }}
             />
             {busy ? (
@@ -426,7 +429,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 type="button"
                 onClick={loading ? cancel : undefined}
                 disabled={backgroundLoading}
-                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors disabled:cursor-wait disabled:opacity-60"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 disabled:cursor-wait disabled:opacity-60 md:h-auto md:w-auto md:p-1.5"
                 title={
                   backgroundLoading
                     ? t("Generating in background")
@@ -441,7 +444,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="flex-shrink-0 p-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-md transition-colors"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-auto md:w-auto md:p-1.5"
               >
                 <PaperAirplaneIcon className="w-3.5 h-3.5" />
               </button>

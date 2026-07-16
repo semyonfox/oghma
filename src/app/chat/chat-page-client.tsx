@@ -9,9 +9,13 @@ import {
   ArrowLeftIcon,
   PlusIcon,
   TrashIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
+import MobileAppHeader from "@/components/navigation/mobile-app-header";
+import MobileDrawer from "@/components/navigation/mobile-drawer";
+import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 
@@ -50,9 +54,139 @@ function relativeDate(
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+interface ConversationHistoryProps {
+  conversations: Conversation[];
+  activeId: string | null;
+  loaded: boolean;
+  t: (key: string, params?: Record<string, unknown>) => string;
+  onNewConversation: () => void;
+  onSelectConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
+  onDismiss: () => void;
+  showHeader?: boolean;
+}
+
+function ConversationHistory({
+  conversations,
+  activeId,
+  loaded,
+  t,
+  onNewConversation,
+  onSelectConversation,
+  onDeleteConversation,
+  onDismiss,
+  showHeader = true,
+}: ConversationHistoryProps) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden glass-panel">
+      {showHeader && (
+        <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-3">
+          <Link
+            href="/notes"
+            onClick={onDismiss}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+            title={t("chat.back_to_notes")}
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+          </Link>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SparklesIcon className="h-4 w-4 flex-shrink-0 text-primary-400" />
+            <span className="truncate text-sm font-medium text-text-secondary">
+              {t("chat.title")}
+            </span>
+          </div>
+          <Link href="/" onClick={onDismiss} className="flex-shrink-0">
+            <img
+              src="/oghmanotes.svg"
+              alt="OghmaNotes"
+              className="h-5 w-5 opacity-60 transition-opacity hover:opacity-100"
+            />
+          </Link>
+        </div>
+      )}
+
+      <div className="border-t border-border-subtle px-2 pb-2.5 pt-3">
+        <button
+          type="button"
+          onClick={onNewConversation}
+          className="glass-card-interactive flex min-h-[44px] w-full items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
+        >
+          <PlusIcon className="h-4 w-4" />
+          {t("chat.new_conversation")}
+        </button>
+      </div>
+
+      <nav className="obsidian-scrollbar flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+        {conversations.map((conv) => (
+          <div
+            key={conv.id}
+            className={`group relative min-h-11 overflow-hidden rounded-radius-md text-xs transition-colors ${
+              conv.id === activeId
+                ? "glass-card-active text-text-secondary"
+                : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
+            } focus-within:ring-1 focus-within:ring-primary-400/30`}
+          >
+            <Link
+              href={`/chat/${conv.id}`}
+              onClick={() => onSelectConversation(conv.id)}
+              className="flex min-h-11 w-full items-start px-3 py-2.5 pr-12 text-left focus-visible:outline-none"
+              aria-current={conv.id === activeId ? "page" : undefined}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium leading-5">{conv.title}</p>
+                {conv.noteTitle && (
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1 text-text-tertiary">
+                    <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
+                    <span className="min-w-0 truncate">{conv.noteTitle}</span>
+                  </div>
+                )}
+              </div>
+            </Link>
+
+            <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-10 items-center justify-end pr-1 md:flex">
+              <span
+                className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                suppressHydrationWarning
+              >
+                {relativeDate(conv.createdAt, t)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onDeleteConversation(conv.id)}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-tertiary transition-[opacity,transform] duration-150 hover:text-error-400 md:w-10 md:translate-x-full md:opacity-0 md:pointer-events-none md:group-hover:translate-x-0 md:group-hover:opacity-100 md:group-hover:pointer-events-auto md:group-focus-within:translate-x-0 md:group-focus-within:opacity-100 md:group-focus-within:pointer-events-auto"
+              title={t("chat.delete_conversation")}
+              aria-label={t("chat.delete_conversation")}
+            >
+              <TrashIcon className="h-4 w-4 md:h-3.5 md:w-3.5" />
+            </button>
+          </div>
+        ))}
+        {loaded && conversations.length === 0 && (
+          <p className="py-4 text-center text-xs text-text-tertiary">
+            {t("chat.no_conversations")}
+          </p>
+        )}
+      </nav>
+
+      <div className="flex-shrink-0 border-t border-border-subtle px-3 py-2.5">
+        <Link
+          href="/settings"
+          onClick={onDismiss}
+          className="inline-flex min-h-11 items-center text-xs text-text-tertiary transition-colors hover:text-text-secondary"
+        >
+          {t("chat.configure_ai")}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPageClient() {
   const { t } = useI18n();
   const router = useRouter();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const params = useParams<{ sessionId?: string }>();
   const searchParams = useSearchParams();
   const routeSessionId =
@@ -81,6 +215,7 @@ export default function ChatPageClient() {
   const [mountKey, setMountKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState<ContextItem[]>([]);
   const [selectedFolders, setSelectedFolders] = useState<ContextItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const activeConv = conversations.find((c) => c.id === activeId);
 
@@ -213,6 +348,7 @@ export default function ChatPageClient() {
   }, [loadSessions]);
 
   const newConversation = useCallback(() => {
+    setHistoryOpen(false);
     setMountKey((prev) => prev + 1);
     setActiveId(null);
     router.push(draftHref);
@@ -280,6 +416,7 @@ export default function ChatPageClient() {
     if (!res.ok) return;
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeId === id) {
+      setHistoryOpen(false);
       setMountKey((prev) => prev + 1);
       setActiveId(null);
       router.replace(draftHref);
@@ -315,152 +452,113 @@ export default function ChatPageClient() {
     syncScopeUrl(selectedNotes, nextFolders);
   };
 
+  const conversationTitle =
+    activeConv?.title ??
+    (contextPrefix
+      ? t("chat.about_context", { context: contextPrefix })
+      : t("chat.new_conversation"));
+
+  const selectConversation = (id: string) => {
+    setHistoryOpen(false);
+    setMountKey((prev) => prev + 1);
+    setActiveId(id);
+  };
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-app-page text-text">
-      <div className="w-12 shrink-0 bg-background border-r border-border-subtle overflow-hidden">
-        <PrimaryNavigation />
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-app-page text-text">
+      <MobileAppHeader
+        title={conversationTitle}
+        actions={
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            aria-label={t("Chat history")}
+          >
+            <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        }
+      />
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {isDesktop === true && (
+          <div className="w-12 shrink-0 overflow-hidden border-r border-border-subtle bg-background">
+            <PrimaryNavigation />
+          </div>
+        )}
+
+        {isDesktop === true && (
+          <aside className="w-64 flex-shrink-0 overflow-hidden border-r border-border-subtle">
+            <ConversationHistory
+              conversations={conversations}
+              activeId={activeId}
+              loaded={loaded}
+              t={t}
+              onNewConversation={newConversation}
+              onSelectConversation={selectConversation}
+              onDeleteConversation={(id) => void deleteConversation(id)}
+              onDismiss={() => setHistoryOpen(false)}
+            />
+          </aside>
+        )}
+
+        <main className="flex min-w-0 flex-1 flex-col">
+          <header className="glass-panel hidden flex-shrink-0 items-center border-b border-border-subtle px-4 py-2.5 md:flex">
+            <h1 className="truncate text-sm font-medium text-text-secondary">
+              {conversationTitle}
+            </h1>
+          </header>
+
+          <ChatInterface
+            key={mountKey}
+            sessionId={activeId ?? undefined}
+            noteId={
+              selectedNotes.length === 1 && selectedFolders.length === 0
+                ? selectedNotes[0].id
+                : !activeId
+                  ? paramNoteId
+                  : undefined
+            }
+            noteTitle={
+              selectedNotes.length === 1 && selectedFolders.length === 0
+                ? selectedNotes[0].title
+                : !activeId
+                  ? paramNoteTitle
+                  : undefined
+            }
+            selectedNotes={selectedNotes}
+            selectedFolders={selectedFolders}
+            onSessionCreated={handleSessionCreated}
+            onClearContext={clearContextAndStartNewChat}
+            onStreamComplete={handleStreamComplete}
+            onRemoveNote={removeSelectedNote}
+            onRemoveFolder={removeSelectedFolder}
+            className="min-h-0 flex-1"
+          />
+        </main>
       </div>
 
-      <aside className="w-64 flex-shrink-0 flex flex-col border-r border-border-subtle glass-panel overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-3 border-b border-border-subtle">
-          <Link
-            href="/notes"
-            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-subtle transition-colors"
-            title={t("chat.back_to_notes")}
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <SparklesIcon className="w-4 h-4 text-primary-400 flex-shrink-0" />
-            <span className="text-sm font-medium text-text-secondary truncate">
-              {t("chat.title")}
-            </span>
-          </div>
-          <Link href="/" className="flex-shrink-0">
-            <img
-              src="/oghmanotes.svg"
-              alt="OghmaNotes"
-              className="w-5 h-5 opacity-60 hover:opacity-100 transition-opacity"
-            />
-          </Link>
-        </div>
-
-        <div className="px-2 pt-3 pb-2.5 border-t border-border-subtle">
-          <button
-            onClick={newConversation}
-            className="glass-card-interactive flex w-full min-h-[44px] items-center gap-2 rounded-radius-md px-3 py-2 text-sm font-medium text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-400/30"
-          >
-            <PlusIcon className="w-4 h-4" />
-            {t("chat.new_conversation")}
-          </button>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 obsidian-scrollbar">
-          {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={`group relative overflow-hidden rounded-radius-md text-xs transition-colors ${
-                conv.id === activeId
-                  ? "glass-card-active text-text-secondary"
-                  : "glass-card-interactive text-text-tertiary hover:text-text-secondary"
-              } focus-within:ring-1 focus-within:ring-primary-400/30`}
-            >
-              <Link
-                href={`/chat/${conv.id}`}
-                onClick={() => {
-                  setMountKey((prev) => prev + 1);
-                  setActiveId(conv.id);
-                }}
-                className="flex w-full items-start px-3 py-2.5 pr-10 text-left focus-visible:outline-none"
-                aria-current={conv.id === activeId ? "page" : undefined}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium leading-5">{conv.title}</p>
-                  {conv.noteTitle && (
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-text-tertiary">
-                      <DocumentTextIcon className="h-3 w-3 flex-shrink-0" />
-                      <span className="min-w-0 truncate">{conv.noteTitle}</span>
-                    </div>
-                  )}
-                </div>
-              </Link>
-
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end pr-1">
-                <span
-                  className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
-                  suppressHydrationWarning
-                >
-                  {relativeDate(conv.createdAt, t)}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  void deleteConversation(conv.id);
-                }}
-                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-text-tertiary opacity-0 translate-x-full pointer-events-none transition-[opacity,transform] duration-150 group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:translate-x-0 group-hover:pointer-events-auto group-focus-within:pointer-events-auto hover:text-error-400"
-                title={t("chat.delete_conversation")}
-                aria-label={t("chat.delete_conversation")}
-              >
-                <TrashIcon className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-          {loaded && conversations.length === 0 && (
-            <p className="text-xs text-text-tertiary text-center py-4">
-              {t("chat.no_conversations")}
-            </p>
-          )}
-        </nav>
-
-        <div className="flex-shrink-0 border-t border-border-subtle px-3 py-2.5">
-          <Link
-            href="/settings"
-            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-          >
-            {t("chat.configure_ai")}
-          </Link>
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-border-subtle glass-panel">
-          <h1 className="text-sm font-medium text-text-secondary truncate">
-            {activeConv?.title ??
-              (contextPrefix
-                ? t("chat.about_context", { context: contextPrefix })
-                : t("chat.new_conversation"))}
-          </h1>
-        </header>
-
-        <ChatInterface
-          key={mountKey}
-          sessionId={activeId ?? undefined}
-          noteId={
-            selectedNotes.length === 1 && selectedFolders.length === 0
-              ? selectedNotes[0].id
-              : !activeId
-                ? paramNoteId
-                : undefined
-          }
-          noteTitle={
-            selectedNotes.length === 1 && selectedFolders.length === 0
-              ? selectedNotes[0].title
-              : !activeId
-                ? paramNoteTitle
-                : undefined
-          }
-          selectedNotes={selectedNotes}
-          selectedFolders={selectedFolders}
-          onSessionCreated={handleSessionCreated}
-          onClearContext={clearContextAndStartNewChat}
-          onStreamComplete={handleStreamComplete}
-          onRemoveNote={removeSelectedNote}
-          onRemoveFolder={removeSelectedFolder}
-          className="flex-1 min-h-0"
-        />
-      </main>
+      {isDesktop === false && (
+        <MobileDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          title={t("chat.title")}
+          side="left"
+          className="md:hidden"
+        >
+          <ConversationHistory
+            conversations={conversations}
+            activeId={activeId}
+            loaded={loaded}
+            t={t}
+            onNewConversation={newConversation}
+            onSelectConversation={selectConversation}
+            onDeleteConversation={(id) => void deleteConversation(id)}
+            onDismiss={() => setHistoryOpen(false)}
+            showHeader={false}
+          />
+        </MobileDrawer>
+      )}
     </div>
   );
 }

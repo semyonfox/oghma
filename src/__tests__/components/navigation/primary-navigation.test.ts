@@ -82,4 +82,20 @@ describe("PrimaryNavigation AI chat entry", () => {
       screen.getByRole("button", { name: "AI Chat" }).getAttribute("aria-current"),
     ).toBe("page");
   });
+
+  it("renders labelled drawer navigation and closes after an action", () => {
+    const onNavigate = vi.fn();
+    render(
+      React.createElement(PrimaryNavigation, {
+        variant: "drawer",
+        onNavigate,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Calendar")).toBeTruthy();
+  });
 });

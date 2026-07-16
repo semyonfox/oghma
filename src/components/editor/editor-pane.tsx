@@ -22,6 +22,7 @@ const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 interface EditorPaneProps {
   pane: "A" | "B";
   file?: FileSpec;
+  splitInteractionsEnabled?: boolean;
 }
 
 /**
@@ -29,7 +30,11 @@ interface EditorPaneProps {
  * Shows title, file type icon, and routes to appropriate viewer
  * Supports drag-to-swap: drag a file to right half to open in pane B, left half to swap to A
  */
-const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
+const EditorPane: FC<EditorPaneProps> = ({
+  pane,
+  file,
+  splitInteractionsEnabled = true,
+}) => {
   const { t } = useI18n();
   const router = useRouter();
 
@@ -62,26 +67,34 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
-      if (!file) return;
+      if (!file || !splitInteractionsEnabled) {
+        e.preventDefault();
+        return;
+      }
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("application/json", JSON.stringify(file));
       e.dataTransfer.setData("paneFile", JSON.stringify(file));
       setIsDragging(true);
     },
-    [file],
+    [file, splitInteractionsEnabled],
   );
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, []);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!splitInteractionsEnabled) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    [splitInteractionsEnabled],
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
+      if (!splitInteractionsEnabled) return;
       e.preventDefault();
       setIsDragging(false);
 
@@ -115,7 +128,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
         console.error("Drop error:", error);
       }
     },
-    [pane, setPaneA, setPaneB],
+    [pane, setPaneA, setPaneB, splitInteractionsEnabled],
   );
 
   const handleCreateFirstNote = useCallback(async () => {
@@ -217,15 +230,17 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
       ref={paneRef}
       className={`h-full flex flex-col bg-background transition-colors ${isDragging ? "opacity-60" : ""}`}
       onMouseDown={() => setActivePane(pane)}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragOver={splitInteractionsEnabled ? handleDragOver : undefined}
+      onDrop={splitInteractionsEnabled ? handleDrop : undefined}
     >
       {/* Pane Header */}
       <div
-        className="flex-shrink-0 h-9 px-3 border-b border-border-subtle flex items-center justify-between cursor-move"
-        draggable
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+        className={`flex h-12 flex-shrink-0 items-center justify-between border-b border-border-subtle px-3 md:h-9 ${
+          splitInteractionsEnabled ? "cursor-move" : "cursor-default"
+        }`}
+        draggable={splitInteractionsEnabled}
+        onDragStart={splitInteractionsEnabled ? handleDragStart : undefined}
+        onDragEnd={splitInteractionsEnabled ? handleDragEnd : undefined}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm text-text-secondary truncate">
@@ -236,7 +251,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => openRightPanelTab("meta")}
-            className={`p-1 rounded transition-colors ${
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-auto md:w-auto md:p-1 ${
               rightPanelOpen && rightPanelTab === "meta"
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -247,7 +262,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
           </button>
           <button
             onClick={() => openRightPanelTab("ai")}
-            className={`p-1 rounded transition-colors ${
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-auto md:w-auto md:p-1 ${
               rightPanelOpen && rightPanelTab === "ai"
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -259,7 +274,7 @@ const EditorPane: FC<EditorPaneProps> = ({ pane, file }) => {
           {pane === "B" && (
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-subtle rounded text-text-tertiary hover:text-text-secondary transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-1"
               title={t("Close this pane")}
             >
               <XMarkIcon className="w-3.5 h-3.5" />
