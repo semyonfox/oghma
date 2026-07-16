@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronDownIcon,
@@ -130,7 +131,7 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={navigateBack}
-                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50"
                     aria-label={t("Previous period")}
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
@@ -138,14 +139,14 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={goToToday}
-                    className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle md:block"
+                    className="hidden h-8 px-3 text-xs font-medium text-text-secondary hover:bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50 md:block"
                   >
                     {t("Today")}
                   </button>
                   <button
                     type="button"
                     onClick={navigateForward}
-                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+                    className="flex h-8 w-8 items-center justify-center text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-400/50"
                     aria-label={t("Next period")}
                   >
                     <ChevronRightIcon className="h-4 w-4" />
@@ -155,7 +156,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setTasksOpen(true)}
-                  className="flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary lg:hidden"
+                  className="flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-radius-md px-2 text-xs font-medium text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 lg:hidden"
                   aria-label={t("Tasks")}
                 >
                   <ClipboardDocumentListIcon className="h-4 w-4" />
@@ -163,7 +164,7 @@ export default function CalendarPage() {
                 </button>
 
                 <Menu as="div" className="relative z-[60]">
-                  <MenuButton className="flex h-8 min-w-24 items-center justify-between gap-2 rounded-radius-md px-3 text-xs font-medium text-text-secondary glass-card-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50">
+                  <MenuButton className="flex h-8 min-w-24 items-center justify-between gap-2 rounded-radius-md px-3 text-xs font-medium text-text-secondary glass-card-interactive outline-none focus:outline-none data-[focus]:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50">
                     <span>{view === "month" ? t("Month") : t("Week")}</span>
                     <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
                   </MenuButton>
@@ -172,18 +173,24 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setView("month")}
-                        className="block min-h-11 w-full bg-app-page px-3 py-2 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                        className="flex h-9 w-full items-center justify-between gap-2 bg-app-page px-3 text-left text-xs text-text-secondary hover:bg-subtle focus:outline-none data-[focus]:bg-subtle"
                       >
                         {t("Month view")}
+                        {view === "month" && (
+                          <CheckIcon className="h-4 w-4 shrink-0 text-primary-400" />
+                        )}
                       </button>
                     </MenuItem>
                     <MenuItem>
                       <button
                         type="button"
                         onClick={() => setView("week")}
-                        className="block min-h-11 w-full bg-app-page px-3 py-2 text-left text-xs text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                        className="flex h-9 w-full items-center justify-between gap-2 bg-app-page px-3 text-left text-xs text-text-secondary hover:bg-subtle focus:outline-none data-[focus]:bg-subtle"
                       >
                         {t("Week view")}
+                        {view === "week" && (
+                          <CheckIcon className="h-4 w-4 shrink-0 text-primary-400" />
+                        )}
                       </button>
                     </MenuItem>
                   </MenuItems>
@@ -229,8 +236,13 @@ export default function CalendarPage() {
           </main>
 
           {hasTaskSidebar === true && (
-            <aside className="flex w-[280px] shrink-0 flex-col glass-panel">
-              <AssignmentTracker surface="compact" />
+            <aside className="flex w-[280px] shrink-0 flex-col border-l border-border-subtle glass-panel">
+              <div className="flex h-12 shrink-0 items-center border-b border-border-subtle px-3">
+                <h2 className="text-sm font-semibold text-text-secondary">{t("Tasks")}</h2>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col">
+                <AssignmentTracker surface="compact" />
+              </div>
             </aside>
           )}
         </div>
