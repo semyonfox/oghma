@@ -10,7 +10,7 @@ import {
   formatDateKey,
 } from "@/lib/notes/utils/calendar-date";
 
-const HOUR_HEIGHT = 56; // px per hour row
+const MIN_HOUR_HEIGHT = 56;
 const START_HOUR = 6;
 const END_HOUR = 24;
 const HOURS = Array.from(
@@ -68,7 +68,9 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const [hourHeight, setHourHeight] = useState(MIN_HOUR_HEIGHT);
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
   const weekDays = useMemo(() => getWeekDays(anchor, activeLocale), [activeLocale, anchor]);
@@ -94,14 +96,21 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
     };
   }, []);
 
-  // scroll to 8am on mount
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = Math.max(
-        0,
-        (8 - START_HOUR) * HOUR_HEIGHT - 64,
-      );
-    }
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+
+    const updateHourHeight = () => {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const availableHeight = Math.max(0, scroll.clientHeight - headerHeight);
+      setHourHeight(Math.max(MIN_HOUR_HEIGHT, availableHeight / HOURS.length));
+    };
+
+    updateHourHeight();
+    const observer = new ResizeObserver(updateHourHeight);
+    observer.observe(scroll);
+    if (headerRef.current) observer.observe(headerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // position time blocks on the grid
@@ -116,8 +125,8 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
 
       const startHour = start.getHours() + start.getMinutes() / 60;
       const endHour = end.getHours() + end.getMinutes() / 60;
-      const top = (startHour - START_HOUR) * HOUR_HEIGHT;
-      const height = Math.max((endHour - startHour) * HOUR_HEIGHT, 14);
+      const top = (startHour - START_HOUR) * hourHeight;
+      const height = Math.max((endHour - startHour) * hourHeight, 14);
 
       blocks.push({
         id: tb.id,
@@ -130,7 +139,7 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
       });
     }
     return blocks;
-  }, [timeBlocks, weekDays, t]);
+  }, [hourHeight, timeBlocks, weekDays, t]);
 
   // due date markers
   const dueMarkers = useMemo(() => {
@@ -150,19 +159,19 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
       const hour = d.getHours() + d.getMinutes() / 60;
       markers.push({
         col: colIdx,
-        top: (hour - START_HOUR) * HOUR_HEIGHT,
+        top: (hour - START_HOUR) * hourHeight,
         title: a.title,
         color: a.course_color ?? "#ef4444",
       });
     }
     return markers;
-  }, [assignments, weekDays]);
+  }, [assignments, hourHeight, weekDays]);
 
   // current time indicator
   const todayCol = weekDays.findIndex((d) => d.isToday);
   const nowTop =
     todayCol >= 0
-      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT
+      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * hourHeight
       : -1;
 
   // click-to-create time block
@@ -173,9 +182,9 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
     const y = e.clientY - rect.top;
-    const hour = Math.floor(y / HOUR_HEIGHT) + START_HOUR;
+    const hour = Math.floor(y / hourHeight) + START_HOUR;
     const snappedMinute =
-      Math.round((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 2)) * 30;
+      Math.round((y % hourHeight) / (hourHeight / 2)) * 30;
 
     const date = weekDays[colIdx].date;
     const startHour = hour + (snappedMinute >= 60 ? 1 : 0);
@@ -215,6 +224,7 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
     >
       <div className="relative min-h-full min-w-[52rem] md:min-w-0">
         <div
+          ref={headerRef}
           className="sticky top-0 z-30 grid border-b border-border-subtle bg-surface"
           style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
         >
@@ -255,8 +265,8 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
         >
           <div className="sticky left-0 z-20 border-r border-border-subtle bg-surface">
             {HOURS.map((hour) => (
-              <div key={hour} style={{ height: HOUR_HEIGHT }} className="relative">
-                <span className="absolute -top-2.5 right-2 text-xs tabular-nums text-text-tertiary">
+              <div key={hour} style={{ height: hourHeight }} className="relative">
+                <span className={`absolute right-2 text-xs tabular-nums text-text-tertiary ${hour === START_HOUR ? "top-1" : "-top-2.5"}`}>
                   {timeFormatter.format(new Date(2024, 0, 1, hour))}
                 </span>
               </div>
@@ -272,7 +282,7 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
               {HOURS.map((hour) => (
                 <div
                   key={hour}
-                  style={{ height: HOUR_HEIGHT }}
+                  style={{ height: hourHeight }}
                   className="border-b border-subtle"
                 />
               ))}

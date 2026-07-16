@@ -69,7 +69,7 @@ test.describe("calendar responsive smoke", () => {
     if (width < 768) {
       await expect(page.getByLabel("Month view")).toHaveCount(0);
       await expect(page.getByLabel("Week view")).toHaveCount(0);
-      await expect(page.getByText("Calendar smoke task")).toBeVisible();
+      await expect(page.getByRole("main", { name: "Calendar" }).getByText("Calendar smoke task")).toBeVisible();
       await expect(page.getByText("Revision block")).toBeVisible();
       await expect(page.locator('input[type="date"]')).toHaveValue(dateKey);
       expect(
@@ -84,11 +84,19 @@ test.describe("calendar responsive smoke", () => {
       await page.getByRole("button", { name: "Add study block" }).first().click();
       await expect(page.getByRole("dialog").getByRole("heading", { name: "Add study block" })).toBeVisible();
     } else {
+      await page.setViewportSize({ width, height: 1400 });
       await expect(page.getByLabel("Month view")).toBeVisible();
       await page.getByRole("button", { name: "Month" }).click();
       await page.getByRole("menuitem", { name: "Week view" }).click();
-      await expect(page.getByLabel("Week view")).toBeVisible();
-      await expect(page.getByText("Calendar smoke task")).toBeVisible();
+      const weekView = page.getByLabel("Week view");
+      await expect(weekView).toBeVisible();
+      await expect(weekView.getByText("Calendar smoke task")).toBeVisible();
+      await expect.poll(() => weekView.evaluate((element) =>
+        element.scrollHeight === element.clientHeight && element.scrollTop === 0,
+      )).toBe(true);
+      const firstHour = await weekView.getByText("6 AM").boundingBox();
+      const weekBox = await weekView.boundingBox();
+      expect(firstHour?.y).toBeGreaterThanOrEqual(weekBox?.y ?? 0);
     }
   });
 });
