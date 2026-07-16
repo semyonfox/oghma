@@ -32,6 +32,8 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
 
 import sql from "@/database/pgsql.js";
 import { requireAuth } from "@/lib/api-error";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GET } from "@/app/api/vault/status/route";
 
 describe("GET /api/vault/status", () => {
@@ -39,6 +41,7 @@ describe("GET /api/vault/status", () => {
     vi.clearAllMocks();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "u1" } as never);
     process.env.STORAGE_BUCKET = "test";
+    process.env.STORAGE_PREFIX = "oghma";
   });
 
   it("returns export progress with processed_files", async () => {
@@ -66,6 +69,40 @@ describe("GET /api/vault/status", () => {
 
     expect(body.progress).toEqual({ completed: 42, total: 100, percent: 42 });
     expect(body.job.cancelRequested).toBe(false);
+  });
+
+  it("signs completed exports with the displayed filename", async () => {
+    vi.mocked(sql).mockResolvedValueOnce([
+      {
+        id: "j1",
+        type: "vault-export",
+        status: "complete",
+        created_at: "2026-05-13T00:00:00Z",
+        started_at: "2026-05-13T00:00:01Z",
+        completed_at: "2026-05-13T00:01:00Z",
+        expected_total: 2,
+        processed_files: 2,
+        cancel_requested_at: null,
+        output_s3_key: "exports/u1/j1/vault-export.zip",
+        download_url: null,
+        error_message: null,
+      },
+    ] as never);
+
+    const res = await GET(
+      new NextRequest("http://localhost/api/vault/status?type=vault-export"),
+    );
+    const body = await res.json();
+    const command = vi.mocked(getSignedUrl).mock.calls[0][1] as InstanceType<
+      typeof GetObjectCommand
+    >;
+
+    expect(command.input).toMatchObject({
+      Bucket: "test",
+      Key: "oghma/exports/u1/j1/vault-export.zip",
+      ResponseContentDisposition: 'attachment; filename="oghmanotes-vault.zip"',
+    });
+    expect(body.downloadUrl).toBe("https://signed.example/file.zip");
   });
 
   it("flags cancelRequested when cancel_requested_at is set", async () => {

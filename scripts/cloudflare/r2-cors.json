@@ -1,0 +1,15 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://dev.oghmanotes.ie",
+          "https://oghmanotes.ie"
+        ],
+        "methods": ["PUT"],
+        "headers": ["Content-Type", "x-amz-meta-expected-size"]
+      },
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

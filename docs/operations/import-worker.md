@@ -4,8 +4,8 @@
 >
 > Audience: OghmaNotes operators and import-pipeline maintainers
 >
-> Last verified: 2026-07-11 against the worker, queue facade, Jenkinsfile, and
-> tracked environment templates
+> Last verified: 2026-07-16 against the worker, queue facade, R2 browser upload,
+> Jenkinsfile, and tracked environment templates
 
 This runbook covers Canvas import, extraction retry, and vault import/export
 workloads. General container deployment, migrations, and rollback belong in
@@ -79,6 +79,41 @@ worker; changing the queue provider does not move extraction into a Worker.
 Jenkins injects the Qdrant endpoint and per-environment collections documented
 in the [homelab runtime guide](../../infra/HOMELAB.md). Keep collection naming
 with deployment topology instead of duplicating it in this workload runbook.
+
+## Browser uploads to object storage
+
+Vault imports upload directly from the browser to the configured S3-compatible
+endpoint before the app creates a worker job. The storage service must be
+browser-reachable and allow the app origin to send `PUT`, `Content-Type`, and
+`x-amz-meta-expected-size`.
+
+The desired live R2 policy is tracked in
+`scripts/cloudflare/r2-cors.json`. CORS is bucket-wide, so the shared
+`oghma-notes` bucket includes both deployed origins. Jenkins must not apply or
+reconcile this policy during normal app deployments.
+
+Before changing the policy, confirm the Cloudflare identity and inspect the full
+current configuration:
+
+```bash
+npx wrangler whoami
+npx wrangler r2 bucket cors list oghma-notes
+```
+
+`cors set` replaces the bucket policy. Preserve any existing rules in the
+tracked file before applying it, then use the non-interactive command only after
+reviewing the complete diff:
+
+```bash
+npx wrangler r2 bucket cors set oghma-notes \
+  --file scripts/cloudflare/r2-cors.json \
+  --force
+npx wrangler r2 bucket cors list oghma-notes
+```
+
+A successful command-line upload is not sufficient verification because it does
+not enforce browser CORS. Finish with a small dev vault import and confirm the
+preflight, direct `PUT`, import job, and worker completion.
 
 ## Deployment Verification
 

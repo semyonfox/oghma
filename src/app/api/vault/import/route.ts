@@ -48,6 +48,7 @@ export const POST = withErrorHandler(async (request) => {
 
   const s3 = new S3Client({
     ...createS3ClientConfig(createS3ConfigFromEnv()),
+    requestChecksumCalculation: "WHEN_REQUIRED",
   });
 
   const uploadUrl = await getSignedUrl(
@@ -59,7 +60,11 @@ export const POST = withErrorHandler(async (request) => {
       ContentLength: expectedSize,
       Metadata: { "expected-size": String(expectedSize) },
     }),
-    { expiresIn: 900 }, // 15 minutes
+    {
+      expiresIn: 900,
+      signableHeaders: new Set(["content-type", "x-amz-meta-expected-size"]),
+      unhoistableHeaders: new Set(["x-amz-meta-expected-size"]),
+    }, // 15 minutes
   );
 
   return NextResponse.json({ uploadUrl, s3Key, uploadId, contentLength: expectedSize });

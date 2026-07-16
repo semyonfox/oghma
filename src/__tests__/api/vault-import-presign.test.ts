@@ -35,9 +35,22 @@ describe("POST /api/vault/import", () => {
     await expect(POST(request({ filename: "import.zip", contentLength: 0 }))).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it("signs the authorized size into the PUT request", async () => {
-    await POST(request({ filename: "import.zip", contentLength: 12 }));
-    const command = vi.mocked(getSignedUrl).mock.calls[0][1] as InstanceType<typeof PutObjectCommand>;
-    expect(command.input).toMatchObject({ ContentLength: 12, Metadata: { "expected-size": "12" } });
+  it("accepts uppercase ZIP names and signs the upload constraints", async () => {
+    await POST(request({ filename: "import.ZIP", contentLength: 12 }));
+    const command = vi.mocked(getSignedUrl).mock.calls[0][1] as InstanceType<
+      typeof PutObjectCommand
+    >;
+
+    expect(command.input).toMatchObject({
+      ContentType: "application/zip",
+      ContentLength: 12,
+      Metadata: { "expected-size": "12" },
+    });
+    expect(command.input.Key).toMatch(/\/import\.ZIP$/);
+    expect(vi.mocked(getSignedUrl).mock.calls[0][2]).toMatchObject({
+      expiresIn: 900,
+      signableHeaders: new Set(["content-type", "x-amz-meta-expected-size"]),
+      unhoistableHeaders: new Set(["x-amz-meta-expected-size"]),
+    });
   });
 });
