@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
+import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -13,6 +14,7 @@ import {
   SparklesIcon,
   Cog6ToothIcon,
   AcademicCapIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 
 interface NavItem {
@@ -85,6 +87,18 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   const rightPanelOpen = useLayoutStore((state) => state.rightPanelOpen);
   const rightPanelTab = useLayoutStore((state) => state.rightPanelTab);
   const { t } = useI18n();
+  const pomodoroPhase = usePomodoroStore((state) => state.phase);
+  const startPomodoro = usePomodoroStore((state) => state.start);
+
+  const focusActive = pomodoroPhase !== "idle";
+  const focusLabel = t("Focus");
+  const focusTitle = focusActive ? t("Focus session in progress") : focusLabel;
+
+  const handleFocusClick = () => {
+    if (focusActive) return;
+    onNavigate?.();
+    void startPomodoro({});
+  };
 
   const derivedActiveSection: NavItem["section"] = pathname?.startsWith(
     "/settings",
@@ -162,6 +176,23 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
               </button>
             );
           })}
+
+          <button
+            type="button"
+            onClick={handleFocusClick}
+            disabled={focusActive}
+            aria-label={focusLabel}
+            aria-pressed={focusActive}
+            className={`flex min-h-11 w-full items-center gap-3 rounded-radius-md px-3 text-sm font-medium transition-colors ${
+              focusActive
+                ? "bg-primary-500/10 text-primary-400"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+            }`}
+            title={focusTitle}
+          >
+            <ClockIcon className="h-5 w-5 shrink-0" />
+            <span>{focusLabel}</span>
+          </button>
         </div>
 
         <div className="mt-auto border-t border-border-subtle pt-3">
@@ -231,6 +262,30 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
             </button>
           );
         })}
+
+        <button
+          type="button"
+          onClick={handleFocusClick}
+          disabled={focusActive}
+          aria-label={focusLabel}
+          aria-pressed={focusActive}
+          aria-describedby="tooltip-focus"
+          className={`group relative flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center rounded-radius-md transition-colors ${
+            focusActive
+              ? "bg-primary-500/10 text-primary-400"
+              : "text-text-tertiary hover:bg-subtle hover:text-text"
+          }`}
+          title={focusTitle}
+        >
+          <ClockIcon className="h-5 w-5" />
+          <div
+            id="tooltip-focus"
+            role="tooltip"
+            className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded-radius-md border border-border-subtle bg-surface px-2 py-1 text-xs text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            {focusTitle}
+          </div>
+        </button>
       </div>
 
       <div className="my-2 h-px w-8 bg-border" />
