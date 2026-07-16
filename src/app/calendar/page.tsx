@@ -18,12 +18,25 @@ import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
+import MobileDayAgenda from "@/components/calendar/mobile-day-agenda";
+import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
+import StudyBlockDialog from "@/components/calendar/study-block-dialog";
+import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
+import {
+  addDaysToDateKey,
+  formatDateKey,
+  localDateKeyRangeToIso,
+} from "@/lib/notes/utils/calendar-date";
 
 export default function CalendarPage() {
-  const { t } = useI18n();
+  const { activeLocale, t } = useI18n();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const hasTaskSidebar = useMediaQuery("(min-width: 1024px)");
   const [tasksOpen, setTasksOpen] = useState(false);
+  const [dayDetailsOpen, setDayDetailsOpen] = useState(false);
+  const [studyBlockOpen, setStudyBlockOpen] = useState(false);
+  const [studyBlockStart, setStudyBlockStart] = useState<string>();
+  const [studyBlockEnd, setStudyBlockEnd] = useState<string>();
   const {
     view,
     currentDate,
@@ -31,22 +44,63 @@ export default function CalendarPage() {
     navigateForward,
     navigateBack,
     goToToday,
+    selectedDate,
+    fetchTimeBlocks,
+    fetchReviewDates,
   } = useCalendarStore();
+  const fetchAssignments = useAssignmentStore((state) => state.fetchAssignments);
   const { setActiveNav } = useLayoutStore();
 
   useEffect(() => {
     setActiveNav("calendar");
   }, [setActiveNav]);
 
+  useEffect(() => {
+    void fetchAssignments();
+  }, [fetchAssignments]);
+
+  useEffect(() => {
+    const anchor = new Date(currentDate);
+    let startDateKey: string;
+    let endDateKey: string;
+    if (isDesktop === false) {
+      startDateKey = addDaysToDateKey(selectedDate, -7);
+      endDateKey = addDaysToDateKey(selectedDate, 7);
+    } else if (view === "month") {
+      startDateKey = formatDateKey(new Date(anchor.getFullYear(), anchor.getMonth(), -6));
+      endDateKey = formatDateKey(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 7));
+    } else {
+      const monday = new Date(anchor);
+      monday.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
+      startDateKey = formatDateKey(monday);
+      endDateKey = addDaysToDateKey(startDateKey, 6);
+    }
+    const range = localDateKeyRangeToIso(startDateKey, endDateKey);
+    void fetchTimeBlocks(range.start, range.end);
+    void fetchReviewDates(startDateKey, endDateKey);
+  }, [currentDate, fetchReviewDates, fetchTimeBlocks, isDesktop, selectedDate, view]);
+
+  useEffect(() => {
+    const refresh = () => {
+      const range = localDateKeyRangeToIso(
+        addDaysToDateKey(selectedDate, -7),
+        addDaysToDateKey(selectedDate, 7),
+      );
+      void fetchTimeBlocks(range.start, range.end);
+    };
+    window.addEventListener("oghma:time-block-changed", refresh);
+    return () => window.removeEventListener("oghma:time-block-changed", refresh);
+  }, [fetchTimeBlocks, selectedDate]);
+
   const current = new Date(currentDate);
-  const monthYear = current.toLocaleDateString("en-US", {
+  const monthYear = current.toLocaleDateString(activeLocale, {
     month: "long",
     year: "numeric",
   });
   const weekLabel =
     view === "week"
       ? t("Week of {date}", {
-          date: current.toLocaleDateString("en-US", {
+          date: current.toLocaleDateString(activeLocale, {
             month: "short",
             day: "numeric",
           }),
@@ -66,7 +120,7 @@ export default function CalendarPage() {
 
         <div className="flex min-w-0 flex-1">
           <main className="flex min-w-0 flex-1 flex-col" aria-label={t("Calendar")}>
-            <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 py-2 sm:px-4 md:px-6 md:py-3">
+            <header className="hidden shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 py-2 sm:px-4 md:flex md:px-6 md:py-3">
               <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary md:text-base">
                 <time>{weekLabel}</time>
               </h1>
@@ -137,14 +191,46 @@ export default function CalendarPage() {
               </div>
             </header>
 
+            {isDesktop === false && (
+              <div className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-2 py-1.5">
+                <button type="button" onClick={navigateBack} className="flex h-11 w-11 items-center justify-center rounded-md glass-card" aria-label={t("Previous period")}><ChevronLeftIcon className="h-4 w-4" /></button>
+                <button type="button" onClick={goToToday} className="h-11 rounded-md px-3 text-xs font-medium glass-card">{t("Today")}</button>
+                <button type="button" onClick={navigateForward} className="flex h-11 w-11 items-center justify-center rounded-md glass-card" aria-label={t("Next period")}><ChevronRightIcon className="h-4 w-4" /></button>
+                <div className="flex-1" />
+                <button type="button" onClick={() => setTasksOpen(true)} className="h-11 rounded-md px-3 text-xs font-medium glass-card">{t("Tasks")}</button>
+                <button type="button" onClick={() => { setStudyBlockStart(undefined); setStudyBlockEnd(undefined); setStudyBlockOpen(true); }} className="h-11 rounded-md bg-primary-600 px-3 text-xs font-medium text-text-on-primary">{t("Add study block")}</button>
+              </div>
+            )}
+
             <div className="min-h-0 flex-1 overflow-hidden">
-              {view === "month" ? <MonthView /> : <WeekView />}
+              {isDesktop === false ? (
+                <MobileDayAgenda
+                  onAddStudyBlock={() => setStudyBlockOpen(true)}
+                  onRetry={() => {
+                    void fetchAssignments();
+                    const range = localDateKeyRangeToIso(selectedDate, selectedDate);
+                    void fetchTimeBlocks(range.start, range.end);
+                    void fetchReviewDates(selectedDate, selectedDate);
+                  }}
+                />
+              ) : view === "month" ? (
+                <MonthView onSelectDate={() => setDayDetailsOpen(true)} />
+              ) : (
+                <WeekView
+                  onSelectDate={() => setDayDetailsOpen(true)}
+                  onAddStudyBlock={(_date, start, end) => {
+                    setStudyBlockStart(start);
+                    setStudyBlockEnd(end);
+                    setStudyBlockOpen(true);
+                  }}
+                />
+              )}
             </div>
           </main>
 
           {hasTaskSidebar === true && (
             <aside className="flex w-[280px] shrink-0 flex-col glass-panel">
-              <AssignmentTracker />
+              <AssignmentTracker surface="compact" />
             </aside>
           )}
         </div>
@@ -160,9 +246,28 @@ export default function CalendarPage() {
           className="lg:hidden"
           panelClassName="w-[94vw] max-w-md"
         >
-          <AssignmentTracker />
+          <AssignmentTracker surface="full" />
         </MobileDrawer>
       )}
+
+      <DayAgendaDialog
+        open={dayDetailsOpen}
+        onClose={() => setDayDetailsOpen(false)}
+        dateKey={selectedDate}
+        onAddStudyBlock={() => setStudyBlockOpen(true)}
+        onRetry={() => {
+          const range = localDateKeyRangeToIso(selectedDate, selectedDate);
+          void fetchTimeBlocks(range.start, range.end);
+          void fetchReviewDates(selectedDate, selectedDate);
+        }}
+      />
+      <StudyBlockDialog
+        open={studyBlockOpen}
+        onClose={() => setStudyBlockOpen(false)}
+        initialDate={selectedDate}
+        initialStart={studyBlockStart}
+        initialEnd={studyBlockEnd}
+      />
     </div>
   );
 }

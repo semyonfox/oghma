@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDaysToDateKey,
   addMonthsClamped,
+  calendarDayDifference,
   isoToDateKey,
   localDateKeyBoundaryToIso,
   localDateKeyRangeToIso,
+  parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
 
 function withTimeZone<T>(timeZone: string, run: () => T): T {
@@ -89,6 +92,37 @@ describe("localDateKeyBoundaryToIso", () => {
 
   it("returns invalid date keys unchanged", () => {
     expect(localDateKeyBoundaryToIso("not-a-date", "start")).toBe("not-a-date");
+  });
+});
+
+describe("local calendar date helpers", () => {
+  it("rejects impossible local date keys", () => {
+    expect(parseLocalDateKey("2026-02-29")).toBeNull();
+    expect(parseLocalDateKey("2024-02-29")).toBeInstanceOf(Date);
+  });
+
+  it("adds local calendar days across daylight saving changes", () => {
+    withTimeZone("Europe/Dublin", () => {
+      expect(addDaysToDateKey("2026-03-28", 1)).toBe("2026-03-29");
+      expect(addDaysToDateKey("2026-03-29", 1)).toBe("2026-03-30");
+    });
+  });
+
+  it("compares calendar days instead of rolling 24-hour intervals", () => {
+    withTimeZone("Europe/Dublin", () => {
+      expect(
+        calendarDayDifference(
+          new Date("2026-03-30T00:15:00+01:00"),
+          new Date("2026-03-29T23:45:00+01:00"),
+        ),
+      ).toBe(1);
+      expect(
+        calendarDayDifference(
+          new Date("2026-03-29T22:30:00+01:00"),
+          new Date("2026-03-29T08:00:00+01:00"),
+        ),
+      ).toBe(0);
+    });
   });
 });
 

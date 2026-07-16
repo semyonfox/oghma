@@ -13,14 +13,24 @@ import {
   ListboxButton,
   ListboxOption,
   ListboxOptions,
+  Tab,
+  TabGroup,
+  TabList,
+  TabPanel,
+  TabPanels,
 } from "@headlessui/react";
 import { ChevronUpDownIcon } from "@heroicons/react/20/solid";
+import { toast } from "sonner";
 import useAssignmentStore, {
   type Assignment,
   type AssignmentTab,
 } from "@/lib/notes/state/assignments.zustand";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import {
+  getAssignmentDueDayDifference,
+  getEffectiveAssignmentStatus,
+} from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
 import {
@@ -30,7 +40,9 @@ import {
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
 
-// -- concentric activity rings ---------------------------------------------
+interface AssignmentTrackerProps {
+  surface?: "compact" | "full";
+}
 
 interface CourseRingData {
   name: string;
@@ -39,55 +51,47 @@ interface CourseRingData {
   total: number;
 }
 
+const tabs: AssignmentTab[] = ["upcoming", "done", "late"];
+
 function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
   if (courses.length === 0) return null;
 
   const size = 120;
-  const cx = size / 2;
+  const center = size / 2;
   const strokeWidth = 6;
   const gap = 3;
-  // outermost radius leaves room for stroke
-  const outerR = cx - strokeWidth / 2 - 1;
+  const outerRadius = center - strokeWidth / 2 - 1;
 
   return (
-    <div className="flex flex-col items-center gap-2 px-3 py-3">
-      {/* concentric ring SVG */}
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="shrink-0"
-      >
-        {courses.map((c, i) => {
-          const r = outerR - i * (strokeWidth + gap);
-          if (r <= 0) return null;
-          const circ = 2 * Math.PI * r;
-          const pct = c.total > 0 ? c.done / c.total : 0;
+    <div className="hidden flex-col items-center gap-2 px-3 py-3 sm:flex">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {courses.map((course, index) => {
+          const radius = outerRadius - index * (strokeWidth + gap);
+          if (radius <= 0) return null;
+          const circumference = 2 * Math.PI * radius;
+          const progress = course.total > 0 ? course.done / course.total : 0;
 
           return (
-            <g key={c.name}>
-              {/* background track */}
+            <g key={course.name}>
               <circle
-                cx={cx}
-                cy={cx}
-                r={r}
+                cx={center}
+                cy={center}
+                r={radius}
                 fill="none"
                 strokeWidth={strokeWidth}
                 className="stroke-border-subtle"
               />
-              {/* progress arc */}
-              {pct > 0 && (
+              {progress > 0 && (
                 <circle
-                  cx={cx}
-                  cy={cx}
-                  r={r}
+                  cx={center}
+                  cy={center}
+                  r={radius}
                   fill="none"
                   strokeWidth={strokeWidth}
-                  stroke={c.color}
-                  strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
+                  stroke={course.color}
+                  strokeDasharray={`${circumference * progress} ${circumference * (1 - progress)}`}
                   strokeLinecap="round"
-                  transform={`rotate(-90 ${cx} ${cx})`}
-                  style={{ transition: "stroke-dasharray 0.4s ease" }}
+                  transform={`rotate(-90 ${center} ${center})`}
                 />
               )}
             </g>
@@ -95,21 +99,21 @@ function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
         })}
       </svg>
 
-      {/* legend */}
-      <div className="flex flex-col gap-1">
-        {courses.map((c) => {
-          const pct = c.total > 0 ? Math.round((c.done / c.total) * 100) : 0;
+      <div className="flex max-w-full flex-col gap-1">
+        {courses.map((course) => {
+          const progress =
+            course.total > 0 ? Math.round((course.done / course.total) * 100) : 0;
           return (
             <div
-              key={c.name}
-              className="flex items-center gap-1.5 text-xs text-text-tertiary leading-4"
+              key={course.name}
+              className="flex items-center gap-1.5 text-xs leading-4 text-text-tertiary"
             >
               <span
-                className="inline-block w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: c.color }}
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: course.color }}
               />
-              <span className="truncate max-w-[120px]">{c.name}</span>
-              <span className="ml-auto tabular-nums opacity-70">{pct}%</span>
+              <span className="max-w-[120px] truncate">{course.name}</span>
+              <span className="ml-auto tabular-nums opacity-70">{progress}%</span>
             </div>
           );
         })}
@@ -118,58 +122,69 @@ function ConcentricRings({ courses }: { courses: CourseRingData[] }) {
   );
 }
 
-// -- helpers ---------------------------------------------------------------
-
 function urgencyLabel(
-  dueAt: string | null,
-  status: string,
+  assignment: Assignment,
+  now: Date,
   t: (key: string, params?: Record<string, unknown>) => string,
 ): { text: string; tone: "red" | "amber" | "muted" | "none" } {
-  if (!dueAt) return { text: "", tone: "none" };
-  const diff = new Date(dueAt).getTime() - Date.now();
-  const days = Math.ceil(diff / 86400000);
+  if (!assignment.due_at) return { text: "", tone: "none" };
+  const due = new Date(assignment.due_at);
+  if (Number.isNaN(due.getTime())) return { text: "", tone: "none" };
 
-  if (status === "late" || days < 0)
+  const dayDifference = getAssignmentDueDayDifference(assignment.due_at, now);
+  const effectiveStatus = getEffectiveAssignmentStatus(assignment, now);
+  if (effectiveStatus === "late") {
+    if (dayDifference === 0) return { text: t("Overdue"), tone: "red" };
     return {
-      text: t("assignments.overdue", { count: Math.abs(days) }),
+      text: t("assignments.overdue", {
+        count: Math.max(1, Math.abs(dayDifference ?? -1)),
+      }),
       tone: "red",
     };
-  if (days === 0) return { text: t("assignments.due_today"), tone: "red" };
-  if (days === 1) return { text: t("assignments.due_tomorrow"), tone: "amber" };
-  return {
-    text: t("assignments.due_in_days", { count: days }),
-    tone: days <= 3 ? "amber" : "muted",
-  };
+  }
+  if (dayDifference === 0) {
+    return { text: t("assignments.due_today"), tone: "red" };
+  }
+  if (dayDifference === 1) {
+    return { text: t("assignments.due_tomorrow"), tone: "amber" };
+  }
+  if (dayDifference != null && dayDifference > 1) {
+    return {
+      text: t("assignments.due_in_days", { count: dayDifference }),
+      tone: dayDifference <= 3 ? "amber" : "muted",
+    };
+  }
+  return { text: "", tone: "none" };
 }
 
-const toneFg: Record<string, string> = {
-  red: "text-red-400",
-  amber: "text-amber-400",
+const toneClasses = {
+  red: "text-error-400",
+  amber: "text-warning-400",
   muted: "text-text-tertiary",
   none: "text-text-tertiary",
 };
 
-function isVisibleInTab(a: Assignment, tab: AssignmentTab) {
-  const isCanvasUndated = a.source === "canvas" && !a.due_at;
+function isVisibleInTab(assignment: Assignment, tab: AssignmentTab, now: Date) {
+  const isCanvasUndated = assignment.source === "canvas" && !assignment.due_at;
+  const status = getEffectiveAssignmentStatus(assignment, now);
   if (tab === "upcoming") {
     if (isCanvasUndated) return false;
-    return a.status === "upcoming" || a.status === "in_progress";
+    return status === "upcoming" || status === "in_progress";
   }
-  if (tab === "done") return a.status === "done";
-  if (tab === "late") {
-    if (isCanvasUndated) return false;
-    return a.status === "late";
-  }
-  return true;
+  if (tab === "done") return status === "done";
+  if (isCanvasUndated) return false;
+  return status === "late";
 }
 
-// -- main component --------------------------------------------------------
-
-export default function AssignmentTracker() {
+export default function AssignmentTracker({
+  surface = "compact",
+}: AssignmentTrackerProps) {
   const { t } = useI18n();
   const {
     assignments,
     loading,
+    hasLoaded,
+    error,
     courseFilter,
     activeTab,
     includeAll,
@@ -182,10 +197,11 @@ export default function AssignmentTracker() {
     setIncludeArchived,
     updateAssignment,
   } = useAssignmentStore();
-  const pomodoroStart = usePomodoroStore((s) => s.start);
+  const pomodoroStart = usePomodoroStore((state) => state.start);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const previousIncludeArchived = useRef(includeArchived);
   const {
     settings,
@@ -198,127 +214,109 @@ export default function AssignmentTracker() {
     const includeArchivedChanged = previousIncludeArchived.current !== includeArchived;
     previousIncludeArchived.current = includeArchived;
     if (includeArchivedChanged) return;
-    fetchAssignments({ all: includeAll, includeArchived });
+    void fetchAssignments({ all: includeAll, includeArchived });
   }, [fetchAssignments, includeAll, includeArchived]);
 
   useEffect(() => {
     void fetchCourseSettings().catch(() => {});
   }, [fetchCourseSettings]);
 
-  // build course list for filter dropdown
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const courses = useMemo(() => {
-    const names = new Set(
-      assignments.map((a) => a.course_name).filter(Boolean),
-    );
+    const names = new Set(assignments.map((assignment) => assignment.course_name).filter(Boolean));
     return Array.from(names) as string[];
   }, [assignments]);
 
-  // per-course ring data -- uses visible assignments (respects course filter)
   const courseRings = useMemo<CourseRingData[]>(() => {
     const source = courseFilter
-      ? assignments.filter((a) => a.course_name === courseFilter)
+      ? assignments.filter((assignment) => assignment.course_name === courseFilter)
       : assignments;
     const map = new Map<string, CourseRingData>();
-    for (const a of source) {
-      const name = a.course_name ?? "Other";
-      const color = a.course_color ?? "var(--color-primary-500)";
+    for (const assignment of source) {
+      const name = assignment.course_name ?? "Other";
+      const color = assignment.course_color ?? "var(--color-primary-500)";
       if (!map.has(name)) map.set(name, { name, color, done: 0, total: 0 });
       const entry = map.get(name)!;
-      entry.total++;
-      if (a.status === "done") entry.done++;
+      entry.total += 1;
+      if (assignment.status === "done") entry.done += 1;
     }
-    // sort by name for stable order
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [assignments, courseFilter]);
 
-  // filtered list for the active tab
-  const filtered = useMemo(() => {
-    return assignments.filter((a) => {
-      if (courseFilter && a.course_name !== courseFilter) return false;
-      return isVisibleInTab(a, activeTab);
-    });
-  }, [assignments, courseFilter, activeTab]);
-
-  // tab counts (respect course filter)
   const counts = useMemo(() => {
     const base = courseFilter
-      ? assignments.filter((a) => a.course_name === courseFilter)
+      ? assignments.filter((assignment) => assignment.course_name === courseFilter)
       : assignments;
     return {
-      upcoming: base.filter((a) => isVisibleInTab(a, "upcoming")).length,
-      done: base.filter((a) => isVisibleInTab(a, "done")).length,
-      late: base.filter((a) => isVisibleInTab(a, "late")).length,
+      upcoming: base.filter((assignment) => isVisibleInTab(assignment, "upcoming", now))
+        .length,
+      done: base.filter((assignment) => isVisibleInTab(assignment, "done", now)).length,
+      late: base.filter((assignment) => isVisibleInTab(assignment, "late", now)).length,
     };
-  }, [assignments, courseFilter]);
+  }, [assignments, courseFilter, now]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    await syncFromCanvas();
-    setSyncing(false);
+  const tabLabels: Record<AssignmentTab, string> = {
+    upcoming: t("Upcoming"),
+    done: t("Done"),
+    late: t("Overdue"),
   };
-
-  const handleStartFocus = (a: Assignment) => {
-    pomodoroStart({
-      assignmentId: a.id,
-      assignmentTitle: a.title,
-      courseName: a.course_name ?? undefined,
-      courseColor: a.course_color ?? undefined,
-    });
-  };
-
-  const handleToggleDone = async (a: Assignment) => {
-    const newStatus = a.status === "done" ? "upcoming" : "done";
-    await updateAssignment(a.id, { status: newStatus });
-    if (newStatus === "done") {
-      void triggerCelebration("assignment");
-    }
-  };
-
-  const tabs: { key: AssignmentTab; label: string }[] = [
-    { key: "upcoming", label: t("Upcoming") },
-    { key: "done", label: t("Done") },
-    { key: "late", label: t("Late") },
-  ];
 
   const courseVisibilityItems = useMemo(
     () =>
       mergeCourseVisibilityItems(
         Array.from(
           assignments.reduce((map, assignment) => {
-            if (!assignment.canvas_course_id || !assignment.course_name) {
-              return map;
-            }
-
+            if (!assignment.canvas_course_id || !assignment.course_name) return map;
             const current = map.get(assignment.canvas_course_id) ?? {
               courseId: assignment.canvas_course_id,
               courseName: assignment.course_name,
               count: 0,
             };
-
             map.set(assignment.canvas_course_id, {
               ...current,
               count: current.count + 1,
             });
-
             return map;
           }, new Map<number, { courseId: number; courseName: string; count: number }>()),
         ).map(([, item]) => ({
           courseId: item.courseId,
           courseName: item.courseName,
-          contextText: `${item.count} visible ${item.count === 1 ? "assignment" : "assignments"}`,
+          contextText: `${item.count} ${t("Tasks")}`,
         })),
         settings,
       ),
-    [assignments, settings],
+    [assignments, settings, t],
   );
 
+  const retry = () =>
+    fetchAssignments({ all: includeAll, includeArchived });
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncFromCanvas();
+      if (!result) toast.error(t("Something went wrong"));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleToggleDone = async (assignment: Assignment) => {
+    const status = assignment.status === "done" ? "upcoming" : "done";
+    const updated = await updateAssignment(assignment.id, { status });
+    if (!updated) {
+      toast.error(t("Something went wrong"));
+      return;
+    }
+    if (status === "done") void triggerCelebration("assignment");
+  };
+
   const refreshAssignmentsAndSettings = async () => {
-    await Promise.all([
-      fetchCourseSettings(),
-      fetchAssignments({ all: includeAll, includeArchived }),
-    ]);
+    await Promise.all([fetchCourseSettings(), retry()]);
   };
 
   const handleSetCourseVisibility = async (
@@ -338,13 +336,162 @@ export default function AssignmentTracker() {
     await refreshAssignmentsAndSettings();
   };
 
+  const renderAssignments = (tab: AssignmentTab) => {
+    const filtered = assignments.filter((assignment) => {
+      if (courseFilter && assignment.course_name !== courseFilter) return false;
+      return isVisibleInTab(assignment, tab, now);
+    });
+
+    if (!hasLoaded && loading) {
+      return (
+        <p role="status" className="py-8 text-center text-xs text-text-tertiary">
+          {t("Loading...")}
+        </p>
+      );
+    }
+
+    if (error && assignments.length === 0) {
+      return (
+        <div role="alert" className="flex flex-col items-center gap-3 px-3 py-8 text-center">
+          <p className="text-xs text-error-300">{t("Something went wrong")}</p>
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="min-h-11 rounded-radius-md border border-border-subtle px-4 text-xs font-medium text-text-secondary hover:bg-subtle"
+          >
+            {t("Try again")}
+          </button>
+        </div>
+      );
+    }
+
+    if (filtered.length === 0) {
+      const message =
+        tab === "done"
+          ? t("No completed tasks")
+          : tab === "late"
+            ? t("No overdue tasks")
+            : t("No upcoming tasks");
+      return (
+        <div className="flex flex-col items-center gap-3 px-3 py-8 text-center">
+          <p className="text-xs text-text-tertiary opacity-70">{message}</p>
+          <button
+            type="button"
+            onClick={() => setShowNewTask(true)}
+            className="min-h-11 rounded-radius-md border border-border-subtle px-4 text-xs font-medium text-text-secondary hover:bg-subtle"
+          >
+            {t("New Task")}
+          </button>
+        </div>
+      );
+    }
+
+    return filtered.map((assignment) => {
+      const due = urgencyLabel(assignment, now, t);
+      const hoursLogged = Number(assignment.logged_hours) || 0;
+      const hoursEstimated = assignment.estimated_hours ?? 0;
+      const progress =
+        hoursEstimated > 0
+          ? Math.min(100, (hoursLogged / hoursEstimated) * 100)
+          : 0;
+      const completed = assignment.status === "done";
+
+      return (
+        <article
+          key={assignment.id}
+          className="glass-card-interactive rounded-radius-lg p-2.5 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleToggleDone(assignment)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-primary-400"
+                aria-label={completed ? t("Mark as upcoming") : t("Mark as done")}
+              >
+                {completed ? (
+                  <CheckCircleSolid className="h-4 w-4 text-primary-400" />
+                ) : (
+                  <CheckCircleIcon className="h-4 w-4" />
+                )}
+              </button>
+              {assignment.course_name && (
+                <span className="inline-flex min-w-0 items-center gap-1 text-xs leading-4 text-text-tertiary">
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor:
+                        assignment.course_color ?? "var(--color-primary-500)",
+                    }}
+                  />
+                  <span className="truncate">{assignment.course_name}</span>
+                </span>
+              )}
+            </div>
+            {!completed && (
+              <button
+                type="button"
+                onClick={() =>
+                  pomodoroStart({
+                    assignmentId: assignment.id,
+                    assignmentTitle: assignment.title,
+                    courseName: assignment.course_name ?? undefined,
+                    courseColor: assignment.course_color ?? undefined,
+                  })
+                }
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-primary-500/10 hover:text-primary-400"
+                aria-label={t("Start Focus")}
+              >
+                <PlayIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <h3
+            className={`mt-1 text-sm font-medium leading-snug ${completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}
+          >
+            {assignment.title}
+          </h3>
+
+          <div className="mt-1.5 flex items-center gap-2 text-xs">
+            {due.text && <span className={toneClasses[due.tone]}>{due.text}</span>}
+            {assignment.points_possible != null && (
+              <span className="text-text-tertiary">
+                {assignment.score != null ? `${assignment.score}/` : ""}
+                {assignment.points_possible} {t("assignments.pts")}
+              </span>
+            )}
+          </div>
+
+          {hoursEstimated > 0 && (
+            <div className="mt-2">
+              <div className="h-[3px] rounded-full bg-subtle">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${progress}%`,
+                    backgroundColor:
+                      assignment.course_color ?? "var(--color-primary-500)",
+                    opacity: 0.6,
+                  }}
+                />
+              </div>
+              <p className="mt-0.5 text-xs text-text-tertiary opacity-70">
+                {hoursLogged.toFixed(1)}/{hoursEstimated}h
+              </p>
+            </div>
+          )}
+        </article>
+      );
+    });
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* header row: course filter + sync */}
-      <div className="flex flex-wrap items-center gap-2 px-3 pb-1 pt-3 lg:flex-nowrap">
+      <div className="flex flex-wrap items-center gap-2 px-3 pb-1 pt-3">
         <Listbox value={courseFilter} onChange={setCourseFilter}>
-          <div className="relative min-w-0 flex-[1_1_10rem]">
-            <ListboxButton className="relative flex min-h-11 w-full items-center rounded-radius-md py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary glass-card transition-colors hover:bg-subtle lg:min-h-0">
+          <div className="relative min-w-0 basis-full">
+            <ListboxButton className="relative flex min-h-11 w-full items-center rounded-radius-md py-1.5 pl-2.5 pr-8 text-left text-xs text-text-secondary glass-card transition-colors hover:bg-subtle">
               <span className="min-w-0 truncate">
                 {courseFilter || t("All Courses")}
               </span>
@@ -352,217 +499,129 @@ export default function AssignmentTracker() {
                 <ChevronUpDownIcon className="h-3.5 w-3.5 text-text-tertiary" />
               </span>
             </ListboxButton>
-            <ListboxOptions className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-radius-md glass-card py-1 text-xs shadow-lg">
+            <ListboxOptions className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-radius-md glass-card py-1 text-xs shadow-lg">
               <ListboxOption
                 value={null}
-                className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                className="min-h-11 cursor-pointer px-2.5 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
               >
                 {t("All Courses")}
               </ListboxOption>
-              {courses.map((c) => (
+              {courses.map((course) => (
                 <ListboxOption
-                  key={c}
-                  value={c}
-                  className="cursor-pointer px-2.5 py-1.5 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
+                  key={course}
+                  value={course}
+                  className="min-h-11 cursor-pointer px-2.5 py-3 text-text-secondary hover:bg-subtle data-[focus]:bg-subtle"
                 >
-                  {c}
+                  {course}
                 </ListboxOption>
               ))}
             </ListboxOptions>
           </div>
         </Listbox>
+
         <button
+          type="button"
           onClick={() => setIncludeAll(!includeAll)}
-          className={`min-h-11 rounded-full border px-3 py-1 text-xs font-medium transition-colors lg:min-h-0 lg:px-2.5 ${
+          className={`min-h-11 rounded-full border px-3 text-xs font-medium transition-colors ${
             includeAll
               ? "border-primary-500/40 bg-primary-500/15 text-primary-200"
-              : "border-border-subtle bg-surface text-text-tertiary hover:text-text-secondary hover:bg-subtle"
+              : "border-border-subtle bg-surface text-text-tertiary hover:bg-subtle hover:text-text-secondary"
           }`}
-          title={
-            includeAll ? t("Showing all assignments") : t("Get all assignments")
-          }
+          aria-pressed={includeAll}
         >
           {includeAll ? t("All") : t("Get all")}
         </button>
         <button
           type="button"
           onClick={() => setShowCourseManager(true)}
-          className="min-h-11 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle lg:min-h-0 lg:px-2.5"
+          className="min-h-11 rounded-full border border-border-subtle bg-surface px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
         >
           {t("Manage")}
         </button>
         <button
-          onClick={handleSync}
+          type="button"
+          onClick={() => void handleSync()}
           disabled={syncing}
-          className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40 lg:h-auto lg:w-auto lg:p-1.5"
-          title={t("Sync from Canvas")}
+          className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary disabled:opacity-40"
+          aria-label={t("Sync from Canvas")}
         >
-          <ArrowPathIcon
-            className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
-          />
+          <ArrowPathIcon className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      {/* archived toggle */}
-      <div className="px-3 pb-2">
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-text-tertiary lg:min-h-0">
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => setIncludeArchived(e.target.checked)}
-            className="rounded border-border-subtle"
-          />
-          {t("Show archived courses")}
-        </label>
-      </div>
+      <label className="mx-3 flex min-h-11 cursor-pointer items-center gap-2 text-xs text-text-tertiary">
+        <input
+          type="checkbox"
+          checked={includeArchived}
+          onChange={(event) => void setIncludeArchived(event.target.checked)}
+          className="rounded border-border-subtle"
+        />
+        {t("Show archived courses")}
+      </label>
 
-      {/* per-course completion rings */}
-      <ConcentricRings courses={courseRings} />
+      {surface === "full" && <ConcentricRings courses={courseRings} />}
 
-      {/* tab bar */}
-      <div className="flex mx-3 mb-2 rounded-md bg-subtle p-0.5">
-        {tabs.map(({ key, label }) => (
+      {error && assignments.length > 0 && (
+        <div
+          role="alert"
+          className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-radius-md border border-error-500/20 bg-error-500/10 px-2.5 py-2"
+        >
+          <span className="text-xs text-error-300">{t("Something went wrong")}</span>
           <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`
-              min-h-11 flex-1 py-1.5 text-xs font-medium text-center rounded-radius-sm transition-all lg:min-h-0
-              ${
-                activeTab === key
-                  ? "bg-surface text-text-secondary shadow-sm"
-                  : "text-text-tertiary hover:text-text-secondary"
-              }
-            `}
+            type="button"
+            onClick={() => void retry()}
+            className="min-h-9 rounded-radius-sm px-2 text-xs font-medium text-text-secondary hover:bg-subtle"
           >
-            {label}
-            {counts[key] > 0 && (
-              <span
-                className={`ml-1 text-xs ${activeTab === key ? "opacity-60" : "opacity-40"}`}
-              >
-                {counts[key]}
-              </span>
-            )}
+            {t("Try again")}
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* assignment list */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-1.5 obsidian-scrollbar">
-        {loading ? (
-          <p className="text-xs text-text-tertiary py-8 text-center">
-            {t("Loading...")}
-          </p>
-        ) : filtered.length === 0 ? (
-          <p className="text-xs text-text-tertiary py-8 text-center opacity-60">
-            {activeTab === "done"
-              ? t("No completed assignments")
-              : t("No assignments")}
-          </p>
-        ) : (
-          filtered.map((a) => {
-            const due = urgencyLabel(a.due_at, a.status, t);
-            const hoursLogged = Number(a.logged_hours) || 0;
-            const hoursEst = a.estimated_hours ?? 0;
-            const hoursPct =
-              hoursEst > 0 ? Math.min(100, (hoursLogged / hoursEst) * 100) : 0;
+      {loading && hasLoaded && (
+        <p role="status" className="px-3 pb-2 text-xs text-text-tertiary">
+          {t("Loading...")}
+        </p>
+      )}
 
-            return (
-              <div
-                key={a.id}
-                className="group glass-card-interactive rounded-radius-lg p-2.5 transition-colors"
-              >
-                {/* top row: done checkbox + course badge + focus button */}
-                <div className="flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <button
-                      onClick={() => handleToggleDone(a)}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center text-text-tertiary transition-colors hover:text-primary-400 lg:h-auto lg:w-auto"
-                      title={
-                        a.status === "done"
-                          ? t("Mark as upcoming")
-                          : t("Mark as done")
-                      }
-                    >
-                      {a.status === "done" ? (
-                        <CheckCircleSolid className="h-4 w-4 text-primary-400" />
-                      ) : (
-                        <CheckCircleIcon className="h-4 w-4" />
-                      )}
-                    </button>
-                    {a.course_name && (
-                      <span className="inline-flex items-center gap-1 text-xs text-text-tertiary leading-4">
-                        <span
-                          className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{
-                            backgroundColor:
-                              a.course_color ?? "var(--color-primary-500)",
-                          }}
-                        />
-                        <span className="truncate">{a.course_name}</span>
-                      </span>
-                    )}
-                  </div>
-                  {a.status !== "done" && (
-                    <button
-                      onClick={() => handleStartFocus(a)}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-text-tertiary opacity-100 transition-all hover:bg-primary-500/10 hover:text-primary-400 lg:h-auto lg:w-auto lg:p-1 lg:opacity-0 lg:group-hover:opacity-100"
-                      title={t("Start Focus")}
-                    >
-                      <PlayIcon className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
+      <TabGroup
+        selectedIndex={tabs.indexOf(activeTab)}
+        onChange={(index) => setActiveTab(tabs[index])}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabList
+          className="mx-3 mb-2 flex rounded-radius-md bg-subtle p-0.5"
+          aria-label={t("Tasks")}
+        >
+          {tabs.map((tab) => (
+            <Tab
+              key={tab}
+              className="min-h-11 flex-1 rounded-radius-sm py-1.5 text-center text-xs font-medium text-text-tertiary transition-all data-selected:bg-surface data-selected:text-text-secondary data-selected:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            >
+              {tabLabels[tab]}
+              {counts[tab] > 0 && (
+                <span className="ml-1 text-xs opacity-60">{counts[tab]}</span>
+              )}
+            </Tab>
+          ))}
+        </TabList>
 
-                {/* title */}
-                <p
-                  className={`mt-1 text-sm font-medium leading-snug ${a.status === "done" ? "line-through text-text-tertiary" : "text-text-secondary"}`}
-                >
-                  {a.title}
-                </p>
+        <TabPanels className="min-h-0 flex-1">
+          {tabs.map((tab) => (
+            <TabPanel
+              key={tab}
+              className="obsidian-scrollbar h-full space-y-1.5 overflow-y-auto px-3 focus:outline-none"
+            >
+              {renderAssignments(tab)}
+            </TabPanel>
+          ))}
+        </TabPanels>
+      </TabGroup>
 
-                {/* meta row: due label + score */}
-                <div className="mt-1.5 flex items-center gap-2 text-xs">
-                  {due.text && (
-                    <span className={toneFg[due.tone]}>{due.text}</span>
-                  )}
-                  {a.points_possible != null && (
-                    <span className="text-text-tertiary">
-                      {a.score != null ? `${a.score}/` : ""}
-                      {a.points_possible} {t("assignments.pts")}
-                    </span>
-                  )}
-                </div>
-
-                {/* hour progress bar */}
-                {hoursEst > 0 && (
-                  <div className="mt-2">
-                    <div className="h-[3px] rounded-full bg-subtle">
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${hoursPct}%`,
-                          backgroundColor:
-                            a.course_color ?? "var(--color-primary-500)",
-                          opacity: 0.6,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-0.5 text-xs text-text-tertiary opacity-70">
-                      {hoursLogged.toFixed(1)}/{hoursEst}h
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* new task */}
       <div className="p-3">
         <button
+          type="button"
           onClick={() => setShowNewTask(true)}
-          className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
+          className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-radius-lg border border-dashed border-border-subtle py-2 text-xs text-text-tertiary transition-colors hover:border-border hover:text-text-secondary"
         >
           <PlusIcon className="h-3.5 w-3.5" />
           {t("New Task")}

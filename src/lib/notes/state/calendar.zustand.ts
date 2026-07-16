@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { addMonthsClamped } from "@/lib/notes/utils/calendar-date";
+import {
+  addDaysToDateKey,
+  addMonthsToDateKey,
+  formatDateKey,
+  parseLocalDateKey,
+} from "@/lib/notes/utils/calendar-date";
 
 export type CalendarView = "month" | "week";
 
@@ -12,7 +17,6 @@ export interface TimeBlock {
   ends_at: string;
   pomodoro_count: number;
   completed: boolean;
-  // joined from assignments
   assignment_title?: string;
   course_name?: string;
   course_color?: string;
@@ -20,83 +24,137 @@ export interface TimeBlock {
 
 interface CalendarState {
   view: CalendarView;
-  currentDate: string; // ISO date string for serialization
-  selectedDate: string | null;
+  currentDate: string;
+  selectedDate: string;
   timeBlocks: TimeBlock[];
   loading: boolean;
+  error: string | null;
   reviewDates: Set<string>;
-  fetchReviewDates: (start: string, end: string) => Promise<void>;
+  reviewDatesLoading: boolean;
+  reviewDatesError: string | null;
 
   setView: (view: CalendarView) => void;
   navigateForward: () => void;
   navigateBack: () => void;
   goToToday: () => void;
-  setSelectedDate: (date: string | null) => void;
+  setSelectedDate: (date: string) => void;
   fetchTimeBlocks: (start: string, end: string) => Promise<void>;
+  fetchReviewDates: (start: string, end: string) => Promise<void>;
   createTimeBlock: (block: {
     assignment_id?: string;
     title?: string;
     starts_at: string;
     ends_at: string;
   }) => Promise<TimeBlock | null>;
-  updateTimeBlock: (id: string, data: Partial<TimeBlock>) => Promise<void>;
-  toggleTimeBlockCompleted: (id: string) => Promise<void>;
-  deleteTimeBlock: (id: string) => Promise<void>;
+  updateTimeBlock: (
+    id: string,
+    data: Partial<TimeBlock>,
+  ) => Promise<TimeBlock | null>;
+  toggleTimeBlockCompleted: (id: string) => Promise<boolean>;
+  deleteTimeBlock: (id: string) => Promise<boolean>;
 }
 
-function addWeeks(dateStr: string, n: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n * 7);
-  return d.toISOString();
+let timeBlockFetchSequence = 0;
+let reviewDateFetchSequence = 0;
+
+function anchorIso(dateKey: string): string {
+  const date = parseLocalDateKey(dateKey);
+  if (!date) return new Date().toISOString();
+  date.setHours(12, 0, 0, 0);
+  return date.toISOString();
 }
+
+function movedDate(
+  dateKey: string,
+  view: CalendarView,
+  direction: -1 | 1,
+): string {
+  return view === "month"
+    ? addMonthsToDateKey(dateKey, direction)
+    : addDaysToDateKey(dateKey, direction * 7);
+}
+
+const today = formatDateKey(new Date());
 
 const useCalendarStore = create<CalendarState>()(
   persist(
     (set, get) => ({
       view: "month",
-      currentDate: new Date().toISOString(),
-      selectedDate: null,
+      currentDate: anchorIso(today),
+      selectedDate: today,
       timeBlocks: [],
       loading: false,
+      error: null,
       reviewDates: new Set<string>(),
+      reviewDatesLoading: false,
+      reviewDatesError: null,
 
       setView: (view) => set({ view }),
 
       navigateForward: () => {
-        const { view, currentDate } = get();
-        set({
-          currentDate:
-            view === "month"
-              ? addMonthsClamped(currentDate, 1)
-              : addWeeks(currentDate, 1),
-        });
+        const { view, selectedDate } = get();
+        const nextDate = movedDate(selectedDate, view, 1);
+        set({ selectedDate: nextDate, currentDate: anchorIso(nextDate) });
       },
 
       navigateBack: () => {
-        const { view, currentDate } = get();
-        set({
-          currentDate:
-            view === "month"
-              ? addMonthsClamped(currentDate, -1)
-              : addWeeks(currentDate, -1),
-        });
+        const { view, selectedDate } = get();
+        const nextDate = movedDate(selectedDate, view, -1);
+        set({ selectedDate: nextDate, currentDate: anchorIso(nextDate) });
       },
 
-      goToToday: () => set({ currentDate: new Date().toISOString() }),
+      goToToday: () => {
+        const date = formatDateKey(new Date());
+        set({ selectedDate: date, currentDate: anchorIso(date) });
+      },
 
-      setSelectedDate: (date) => set({ selectedDate: date }),
+      setSelectedDate: (date) => {
+        if (!parseLocalDateKey(date)) return;
+        set({ selectedDate: date, currentDate: anchorIso(date) });
+      },
 
       fetchTimeBlocks: async (start, end) => {
-        set({ loading: true });
+        const requestSequence = ++timeBlockFetchSequence;
+        set({ loading: true, error: null });
         try {
           const res = await fetch(
             `/api/time-blocks?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
           );
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
-          set({ timeBlocks: data, loading: false });
-        } catch {
-          set({ loading: false });
+          if (requestSequence !== timeBlockFetchSequence) return;
+          set({ timeBlocks: data, loading: false, error: null });
+        } catch (error) {
+          if (requestSequence !== timeBlockFetchSequence) return;
+          set({
+            loading: false,
+            error: error instanceof Error ? error.message : "fetch failed",
+          });
+        }
+      },
+
+      fetchReviewDates: async (start, end) => {
+        const requestSequence = ++reviewDateFetchSequence;
+        set({ reviewDatesLoading: true, reviewDatesError: null });
+        try {
+          const res = await fetch(
+            `/api/quiz/review-dates?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+          );
+          if (!res.ok) throw new Error("fetch failed");
+          const data = await res.json();
+          if (requestSequence !== reviewDateFetchSequence) return;
+          set({
+            reviewDates: new Set(data.dates),
+            reviewDatesLoading: false,
+            reviewDatesError: null,
+          });
+        } catch (error) {
+          if (requestSequence !== reviewDateFetchSequence) return;
+          set({
+            reviewDatesLoading: false,
+            reviewDatesError:
+              error instanceof Error ? error.message : "fetch failed",
+          });
         }
       },
 
@@ -109,7 +167,7 @@ const useCalendarStore = create<CalendarState>()(
           });
           if (!res.ok) return null;
           const created = await res.json();
-          set((s) => ({ timeBlocks: [...s.timeBlocks, created] }));
+          set((state) => ({ timeBlocks: [...state.timeBlocks, created] }));
           return created;
         } catch {
           return null;
@@ -123,47 +181,46 @@ const useCalendarStore = create<CalendarState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
           });
-          if (!res.ok) return;
+          if (!res.ok) return null;
           const updated = await res.json();
-          set((s) => ({
-            timeBlocks: s.timeBlocks.map((b) => (b.id === id ? updated : b)),
+          set((state) => ({
+            timeBlocks: state.timeBlocks.map((block) =>
+              block.id === id ? updated : block,
+            ),
           }));
+          return updated;
         } catch {
-          // silent
+          return null;
         }
       },
 
       toggleTimeBlockCompleted: async (id) => {
-        const block = get().timeBlocks.find((b) => b.id === id);
-        if (!block) return;
-        const newCompleted = !block.completed;
-        // optimistic update
-        set((s) => ({
-          timeBlocks: s.timeBlocks.map((b) =>
-            b.id === id ? { ...b, completed: newCompleted } : b,
+        const block = get().timeBlocks.find((item) => item.id === id);
+        if (!block) return false;
+        const completed = !block.completed;
+        set((state) => ({
+          timeBlocks: state.timeBlocks.map((item) =>
+            item.id === id ? { ...item, completed } : item,
           ),
         }));
+
         try {
           const res = await fetch(`/api/time-blocks/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ completed: newCompleted }),
+            body: JSON.stringify({ completed }),
           });
-          if (!res.ok) {
-            // revert on failure
-            set((s) => ({
-              timeBlocks: s.timeBlocks.map((b) =>
-                b.id === id ? { ...b, completed: !newCompleted } : b,
-              ),
-            }));
-          }
+          if (res.ok) return true;
         } catch {
-          set((s) => ({
-            timeBlocks: s.timeBlocks.map((b) =>
-              b.id === id ? { ...b, completed: !newCompleted } : b,
-            ),
-          }));
+          // revert below
         }
+
+        set((state) => ({
+          timeBlocks: state.timeBlocks.map((item) =>
+            item.id === id ? { ...item, completed: !completed } : item,
+          ),
+        }));
+        return false;
       },
 
       deleteTimeBlock: async (id) => {
@@ -171,33 +228,19 @@ const useCalendarStore = create<CalendarState>()(
           const res = await fetch(`/api/time-blocks/${id}`, {
             method: "DELETE",
           });
-          if (!res.ok) return;
-          set((s) => ({
-            timeBlocks: s.timeBlocks.filter((b) => b.id !== id),
+          if (!res.ok) return false;
+          set((state) => ({
+            timeBlocks: state.timeBlocks.filter((block) => block.id !== id),
           }));
+          return true;
         } catch {
-          // silent
-        }
-      },
-
-      fetchReviewDates: async (start, end) => {
-        try {
-          const res = await fetch(
-            `/api/quiz/review-dates?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
-          );
-          if (!res.ok) return;
-          const data = await res.json();
-          set({ reviewDates: new Set(data.dates) });
-        } catch {
-          // silent
+          return false;
         }
       },
     }),
     {
       name: "oghma-calendar",
-      partialize: (state) => ({
-        view: state.view,
-      }),
+      partialize: (state) => ({ view: state.view }),
     },
   ),
 );

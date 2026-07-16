@@ -276,10 +276,10 @@ export function CourseVisibilityDialog({
   const { t } = useI18n();
 
   return (
-    <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="w-full max-w-2xl rounded-radius-lg border border-border-subtle bg-app-page shadow-2xl">
+    <Dialog open={open} onClose={onClose} className="relative z-[70]">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-[1px]" aria-hidden="true" />
+      <div className="fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
+        <DialogPanel className="flex max-h-[calc(100dvh-0.5rem)] w-full flex-col overflow-hidden rounded-t-radius-lg border border-border-subtle bg-app-page shadow-2xl sm:max-w-2xl sm:rounded-radius-lg">
           <div className="flex items-start justify-between border-b border-border-subtle px-5 py-4">
             <div>
               <DialogTitle className="text-base font-semibold text-text-secondary">
@@ -292,12 +292,16 @@ export function CourseVisibilityDialog({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-radius-md p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              aria-label={t("Close")}
             >
-              <XMarkIcon className="h-5 w-5" />
+              <XMarkIcon className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
-          <div className="max-h-[70vh] overflow-y-auto px-5 py-5">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+          >
             <CourseVisibilityManager {...props} />
           </div>
         </DialogPanel>

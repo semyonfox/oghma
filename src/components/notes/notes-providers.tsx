@@ -2,7 +2,6 @@
 
 // providers wrapper for notes editor with Zustand state management
 import { ReactNode, Suspense } from "react";
-import { Toaster } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import I18nProvider from "@/lib/i18n/provider";
 import { useLocaleLoader } from "@/lib/hooks/useLocaleLoader";
@@ -25,7 +24,6 @@ function NotesProvidersContent({ children }: NotesProvidersProps) {
       <TrashModal />
       <PreviewModal />
       <LinkToolbar />
-      <Toaster position="bottom-center" />
     </>
   );
 
@@ -53,7 +51,6 @@ export default function NotesProviders({ children }: NotesProvidersProps) {
         fallback={
           <I18nProvider locale={Locale.EN} lngDict={{}}>
             {children}
-            <Toaster position="bottom-center" />
           </I18nProvider>
         }
       >

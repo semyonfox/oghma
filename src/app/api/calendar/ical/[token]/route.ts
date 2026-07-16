@@ -1,79 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import sql from "@/database/pgsql.js";
-
-// ── iCal helpers ─────────────────────────────────────────────────────────────
-
-function escapeIcal(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "");
-}
-
-// fold lines at 75 octets per RFC 5545
-function foldLine(line: string): string {
-  const bytes = new TextEncoder().encode(line);
-  if (bytes.length <= 75) return line;
-
-  const parts: string[] = [];
-  let offset = 0;
-  let first = true;
-  while (offset < bytes.length) {
-    const limit = first ? 75 : 74; // continuation lines start with a space
-    parts.push(
-      new TextDecoder().decode(bytes.slice(offset, offset + limit)),
-    );
-    offset += limit;
-    first = false;
-  }
-  return parts.join("\r\n ");
-}
-
-function formatDt(date: Date): string {
-  return date
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}/, "");
-}
-
-interface VeventProps {
-  uid: string;
-  summary: string;
-  dtstart: Date;
-  dtend: Date;
-  description?: string | null;
-  categories?: string | null;
-  status?: "CONFIRMED" | "COMPLETED" | "CANCELLED";
-}
-
-function buildVevent(props: VeventProps): string {
-  const dtstamp = formatDt(new Date());
-  const lines = [
-    "BEGIN:VEVENT",
-    foldLine(`UID:${props.uid}`),
-    `DTSTAMP:${dtstamp}`,
-    `DTSTART:${formatDt(props.dtstart)}`,
-    `DTEND:${formatDt(props.dtend)}`,
-    foldLine(`SUMMARY:${escapeIcal(props.summary)}`),
-  ];
-
-  if (props.description) {
-    lines.push(foldLine(`DESCRIPTION:${escapeIcal(props.description)}`));
-  }
-  if (props.categories) {
-    lines.push(foldLine(`CATEGORIES:${escapeIcal(props.categories)}`));
-  }
-  if (props.status) {
-    lines.push(`STATUS:${props.status}`);
-  }
-
-  lines.push("END:VEVENT");
-  return lines.join("\r\n");
-}
-
-// ── Route handler ─────────────────────────────────────────────────────────────
+import { buildIcalEvent } from "@/lib/calendar/ical";
 
 export async function GET(
   _req: NextRequest,
@@ -135,7 +62,7 @@ export async function GET(
       .join("\n") || null;
 
     vevents.push(
-      buildVevent({
+      buildIcalEvent({
         uid: `assignment-${a.id}@oghmanotes`,
         summary,
         dtstart,
@@ -158,7 +85,7 @@ export async function GET(
       : blockTitle;
 
     vevents.push(
-      buildVevent({
+      buildIcalEvent({
         uid: `timeblock-${tb.id}@oghmanotes`,
         summary,
         dtstart: new Date(tb.starts_at),

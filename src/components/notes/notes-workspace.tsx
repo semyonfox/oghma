@@ -113,7 +113,7 @@ export default function NotesWorkspace() {
     rightPanelTab === "ai"
       ? t("AI Chat")
       : rightPanelTab === "tasks"
-        ? t("Tasks")
+        ? t("Global Tasks")
         : t("Meta");
 
   return (
@@ -155,7 +155,7 @@ export default function NotesWorkspace() {
             className="md:hidden"
             panelClassName="w-[94vw] max-w-md"
           >
-            <NoteInspectorPanel />
+            <NoteInspectorPanel presentation="drawer" />
           </MobileDrawer>
         </>
       )}

@@ -108,6 +108,12 @@ function I18nRootProviderContent({ children }: Props) {
     loadLocale();
   }, [pathname]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.lang = localeData.locale;
+    root.dir = localeData.locale.toLowerCase().startsWith("ar") ? "rtl" : "ltr";
+  }, [localeData.locale]);
+
   return (
     <I18nProvider locale={localeData.locale} lngDict={localeData.dict}>
       {children}

@@ -25,6 +25,8 @@ export type AssignmentTab = "upcoming" | "done" | "late";
 interface AssignmentState {
   assignments: Assignment[];
   loading: boolean;
+  hasLoaded: boolean;
+  error: string | null;
   courseFilter: string | null;
   activeTab: AssignmentTab;
   includeAll: boolean;
@@ -35,8 +37,11 @@ interface AssignmentState {
     includeArchived?: boolean;
   }) => Promise<void>;
   createAssignment: (data: Partial<Assignment>) => Promise<Assignment | null>;
-  updateAssignment: (id: string, data: Partial<Assignment>) => Promise<void>;
-  deleteAssignment: (id: string) => Promise<void>;
+  updateAssignment: (
+    id: string,
+    data: Partial<Assignment>,
+  ) => Promise<Assignment | null>;
+  deleteAssignment: (id: string) => Promise<boolean>;
   syncFromCanvas: () => Promise<{ count: number } | null>;
   setCourseFilter: (course: string | null) => void;
   setActiveTab: (tab: AssignmentTab) => void;
@@ -44,18 +49,23 @@ interface AssignmentState {
   setIncludeArchived: (value: boolean) => Promise<void>;
 }
 
+let assignmentFetchSequence = 0;
+
 const useAssignmentStore = create<AssignmentState>()(
   persist(
     (set, get) => ({
       assignments: [],
       loading: false,
+      hasLoaded: false,
+      error: null,
       courseFilter: null,
       activeTab: "upcoming",
       includeAll: false,
       includeArchived: false,
 
       fetchAssignments: async (opts) => {
-        set({ loading: true });
+        const requestSequence = ++assignmentFetchSequence;
+        set({ loading: true, error: null });
         try {
           const all = opts?.all ?? get().includeAll;
           const includeArchived = opts?.includeArchived ?? get().includeArchived;
@@ -66,9 +76,15 @@ const useAssignmentStore = create<AssignmentState>()(
           const res = await fetch(`/api/assignments${query}`);
           if (!res.ok) throw new Error("fetch failed");
           const data = await res.json();
-          set({ assignments: data, loading: false });
-        } catch {
-          set({ loading: false });
+          if (requestSequence !== assignmentFetchSequence) return;
+          set({ assignments: data, loading: false, hasLoaded: true, error: null });
+        } catch (error) {
+          if (requestSequence !== assignmentFetchSequence) return;
+          set({
+            loading: false,
+            hasLoaded: true,
+            error: error instanceof Error ? error.message : "fetch failed",
+          });
         }
       },
 
@@ -95,13 +111,14 @@ const useAssignmentStore = create<AssignmentState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
           });
-          if (!res.ok) return;
+          if (!res.ok) return null;
           const updated = await res.json();
           set((s) => ({
             assignments: s.assignments.map((a) => (a.id === id ? updated : a)),
           }));
+          return updated;
         } catch {
-          // silent
+          return null;
         }
       },
 
@@ -110,12 +127,13 @@ const useAssignmentStore = create<AssignmentState>()(
           const res = await fetch(`/api/assignments/${id}`, {
             method: "DELETE",
           });
-          if (!res.ok) return;
+          if (!res.ok) return false;
           set((s) => ({
             assignments: s.assignments.filter((a) => a.id !== id),
           }));
+          return true;
         } catch {
-          // silent
+          return false;
         }
       },
 

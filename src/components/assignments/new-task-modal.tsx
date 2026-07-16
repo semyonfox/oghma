@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   Dialog,
   DialogBackdrop,
@@ -24,33 +24,53 @@ export default function NewTaskModal({
 }: NewTaskModalProps) {
   const { t } = useI18n();
   const createAssignment = useAssignmentStore((s) => s.createAssignment);
+  const formId = useId();
+  const titleId = `${formId}-title`;
+  const courseId = `${formId}-course`;
+  const dueDateId = `${formId}-due-date`;
+  const estimatedHoursId = `${formId}-estimated-hours`;
+  const descriptionId = `${formId}-description`;
+  const courseListId = `${formId}-course-suggestions`;
   const [title, setTitle] = useState("");
   const [courseName, setCourseName] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setError(null);
+  }, [open]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
 
     setSaving(true);
-    await createAssignment({
-      title: title.trim(),
-      course_name: courseName || null,
-      due_at: dueAt || null,
-      estimated_hours: estimatedHours ? Number(estimatedHours) : null,
-      description: description || null,
-    });
-    setSaving(false);
+    setError(null);
+    try {
+      const created = await createAssignment({
+        title: title.trim(),
+        course_name: courseName || null,
+        due_at: dueAt || null,
+        estimated_hours: estimatedHours ? Number(estimatedHours) : null,
+        description: description || null,
+      });
+      if (!created) {
+        setError(t("Something went wrong"));
+        return;
+      }
 
-    setTitle("");
-    setCourseName("");
-    setDueAt("");
-    setEstimatedHours("");
-    setDescription("");
-    onClose();
+      setTitle("");
+      setCourseName("");
+      setDueAt("");
+      setEstimatedHours("");
+      setDescription("");
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputClassName =
@@ -84,10 +104,14 @@ export default function NewTaskModal({
             style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
           >
             <div>
-              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
+              <label
+                htmlFor={titleId}
+                className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary"
+              >
                 {t("Title")}
               </label>
               <input
+                id={titleId}
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -99,18 +123,22 @@ export default function NewTaskModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
+              <label
+                htmlFor={courseId}
+                className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary"
+              >
                 {t("Course")}
               </label>
               <input
+                id={courseId}
                 type="text"
                 value={courseName}
                 onChange={(event) => setCourseName(event.target.value)}
-                list="course-suggestions"
+                list={courseListId}
                 className={inputClassName}
                 placeholder={t("Course name...")}
               />
-              <datalist id="course-suggestions">
+              <datalist id={courseListId}>
                 {courses.map((course) => (
                   <option key={course} value={course} />
                 ))}
@@ -119,10 +147,14 @@ export default function NewTaskModal({
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0">
-                <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
+                <label
+                  htmlFor={dueDateId}
+                  className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary"
+                >
                   {t("Due Date")}
                 </label>
                 <input
+                  id={dueDateId}
                   type="datetime-local"
                   value={dueAt}
                   onChange={(event) => setDueAt(event.target.value)}
@@ -130,10 +162,14 @@ export default function NewTaskModal({
                 />
               </div>
               <div className="min-w-0">
-                <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
+                <label
+                  htmlFor={estimatedHoursId}
+                  className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary"
+                >
                   {t("Est. Hours")}
                 </label>
                 <input
+                  id={estimatedHoursId}
                   type="number"
                   min="0"
                   step="0.5"
@@ -146,10 +182,14 @@ export default function NewTaskModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary">
+              <label
+                htmlFor={descriptionId}
+                className="mb-1 block text-xs uppercase tracking-wider text-text-tertiary"
+              >
                 {t("Description")}
               </label>
               <textarea
+                id={descriptionId}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 rows={3}
@@ -157,6 +197,15 @@ export default function NewTaskModal({
                 placeholder={t("Optional notes...")}
               />
             </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="rounded-radius-md border border-error-500/30 bg-error-500/10 px-3 py-2 text-xs text-error-300"
+              >
+                {error}. {t("Try again")}
+              </p>
+            )}
 
             <button
               type="submit"

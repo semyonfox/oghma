@@ -32,7 +32,11 @@ interface InspectorNote {
   note_id?: string;
 }
 
-export default function NoteInspectorPanel() {
+export default function NoteInspectorPanel({
+  presentation = "desktop",
+}: {
+  presentation?: "desktop" | "drawer";
+}) {
   const { t } = useI18n();
   const {
     activePane,
@@ -133,7 +137,7 @@ export default function NoteInspectorPanel() {
     [activeFile?.fileId, note?.content],
   );
 
-  const tabClasses = (tab: RightPanelTab) => `
+  const tabClasses = (tab: Exclude<RightPanelTab, "tasks">) => `
     px-2.5 py-1.5 text-xs font-medium transition-colors border-b-2
     ${
       activeTab === tab
@@ -144,54 +148,64 @@ export default function NoteInspectorPanel() {
 
   return (
     <div className="h-full flex flex-col text-text">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border-subtle px-3 h-9">
-        <h3 className="text-sm text-text-secondary truncate">
-          {activeFile?.title || t("No file")}
-        </h3>
-        {rightPanelOpen && (
-          <button
-            onClick={toggleRightPanel}
-            className="rounded p-1 text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary flex-shrink-0"
-            title={t("Collapse panel")}
-          >
-            <ChevronRightIcon className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      {presentation === "desktop" && (
+        <div className="flex h-9 items-center justify-between border-b border-border-subtle px-3">
+          <h3 className="truncate text-sm text-text-secondary">
+            {activeTab === "tasks"
+              ? t("Global Tasks")
+              : activeFile?.title || t("No file")}
+          </h3>
+          {rightPanelOpen && (
+            <button
+              type="button"
+              onClick={toggleRightPanel}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary"
+              aria-label={t("Collapse panel")}
+            >
+              <ChevronRightIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Tabs */}
-      <div
-        className="flex border-b border-border-subtle px-2"
-        role="tablist"
-        aria-label="Inspector tabs"
-      >
+      <div className="flex items-stretch justify-between border-b border-border-subtle px-2">
+        <div className="flex" role="tablist" aria-label="Inspector tabs">
+          <button
+            type="button"
+            role="tab"
+            id="tab-meta"
+            aria-selected={activeTab === "meta"}
+            aria-controls="panel-meta"
+            tabIndex={activeTab === "meta" ? 0 : -1}
+            onClick={() => setRightPanelTab("meta")}
+            className={tabClasses("meta")}
+          >
+            {t("Meta")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-ai"
+            aria-selected={activeTab === "ai"}
+            aria-controls="panel-ai"
+            tabIndex={activeTab === "ai" ? 0 : -1}
+            onClick={() => setRightPanelTab("ai")}
+            className={tabClasses("ai")}
+          >
+            {t("AI")}
+          </button>
+        </div>
         <button
-          role="tab"
-          aria-selected={activeTab === "meta"}
-          aria-controls="panel-meta"
-          onClick={() => setRightPanelTab("meta")}
-          className={tabClasses("meta")}
-        >
-          {t("Meta")}
-        </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === "ai"}
-          aria-controls="panel-ai"
-          onClick={() => setRightPanelTab("ai")}
-          className={tabClasses("ai")}
-        >
-          {t("AI")}
-        </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === "tasks"}
-          aria-controls="panel-tasks"
+          type="button"
           onClick={() => setRightPanelTab("tasks")}
-          className={tabClasses("tasks")}
+          aria-pressed={activeTab === "tasks"}
+          className={`border-b-2 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            activeTab === "tasks"
+              ? "border-primary-500 text-text-secondary"
+              : "border-transparent text-text-tertiary hover:text-text-secondary"
+          }`}
         >
-          {t("Tasks")}
+          {t("Global Tasks")}
         </button>
       </div>
 
@@ -199,7 +213,12 @@ export default function NoteInspectorPanel() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Meta Tab — file info + tags */}
         {activeTab === "meta" && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div
+            id="panel-meta"
+            role="tabpanel"
+            aria-labelledby="tab-meta"
+            className="flex-1 overflow-y-auto p-4 space-y-5"
+          >
             {loading ? (
               <p className="text-xs text-text-tertiary">{t("Loading...")}</p>
             ) : note ? (
@@ -297,7 +316,12 @@ export default function NoteInspectorPanel() {
 
         {/* AI Tab */}
         {activeTab === "ai" && (
-          <div className="flex-1 flex flex-col min-h-0">
+          <div
+            id="panel-ai"
+            role="tabpanel"
+            aria-labelledby="tab-ai"
+            className="flex-1 flex flex-col min-h-0"
+          >
             {activeFile?.fileId && (
               <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border-subtle">
                 <p className="text-xs text-text-tertiary truncate">
@@ -338,7 +362,9 @@ export default function NoteInspectorPanel() {
         )}
 
         {/* Tasks Tab */}
-        {activeTab === "tasks" && <TodoTab />}
+        {activeTab === "tasks" && (
+          <TodoTab surface={presentation === "drawer" ? "full" : "compact"} />
+        )}
       </div>
     </div>
   );

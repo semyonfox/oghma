@@ -6,7 +6,9 @@ export function formatDateKey(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function parseDateKey(dateKey: string): { year: number; month: number; day: number } | null {
+export function parseDateKey(
+  dateKey: string,
+): { year: number; month: number; day: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if (!match) return null;
 
@@ -15,7 +17,61 @@ function parseDateKey(dateKey: string): { year: number; month: number; day: numb
   const day = Number.parseInt(match[3], 10);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
+  const candidate = new Date(year, month - 1, day);
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day
+  ) {
+    return null;
+  }
+
   return { year, month, day };
+}
+
+export function parseLocalDateKey(dateKey: string): Date | null {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) return null;
+  return new Date(parsed.year, parsed.month - 1, parsed.day);
+}
+
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const date = parseLocalDateKey(dateKey);
+  if (!date) return dateKey;
+  date.setDate(date.getDate() + days);
+  return formatDateKey(date);
+}
+
+export function addMonthsToDateKey(dateKey: string, months: number): string {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) return dateKey;
+
+  const target = new Date(parsed.year, parsed.month - 1 + months, 1);
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0,
+  ).getDate();
+  target.setDate(Math.min(parsed.day, lastDay));
+  return formatDateKey(target);
+}
+
+export function calendarDayDifference(
+  value: Date | string,
+  reference: Date = new Date(),
+): number | null {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime()) || Number.isNaN(reference.getTime())) {
+    return null;
+  }
+
+  const valueUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const referenceUtc = Date.UTC(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate(),
+  );
+  return Math.round((valueUtc - referenceUtc) / 86_400_000);
 }
 
 export function localDateKeyBoundaryToIso(

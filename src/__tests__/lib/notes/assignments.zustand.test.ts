@@ -9,6 +9,14 @@ function okJson(body: unknown) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 const storage = {
   getItem: vi.fn(() => null),
   setItem: vi.fn(),
@@ -94,5 +102,39 @@ describe("assignment store archive visibility", () => {
 
     expect(useAssignmentStore.getState().includeArchived).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith("/api/assignments?includeArchived=1");
+  });
+
+  it("keeps the newest assignment request when an older request resolves last", async () => {
+    const first = deferred<ReturnType<typeof okJson>>();
+    const second = deferred<ReturnType<typeof okJson>>();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    const useAssignmentStore = await loadStore();
+
+    const oldRequest = useAssignmentStore.getState().fetchAssignments({ all: false });
+    const newRequest = useAssignmentStore.getState().fetchAssignments({ all: true });
+
+    second.resolve(okJson([{ id: "new" }]));
+    await newRequest;
+    first.resolve(okJson([{ id: "old" }]));
+    await oldRequest;
+
+    expect(useAssignmentStore.getState().assignments).toEqual([{ id: "new" }]);
+    expect(useAssignmentStore.getState().loading).toBe(false);
+  });
+
+  it("retains cached assignments and exposes fetch failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const useAssignmentStore = await loadStore();
+    useAssignmentStore.setState({ assignments: [{ id: "cached" }] as never });
+
+    await useAssignmentStore.getState().fetchAssignments();
+
+    expect(useAssignmentStore.getState().assignments).toEqual([{ id: "cached" }]);
+    expect(useAssignmentStore.getState().hasLoaded).toBe(true);
+    expect(useAssignmentStore.getState().error).toBe("fetch failed");
   });
 });

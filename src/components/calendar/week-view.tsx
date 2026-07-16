@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
@@ -8,7 +8,6 @@ import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   formatDateKey,
-  localDateKeyRangeToIso,
 } from "@/lib/notes/utils/calendar-date";
 
 const HOUR_HEIGHT = 56; // px per hour row
@@ -21,6 +20,7 @@ const HOURS = Array.from(
 
 function getWeekDays(
   anchor: Date,
+  locale: string,
 ): { date: string; label: string; dayNum: string; isToday: boolean }[] {
   const d = new Date(anchor);
   const dow = (d.getDay() + 6) % 7; // monday=0
@@ -35,18 +35,11 @@ function getWeekDays(
     const dateStr = formatDateKey(day);
     return {
       date: dateStr,
-      label: day.toLocaleDateString("en-US", { weekday: "short" }),
+      label: day.toLocaleDateString(locale, { weekday: "short" }),
       dayNum: String(day.getDate()),
       isToday: dateStr === todayStr,
     };
   });
-}
-
-function formatHour(h: number): string {
-  if (h === 0) return "12AM";
-  if (h < 12) return `${h}AM`;
-  if (h === 12) return "12PM";
-  return `${h - 12}PM`;
 }
 
 interface PositionedBlock {
@@ -59,13 +52,16 @@ interface PositionedBlock {
   col: number;
 }
 
-export default function WeekView() {
-  const { t } = useI18n();
+interface WeekViewProps {
+  onSelectDate?: (date: string) => void;
+  onAddStudyBlock?: (date: string, start: string, end: string) => void;
+}
+
+export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProps) {
+  const { activeLocale, t } = useI18n();
   const {
     currentDate,
     timeBlocks,
-    fetchTimeBlocks,
-    createTimeBlock,
     deleteTimeBlock,
     toggleTimeBlockCompleted,
     setSelectedDate,
@@ -75,29 +71,28 @@ export default function WeekView() {
   const gridRef = useRef<HTMLDivElement>(null);
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
-  const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
+  const weekDays = useMemo(() => getWeekDays(anchor, activeLocale), [activeLocale, anchor]);
+  const [now, setNow] = useState(() => new Date());
+  const timeFormatter = useMemo(
+    () => new Intl.DateTimeFormat(activeLocale, { hour: "numeric" }),
+    [activeLocale],
+  );
 
-  // fetch time blocks for the week
   useEffect(() => {
-    const { start, end } = localDateKeyRangeToIso(
-      weekDays[0].date,
-      weekDays[6].date,
-    );
-    fetchTimeBlocks(start, end);
-  }, [weekDays, fetchTimeBlocks]);
-
-  // refresh when AI creates/completes a time block
-  useEffect(() => {
-    const refresh = () => {
-      const { start, end } = localDateKeyRangeToIso(
-        weekDays[0].date,
-        weekDays[6].date,
-      );
-      fetchTimeBlocks(start, end);
+    const update = () => setNow(new Date());
+    const delay = 60_000 - (Date.now() % 60_000);
+    let interval: number | undefined;
+    const timeout = window.setTimeout(() => {
+      update();
+      interval = window.setInterval(update, 60_000);
+    }, delay);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", update);
     };
-    window.addEventListener("oghma:time-block-changed", refresh);
-    return () => window.removeEventListener("oghma:time-block-changed", refresh);
-  }, [weekDays, fetchTimeBlocks]);
+  }, []);
 
   // scroll to 8am on mount
   useEffect(() => {
@@ -164,7 +159,6 @@ export default function WeekView() {
   }, [assignments, weekDays]);
 
   // current time indicator
-  const now = new Date();
   const todayCol = weekDays.findIndex((d) => d.isToday);
   const nowTop =
     todayCol >= 0
@@ -172,7 +166,7 @@ export default function WeekView() {
       : -1;
 
   // click-to-create time block
-  const handleGridClick = async (
+  const handleGridClick = (
     colIdx: number,
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
@@ -207,19 +201,10 @@ export default function WeekView() {
       0,
       0,
     );
-    const starts_at = startDate.toISOString();
-    const ends_at = endDate.toISOString();
-
-    // prevent overlapping time blocks on the same slot
-    const hasOverlap = timeBlocks.some(
-      (tb) =>
-        new Date(tb.starts_at).getTime() < endDate.getTime() &&
-        new Date(tb.ends_at).getTime() > startDate.getTime(),
-    );
-    if (hasOverlap) return;
-
-    await createTimeBlock({ starts_at, ends_at });
     setSelectedDate(date);
+    const formatTime = (value: Date) =>
+      `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+    onAddStudyBlock?.(date, formatTime(startDate), formatTime(endDate));
   };
 
   return (
@@ -239,6 +224,15 @@ export default function WeekView() {
               key={day.date}
               className="flex flex-col items-center bg-surface py-2 text-xs text-text-tertiary"
             >
+              <button
+                type="button"
+                className="flex min-h-11 w-full flex-col items-center justify-center"
+                onClick={() => {
+                  setSelectedDate(day.date);
+                  onSelectDate?.(day.date);
+                }}
+                aria-label={t("Select {date}", { date: day.date })}
+              >
               <span>{day.label}</span>
               <span
                 className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
@@ -249,6 +243,7 @@ export default function WeekView() {
               >
                 {day.dayNum}
               </span>
+              </button>
             </div>
           ))}
         </div>
@@ -262,7 +257,7 @@ export default function WeekView() {
             {HOURS.map((hour) => (
               <div key={hour} style={{ height: HOUR_HEIGHT }} className="relative">
                 <span className="absolute -top-2.5 right-2 text-xs tabular-nums text-text-tertiary">
-                  {formatHour(hour)}
+                  {timeFormatter.format(new Date(2024, 0, 1, hour))}
                 </span>
               </div>
             ))}
@@ -348,13 +343,20 @@ export default function WeekView() {
                 .map((marker, index) => (
                   <div
                     key={`due-${index}`}
-                    className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed"
+                    className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed"
                     style={{
                       top: marker.top,
                       borderColor: marker.color,
                     }}
                     title={t("Due: {title}", { title: marker.title })}
-                  />
+                  >
+                    <span
+                      className="absolute right-0 top-0 max-w-[calc(100%-0.25rem)] -translate-y-full truncate rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
+                      style={{ backgroundColor: marker.color }}
+                    >
+                      {marker.title}
+                    </span>
+                  </div>
                 ))}
 
               {colIdx === todayCol && nowTop >= 0 && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
@@ -8,7 +8,6 @@ import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import {
   formatDateKey,
   isoToDateKey,
-  localDateKeyRangeToIso,
 } from "@/lib/notes/utils/calendar-date";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
@@ -94,8 +93,12 @@ function dayOfMonth(dateStr: string): string {
   return String(Number(dateStr.split("-")[2]));
 }
 
-export default function MonthView() {
-  const { t } = useI18n();
+interface MonthViewProps {
+  onSelectDate?: (date: string) => void;
+}
+
+export default function MonthView({ onSelectDate }: MonthViewProps) {
+  const { activeLocale, t } = useI18n();
   const {
     currentDate,
     selectedDate,
@@ -103,48 +106,34 @@ export default function MonthView() {
     deleteTimeBlock,
     toggleTimeBlockCompleted,
     timeBlocks,
-    fetchTimeBlocks,
     reviewDates,
-    fetchReviewDates,
   } = useCalendarStore();
   const { assignments, updateAssignment } = useAssignmentStore();
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
 
-  // fetch time blocks for the visible range
-  useEffect(() => {
-    const year = anchor.getFullYear();
-    const month = anchor.getMonth();
-    const startDateKey = formatDateKey(new Date(year, month - 1, 20));
-    const endDateKey = formatDateKey(new Date(year, month + 2, 10));
-    const { start, end } = localDateKeyRangeToIso(startDateKey, endDateKey);
-    fetchTimeBlocks(start, end);
-  }, [anchor, fetchTimeBlocks]);
-
-  // refresh when AI creates/completes a time block
-  useEffect(() => {
-    const refresh = () => {
-      const year = anchor.getFullYear();
-      const month = anchor.getMonth();
-      const startDateKey = formatDateKey(new Date(year, month - 1, 20));
-      const endDateKey = formatDateKey(new Date(year, month + 2, 10));
-      const { start, end } = localDateKeyRangeToIso(startDateKey, endDateKey);
-      fetchTimeBlocks(start, end);
-    };
-    window.addEventListener("oghma:time-block-changed", refresh);
-    return () => window.removeEventListener("oghma:time-block-changed", refresh);
-  }, [anchor, fetchTimeBlocks]);
-
-  // fetch quiz review dates for streak badges
-  useEffect(() => {
-    const year = anchor.getFullYear();
-    const month = anchor.getMonth();
-    const startDate = new Date(year, month - 1, 20);
-    const start = formatDateKey(startDate);
-    const endDate = new Date(year, month + 2, 10);
-    const end = formatDateKey(endDate);
-    fetchReviewDates(start, end);
-  }, [anchor, fetchReviewDates]);
+  const weekdayFormatter = useMemo(
+    () => new Intl.DateTimeFormat(activeLocale, { weekday: "short" }),
+    [activeLocale],
+  );
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(activeLocale, {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    [activeLocale],
+  );
+  const weekdayLabels = useMemo(() => {
+    const monday = new Date(2024, 0, 1);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      return weekdayFormatter.format(date);
+    });
+  }, [weekdayFormatter]);
 
   const days = useMemo(() => {
     const cells = getMonthDays(anchor);
@@ -195,7 +184,7 @@ export default function MonthView() {
       <div className="flex h-full min-w-[42rem] flex-col md:min-w-0">
       {/* day headers */}
       <div className="grid grid-cols-7 gap-px border-b border-border-subtle bg-subtle text-center text-xs font-medium text-text-tertiary">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+        {weekdayLabels.map((d) => (
           <div key={d} className="bg-surface py-2">
             {d}
           </div>
@@ -216,9 +205,14 @@ export default function MonthView() {
             >
               <button
                 type="button"
-                onClick={() => setSelectedDate(day.date)}
+                onClick={() => {
+                  setSelectedDate(day.date);
+                  onSelectDate?.(day.date);
+                }}
                 className="absolute inset-0 z-0 text-left"
-                aria-label={t("Select {date}", { date: day.date })}
+                aria-label={t("Select {date}", {
+                  date: dateFormatter.format(new Date(`${day.date}T12:00:00`)),
+                })}
               >
                 <time
                   dateTime={day.date}
