@@ -92,10 +92,8 @@ diagrams/rendered/
 screenshots/demo-architecture-*.png
 screenshots/demo-architecture-*.svg
 
-# local Marker/RunPod experiments
+# local RunPod experiments
 infra/runpod-marker/
-scripts/benchmark-marker.mjs
-scripts/generate-marker-bench-urls.mjs
 scripts/runpod-marker-quick-deploy.sh
 scripts/runpod-marker-tail.sh
 

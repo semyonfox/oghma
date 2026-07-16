@@ -16,6 +16,12 @@ Provider prices and product limits remain planning inputs until checkout is enab
 
 Monthly billing can remain a fallback, but it is not the main public anchor. A higher-usage plan and institution licences are later options, not launch promises.
 
+### Public price comparisons
+
+Use the planned semester and academic-year totals above while pricing remains a range. Do not invent a fixed monthly price, active-month count, percentage discount, or exact saving from those ranges.
+
+Before publishing “EUR X per month,” “save Y,” or “reduced for the year,” select the final semester and academic-year prices and document the number of active term-time months used in the comparison. Display that assumption beside the claim. The academic-year price must be lower than the comparable semester or monthly purchases at the selected price points before it is marketed as a saving.
+
 The free experience must include the product's “semester appears” moment without offering an unlimited historical import. Exact caps should be shown before a user starts processing.
 
 ## Canvas Import Allowances

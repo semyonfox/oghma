@@ -1,0 +1,12 @@
+{
+  "output_format": "markdown",
+  "lowres_image_dpi": 96,
+  "highres_image_dpi": 192,
+  "extract_images": true,
+  "paginate_output": false,
+  "pdftext_workers": 1,
+  "disable_multiprocessing": true,
+  "disable_tqdm": true,
+  "use_llm": false,
+  "profile_marker": false
+}

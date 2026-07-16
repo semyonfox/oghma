@@ -12,6 +12,7 @@ export async function loginViaUi(page: Page) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/notes(?:\/.*)?$/);
   await expect(page.getByRole("main", { name: "Note editor" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
 }
 
 export async function createNoteViaApi(

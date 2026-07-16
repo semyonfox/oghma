@@ -94,10 +94,10 @@ export default function PricingPage() {
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-sm font-semibold text-primary-400">Student pricing</p>
               <h1 className="mt-4 font-serif text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
-                Pay by semester, not by another monthly drip.
+                Pricing built around the academic term.
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-lg/8 text-text-secondary">
-                Try a real Canvas import free. If having your course already organised is useful, the planned paid options follow the academic term.
+                Try a real Canvas import free. If having your course already organised is useful, choose a semester or academic-year plan when paid access launches.
               </p>
               <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-primary-500/20 bg-primary-500/10 px-4 py-2 text-sm text-text-secondary">
                 <span className="size-2 rounded-full bg-secondary-400" />
@@ -139,7 +139,7 @@ export default function PricingPage() {
             ))}
           </div>
           <p className="mx-auto mt-8 max-w-3xl text-center text-sm/6 text-text-tertiary">
-            These are planning ranges, not a checkout offer. Final allowances, renewal terms, cancellation, and refund details will be published before anybody is charged.
+            These are the current planning ranges, not a checkout offer. A monthly equivalent or academic-year saving will be shown only after the final prices and active term-time comparison are set. Final allowances and terms will be published before anybody is charged.
           </p>
         </section>
 
