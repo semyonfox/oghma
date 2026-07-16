@@ -68,11 +68,12 @@ test.describe("chat responsive smoke", () => {
       await page.getByRole("button", { name: "Rename" }).click();
       const rename = page.getByRole("textbox", { name: "Rename" });
       await rename.fill("Renamed conversation");
-      await page.getByRole("button", { name: "Save" }).click();
+      await rename.press("Enter");
       await expect(page.getByText("Renamed conversation")).toBeVisible();
       await page.getByRole("link", { name: "Renamed conversation" }).hover();
       await page.getByRole("button", { name: "Pin to favorites" }).click();
       await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
       await expect(page.getByRole("link", { name: /Configure AI/ })).toBeVisible();
     }
   });

@@ -10,10 +10,8 @@ import {
   TrashIcon,
   ChatBubbleLeftRightIcon,
   PencilSquareIcon,
-  BookmarkIcon,
   Cog6ToothIcon,
-  CheckIcon,
-  XMarkIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
@@ -42,6 +40,14 @@ interface Conversation {
 interface ContextItem {
   id: string;
   title: string;
+}
+
+function PushPinIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m8 3 1.5 2v5L7 13v1h10v-1l-2.5-3V5L16 3H8Zm4 11v7" />
+    </svg>
+  );
 }
 
 function sortConversations(conversations: Conversation[]): Conversation[] {
@@ -94,8 +100,12 @@ function ConversationHistory({
 }: ConversationHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const cancelRenameRef = useRef(false);
+  const pinnedConversations = conversations.filter((conversation) => conversation.pinned);
+  const recentConversations = conversations.filter((conversation) => !conversation.pinned);
 
   const beginRename = (conversation: Conversation) => {
+    cancelRenameRef.current = false;
     setEditingId(conversation.id);
     setEditTitle(conversation.title);
   };
@@ -103,7 +113,15 @@ function ConversationHistory({
   const finishRename = async () => {
     if (!editingId) return;
     const title = editTitle.trim();
-    if (!title) return;
+    if (!title) {
+      setEditingId(null);
+      return;
+    }
+    const original = conversations.find((conversation) => conversation.id === editingId);
+    if (original?.title === title) {
+      setEditingId(null);
+      return;
+    }
     if (await onRenameConversation(editingId, title)) setEditingId(null);
   };
 
@@ -146,19 +164,29 @@ function ConversationHistory({
         </button>
       </div>
 
-      <nav className="obsidian-scrollbar flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
-        {conversations.map((conv) => (
+      <nav className="obsidian-scrollbar flex-1 overflow-y-auto px-1.5 pb-3 pt-1">
+        {[
+          { label: "Pinned", items: pinnedConversations },
+          { label: "Recent", items: recentConversations },
+        ].map((section) => section.items.length > 0 && (
+          <section key={section.label} className="mb-2.5">
+            <h3 className="flex h-6 items-center gap-0.5 px-2 text-[10px] font-semibold text-text-tertiary/80">
+              {t(section.label)}
+              <ChevronDownIcon className="h-2.5 w-2.5" aria-hidden="true" />
+            </h3>
+            <div className="space-y-0.5">
+            {section.items.map((conv) => (
           <div
             key={conv.id}
-            className={`group relative min-h-11 overflow-hidden rounded-radius-md text-xs transition-colors md:min-h-8 ${
+            className={`group relative min-h-11 overflow-hidden rounded-radius-sm text-xs transition-colors md:min-h-7 ${
               conv.id === activeId
-                ? "glass-card-active text-text-secondary"
-                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
-            } focus-within:ring-1 focus-within:ring-primary-400/30`}
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle/70 hover:text-text-secondary"
+            } focus-within:ring-1 focus-within:ring-inset focus-within:ring-primary-400/30`}
           >
             {editingId === conv.id ? (
               <form
-                className="flex min-h-11 items-center gap-1 px-1.5 md:min-h-8"
+                className="flex min-h-11 items-center gap-1 px-1.5 md:min-h-7"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void finishRename();
@@ -168,28 +196,33 @@ function ConversationHistory({
                   value={editTitle}
                   onChange={(event) => setEditTitle(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Escape") setEditingId(null);
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      cancelRenameRef.current = true;
+                      setEditingId(null);
+                    }
                   }}
-                  className="h-8 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-xs text-text-secondary outline-none ring-1 ring-primary-500/20"
+                  onBlur={() => {
+                    if (cancelRenameRef.current) {
+                      cancelRenameRef.current = false;
+                      return;
+                    }
+                    void finishRename();
+                  }}
+                  className="h-8 min-w-0 flex-1 rounded-radius-sm border border-primary-500/40 bg-surface px-2 text-xs text-text-secondary outline-none ring-1 ring-primary-500/20 md:h-7 md:text-[11px]"
                   aria-label={t("Rename")}
                   autoFocus
                 />
-                <button type="submit" className="flex h-8 w-8 items-center justify-center rounded-radius-sm text-primary-400 hover:bg-subtle" aria-label={t("Save")}>
-                  <CheckIcon className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setEditingId(null)} className="flex h-8 w-8 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle" aria-label={t("Cancel")}>
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
               </form>
             ) : (
               <Link
                 href={`/chat/${conv.id}`}
                 onClick={() => onSelectConversation(conv.id)}
-                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-28 text-left focus-visible:outline-none md:min-h-8 md:pr-20"
+                className="flex min-h-11 w-full items-center gap-1.5 px-2 pr-28 text-left focus-visible:outline-none md:min-h-7 md:pr-16"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
-                {conv.pinned && <BookmarkIcon className="h-3 w-3 shrink-0 text-primary-400" />}
-                <span className="min-w-0 flex-1 truncate text-sm font-medium md:text-xs">{conv.title}</span>
+                {conv.pinned && <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />}
+                <span className="min-w-0 flex-1 truncate text-sm font-medium md:text-[11px] md:font-normal">{conv.title}</span>
               </Link>
             )}
 
@@ -203,19 +236,22 @@ function ConversationHistory({
             </div>}
 
             {editingId !== conv.id && (
-              <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 bg-surface/95 px-1 opacity-100 transition-opacity md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
-                <button type="button" onClick={() => void onTogglePinned(conv.id, !conv.pinned)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-primary-400 md:h-7 md:w-7" title={conv.pinned ? t("Unpin") : t("Pin to favorites")} aria-label={conv.pinned ? t("Unpin") : t("Pin to favorites")}>
-                  <BookmarkIcon className={`h-3.5 w-3.5 ${conv.pinned ? "text-primary-400" : ""}`} />
+              <div className="absolute inset-y-0 right-0 flex items-center gap-0.5 px-1 opacity-100 transition-opacity md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100">
+                <button type="button" onClick={() => void onTogglePinned(conv.id, !conv.pinned)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-primary-400 md:h-6 md:w-6" title={conv.pinned ? t("Unpin") : t("Pin to favorites")} aria-label={conv.pinned ? t("Unpin") : t("Pin to favorites")}>
+                  <PushPinIcon className={`h-3.5 w-3.5 ${conv.pinned ? "text-primary-400" : ""}`} />
                 </button>
-                <button type="button" onClick={() => beginRename(conv)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-subtle hover:text-text-secondary md:h-7 md:w-7" title={t("Rename")} aria-label={t("Rename")}>
+                <button type="button" onClick={() => beginRename(conv)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-text-secondary md:h-6 md:w-6" title={t("Rename")} aria-label={t("Rename")}>
                   <PencilSquareIcon className="h-3.5 w-3.5" />
                 </button>
-                <button type="button" onClick={() => onDeleteConversation(conv.id)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:bg-error-500/10 hover:text-error-400 md:h-7 md:w-7" title={t("chat.delete_conversation")} aria-label={t("chat.delete_conversation")}>
+                <button type="button" onClick={() => onDeleteConversation(conv.id)} className="flex h-9 w-9 items-center justify-center rounded-radius-sm text-text-tertiary hover:text-error-400 md:h-6 md:w-6" title={t("chat.delete_conversation")} aria-label={t("chat.delete_conversation")}>
                   <TrashIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
           </div>
+            ))}
+            </div>
+          </section>
         ))}
         {loaded && conversations.length === 0 && (
           <p className="py-4 text-center text-xs text-text-tertiary">
