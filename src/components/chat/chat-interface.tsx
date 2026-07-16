@@ -105,11 +105,12 @@ export function shouldPreserveLiveSession(
   controlledSessionId: string | undefined,
   localSessionId: string | null,
   messageCount: number,
+  ownsLiveStream = false,
 ): boolean {
   return Boolean(
-    controlledSessionId &&
-      controlledSessionId === localSessionId &&
-      messageCount > 0,
+    messageCount > 0 &&
+      (ownsLiveStream ||
+        (controlledSessionId && controlledSessionId === localSessionId)),
   );
 }
 
@@ -165,6 +166,14 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   });
   const busy = loading || backgroundLoading;
   const resumedGenerationRef = useRef<string | null>(null);
+  const ownsLiveStreamRef = useRef(false);
+
+  // Latch ownership before the server-assigned session ID is reflected by the
+  // parent. React may render that controlled ID before the hook's local ID,
+  // so comparing IDs alone is not sufficient to protect optimistic messages.
+  if (loading && messages.length > 0) {
+    ownsLiveStreamRef.current = true;
+  }
 
   // apply restored session messages when available
   const restoredAppliedRef = useRef(false);
@@ -179,6 +188,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         controlledSessionId,
         sessionId,
         messages.length,
+        ownsLiveStreamRef.current,
       )
     ) {
       restoredAppliedRef.current = true;

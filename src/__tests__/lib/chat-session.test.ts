@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/database/pgsql.js", () => {
-  const sqlMock = vi.fn();
+  const sqlMock = vi.fn() as ReturnType<typeof vi.fn> & {
+    json: ReturnType<typeof vi.fn>;
+  };
   sqlMock.mockResolvedValue([]);
+  sqlMock.json = vi.fn((value: unknown) => value);
   return { default: sqlMock };
 });
 
@@ -52,6 +55,10 @@ describe("chat generation ownership", () => {
 
     expect(vi.mocked(sql)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(sql).mock.calls[1]).toContain("idle");
+    expect(sql.json).toHaveBeenNthCalledWith(1, [
+      { type: "text", text: "Here is the answer" },
+    ]);
+    expect(sql.json).toHaveBeenNthCalledWith(2, {});
   });
 });
 

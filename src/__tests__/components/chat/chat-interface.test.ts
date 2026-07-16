@@ -13,4 +13,8 @@ describe("shouldPreserveLiveSession", () => {
   it("allows restoration when switching to a different session", () => {
     expect(shouldPreserveLiveSession("session-2", "session-1", 2)).toBe(false);
   });
+
+  it("preserves an owned live stream before the local session ID catches up", () => {
+    expect(shouldPreserveLiveSession("session-1", null, 2, true)).toBe(true);
+  });
 });

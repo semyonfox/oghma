@@ -243,9 +243,9 @@ export async function persistMessage(
       ${sessionId}::uuid,
       ${role},
       ${content},
-      ${JSON.stringify(parts)}::jsonb,
-      ${sources ? JSON.stringify(sources) : null},
-      ${metadata ? JSON.stringify(metadata) : "{}"}::jsonb
+      ${sql.json(parts)},
+      ${sources ? sql.json(sources) : null},
+      ${sql.json(metadata ?? {})}
     )
   `;
   await sql`
