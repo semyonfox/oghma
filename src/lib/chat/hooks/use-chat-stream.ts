@@ -185,6 +185,19 @@ function clearDraft(sid: string | null): void {
   }
 }
 
+/**
+ * A reopened generation may already have a partial assistant message restored
+ * from PostgreSQL/session storage. Continue streaming into that message rather
+ * than creating an ID that is never inserted into state.
+ */
+export function resolveResumeAssistantId(
+  messages: Message[],
+  proposedId: string,
+): string {
+  const last = messages[messages.length - 1];
+  return last?.role === "assistant" ? last.id : proposedId;
+}
+
 export function useChatStream(
   options: UseChatStreamOptions,
 ): UseChatStreamResult {
@@ -201,6 +214,8 @@ export function useChatStream(
   } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -552,11 +567,13 @@ export function useChatStream(
   const resume = useCallback(
     async (generationId: string) => {
       if (!generationId || loading) return;
-      const assistantId = makeId();
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant") return prev;
-        return [
+      const proposedAssistantId = makeId();
+      const assistantId = resolveResumeAssistantId(
+        messagesRef.current,
+        proposedAssistantId,
+      );
+      if (assistantId === proposedAssistantId) {
+        setMessages((prev) => [
           ...prev,
           {
             id: assistantId,
@@ -566,8 +583,8 @@ export function useChatStream(
             sources: [],
             timestamp: Date.now(),
           },
-        ];
-      });
+        ]);
+      }
       setLoading(true);
       const controller = new AbortController();
       abortControllerRef.current = controller;

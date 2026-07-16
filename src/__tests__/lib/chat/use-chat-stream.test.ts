@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { MutableRefObject } from "react";
-import { applyUpdate } from "@/lib/chat/hooks/use-chat-stream";
+import {
+  applyUpdate,
+  resolveResumeAssistantId,
+} from "@/lib/chat/hooks/use-chat-stream";
 import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
 import type { Message } from "@/lib/chat/types";
 
@@ -146,6 +149,21 @@ describe("applyUpdate — token + tool-call parts", () => {
 });
 
 describe("background chat restore", () => {
+  it("resumes into an existing partial assistant message", () => {
+    const partial = baseMsg("partial answer");
+    expect(resolveResumeAssistantId([partial], "new-id")).toBe(partial.id);
+  });
+
+  it("creates a target after the latest restored user message", () => {
+    const user: Message = {
+      id: "user-1",
+      role: "user",
+      content: "question",
+      timestamp: 0,
+    };
+    expect(resolveResumeAssistantId([user], "new-id")).toBe("new-id");
+  });
+
   it("clears partial output when a durable worker attempt is retried", () => {
     const message = baseMsg("partial answer", [
       { type: "text", text: "partial answer" },
@@ -168,8 +186,11 @@ describe("background chat restore", () => {
           id: "answer-1",
           role: "assistant",
           content: "Finished while away",
-          parts: [{ type: "text", text: "Finished while away" }],
-          metadata: { thinkingDuration: 4 },
+          parts: [
+            { type: "tool", name: "readNote", label: "Reading note" },
+            { type: "text", text: "Finished while away" },
+          ],
+          metadata: { thinking: "Checking the note", thinkingDuration: 4 },
           created_at: "2026-07-15T00:00:00.000Z",
         },
       ]),
@@ -178,7 +199,11 @@ describe("background chat restore", () => {
         id: "answer-1",
         role: "assistant",
         content: "Finished while away",
-        parts: [{ type: "text", text: "Finished while away" }],
+        parts: [
+          { type: "tool", name: "readNote", label: "Reading note" },
+          { type: "text", text: "Finished while away" },
+        ],
+        thinking: "Checking the note",
         thinkingDuration: 4,
       }),
     ]);

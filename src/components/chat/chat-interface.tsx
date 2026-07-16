@@ -101,6 +101,18 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
+export function shouldPreserveLiveSession(
+  controlledSessionId: string | undefined,
+  localSessionId: string | null,
+  messageCount: number,
+): boolean {
+  return Boolean(
+    controlledSessionId &&
+      controlledSessionId === localSessionId &&
+      messageCount > 0,
+  );
+}
+
 const ChatInterface: FC<ChatInterfaceProps> = ({
   compact = false,
   sessionId: controlledSessionId,
@@ -157,6 +169,21 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   // apply restored session messages when available
   const restoredAppliedRef = useRef(false);
   useEffect(() => {
+    // A new chat receives its server ID while its first reply is still live.
+    // The parent then passes that ID back as controlledSessionId, which starts
+    // a restore request. Preserve the optimistic messages in this mounted
+    // instance: the restore snapshot can be older than the active stream and
+    // would remove the assistant message that incoming tokens target.
+    if (
+      shouldPreserveLiveSession(
+        controlledSessionId,
+        sessionId,
+        messages.length,
+      )
+    ) {
+      restoredAppliedRef.current = true;
+      return;
+    }
     if (
       !restoredMessages ||
       (restoredAppliedRef.current && (backgroundLoading || loading))
@@ -171,6 +198,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   }, [
     restoredMessages,
     controlledSessionId,
+    sessionId,
+    messages.length,
     backgroundLoading,
     loading,
     setMessages,
