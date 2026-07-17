@@ -137,6 +137,31 @@ class MatrixTests(unittest.TestCase):
             self.assertEqual(summary["gpuIdleCpuBusySamples"], 1)
             self.assertEqual(summary["peakVramMiB"], 1200)
 
+    def test_lightweight_stage_profile_records_events_without_diagnostic_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            previous_profile = bench.PROFILE
+            previous_artifacts = bench.ARTIFACTS
+            try:
+                bench.PROFILE = {"__test_adapter": True, "use_llm": False}
+                bench.ARTIFACTS = {}
+                output = Path(temporary) / "output"
+                record = bench._worker_process({
+                    "ordinal": 1,
+                    "inputPath": "synthetic.pdf",
+                    "outputDir": str(output),
+                    "pageRange": [0],
+                    "expectedPages": 1,
+                    "diagnostic": False,
+                    "stageProfile": True,
+                })
+                self.assertTrue(record["valid"])
+                self.assertFalse(record["diagnostic"])
+                self.assertEqual(record["stageEvents"][0]["stage"], "synthetic.stage")
+                self.assertFalse((output / "diagnostic").exists())
+            finally:
+                bench.PROFILE = previous_profile
+                bench.ARTIFACTS = previous_artifacts
+
     def test_fake_adapter_runs_preview_and_full_diagnostic_cells(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -499,8 +499,10 @@ def _worker_process(task):
     output_dir.mkdir(parents=True, exist_ok=True)
     config = dict(PROFILE)
     diagnostic = bool(task.get("diagnostic"))
-    config["profile_marker"] = diagnostic
+    stage_profile = bool(task.get("stageProfile")) or diagnostic
+    config["profile_marker"] = stage_profile
     config["profile_marker_log_events"] = False
+    config["profile_marker_cuda_sync"] = stage_profile
     if diagnostic:
         config.update(
             {
@@ -543,7 +545,7 @@ def _worker_process(task):
                     "imageReferenceCount": 0, "invalidImageReferenceCount": 0,
                     "manualReview": False, "diagnostic": diagnostic,
                     "rankingEligible": False,
-                    "stageEvents": ([{"run_id": "synthetic", "stage": "synthetic.stage", "elapsed_seconds": 0.01, "status": "ok", "started_epoch_seconds": now, "ended_epoch_seconds": now + 0.01, "started_monotonic_seconds": started, "ended_monotonic_seconds": started + 0.01, "cuda_synchronized": False}] if diagnostic else []),
+                    "stageEvents": ([{"run_id": "synthetic", "stage": "synthetic.stage", "elapsed_seconds": 0.01, "status": "ok", "started_epoch_seconds": now, "ended_epoch_seconds": now + 0.01, "started_monotonic_seconds": started, "ended_monotonic_seconds": started + 0.01, "cuda_synchronized": stage_profile}] if stage_profile else []),
                 }
             )
             if PROFILE.get("use_llm"):
@@ -616,7 +618,7 @@ def _worker_process(task):
                 "manualReview": len(markdown.strip()) < max(80, task["expectedPages"] * 40),
                 "diagnostic": diagnostic,
                 "rankingEligible": not diagnostic,
-                "stageEvents": list(getattr(converter, "profile_events", [])) if diagnostic else [],
+                "stageEvents": list(getattr(converter, "profile_events", [])) if stage_profile else [],
             }
         )
         if not valid and not record.get("errorCategory"):
@@ -840,6 +842,7 @@ def run_repeat(args, candidate, profile, benchmark_pass, workers, repeat_index, 
                 "pageRange": [page for page in page_range if page < document["pages"]] if page_range is not None else None,
                 "expectedPages": expected_pages,
                 "diagnostic": args.run_mode == "diagnostic",
+                "stageProfile": args.stage_profile,
             }
         )
     write_json(repeat_dir / "repeat.json", {"repeat": repeat_index, "order": [item["ordinal"] for item in ordered]})
@@ -860,7 +863,7 @@ def run_repeat(args, candidate, profile, benchmark_pass, workers, repeat_index, 
         worker_pids = wait_for_workers(ready_queue, workers, args.worker_startup_timeout_seconds)
         telemetry, telemetry_log, telemetry_path = start_telemetry(
             repeat_dir,
-            0.25 if args.run_mode == "diagnostic" else 1.0,
+            0.25 if args.run_mode == "diagnostic" or args.stage_profile else 1.0,
             worker_pids,
         )
         monitor = TelemetryMonitor(
@@ -943,8 +946,8 @@ def run_repeat(args, candidate, profile, benchmark_pass, workers, repeat_index, 
             "workers": workers,
             "repeat": repeat_index,
             "rankingEligible": args.run_mode == "decision" and not args.test_adapter,
-            "stageProfile": summarize_stage_events(records) if args.run_mode == "diagnostic" else [],
-            "stageResourceProfile": summarize_stage_resources(records, telemetry_path) if args.run_mode == "diagnostic" and telemetry is not None else [],
+            "stageProfile": summarize_stage_events(records) if args.run_mode == "diagnostic" or args.stage_profile else [],
+            "stageResourceProfile": summarize_stage_resources(records, telemetry_path) if (args.run_mode == "diagnostic" or args.stage_profile) and telemetry is not None else [],
             "resourceOverlap": summarize_telemetry(telemetry_path) if telemetry is not None else {},
         }
     )
@@ -1113,6 +1116,7 @@ def run_benchmark(args):
             "deadlineUtc": args.deadline_utc,
             "transferBufferSeconds": args.transfer_buffer_seconds,
             "runMode": args.run_mode,
+            "stageProfiling": args.stage_profile,
             "rankingEligible": args.run_mode == "decision" and not args.test_adapter,
             "llmEnabled": llm_enabled,
             "testAdapter": args.test_adapter,
@@ -1239,6 +1243,7 @@ def build_parser():
         run.add_argument("--worker-startup-timeout-seconds", type=int, default=1800)
         run.add_argument("--allow-disabled-candidate", action="store_true")
         run.add_argument("--allow-llm-benchmark", action="store_true")
+        run.add_argument("--stage-profile", action="store_true")
         run.add_argument("--dry-run", action="store_true")
         run.add_argument("--test-adapter", action="store_true", help=argparse.SUPPRESS)
     return parser
