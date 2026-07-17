@@ -29,6 +29,10 @@ describe("E2E database schema contract", () => {
           "rate_limit_log",
           "chat_sessions",
           "chat_messages",
+          "imported_file_cache",
+          "imported_file_cache_chunks",
+          "imported_file_cache_assets",
+          "imported_file_sources",
         ]})
     `;
 
@@ -37,6 +41,10 @@ describe("E2E database schema contract", () => {
       "canvas_import_jobs",
       "chat_messages",
       "chat_sessions",
+      "imported_file_cache",
+      "imported_file_cache_assets",
+      "imported_file_cache_chunks",
+      "imported_file_sources",
       "ingestion_jobs",
       "login",
       "notes",

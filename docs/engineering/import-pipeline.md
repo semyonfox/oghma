@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering overview
 >
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-07-17
 >
 > **Source of truth:** [`src/lib/queue.ts`](../../src/lib/queue.ts), [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts), and the import workers
 
@@ -21,6 +21,36 @@ names, tuning values, and live troubleshooting belong in the
 6. Job and per-file status rows drive UI progress. Extraction failures may enter the delayed `extract-retry` lane.
 
 Files can appear before semantic indexing completes. Product copy must distinguish visible material from search/chat-ready material.
+
+## Content-addressed PDF reuse
+
+Canvas PDFs use two cache layers. A verified source locator combines the
+institution domain, Canvas file ID, `updated_at`, byte size, and MIME type. A
+ready locator hit may skip the binary download after the current user has
+independently retrieved that file's metadata through Canvas. Missing or changed
+version metadata always falls back to download. The downloaded bytes are keyed
+by SHA-256, which remains the authoritative identity. Course names and
+filenames are provenance, never identity. Canvas's documented File object does
+not expose a content checksum, so previously unseen or changed locators must be
+downloaded once.
+
+The cache owns the immutable PDF object, pipeline-versioned extracted
+Markdown, Marker image assets, chunks, and one canonical vector set. Each user
+still owns separate note, attachment, tree, Canvas provenance, annotation, and
+search rows. User-scoped Qdrant points are populated from cached vectors rather
+than rerunning embedding inference; this preserves existing user filters and
+prevents cross-user retrieval.
+
+Permanent note deletion removes the user's references only. It must never
+delete an `imports/shared/` object. Shared-object garbage collection is a
+separate reference-aware retention operation. Sharing a cached document adds a
+new user-owned note reference; annotations remain private unless a future
+explicit annotation-sharing action is introduced.
+
+`IMPORT_PIPELINE_VERSION` invalidates derived artifacts when extraction,
+chunking, Marker policy, or embedding compatibility changes. Operators should
+set it explicitly during such a rollout; otherwise it defaults to the selected
+embedding model plus the current cache format version.
 
 ## Queue providers
 
@@ -69,6 +99,7 @@ variable.
 | [`src/lib/canvas/import-worker.ts`](../../src/lib/canvas/import-worker.ts) | Canvas job orchestration and worker exports |
 | [`src/lib/canvas/import-discovery.js`](../../src/lib/canvas/import-discovery.js) | Canvas hierarchy discovery and per-file fan-out |
 | [`src/lib/canvas/import-extraction.js`](../../src/lib/canvas/import-extraction.js) | Download, dedupe/claim, note creation, timeouts, and retry handlers |
+| [`src/lib/canvas/import-cache.ts`](../../src/lib/canvas/import-cache.ts) | Content hashing, shared artifacts, cached vector reuse, and ownership guards |
 | [`src/lib/canvas/import-embedding.js`](../../src/lib/canvas/import-embedding.js) | Extraction, chunking, embedding, and Qdrant indexing handoff |
 | [`src/lib/canvas/extraction-retry.ts`](../../src/lib/canvas/extraction-retry.ts) | Delayed retry schedule |
 | [`src/lib/vault/import-worker.ts`](../../src/lib/vault/import-worker.ts) | Streaming vault import, progress, and cancellation |

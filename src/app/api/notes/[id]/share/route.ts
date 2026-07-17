@@ -12,6 +12,7 @@ import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
+import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
 
 /**
  * POST /api/notes/:id/share
@@ -64,7 +65,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
 
   // only the owner can share their own note
   const sourceNote = await sql`
-    SELECT note_id, title, content, s3_key, is_folder
+    SELECT note_id, title, content, s3_key, is_folder, imported_file_cache_id
     FROM app.notes
     WHERE note_id = ${sourceNoteId}::uuid
       AND user_id = ${user.user_id}::uuid
@@ -76,6 +77,13 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
   }
 
   const note = sourceNote[0];
+  const cloneId = generateUUID();
+  const clonedContent = note.imported_file_cache_id
+    ? String(note.content ?? "").replace(
+        /\/api\/notes\/[0-9a-f-]{36}\/assets\?name=/gi,
+        `/api/notes/${cloneId}/assets?name=`,
+      )
+    : note.content;
 
   // Validate the destination before creating any side effects. In particular,
   // do not copy storage or insert a clone that cannot be placed in its tree.
@@ -95,14 +103,15 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     }
   }
 
-  // Generate UUID v7 for clone
-  const cloneId = generateUUID();
-
   // Copy before the DB record so a failed copy cannot produce a broken clone.
   // Later failures explicitly remove this object.
   let clonedS3Key: string | null = null;
   const storage = getStorageProvider();
-  if (note.s3_key) {
+  if (isSharedImportedFileKey(note.s3_key)) {
+    // Immutable cache objects are shared by reference. The recipient still
+    // receives a private note row; annotations and Canvas metadata are not copied.
+    clonedS3Key = note.s3_key;
+  } else if (note.s3_key) {
     try {
       const filename = note.s3_key.split("/").pop() ?? "file";
       clonedS3Key = `notes/${cloneId}/${filename}`;
@@ -124,16 +133,18 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
       s3_key,
       is_folder,
       cloned_from,
+      imported_file_cache_id,
       created_at,
       updated_at
     ) VALUES (
       ${cloneId}::uuid,
       ${targetUserId}::uuid,
       ${note.title + " (shared)"},
-      ${note.content},
+      ${clonedContent},
       ${clonedS3Key},
       ${note.is_folder},
       ${sourceNoteId}::uuid,
+      ${note.imported_file_cache_id ?? null}::uuid,
       NOW(),
       NOW()
     )
@@ -146,7 +157,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     if (clonedNoteId) {
       await sql`DELETE FROM app.notes WHERE note_id = ${clonedNoteId}::uuid`.catch(() => {});
     }
-    if (clonedS3Key) {
+    if (clonedS3Key && !isSharedImportedFileKey(clonedS3Key)) {
       await storage.deleteObject(clonedS3Key).catch((cleanupError) =>
         logger.error("failed to clean up shared storage object", { key: clonedS3Key, error: cleanupError }),
       );

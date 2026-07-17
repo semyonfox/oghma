@@ -27,7 +27,7 @@ export const GET = withErrorHandler(
     if (!assetName) return tracedError("Invalid asset name", 400);
 
     const noteRows = await sql`
-      SELECT note_id, s3_key
+      SELECT note_id, s3_key, imported_file_cache_id
       FROM app.notes
       WHERE note_id = ${noteId}::uuid
         AND user_id = ${session.user_id}::uuid
@@ -36,7 +36,7 @@ export const GET = withErrorHandler(
     `;
 
     const note = noteRows[0] as
-      | { note_id: string; s3_key: string | null }
+      | { note_id: string; s3_key: string | null; imported_file_cache_id: string | null }
       | undefined;
     if (!note) return tracedError("Note not found", 404);
 
@@ -52,6 +52,25 @@ export const GET = withErrorHandler(
           "Cache-Control": "private, max-age=60",
         },
       });
+    }
+
+    // Cached Marker assets are immutable and shared by content hash, but this
+    // lookup is reachable only after the authenticated user-owned note check.
+    if (note.imported_file_cache_id) {
+      const [cachedAsset] = await sql`
+        SELECT storage_key FROM app.imported_file_cache_assets
+        WHERE cache_id = ${note.imported_file_cache_id}::uuid AND name = ${assetName}
+        LIMIT 1
+      `;
+      if (cachedAsset?.storage_key && await storage.hasObject(cachedAsset.storage_key)) {
+        const { body, contentType } = await storage.getObjectStream(cachedAsset.storage_key);
+        return new NextResponse(Readable.toWeb(body) as ReadableStream, {
+          headers: {
+            "Content-Type": contentType ?? "application/octet-stream",
+            "Cache-Control": "private, max-age=60",
+          },
+        });
+      }
     }
 
     // Fallback for previously ingested assets stored as note attachments or

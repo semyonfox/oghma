@@ -36,6 +36,11 @@ export interface ChunkVectorHit {
   distance: number;
 }
 
+export interface ChunkVectorRecord {
+  chunkId: string;
+  vector: number[];
+}
+
 export interface SearchChunkVectorsParams {
   userId: string;
   vector: number[];
@@ -308,6 +313,20 @@ export async function getChunkVector(chunkId: string): Promise<number[] | null> 
   const vector = response.result?.[0]?.vector;
   if (Array.isArray(vector)) return vector;
   return null;
+}
+
+export async function getChunkVectors(chunkIds: string[]): Promise<ChunkVectorRecord[]> {
+  const ids = [...new Set(chunkIds)].filter(Boolean);
+  if (ids.length === 0) return [];
+  const response = await qdrantFetch<{ result: QdrantPointRecord[] }>(
+    `/collections/${qdrantCollection()}/points`,
+    { method: "POST", body: JSON.stringify({ ids, with_payload: true, with_vector: true }) },
+  );
+  return (response.result ?? []).flatMap((point) => {
+    const vector = point.vector;
+    const chunkId = point.payload?.chunk_id || String(point.id);
+    return chunkId && Array.isArray(vector) ? [{ chunkId, vector }] : [];
+  });
 }
 
 export function configuredQdrantVectorSize(): number {
