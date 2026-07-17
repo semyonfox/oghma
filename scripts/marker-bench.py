@@ -50,6 +50,7 @@ HARNESS_FILES = [
     "scripts/marker-bench-run.sh",
     "scripts/marker-bench-telemetry.py",
     "scripts/marker-bench.py",
+    "scripts/e2e/fixtures/sample-paper.pdf",
 ]
 
 
@@ -470,8 +471,12 @@ def _worker_init(profile, warmup_fixture, ready_queue):
         if warmup_fixture:
             warmup_config = dict(PROFILE)
             warmup_config.pop("page_range", None)
+            warmup_config.pop("llm_service", None)
             warmup_config.update(
                 {
+                    "use_llm": False,
+                    "describe_extracted_images": False,
+                    "redo_inline_math": False,
                     "profile_marker": False,
                     "debug_pdf_images": False,
                     "debug_layout_images": False,
