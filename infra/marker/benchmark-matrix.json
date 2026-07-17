@@ -103,7 +103,7 @@
       "profile": "academic-enhanced-hosted-control",
       "profileConfig": "infra/marker/profiles/academic-enhanced-hosted-control.json",
       "profileSha256": "3df902818f173fa3030b490f3a733158276a771f90cd1fd20cd5fa2ebc4a5a01",
-      "workerCounts": [2],
+      "workerCounts": [1],
       "passOverrides": [
         {"name": "preview", "pageRange": "0-2", "repeats": 1}
       ],
@@ -120,7 +120,7 @@
       "profileConfig": "infra/marker/profiles/academic-enhanced-hosted.json",
       "profileSha256": "44fca1c791616bb4724d03bdd32d424abf4806b2528f9fae5c74eaa2a69e6382",
       "requiresVisionAdapter": true,
-      "workerCounts": [2],
+      "workerCounts": [1],
       "passOverrides": [
         {"name": "preview", "pageRange": "0-2", "repeats": 1}
       ],
