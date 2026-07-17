@@ -80,13 +80,13 @@
       "id": "marker-plus-plus-academic-enhanced-hosted",
       "label": "Marker++ academic enhanced hosted vision",
       "implementation": "marker-plus-plus",
-      "sourceRevision": "2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a",
+      "sourceRevision": "72f3776c615e28e24f804854c04a1f996ffbfe0d",
       "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
       "profile": "academic-enhanced-hosted",
       "profileConfig": "infra/marker/profiles/academic-enhanced-hosted.json",
       "profileSha256": "44fca1c791616bb4724d03bdd32d424abf4806b2528f9fae5c74eaa2a69e6382",
       "requiresVisionAdapter": true,
-      "workerCounts": [1],
+      "workerCounts": [2],
       "passOverrides": [
         {"name": "preview", "pageRange": "0-2", "repeats": 1},
         {"name": "full-document", "pageRange": null, "repeats": 1, "requiresHealthyPreview": true}
