@@ -18,6 +18,16 @@ import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
 import { recordActivationMilestone } from "../marketing/events.ts";
+import {
+  cloneImportedPdfCacheToNote,
+  captureImportedPdfCache,
+  ensureImportedFileCacheRow,
+  getImportedFileCacheBySha,
+  importedFileStorageKey,
+  markImportedFileCacheFailed,
+  sha256Hex,
+  withImportedFileLock,
+} from "./import-cache.ts";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -225,6 +235,92 @@ async function runRagPipeline(noteId, userId, parentFolderId, buffer, ragOpts) {
   );
 }
 
+async function createAttachment(noteId, userId, filename, s3Key, mimeType, fileSize) {
+  await sql`
+    INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
+    VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
+            ${filename}, ${s3Key}, ${mimeType}, ${fileSize})
+  `;
+}
+
+async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
+  const {
+    userId,
+    courseId,
+    moduleId,
+    parentFolderId,
+  } = opts;
+  const s3Key = cache.storage_key;
+  const canvasCourseId = courseId ? Number(courseId) : null;
+  const canvasModuleId = moduleId ?? null;
+  let canvasAssignmentId = null;
+  if (!moduleId && parentFolderId) {
+    const [parentFolder] = await sql`
+      SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${parentFolderId}::uuid LIMIT 1
+    `;
+    canvasAssignmentId = parentFolder?.canvas_assignment_id ?? null;
+  }
+
+  const { noteId } = await findOrCreateNote(
+    userId,
+    file.display_name,
+    parentFolderId,
+    {
+      s3Key,
+      canvasCourseId,
+      canvasModuleId,
+      canvasAssignmentId,
+    },
+  );
+
+  await createAttachment(
+    noteId,
+    userId,
+    file.display_name,
+    s3Key,
+    cache.mime_type,
+    Number(cache.file_size ?? 0),
+  );
+  await setImportStatus(importRecordId, "indexing", { noteId });
+
+  const mdTitle = file.display_name.replace(/\.[^.]+$/, "") + ".md";
+  const { noteId: mdNoteId } = await findOrCreateNote(
+    userId,
+    mdTitle,
+    parentFolderId,
+    {
+      content: cache.extracted_markdown ?? "",
+      canvasCourseId,
+      canvasModuleId,
+      canvasAssignmentId,
+    },
+  );
+
+  const chunksStored = await cloneImportedPdfCacheToNote({
+    cacheId: cache.id,
+    noteId: mdNoteId,
+    userId,
+  });
+
+  await sql`
+    UPDATE app.notes
+    SET imported_file_cache_id = ${cache.id}::uuid,
+        s3_key = ${s3Key},
+        updated_at = NOW()
+    WHERE note_id = ${noteId}::uuid
+  `;
+
+  await sql`
+    UPDATE app.canvas_imports
+    SET imported_file_cache_id = ${cache.id}::uuid,
+        note_id = ${noteId}::uuid,
+        updated_at = NOW()
+    WHERE id = ${importRecordId}::uuid
+  `;
+
+  return { noteId: mdNoteId, chunksStored };
+}
+
 // ── File import ─────────────────────────────────────────────────────────────
 
 async function _runFileImport(importRecordId, file, opts) {
@@ -298,8 +394,10 @@ async function _runFileImport(importRecordId, file, opts) {
     elapsedSecs: (downloadElapsedMs / 1000).toFixed(2),
   });
 
-  const s3Key = `${s3Prefix}/${file.filename}`;
-  await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+  const isCacheablePdf = resolvedMimeType === "application/pdf";
+  const s3Key = isCacheablePdf
+    ? importedFileStorageKey(sha256Hex(buffer), file.filename)
+    : `${s3Prefix}/${file.filename}`;
   await setImportStatus(importRecordId, "processing");
 
   // resolve canvas metadata: module files have moduleId set; assignment files do not,
@@ -314,39 +412,131 @@ async function _runFileImport(importRecordId, file, opts) {
     canvasAssignmentId = parentFolder?.canvas_assignment_id ?? null;
   }
 
-  const { noteId } = await findOrCreateNote(
-    userId,
-    file.display_name,
-    parentFolderId,
-    { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
-  );
+  let ragResult;
+  let ragElapsedMs = 0;
 
-  // create attachment record so the upload GET handler can verify ownership
-  await sql`
-    INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-    VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
-            ${file.display_name}, ${s3Key}, ${resolvedMimeType}, ${buffer.length})
-  `;
+  if (isCacheablePdf) {
+    const sha256 = sha256Hex(buffer);
+    ragResult = await withImportedFileLock(sha256, async () => {
+      const cache = await getImportedFileCacheBySha(sha256);
+      if (cache?.status === "ready" && cache.replayable) {
+        return reuseImportedPdfCache(cache, file, opts, importRecordId);
+      }
 
-  await setImportStatus(importRecordId, "indexing", { noteId });
+      const cacheRow = await ensureImportedFileCacheRow({
+        sha256,
+        mimeType: resolvedMimeType,
+        fileSize: buffer.length,
+        storageKey: s3Key,
+      });
 
-  const ragStart = Date.now();
-  const ragResult = await runRagPipeline(
-    noteId,
-    userId,
-    parentFolderId,
-    buffer,
-    {
-      filename: file.display_name,
-      mimeType: resolvedMimeType,
+      await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+
+      const { noteId } = await findOrCreateNote(
+        userId,
+        file.display_name,
+        parentFolderId,
+        { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
+      );
+
+      await createAttachment(
+        noteId,
+        userId,
+        file.display_name,
+        s3Key,
+        resolvedMimeType,
+        buffer.length,
+      );
+
+      await setImportStatus(importRecordId, "indexing", { noteId });
+      await sql`
+        UPDATE app.canvas_imports
+        SET imported_file_cache_id = ${cacheRow.id}::uuid,
+            updated_at = NOW()
+        WHERE id = ${importRecordId}::uuid
+      `;
+      await sql`
+        UPDATE app.notes
+        SET imported_file_cache_id = ${cacheRow.id}::uuid,
+            updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+      `;
+
+      const startedAt = Date.now();
+      try {
+        const result = await runRagPipeline(
+          noteId,
+          userId,
+          parentFolderId,
+          buffer,
+          {
+            filename: file.display_name,
+            mimeType: resolvedMimeType,
+            s3Key,
+            jobId: opts.jobId,
+            canvasCourseId,
+            canvasModuleId,
+            canvasAssignmentId,
+          },
+        );
+        ragElapsedMs = Date.now() - startedAt;
+        if (result === null) {
+          await markImportedFileCacheFailed(
+            cacheRow.id,
+            "Initial extraction deferred to retry pipeline",
+          );
+          return null;
+        }
+        await captureImportedPdfCache({
+          cacheId: cacheRow.id,
+          sourceNoteId: result.noteId,
+        });
+        return result;
+      } catch (error) {
+        await markImportedFileCacheFailed(
+          cacheRow.id,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
+    });
+  } else {
+    await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+    const { noteId } = await findOrCreateNote(
+      userId,
+      file.display_name,
+      parentFolderId,
+      { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
+    );
+
+    await createAttachment(
+      noteId,
+      userId,
+      file.display_name,
       s3Key,
-      jobId: opts.jobId,
-      canvasCourseId,
-      canvasModuleId,
-      canvasAssignmentId,
-    },
-  );
-  const ragElapsedMs = Date.now() - ragStart;
+      resolvedMimeType,
+      buffer.length,
+    );
+    await setImportStatus(importRecordId, "indexing", { noteId });
+
+    const ragStart = Date.now();
+    ragResult = await runRagPipeline(
+      noteId,
+      userId,
+      parentFolderId,
+      buffer,
+      {
+        filename: file.display_name,
+        mimeType: resolvedMimeType,
+        s3Key,
+        jobId: opts.jobId,
+        canvasCourseId,
+        canvasModuleId,
+        canvasAssignmentId,
+      },
+    );
+    ragElapsedMs = Date.now() - ragStart;
+  }
 
   if (ragResult === null) {
     return;
@@ -365,7 +555,7 @@ async function _runFileImport(importRecordId, file, opts) {
     return;
   }
 
-  await setImportStatus(importRecordId, "complete", { noteId });
+  await setImportStatus(importRecordId, "complete", { noteId: ragResult.noteId });
   console.log(`Processed: ${file.display_name}`);
 }
 
