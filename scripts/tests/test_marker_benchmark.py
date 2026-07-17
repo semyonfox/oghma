@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -35,6 +36,23 @@ class MatrixTests(unittest.TestCase):
         matrix["candidates"][0]["profileSha256"] = "0" * 64
         with self.assertRaisesRegex(ValueError, "profile hash mismatch"):
             bench.validate_matrix(matrix)
+
+    def test_hosted_target_selects_provider_and_requires_only_named_key(self):
+        profile = {"llm_target": "openrouter-siliconflow:qwen/qwen3.5-9b"}
+        with patch.dict(os.environ, {}, clear=True):
+            resolved = bench.resolve_hosted_vision_target(profile)
+            self.assertEqual(resolved["provider"], "openrouter-siliconflow")
+            self.assertEqual(resolved["endpoint"], "https://openrouter.ai/api/v1")
+            self.assertNotIn("apiKey", resolved)
+            with self.assertRaisesRegex(ValueError, "OPENROUTER_API_KEY"):
+                bench.resolve_hosted_vision_target(profile, require_key=True)
+        with patch.dict(os.environ, {
+            "MARKER_VISION_TARGET": "siliconflow:Qwen/Qwen3.5-9B",
+            "SILICONFLOW_API_KEY": "private-key",
+        }, clear=True):
+            resolved = bench.resolve_hosted_vision_target(profile, require_key=True)
+            self.assertEqual(resolved["provider"], "siliconflow")
+            self.assertNotIn("private-key", json.dumps(resolved))
 
     def test_page_ranges_and_percentiles(self):
         self.assertEqual(bench.parse_page_range("0-2,4"), [0, 1, 2, 4])

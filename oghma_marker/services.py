@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import http.client
+import os
 import socket
 import threading
 import time
@@ -29,6 +30,26 @@ SAFE_ERROR_CATEGORIES = {
     "llm_schema_error",
     "llm_empty_response",
     "llm_model_mismatch",
+}
+
+
+HOSTED_TARGETS = {
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "provider": "openrouter",
+    },
+    "openrouter-siliconflow": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "provider": "openrouter",
+        "route": "SiliconFlow",
+    },
+    "siliconflow": {
+        "base_url": "https://api.siliconflow.com/v1",
+        "api_key_env": "SILICONFLOW_API_KEY",
+        "provider": "siliconflow",
+    },
 }
 
 
@@ -55,18 +76,39 @@ class OpenAICompatibleVisionService(BaseService):
     llm_api_key: Annotated[str, "Optional local-server API key."] = "local-only"
     llm_image_format: Annotated[str, "Image wire format."] = "webp"
     llm_accounting_path: Annotated[str | None, "Optional redacted JSONL accounting path."] = None
+    llm_target: Annotated[str | None, "Hosted provider and model target selected from the environment."] = None
     retry_wait_time: Annotated[float, "Retry delay in seconds."] = 0.25
 
     _retryable_statuses = frozenset({429, 500, 502, 503, 504})
 
     def __init__(self, config=None):
         super().__init__(config)
+        self._hosted_target = self._resolve_hosted_target()
         if self.llm_model != self.llm_approved_model:
             raise RequiredLLMFailure("llm_model_mismatch")
-        if not self.llm_base_url.startswith(("http://127.0.0.1:", "http://localhost:")):
+        if not self._hosted_target and not self.llm_base_url.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise ValueError("vision endpoint must be private and loopback-only")
         self._lock = threading.Lock()
         self._records = []
+
+    def _resolve_hosted_target(self):
+        if not self.llm_target:
+            return None
+        target = os.environ.get("MARKER_VISION_TARGET") or self.llm_target
+        provider_name, separator, model = target.partition(":")
+        provider = HOSTED_TARGETS.get(provider_name)
+        if not separator or not model or provider is None:
+            allowed = ", ".join(sorted(HOSTED_TARGETS))
+            raise ValueError(f"MARKER_VISION_TARGET must be <provider>:<model>; providers: {allowed}")
+        api_key = os.environ.get(provider["api_key_env"])
+        if not api_key:
+            raise ValueError(f"{provider['api_key_env']} is required for {provider_name}")
+        self.llm_target = target
+        self.llm_base_url = provider["base_url"]
+        self.llm_api_key = api_key
+        self.llm_model = model
+        self.llm_approved_model = model
+        return {"name": provider_name, "model": model, **provider}
 
     def process_images(self, images: List[Image.Image]) -> List[dict]:
         return [
@@ -103,6 +145,9 @@ class OpenAICompatibleVisionService(BaseService):
             "inputTokens": int(usage.get("prompt_tokens") or 0),
             "outputTokens": int(usage.get("completion_tokens") or 0),
         }
+        if self._hosted_target:
+            row["provider"] = self._hosted_target["provider"]
+            row["providerRoute"] = self._hosted_target.get("route")
         if category:
             row["errorCategory"] = category
         with self._lock:
@@ -125,7 +170,17 @@ class OpenAICompatibleVisionService(BaseService):
         }
         if self.max_output_tokens:
             payload["max_tokens"] = self.max_output_tokens
-        if not self.llm_thinking:
+        if self._hosted_target and self._hosted_target["provider"] == "openrouter":
+            payload["reasoning"] = {"enabled": bool(self.llm_thinking)}
+            if self._hosted_target.get("route"):
+                payload["provider"] = {
+                    "order": [self._hosted_target["route"]],
+                    "allow_fallbacks": False,
+                    "data_collection": "deny",
+                }
+        elif self._hosted_target and self._hosted_target["provider"] == "siliconflow":
+            payload["enable_thinking"] = bool(self.llm_thinking)
+        elif not self.llm_thinking:
             payload["chat_template_kwargs"] = {"enable_thinking": False}
         return payload
 
@@ -134,10 +189,13 @@ class OpenAICompatibleVisionService(BaseService):
                  max_retries: int | None = None, timeout: int | None = None):
         retries = self.max_retries if max_retries is None else max_retries
         timeout = self.timeout if timeout is None else timeout
+        headers = {"Authorization": f"Bearer {self.llm_api_key}", "Content-Type": "application/json"}
+        if self._hosted_target and self._hosted_target["provider"] == "openrouter":
+            headers.update({"HTTP-Referer": "https://oghmanotes.ie", "X-Title": "OghmaNotes Marker benchmark"})
         request = urllib.request.Request(
             f"{self.llm_base_url.rstrip('/')}/chat/completions",
             data=json.dumps(self._payload(prompt, image, response_schema)).encode("utf-8"),
-            headers={"Authorization": f"Bearer {self.llm_api_key}", "Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         processor_type = response_schema.__name__

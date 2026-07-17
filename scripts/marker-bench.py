@@ -19,6 +19,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+HOSTED_VISION_PROVIDERS = {
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    "openrouter-siliconflow": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    "siliconflow": ("https://api.siliconflow.com/v1", "SILICONFLOW_API_KEY"),
+}
 IMAGE_REF = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 ARTIFACTS = None
 PROFILE = None
@@ -29,6 +34,7 @@ HARNESS_FILES = [
     "infra/marker/qwen3.5-9b-vllm-manifest.json",
     "infra/marker/profiles/academic-enhanced-local.json",
     "infra/marker/profiles/academic-enhanced-local-9b.json",
+    "infra/marker/profiles/academic-enhanced-hosted.json",
     "infra/marker/profiles/conservative.json",
     "infra/marker/profiles/fast-born-digital.json",
     "infra/marker/profiles/released-default.json",
@@ -79,6 +85,26 @@ def file_sha256(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def resolve_hosted_vision_target(profile, require_key=False):
+    configured = profile.get("llm_target")
+    if not configured:
+        return None
+    target = os.environ.get("MARKER_VISION_TARGET", configured)
+    provider, separator, model = target.partition(":")
+    if not separator or not model or provider not in HOSTED_VISION_PROVIDERS:
+        raise ValueError("invalid MARKER_VISION_TARGET provider or model")
+    endpoint, key_environment = HOSTED_VISION_PROVIDERS[provider]
+    if require_key and not os.environ.get(key_environment):
+        raise ValueError(f"{key_environment} is required for {provider}")
+    return {
+        "target": target,
+        "provider": provider,
+        "model": model,
+        "endpoint": endpoint,
+        "credentialEnvironment": key_environment,
+    }
 
 
 def page_count(path):
@@ -957,6 +983,7 @@ def environment_manifest(candidate, profile, args, serving_manifest=None):
     if candidate.get("servingManifest"):
         harness_files.append(REPO_ROOT / candidate["servingManifest"])
     harness = [{"path": str(path.relative_to(REPO_ROOT)), "sha256": file_sha256(path)} for path in harness_files]
+    hosted_vision = resolve_hosted_vision_target(profile)
     return {
         "capturedAt": datetime.now(timezone.utc).isoformat(),
         "candidate": candidate["id"],
@@ -974,6 +1001,7 @@ def environment_manifest(candidate, profile, args, serving_manifest=None):
         "hourlyRateUsd": args.hourly_rate_usd,
         "servingManifest": serving_manifest,
         "servingConfigurationFingerprint": canonical_sha256(serving_manifest) if serving_manifest else None,
+        "hostedVision": hosted_vision,
     }
 
 
@@ -992,6 +1020,10 @@ def run_benchmark(args):
     args.matrix_data = matrix
     candidate = find_candidate(matrix, args.candidate, args.allow_disabled_candidate)
     profile = load_json(REPO_ROOT / candidate["profileConfig"])
+    hosted_vision = resolve_hosted_vision_target(
+        profile,
+        require_key=not args.test_adapter and not args.dry_run,
+    )
     serving_manifest = None
     if candidate.get("servingManifest"):
         serving_manifest = validate_serving_manifest(
@@ -1023,7 +1055,7 @@ def run_benchmark(args):
     if expected_revision and not args.build_manifest:
         raise ValueError("Marker++ runs require the matching package build manifest")
     build_manifest = validate_build_manifest(args.build_manifest, expected_revision) if expected_revision else None
-    if serving_manifest and build_manifest:
+    if (serving_manifest or candidate.get("requiresVisionAdapter")) and build_manifest:
         integration_sha = build_manifest.get("repositoryIntegrationSha256")
         if integration_sha != file_sha256(REPO_ROOT / "oghma_marker/services.py"):
             raise ValueError("build manifest does not contain the approved repository vision adapter")
@@ -1031,6 +1063,8 @@ def run_benchmark(args):
         validate_installed_marker_build(build_manifest["archiveSha256"])
     if serving_manifest and not args.test_adapter and not args.dry_run:
         validate_runtime_identity(serving_manifest)
+    if hosted_vision and serving_manifest:
+        raise ValueError("hosted vision candidates must not declare a local serving manifest")
     expected_version = candidate.get("expectedVersion")
     if expected_version:
         actual_version = importlib.metadata.version("marker-pdf")

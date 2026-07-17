@@ -52,8 +52,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
-| [Marker GPU benchmark](operations/marker-gpu-benchmark.md) | Prepared AWS GPU, real-file corpus, Marker/Marker++ benchmark, and cost-control procedure |
-| [Marker GPU benchmark handover](operations/marker-gpu-benchmark-handover.md) | Current readiness, execution order, homelab transfer, termination, and remaining launch gates |
+| Marker++ benchmark analysis (separate repository: `/home/semyon/code/personal/marker++/docs/benchmarks/`) | Canonical Marker/Marker++ GPU measurements, analysis, evidence boundaries, and serving decision |
 | [Email](operations/email.md) | Human inbox ownership and transactional-email setup |
 | [Secrets](operations/secrets.md) | Safe secret ownership, rotation, and recovery policy |
 

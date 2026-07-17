@@ -7,6 +7,7 @@ import types
 import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import patch
 
 from PIL import Image
 from pydantic import BaseModel
@@ -225,6 +226,52 @@ class VisionServiceTests(unittest.TestCase):
     def test_non_loopback_endpoint_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "loopback"):
             self.service(llm_base_url="http://192.0.2.1:8000/v1")
+
+    def test_openrouter_siliconflow_target_uses_environment_key_and_pinned_route(self):
+        environment = {
+            "MARKER_VISION_TARGET": "openrouter-siliconflow:qwen/qwen3.5-9b",
+            "OPENROUTER_API_KEY": "test-secret",
+        }
+        with patch.dict("os.environ", environment, clear=False):
+            service = self.service(llm_target="openrouter-siliconflow:default/model")
+            self.assertEqual(service.llm_base_url, "https://openrouter.ai/api/v1")
+            self.assertEqual(service.llm_model, "qwen/qwen3.5-9b")
+            payload = service._payload("private", None, Answer)
+        self.assertEqual(payload["provider"]["order"], ["SiliconFlow"])
+        self.assertFalse(payload["provider"]["allow_fallbacks"])
+        self.assertEqual(payload["provider"]["data_collection"], "deny")
+        self.assertEqual(payload["reasoning"], {"enabled": False})
+        self.assertNotIn("chat_template_kwargs", payload)
+        self.assertNotIn("test-secret", json.dumps(payload))
+
+    def test_direct_siliconflow_target_uses_its_key_and_thinking_flag(self):
+        environment = {
+            "MARKER_VISION_TARGET": "siliconflow:Qwen/Qwen3.5-9B",
+            "SILICONFLOW_API_KEY": "test-secret",
+        }
+        with patch.dict("os.environ", environment, clear=False):
+            service = self.service(llm_target="siliconflow:default/model", llm_thinking=True)
+            payload = service._payload("private", None, Answer)
+        self.assertEqual(service.llm_base_url, "https://api.siliconflow.com/v1")
+        self.assertEqual(service.llm_model, "Qwen/Qwen3.5-9B")
+        self.assertTrue(payload["enable_thinking"])
+
+    def test_hosted_target_rejects_missing_key_and_unknown_provider(self):
+        with patch.dict("os.environ", {"MARKER_VISION_TARGET": "openrouter:qwen/qwen3.5-9b"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "OPENROUTER_API_KEY"):
+                self.service(llm_target="openrouter:default/model")
+        with patch.dict("os.environ", {"MARKER_VISION_TARGET": "unapproved:model", "OPENROUTER_API_KEY": "x"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "providers"):
+                self.service(llm_target="openrouter:default/model")
+
+    def test_hosted_environment_cannot_override_a_local_profile(self):
+        with patch.dict("os.environ", {
+            "MARKER_VISION_TARGET": "openrouter:qwen/qwen3.5-9b",
+            "OPENROUTER_API_KEY": "test-secret",
+        }, clear=False):
+            service = self.service()
+        self.assertEqual(service.llm_base_url, f"http://127.0.0.1:{self.server.server_port}/v1")
+        self.assertEqual(service.llm_model, MODEL)
 
 
 if __name__ == "__main__":
