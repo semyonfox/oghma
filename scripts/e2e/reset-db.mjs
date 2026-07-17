@@ -164,6 +164,33 @@ async function applyCurrentSchemaPatch(sql) {
       UNIQUE(note_id, s3_key)
     );
 
+    CREATE TABLE IF NOT EXISTS app.marketing_events (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_name     TEXT NOT NULL,
+      user_id        UUID REFERENCES app.login(user_id) ON DELETE SET NULL,
+      path           TEXT,
+      referrer       TEXT,
+      source         TEXT,
+      target_url     TEXT,
+      utm_source     TEXT,
+      utm_medium     TEXT,
+      utm_campaign   TEXT,
+      utm_content    TEXT,
+      utm_term       TEXT,
+      properties     JSONB NOT NULL DEFAULT '{}'::jsonb,
+      occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      from_path      TEXT,
+      to_path        TEXT,
+      origin_class   TEXT,
+      placement      TEXT,
+      action         TEXT,
+      CONSTRAINT marketing_events_event_name_length
+        CHECK (char_length(event_name) BETWEEN 1 AND 96),
+      CONSTRAINT marketing_events_navigation_origin_class
+        CHECK (origin_class IS NULL OR origin_class IN ('direct', 'external', 'internal'))
+    );
+
     CREATE TABLE IF NOT EXISTS app.rate_limit_log (
       id         BIGSERIAL PRIMARY KEY,
       category   TEXT NOT NULL,
@@ -209,6 +236,27 @@ async function applyCurrentSchemaPatch(sql) {
       ON app.quiz_cards(user_id, state);
     CREATE INDEX IF NOT EXISTS idx_time_blocks_user_range
       ON app.time_blocks(user_id, starts_at, ends_at);
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_event_time
+      ON app.marketing_events(event_name, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_user_time
+      ON app.marketing_events(user_id, occurred_at DESC)
+      WHERE user_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_utm_campaign_time
+      ON app.marketing_events(utm_campaign, occurred_at DESC)
+      WHERE utm_campaign IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_navigation_aggregate
+      ON app.marketing_events(to_path, from_path, origin_class, placement, action, occurred_at DESC)
+      WHERE event_name = 'navigation_transition';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_events_activation_milestone_once
+      ON app.marketing_events(user_id, event_name)
+      WHERE user_id IS NOT NULL
+        AND event_name IN (
+          'email_verified',
+          'canvas_import_started',
+          'canvas_import_completed',
+          'first_cited_answer',
+          'first_flashcard_generated'
+        );
   `);
 }
 
