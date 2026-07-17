@@ -35,6 +35,7 @@ HARNESS_FILES = [
     "infra/marker/profiles/academic-enhanced-local.json",
     "infra/marker/profiles/academic-enhanced-local-9b.json",
     "infra/marker/profiles/academic-enhanced-hosted.json",
+    "infra/marker/profiles/academic-enhanced-hosted-control.json",
     "infra/marker/profiles/conservative.json",
     "infra/marker/profiles/fast-born-digital.json",
     "infra/marker/profiles/released-default.json",
