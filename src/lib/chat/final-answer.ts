@@ -27,6 +27,7 @@ export async function streamFinalAnswer(options: {
   messages: ModelMessage[];
   maxOutputTokens: number;
   onTextDelta: (text: string) => void;
+  abortSignal?: AbortSignal;
 }): Promise<FinalAnswerResult> {
   const [firstMessage, ...remainingMessages] = options.messages;
   const messages: ModelMessage[] =
@@ -47,6 +48,7 @@ export async function streamFinalAnswer(options: {
     model: options.model,
     messages,
     maxOutputTokens: options.maxOutputTokens,
+    abortSignal: options.abortSignal,
     providerOptions: {
       openrouter: { reasoning: { enabled: false, effort: "none" } },
     },

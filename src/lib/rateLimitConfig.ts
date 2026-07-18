@@ -16,6 +16,9 @@ export interface RateLimitRule {
 export const RATE_LIMITS: Record<string, RateLimitRule> = {
   // tier 1 — expensive external API calls
   'chat':           { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
+  // presence heartbeats fire every ~10s per open tab plus visibility events
+  'chat-presence':  { limit: 1200, windowSeconds: 3600, keyType: 'userId' },
+  'chat-cancel':    { limit: 120, windowSeconds: 3600,  keyType: 'userId' },
   'extract':        { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
   'canvas-connect': { limit: 10,  windowSeconds: 3600,  keyType: 'userId' },
 
