@@ -15,7 +15,16 @@ pnpm-lock.yaml
 .env.local
 .env.development
 .env.test
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+.ssh
+.kubeconfig
 .DS_Store
 .vscode
 coverage
-
+benchmark*
+test-results
+playwright-report

@@ -1,26 +1,22 @@
-# Stage 1: Dependencies
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* .npmrc* ./
-RUN npm pkg delete scripts.prepare && npm ci --only=production && npm cache clean --force
-
-# Stage 2: Builder
-FROM node:22-alpine AS builder
+# Stage 1: Builder
+FROM node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS builder
 WORKDIR /app
 # Install build tools for native modules (e.g., bcrypt)
-RUN apk add --no-cache python3 make g++
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* .npmrc* ./
 RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Stub DATABASE_URL for build time (actual URL provided at runtime via env vars)
-ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+ENV DATABASE_URL=postgresql://build:***@localhost:5432/build
 # Use standard Next.js build (not Turbopack) to ensure .next/standalone is created
 RUN npx next build
 
-# Stage 3: Runner
-FROM node:22-alpine AS runner
+# Stage 2: Runner
+FROM node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -28,8 +24,8 @@ ENV PORT=3000
 # Ensure Next.js binds to all interfaces inside container
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid nodejs --create-home nextjs
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
