@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import IORedis from "ioredis";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
+import { readFile } from "fs/promises";
 import { MIGRATION_SQL } from "../standalone-migration.mjs";
 import { loadE2EEnvFiles } from "./lib/env.mjs";
 
@@ -532,6 +533,12 @@ async function main() {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
     await sql.unsafe(MIGRATION_SQL);
     await applyCurrentSchemaPatch(sql);
+    await sql.unsafe(
+      await readFile(
+        new URL("../../database/migrations/045_imported_file_cache.sql", import.meta.url),
+        "utf8",
+      ),
+    );
     await resetQdrant();
     await seedUser(sql);
     await flushRedis();
