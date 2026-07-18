@@ -15,6 +15,11 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+
+# local agent state
+/.agent/
 
 # next.js
 /.next/
