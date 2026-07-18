@@ -262,7 +262,10 @@ async function applyCurrentSchemaPatch(sql) {
 }
 
 function qdrantUrl() {
-  return (process.env.QDRANT_URL || "http://127.0.0.1:56333").replace(/\/+$/, "");
+  return (process.env.QDRANT_URL || "http://127.0.0.1:56333").replace(
+    /\/+$/,
+    "",
+  );
 }
 
 function qdrantHeaders() {
@@ -280,7 +283,9 @@ async function qdrantFetch(path, init = {}) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`);
+    throw new Error(
+      `Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`,
+    );
   }
   if (res.status === 204) return undefined;
   return await res.json();
@@ -380,15 +385,17 @@ async function seedUser(sql) {
   await qdrantFetch(`/collections/${qdrantCollection}/points?wait=true`, {
     method: "PUT",
     body: JSON.stringify({
-      points: [{
-        id: chunkId,
-        vector: vector4096,
-        payload: {
-          chunk_id: chunkId,
-          document_id: noteId,
-          user_id: seedUserId,
+      points: [
+        {
+          id: chunkId,
+          vector: vector4096,
+          payload: {
+            chunk_id: chunkId,
+            document_id: noteId,
+            user_id: seedUserId,
+          },
         },
-      }],
+      ],
     }),
   });
 
@@ -525,7 +532,9 @@ async function main() {
   assertSafeDatabaseUrl(databaseUrl);
 
   const sql = postgres(databaseUrl, {
-    ssl: databaseUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : false,
+    ssl: databaseUrl.includes("sslmode=require")
+      ? { rejectUnauthorized: false }
+      : false,
     max: 1,
   });
 
@@ -533,16 +542,25 @@ async function main() {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
     await sql.unsafe(MIGRATION_SQL);
     await applyCurrentSchemaPatch(sql);
-    await sql.unsafe(
-      await readFile(
-        new URL("../../database/migrations/045_imported_file_cache.sql", import.meta.url),
-        "utf8",
-      ),
-    );
+    for (const migration of [
+      "041_chat_generation_status.sql",
+      "042_resumable_chat_generations.sql",
+      "043_chat_session_pinning.sql",
+      "045_imported_file_cache.sql",
+    ]) {
+      await sql.unsafe(
+        await readFile(
+          new URL(`../../database/migrations/${migration}`, import.meta.url),
+          "utf8",
+        ),
+      );
+    }
     await resetQdrant();
     await seedUser(sql);
     await flushRedis();
-    console.log(`[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`);
+    console.log(
+      `[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`,
+    );
   } finally {
     await sql.end();
   }
