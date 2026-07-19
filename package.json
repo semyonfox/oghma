@@ -34,7 +34,7 @@
     "e2e:services:down": "docker compose -f docker-compose.e2e.yml down -v",
     "e2e:reset": "node scripts/e2e/run-with-env.mjs node scripts/e2e/reset-db.mjs && node scripts/e2e/run-with-env.mjs node scripts/e2e/create-storage-bucket.mjs",
     "docker:marker:build": "docker build -f Dockerfile.marker -t marker-ocr:latest .",
-    "docker:marker:validate": "docker build -f Dockerfile.marker --dry-run=true .",
+    "docker:marker:validate": "docker buildx build -f Dockerfile.marker --check .",
     "benchmark:marker": "bash scripts/marker-bench-python.sh",
     "benchmark:marker:diagnostic": "bash scripts/marker-bench-python.sh diagnostic",
     "benchmark:marker:prepare": "bash scripts/marker-bench-prepare-instance.sh",
