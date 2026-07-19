@@ -32,10 +32,8 @@ test.describe("auth and notes smoke", () => {
       await page.getByTitle("Toggle metadata panel").click();
       const inspector = page.getByRole("dialog");
       await expect(inspector).toBeVisible();
-      await inspector.getByRole("tab", { name: "Tasks" }).click();
-      await expect(
-        inspector.getByRole("tab", { name: "Tasks" }),
-      ).toHaveAttribute("aria-selected", "true");
+      await inspector.getByRole("button", { name: "Global Tasks" }).click();
+      await expect(page.getByRole("dialog", { name: "Global Tasks" })).toBeVisible();
       await inspector.getByRole("button", { name: "Close" }).first().click();
       await expect(inspector).not.toBeVisible();
     }

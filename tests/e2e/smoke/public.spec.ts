@@ -11,7 +11,9 @@ test.describe("public smoke", () => {
 
     await page.goto("/pricing");
     await expect(
-      page.getByRole("heading", { name: /Pricing built around semesters/i }),
+      page.getByRole("heading", {
+        name: /Pricing built around the academic term/i,
+      }),
     ).toBeVisible();
 
     await page.goto("/login");
