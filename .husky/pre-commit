@@ -10,15 +10,17 @@ echo "✓ Linting TypeScript/JavaScript..."
 npm run lint:all
 
 # 2. Validate Dockerfile.marker syntax (if it exists and Docker is available)
-if [ -f Dockerfile.marker ] && command -v docker &> /dev/null; then
+if [ -f Dockerfile.marker ] && command -v docker >/dev/null 2>&1; then
   echo "✓ Validating Dockerfile.marker..."
-  npm run docker:marker:validate || echo "⚠ Docker validation skipped (Docker not available)"
+  npm run docker:marker:validate
 fi
 
-# 3. Validate shell scripts in infra/marker
-if command -v shellcheck &> /dev/null; then
+# 3. Validate tracked shell scripts when ShellCheck is installed
+if command -v shellcheck >/dev/null 2>&1; then
   echo "✓ Checking shell scripts..."
-  find infra/marker -name "*.sh" -type f -exec shellcheck {} \; || true
+  git ls-files -z "*.sh" | xargs -0 -r shellcheck
+else
+  echo "⚠ ShellCheck not installed; shell script validation skipped"
 fi
 
 echo "✅ Precommit checks passed!"
