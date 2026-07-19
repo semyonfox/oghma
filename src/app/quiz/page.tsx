@@ -1,23 +1,13 @@
-"use client";
+import { redirect } from "next/navigation";
+import { validateSession } from "@/lib/auth";
+import QuizPageClient from "./quiz-page-client";
+import { getQuizDashboardData } from "./server-data";
 
-import IconNav from "@/components/sidebar/icon-nav";
-import useLayoutStore from "@/lib/notes/state/layout.zustand";
-import { useEffect } from "react";
-import QuizDashboard from "@/components/quiz/dashboard";
+export default async function QuizPage() {
+  const user = await validateSession();
+  if (!user) redirect("/login?next=/quiz");
 
-export default function QuizPage() {
-  const { setActiveNav } = useLayoutStore();
+  const initialData = await getQuizDashboardData(user.user_id);
 
-  useEffect(() => {
-    setActiveNav("quiz");
-  }, [setActiveNav]);
-
-  return (
-    <div className="flex h-screen bg-app-page text-text">
-      <IconNav />
-      <div className="flex-1 overflow-y-auto">
-        <QuizDashboard />
-      </div>
-    </div>
-  );
+  return <QuizPageClient initialData={initialData} />;
 }

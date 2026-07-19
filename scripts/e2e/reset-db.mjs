@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import IORedis from "ioredis";
 import postgres from "postgres";
 import { randomUUID } from "crypto";
+import { readFile } from "fs/promises";
 import { MIGRATION_SQL } from "../standalone-migration.mjs";
 import { loadE2EEnvFiles } from "./lib/env.mjs";
 
@@ -164,6 +165,33 @@ async function applyCurrentSchemaPatch(sql) {
       UNIQUE(note_id, s3_key)
     );
 
+    CREATE TABLE IF NOT EXISTS app.marketing_events (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_name     TEXT NOT NULL,
+      user_id        UUID REFERENCES app.login(user_id) ON DELETE SET NULL,
+      path           TEXT,
+      referrer       TEXT,
+      source         TEXT,
+      target_url     TEXT,
+      utm_source     TEXT,
+      utm_medium     TEXT,
+      utm_campaign   TEXT,
+      utm_content    TEXT,
+      utm_term       TEXT,
+      properties     JSONB NOT NULL DEFAULT '{}'::jsonb,
+      occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      from_path      TEXT,
+      to_path        TEXT,
+      origin_class   TEXT,
+      placement      TEXT,
+      action         TEXT,
+      CONSTRAINT marketing_events_event_name_length
+        CHECK (char_length(event_name) BETWEEN 1 AND 96),
+      CONSTRAINT marketing_events_navigation_origin_class
+        CHECK (origin_class IS NULL OR origin_class IN ('direct', 'external', 'internal'))
+    );
+
     CREATE TABLE IF NOT EXISTS app.rate_limit_log (
       id         BIGSERIAL PRIMARY KEY,
       category   TEXT NOT NULL,
@@ -209,11 +237,35 @@ async function applyCurrentSchemaPatch(sql) {
       ON app.quiz_cards(user_id, state);
     CREATE INDEX IF NOT EXISTS idx_time_blocks_user_range
       ON app.time_blocks(user_id, starts_at, ends_at);
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_event_time
+      ON app.marketing_events(event_name, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_user_time
+      ON app.marketing_events(user_id, occurred_at DESC)
+      WHERE user_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_utm_campaign_time
+      ON app.marketing_events(utm_campaign, occurred_at DESC)
+      WHERE utm_campaign IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_navigation_aggregate
+      ON app.marketing_events(to_path, from_path, origin_class, placement, action, occurred_at DESC)
+      WHERE event_name = 'navigation_transition';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_events_activation_milestone_once
+      ON app.marketing_events(user_id, event_name)
+      WHERE user_id IS NOT NULL
+        AND event_name IN (
+          'email_verified',
+          'canvas_import_started',
+          'canvas_import_completed',
+          'first_cited_answer',
+          'first_flashcard_generated'
+        );
   `);
 }
 
 function qdrantUrl() {
-  return (process.env.QDRANT_URL || "http://127.0.0.1:56333").replace(/\/+$/, "");
+  return (process.env.QDRANT_URL || "http://127.0.0.1:56333").replace(
+    /\/+$/,
+    "",
+  );
 }
 
 function qdrantHeaders() {
@@ -231,7 +283,9 @@ async function qdrantFetch(path, init = {}) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`);
+    throw new Error(
+      `Qdrant ${init.method || "GET"} ${path} failed: ${res.status} ${body}`,
+    );
   }
   if (res.status === 204) return undefined;
   return await res.json();
@@ -331,15 +385,17 @@ async function seedUser(sql) {
   await qdrantFetch(`/collections/${qdrantCollection}/points?wait=true`, {
     method: "PUT",
     body: JSON.stringify({
-      points: [{
-        id: chunkId,
-        vector: vector4096,
-        payload: {
-          chunk_id: chunkId,
-          document_id: noteId,
-          user_id: seedUserId,
+      points: [
+        {
+          id: chunkId,
+          vector: vector4096,
+          payload: {
+            chunk_id: chunkId,
+            document_id: noteId,
+            user_id: seedUserId,
+          },
         },
-      }],
+      ],
     }),
   });
 
@@ -476,7 +532,9 @@ async function main() {
   assertSafeDatabaseUrl(databaseUrl);
 
   const sql = postgres(databaseUrl, {
-    ssl: databaseUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : false,
+    ssl: databaseUrl.includes("sslmode=require")
+      ? { rejectUnauthorized: false }
+      : false,
     max: 1,
   });
 
@@ -484,10 +542,25 @@ async function main() {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
     await sql.unsafe(MIGRATION_SQL);
     await applyCurrentSchemaPatch(sql);
+    for (const migration of [
+      "041_chat_generation_status.sql",
+      "042_resumable_chat_generations.sql",
+      "043_chat_session_pinning.sql",
+      "045_imported_file_cache.sql",
+    ]) {
+      await sql.unsafe(
+        await readFile(
+          new URL(`../../database/migrations/${migration}`, import.meta.url),
+          "utf8",
+        ),
+      );
+    }
     await resetQdrant();
     await seedUser(sql);
     await flushRedis();
-    console.log(`[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`);
+    console.log(
+      `[e2e] reset complete for ${new URL(databaseUrl).pathname.slice(1)}`,
+    );
   } finally {
     await sql.end();
   }

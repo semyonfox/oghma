@@ -1,13 +1,25 @@
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_APP_URL || "https://oghmanotes.ie"
-).replace(/\/$/, "");
+import {
+  AGENT_RESOURCE_PATHS,
+  AI_USER_AGENTS,
+  getBaseUrl,
+} from "@/lib/public/agent-content";
+
+const BASE_URL = getBaseUrl();
+
+const AI_READABLE_PATHS = ["/", ...AGENT_RESOURCE_PATHS];
 
 export default function robots() {
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-    },
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+      },
+      {
+        userAgent: AI_USER_AGENTS,
+        allow: AI_READABLE_PATHS,
+      },
+    ],
+    sitemap: [`${BASE_URL}/sitemap.xml`, `${BASE_URL}/agent-sitemap.xml`],
   };
 }

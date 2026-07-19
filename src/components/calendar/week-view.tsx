@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
@@ -8,10 +8,9 @@ import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   formatDateKey,
-  localDateKeyRangeToIso,
 } from "@/lib/notes/utils/calendar-date";
 
-const HOUR_HEIGHT = 56; // px per hour row
+const MIN_HOUR_HEIGHT = 56;
 const START_HOUR = 6;
 const END_HOUR = 24;
 const HOURS = Array.from(
@@ -21,6 +20,7 @@ const HOURS = Array.from(
 
 function getWeekDays(
   anchor: Date,
+  locale: string,
 ): { date: string; label: string; dayNum: string; isToday: boolean }[] {
   const d = new Date(anchor);
   const dow = (d.getDay() + 6) % 7; // monday=0
@@ -35,18 +35,11 @@ function getWeekDays(
     const dateStr = formatDateKey(day);
     return {
       date: dateStr,
-      label: day.toLocaleDateString("en-US", { weekday: "short" }),
+      label: day.toLocaleDateString(locale, { weekday: "short" }),
       dayNum: String(day.getDate()),
       isToday: dateStr === todayStr,
     };
   });
-}
-
-function formatHour(h: number): string {
-  if (h === 0) return "12AM";
-  if (h < 12) return `${h}AM`;
-  if (h === 12) return "12PM";
-  return `${h - 12}PM`;
 }
 
 interface PositionedBlock {
@@ -59,51 +52,65 @@ interface PositionedBlock {
   col: number;
 }
 
-export default function WeekView() {
-  const { t } = useI18n();
+interface WeekViewProps {
+  onSelectDate?: (date: string) => void;
+  onAddStudyBlock?: (date: string, start: string, end: string) => void;
+}
+
+export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProps) {
+  const { activeLocale, t } = useI18n();
   const {
     currentDate,
     timeBlocks,
-    fetchTimeBlocks,
-    createTimeBlock,
     deleteTimeBlock,
     toggleTimeBlockCompleted,
     setSelectedDate,
   } = useCalendarStore();
   const { assignments } = useAssignmentStore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const [hourHeight, setHourHeight] = useState(MIN_HOUR_HEIGHT);
 
   const anchor = useMemo(() => new Date(currentDate), [currentDate]);
-  const weekDays = useMemo(() => getWeekDays(anchor), [anchor]);
+  const weekDays = useMemo(() => getWeekDays(anchor, activeLocale), [activeLocale, anchor]);
+  const [now, setNow] = useState(() => new Date());
+  const timeFormatter = useMemo(
+    () => new Intl.DateTimeFormat(activeLocale, { hour: "numeric" }),
+    [activeLocale],
+  );
 
-  // fetch time blocks for the week
   useEffect(() => {
-    const { start, end } = localDateKeyRangeToIso(
-      weekDays[0].date,
-      weekDays[6].date,
-    );
-    fetchTimeBlocks(start, end);
-  }, [weekDays, fetchTimeBlocks]);
-
-  // refresh when AI creates/completes a time block
-  useEffect(() => {
-    const refresh = () => {
-      const { start, end } = localDateKeyRangeToIso(
-        weekDays[0].date,
-        weekDays[6].date,
-      );
-      fetchTimeBlocks(start, end);
+    const update = () => setNow(new Date());
+    const delay = 60_000 - (Date.now() % 60_000);
+    let interval: number | undefined;
+    const timeout = window.setTimeout(() => {
+      update();
+      interval = window.setInterval(update, 60_000);
+    }, delay);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", update);
     };
-    window.addEventListener("oghma:time-block-changed", refresh);
-    return () => window.removeEventListener("oghma:time-block-changed", refresh);
-  }, [weekDays, fetchTimeBlocks]);
+  }, []);
 
-  // scroll to 8am on mount
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = (8 - START_HOUR) * HOUR_HEIGHT;
-    }
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+
+    const updateHourHeight = () => {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const availableHeight = Math.max(0, scroll.clientHeight - headerHeight);
+      setHourHeight(Math.max(MIN_HOUR_HEIGHT, availableHeight / HOURS.length));
+    };
+
+    updateHourHeight();
+    const observer = new ResizeObserver(updateHourHeight);
+    observer.observe(scroll);
+    if (headerRef.current) observer.observe(headerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   // position time blocks on the grid
@@ -118,8 +125,8 @@ export default function WeekView() {
 
       const startHour = start.getHours() + start.getMinutes() / 60;
       const endHour = end.getHours() + end.getMinutes() / 60;
-      const top = (startHour - START_HOUR) * HOUR_HEIGHT;
-      const height = Math.max((endHour - startHour) * HOUR_HEIGHT, 14);
+      const top = (startHour - START_HOUR) * hourHeight;
+      const height = Math.max((endHour - startHour) * hourHeight, 14);
 
       blocks.push({
         id: tb.id,
@@ -132,7 +139,7 @@ export default function WeekView() {
       });
     }
     return blocks;
-  }, [timeBlocks, weekDays, t]);
+  }, [hourHeight, timeBlocks, weekDays, t]);
 
   // due date markers
   const dueMarkers = useMemo(() => {
@@ -152,33 +159,32 @@ export default function WeekView() {
       const hour = d.getHours() + d.getMinutes() / 60;
       markers.push({
         col: colIdx,
-        top: (hour - START_HOUR) * HOUR_HEIGHT,
+        top: (hour - START_HOUR) * hourHeight,
         title: a.title,
         color: a.course_color ?? "#ef4444",
       });
     }
     return markers;
-  }, [assignments, weekDays]);
+  }, [assignments, hourHeight, weekDays]);
 
   // current time indicator
-  const now = new Date();
   const todayCol = weekDays.findIndex((d) => d.isToday);
   const nowTop =
     todayCol >= 0
-      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT
+      ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * hourHeight
       : -1;
 
   // click-to-create time block
-  const handleGridClick = async (
+  const handleGridClick = (
     colIdx: number,
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return;
     const y = e.clientY - rect.top;
-    const hour = Math.floor(y / HOUR_HEIGHT) + START_HOUR;
+    const hour = Math.floor(y / hourHeight) + START_HOUR;
     const snappedMinute =
-      Math.round((y % HOUR_HEIGHT) / (HOUR_HEIGHT / 2)) * 30;
+      Math.round((y % hourHeight) / (hourHeight / 2)) * 30;
 
     const date = weekDays[colIdx].date;
     const startHour = hour + (snappedMinute >= 60 ? 1 : 0);
@@ -204,105 +210,105 @@ export default function WeekView() {
       0,
       0,
     );
-    const starts_at = startDate.toISOString();
-    const ends_at = endDate.toISOString();
-
-    // prevent overlapping time blocks on the same slot
-    const hasOverlap = timeBlocks.some(
-      (tb) =>
-        new Date(tb.starts_at).getTime() < endDate.getTime() &&
-        new Date(tb.ends_at).getTime() > startDate.getTime(),
-    );
-    if (hasOverlap) return;
-
-    await createTimeBlock({ starts_at, ends_at });
     setSelectedDate(date);
+    const formatTime = (value: Date) =>
+      `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+    onAddStudyBlock?.(date, formatTime(startDate), formatTime(endDate));
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* day headers */}
-      <div
-        className="grid shrink-0 border-b border-border-subtle"
-        style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
-      >
-        <div className="border-r border-border-subtle" />
-        {weekDays.map((d) => (
-          <div
-            key={d.date}
-            className="flex flex-col items-center py-2 text-xs text-text-tertiary"
-          >
-            <span>{d.label}</span>
-            <span
-              className={`
-              mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold
-              ${d.isToday ? "bg-primary-600 text-text-on-primary" : "text-text-secondary"}
-            `}
+    <div
+      ref={scrollRef}
+      className="h-full overflow-auto overscroll-contain"
+      aria-label={t("Week view")}
+    >
+      <div className="relative min-h-full min-w-[52rem] md:min-w-0">
+        <div
+          ref={headerRef}
+          className="sticky top-0 z-30 grid border-b border-border-subtle bg-surface"
+          style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
+        >
+          <div className="sticky left-0 z-40 border-r border-border-subtle bg-surface" />
+          {weekDays.map((day) => (
+            <div
+              key={day.date}
+              className="flex flex-col items-center bg-surface py-2 text-xs text-text-tertiary"
             >
-              {d.dayNum}
-            </span>
-          </div>
-        ))}
-      </div>
+              <button
+                type="button"
+                className="flex min-h-11 w-full flex-col items-center justify-center"
+                onClick={() => {
+                  setSelectedDate(day.date);
+                  onSelectDate?.(day.date);
+                }}
+                aria-label={t("Select {date}", { date: day.date })}
+              >
+              <span>{day.label}</span>
+              <span
+                className={`mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
+                  day.isToday
+                    ? "bg-primary-600 text-text-on-primary"
+                    : "text-text-secondary"
+                }`}
+              >
+                {day.dayNum}
+              </span>
+              </button>
+            </div>
+          ))}
+        </div>
 
-      {/* scrollable grid */}
-      <div ref={scrollRef} className="flex-1 overflow-auto">
         <div
           ref={gridRef}
-          className="relative"
-          style={{
-            gridTemplateColumns: "3.5rem repeat(7, 1fr)",
-            display: "grid",
-          }}
+          className="relative grid"
+          style={{ gridTemplateColumns: "3.5rem repeat(7, 1fr)" }}
         >
-          {/* hour labels */}
-          <div className="sticky left-0 z-10 bg-surface border-r border-border-subtle">
-            {HOURS.map((h) => (
-              <div key={h} style={{ height: HOUR_HEIGHT }} className="relative">
-                <span className="absolute -top-2.5 right-2 text-xs text-text-tertiary tabular-nums">
-                  {formatHour(h)}
+          <div className="sticky left-0 z-20 border-r border-border-subtle bg-surface">
+            {HOURS.map((hour) => (
+              <div key={hour} style={{ height: hourHeight }} className="relative">
+                <span className={`absolute right-2 text-xs tabular-nums text-text-tertiary ${hour === START_HOUR ? "top-1" : "-top-2.5"}`}>
+                  {timeFormatter.format(new Date(2024, 0, 1, hour))}
                 </span>
               </div>
             ))}
           </div>
 
-          {/* day columns */}
-          {weekDays.map((d, colIdx) => (
+          {weekDays.map((day, colIdx) => (
             <div
-              key={d.date}
-              className="relative border-r border-border-subtle cursor-pointer"
-              onClick={(e) => handleGridClick(colIdx, e)}
+              key={day.date}
+              className="relative cursor-pointer border-r border-border-subtle"
+              onClick={(event) => handleGridClick(colIdx, event)}
             >
-              {/* hour grid lines */}
-              {HOURS.map((h) => (
+              {HOURS.map((hour) => (
                 <div
-                  key={h}
-                  style={{ height: HOUR_HEIGHT }}
+                  key={hour}
+                  style={{ height: hourHeight }}
                   className="border-b border-subtle"
                 />
               ))}
 
-              {/* time blocks */}
               {positioned
-                .filter((b) => b.col === colIdx)
-                .map((b) => (
+                .filter((block) => block.col === colIdx)
+                .map((block) => (
                   <div
-                    key={b.id}
-                    className={`group/block absolute left-0.5 right-0.5 rounded-radius-md overflow-hidden text-xs leading-tight px-1.5 py-1 bg-surface-elevated border-l-2 shadow-sm ${b.completed ? "opacity-60" : ""}`}
+                    key={block.id}
+                    className={`group/block absolute left-0.5 right-0.5 overflow-hidden rounded-radius-md border-l-2 bg-surface-elevated px-1.5 py-1 text-xs leading-tight shadow-sm ${block.completed ? "opacity-60" : ""}`}
                     style={{
-                      top: b.top,
-                      height: b.height,
-                      borderColor: b.courseColor ?? "var(--color-primary-500)",
+                      top: block.top,
+                      height: block.height,
+                      borderColor:
+                        block.courseColor ?? "var(--color-primary-500)",
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        void deleteTimeBlock(b.id);
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void deleteTimeBlock(block.id);
                       }}
-                      className="absolute top-0.5 right-0.5 rounded p-0.5 text-text-tertiary opacity-0 group-hover/block:opacity-100 hover:bg-subtle hover:text-text-secondary transition"
+                      className="absolute right-0.5 top-0.5 rounded p-0.5 text-text-tertiary opacity-100 transition hover:bg-subtle hover:text-text-secondary md:opacity-0 md:group-hover/block:opacity-100"
                       aria-label={t("Delete study block")}
                       title={t("Delete study block")}
                     >
@@ -310,48 +316,62 @@ export default function WeekView() {
                     </button>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void toggleTimeBlockCompleted(b.id);
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void toggleTimeBlockCompleted(block.id);
                         }}
-                        className="shrink-0"
+                        className="touch-target-44 relative shrink-0"
                         aria-label={
-                          b.completed ? t("Mark incomplete") : t("Mark complete")
+                          block.completed
+                            ? t("Mark incomplete")
+                            : t("Mark complete")
                         }
                       >
-                        {b.completed ? (
+                        {block.completed ? (
                           <CheckCircleIcon className="h-3.5 w-3.5 text-primary-500" />
                         ) : (
-                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary hover:text-primary-500 transition-colors" />
+                          <CheckCircleOutline className="h-3.5 w-3.5 text-text-tertiary transition-colors hover:text-primary-500" />
                         )}
                       </button>
-                      <p className={`font-medium truncate pr-4 ${b.completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}>
-                        {b.title}
+                      <p
+                        className={`truncate pr-4 font-medium ${
+                          block.completed
+                            ? "text-text-tertiary line-through"
+                            : "text-text-secondary"
+                        }`}
+                      >
+                        {block.title}
                       </p>
                     </div>
                   </div>
                 ))}
 
-              {/* due date markers */}
               {dueMarkers
-                .filter((m) => m.col === colIdx)
-                .map((m, i) => (
+                .filter((marker) => marker.col === colIdx)
+                .map((marker, index) => (
                   <div
-                    key={`due-${i}`}
-                    className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none"
+                    key={`due-${index}`}
+                    className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-dashed"
                     style={{
-                      top: m.top,
-                      borderColor: m.color,
+                      top: marker.top,
+                      borderColor: marker.color,
                     }}
-                    title={t("Due: {title}", { title: m.title })}
-                  />
+                    title={t("Due: {title}", { title: marker.title })}
+                  >
+                    <span
+                      className="absolute right-0 top-0 max-w-[calc(100%-0.25rem)] -translate-y-full truncate rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
+                      style={{ backgroundColor: marker.color }}
+                    >
+                      {marker.title}
+                    </span>
+                  </div>
                 ))}
 
-              {/* current time line */}
               {colIdx === todayCol && nowTop >= 0 && (
                 <div
-                  className="absolute left-0 right-0 border-t-2 border-red-500 pointer-events-none z-10"
+                  className="pointer-events-none absolute left-0 right-0 z-10 border-t-2 border-red-500"
                   style={{ top: nowTop }}
                 >
                   <div className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-red-500" />

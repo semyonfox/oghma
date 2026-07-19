@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "Qwen/Qwen3.5-4B",
+    "revision": "c7429d5a8ed57f4a9cfdaf1af76a8943eba0ae97",
+    "configSha256": "ddc63e1c717afa86c865bb5e01313d89d72bb53b97ad4a8a03ba8510c0621670",
+    "tokenizerConfigSha256": "316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8",
+    "preprocessorConfigSha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+    "quantization": null
+  },
+  "engine": {
+    "name": "vllm",
+    "version": "0.20.0",
+    "revision": "88d34c6409e9fb3c7b8ca0c04756f061d2099eb1",
+    "torchVersion": "2.11.0",
+    "cudaVersion": "13.0"
+  },
+  "limits": {
+    "maxModelContext": 8192,
+    "maxImageWidth": 2048,
+    "maxImageHeight": 2048,
+    "maxImagePixels": 4194304,
+    "maxImagesPerPrompt": 2
+  },
+  "runtime": {
+    "thinking": false,
+    "tensorParallel": 1,
+    "pipelineParallel": 1,
+    "gpuMemoryUtilization": 0.55,
+    "host": "127.0.0.1",
+    "port": 8000,
+    "command": [
+      "vllm", "serve", "Qwen/Qwen3.5-4B",
+      "--revision", "c7429d5a8ed57f4a9cfdaf1af76a8943eba0ae97",
+      "--host", "127.0.0.1", "--port", "8000",
+      "--served-model-name", "Qwen/Qwen3.5-4B",
+      "--max-model-len", "8192",
+      "--gpu-memory-utilization", "0.55",
+      "--tensor-parallel-size", "1",
+      "--pipeline-parallel-size", "1",
+      "--limit-mm-per-prompt", "{\"image\":2}"
+    ]
+  }
+}

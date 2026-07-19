@@ -1,59 +1,51 @@
-# AWS Infrastructure Archive
+# Retained AWS Surface
 
-> **status:** historical/fallback reference. The old AWS application stack was migrated to homelab. The launch target is now Cloudflare + Neon + R2 + a small Node runtime where needed, documented in [TARGET_HOSTING.md](TARGET_HOSTING.md).
-> See [HOMELAB.md](HOMELAB.md) for the running interim stack.
+> Status: Retained/fallback inventory only; AWS is not the application host
+>
+> Audience: Operators reviewing legacy provider dependencies
+>
+> Last reviewed: 2026-07-11
 
----
+The OghmaNotes app, worker, database, queue, vector store, and object storage do
+not currently run on AWS. The running stack is documented in
+[HOMELAB.md](HOMELAB.md).
 
-# AWS — retained or fallback surface
+Repository policy permits retaining Route 53, SES, and explicitly documented
+external services. This document does not assert that a retained resource is
+active; verify provider state and the private inventory before changing or
+deleting anything.
 
-| service | purpose | cost |
-|---|---|---|
-| Route 53 | Historical DNS or emergency fallback only; Cloudflare DNS is the launch target | $0.50/mo if retained |
-| SES | Historical/fallback transactional email path | usage-based |
-| Lambda `ses-email-forwarder` | Historical inbound SES forwarding path | free tier-scale |
+## Possible Retained Services
 
-Region: **eu-west-1**. Account: **877013879182**.
+| Service | Current boundary |
+|---|---|
+| Route 53 | Historical DNS or emergency fallback. Cloudflare is the current edge/DNS direction. |
+| SES | Historical transactional-email fallback. Current application code sends with Cloudflare Email Sending and cannot switch to SES without an intentional implementation/configuration change. |
+| SES forwarding Lambda | Historical inbound-mail artifact, if still retained. It is not part of the app runtime. |
 
-Everything else (Amplify, RDS, ECS, ASG, NAT Gateway, ElastiCache, Secrets Manager, S3 bucket, SQS, chat Lambda) was decommissioned during the homelab migration. Cloudflare Email Sending is now the launch target for app mail, so SES is a fallback rather than the preferred path.
+No live credentials, account identifiers, resource ARNs, or deletion commands
+belong in this repository document.
 
----
+## Retired Application Stack
 
-# what runs where now
+The former Amplify, RDS, ECS/Fargate, autoscaling/Marker, ElastiCache, SQS,
+Secrets Manager, S3 application bucket, NAT, and chat Lambda architecture was
+retired during the homelab migration. The completed migration is summarized in
+[MIGRATION_RECORD.md](MIGRATION_RECORD.md).
 
-| component | location | how |
-|---|---|---|
-| Next.js app (prod + dev) | homelab `oghma-prod`, `oghma-dev` | docker, Jenkins-deployed |
-| BullMQ worker | homelab `oghma-{prod,dev}-worker` | docker, Jenkins-deployed |
-| PostgreSQL 17 + pgvector | homelab `oghma-postgres` | docker, compose |
-| Redis (BullMQ + cache + rate-limit) | homelab `oghma-redis` | docker, compose |
-| Object storage (S3-compatible) | homelab `oghma-rustfs` | docker, compose |
-| nginx + Cloudflare tunnels | homelab `oghma-nginx`, `oghma-cloudflared-{prod,dev}` | docker, compose |
-| chat streaming | `/api/chat` in the Next.js app | direct SSE — no 30s timeout on homelab |
-| document OCR (Marker) | optional — set `MARKER_API_URL` to enable, otherwise falls through to pdf-parse | — |
-| outbound email | Cloudflare Email Service REST API | configured by `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM` |
-| LLM / embedding / reranker | external SaaS | configured by `LLM_*`, `EMBEDDING_*`, and `RERANK_*` env vars |
+Historical scripts or Git history do not prove that a resource still exists
+and must not be used as a teardown checklist.
 
----
+## Reintroduction Rule
 
-# external services
+Before adding an AWS runtime dependency:
 
-| env var | provider | purpose |
-|---|---|---|
-| `LLM_API_KEY` / `LLM_API_URL` | configured provider | LLM |
-| `EMBEDDING_API_KEY` / `EMBEDDING_API_URL` | configured provider | embeddings |
-| `RERANK_API_KEY` / `RERANK_API_URL` | configured provider | reranker |
-| `COHERE_API_KEY` | Cohere | legacy embeddings / reranking |
-| `DATALAB_API_KEY` | Datalab | historical/emergency PDF extraction fallback, not steady-state launch path |
-| `GITHUB_ID` / `GITHUB_SECRET` | GitHub OAuth | NextAuth provider |
-| `GOOGLE_ID` / `GOOGLE_SECRET` | Google OAuth | NextAuth provider |
-| `WEB3FORMS_ACCESS_KEY` | Web3Forms | contact form submissions |
+1. document the requirement and why the current target cannot meet it;
+2. retrieve current AWS documentation and pricing for the intended region;
+3. define least-privileged IAM and secret ownership;
+4. define observability, backup, restore, and rollback;
+5. update [TARGET_HOSTING.md](TARGET_HOSTING.md), the relevant operations
+   runbook, and private inventory in the same change;
+6. test in development before production.
 
----
-
-# auth
-
-NextAuth.js with:
-- GitHub OAuth
-- Google OAuth
-- Credentials (email/password) — `ENABLE_CREDENTIALS_AUTH=true`
+Do not resurrect the retired topology by default.

@@ -1,15 +1,19 @@
-## What does this PR do?
+## Summary
 
-<!-- what you built and why -->
+<!-- What changed, and why is this the right scope? -->
 
-## Notes
+## Verification
 
-<!-- gotchas, decisions, anything worth knowing -->
+<!-- List the exact checks run and any important manual evidence. -->
 
-## Checklist
+- [ ] Relevant automated tests pass
+- [ ] Relevant manual flow was checked
+- [ ] Documentation was updated, or no documentation change is needed
 
-- [ ] manually tested
-- [ ] no console.log left in
-- [ ] lint passes (`npm run lint`)
+## Risk and rollback
 
-Closes #
+<!-- Call out migrations, configuration, deployment ordering, or a safe rollback. Write "Low risk" when appropriate. -->
+
+## Related work
+
+<!-- Use "Closes #123" when merging this PR should close an issue. -->

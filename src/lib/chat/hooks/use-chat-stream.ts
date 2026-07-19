@@ -7,6 +7,7 @@ import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
 import type { Message, MessagePart, ChatContextItem } from "@/lib/chat/types";
+import { noteSearchDetail } from "@/lib/chat/tool-display";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -50,6 +51,7 @@ interface UseChatStreamResult {
     history: { role: string; content: string }[],
   ) => Promise<void>;
   cancel: () => void;
+  resume: (generationId: string) => Promise<void>;
 }
 
 /**
@@ -74,6 +76,18 @@ export function applyUpdate(
   thinkingStartRef: React.MutableRefObject<number | null>,
 ): Message {
   switch (update.type) {
+    case "reset":
+      thinkingStartRef.current = null;
+      return {
+        ...msg,
+        content: "",
+        parts: [],
+        thinking: undefined,
+        thinkingDuration: undefined,
+        partial: undefined,
+        error: undefined,
+      };
+
     case "meta": {
       const changes: Partial<Message> = {};
       if (update.sources) changes.sources = update.sources;
@@ -81,8 +95,24 @@ export function applyUpdate(
       return { ...msg, ...changes };
     }
 
-    case "search":
-      return { ...msg, searchContext: update.searchContext };
+    case "search": {
+      const query = update.searchContext.query;
+      return {
+        ...msg,
+        searchContext: update.searchContext,
+        parts: query
+          ? [
+              ...(msg.parts ?? []),
+              {
+                type: "tool" as const,
+                name: "ragSearch",
+                label: "Searched notes",
+                detail: noteSearchDetail(query, update.searchContext.results),
+              },
+            ]
+          : msg.parts,
+      };
+    }
 
     case "thinking": {
       if (!thinkingStartRef.current) {
@@ -112,10 +142,20 @@ export function applyUpdate(
         ...msg,
         parts: [
           ...(msg.parts ?? []),
-          { type: "tool", name: update.toolName, label: update.label },
+          { type: "tool", name: update.toolName, label: update.label, callId: update.toolCallId, detail: update.detail },
         ],
       };
     }
+
+    case "tool-result":
+      return {
+        ...msg,
+        parts: (msg.parts ?? []).map((part) =>
+          part.type === "tool" && part.callId === update.toolCallId
+            ? { ...part, detail: update.detail }
+            : part,
+        ),
+      };
 
     case "error":
       return {
@@ -145,6 +185,19 @@ function clearDraft(sid: string | null): void {
   }
 }
 
+/**
+ * A reopened generation may already have a partial assistant message restored
+ * from PostgreSQL/session storage. Continue streaming into that message rather
+ * than creating an ID that is never inserted into state.
+ */
+export function resolveResumeAssistantId(
+  messages: Message[],
+  proposedId: string,
+): string {
+  const last = messages[messages.length - 1];
+  return last?.role === "assistant" ? last.id : proposedId;
+}
+
 export function useChatStream(
   options: UseChatStreamOptions,
 ): UseChatStreamResult {
@@ -161,6 +214,8 @@ export function useChatStream(
   } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +296,7 @@ export function useChatStream(
             sessionId,
             history,
             stream: true,
+            background: true,
             thinkingMode,
             useRag,
             clientDateTime: (() => {
@@ -265,6 +321,18 @@ export function useChatStream(
         // non-streaming JSON fallback
         if (contentType.includes("application/json")) {
           const data = await res.json();
+          if (typeof data.generationId === "string") {
+            handleNewSession(data.sessionId, text);
+            await consumeGeneration(
+              data.generationId,
+              assistantId,
+              text,
+              controller.signal,
+            );
+            clearDraft(data.sessionId || sessionIdRef.current);
+            onStreamComplete?.();
+            return;
+          }
           handleNewSession(data.sessionId, text);
           setMessages((prev) =>
             prev.map((m) =>
@@ -272,7 +340,15 @@ export function useChatStream(
                 ? {
                     ...m,
                     content: data.reply || "",
-                    parts: data.reply ? [{ type: "text", text: data.reply }] : [],
+                    parts: [
+                      ...(data.searchContext?.query ? [{
+                        type: "tool" as const,
+                        name: "ragSearch",
+                        label: "Searched notes",
+                        detail: noteSearchDetail(data.searchContext.query, data.searchContext.results ?? []),
+                      }] : []),
+                      ...(data.reply ? [{ type: "text" as const, text: data.reply }] : []),
+                    ],
                     thinking: data.thinking || undefined,
                     sources: Array.isArray(data.sources) ? data.sources : [],
                     retrieval: data.retrieval,
@@ -373,6 +449,7 @@ export function useChatStream(
     body: ReadableStream<Uint8Array>,
     assistantId: string,
     userText: string,
+    onEventId?: (id: string) => void,
   ): Promise<{ timeBlockChanged: boolean }> {
     let timeBlockChanged = false;
     let sawDone = false;
@@ -389,6 +466,7 @@ export function useChatStream(
 
       if (chunk) {
         for (const frame of parseSseBlocks(chunk, parseState)) {
+          if (frame.id) onEventId?.(frame.id);
           frameCount += 1;
           const update = parseSseFrame(frame);
           if (!update) continue;
@@ -456,6 +534,77 @@ export function useChatStream(
     return { timeBlockChanged };
   }
 
+  async function consumeGeneration(
+    generationId: string,
+    assistantId: string,
+    userText: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let afterId = "0-0";
+    let attempts = 0;
+    while (!signal.aborted) {
+      try {
+        const response = await fetch(
+          `/api/chat/generations/${generationId}/stream?after=${encodeURIComponent(afterId)}`,
+          { headers: { Accept: "text/event-stream" }, signal },
+        );
+        if (!response.ok || !response.body) {
+          throw new Error(`Unable to resume response (${response.status})`);
+        }
+        await consumeStream(response.body, assistantId, userText, (id) => {
+          afterId = id;
+        });
+        return;
+      } catch (error) {
+        if (signal.aborted) throw error;
+        attempts += 1;
+        if (attempts >= 4) throw error;
+        await new Promise<void>((resolve) => setTimeout(resolve, attempts * 500));
+      }
+    }
+  }
+
+  const resume = useCallback(
+    async (generationId: string) => {
+      if (!generationId || loading) return;
+      const proposedAssistantId = makeId();
+      const assistantId = resolveResumeAssistantId(
+        messagesRef.current,
+        proposedAssistantId,
+      );
+      if (assistantId === proposedAssistantId) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            parts: [],
+            sources: [],
+            timestamp: Date.now(),
+          },
+        ]);
+      }
+      setLoading(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      try {
+        await consumeGeneration(generationId, assistantId, "", controller.signal);
+        onStreamComplete?.();
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError")) {
+          setError(t("error.something_went_wrong"));
+        }
+      } finally {
+        abortControllerRef.current = null;
+        setLoading(false);
+      }
+    },
+    // consumeGeneration intentionally reads current hook callbacks/state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loading],
+  );
+
   return {
     messages,
     setMessages,
@@ -466,5 +615,6 @@ export function useChatStream(
     setError,
     send,
     cancel,
+    resume,
   };
 }

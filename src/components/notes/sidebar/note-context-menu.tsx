@@ -22,16 +22,20 @@ const MenuItem = ({
   icon,
   onClick,
   danger,
+  className,
 }: {
   label: string;
   shortcut?: string;
   icon: React.ReactNode;
   onClick: () => void;
   danger?: boolean;
+  className?: string;
 }) => (
   <button
     onClick={onClick}
-    className={`flex w-full items-center h-7 px-2 text-[13px] rounded-[3px] mx-0.5 transition-colors ${
+    className={`w-full items-center h-11 md:h-7 px-2 text-[13px] rounded-[3px] mx-0.5 transition-colors ${
+      className ?? "flex"
+    } ${
       danger
         ? "text-error-400 hover:bg-error-500/10"
         : "text-text-secondary hover:bg-subtle"
@@ -50,8 +54,8 @@ const MenuItem = ({
   </button>
 );
 
-const Separator = () => (
-  <div className="my-1 mx-2 border-t border-border-subtle" />
+const Separator = ({ className = "" }: { className?: string }) => (
+  <div className={`my-1 mx-2 border-t border-border-subtle ${className}`} />
 );
 export default function NoteContextMenuPortal({
   onRename,
@@ -284,11 +288,12 @@ export default function NoteContextMenuPortal({
 
           {!isFolder && (
             <>
-              <Separator />
+              <Separator className="hidden md:block" />
               <MenuItem
                 label={t("Open in split view")}
                 icon={icons.split}
                 onClick={() => run(() => onOpenInSplit(openMenuId))}
+                className="hidden md:flex"
               />
             </>
           )}

@@ -102,26 +102,13 @@ export default async function BlogPost({ params }) {
             </h2>
             <p className="mt-6">{t(post.section2Content)}</p>
 
-            <figure className="mt-10 border-l border-primary-400 pl-9">
-              <blockquote className="font-semibold text-text">
-                <p>"{t(post.testimonial.quote)}"</p>
-              </blockquote>
-              <figcaption className="mt-6 flex gap-x-4">
-                <Image
-                  alt={post.testimonial.author}
-                  src={post.testimonial.image}
-                  width={24}
-                  height={24}
-                  className="size-6 flex-none rounded-full bg-surface-elevated"
-                />
-                <div className="text-sm/6">
-                  <strong className="font-semibold text-text">
-                    {post.testimonial.author}
-                  </strong>{" "}
-                  – {t(post.testimonial.role)}
-                </div>
-              </figcaption>
-            </figure>
+            {post.callout ? (
+              <figure className="mt-10 border-l border-primary-400 pl-9">
+                <blockquote className="font-semibold text-text">
+                  <p>{t(post.callout)}</p>
+                </blockquote>
+              </figure>
+            ) : null}
 
             <p className="mt-10">{t(post.section3Content)}</p>
           </div>

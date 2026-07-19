@@ -2,6 +2,7 @@ import sql from "@/database/pgsql.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import logger from "@/lib/logger";
 import { deleteChunkVectors } from "@/lib/qdrant";
+import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
 
 function uniqueKeys(rows: Array<{ s3_key: string | null }>): string[] {
   return [...new Set(rows.map((row) => row.s3_key).filter(Boolean))] as string[];
@@ -122,7 +123,11 @@ export async function cleanupNoteDependencies(
   });
 
   // best-effort S3 cleanup after transaction commits
-  const storageKeys = uniqueKeys(storageRows as Array<{ s3_key: string | null }>);
+  // Shared imported blobs are cache-owned. Removing a user's note removes only
+  // their DB pointers; a separate reference-aware retention job may collect the
+  // immutable object after no notes/imports reference its cache row.
+  const storageKeys = uniqueKeys(storageRows as Array<{ s3_key: string | null }>)
+    .filter((key) => !isSharedImportedFileKey(key));
   if (storageKeys.length === 0) return;
 
   const storage = getStorageProvider();

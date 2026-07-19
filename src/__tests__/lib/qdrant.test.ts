@@ -175,4 +175,20 @@ describe("qdrant vector store", () => {
       }),
     );
   });
+
+  it("reads canonical vectors for inference-free user materialization", async () => {
+    const chunkId = "33333333-3333-4333-8333-333333333333";
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      result: [{ id: chunkId, vector: [0.1, 0.2], payload: { chunk_id: chunkId } }],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getChunkVectors } = await loadQdrant();
+    await expect(getChunkVectors([chunkId, chunkId])).resolves.toEqual([
+      { chunkId, vector: [0.1, 0.2] },
+    ]);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      ids: [chunkId], with_payload: true, with_vector: true,
+    });
+  });
 });

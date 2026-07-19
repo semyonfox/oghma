@@ -9,6 +9,10 @@ import Link from "next/link";
 import Image from "next/image";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
+  getMarketingContext,
+  trackMarketingEvent,
+} from "@/lib/marketing/client";
+import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
@@ -21,7 +25,10 @@ export default function RegisterPage() {
   const [errMsg, setErrMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState(null);
+  const [agentClaimToken, setAgentClaimToken] = useState("");
+  const [agentUserCode, setAgentUserCode] = useState("");
   const errRef = useRef();
+  const startedRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -40,25 +47,86 @@ export default function RegisterPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const claimToken = params.get("agent_claim_token") || "";
+    setAgentClaimToken(claimToken);
+
+    if (claimToken && params.get("agent_oauth") === "complete") {
+      const storageKey = `agent-registration-code:${claimToken}`;
+      const userCode = window.sessionStorage.getItem(storageKey) || "";
+      if (!/^\d{6}$/.test(userCode)) {
+        setErrMsg(t("Enter the six-digit agent registration code and try OAuth again."));
+        return;
+      }
+
+      setLoading(true);
+      fetch("/agent/identity/claim/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claim_token: claimToken,
+          user_code: userCode,
+        }),
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "OAuth claim failed");
+          window.sessionStorage.removeItem(storageKey);
+          router.replace("/notes");
+        })
+        .catch((error) => setErrMsg(error.message))
+        .finally(() => setLoading(false));
+    }
+  }, [router, t]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrMsg("");
 
     if (pwd !== confirmPwd) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "password_mismatch",
+        },
+      });
       setErrMsg(t("Passwords do not match"));
       errRef.current?.focus();
       return;
     }
 
     if (pwd.length < 8) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "password_too_short",
+        },
+      });
       setErrMsg(t("Password must be at least 8 characters"));
       errRef.current?.focus();
       return;
     }
 
     setLoading(true);
+    trackMarketingEvent("registration_submit", {
+      source: "register_form",
+      properties: {
+        method: "email",
+      },
+    });
     try {
-      const result = await register(email, pwd);
+      const result = await register(
+        email,
+        pwd,
+        getMarketingContext(),
+        agentClaimToken
+          ? { agentClaimToken, agentUserCode }
+          : undefined,
+      );
+      // Account creation is recorded once by the server as the canonical milestone.
       if (result.requiresVerification) {
         router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
         setTimeout(() => {
@@ -71,6 +139,13 @@ export default function RegisterPage() {
         }, 1000);
       }
     } catch (err) {
+      trackMarketingEvent("registration_error", {
+        source: "register_form",
+        properties: {
+          method: "email",
+          error_type: "api_error",
+        },
+      });
       setErrMsg(getErrorMessage(err));
       setPwd("");
       setConfirmPwd("");
@@ -84,11 +159,54 @@ export default function RegisterPage() {
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
     ) {
+      trackMarketingEvent("registration_oauth_unavailable", {
+        source: "register_form",
+        properties: {
+          method: "oauth",
+          provider,
+          configured: false,
+        },
+      });
       setErrMsg(t("This sign-in provider is not configured right now"));
       return;
     }
 
-    signIn(provider, buildOAuthSignInOptions("/notes"));
+    if (agentClaimToken && !/^\d{6}$/.test(agentUserCode)) {
+      setErrMsg(t("Enter the six-digit agent registration code first."));
+      errRef.current?.focus();
+      return;
+    }
+
+    trackMarketingEvent("registration_oauth_start", {
+      source: "register_form",
+      properties: {
+        method: "oauth",
+        provider,
+        configured: true,
+        destination: "/notes",
+      },
+    });
+    const callbackUrl = agentClaimToken
+      ? `/register?agent_claim_token=${encodeURIComponent(agentClaimToken)}&agent_oauth=complete`
+      : "/notes";
+    if (agentClaimToken) {
+      window.sessionStorage.setItem(
+        `agent-registration-code:${agentClaimToken}`,
+        agentUserCode,
+      );
+    }
+    signIn(provider, buildOAuthSignInOptions(callbackUrl));
+  };
+
+  const trackFormStart = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    trackMarketingEvent("registration_form_start", {
+      source: "register_form",
+      properties: {
+        method: "email",
+      },
+    });
   };
 
   const isProviderDisabled = (provider) =>
@@ -115,7 +233,13 @@ export default function RegisterPage() {
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
         <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
-          <form onSubmit={handleSubmit} method="POST" className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            onFocusCapture={trackFormStart}
+            onChangeCapture={trackFormStart}
+            method="POST"
+            className="space-y-6"
+          >
             {errMsg && (
               <div ref={errRef}>
                 <Alert
@@ -146,6 +270,34 @@ export default function RegisterPage() {
                 />
               </div>
             </div>
+
+            {agentClaimToken && (
+              <div>
+                <label
+                  htmlFor="agent-user-code"
+                  className="block text-sm/6 font-medium text-text"
+                >
+                  {t("Agent registration code")}
+                </label>
+                <div className="mt-2">
+                  <input
+                    id="agent-user-code"
+                    name="agent-user-code"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    required
+                    value={agentUserCode}
+                    onChange={(e) =>
+                      setAgentUserCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    className="block w-full rounded-radius-md bg-input border border-border-subtle px-3 py-2 text-sm text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/60"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-text-tertiary">
+                  {t("Enter the six-digit code shown by the agent that started this registration.")}
+                </p>
+              </div>
+            )}
 
             <div>
               <label

@@ -9,6 +9,33 @@ const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const KEY_TOKEN_RE = /^[A-Za-z0-9_.:-]+(?:\.{3})?$/;
 const PLACEHOLDER_RE = /\$\{[^{}]+\}|\{[^{}]+\}/g;
 const SAMPLE_LIMIT = 12;
+const INVARIANT_VALUES = new Set([
+  '404',
+  'Canvas',
+  'David Kim',
+  'Emma Rodriguez',
+  'GitHub',
+  'ID',
+  'Jessica Walsh',
+  'John',
+  'LLMs.txt',
+  'Marcus Johnson',
+  'NotebookLM',
+  'OghmaNotes',
+  'SocsBoard',
+  'UTC',
+  'john@example.com',
+  'universityofgalway.instructure.com',
+]);
+const LOCALE_IDENTICAL_KEYS = new Map([
+  ['de-DE.json', new Set(['Beta', 'Blog', 'Code', 'Global', 'Meta', 'Pause', 'quiz.title', 'Start', 'Syntax', 'System', 'video_viewer.label'])],
+  ['es-ES.json', new Set(['Beta', 'Blog', 'Global', 'Legal', 'Meta', 'quiz.courses.total_count', 'quiz.courses.total_count_one', 'quiz.courses.total_count_other'])],
+  ['fr-FR.json', new Set(['Action', 'Active', 'blog.articleLabel', 'chat.use_notes_short', 'Code', 'Contact', 'Date', 'Description', 'Destinations', 'Document', 'Documentation', 'Guides', 'Message', 'minutes', 'module', 'modules', 'Pause', 'quiz.courses.total_count', 'quiz.courses.total_count_one', 'quiz.courses.total_count_other', 'Source'])],
+  ['ga.json', new Set(['Meta'])],
+  ['it-IT.json', new Set(['Beta', 'Blog', 'File', 'Meta', 'Privacy', 'quiz.title', 'video_viewer.label'])],
+  ['nl-NL.json', new Set(['Code', 'Contact', 'Document', 'Focus', 'Inline', 'medium', 'Meta', 'Model', 'module', 'modules', 'Privacy', 'quiz.title', 'Student', 'superscript', 'Type', 'video_viewer.label', 'Week'])],
+  ['sv-SE.json', new Set(['Beta', 'Global', 'Meta', 'Student', 'Syntax', 'System', 'video_viewer.label'])],
+]);
 
 function walk(dir, out = []) {
   const entries = readdirSync(dir, { withFileTypes: true });
@@ -51,11 +78,12 @@ function placeholdersMismatch(baseValue, localeValue) {
   return false;
 }
 
-function isLikelyUntranslated(baseValue, localeValue, key) {
+function isLikelyUntranslated(baseValue, localeValue, key, localeFile) {
   if (baseValue !== localeValue) return false;
   if (baseValue.length < 4) return false;
   if (!/[A-Za-zÀ-ÿ]/.test(baseValue)) return false;
-  if (key === baseValue) return false;
+  if (INVARIANT_VALUES.has(baseValue)) return false;
+  if (LOCALE_IDENTICAL_KEYS.get(localeFile)?.has(key)) return false;
   if (/^\{\{.*\}\}$/.test(baseValue)) return false;
   return true;
 }
@@ -172,6 +200,7 @@ function main() {
   }
 
   for (const localeFile of localeFiles) {
+    if (localeFile === BASE_LOCALE) continue;
     const locale = readLocale(localeFile);
     const localeKeys = Object.keys(locale).sort();
     const missing = baseKeys.filter((key) => !(key in locale));
@@ -189,7 +218,7 @@ function main() {
       const baseValue = baseLocale[key];
       const localeValue = locale[key];
       if (typeof baseValue === 'string' && typeof localeValue === 'string') {
-        if (isLikelyUntranslated(baseValue, localeValue, key)) {
+        if (isLikelyUntranslated(baseValue, localeValue, key, localeFile)) {
           untranslatedWarnings.push(`${localeFile} :: ${key}`);
         }
         if ((baseValue.includes('{') || baseValue.includes('${')) && placeholdersMismatch(baseValue, localeValue)) {

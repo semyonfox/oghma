@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SyntaxGuideClient from "./syntax-guide-client";
+import SyntaxGuideContent from "./syntax-guide-content";
 import { getServerI18n } from "@/lib/i18n/server";
 
 export default async function SyntaxGuidePage() {
@@ -13,10 +13,10 @@ export default async function SyntaxGuidePage() {
             href="/notes"
             className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
           >
-            {t("&larr; Back to Notes")}
+            {t("← Back to Notes")}
           </Link>
         </div>
-        <SyntaxGuideClient />
+        <SyntaxGuideContent t={t} />
       </div>
     </div>
   );

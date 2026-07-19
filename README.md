@@ -1,51 +1,52 @@
 # OghmaNotes
 
-OghmaNotes is a study workspace for notes, Canvas LMS imports, semantic search, RAG chat, quizzes, flashcards, and planning.
+OghmaNotes is a study workspace that turns notes, files, and Canvas LMS content into a searchable learning system.
 
-## Current Features
+## What it does
 
-- Tree-based notes and folders with rich-text / markdown editing
-- File uploads and viewers for PDFs, images, and media
-- RAG chat and semantic search over indexed notes
-- Canvas LMS import with background extraction and embedding jobs
-- Quiz and spaced-repetition study flows using FSRS
-- Assignment planning, time blocks, and Pomodoro tracking
-- Vault import/export for Markdown/Obsidian-style archives
-- Credentials auth plus Google/GitHub OAuth support
+- Organises notes and folders with Markdown and rich-text editing
+- Imports Canvas courses, files, and assignments in background jobs
+- Searches notes and extracted documents with keyword and semantic retrieval
+- Answers questions with citations to the user's own material
+- Generates quizzes and FSRS-based flashcard reviews
+- Tracks assignments, study blocks, Pomodoro sessions, and calendar exports
+- Imports and exports Markdown/Obsidian-style vaults
 
-## Quick Start
+## Run it locally
+
+The supported self-contained path uses disposable mock services and synthetic data:
 
 ```bash
 npm install
-cp .env.example .env.local
-docker-compose up
-npm run dev
+cp .env.mock.example .env.mock
+npm run mock:up
+npm run mock:seed
+npm run dev:mock
 ```
 
-The local app runs at `http://localhost:3000`. See [SETUP.md](SETUP.md) for required environment variables and common commands.
+Open `http://127.0.0.1:3311`. See [SETUP.md](SETUP.md) for the test login, real-service configuration, worker commands, and cleanup.
 
-## Stack
+## Architecture at a glance
 
-- Next.js app router for UI and API routes
-- PostgreSQL 17 with pgvector
-- RustFS or S3-compatible object storage
-- Redis + BullMQ for Canvas, extraction, vault import, and vault export jobs
-- Lexical, CodeMirror, Zustand, and Tailwind for the app UI
-- Configurable LLM, embedding, rerank, and OCR providers
-- Launch target: Cloudflare DNS/edge/email/R2, Neon Postgres + pgvector, Node/Docker worker and likely app fallback runtime; Cloudflare Workers/OpenNext only if the web-app trial stays clean
+- Next.js 16 and React 19 provide the web app and API routes.
+- PostgreSQL stores relational data; Qdrant stores chunk vectors.
+- S3-compatible object storage holds notes, uploads, and exports.
+- Redis and BullMQ run the current background queues behind a provider abstraction.
+- A separate worker handles Canvas imports, extraction, indexing, and vault jobs.
 
-Production and dev currently run on the interim homelab Docker/Jenkins stack behind Cloudflare tunnels. Current operations live in [infra/HOMELAB.md](infra/HOMELAB.md); the launch migration target lives in [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md). AWS is now historical/fallback unless explicitly reintroduced in [infra/AWS_INFRASTRUCTURE.md](infra/AWS_INFRASTRUCTURE.md).
+Production and development currently run on the homelab Docker/Jenkins stack described in [infra/HOMELAB.md](infra/HOMELAB.md). Future hosting decisions belong in [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md), not in this overview.
 
 ## Documentation
 
-Start with [docs/README.md](docs/README.md) for the canonical docs map. Product planning is in [docs/ROADMAP.md](docs/ROADMAP.md), launch readiness is in [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md), pricing/cost planning is in [docs/PRICING.md](docs/PRICING.md), Canvas import economics are in [docs/CANVAS_IMPORT_PRICING_REPORT.md](docs/CANVAS_IMPORT_PRICING_REPORT.md), and company/admin order is in [docs/COMPANY_FORMATION_AND_LAUNCH_ADMIN.md](docs/COMPANY_FORMATION_AND_LAUNCH_ADMIN.md).
+Start with the [documentation index](docs/README.md). The main entry points are:
+
+- [Product roadmap](docs/product/roadmap.md)
+- [Launch checklist](docs/product/launch-checklist.md)
+- [Current architecture](docs/engineering/architecture.md)
+- [Current operations](infra/README.md)
+
+Repository operating rules for coding agents live in [AGENTS.md](AGENTS.md).
 
 ## Credits
 
-Based on Notea (MIT licensed).
-
-## Team
-
-- Samuel Regan
-- Semyon Fox
-- Shreyansh Singh
+OghmaNotes began as a University of Galway team project by Samuel Regan, Semyon Fox, and Shreyansh Singh. Its editor foundation is based on the MIT-licensed Notea project.

@@ -27,6 +27,7 @@ import {
   syncProfileToLogin,
   getLinkedProviders,
   findOrCreateOAuthUser,
+  resolveVerifiedOAuthEmail,
 } from "@/lib/auth-oauth";
 import sql from "@/database/pgsql.js";
 
@@ -34,11 +35,15 @@ const mockSql = sql as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("isEmailVerifiedByProvider", () => {
-  it("returns true for google (always verified)", () => {
-    expect(isEmailVerifiedByProvider("google", {})).toBe(true);
+  it("requires google to explicitly assert email verification", () => {
+    expect(isEmailVerifiedByProvider("google", {})).toBe(false);
+    expect(
+      isEmailVerifiedByProvider("google", { email_verified: true }),
+    ).toBe(true);
   });
 
   it("returns true for github when email_verified is true", () => {
@@ -53,6 +58,36 @@ describe("isEmailVerifiedByProvider", () => {
 
   it("returns false for unknown provider", () => {
     expect(isEmailVerifiedByProvider("unknown", {})).toBe(false);
+  });
+});
+
+describe("resolveVerifiedOAuthEmail", () => {
+  it("accepts a Google email only when the profile marks it verified", async () => {
+    await expect(
+      resolveVerifiedOAuthEmail("google", {
+        email: "Student@Example.com",
+        email_verified: true,
+      }),
+    ).resolves.toBe("student@example.com");
+    await expect(
+      resolveVerifiedOAuthEmail("google", { email: "student@example.com" }),
+    ).resolves.toBeNull();
+  });
+
+  it("uses GitHub's authenticated primary verified email", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          { email: "other@example.com", primary: false, verified: true },
+          { email: "Primary@Example.com", primary: true, verified: true },
+        ]),
+      ),
+    );
+
+    await expect(
+      resolveVerifiedOAuthEmail("github", {}, "github-token"),
+    ).resolves.toBe("primary@example.com");
   });
 });
 
@@ -143,7 +178,11 @@ describe("findOrCreateOAuthUser", () => {
     mockSql.mockResolvedValueOnce([]);
     // syncProfileToLogin
     mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {});
+    // mark the login email verified
+    mockSql.mockResolvedValueOnce([]);
+    const result = await findOrCreateOAuthUser(googleProfile, {
+      email_verified: true,
+    });
     expect(result).toBe("u-1");
   });
 
@@ -156,7 +195,11 @@ describe("findOrCreateOAuthUser", () => {
     mockSql.mockResolvedValueOnce([]);
     // syncProfileToLogin
     mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {});
+    // mark the login email verified
+    mockSql.mockResolvedValueOnce([]);
+    const result = await findOrCreateOAuthUser(googleProfile, {
+      email_verified: true,
+    });
     expect(result).toBe("u-existing");
   });
 
@@ -169,26 +212,21 @@ describe("findOrCreateOAuthUser", () => {
     mockSql.mockResolvedValueOnce([{ user_id: "u-new" }]);
     // linkOAuthAccount
     mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(googleProfile, {});
+    const result = await findOrCreateOAuthUser(googleProfile, {
+      email_verified: true,
+    });
     expect(result).toBe("u-new");
   });
 
-  it("does not auto-link when email is unverified (github)", async () => {
+  it("rejects an unverified provider email", async () => {
     const ghProfile = {
       ...googleProfile,
       provider: "github",
       providerAccountId: "gh-1",
     };
-    // findOAuthAccount: not found
-    mockSql.mockResolvedValueOnce([]);
-    // no login lookup (email not verified) — goes straight to INSERT
-    // INSERT login: returns new user_id
-    mockSql.mockResolvedValueOnce([{ user_id: "u-new-gh" }]);
-    // linkOAuthAccount
-    mockSql.mockResolvedValueOnce([]);
-    const result = await findOrCreateOAuthUser(ghProfile, {
-      email_verified: false,
-    });
-    expect(result).toBe("u-new-gh");
+    await expect(
+      findOrCreateOAuthUser(ghProfile, { email_verified: false }),
+    ).rejects.toThrow("verified email");
+    expect(mockSql).not.toHaveBeenCalled();
   });
 });

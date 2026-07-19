@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 2,
+  "mode": "batch",
+  "candidates": [
+    {
+      "id": "marker-release-1.10.2",
+      "label": "Marker 1.10.2",
+      "implementation": "marker",
+      "expectedVersion": "1.10.2",
+      "profile": "released-default",
+      "profileConfig": "infra/marker/profiles/released-default.json",
+      "profileSha256": "af3da1018fac10c93f3c5064a483e124f21bec2cf5ed171859a1106d5299c084",
+      "workerCounts": [1, 2],
+      "enabled": true
+    },
+    {
+      "id": "marker-plus-plus-conservative",
+      "label": "Marker++ conservative",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "conservative",
+      "profileConfig": "infra/marker/profiles/conservative.json",
+      "profileSha256": "98c25814a082bf0cdade9f05955607bc1c0b807142b3bcdcdf615eee81af8795",
+      "workerCounts": [1, 2, 4],
+      "enabled": true
+    },
+    {
+      "id": "marker-plus-plus-fast",
+      "label": "Marker++ fast born-digital",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "fast-born-digital",
+      "profileConfig": "infra/marker/profiles/fast-born-digital.json",
+      "profileSha256": "5a0f026d959e43913a34c159c7493c27cb66076e0dc44472c4910a23e1f801e5",
+      "workerCounts": [1, 2, 4],
+      "enabled": false,
+      "requiresApproval": true
+    },
+    {
+      "id": "marker-plus-plus-academic-enhanced-local",
+      "label": "Marker++ academic enhanced with Qwen3.5-4B BF16",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "academic-enhanced-local",
+      "profileConfig": "infra/marker/profiles/academic-enhanced-local.json",
+      "profileSha256": "994e11fff7db56450d570bc32f2a452e2bc1770fc5ac51bf3d28b212225969b4",
+      "servingManifest": "infra/marker/qwen3.5-4b-vllm-manifest.json",
+      "servingManifestFingerprint": "3fd74fde3e965535ffe0f08372f6bacb7d024e74abb268015be7eace987a3fae",
+      "workerCounts": [1],
+      "passOverrides": [
+        {"name": "preview", "pageRange": "0-2", "repeats": 1},
+        {"name": "full-document", "pageRange": null, "repeats": 1, "requiresHealthyPreview": true}
+      ],
+      "enabled": false,
+      "requiresApproval": true
+    },
+    {
+      "id": "marker-plus-plus-academic-enhanced-local-9b",
+      "label": "Marker++ academic enhanced Qwen3.5-9B BF16 challenger",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "2d66e45c0a1f8a3c081c6c96f47e1f7b6af2b03a",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "academic-enhanced-local-9b",
+      "profileConfig": "infra/marker/profiles/academic-enhanced-local-9b.json",
+      "profileSha256": "89a371c8909b05bdfcf7bb3e05c507f9c7f7c7d1329d3f2ab1dc9e5c9ea6377d",
+      "servingManifest": "infra/marker/qwen3.5-9b-vllm-manifest.json",
+      "servingManifestFingerprint": "5a7f1cd1acef179b867f66018e5516236639b7eb074dc53342b593a5ebe71c7c",
+      "workerCounts": [1],
+      "passOverrides": [
+        {"name": "preview", "pageRange": "0-2", "repeats": 1},
+        {"name": "full-document", "pageRange": null, "repeats": 1, "requiresHealthyPreview": true}
+      ],
+      "enabled": false,
+      "requiresApproval": true
+    },
+    {
+      "id": "marker-plus-plus-academic-enhanced-hosted",
+      "label": "Marker++ academic enhanced hosted vision",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "72f3776c615e28e24f804854c04a1f996ffbfe0d",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "academic-enhanced-hosted",
+      "profileConfig": "infra/marker/profiles/academic-enhanced-hosted.json",
+      "profileSha256": "44fca1c791616bb4724d03bdd32d424abf4806b2528f9fae5c74eaa2a69e6382",
+      "requiresVisionAdapter": true,
+      "workerCounts": [2],
+      "passOverrides": [
+        {"name": "preview", "pageRange": "0-2", "repeats": 1},
+        {"name": "full-document", "pageRange": null, "repeats": 1, "requiresHealthyPreview": true}
+      ],
+      "enabled": false,
+      "requiresApproval": true
+    },
+    {
+      "id": "marker-plus-plus-academic-enhanced-control-preview",
+      "label": "Marker++ matched academic preview without LLM",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "72f3776c615e28e24f804854c04a1f996ffbfe0d",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "academic-enhanced-hosted-control",
+      "profileConfig": "infra/marker/profiles/academic-enhanced-hosted-control.json",
+      "profileSha256": "3df902818f173fa3030b490f3a733158276a771f90cd1fd20cd5fa2ebc4a5a01",
+      "workerCounts": [2],
+      "passOverrides": [
+        {"name": "preview", "pageRange": "0-2", "repeats": 1}
+      ],
+      "enabled": false,
+      "requiresApproval": true
+    },
+    {
+      "id": "marker-plus-plus-academic-enhanced-hosted-preview",
+      "label": "Marker++ matched academic preview with hosted vision",
+      "implementation": "marker-plus-plus",
+      "sourceRevision": "72f3776c615e28e24f804854c04a1f996ffbfe0d",
+      "diagnosticSourceRevision": "e47790de55b8279c9e10a47c29d30fa9911b5299",
+      "profile": "academic-enhanced-hosted",
+      "profileConfig": "infra/marker/profiles/academic-enhanced-hosted.json",
+      "profileSha256": "44fca1c791616bb4724d03bdd32d424abf4806b2528f9fae5c74eaa2a69e6382",
+      "requiresVisionAdapter": true,
+      "workerCounts": [2],
+      "passOverrides": [
+        {"name": "preview", "pageRange": "0-2", "repeats": 1}
+      ],
+      "enabled": false,
+      "requiresApproval": true
+    }
+  ],
+  "instances": [
+    {
+      "region": "eu-west-1",
+      "type": "g4dn.xlarge",
+      "gpu": "T4",
+      "vramGiB": 16
+    },
+    {
+      "region": "eu-west-1",
+      "type": "g5.xlarge",
+      "gpu": "A10G",
+      "vramGiB": 22
+    },
+    {
+      "region": "eu-west-2",
+      "type": "g6.xlarge",
+      "gpu": "L4",
+      "vramGiB": 22
+    }
+  ],
+  "passes": [
+    {
+      "name": "preview",
+      "pageRange": "0-2",
+      "repeats": 2
+    },
+    {
+      "name": "full-document",
+      "pageRange": null,
+      "repeats": 1,
+      "requiresHealthyPreview": true
+    }
+  ],
+  "warmup": {
+    "fixture": "scripts/e2e/fixtures/sample-paper.pdf"
+  },
+  "stopConditions": {
+    "maxDocumentFailures": 2,
+    "maxCudaOomEvents": 1,
+    "abortOnSystemOom": true,
+    "documentTimeoutSeconds": 900,
+    "gpuIdleUtilizationPercent": 5,
+    "maxQueuedGpuIdleSeconds": 300
+  },
+  "http": {
+    "enabled": false
+  }
+}

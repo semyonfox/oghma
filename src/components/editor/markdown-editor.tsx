@@ -10,34 +10,22 @@ import {
   useRef,
 } from "react";
 import dynamic from "next/dynamic";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import { useRouter } from "next/navigation";
+import useLayoutStore, {
+  FileSpec,
+} from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-import Link from "next/link";
+import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
 import { writeDraft, readDraft, clearDraft } from "@/lib/notes/draft-cache";
+import { getEditorWidthStyle } from "@/lib/notes/editor-width";
 
-function LoadingPreviewFallback() {
-  const { t } = useI18n();
-  return (
-    <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-      {t("Loading preview...")}
-    </div>
-  );
-}
-
-const PreviewRenderer = dynamic(() => import("./preview-renderer"), {
-  ssr: false,
-  loading: () => <LoadingPreviewFallback />,
-});
-
-// CodeMirror accesses browser APIs on import, so lazy-load it client-side only
-const SourceEditor = dynamic(() => import("./source-editor"), {
+// Milkdown accesses browser APIs on import, so load the writing surface client-side only.
+const MilkdownWriteEditor = dynamic(() => import("./milkdown-write-editor"), {
   ssr: false,
 });
-
-type EditorMode = "source" | "read";
 
 interface MarkdownEditorProps {
   pane: "A" | "B";
@@ -47,10 +35,11 @@ interface MarkdownEditorProps {
 const DRAFT_DEBOUNCE_MS = 1000;
 
 /**
- * Markdown editor with Source (raw md) and Read (rendered preview) modes
+ * Markdown editor with one Notion-ish writing surface.
+ * Markdown stays canonical underneath; the beta UI just softens the editing layer.
  */
-const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
-  const [mode, setMode] = useState<EditorMode>("source");
+const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
+  const router = useRouter();
   const [localContent, setLocalContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,7 +50,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   // fetched a different note because both shared the same singleton state.
   const fetchNote = useNoteStore((s) => s.fetchNote);
   const mutateNote = useNoteStore((s) => s.mutateNote);
+  const dismissUnavailablePane = useLayoutStore(
+    (s) => s.dismissUnavailablePane,
+  );
   const { markModified, markSynced } = useSyncStatusStore();
+  const editorSize = useSettingsStore((s) => s.settings?.editorsize);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+  const [resolvedEditorSize, setResolvedEditorSize] = useState<unknown>();
   const currentFileId = useRef(file.fileId);
   const { t } = useI18n();
   // stable identity for this editor instance (cross-pane sync)
@@ -71,6 +66,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   const serverUpdatedAt = useRef<string | undefined>(undefined);
   // debounce timer for draft writes
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editRevision = useRef(0);
+  const saveInFlight = useRef(false);
+  const saveQueued = useRef(false);
+  const saveLatest = useRef<() => void>(() => {});
+  const editorWidth = getEditorWidthStyle(resolvedEditorSize ?? editorSize);
 
   // keep refs in sync so event listeners always read current values
   const localContentRef = useRef(localContent);
@@ -78,6 +78,29 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
     isDirtyRef.current = isDirty;
     localContentRef.current = localContent;
   }, [isDirty, localContent]);
+
+  useEffect(() => {
+    if (editorSize) setResolvedEditorSize(editorSize);
+  }, [editorSize]);
+
+  useEffect(() => {
+    if (editorSize) return;
+
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((settings) => {
+        if (!cancelled && settings) {
+          setSettings(settings);
+          setResolvedEditorSize(settings.editorsize);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editorSize, setSettings]);
 
   // flush draft and warn on page close to prevent data loss
   useEffect(() => {
@@ -99,7 +122,11 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   useEffect(() => {
     if (!file.fileId) return;
     currentFileId.current = file.fileId;
+    setLoaded(false);
     setIsDirty(false);
+    isDirtyRef.current = false;
+    editRevision.current = 0;
+    saveQueued.current = false;
     serverUpdatedAt.current = undefined;
 
     let cancelled = false;
@@ -145,6 +172,15 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       // fetch from API for freshness
       try {
         const result = await fetchNote(file.fileId);
+        if (!cancelled && !result && currentFileId.current === stale) {
+          const survivingFile = dismissUnavailablePane(pane, file.fileId);
+          if (pane === "A" && survivingFile !== undefined) {
+            router.replace(
+              survivingFile?.fileId ? `/notes/${survivingFile.fileId}` : "/notes",
+            );
+          }
+          return;
+        }
         if (!cancelled && result && currentFileId.current === stale) {
           serverUpdatedAt.current = result.updatedAt;
 
@@ -165,8 +201,12 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                 { duration: 6000 },
               );
             }
-          } else {
+          } else if (editRevision.current === 0) {
+            // The request may have started from the instant IDB-cache view.
+            // Never let that older response replace content after this editor
+            // has accepted even one local edit (including an already-saved one).
             setLocalContent(result.content ?? "");
+            localContentRef.current = result.content ?? "";
             setLoaded(true);
           }
         }
@@ -177,9 +217,17 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
     return () => {
       cancelled = true;
-      if (draftTimer.current) clearTimeout(draftTimer.current);
+      if (draftTimer.current) {
+        clearTimeout(draftTimer.current);
+        draftTimer.current = null;
+      }
+      if (isDirtyRef.current) {
+        writeDraft(currentFileId.current, localContentRef.current).catch(
+          () => {},
+        );
+      }
     };
-  }, [file.fileId, fetchNote, t]);
+  }, [dismissUnavailablePane, file.fileId, fetchNote, pane, router, t]);
 
   // removed: the old effect watched the global `note` singleton, meaning a
   // fetchNote in pane B would push new state into pane A and cause a flash.
@@ -227,22 +275,44 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
 
   // save via API
   const handleSave = useCallback(async () => {
-    if (!isDirty || !file.fileId) return;
+    if (!isDirtyRef.current || !file.fileId) return;
+    if (saveInFlight.current) {
+      saveQueued.current = true;
+      return;
+    }
+
+    const contentToSave = localContentRef.current;
+    const revisionToSave = editRevision.current;
+    saveInFlight.current = true;
+    saveQueued.current = false;
+    if (draftTimer.current) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = null;
+    }
 
     setIsSaving(true);
     setSaveError(false);
     try {
-      await mutateNote(file.fileId, { content: localContent });
-      setIsDirty(false);
-      markSynced(file.fileId);
-      // draft successfully pushed to cloud — safe to clear
-      clearDraft(file.fileId).catch(() => {});
+      await mutateNote(file.fileId, { content: contentToSave });
+      const savedCurrentRevision =
+        revisionToSave === editRevision.current &&
+        contentToSave === localContentRef.current;
+      if (savedCurrentRevision) {
+        isDirtyRef.current = false;
+        setIsDirty(false);
+        markSynced(file.fileId);
+        await clearDraft(file.fileId).catch(() => {});
+      } else {
+        isDirtyRef.current = true;
+        setIsDirty(true);
+        markModified(file.fileId);
+      }
       // broadcast to other panes showing this file
       window.dispatchEvent(
         new CustomEvent("note-content-sync", {
           detail: {
             fileId: file.fileId,
-            content: localContent,
+            content: contentToSave,
             sourceId: editorId.current,
           },
         }),
@@ -252,11 +322,21 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
       setSaveError(true);
       toast.error(t("Failed to save note"));
     } finally {
+      saveInFlight.current = false;
       setIsSaving(false);
+      if (saveQueued.current && isDirtyRef.current) {
+        saveQueued.current = false;
+        queueMicrotask(() => saveLatest.current());
+      }
     }
-  }, [localContent, file.fileId, isDirty, mutateNote, markSynced, t]);
+  }, [file.fileId, mutateNote, markModified, markSynced, t]);
 
-  // Ctrl+S handler (for read mode — CodeMirror handles it in source mode)
+  saveLatest.current = () => {
+    void handleSave();
+  };
+
+  // Ctrl+S handler. CodeMirror also handles it while focused; this catches
+  // toolbar/outer-shell focus so the editor still behaves like one mode.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -281,46 +361,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
-      {/* Toolbar */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-border-subtle flex items-center justify-between bg-app-page">
-        {/* Source / Read toggle */}
-        <div className="flex h-7 items-center gap-1 glass-panel p-0.5 rounded-radius-md">
-          <button
-            onClick={() => setMode("source")}
-            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
-              mode === "source"
-                ? "bg-primary-500 text-text"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {t("Source")}
-          </button>
-          <button
-            onClick={() => setMode("read")}
-            className={`inline-flex h-6 items-center px-2.5 text-xs font-medium rounded-radius-sm transition-colors ${
-              mode === "read"
-                ? "bg-primary-500 text-text"
-                : "text-text-tertiary hover:text-text-secondary"
-            }`}
-          >
-            {t("Read")}
-          </button>
-        </div>
-
-        {/* Save Status + Guide link */}
-        <div className="flex h-7 items-center gap-2">
-          <Link
-            href="/syntax-guide"
-            target="_blank"
-            className="inline-flex h-6 items-center rounded-radius-sm px-2 text-xs text-text-tertiary hover:bg-subtle hover:text-text-secondary transition-colors"
-          >
-            {t("Syntax Guide")}
-          </Link>
+    <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
+      {/* Actions share the visual row owned by Crepe's formatting toolbar. */}
+      <div className="absolute right-3 top-0 z-30 flex h-11 items-center gap-1.5">
           {isDirty && !isSaving ? (
             <button
               onClick={handleSave}
-              className="inline-flex h-6 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 hover:bg-yellow-500/10 hover:text-yellow-400 transition-colors"
+              className="inline-flex h-7 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 transition-colors hover:bg-yellow-500/10 hover:text-yellow-400"
               title={t("Save (Ctrl+S)")}
             >
               <svg
@@ -337,7 +384,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
             </button>
           ) : (
             <span
-              className={`inline-flex h-6 items-center rounded-radius-sm px-2 text-xs font-mono ${
+              className={`inline-flex h-7 items-center rounded-radius-sm px-2 text-xs font-mono ${
                 isSaving
                   ? "text-yellow-500"
                   : saveError
@@ -352,39 +399,53 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane: _pane, file }) => {
                   : t("Saved")}
             </span>
           )}
-        </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden bg-app-page">
-        {mode === "source" ? (
-          loaded ? (
-            <div className="h-full min-h-0 w-full">
-              <SourceEditor
-                value={displayContent}
-                onChange={(val) => {
-                  setLocalContent(val);
+      <div
+        className="flex-1 overflow-hidden bg-app-page"
+        style={
+          {
+            "--editor-write-max-width": editorWidth.sourceMaxWidth,
+          } as React.CSSProperties
+        }
+      >
+        {loaded ? (
+          <div className="h-full min-h-0 w-full">
+            <MilkdownWriteEditor
+              value={displayContent}
+              onChange={(val, programmaticUpdate) => {
+                setLocalContent(val);
+                localContentRef.current = val;
+                if (!programmaticUpdate) {
+                  editRevision.current += 1;
+                  isDirtyRef.current = true;
                   setIsDirty(true);
                   scheduleDraftWrite(val);
-                }}
-                onSave={handleSave}
-                placeholder={t("Start writing...")}
-              />
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-              {t("Loading...")}
-            </div>
-          )
-        ) : loaded ? (
-          <div className="h-full min-h-0 w-full overflow-auto px-4 py-10 md:px-8 lg:px-10">
-            <div className="mx-auto w-full max-w-3xl">
-              <PreviewRenderer content={displayContent} noteId={file.fileId} />
-            </div>
+                }
+              }}
+              onSave={handleSave}
+              placeholder={t("Start writing...")}
+            />
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-            {t("Loading...")}
+          <div
+            className="h-full min-h-0 w-full overflow-hidden"
+            aria-busy="true"
+            aria-label={t("Loading...")}
+          >
+            <div
+              className="mx-auto h-full w-full px-6 py-8 sm:px-10"
+              style={{ maxWidth: editorWidth.sourceMaxWidth }}
+            >
+              <div className="h-5 w-2/5 animate-pulse rounded-radius-sm bg-subtle" />
+              <div className="mt-7 space-y-3" aria-hidden="true">
+                <div className="h-3 w-full animate-pulse rounded-radius-sm bg-subtle" />
+                <div className="h-3 w-11/12 animate-pulse rounded-radius-sm bg-subtle" />
+                <div className="h-3 w-4/5 animate-pulse rounded-radius-sm bg-subtle" />
+              </div>
+              <span className="sr-only">{t("Loading...")}</span>
+            </div>
           </div>
         )}
       </div>

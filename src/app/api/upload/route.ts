@@ -43,7 +43,7 @@ const MAGIC_NUMBERS: [string, Set<string>][] = [
 ];
 
 function validateMagicNumber(buffer: ArrayBuffer, mimeType: string): boolean {
-  if (mimeType.startsWith("text/") || mimeType === "image/svg+xml") return true;
+  if (mimeType.startsWith("text/")) return true;
   const header = Buffer.from(buffer).subarray(0, 12).toString("hex");
   for (const [magic, allowedTypes] of MAGIC_NUMBERS) {
     if (header.startsWith(magic)) {
@@ -66,7 +66,6 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
   "audio/mpeg",
   "audio/wav",
   "video/mp4",
@@ -255,9 +254,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     try {
       const { body, contentType, contentLength } = await storage.getObjectStream(path);
       const headers: Record<string, string> = {
-        "Content-Type": contentType ?? "application/octet-stream",
+        // SVG is active XML. Legacy objects may predate the upload policy, so
+        // never render one as a same-origin document.
+        "Content-Type": contentType === "image/svg+xml" ? "application/octet-stream" : (contentType ?? "application/octet-stream"),
         "Cache-Control": "private, max-age=300",
       };
+      if (contentType === "image/svg+xml") {
+        headers["Content-Disposition"] = "attachment";
+        headers["Content-Security-Policy"] = "sandbox";
+      }
       if (contentLength) headers["Content-Length"] = String(contentLength);
       return new NextResponse(Readable.toWeb(body) as ReadableStream, { headers });
     } catch (streamError) {

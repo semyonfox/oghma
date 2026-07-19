@@ -42,3 +42,12 @@
 - Never silently drop uncommitted work
 - Always verify file staging status before operations that affect the working tree
 - If unsure about data safety, create a backup branch or stash first
+
+### 6. Documentation
+
+- Start at `docs/README.md`; it identifies the source of truth for each topic
+- Keep mutable docs dated and explicit about whether they describe the current system, a target, or history
+- Link to canonical facts instead of copying prices, launch gates, deployment details, or environment inventories
+- Keep completed handovers and decision records under `docs/history/`; they are context, not runbooks
+- Do not rewrite licenses, attribution, generated PDFs, dependency manifests, or Markdown test fixtures as prose
+- Keep `docs/internal/` private and untracked

@@ -61,6 +61,8 @@ import sql from "@/database/pgsql.js";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { runExtraction } from "@/app/api/extract/route";
 
+type SqlCall = [TemplateStringsArray, ...unknown[]];
+
 describe("runExtraction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -84,11 +86,10 @@ describe("runExtraction", () => {
       ),
     ).resolves.toEqual({ chunksStored: 2 });
 
-    const updateCall = vi
-      .mocked(sql)
-      .mock.calls.find(([strings]) =>
+    const updateCall = (vi.mocked(sql).mock.calls as unknown as SqlCall[]).find(
+      ([strings]) =>
         (strings as TemplateStringsArray).join("").includes("extraction_coverage"),
-      );
+    );
 
     expect(updateCall).toBeDefined();
     const coverageValue = updateCall?.find(

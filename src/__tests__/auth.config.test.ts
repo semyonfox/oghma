@@ -22,6 +22,7 @@ vi.mock("@/lib/logger", () => ({
 
 vi.mock("@/lib/auth-oauth", () => ({
   findOrCreateOAuthUser: vi.fn(),
+  resolveVerifiedOAuthEmail: vi.fn(),
 }));
 
 const originalEnv = { ...process.env };

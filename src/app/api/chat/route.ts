@@ -5,7 +5,12 @@ import { Metrics } from "@/lib/metrics";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 import logger from "@/lib/logger";
-import { streamText, generateText } from "ai";
+import {
+  streamText,
+  generateText,
+  type FinishReason,
+  type ModelMessage,
+} from "ai";
 
 import {
   runRagPipeline,
@@ -14,9 +19,14 @@ import {
   runKeywordFallback,
   type RagResult,
 } from "@/lib/chat/rag-pipeline";
-import { persistMessage, type ChatMessage } from "@/lib/chat/session";
+import {
+  markChatGenerationFailed,
+  persistMessage,
+  type ChatMessage,
+} from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
+import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
 import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
 import {
@@ -25,6 +35,11 @@ import {
   type RetrievalInfo,
 } from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
+import {
+  shouldSynthesizeFinalAnswer,
+  streamFinalAnswer,
+} from "@/lib/chat/final-answer";
+import { recordActivationMilestone } from "@/lib/marketing/events";
 import {
   TOOL_CALL_LIMIT_USER_MESSAGE,
   appendToolCallLimitMessage,
@@ -38,10 +53,18 @@ import {
   sendToken,
   sendThinking,
   sendToolCall,
+  sendToolResult,
   sendDone,
   sendError,
+  sendHeartbeat,
   buildSearchContext,
 } from "@/lib/chat/stream-events";
+import {
+  createChatGeneration,
+  failChatGeneration,
+} from "@/lib/chat/generation-store";
+import { enqueueChatGeneration } from "@/lib/queue";
+import { hasPrivacySignal } from "@/lib/marketing/events";
 
 function resolveChatThinkingMode(
   requestedThinkingMode: unknown,
@@ -87,6 +110,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     sessionId: requestedSessionId,
     history: requestHistory = [],
     stream = false,
+    background = false,
     thinkingMode: requestedThinkingMode,
     useRag = true,
     clientDateTime: rawClientDateTime,
@@ -101,6 +125,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     sessionId?: string;
     history?: ChatMessage[];
     stream?: boolean;
+    background?: boolean;
     thinkingMode?: unknown;
     useRag?: boolean;
     clientDateTime?: unknown;
@@ -122,6 +147,47 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     selectedFolders,
   };
 
+  if (stream && background) {
+    const scope = await normalizeScope(
+      userId,
+      scopeParams,
+      body,
+      requestedSessionId,
+      message,
+      requestHistory,
+    );
+    const generationId = await createChatGeneration({
+      userId,
+      sessionId: scope.sessionId,
+      message,
+      scope: {
+        sessionContext: scope.sessionContext,
+        scopedNoteIds: scope.scopedNoteIds,
+        scopedInputNoteIds: scope.scopedInputNoteIds,
+        history: scope.history,
+      },
+      useRag,
+      thinkingMode,
+      clientDateTime,
+      requestOrigin: request.nextUrl.origin,
+      referer: request.headers.get("referer") ?? undefined,
+      respectPrivacySignal: hasPrivacySignal(request),
+    });
+    try {
+      await enqueueChatGeneration(generationId);
+    } catch (error) {
+      await failChatGeneration(
+        generationId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+    return NextResponse.json(
+      { generationId, sessionId: scope.sessionId },
+      { status: 202 },
+    );
+  }
+
   // ── streaming response ─────────────────────────────────────────────────────
   if (stream) {
     const chatStreamId = crypto.randomUUID();
@@ -130,6 +196,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     let streamClosed = false;
     let bytesSent = 0;
     let lastEvent = "init";
+    let activeSessionId: string | null = null;
 
     const markClientDisconnected = (reason: unknown) => {
       if (clientDisconnected) return;
@@ -173,6 +240,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 }
               },
             };
+            const heartbeatId = setInterval(() => {
+              if (!streamClosed && !clientDisconnected) sendHeartbeat(writer);
+            }, 15_000);
             try {
               logger.info("Chat stream started", {
                 chatStreamId,
@@ -193,6 +263,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 message,
                 requestHistory,
               );
+              activeSessionId = scope.sessionId;
 
               const ragResult = useRag
                 ? await runRagPipeline(userId, message, scope.scopedNoteIds)
@@ -244,7 +315,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 llmAvailable,
               );
               lastEvent = "meta";
-              sendSearch(writer, scope.scopedNoteIds, ragResult.searchResults);
+              sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
               lastEvent = "search";
 
               if (!llmAvailable) {
@@ -257,7 +328,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   scope.sessionId,
                   "assistant",
                   fallback,
-                  { sources: uniqueSources },
+                  {
+                    parts: [
+                      ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))) }] : []),
+                      { type: "text", text: fallback },
+                    ],
+                    sources: uniqueSources,
+                  },
                 );
                 sendDone(writer);
                 lastEvent = "done";
@@ -281,12 +358,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               let thinking = "";
               let thinkingStartedAt: number | null = null;
               let thinkingDuration: number | undefined;
-              let finishReason: string | undefined;
+              let finishReason: FinishReason | undefined;
               let rawFinishReason: string | undefined;
               let stepCount = 0;
               let toolCallCount = 0;
               let assistantPersisted = false;
-              const parts: MessagePart[] = [];
+              let responseMessages: ModelMessage[] = [];
+              const parts: MessagePart[] = useRag ? [{
+                type: "tool",
+                name: "ragSearch",
+                label: "Searched notes",
+                detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))),
+              }] : [];
               let pendingText = "";
               const flushText = () => {
                 if (pendingText) {
@@ -343,13 +426,23 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   } else if (part.type === "tool-call") {
                     toolCallCount += 1;
                     flushText();
+                    const detail = toolCallDetail(part.toolName, part.input);
                     parts.push({
                       type: "tool",
                       name: part.toolName,
                       label: labelForTool(part.toolName),
+                      callId: part.toolCallId,
+                      detail,
                     });
-                    sendToolCall(writer, part.toolName);
+                    sendToolCall(writer, part.toolName, part.toolCallId, detail);
                     lastEvent = "tool-call";
+                  } else if (part.type === "tool-result") {
+                    const detail = toolResultDetail(part.toolName, part.output);
+                    const stored = parts.find(
+                      (item) => item.type === "tool" && item.callId === part.toolCallId,
+                    );
+                    if (stored?.type === "tool" && detail) stored.detail = detail;
+                    sendToolResult(writer, part.toolCallId, detail);
                   } else if (part.type === "finish-step") {
                     stepCount += 1;
                     finishReason = part.finishReason;
@@ -363,6 +456,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                       : new Error(String(part.error));
                   }
                 }
+                responseMessages = (await result.response).messages;
               } catch (error) {
                 void Metrics.llmError();
                 closeThinkingWindow();
@@ -410,12 +504,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
               closeThinkingWindow();
               flushText();
-              void Metrics.llmLatency(Date.now() - t0);
 
               if (
-                isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)
+                isToolCallLimitFinish(
+                  finishReason,
+                  toolCallCount,
+                  maxToolSteps,
+                )
               ) {
-                logger.warn("LLM stream hit tool-call step limit", {
+                logger.warn("LLM stream hit tool-call limit", {
                   model: getLlmModel(),
                   thinkingMode,
                   maxToolSteps,
@@ -436,6 +533,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                     toolCallLimitHit: true,
                   }),
                 );
+                void Metrics.llmLatency(Date.now() - t0);
                 sendDone(writer);
                 lastEvent = "done";
                 logger.warn("Chat stream completed after tool-call limit", {
@@ -450,38 +548,58 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               }
 
               if (!reply.trim()) {
-                const emptyReply =
-                  "I couldn't generate an answer this time. Please try again.";
-                logger.error("LLM stream returned empty response", {
+                if (!shouldSynthesizeFinalAnswer(reply, finishReason)) {
+                  throw new Error(
+                    `Model ended without an answer (${finishReason})`,
+                  );
+                }
+                logger.warn("LLM stream returned reasoning without an answer", {
                   chatStreamId,
                   model: getLlmModel(),
                   thinkingMode,
+                  stepCount,
+                  toolCallCount,
                 });
-                sendToken(writer, emptyReply);
-                lastEvent = "token";
-                await persistMessage(
-                  scope.sessionId,
-                  "assistant",
-                  emptyReply,
-                  {
-                    sources: uniqueSources,
-                    metadata: buildMetadata(),
+                closeThinkingWindow();
+                const finalAnswer = await streamFinalAnswer({
+                  model: model!,
+                  messages: [
+                    ...llmCallOptions.messages,
+                    ...responseMessages,
+                  ],
+                  maxOutputTokens: llmCallOptions.maxOutputTokens,
+                  onTextDelta(text) {
+                    reply += text;
+                    pendingText += text;
+                    sendToken(writer, text);
+                    lastEvent = "token";
                   },
-                );
-                sendDone(writer);
-                lastEvent = "done";
-                logger.info("Chat stream completed with empty-response fallback", {
-                  chatStreamId,
-                  sessionId: scope.sessionId,
-                  elapsedMs: Date.now() - startedAt,
-                  bytesSent,
-                  clientDisconnected,
                 });
-                writer.close();
-                return;
+                stepCount += 1;
+                finishReason = finalAnswer.finishReason;
+                rawFinishReason = finalAnswer.rawFinishReason;
+                if (!reply.trim()) {
+                  throw new Error(
+                    "Model returned no answer after final synthesis",
+                  );
+                }
+                flushText();
+                logger.info("Recovered reasoning-only LLM response", {
+                  chatStreamId,
+                  model: getLlmModel(),
+                  finishReason,
+                  rawFinishReason,
+                  replyLength: reply.length,
+                });
               }
 
+              void Metrics.llmLatency(Date.now() - t0);
               await persistAssistant(reply, buildMetadata());
+              if (uniqueSources.length > 0) {
+                void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
+                  logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+                );
+              }
               sendDone(writer);
               lastEvent = "done";
               logger.info("Chat stream completed", {
@@ -512,9 +630,23 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 clientDisconnected,
                 lastEvent,
               });
+              if (activeSessionId) {
+                await markChatGenerationFailed(activeSessionId).catch(
+                  (statusError) =>
+                    logger.error("Failed to mark chat generation as failed", {
+                      chatStreamId,
+                      error:
+                        statusError instanceof Error
+                          ? statusError.message
+                          : String(statusError),
+                    }),
+                );
+              }
               sendError(writer, "Failed to generate response");
               lastEvent = "error";
               writer.close();
+            } finally {
+              clearInterval(heartbeatId);
             }
           })();
         },
@@ -579,6 +711,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     });
 
   const searchContext = buildSearchContext(
+    useRag ? message : undefined,
     scope.scopedNoteIds,
     ragResult.searchResults,
   );
@@ -590,6 +723,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ragResult.embeddingAvailable,
     );
     await persistMessage(scope.sessionId, "assistant", fallback, {
+      parts: [
+        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
+        { type: "text", text: fallback },
+      ],
       sources: uniqueSources,
     });
     return NextResponse.json({
@@ -631,6 +768,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       const limitNotice = appendToolCallLimitMessage(reply);
       await persistMessage(scope.sessionId, "assistant", limitNotice.reply, {
         parts: [
+          ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
           ...(reply ? [{ type: "text" as const, text: reply }] : []),
           { type: "text" as const, text: limitNotice.delta },
         ],
@@ -657,9 +795,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     }
 
     await persistMessage(scope.sessionId, "assistant", reply, {
+      parts: [
+        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
+        ...(reply ? [{ type: "text" as const, text: reply }] : []),
+      ],
       sources: uniqueSources,
       metadata,
     });
+    if (uniqueSources.length > 0) {
+      void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
+        logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
+      );
+    }
     return NextResponse.json({
       reply,
       thinking: reasoningText || undefined,
@@ -678,6 +825,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       model: getLlmModel(),
       thinkingMode,
     });
+    await markChatGenerationFailed(scope.sessionId).catch((statusError) =>
+      logger.error("Failed to mark chat generation as failed", {
+        error:
+          statusError instanceof Error
+            ? statusError.message
+            : String(statusError),
+      }),
+    );
     return tracedError("Failed to generate response", 502);
   }
 });

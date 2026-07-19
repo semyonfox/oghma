@@ -109,8 +109,18 @@ export async function login(email, password, rememberMe = false) {
   return apiPost("/api/auth/login", { email, password, rememberMe });
 }
 
-export async function register(email, password) {
-  return apiPost("/api/auth/register", { email, password });
+export async function register(
+  email,
+  password,
+  marketing = undefined,
+  agentRegistration = undefined,
+) {
+  return apiPost("/api/auth/register", {
+    email,
+    password,
+    marketing,
+    ...(agentRegistration || {}),
+  });
 }
 
 export async function logout() {

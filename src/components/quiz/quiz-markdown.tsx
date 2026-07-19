@@ -1,6 +1,5 @@
 "use client";
 
-import rehypeHighlight from "rehype-highlight";
 import MarkdownRenderer from "@/lib/markdown/renderer";
 
 interface QuizMarkdownProps {
@@ -11,8 +10,8 @@ interface QuizMarkdownProps {
 export default function QuizMarkdown({ children, className }: QuizMarkdownProps) {
   return (
     <MarkdownRenderer
+      variant="quiz"
       className={className}
-      rehypePlugins={[rehypeHighlight]}
       components={{
         p: ({ children }: any) => (
           <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>

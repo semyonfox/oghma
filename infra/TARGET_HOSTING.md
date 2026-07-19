@@ -1,137 +1,168 @@
-# Target Hosting Plan
+# Target Hosting Architecture
 
-Status: launch target, not the current running stack.
-Last updated: 2026-06-15.
+> Status: Future-state architecture decision; not the running stack
+>
+> Audience: Maintainers planning a post-homelab migration
+>
+> Last reviewed: 2026-07-11
 
-Current production and dev still run on the homelab stack documented in [HOMELAB.md](HOMELAB.md). This document records the go-forward provider split for launch testing and migration planning. The target may change after load tests, provider trials, and real import benchmarks.
+The current runtime remains the
+[homelab Docker/Jenkins stack](HOMELAB.md). This document records migration
+intent and decision gates. No provider listed here should be treated as
+provisioned until its phase is implemented and verified.
 
-## Recommendation
+## Decision
 
-Use Cloudflare for the edge and platform-adjacent services, but keep a normal Node runtime for the current app/worker shape unless the OpenNext trial proves clean.
+Use Cloudflare for edge and platform-adjacent services while preserving a
+normal Node/Docker runtime for workloads that depend on long-lived processes,
+Node streams, large files, and local extraction libraries.
 
-| Area | Target |
+| Area | Target direction |
 |---|---|
-| DNS, CDN, TLS, WAF/bot basics | Cloudflare |
-| Web app trial | Cloudflare Workers + OpenNext, if compatibility is acceptable |
-| Production fallback app runtime | Small Node/Docker host such as Railway, Fly, Render, or Hetzner/Coolify |
-| Background worker | Node/Docker worker service consuming Cloudflare Queues over HTTP pull |
-| Database | Neon Postgres with pgvector |
-| Object storage | Cloudflare R2 via S3-compatible API |
-| Transactional email | Cloudflare Email Sending |
+| DNS, CDN, TLS, WAF/bot controls | Cloudflare |
+| Web app | Trial Cloudflare Workers with OpenNext; retain a Node/Docker fallback |
+| Background worker | Long-running Node/Docker worker |
+| Queue transport | Cloudflare Queues through the existing queue facade if the trial passes |
+| Relational database | Managed PostgreSQL, with Neon as the current candidate |
+| Vector database | Qdrant-compatible service/deployment; active code no longer treats pgvector as primary vector storage |
+| Object storage | Cloudflare R2 through the existing S3-compatible interface |
+| Transactional email | Cloudflare Email Sending REST API |
 | Human inboxes | Google Workspace |
-| GPU processing | On-demand rented GPUs and batched runs |
+| Document GPU work | On-demand workers or batches rather than permanent launch capacity |
 
-## Cloudflare Scope
+Named providers are candidates, not contracts. Recheck current compatibility,
+data location, support, limits, and pricing before migration.
 
-Cloudflare should own:
+## Current Code Constraints
 
-- DNS and proxying for `oghmanotes.ie`.
-- TLS and edge caching.
-- R2 object storage for uploaded files, exports, and generated assets.
-- Email Routing for aliases where useful.
-- Email Sending for verification, password reset, welcome, and job-complete messages.
-- OpenNext/Workers trial for the web app.
+The application currently assumes:
 
-Cloudflare should not be assumed to own the whole backend yet. The current repo uses a persistent BullMQ worker, Redis, Node streams, large uploads, PDF parsing, migrations, and optional GPU OCR hooks. Moving those pieces to Workers/Queues is a real migration, not a hosting flip.
+- a standalone Node-compatible Next.js runtime;
+- a long-running worker started from `src/lib/canvas/worker-entry.ts`;
+- queue publication through `src/lib/queue.ts`;
+- Redis/BullMQ by default, with Cloudflare Queues HTTP publish/pull available
+  behind `QUEUE_PROVIDER`;
+- PostgreSQL for relational data and migrations;
+- Qdrant for active vector embeddings;
+- S3-compatible object storage;
+- streaming chat and download/upload routes;
+- Node-oriented PDF parsing, SDKs, timers, and signal handling.
 
-Code reality:
+These constraints make a web-app Workers trial reasonable, but they do not
+make a full backend move a configuration-only change.
 
-- The app has 65 App Router API routes and currently builds as a standalone Node app.
-- The import/export pipeline uses BullMQ, Redis, long-running worker processes, DB polling, timers, and signal handling in `src/lib/canvas/worker-entry.js`.
-- Upload, Canvas, and vault routes enqueue BullMQ work directly.
-- Production logging, PDF parsing, and storage proxying use Node-shaped libraries and streams in several paths.
+## Web App Decision Gate
 
-That means Cloudflare Workers/OpenNext is a trial for the web app surface first. The worker stays Node/Docker; Cloudflare Queues can replace Redis/BullMQ through HTTP publish/pull without moving the long-running worker into Workers.
+Keep an OpenNext/Workers deployment only if a production-like trial verifies:
 
-## OpenNext Trial Policy
+- authentication callbacks, cookies, and protected routes;
+- chat streaming and cancellation;
+- uploads, downloads, storage proxying, and `Buffer`/stream behavior;
+- PostgreSQL connection handling through an appropriate pooler;
+- API-to-queue publication without direct BullMQ assumptions;
+- external Node package compatibility;
+- security headers, public metadata routes, and locale behavior;
+- build reproducibility, observability, and rollback;
+- migrations running as a separate controlled step.
 
-Try Cloudflare Workers/OpenNext. Keep it if the app runs cleanly and the operational work is modest.
+If that trial requires broad rewrites or weakens reliability, deploy the app
+and worker as Node containers and retain Cloudflare for DNS, proxying, R2,
+email, and other independently useful services.
 
-If it fails or forces a broad rewrite, use Cloudflare for edge/R2/email and deploy the app plus worker as Node containers elsewhere.
+## Queue and Worker Boundary
 
-Known areas to test before committing:
+Cloudflare Queues can replace the transport while the consumer remains a
+long-running Node process:
 
-- Auth and NextAuth callbacks.
-- All 65 App Router API routes.
-- Chat streaming.
-- Postgres connectivity, ideally through a pooler or Hyperdrive-style connection handling.
-- Upload/proxy routes that currently use Node streams and `Buffer`.
-- Runtime bundle compatibility with AWS SDK, `postgres`, `nodemailer`, logging, and PDF parsing.
-- Direct BullMQ enqueue paths from API routes.
-- Build/deploy flow for migrations.
+1. app producers publish through `src/lib/queue.ts`;
+2. the Node worker pulls and acknowledges through the same facade;
+3. job state remains in PostgreSQL;
+4. extraction and embeddings remain outside the Workers request lifecycle.
 
-References:
+Before switching:
 
-- Cloudflare Workers Next.js guide: https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/
-- OpenNext Cloudflare adapter: https://opennext.js.org/cloudflare
-- Cloudflare Hyperdrive connection pooling: https://developers.cloudflare.com/hyperdrive/concepts/connection-pooling/
+- verify environment-prefixed queue isolation;
+- test visibility timeout, acknowledgement, retry, and poison-message behavior;
+- verify vault import retry constraints;
+- compare throughput and operational recovery with BullMQ;
+- retain a documented provider rollback.
 
-## Database Decision
+Do not fork API routes into provider-specific enqueue implementations.
 
-Use Neon Postgres + pgvector.
+## Data Boundary
 
-MariaDB Vector is real and has native vector support in recent MariaDB versions, but it is not the right migration target for this app. Oghma already uses Postgres SQL, Postgres migrations, pgvector casts/operators, and Postgres-specific operational assumptions. Moving to MariaDB would force a database rewrite during launch without solving the main bottlenecks.
+### PostgreSQL
 
-The current vector/search work depends on:
+Move relational data only after:
 
-- PostgreSQL.
-- pgvector.
-- Existing migrations under `database/migrations/`.
-- SQL written for Postgres semantics.
+- all migrations pass against the candidate service;
+- pooling and connection limits survive app plus worker load;
+- backup, restore, point-in-time recovery, and migration credentials are
+  tested;
+- dev and production are isolated.
 
-MariaDB can be reconsidered only if there is a separate strategic reason to move away from Postgres.
+pgvector may remain installed for migration compatibility, but the active
+architecture stores vectors in Qdrant. Do not select a relational provider
+based on the old assumption that it must serve production vector search.
 
-References:
+### Qdrant
 
-- MariaDB Vector: https://mariadb.org/projects/mariadb-vector/
-- MariaDB vector overview: https://mariadb.com/docs/server/reference/sql-structure/vectors/vector-overview
-- Neon pgvector: https://neon.com/docs/extensions/pgvector
-- pgvector: https://github.com/pgvector/pgvector
+Choose a Qdrant deployment with:
 
-## Storage Decision
+- separate dev and production collections or projects;
+- backups and restore testing;
+- private/authenticated network access;
+- capacity for embedding dimensions and workload growth;
+- measured search and indexing latency;
+- a tested migration from the current collection.
 
-Use Cloudflare R2 as the launch object store.
+### R2
 
-R2 is a good fit because the app already uses S3-compatible storage and user file downloads can become expensive on egress-charging providers.
+The storage abstraction already uses S3-compatible configuration. Preserve
+logical object keys and `STORAGE_PREFIX` during migration because database
+rows refer to those keys. Validate multipart upload, range requests, download
+headers, export links, lifecycle policy, and rollback before cutover.
 
-Migration caveat: keep object keys under the same `STORAGE_PREFIX` during copy, because database rows store logical keys below that prefix.
+## Email Boundary
 
-The main storage provider and vault import/export paths now use the same S3-compatible configuration: `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_PATH_STYLE`, and `STORAGE_PREFIX`.
+The Node app already uses the Cloudflare Email Sending REST API. Project policy
+keeps Google Workspace authoritative for root-domain inbound mail; verify the
+live MX records before changing DNS. Do not enable Cloudflare Email Routing on
+the same root MX; use a deliberately configured subdomain if routing is needed.
 
-References:
+See [email operations](../docs/operations/email.md).
 
-- Cloudflare R2 pricing: https://developers.cloudflare.com/r2/pricing/
-- Cloudflare R2 S3 API compatibility: https://developers.cloudflare.com/r2/api/s3/api/
+## Migration Phases
 
-## Email Decision
+1. **Baseline** current homelab latency, throughput, storage, queue recovery,
+   backups, and monthly cost.
+2. **Move independent services** such as R2/email only after end-to-end tests.
+3. **Trial queue transport** through the existing facade with dev isolation.
+4. **Trial managed PostgreSQL and Qdrant** with restore and load tests.
+5. **Trial the web app** on Workers/OpenNext; keep Node fallback deployable.
+6. **Move production** one stateful boundary at a time with rollback evidence.
+7. **Retire homelab production** only after backup restoration and an
+   observation window succeed.
 
-Use Cloudflare Email Sending for launch transactional mail.
+## Open Decisions
 
-Expected outbound volume is low: verification, password reset, welcome, and job-complete emails should stay well below the included 3,000 emails/month on Workers Paid during early launch.
+- Workers/OpenNext versus a Node container for the web app.
+- Managed versus self-operated Qdrant.
+- Managed PostgreSQL provider and pooling method.
+- Cloudflare Queues versus BullMQ on the future worker host.
+- GPU provider, batching threshold, and synchronous versus asynchronous Marker
+  protocol.
+- Required regional placement, support tier, and recovery objectives.
 
-Implementation: `src/lib/email.js` sends through the Cloudflare Email Service REST API from the Node app runtime. Configure `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `EMAIL_FROM`.
+## Primary References
 
-References:
+- [Cloudflare Next.js guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/)
+- [Cloudflare Queues](https://developers.cloudflare.com/queues/)
+- [Cloudflare R2 S3 compatibility](https://developers.cloudflare.com/r2/api/s3/api/)
+- [Cloudflare Email Service](https://developers.cloudflare.com/email-service/)
+- [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare)
+- [Neon documentation](https://neon.com/docs/)
+- [Qdrant documentation](https://qdrant.tech/documentation/)
 
-- Cloudflare Email Service pricing: https://developers.cloudflare.com/email-service/platform/pricing/
-- Cloudflare Email REST API: https://developers.cloudflare.com/email-service/api/send-emails/rest-api/
-
-## GPU Strategy
-
-Do not buy always-on GPU capacity at launch.
-
-Use on-demand GPU batches:
-
-- H100 for batched first-import cohorts when enough backlog exists.
-- 4080/4090-class workers for trickle imports when queue volume justifies it.
-- No Datalab-style managed document API as steady-state processing because page volume makes it too expensive.
-
-The Canvas import economics source of truth is [../docs/CANVAS_IMPORT_PRICING_REPORT.md](../docs/CANVAS_IMPORT_PRICING_REPORT.md).
-
-## Historical Stacks
-
-| Stack | Status | Use |
-|---|---|---|
-| AWS Amplify/RDS/SQS/ECS/S3/ElastiCache | Retired | Historical reference only |
-| Homelab Docker/Jenkins | Current interim | Working production/dev stack, but not suitable as long-term launch hosting because ISP upload/reliability is a constraint |
-| Cloudflare + Neon + R2 + small Node runtime + on-demand GPUs | Target | Launch migration candidate |
+Recheck primary documentation before implementing a phase. Avoid copying
+numeric limits or pricing into this ADR.

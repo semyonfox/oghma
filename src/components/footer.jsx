@@ -9,14 +9,18 @@ export default function Footer() {
 
   const navigation = {
     features: [
-      { name: t("RAG Chat"), href: "/#features" },
-      { name: t("Adaptive Quizzes"), href: "/#features" },
-      { name: t("Spaced Repetition"), href: "/#features" },
-      { name: t("Canvas Integration"), href: "/#features" },
+      { name: t("Canvas course import"), href: "/#features" },
+      { name: t("Cited course answers"), href: "/#features" },
+      { name: t("Flashcards and review"), href: "/#features" },
+      { name: t("Deadlines and planning"), href: "/#features" },
     ],
     support: [
       { name: t("Documentation"), href: "/syntax-guide" },
       { name: t("Guides"), href: "/syntax-guide" },
+      { name: t("Product information"), href: "/info" },
+      { name: t("AI transparency"), href: "/ai" },
+      { name: t("LLMs.txt"), href: "/llms.txt" },
+      { name: t("Agent Guide"), href: "/agents.md" },
       { name: t("Contact"), href: "/contact" },
     ],
     company: [
@@ -83,7 +87,7 @@ export default function Footer() {
             </div>
             <p className="text-sm/6 text-balance text-text-tertiary">
               {t(
-                "RAG-powered learning platform combining semantic notes, adaptive quizzes, and spaced-repetition flashcards. Built for students who want to study smarter.",
+                "Connect Canvas once, then study from your actual course material with cited answers, flashcards, notes, and planning in one place.",
               )}
             </p>
             <div className="flex gap-x-6">

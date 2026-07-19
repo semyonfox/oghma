@@ -26,9 +26,30 @@ describe("chat SSE utils", () => {
     expect(frames).toEqual([{ event: "message", data: '{"x":1}' }]);
   });
 
+  it("preserves Redis stream ids for resumable delivery", () => {
+    const state = { buffer: "" };
+    expect(
+      parseSseBlocks('id: 1720000000000-3\nevent: token\ndata: {"text":"hi"}\n\n', state),
+    ).toEqual([
+      {
+        id: "1720000000000-3",
+        event: "token",
+        data: '{"text":"hi"}',
+      },
+    ]);
+  });
+
   it("supports CRLF-delimited SSE blocks", () => {
     const state = { buffer: "" };
     const frames = parseSseBlocks("event: done\r\ndata: {}\r\n\r\n", state);
     expect(frames).toEqual([{ event: "done", data: "{}" }]);
+  });
+
+  it("ignores heartbeat comments without corrupting the next event", () => {
+    const state = { buffer: "" };
+    expect(parseSseBlocks(": heartbeat\n\n", state)).toEqual([]);
+    expect(parseSseBlocks("event: done\ndata: {}\n\n", state)).toEqual([
+      { event: "done", data: "{}" },
+    ]);
   });
 });

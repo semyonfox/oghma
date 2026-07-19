@@ -3,6 +3,7 @@
 import {
   CreateBucketCommand,
   HeadBucketCommand,
+  PutBucketCorsCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { loadE2EEnvFiles } from "./lib/env.mjs";
@@ -11,6 +12,11 @@ loadE2EEnvFiles();
 
 const bucket = process.env.STORAGE_BUCKET;
 const endpoint = process.env.STORAGE_ENDPOINT;
+const appOrigin = new URL(
+  process.env.PLAYWRIGHT_BASE_URL ||
+    process.env.E2E_BASE_URL ||
+    "http://127.0.0.1:3310",
+).origin;
 
 if (!bucket) {
   console.error("[e2e] STORAGE_BUCKET is required");
@@ -43,6 +49,30 @@ async function main() {
       } catch {
         await client.send(new CreateBucketCommand({ Bucket: bucket }));
       }
+      try {
+        await client.send(
+          new PutBucketCorsCommand({
+            Bucket: bucket,
+            CORSConfiguration: {
+              CORSRules: [
+                {
+                  AllowedOrigins: [appOrigin],
+                  AllowedMethods: ["PUT"],
+                  AllowedHeaders: [
+                    "Content-Type",
+                    "x-amz-meta-expected-size",
+                  ],
+                },
+              ],
+            },
+          }),
+        );
+      } catch (error) {
+        if (error?.name !== "NotImplemented") throw error;
+        console.warn(
+          "[e2e] storage does not implement bucket CORS; using its server-level CORS policy",
+        );
+      }
       console.log(`[e2e] storage bucket ready: ${bucket}`);
       return;
     } catch (error) {
@@ -58,4 +88,3 @@ main().catch((error) => {
   console.error("[e2e] storage bucket setup failed:", error.message);
   process.exit(1);
 });
-

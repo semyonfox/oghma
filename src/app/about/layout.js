@@ -1,7 +1,7 @@
 export const metadata = {
   title: "About",
   description:
-    "Meet the team behind OghmaNotes — an AI-enhanced study platform built by students at the University of Galway.",
+    "Meet the students building OghmaNotes, an independent Canvas-connected study system from University of Galway students.",
 };
 
 export default function AboutLayout({ children }) {

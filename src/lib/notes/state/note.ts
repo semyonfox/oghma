@@ -8,6 +8,10 @@ import useSyncStatusStore from "./sync-status";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Prevent GET requests that began before a save from writing their stale
+// response back into the singleton store or IndexedDB after that save.
+const noteWriteVersions = new Map<string, number>();
+
 export interface NoteStoreState {
   note: NoteModel | undefined;
   loading: boolean;
@@ -66,10 +70,17 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     if (cache) {
       set({ note: cache });
     }
+    const writeVersionAtStart = noteWriteVersions.get(id) ?? 0;
     const result = await noteAPI.find(id);
 
     if (!result) {
       return;
+    }
+
+    if ((noteWriteVersions.get(id) ?? 0) !== writeVersionAtStart) {
+      const currentNote = get().note;
+      if (currentNote?.id === id) return currentNote;
+      return (await noteCache.getItem(id)) ?? undefined;
     }
 
     result.content = result.content || "\n";
@@ -144,8 +155,12 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
       note: state.note?.id === id ? { ...state.note, ...payload } : state.note,
     }));
 
-    // send mutation to API (this is the S3 sync)
+    noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
+
+    // send mutation to API (this is the persistence sync)
     await noteAPI.mutate(id, payload);
+
+    noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
 
     // mark as synced after successful API save
     useSyncStatusStore.getState().markSynced(id);

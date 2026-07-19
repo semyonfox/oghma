@@ -104,7 +104,7 @@ vi.mock("@/components/settings/password-section", () => ({
   default: () => React.createElement("section", { id: "password" }, "Password"),
 }));
 
-vi.mock("@/components/course-visibility/manager", () => ({
+vi.mock("@/components/course-visibility/course-visibility-manager", () => ({
   default: (props: any) => {
     mocks.lastManagerProps = props;
     return React.createElement(

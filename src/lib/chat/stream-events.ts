@@ -39,10 +39,12 @@ export function sendMeta(
 
 export function sendSearch(
   writer: SseWriter,
+  query: string | undefined,
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): void {
   send(writer, "search", {
+    query,
     scopeSize: scopedNoteIds?.length ?? null,
     resultsFound: searchResults.length,
     results: searchResults.map((r) => ({
@@ -61,8 +63,12 @@ export function sendThinking(writer: SseWriter, text: string): void {
   send(writer, "thinking", { text });
 }
 
-export function sendToolCall(writer: SseWriter, toolName: string): void {
-  send(writer, "tool-call", { toolName });
+export function sendToolCall(writer: SseWriter, toolName: string, toolCallId?: string, detail?: string): void {
+  send(writer, "tool-call", { toolName, toolCallId, detail });
+}
+
+export function sendToolResult(writer: SseWriter, toolCallId: string, detail?: string): void {
+  if (detail) send(writer, "tool-result", { toolCallId, detail });
 }
 
 export function sendDone(writer: SseWriter): void {
@@ -73,15 +79,22 @@ export function sendError(writer: SseWriter, message: string): void {
   send(writer, "error", { message, traceId: getTraceId() });
 }
 
+export function sendHeartbeat(writer: SseWriter): void {
+  writer.enqueue(encoder.encode(": heartbeat\n\n"));
+}
+
 export function buildSearchContext(
+  query: string | undefined,
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): {
+  query?: string;
   scopeSize: number | null;
   resultsFound: number;
   results: { noteId: string; title: string; distance: number }[];
 } {
   return {
+    query,
     scopeSize: scopedNoteIds?.length ?? null,
     resultsFound: searchResults.length,
     results: searchResults.map((r) => ({

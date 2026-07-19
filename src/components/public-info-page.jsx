@@ -3,7 +3,7 @@ import Footer from "@/components/footer";
 import React from "react";
 import { getServerI18n } from "@/lib/i18n/server";
 
-function localizeText(node, t) {
+export function localizeText(node, t) {
   if (typeof node === "string") {
     return node.trim() ? t(node) : node;
   }
@@ -11,6 +11,12 @@ function localizeText(node, t) {
     return node.map((child) => localizeText(child, t));
   }
   if (!React.isValidElement(node)) {
+    return node;
+  }
+  if (node.props.dangerouslySetInnerHTML) {
+    return node;
+  }
+  if (node.type === "code") {
     return node;
   }
 

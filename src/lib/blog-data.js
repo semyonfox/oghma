@@ -1,194 +1,173 @@
 const authors = {
   samuel: {
-    name: 'Samuel Regan',
-    imageUrl: '/sam.jpeg',
-    linkedin: 'https://www.linkedin.com/in/samuel-regan-464856331/',
+    name: "Samuel Regan",
+    imageUrl: "/sam.jpeg",
+    linkedin: "https://www.linkedin.com/in/samuel-regan-464856331/",
   },
   semyon: {
-    name: 'Semyon Fox',
-    imageUrl: '/sem.jpeg',
-    linkedin: 'https://www.linkedin.com/in/semyon-fox-968685249/',
+    name: "Semyon Fox",
+    imageUrl: "/sem.jpeg",
+    linkedin: "https://www.linkedin.com/in/semyon-fox-968685249/",
   },
   shreyansh: {
-    name: 'Shreyansh Singh',
-    imageUrl: '/shrey.jpeg',
-    linkedin: 'https://www.linkedin.com/in/shreyanshsinghss/',
+    name: "Shreyansh Singh",
+    imageUrl: "/shrey.jpeg",
+    linkedin: "https://www.linkedin.com/in/shreyanshsinghss/",
   },
-}
+};
 
 const blogPosts = [
   {
-    slug: 'master-note-taking',
-    title: 'Master Note-Taking: The Cornell Method with AI Assistance',
-    author: authors.samuel,
-    authorRole: 'RAG & Search',
-    excerpt: 'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
-    date: 'Jan 15, 2025',
-    datetime: '2025-01-15',
-    imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80',
-    intro: 'Learn how to structure your notes using the Cornell Method and leverage OghmaNotes AI to automatically generate summaries and study guides from your notes.',
-    content: `The Cornell Method is one of the most effective note-taking systems ever developed. Combined with OghmaNotes AI, you can take your studying to the next level.
-
-The Cornell Method divides your page into three sections:
-- The note-taking area on the right (about 6 inches wide)
-- The cues column on the left (about 2.5 inches wide)
-- The summary area at the bottom
-
-With OghmaNotes, you don't need to manually create these sections. Our AI automatically:
-- Organizes your notes into the proper format
-- Generates key concepts for the cues column
-- Creates summaries automatically
-- Suggests study questions based on your notes
-
-This integration means you spend less time formatting and more time learning.`,
-    highlights: [
-      {
-        title: 'Organized Structure',
-        description: 'OghmaNotes automatically organizes your notes into the Cornell Method format, saving you hours of manual work.',
-      },
-      {
-        title: 'AI-Generated Cues',
-        description: 'Our AI analyzes your notes and creates meaningful cues that test your understanding of the material.',
-      },
-      {
-        title: 'Automatic Summaries',
-        description: 'Get concise summaries of each lecture without lifting a finger. Perfect for quick review before exams.',
-      },
-    ],
-    section2Title: 'Transform Your Study Sessions in One Week',
-    section2Content: `Students who adopt the Cornell Method with OghmaNotes report dramatic improvements in their grades and study efficiency. Most see results within just one week of consistent use.
-
-The combination of structured note-taking and AI insights creates a powerful learning system that adapts to your needs.`,
-    testimonial: {
-      quote: 'I went from C grades to A grades just by using the Cornell Method with OghmaNotes. The AI summaries saved me so much time studying for finals.',
-      author: 'Sarah Anderson',
-      role: 'Computer Science Student',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-    section3Title: 'Everything You Need to Master Your Subjects',
-    section3Content: `With OghmaNotes and the Cornell Method, you have everything needed to excel academically. Stop struggling with disorganized notes and start studying smarter.
-
-The platform is designed specifically for students who want to maximize their learning potential.`,
-  },
-  {
-    slug: 'canvas-integration',
-    title: 'Canvas Integration: Sync Your Assignments in One Click',
+    slug: "canvas-first-study-system",
+    title: "Why OghmaNotes Starts With Canvas",
     author: authors.semyon,
-    authorRole: 'Authentication & Backend',
-    excerpt: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
-    date: 'Jan 10, 2025',
-    datetime: '2025-01-10',
-    imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
-    intro: 'Discover how to connect OghmaNotes to Canvas and never miss an assignment deadline again with automatic syncing.',
-    content: `Manual assignment tracking across multiple courses is exhausting. With OghmaNotes Canvas integration, all your assignments, deadlines, and course materials sync automatically.
+    authorRole: "Canvas Import & Infrastructure",
+    excerpt:
+      "NotebookLM is great once you feed it documents. OghmaNotes starts from the course you are actually taking.",
+    date: "Jul 7, 2026",
+    datetime: "2026-07-07",
+    imageUrl:
+      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+    intro:
+      "The hardest part of using a study app is often the setup: finding files, uploading PDFs, naming notebooks, checking deadlines, and remembering what changed in Canvas.",
+    content: `OghmaNotes is built around a different starting point. Instead of asking students to create a blank workspace, it connects to Canvas and imports the semester structure that already exists.
 
-The integration works by:
-- Connecting your Canvas account securely to OghmaNotes
-- Automatically importing all your courses and assignments
-- Keeping deadlines synchronized across both platforms
-- Creating dedicated note folders for each course
-
-Once connected, you'll have a centralized hub for all your academic work.`,
+That means course files, lecture PDFs, assignment deadlines, and available course context can become part of the same study workspace. The AI features matter, but they are not the headline. The headline is that the system starts with the material students are already expected to learn.`,
     highlights: [
       {
-        title: 'One-Click Setup',
-        description: 'Connect your Canvas account in seconds and automatically import all your courses and assignments.',
+        title: "Less setup",
+        description:
+          "Canvas import reduces the manual work of collecting lecture files and assignment context before studying can begin.",
       },
       {
-        title: 'Real-Time Syncing',
-        description: 'Assignments and deadlines update instantly across OghmaNotes and Canvas.',
+        title: "Course-aware answers",
+        description:
+          "Questions can be grounded in the imported course material instead of generic web knowledge.",
       },
       {
-        title: 'Smart Organization',
-        description: 'Notes are automatically organized by course, making them easy to find when you need them.',
+        title: "Deadline context",
+        description:
+          "Assignments and due dates belong beside notes, flashcards, and revision planning, not in a separate tab students forget to check.",
       },
     ],
-    section2Title: 'Stay on Top of Every Deadline',
-    section2Content: `No more missed assignments. The Canvas integration ensures you never lose track of deadlines again. All your course materials are in one place, organized and easy to access.
-
-Students using Canvas integration with OghmaNotes report 40% less time spent on assignment tracking.`,
-    testimonial: {
-      quote: 'The Canvas integration alone is worth the subscription. I used to switch between apps constantly, now everything is in one place.',
-      author: 'James Wilson',
-      role: 'Business Major',
-      image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-    section3Title: 'Streamline Your Academic Workflow',
-    section3Content: `The Canvas integration is just the beginning. Combined with OghmaNotes other features, you get a complete academic management system designed specifically for modern students.
-
-Never switch between apps again. Everything you need is in OghmaNotes.`,
+    section2Title: "The Product Promise",
+    section2Content:
+      "Connect Canvas once and your whole semester starts to assemble itself. Large imports may take background processing time, and available data depends on Canvas permissions, but the goal is simple: remove setup before exam stress hits.",
+    callout:
+      "NotebookLM is excellent for documents you upload. OghmaNotes is for the course you are actually taking.",
+    section3Content:
+      "This is why the landing page now leads with Canvas import, cited answers, flashcards, deadlines, and revision planning instead of technical language like RAG or semantic search.",
   },
   {
-    slug: 'study-tips',
-    title: 'Transform Your Study Sessions: Tips from Top Performers',
-    author: authors.shreyansh,
-    authorRole: 'Infrastructure & AWS',
-    excerpt: 'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
-    date: 'Jan 5, 2025',
-    datetime: '2025-01-05',
-    imageUrl: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80',
-    intro: 'Real students share their strategies for using OghmaNotes to improve grades, stay organized, and reduce study time by 40%.',
-    content: `Top-performing students don't study harder—they study smarter. Here are the strategies that successful students are using with OghmaNotes.
+    slug: "canvas-import-limits",
+    title: "Why Free Canvas Import Has Limits",
+    author: authors.samuel,
+    authorRole: "RAG & Search",
+    excerpt:
+      "A real Canvas history can contain thousands of pages, so OghmaNotes needs honest limits and background processing.",
+    date: "Jul 7, 2026",
+    datetime: "2026-07-07",
+    imageUrl:
+      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80",
+    intro:
+      "The free import is the magic moment, but it cannot be unlimited. Real university courses include scanned slides, large PDFs, and historical files.",
+    content: `OghmaNotes processes imported files so they can become searchable and useful for cited answers, flashcards, and revision planning. Some files are digital PDFs with easy text extraction. Others are scans or image-heavy slides that need OCR.
 
-The most common patterns among high-performing students:
-- Taking notes immediately during lectures (not after)
-- Using OghmaNotes AI to generate study questions
-- Reviewing summaries daily instead of cramming
-- Organizing notes by concepts, not by date
-- Using the Canvas integration to track all work in one place
-
-These simple changes compound over time to create dramatic improvements in grades and understanding.`,
+That processing has real cost. The product should let students see the value before paying, while also avoiding surprise backlog imports that silently process thousands of pages.`,
     highlights: [
       {
-        title: 'Daily Review Habit',
-        description: 'Spending 15 minutes reviewing AI-generated summaries daily is more effective than 3 hours of cramming.',
+        title: "Free should show the value",
+        description:
+          "Students should be able to connect Canvas and see a limited course import before being asked to pay.",
       },
       {
-        title: 'Concept-Based Organization',
-        description: 'Organize notes by topic and concept, not chronologically. This mirrors how your brain stores information.',
+        title: "Large histories need confirmation",
+        description:
+          "If a Canvas account exposes thousands of pages, OghmaNotes should estimate the workload and ask before processing everything.",
       },
       {
-        title: 'Active Recall Practice',
-        description: 'Use OghmaNotes AI-generated questions to test yourself constantly. This is the most effective study technique.',
+        title: "Background work should be visible",
+        description:
+          "OCR and indexing can take minutes. Honest progress and queue states are better than pretending every file is instant.",
       },
     ],
-    section2Title: 'Improve Your Grades in 30 Days',
-    section2Content: `Implementing these strategies doesn't require overhauling your entire study routine. Start with just one or two and add more as they become habits.
-
-Most students see noticeable grade improvements within just 30 days of consistent use.`,
-    testimonial: {
-      quote: 'My GPA went from 3.2 to 3.8 in one semester just by changing how I organized my notes. OghmaNotes made it so easy.',
-      author: 'Alex Kumar',
-      role: 'Engineering Student',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-    },
-    section3Title: 'Start Your Journey to Academic Excellence',
-    section3Content: `These strategies work because they align with how our brains actually learn. By combining proven study techniques with OghmaNotes powerful features, you create the perfect environment for academic success.
-
-Your next 30 days could change your entire academic trajectory.`,
+    section2Title: "The Launch Shape",
+    section2Content:
+      "The intended launch approach is a limited first import, practical page allowances, and clear upgrade paths for students with heavier course loads.",
+    callout:
+      "The free tier should create trust, not hide costs or make promises the import pipeline cannot keep.",
+    section3Content:
+      "This is also why OghmaNotes should price around semesters and academic years, not just a generic monthly SaaS subscription.",
   },
-]
+  {
+    slug: "notebooklm-vs-oghmanotes",
+    title: "NotebookLM vs OghmaNotes",
+    author: authors.shreyansh,
+    authorRole: "Product & Frontend",
+    excerpt:
+      "NotebookLM is excellent for uploaded sources. OghmaNotes is designed for Canvas-connected course context.",
+    date: "Jul 7, 2026",
+    datetime: "2026-07-07",
+    imageUrl:
+      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
+    intro:
+      "OghmaNotes should be honest about NotebookLM: it is a strong product. The difference is not that OghmaNotes is a smarter chatbot.",
+    content: `NotebookLM is useful when you have the right sources ready to upload. It can help students explore documents, summarise material, and ask questions over selected sources.
 
-const blogPostsBySlug = Object.fromEntries(blogPosts.map((post) => [post.slug, post]))
+OghmaNotes is designed for a different workflow. It starts from Canvas, where lectures, files, assignments, and deadlines already live. The aim is to reduce setup and keep studying connected to the student's actual course.`,
+    highlights: [
+      {
+        title: "NotebookLM is source-first",
+        description:
+          "It works best after a student gathers and uploads the right documents.",
+      },
+      {
+        title: "OghmaNotes is course-first",
+        description:
+          "It is built around Canvas import, coursework context, and revision planning.",
+      },
+      {
+        title: "The practical difference is setup",
+        description:
+          "Students are busy and subscription-fatigued. The product should win by removing work before study starts.",
+      },
+    ],
+    section2Title: "Who Should Use OghmaNotes?",
+    section2Content:
+      "OghmaNotes is best for students whose course material, deadlines, and feedback live in Canvas and who want one study system built around that reality.",
+    callout:
+      "The positioning is simple: not another AI notes app, but the study tool students do not have to set up.",
+    section3Content:
+      "The most important conversion moment is seeing a real semester appear after connection. Everything else should support that moment.",
+  },
+];
 
-const blogCards = blogPosts.map(({ slug, title, excerpt, date, imageUrl, author, authorRole }) => ({
-  slug,
-  title,
-  excerpt,
-  date,
-  imageUrl,
-  author,
-  authorRole,
-}))
+const blogPostsBySlug = Object.fromEntries(
+  blogPosts.map((post) => [post.slug, post]),
+);
 
-const aboutBlogCards = blogPosts.map(({ slug, title, date, datetime, imageUrl, author, authorRole }) => ({
-  slug,
-  title,
-  date,
-  datetime,
-  imageUrl,
-  author,
-  authorRole,
-}))
+const blogCards = blogPosts.map(
+  ({ slug, title, excerpt, date, imageUrl, author, authorRole }) => ({
+    slug,
+    title,
+    excerpt,
+    date,
+    imageUrl,
+    author,
+    authorRole,
+  }),
+);
+
+const aboutBlogCards = blogPosts.map(
+  ({ slug, title, date, datetime, imageUrl, author, authorRole }) => ({
+    slug,
+    title,
+    date,
+    datetime,
+    imageUrl,
+    author,
+    authorRole,
+  }),
+);
 
 export { authors, blogPosts, blogPostsBySlug, blogCards, aboutBlogCards };

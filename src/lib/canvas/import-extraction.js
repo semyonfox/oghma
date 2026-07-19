@@ -17,6 +17,20 @@ import { processRagPipeline } from "./import-embedding.js";
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
+import { recordActivationMilestone } from "../marketing/events.ts";
+import {
+  cloneImportedPdfCacheToNote,
+  canvasFileSource,
+  captureImportedPdfCache,
+  ensureImportedFileCacheRow,
+  getImportedFileCacheBySha,
+  getImportedFileCacheByCanvasSource,
+  importedFileStorageKey,
+  markImportedFileCacheFailed,
+  recordImportedFileCanvasSource,
+  sha256Hex,
+  withImportedFileLock,
+} from "./import-cache.ts";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -224,6 +238,43 @@ async function runRagPipeline(noteId, userId, parentFolderId, buffer, ragOpts) {
   );
 }
 
+async function createAttachment(noteId, userId, filename, s3Key, mimeType, fileSize) {
+  await sql`
+    INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
+    VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
+      ${filename}, ${s3Key}, ${mimeType}, ${fileSize})
+    ON CONFLICT (note_id, s3_key) DO UPDATE SET
+      filename = EXCLUDED.filename, mime_type = EXCLUDED.mime_type,
+      file_size = EXCLUDED.file_size
+  `;
+}
+
+async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
+  const canvasCourseId = opts.courseId ? Number(opts.courseId) : null;
+  const canvasModuleId = opts.moduleId ?? null;
+  let canvasAssignmentId = null;
+  if (!opts.moduleId && opts.parentFolderId) {
+    const [parent] = await sql`SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${opts.parentFolderId}::uuid`;
+    canvasAssignmentId = parent?.canvas_assignment_id ?? null;
+  }
+  const binary = await findOrCreateNote(opts.userId, file.display_name, opts.parentFolderId, {
+    s3Key: cache.storage_key, canvasCourseId, canvasModuleId, canvasAssignmentId,
+  });
+  await createAttachment(binary.noteId, opts.userId, file.display_name,
+    cache.storage_key, cache.mime_type, Number(cache.file_size));
+  const md = await findOrCreateNote(opts.userId,
+    file.display_name.replace(/\.[^.]+$/, "") + ".md", opts.parentFolderId,
+    { content: "", canvasCourseId, canvasModuleId, canvasAssignmentId });
+  const chunksStored = await cloneImportedPdfCacheToNote({ cacheId: cache.id,
+    noteId: md.noteId, userId: opts.userId, onlyIfEmpty: !md.created });
+  await sql`UPDATE app.notes SET imported_file_cache_id = ${cache.id}::uuid,
+    s3_key = ${cache.storage_key}, updated_at = NOW() WHERE note_id = ${binary.noteId}::uuid`;
+  await sql`UPDATE app.canvas_imports SET imported_file_cache_id = ${cache.id}::uuid,
+    note_id = ${binary.noteId}::uuid, status = 'indexing', updated_at = NOW()
+    WHERE id = ${importRecordId}::uuid`;
+  return { noteId: md.noteId, chunksStored };
+}
+
 // ── File import ─────────────────────────────────────────────────────────────
 
 async function _runFileImport(importRecordId, file, opts) {
@@ -275,6 +326,26 @@ async function _runFileImport(importRecordId, file, opts) {
     return { skipped: true };
   }
 
+  const canvasSource = resolvedMimeType === "application/pdf"
+    ? canvasFileSource({ baseUrl: client.baseUrl, file, mimeType: resolvedMimeType })
+    : null;
+  if (canvasSource) {
+    const sourceCache = await getImportedFileCacheByCanvasSource(canvasSource);
+    if (sourceCache) {
+      logger.info("canvas-import-file-source-cache-hit", {
+        jobId: opts.jobId,
+        canvasFileId: file.id,
+        tenant: canvasSource.tenant,
+        fileSizeBytes: canvasSource.fileSize,
+      });
+      const reused = await reuseImportedPdfCache(
+        sourceCache, file, opts, importRecordId,
+      );
+      await setImportStatus(importRecordId, "complete", { noteId: reused.noteId });
+      return;
+    }
+  }
+
   const downloadStart = Date.now();
   const { buffer, forbidden: dlForbidden } = await client.downloadFile(
     file.url,
@@ -297,8 +368,11 @@ async function _runFileImport(importRecordId, file, opts) {
     elapsedSecs: (downloadElapsedMs / 1000).toFixed(2),
   });
 
-  const s3Key = `${s3Prefix}/${file.filename}`;
-  await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+  const isCacheablePdf = resolvedMimeType === "application/pdf";
+  const sha256 = isCacheablePdf ? sha256Hex(buffer) : null;
+  const s3Key = isCacheablePdf
+    ? importedFileStorageKey(sha256, file.filename)
+    : `${s3Prefix}/${file.filename}`;
   await setImportStatus(importRecordId, "processing");
 
   // resolve canvas metadata: module files have moduleId set; assignment files do not,
@@ -313,6 +387,51 @@ async function _runFileImport(importRecordId, file, opts) {
     canvasAssignmentId = parentFolder?.canvas_assignment_id ?? null;
   }
 
+  if (isCacheablePdf) {
+    const ragResult = await withImportedFileLock(sha256, async () => {
+      const ready = await getImportedFileCacheBySha(sha256);
+      if (ready?.status === "ready" && ready.replayable) {
+        await recordImportedFileCanvasSource(ready.id, canvasSource);
+        return reuseImportedPdfCache(ready, file, opts, importRecordId);
+      }
+      const cache = await ensureImportedFileCacheRow({ sha256,
+        mimeType: resolvedMimeType, fileSize: buffer.length, storageKey: s3Key });
+      await recordImportedFileCanvasSource(cache.id, canvasSource);
+      await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
+      const { noteId } = await findOrCreateNote(
+        userId, file.display_name, parentFolderId,
+        { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
+      );
+      await createAttachment(noteId, userId, file.display_name, s3Key,
+        resolvedMimeType, buffer.length);
+      await setImportStatus(importRecordId, "indexing", { noteId });
+      await sql`UPDATE app.notes SET imported_file_cache_id = ${cache.id}::uuid
+        WHERE note_id = ${noteId}::uuid`;
+      await sql`UPDATE app.canvas_imports SET imported_file_cache_id = ${cache.id}::uuid
+        WHERE id = ${importRecordId}::uuid`;
+      try {
+        const result = await runRagPipeline(noteId, userId, parentFolderId, buffer, {
+          filename: file.display_name, mimeType: resolvedMimeType, s3Key,
+          jobId: opts.jobId, canvasCourseId, canvasModuleId, canvasAssignmentId,
+        });
+        if (!result) {
+          await markImportedFileCacheFailed(cache.id, "Extraction deferred to retry pipeline");
+          return null;
+        }
+        await captureImportedPdfCache({ cacheId: cache.id, sourceNoteId: result.noteId });
+        return result;
+      } catch (error) {
+        await markImportedFileCacheFailed(cache.id,
+          error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    });
+    if (!ragResult) return;
+    await setImportStatus(importRecordId, "complete", { noteId: ragResult.noteId });
+    return;
+  }
+
+  await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
   const { noteId } = await findOrCreateNote(
     userId,
     file.display_name,
@@ -321,11 +440,8 @@ async function _runFileImport(importRecordId, file, opts) {
   );
 
   // create attachment record so the upload GET handler can verify ownership
-  await sql`
-    INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-    VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
-            ${file.display_name}, ${s3Key}, ${resolvedMimeType}, ${buffer.length})
-  `;
+  await createAttachment(noteId, userId, file.display_name, s3Key,
+    resolvedMimeType, buffer.length);
 
   await setImportStatus(importRecordId, "indexing", { noteId });
 
@@ -445,6 +561,15 @@ async function checkAndCompleteJob(jobId, userId) {
   if (!weCompleted) return;
 
   console.log(`[${new Date().toISOString()}] Job completed: ${jobId}`);
+
+  await recordActivationMilestone("canvas_import_completed", userId).catch(
+    (eventError) => {
+      console.warn(
+        `Failed to record Canvas completion milestone: ${eventError.message}`,
+      );
+    },
+  );
+
   try {
     const chunks = await sql`
       SELECT c.id FROM app.chunks c
@@ -457,6 +582,7 @@ async function checkAndCompleteJob(jobId, userId) {
         await import("../quiz/generate-background.ts");
       const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
       console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
+
     }
   } catch (seedErr) {
     console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);
@@ -663,7 +789,7 @@ export async function processExtractionRetry(msg) {
   // for retry messages we still allow processing even when already complete,
   // because retries can be used for enrichment/replacement after fallback text.
   const [importRow] =
-    await sql`SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
+    await sql`SELECT status, job_id, imported_file_cache_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1`;
   if (importRow?.status === "complete" && (attempt ?? 0) <= 0) {
     console.log(`Note ${noteId} already complete, skipping duplicate retry`);
     return;
@@ -709,6 +835,12 @@ export async function processExtractionRetry(msg) {
         ]);
 
         if (result) {
+          if (importRow?.imported_file_cache_id) {
+            await captureImportedPdfCache({
+              cacheId: importRow.imported_file_cache_id,
+              sourceNoteId: result.noteId,
+            });
+          }
           await sql`
             UPDATE app.canvas_imports
             SET status = 'complete', error_message = NULL, updated_at = NOW()
@@ -771,7 +903,7 @@ export async function processMarkerComplete(msg) {
 
   const [importRows, ingestionRows] = await Promise.all([
     sql`
-      SELECT status, job_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1
+      SELECT status, job_id, imported_file_cache_id FROM app.canvas_imports WHERE note_id = ${noteId}::uuid LIMIT 1
     `,
     sql`
       SELECT status FROM app.ingestion_jobs
@@ -878,6 +1010,12 @@ export async function processMarkerComplete(msg) {
     );
 
     if (result) {
+      if (importRow?.imported_file_cache_id) {
+        await captureImportedPdfCache({
+          cacheId: importRow.imported_file_cache_id,
+          sourceNoteId: result.noteId,
+        });
+      }
       if (importRow) {
         await sql`
           UPDATE app.canvas_imports

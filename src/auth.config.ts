@@ -6,7 +6,10 @@ import type { Session, User, NextAuthConfig } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
-import { findOrCreateOAuthUser } from "@/lib/auth-oauth";
+import {
+  findOrCreateOAuthUser,
+  resolveVerifiedOAuthEmail,
+} from "@/lib/auth-oauth";
 import type { OAuthProfile } from "@/lib/auth-oauth";
 
 const providers: NextAuthConfig["providers"] = [];
@@ -56,6 +59,7 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
     GitHub({
       clientId: process.env.GITHUB_ID,
       clientSecret: process.env.GITHUB_SECRET,
+      authorization: { params: { scope: "read:user user:email" } },
     }),
   );
 }
@@ -136,23 +140,38 @@ export const authConfig: NextAuthConfig = {
       if (!account || account.provider === "credentials") return true;
 
       try {
+        const rawProfile = profile ? { ...profile } : {};
+        const verifiedEmail = await resolveVerifiedOAuthEmail(
+          account.provider,
+          rawProfile,
+          account.access_token,
+        );
+        if (!verifiedEmail) {
+          logger.warn("oauth provider did not return a verified email", {
+            provider: account.provider,
+          });
+          return false;
+        }
+        rawProfile.email_verified = true;
+
         const oauthProfile: OAuthProfile = {
           provider: account.provider,
           providerAccountId: account.providerAccountId,
-          email: user.email ?? profile?.email,
+          email: verifiedEmail,
           name: user.name ?? profile?.name,
           image: user.image ?? profile?.picture ?? profile?.avatar_url,
           locale:
             (profile as { locale?: string | null } | undefined)?.locale ?? null,
-          rawProfile: profile ? { ...profile } : {},
+          rawProfile,
         };
 
         const userId = await findOrCreateOAuthUser(
           oauthProfile,
-          profile ? { ...profile } : {},
+          rawProfile,
         );
         // attach user_id so jwt callback can pick it up
         (user as User & { id: string }).id = userId;
+        user.email = verifiedEmail;
         return true;
       } catch (error) {
         logger.error("oauth sign-in failed", {

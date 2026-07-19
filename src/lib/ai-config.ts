@@ -9,7 +9,8 @@ const DEFAULT_LLM_TIMEOUT_MS = 300_000;
 const DEFAULT_LLM_MAX_TOKENS = 8_192;
 const DEFAULT_LLM_MAX_TOOL_STEPS = 10;
 const DEFAULT_COHERE_TIMEOUT_MS = 8_000;
-const DEFAULT_LLM_MODEL = "deepseek/deepseek-v3.2";
+const DEFAULT_LLM_MODEL = "deepseek/deepseek-v4-flash";
+const DEFAULT_LLM_REASONING_EFFORT = "high";
 const DEFAULT_RERANK_TOP_N = 5;
 const DEFAULT_RERANK_MIN_RELEVANCE = 0.25;
 const DEFAULT_CHAT_MAX_DISTANCE = 0.75;
@@ -18,7 +19,16 @@ const DEFAULT_RAG_CHUNK_SIZE = 500;
 
 export type LlmThinkingMode = "auto" | "off";
 
-export type LlmReasoningOptions = { enabled: true };
+export type LlmReasoningEffort =
+  | "xhigh"
+  | "high"
+  | "medium"
+  | "low"
+  | "minimal";
+
+export type LlmReasoningOptions =
+  | { enabled: true; effort: LlmReasoningEffort }
+  | { enabled: false; effort: "none" };
 
 function readBoundedInt(
   value: string | undefined,
@@ -50,6 +60,12 @@ function normalizeThinkingMode(value: string | undefined): LlmThinkingMode {
   return "auto";
 }
 
+export function nextLlmThinkingMode(
+  current: LlmThinkingMode,
+): LlmThinkingMode {
+  return current === "off" ? "auto" : "off";
+}
+
 export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   return readBoundedInt(
     env.LLM_TIMEOUT_MS,
@@ -70,14 +86,30 @@ export function getLlmThinkingMode(
   return normalizeThinkingMode(env.LLM_THINKING);
 }
 
-// map our user-facing two-state setting to OpenRouter's reasoning controls.
-// off → omit reasoning (caller treats undefined as "no reasoning")
-// auto → enable reasoning with the model/provider default budget
+export function getLlmReasoningEffort(
+  env: NodeJS.ProcessEnv = process.env,
+): LlmReasoningEffort {
+  const normalized = (env.LLM_REASONING_EFFORT ?? "").trim().toLowerCase();
+  if (
+    normalized === "xhigh" ||
+    normalized === "high" ||
+    normalized === "medium" ||
+    normalized === "low" ||
+    normalized === "minimal"
+  ) {
+    return normalized;
+  }
+  return DEFAULT_LLM_REASONING_EFFORT;
+}
+
+// Map the user-facing On / Off setting to OpenRouter reasoning controls.
+// Send an explicit boolean so models that reason by default also respect "off".
 export function buildReasoningOptions(
   mode: LlmThinkingMode,
-): LlmReasoningOptions | undefined {
-  if (mode === "off") return undefined;
-  return { enabled: true };
+  effort: LlmReasoningEffort = DEFAULT_LLM_REASONING_EFFORT,
+): LlmReasoningOptions {
+  if (mode === "off") return { enabled: false, effort: "none" };
+  return { enabled: true, effort };
 }
 
 export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {

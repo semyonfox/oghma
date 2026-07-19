@@ -3,7 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Message } from "@/lib/chat/types";
 import { normalizeMessageParts } from "@/lib/chat/types";
-import type { LlmThinkingMode } from "@/lib/ai-config";
+import {
+  nextLlmThinkingMode,
+  type LlmThinkingMode,
+} from "@/lib/ai-config";
 
 const THINKING_MODE_KEY = "chat-thinking-mode";
 const USE_RAG_KEY = "chat-use-rag";
@@ -35,8 +38,52 @@ interface UseChatPersistenceResult {
   toggleRag: () => void;
   restoredMessages: Message[] | null;
   restored: boolean;
+  /** true when the server still owns generation for a reopened session */
+  backgroundLoading: boolean;
+  backgroundGenerationId: string | null;
   /** keep refs in sync so unload handlers see fresh values */
   updateRefs: (refs: PersistenceRefs) => void;
+}
+
+type StoredMessage = {
+  id: string;
+  role: string;
+  content: string;
+  parts?: unknown;
+  sources?: { id: string; title: string }[];
+  metadata?: {
+    thinking?: unknown;
+    thinkingDuration?: unknown;
+    partial?: unknown;
+    error?: unknown;
+  };
+  created_at?: string;
+  rating?: number | null;
+};
+
+export function mapStoredChatMessages(messages: StoredMessage[]): Message[] {
+  return messages.map((m) => {
+    const parts = normalizeMessageParts(m.parts) ??
+      (m.content ? [{ type: "text" as const, text: m.content }] : []);
+    const metadata = m.metadata ?? {};
+    return {
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      parts,
+      thinking:
+        typeof metadata.thinking === "string" ? metadata.thinking : undefined,
+      thinkingDuration:
+        typeof metadata.thinkingDuration === "number"
+          ? metadata.thinkingDuration
+          : undefined,
+      partial: metadata.partial === true,
+      error: typeof metadata.error === "string" ? metadata.error : undefined,
+      sources: Array.isArray(m.sources) ? m.sources : [],
+      timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+      rating: m.rating ?? null,
+    };
+  });
 }
 
 /**
@@ -51,9 +98,9 @@ export function useChatPersistence(
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
 
-  // toggle off <-> auto.
+  // Toggle normal high-effort reasoning on or off.
   const toggleThinking = useCallback(() => {
-    setThinkingMode((current) => (current === "off" ? "auto" : "off"));
+    setThinkingMode(nextLlmThinkingMode);
   }, []);
 
   // restore thinking mode from localStorage on mount
@@ -92,66 +139,35 @@ export function useChatPersistence(
   // session restore
   const [restored, setRestored] = useState(false);
   const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
+  const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (restored) return;
     if (!controlledSessionId) {
+      setBackgroundLoading(false);
+      setBackgroundGenerationId(null);
       setRestored(true);
       return;
     }
 
-    const restore = async () => {
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let firstLoad = true;
+
+    const restore = async (): Promise<void> => {
       try {
         const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!Array.isArray(data.messages) || data.messages.length === 0) return;
-
-        const serverMessages: Message[] = data.messages.map(
-          (m: {
-            id: string;
-            role: string;
-            content: string;
-            parts?: unknown;
-            sources?: { id: string; title: string }[];
-            metadata?: {
-              thinking?: unknown;
-              thinkingDuration?: unknown;
-              partial?: unknown;
-              error?: unknown;
-            };
-            created_at?: string;
-            rating?: number | null;
-          }) => {
-            const parts = normalizeMessageParts(m.parts) ??
-              (m.content ? [{ type: "text" as const, text: m.content }] : []);
-            const metadata = m.metadata ?? {};
-            const thinking =
-              typeof metadata.thinking === "string"
-                ? metadata.thinking
-                : undefined;
-            const thinkingDuration =
-              typeof metadata.thinkingDuration === "number"
-                ? metadata.thinkingDuration
-                : undefined;
-            const error =
-              typeof metadata.error === "string" ? metadata.error : undefined;
-            return {
-              id: m.id,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              parts,
-              thinking,
-              thinkingDuration,
-              partial: metadata.partial === true,
-              error,
-              sources: Array.isArray(m.sources) ? m.sources : [],
-              timestamp: m.created_at
-                ? new Date(m.created_at).getTime()
-                : Date.now(),
-              rating: m.rating ?? null,
-            };
-          },
+        const serverMessages = mapStoredChatMessages(data.messages);
+        const generating = data.session?.generation_status === "generating";
+        if (cancelled) return;
+        setBackgroundLoading(generating);
+        setBackgroundGenerationId(
+          generating && typeof data.session?.active_generation_id === "string"
+            ? data.session.active_generation_id
+            : null,
         );
 
         // check sessionStorage for a partial assistant message saved on unload
@@ -159,7 +175,7 @@ export function useChatPersistence(
         let draftMsg: Message | null = null;
         try {
           const raw = sessionStorage.getItem(draftKey);
-          if (raw) {
+          if (firstLoad && !generating && raw) {
             const draft = JSON.parse(raw) as {
               content: string;
               thinking?: string;
@@ -189,6 +205,10 @@ export function useChatPersistence(
           ...serverMessages,
           ...(draftMsg ? [draftMsg] : []),
         ]);
+        firstLoad = false;
+        if (generating) {
+          pollTimer = setTimeout(() => void restore(), 1_500);
+        }
       } catch {
         // fresh session is fine
       } finally {
@@ -196,7 +216,11 @@ export function useChatPersistence(
       }
     };
     void restore();
-  }, [controlledSessionId, compact, restored]);
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [controlledSessionId, compact]);
 
   // refs for unload handlers (kept in sync by the consumer)
   const messagesRef = useRef<Message[]>([]);
@@ -282,6 +306,8 @@ export function useChatPersistence(
     toggleRag,
     restoredMessages,
     restored,
+    backgroundLoading,
+    backgroundGenerationId,
     updateRefs,
   };
 }

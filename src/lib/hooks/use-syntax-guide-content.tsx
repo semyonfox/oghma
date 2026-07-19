@@ -9,7 +9,7 @@ export default function useSyntaxGuideContent() {
   return useMemo(() => {
     const content = `# ${t("Markdown Syntax Guide")}
 
-${t("Everything you can write in OghmaNotes. Switch to **Source** mode to see the raw markdown, and **Read** mode to see it rendered.")}
+${t("Everything you can write in OghmaNotes. Write in one clean surface: Markdown stays editable where you are typing and renders into readable blocks around it.")}
 
 ---
 
@@ -141,7 +141,7 @@ ${t("Supported languages")}: javascript, typescript, python, rust, go, java, c, 
 
 ### ${t("Mermaid (code fence)")}
 
-${t("Mermaid fences are preserved and highlighted as code today. Visual diagram rendering is planned.")}
+${t("Mermaid fences render as diagrams while preserving editable Markdown source.")}
 
 \`\`\`markdown
 \`\`\`mermaid

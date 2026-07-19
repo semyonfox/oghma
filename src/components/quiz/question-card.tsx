@@ -19,6 +19,10 @@ interface QuestionCardProps {
   onAnswer: (answer: string, wasCorrect: boolean) => void;
 }
 
+export function QuizOptionText({ children }: { children: string }) {
+  return <span className="whitespace-pre-wrap break-words">{children}</span>;
+}
+
 export default function QuestionCard({
   question,
   moduleName,
@@ -158,7 +162,7 @@ export default function QuestionCard({
                         : "text-text-secondary"
                   }
                 >
-                  <QuizMarkdown>{option.text}</QuizMarkdown>
+                  <QuizOptionText>{option.text}</QuizOptionText>
                 </span>
               </button>
             );

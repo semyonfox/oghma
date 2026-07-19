@@ -36,7 +36,7 @@ export default async function BlogPage() {
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            {blogCards.map((post) => (
+            {blogCards.map((post, index) => (
               <article
                 key={post.slug}
                 className="flex flex-col items-start justify-between"
@@ -47,6 +47,7 @@ export default async function BlogPage() {
                     alt={t(post.title)}
                     width={800}
                     height={450}
+                    preload={index === 0}
                     className="aspect-video w-full rounded-2xl bg-subtle object-cover sm:aspect-square lg:aspect-video"
                   />
                   <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gray-900/10" />

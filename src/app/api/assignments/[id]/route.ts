@@ -14,7 +14,12 @@ export const GET = withErrorHandler(async (_request, context: any) => {
   const [row] = await sql`
     SELECT id, user_id, canvas_course_id, canvas_assignment_id,
            title, description, course_name, course_color,
-           due_at, estimated_hours, source, status,
+           due_at, estimated_hours, logged_hours, source,
+           CASE
+             WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
+             WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'
+             ELSE status
+           END AS status,
            submitted_at, score, points_possible,
            created_at, updated_at
     FROM app.assignments
@@ -52,14 +57,23 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
   updates.updated_at = new Date();
 
   const result = await sql`
-    UPDATE app.assignments
-    SET ${sql(updates, ...Object.keys(updates))}
-    WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-    RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
-              title, description, course_name, course_color,
-              due_at, estimated_hours, source, status,
-              submitted_at, score, points_possible,
-              created_at, updated_at
+    WITH updated AS (
+      UPDATE app.assignments
+      SET ${sql(updates, ...Object.keys(updates))}
+      WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+      RETURNING *
+    )
+    SELECT id, user_id, canvas_course_id, canvas_assignment_id,
+           title, description, course_name, course_color,
+           due_at, estimated_hours, logged_hours, source,
+           CASE
+             WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
+             WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'
+             ELSE status
+           END AS status,
+           submitted_at, score, points_possible,
+           created_at, updated_at
+    FROM updated
   `;
   if (result.length === 0) return tracedError('Not found', 404);
 

@@ -8,6 +8,7 @@
  * 5. Return success response (requires verification)
  */
 
+import { after } from "next/server";
 import sql from "@/database/pgsql.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import {
@@ -22,7 +23,9 @@ import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
+import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
+import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
 
 const GETTING_STARTED_TITLE = "Getting Started";
 const GETTING_STARTED_CONTENT = `# Welcome to OghmaNotes
@@ -71,7 +74,7 @@ export const POST = withErrorHandler(async (request) => {
     const zodResult = validateBody(registerSchema, body);
     if (!zodResult.success) return zodResult.response;
 
-    const { email, password } = body;
+    const { email, password, agentClaimToken, agentUserCode } = zodResult.data;
 
     // 2. Validate credentials format and password strength
     const validation = validateAuthCredentials(email, password, true);
@@ -88,6 +91,20 @@ export const POST = withErrorHandler(async (request) => {
 
     if (existingUser.length > 0) {
       return createErrorResponse("User already exists", 409);
+    }
+
+    const agentClaim = agentClaimToken
+      ? await validateAgentRegistrationForSignup(
+          agentClaimToken,
+          agentUserCode || "",
+          email,
+        )
+      : null;
+    if (agentClaimToken && !agentClaim) {
+      return createErrorResponse(
+        "Invalid, expired, or incomplete agent registration claim",
+        400,
+      );
     }
 
     // 4. Hash password
@@ -121,6 +138,14 @@ export const POST = withErrorHandler(async (request) => {
         VALUES (${userId}::uuid, ${gettingStartedNoteId}::uuid, NULL)
       `;
 
+      if (agentClaim) {
+        await tx`
+          UPDATE app.agent_registration_claims
+          SET status = 'registered', created_user_id = ${userId}::uuid, registered_at = NOW()
+          WHERE id = ${agentClaim.id}::uuid AND status = 'pending'
+        `;
+      }
+
       return createdUser;
     });
 
@@ -142,6 +167,30 @@ export const POST = withErrorHandler(async (request) => {
       });
       // account is created but email failed -- user can resend later
     }
+
+    after(() =>
+      recordMarketingEvent(
+        {
+          eventName: "registration_success",
+          sessionId: body.marketing?.sessionId,
+          userId: user.user_id,
+          path: "/register",
+          source: "auth_register",
+          utm: body.marketing?.utm,
+          properties: {
+            method: "email",
+            requires_verification: true,
+            email_delivery_attempted: true,
+            first_touch: body.marketing?.firstTouch,
+          },
+        },
+        request,
+      ).catch((eventError) => {
+        logger.warn("failed to record registration marketing event", {
+          error: eventError.message,
+        });
+      }),
+    );
 
     // 9. Return success with requiresVerification flag (no session created)
     return new Response(

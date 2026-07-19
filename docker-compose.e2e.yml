@@ -50,6 +50,7 @@ services:
     environment:
       MINIO_ROOT_USER: oghmae2e
       MINIO_ROOT_PASSWORD: oghmae2e-secret
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://127.0.0.1:3310,http://127.0.0.1:3311}
     ports:
       - "59100:9000"
       - "59101:9001"

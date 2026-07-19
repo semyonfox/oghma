@@ -10,6 +10,7 @@
 import sql from "../../database/pgsql.js";
 import {
   CANVAS_IMPORT_QUEUE,
+  CHAT_GENERATION_QUEUE,
   EXTRACT_RETRY_QUEUE,
   ackCloudflareQueueMessages,
   enqueueCanvasJob,
@@ -19,6 +20,7 @@ import {
   pullCloudflareQueueMessages,
   type CloudflarePulledMessage,
 } from "../queue.ts";
+import { processChatGeneration } from "../chat/generate-background";
 import {
   processImportJob,
   processDiscoverJob,
@@ -29,10 +31,12 @@ import {
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
+import { cleanupMarketingData } from "../marketing/retention";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
+const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
 const CF_QUEUE_VISIBILITY_TIMEOUT_MS = parseInt(
   process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS ?? `${12 * 60 * 60 * 1000}`,
@@ -88,6 +92,20 @@ async function failStuckJobs(): Promise<void> {
   if (stuck.length > 0) {
     console.log(
       `[${new Date().toISOString()}] Failed ${stuck.length} stuck job(s)`,
+    );
+  }
+}
+
+async function runMarketingCleanup(): Promise<void> {
+  try {
+    const result = await cleanupMarketingData();
+    console.log(
+      `[${new Date().toISOString()}] Marketing retention cleanup: ${result.eventsDeleted} event(s), ${result.leadsDeleted} lead(s) deleted`,
+    );
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] Marketing retention cleanup failed:`,
+      errorMessage(err),
     );
   }
 }
@@ -178,7 +196,9 @@ console.log(
 );
 
 await failStuckJobs();
+await runMarketingCleanup();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
+setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();
@@ -278,7 +298,25 @@ async function startBullMqWorkers(): Promise<void> {
     stalledInterval: 30_000,
   });
 
-  for (const w of [canvasWorker, retryWorker]) {
+  const chatWorker = new Worker(
+    CHAT_GENERATION_QUEUE,
+    async (job) => {
+      const generationId = requireString(job.data ?? {}, "generationId");
+      await processChatGeneration(
+        generationId,
+        job.attemptsStarted,
+        job.opts.attempts ?? 1,
+      );
+    },
+    {
+      connection,
+      concurrency: parseInt(process.env.CHAT_GENERATION_CONCURRENCY ?? "2", 10),
+      lockDuration: 60_000,
+      stalledInterval: 30_000,
+    },
+  );
+
+  for (const w of [canvasWorker, retryWorker, chatWorker]) {
     w.on("failed", (job, err) => {
       console.error(
         `[${new Date().toISOString()}] Job ${job?.id} (${job?.name}) failed:`,
@@ -290,7 +328,7 @@ async function startBullMqWorkers(): Promise<void> {
     });
   }
 
-  workers = [canvasWorker, retryWorker];
+  workers = [canvasWorker, retryWorker, chatWorker];
 }
 
 if (getQueueProvider() === "cloudflare") {

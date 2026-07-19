@@ -28,7 +28,11 @@ import {
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
 
-const SidebarList = () => {
+interface SidebarListProps {
+  onOpenNote?: () => void;
+}
+
+const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -163,11 +167,13 @@ const SidebarList = () => {
           ? `/notes/${itemId}`
           : `/${itemId}`;
         router.push(href);
+        onOpenNote?.();
       }
     },
     [
       expandedIds,
       loadChildren,
+      onOpenNote,
       pathname,
       router,
       selectedIds,
@@ -201,7 +207,7 @@ const SidebarList = () => {
 
         {/* Section header - obsidian style */}
         <div
-          className="flex items-center h-7 px-2 mt-1 group"
+          className="group mt-1 flex h-12 items-center px-2 md:h-7"
           role="toolbar"
           aria-label={t("Notes actions")}
         >
@@ -233,7 +239,7 @@ const SidebarList = () => {
           <div className="flex items-center gap-0.5">
             <button
               onClick={handleQuickNewNote}
-              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
               title={t("New note")}
             >
               <svg
@@ -249,7 +255,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleQuickNewFolder}
-              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
               title={t("New folder")}
             >
               <svg
@@ -265,7 +271,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={handleCollapseAll}
-              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
               title={t("Collapse all")}
             >
               <svg
@@ -281,7 +287,7 @@ const SidebarList = () => {
             <button
               onClick={handleRefreshTree}
               disabled={isRefreshing}
-              className={`p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors ${
+              className={`flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5 ${
                 isRefreshing ? "opacity-50 cursor-not-allowed" : ""
               }`}
               title={t("Refresh filetree")}
@@ -298,7 +304,7 @@ const SidebarList = () => {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="p-0.5 rounded-radius-sm hover:bg-subtle text-text-tertiary hover:text-text-secondary transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
               title={t("More options")}
             >
               <svg
@@ -509,7 +515,7 @@ const SidebarList = () => {
       {/* delete confirmation overlay */}
       {deleteConfirmTarget && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50"
           onClick={() => setDeleteConfirmTarget(null)}
         >
           <div

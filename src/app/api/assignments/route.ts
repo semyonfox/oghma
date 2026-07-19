@@ -23,8 +23,13 @@ export const GET = withErrorHandler(async (request) => {
 
   // build WHERE dynamically instead of 8 separate query branches
   // note: ucs.is_active IS NULL means the course has no settings row (visible by default)
+  const effectiveStatus = sql`CASE
+    WHEN a.status <> 'done' AND a.due_at IS NOT NULL AND a.due_at < NOW() THEN 'late'
+    WHEN a.status = 'late' AND (a.due_at IS NULL OR a.due_at >= NOW()) THEN 'upcoming'
+    ELSE a.status
+  END`;
   const conditions = [sql`a.user_id = ${user.user_id}::uuid`];
-  if (status) conditions.push(sql`a.status = ${status}`);
+  if (status) conditions.push(sql`${effectiveStatus} = ${status}`);
   if (course) conditions.push(sql`a.course_name = ${course}`);
   if (!includeAll) {
     conditions.push(sql`(
@@ -42,7 +47,8 @@ export const GET = withErrorHandler(async (request) => {
   const rows = await sql`
     SELECT a.id, a.user_id, a.canvas_course_id, a.canvas_assignment_id,
            a.title, a.description, a.course_name, a.course_color,
-           a.due_at, a.estimated_hours, a.source, a.status,
+           a.due_at, a.estimated_hours, a.logged_hours, a.source,
+           ${effectiveStatus} AS status,
            a.submitted_at, a.score, a.points_possible,
            a.created_at, a.updated_at
     FROM app.assignments a
@@ -77,18 +83,24 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "Title is required");
   }
 
+  const dueDate = due_at ? new Date(due_at) : null;
+  const initialStatus =
+    dueDate && !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now()
+      ? "late"
+      : "upcoming";
+
   const [row] = await sql`
     INSERT INTO app.assignments (
       user_id, title, description, course_name, course_color,
-      due_at, estimated_hours, source
+      due_at, estimated_hours, source, status
     ) VALUES (
       ${user.user_id}::uuid, ${title.trim()}, ${description ?? null},
       ${course_name ?? null}, ${course_color ?? null},
-      ${due_at ?? null}, ${estimated_hours ?? null}, 'manual'
+      ${due_at ?? null}, ${estimated_hours ?? null}, 'manual', ${initialStatus}
     )
     RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
               title, description, course_name, course_color,
-              due_at, estimated_hours, source, status,
+              due_at, estimated_hours, logged_hours, source, status,
               submitted_at, score, points_possible,
               created_at, updated_at
   `;

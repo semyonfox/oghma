@@ -50,6 +50,7 @@ updates:
       include: "scope"
     groups:
       canvas-mcp-dependencies:
+        dependency-type: "production"
         update-types:
           - "minor"
           - "patch"
@@ -64,3 +65,7 @@ updates:
       - "semyonfox"
     assignees:
       - "semyonfox"
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly

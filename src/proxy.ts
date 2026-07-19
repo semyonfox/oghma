@@ -12,6 +12,23 @@ const CORS_HEADERS = {
     "Access-Control-Allow-Credentials": "true",
 };
 
+const MARKDOWN_REWRITES = new Map([
+    ["/ai", "/ai.md"],
+    ["/info", "/info.md"],
+    ["/pricing", "/pricing.md"],
+]);
+
+function wantsMarkdown(request: NextRequest) {
+    const format = request.nextUrl.searchParams.get("format")?.toLowerCase();
+    if (format === "md" || format === "markdown") return true;
+
+    const accept = request.headers.get("accept")?.toLowerCase() || "";
+    if (!accept) return false;
+    if (accept.includes("text/markdown") || accept.includes("text/x-markdown")) return true;
+    if (accept.includes("application/markdown")) return true;
+    return accept.includes("text/plain") && !accept.includes("text/html");
+}
+
 function getCORSHeaders(request: NextRequest) {
     const origin = request.headers.get("origin") || "";
     const isAllowed = ALLOWED_ORIGINS.includes(origin);
@@ -21,9 +38,20 @@ function getCORSHeaders(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
     const corsHeaders = getCORSHeaders(request);
+    const { pathname } = request.nextUrl;
 
     if (request.method === "OPTIONS") {
         return new NextResponse(null, { status: 204, headers: corsHeaders });
+    }
+
+    const markdownTarget = MARKDOWN_REWRITES.get(pathname);
+    if (markdownTarget) {
+        const response = wantsMarkdown(request)
+            ? NextResponse.rewrite(new URL(markdownTarget, request.url))
+            : NextResponse.next();
+        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+        response.headers.set("Vary", "Accept");
+        return response;
     }
 
     const session = request.cookies.get("session")?.value;
@@ -31,10 +59,12 @@ export async function proxy(request: NextRequest) {
     const nextAuthSession = request.cookies.get("authjs.session-token")?.value
         || request.cookies.get("__Secure-authjs.session-token")?.value;
     const isAuthenticated = !!(session || nextAuthSession);
+    const isAgentRegistration =
+        pathname === "/register" &&
+        request.nextUrl.searchParams.has("agent_claim_token");
 
     // redirect authenticated users away from login/register (skip the page load)
-    const { pathname } = request.nextUrl;
-    if (isAuthenticated && (pathname === "/login" || pathname === "/register")) {
+    if (isAuthenticated && !isAgentRegistration && (pathname === "/login" || pathname === "/register")) {
         const response = NextResponse.redirect(new URL("/notes", request.url));
         Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
         return response;
@@ -58,6 +88,9 @@ export const config = {
     matcher: [
         "/login",
         "/register",
+        "/ai",
+        "/info",
+        "/pricing",
         "/dashboard/:path*",
         "/notes/:path*",
         "/upload/:path*",

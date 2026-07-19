@@ -1,21 +1,29 @@
 ---
 name: Feature
-about: A feature to implement
+about: Propose a scoped product or engineering change
 title: ''
 labels: 'feature'
 assignees: ''
 
 ---
 
-## What
+## Goal
 
-<!-- what is this feature -->
+<!-- What user or system outcome should change? -->
 
-## Done when
+## Context
 
-- [ ] 
-- [ ] 
+<!-- Why now? Link evidence, related issues, or the current behavior. -->
 
-## Notes
+## Acceptance criteria
 
-<!-- anything relevant -->
+- [ ]
+- [ ]
+
+## Out of scope
+
+<!-- Name nearby work that this issue should not absorb. -->
+
+## Notes and risks
+
+<!-- Constraints, rollout concerns, screenshots, or implementation clues. -->

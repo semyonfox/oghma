@@ -52,7 +52,11 @@ export const GET = withErrorHandler(async (request) => {
 
     downloadUrl = await getSignedUrl(
       s3,
-      new GetObjectCommand({ Bucket: bucket, Key: fullKey }),
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: fullKey,
+        ResponseContentDisposition: 'attachment; filename="oghmanotes-vault.zip"',
+      }),
       { expiresIn: 86400 },
     );
   }

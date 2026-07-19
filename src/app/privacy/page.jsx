@@ -17,15 +17,29 @@ export default function PrivacyPage() {
           We store account details, authentication state, notes, uploaded files,
           Canvas import metadata, study activity, settings, and support messages
           you send us. If you connect Canvas, we store the token needed to sync
-          selected course material.
+          selected course material. Canvas tokens are treated as sensitive
+          account data and are kept server-side.
         </p>
       </InfoSection>
 
       <InfoSection title="How We Use It">
         <p>
-          We use your data to provide notes, search, chat, quiz generation,
-          flashcards, imports, exports, and account support. We do not sell
-          student data.
+          We use your data to provide Canvas import, notes, cited answers,
+          search, quiz generation, flashcards, revision workflows, exports, and
+          account support. We do not sell student data.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Privacy-First Analytics">
+        <p>
+          We use limited first-party, aggregate-oriented events to understand
+          public-page acquisition and account activation. We do not use
+          analytics cookies, advertising pixels, session replay, anonymous
+          browser identifiers, raw IP addresses, query strings, or user-agent
+          fingerprints or browser storage. Campaign attribution is attached only
+          to the event generated from the current page URL, raw events are
+          retained for up to 30 days, and Do Not Track or Global Privacy Control
+          disables this collection.
         </p>
       </InfoSection>
 
@@ -33,7 +47,9 @@ export default function PrivacyPage() {
         <p>
           When you use AI features, relevant note or file excerpts may be sent
           to configured AI providers so the feature can respond. Provider access
-          is limited to the content required for the request.
+          is limited to the content required for the request. OghmaNotes does
+          not use student notes, Canvas files, or uploaded files to train its own
+          general-purpose AI model.
         </p>
       </InfoSection>
 
@@ -50,7 +66,7 @@ export default function PrivacyPage() {
       </InfoSection>
 
       <InfoSection title="Last Updated">
-        <p>May 26, 2026.</p>
+        <p>July 11, 2026.</p>
       </InfoSection>
     </PublicInfoPage>
   );

@@ -236,7 +236,11 @@ export async function processVaultExport(msg) {
     // generate 24-hour presigned download URL
     const downloadUrl = await getSignedUrl(
       s3,
-      new GetObjectCommand({ Bucket: bucket, Key: outputKey }),
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: outputKey,
+        ResponseContentDisposition: 'attachment; filename="oghmanotes-vault.zip"',
+      }),
       { expiresIn: 86400 },
     );
 

@@ -26,6 +26,11 @@ function isTextLikeFile(filename: string, mimeType?: string): boolean {
   return Boolean(ext && ["md", "markdown", "txt"].includes(ext));
 }
 
+function markerOcrEnabled(): boolean {
+  const value = process.env.MARKER_OCR_ENABLED?.trim().toLowerCase();
+  return !["0", "false", "off"].includes(value ?? "");
+}
+
 async function extractPdfTextLayer(
   buffer: Buffer,
 ): Promise<{ rawText: string; chunks: string[] } | null> {
@@ -51,8 +56,9 @@ export async function extractContentFromBuffer({
     return { rawText, chunks: chunkText(rawText), source: "text" };
   }
 
-  // try Marker if MARKER_API_URL is set; fall through to pdf-parse on failure
-  if (process.env.MARKER_API_URL) {
+  // Try Marker when configured and enabled; fall through to pdf-parse on
+  // failure or when operators explicitly bypass the OCR layer.
+  if (process.env.MARKER_API_URL && markerOcrEnabled()) {
     try {
       const marker = await extractWithMarker(buffer, filename, { fastPath: true });
       return {

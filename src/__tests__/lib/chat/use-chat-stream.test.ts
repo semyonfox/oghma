@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { MutableRefObject } from "react";
-import { applyUpdate } from "@/lib/chat/hooks/use-chat-stream";
+import {
+  applyUpdate,
+  resolveResumeAssistantId,
+} from "@/lib/chat/hooks/use-chat-stream";
+import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
 import type { Message } from "@/lib/chat/types";
 
 function ref(): MutableRefObject<number | null> {
@@ -18,6 +22,31 @@ function baseMsg(content = "", parts: Message["parts"] = []): Message {
 }
 
 describe("applyUpdate — token + tool-call parts", () => {
+  it("renders the initial RAG search with its query and matched note", () => {
+    const msg = applyUpdate(
+      baseMsg(),
+      {
+        type: "search",
+        searchContext: {
+          query: "invalid HTML syntax",
+          scopeSize: null,
+          resultsFound: 1,
+          results: [{ noteId: "note-1", title: "Complete Syntax", distance: 0.2 }],
+        },
+      },
+      ref(),
+    );
+
+    expect(msg.parts).toEqual([
+      {
+        type: "tool",
+        name: "ragSearch",
+        label: "Searched notes",
+        detail: "“invalid HTML syntax” · Complete Syntax",
+      },
+    ]);
+  });
+
   it("appends a token to the trailing text part", () => {
     const a = applyUpdate(baseMsg(), { type: "token", text: "hello" }, ref());
     expect(a.content).toBe("hello");
@@ -80,6 +109,29 @@ describe("applyUpdate — token + tool-call parts", () => {
     ]);
   });
 
+  it("updates a completed read with the returned note title", () => {
+    const started = applyUpdate(
+      baseMsg(),
+      {
+        type: "tool-call",
+        toolName: "readNote",
+        label: "Reading note",
+        toolCallId: "read-1",
+        detail: "154b1133-54df-4e0e-a154-9b637750f106",
+      },
+      ref(),
+    );
+    const completed = applyUpdate(
+      started,
+      { type: "tool-result", toolCallId: "read-1", detail: "Complete Syntax" },
+      ref(),
+    );
+
+    expect(completed.parts).toEqual([
+      expect.objectContaining({ type: "tool", detail: "Complete Syntax" }),
+    ]);
+  });
+
   it("records stream errors as partial message parts", () => {
     const msg = applyUpdate(
       baseMsg("partial", [{ type: "text", text: "partial" }]),
@@ -92,6 +144,68 @@ describe("applyUpdate — token + tool-call parts", () => {
     expect(msg.parts).toEqual([
       { type: "text", text: "partial" },
       { type: "error", text: "Tool-call limit reached" },
+    ]);
+  });
+});
+
+describe("background chat restore", () => {
+  it("resumes into an existing partial assistant message", () => {
+    const partial = baseMsg("partial answer");
+    expect(resolveResumeAssistantId([partial], "new-id")).toBe(partial.id);
+  });
+
+  it("creates a target after the latest restored user message", () => {
+    const user: Message = {
+      id: "user-1",
+      role: "user",
+      content: "question",
+      timestamp: 0,
+    };
+    expect(resolveResumeAssistantId([user], "new-id")).toBe("new-id");
+  });
+
+  it("clears partial output when a durable worker attempt is retried", () => {
+    const message = baseMsg("partial answer", [
+      { type: "text", text: "partial answer" },
+    ]);
+
+    expect(applyUpdate(message, { type: "reset" }, ref())).toEqual(
+      expect.objectContaining({
+        content: "",
+        parts: [],
+        thinking: undefined,
+        error: undefined,
+      }),
+    );
+  });
+
+  it("maps a persisted background answer back to the live message shape", () => {
+    expect(
+      mapStoredChatMessages([
+        {
+          id: "answer-1",
+          role: "assistant",
+          content: "Finished while away",
+          parts: [
+            { type: "tool", name: "readNote", label: "Reading note" },
+            { type: "text", text: "Finished while away" },
+          ],
+          metadata: { thinking: "Checking the note", thinkingDuration: 4 },
+          created_at: "2026-07-15T00:00:00.000Z",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        id: "answer-1",
+        role: "assistant",
+        content: "Finished while away",
+        parts: [
+          { type: "tool", name: "readNote", label: "Reading note" },
+          { type: "text", text: "Finished while away" },
+        ],
+        thinking: "Checking the note",
+        thinkingDuration: 4,
+      }),
     ]);
   });
 });

@@ -29,8 +29,8 @@ const TOOL_CALL_LIMIT_MODEL_INSTRUCTION =
 export function buildToolBudgetInstruction(maxToolSteps: number): string {
   return (
     `TOOL BUDGET: You have up to ${maxToolSteps} tool-call attempts this turn. ` +
-    "If you attempt another tool call after the budget is used, the tool result will say that tool calls are exhausted. " +
-    "When that happens, continue from the results already gathered. If the remaining work genuinely needs more tools, ask the user to send another message to continue with a fresh budget."
+    "After the final allowed call, tool access is removed and you must answer from the results already gathered. " +
+    "If the remaining work genuinely needs more tools, ask the user to send another message to continue with a fresh budget."
   );
 }
 
@@ -129,6 +129,7 @@ function wrapToolWithBudget(
       }
 
       budget.remainingToolCalls -= 1;
+      if (budget.remainingToolCalls === 0) budget.exhausted = true;
       return originalExecute.call(originalTool, input, options);
     },
     toModelOutput: async ({ toolCallId, input, output }) => {
@@ -147,10 +148,10 @@ function wrapToolWithBudget(
 
 export function isToolCallLimitFinish(
   finishReason: string | undefined,
-  stepCount: number,
+  toolCallCount: number,
   maxToolSteps: number,
 ): boolean {
-  return finishReason === "tool-calls" && stepCount >= maxToolSteps;
+  return finishReason === "tool-calls" && toolCallCount >= maxToolSteps;
 }
 
 export function appendToolCallLimitMessage(reply: string): {

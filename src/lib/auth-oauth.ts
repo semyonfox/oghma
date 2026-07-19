@@ -3,9 +3,6 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import logger from "@/lib/logger";
 
-// providers that always return verified emails
-const ALWAYS_VERIFIED_PROVIDERS = new Set(["google"]);
-
 export interface OAuthProfile {
   provider: string;
   providerAccountId: string;
@@ -35,8 +32,49 @@ export function isEmailVerifiedByProvider(
   provider: string,
   profile: Record<string, unknown>,
 ): boolean {
-  if (ALWAYS_VERIFIED_PROVIDERS.has(provider)) return true;
   return profile.email_verified === true;
+}
+
+export async function resolveVerifiedOAuthEmail(
+  provider: string,
+  profile: Record<string, unknown>,
+  accessToken?: string | null,
+): Promise<string | null> {
+  if (
+    provider === "google" &&
+    profile.email_verified === true &&
+    typeof profile.email === "string"
+  ) {
+    return profile.email.toLowerCase();
+  }
+
+  if (provider === "github" && accessToken) {
+    const response = await fetch("https://api.github.com/user/emails", {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${accessToken}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!response.ok) return null;
+
+    const emails = (await response.json()) as Array<{
+      email?: unknown;
+      primary?: unknown;
+      verified?: unknown;
+    }>;
+    const verifiedPrimary = emails.find(
+      (entry) =>
+        entry.primary === true &&
+        entry.verified === true &&
+        typeof entry.email === "string",
+    );
+    return typeof verifiedPrimary?.email === "string"
+      ? verifiedPrimary.email.toLowerCase()
+      : null;
+  }
+
+  return null;
 }
 
 /**
@@ -129,6 +167,14 @@ export async function findOrCreateOAuthUser(
   profile: OAuthProfile,
   providerProfile: Record<string, unknown>,
 ): Promise<string> {
+  const emailVerified = isEmailVerifiedByProvider(
+    profile.provider,
+    providerProfile,
+  );
+  if (!emailVerified || !profile.email) {
+    throw new Error("OAuth provider did not supply a verified email");
+  }
+
   // step 1: existing oauth account?
   const existing = await findOAuthAccount(
     profile.provider,
@@ -142,14 +188,16 @@ export async function findOrCreateOAuthUser(
       image: profile.image,
       locale: profile.locale,
     });
+    if (isEmailVerifiedByProvider(profile.provider, providerProfile)) {
+      await (sql as any)`
+        UPDATE app.login SET email_verified = true
+        WHERE user_id = ${existing.user_id}::uuid
+      `;
+    }
     return existing.user_id;
   }
 
   // step 2: auto-link by email (only if verified)
-  const emailVerified = isEmailVerifiedByProvider(
-    profile.provider,
-    providerProfile,
-  );
   if (emailVerified && profile.email) {
     const loginRows = await (sql as any)`
             SELECT user_id FROM app.login
@@ -165,6 +213,10 @@ export async function findOrCreateOAuthUser(
         image: profile.image,
         locale: profile.locale,
       });
+      await (sql as any)`
+        UPDATE app.login SET email_verified = true
+        WHERE user_id = ${userId}::uuid
+      `;
       logger.info("oauth account linked to existing user", {
         provider: profile.provider,
         userId,
@@ -180,13 +232,14 @@ export async function findOrCreateOAuthUser(
 
   // ON CONFLICT handles race condition: if another request just created the same email
   const insertResult = await (sql as any)`
-        INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale)
+        INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified)
         VALUES (
             ${profile.email},
             ${hashedPassword},
             ${profile.name ?? null},
             ${profile.image ?? null},
-            ${profile.locale ?? null}
+            ${profile.locale ?? null},
+            ${emailVerified}
         )
         ON CONFLICT (email) DO NOTHING
         RETURNING user_id

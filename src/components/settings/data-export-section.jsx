@@ -62,15 +62,16 @@ export default function DataExportSection() {
 
   // vault import handler
   async function handleVaultImport(e) {
-    const file = e.target.files?.[0];
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".zip")) {
-      toast.error(t("Please select a .zip file"));
-      return;
-    }
-
     try {
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        toast.error(t("Please select a .zip file"));
+        return;
+      }
+
       setImportStatus("uploading");
       setUploadProgress(0);
 
@@ -83,12 +84,13 @@ export default function DataExportSection() {
         const err = await presignRes.json();
         throw new Error(err.error || t("Failed to get upload URL"));
       }
-      const { uploadUrl, s3Key } = await presignRes.json();
+      const { uploadUrl, s3Key, contentLength } = await presignRes.json();
 
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadUrl, true);
         xhr.setRequestHeader("Content-Type", "application/zip");
+        xhr.setRequestHeader("x-amz-meta-expected-size", String(contentLength));
         xhr.upload.onprogress = (evt) => {
           if (evt.lengthComputable) {
             setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
@@ -140,9 +142,9 @@ export default function DataExportSection() {
       console.error("Vault import failed:", err);
       setImportStatus("failed");
       toast.error(err.message || t("Import failed"));
+    } finally {
+      input.value = "";
     }
-
-    if (importFileRef.current) importFileRef.current.value = "";
   }
 
   // vault export handler
@@ -503,7 +505,7 @@ export default function DataExportSection() {
                   download
                   className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 inline-block"
                 >
-                  {t("Download vault.zip")}
+                  {t("Download oghmanotes-vault.zip")}
                 </a>
                 <p className="mt-2 text-xs text-text-tertiary">
                   {t("Link expires in 24 hours.")}

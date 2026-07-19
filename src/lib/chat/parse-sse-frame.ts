@@ -7,11 +7,13 @@ export { humanizeToolName, labelForTool } from "@/lib/chat/tool-labels";
 
 /** a single mutation that should be applied to the assistant message */
 export type MessageUpdate =
+  | { type: "reset" }
   | { type: "meta"; sessionId?: string; sources?: { id: string; title: string }[]; retrieval?: Message["retrieval"] }
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
   | { type: "token"; text: string; thinkingDuration?: number }
-  | { type: "tool-call"; label: string; toolName: string }
+  | { type: "tool-call"; label: string; toolName: string; toolCallId?: string; detail?: string }
+  | { type: "tool-result"; toolCallId: string; detail: string }
   | { type: "done" }
   | { type: "error"; message: string };
 
@@ -34,6 +36,8 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
   }
 
   switch (frame.event) {
+    case "reset":
+      return { type: "reset" };
     case "meta": {
       return {
         type: "meta",
@@ -52,6 +56,7 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
       return {
         type: "search",
         searchContext: {
+          query: typeof payload.query === "string" ? payload.query : undefined,
           scopeSize,
           resultsFound,
           results: Array.isArray(payload.results)
@@ -76,7 +81,19 @@ export function parseSseFrame(frame: SseFrame): MessageUpdate | null {
     case "tool-call": {
       const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
       const label = toolName ? labelForTool(toolName) : "";
-      return { type: "tool-call", label, toolName };
+      return {
+        type: "tool-call",
+        label,
+        toolName,
+        toolCallId: typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
+        detail: typeof payload.detail === "string" ? payload.detail : undefined,
+      };
+    }
+
+    case "tool-result": {
+      const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : "";
+      const detail = typeof payload.detail === "string" ? payload.detail : "";
+      return toolCallId && detail ? { type: "tool-result", toolCallId, detail } : null;
     }
 
     case "error": {

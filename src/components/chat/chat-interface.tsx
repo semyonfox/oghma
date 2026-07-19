@@ -101,6 +101,19 @@ interface ChatInterfaceProps {
   className?: string;
 }
 
+export function shouldPreserveLiveSession(
+  controlledSessionId: string | undefined,
+  localSessionId: string | null,
+  messageCount: number,
+  ownsLiveStream = false,
+): boolean {
+  return Boolean(
+    messageCount > 0 &&
+      (ownsLiveStream ||
+        (controlledSessionId && controlledSessionId === localSessionId)),
+  );
+}
+
 const ChatInterface: FC<ChatInterfaceProps> = ({
   compact = false,
   sessionId: controlledSessionId,
@@ -122,6 +135,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     useRag,
     toggleRag,
     restoredMessages,
+    backgroundLoading,
+    backgroundGenerationId,
     updateRefs,
   } = useChatPersistence({
     compact,
@@ -137,6 +152,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     error,
     send,
     cancel,
+    resume,
   } = useChatStream({
     t,
     noteId,
@@ -148,20 +164,74 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     onSessionCreated,
     onStreamComplete,
   });
+  const busy = loading || backgroundLoading;
+  const resumedGenerationRef = useRef<string | null>(null);
+  const ownsLiveStreamRef = useRef(false);
+
+  // Latch ownership before the server-assigned session ID is reflected by the
+  // parent. React may render that controlled ID before the hook's local ID,
+  // so comparing IDs alone is not sufficient to protect optimistic messages.
+  if (loading && messages.length > 0) {
+    ownsLiveStreamRef.current = true;
+  }
 
   // apply restored session messages when available
+  const restoredAppliedRef = useRef(false);
   useEffect(() => {
-    if (!restoredMessages) return;
+    // A new chat receives its server ID while its first reply is still live.
+    // The parent then passes that ID back as controlledSessionId, which starts
+    // a restore request. Preserve the optimistic messages in this mounted
+    // instance: the restore snapshot can be older than the active stream and
+    // would remove the assistant message that incoming tokens target.
+    if (
+      shouldPreserveLiveSession(
+        controlledSessionId,
+        sessionId,
+        messages.length,
+        ownsLiveStreamRef.current,
+      )
+    ) {
+      restoredAppliedRef.current = true;
+      return;
+    }
+    if (
+      !restoredMessages ||
+      (restoredAppliedRef.current && (backgroundLoading || loading))
+    ) {
+      return;
+    }
+    restoredAppliedRef.current = true;
     if (controlledSessionId) {
       setSessionId(controlledSessionId);
     }
     setMessages(restoredMessages);
-  }, [restoredMessages, controlledSessionId, setMessages, setSessionId]);
+  }, [
+    restoredMessages,
+    controlledSessionId,
+    sessionId,
+    messages.length,
+    backgroundLoading,
+    loading,
+    setMessages,
+    setSessionId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !restoredAppliedRef.current ||
+      !backgroundGenerationId ||
+      resumedGenerationRef.current === backgroundGenerationId
+    ) {
+      return;
+    }
+    resumedGenerationRef.current = backgroundGenerationId;
+    void resume(backgroundGenerationId);
+  }, [backgroundGenerationId, restoredMessages, resume]);
 
   // keep persistence refs in sync for unload handlers
   useEffect(() => {
-    updateRefs({ messages, sessionId, loading });
-  }, [messages, sessionId, loading, updateRefs]);
+    updateRefs({ messages, sessionId, loading: busy });
+  }, [messages, sessionId, busy, updateRefs]);
 
   // auto-scroll: follow streaming output only while the user is pinned to the
   // bottom. If they scroll up to read, stop following so the view stays put
@@ -181,17 +251,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (!pinnedToBottomRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, loading]);
+  }, [messages, busy]);
 
   // input state (local to this component -- not worth extracting)
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const thinkingActive = thinkingMode !== "off";
+  const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || busy) return;
 
     // sending a message always re-pins the view to the bottom
     pinnedToBottomRef.current = true;
@@ -223,8 +294,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-[5px]"
         >
-          {messages.map((m) => (
-            <CompactMessageBubble key={m.id} message={m} />
+          {messages.map((m, index) => (
+            <CompactMessageBubble
+              key={m.id}
+              message={m}
+              isStreaming={busy && index === messages.length - 1}
+            />
           ))}
 
           {error && <p className="text-xs text-error-400 px-1">{error}</p>}
@@ -247,7 +322,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               active={thinkingActive}
               onClick={toggleThinking}
               icon={<span aria-hidden="true">◆</span>}
-              label={thinkingActive ? t("Thinking") : t("Think")}
+              label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
             />
@@ -260,12 +335,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
-              disabled={loading}
+              disabled={busy}
               className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={loading || !input.trim()}
+              disabled={busy || !input.trim()}
               className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
@@ -285,12 +360,21 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 py-3 obsidian-scrollbar"
       >
-        <div className="mx-auto flex w-full max-w-3xl flex-col space-y-2.5">
+        <div
+          className={`mx-auto flex w-full max-w-3xl flex-col space-y-2.5 ${
+            messages.length === 0 ? "min-h-full justify-center pb-12" : ""
+          }`}
+        >
           {messages.length === 0 ? (
             <ChatSplash />
           ) : (
-            messages.map((m) => (
-              <FullMessageBubble key={m.id} message={m} sessionId={sessionId} />
+            messages.map((m, index) => (
+              <FullMessageBubble
+                key={m.id}
+                message={m}
+                sessionId={sessionId}
+                isStreaming={busy && index === messages.length - 1}
+              />
             ))
           )}
 
@@ -307,24 +391,27 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
       </div>
 
       {/* input area */}
-      <div className="flex-shrink-0 border-t border-border-subtle bg-background px-4 md:px-8 lg:px-10 py-3">
+      <div
+        className="flex-shrink-0 border-t border-border-subtle bg-background px-3 py-3 md:px-8 lg:px-10"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="mx-auto max-w-3xl">
           {(selectedNotes.length > 0 || selectedFolders.length > 0 || (noteTitle && selectedNotes.length === 0)) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
               {noteTitle && selectedNotes.length === 0 && selectedFolders.length === 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[150px]">{noteTitle}</span>
                 </span>
               )}
               {selectedNotes.map((note) => (
-                <span key={note.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={note.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{note.title}</span>
                   {onRemoveNote && (
                     <button
                       onClick={() => onRemoveNote(note.id)}
-                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       title={t("Remove {title}", { title: note.title })}
                     >
                       ×
@@ -333,13 +420,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 </span>
               ))}
               {selectedFolders.map((folder) => (
-                <span key={folder.id} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
+                <span key={folder.id} className="flex items-center gap-1 px-2 py-1 rounded-full border border-border-subtle bg-subtle text-xs text-text-tertiary">
                   <FolderIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[120px]">{folder.title}</span>
                   {onRemoveFolder && (
                     <button
                       onClick={() => onRemoveFolder(folder.id)}
-                      className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-4"
+                      className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
                       title={t("Remove {title}", { title: folder.title })}
                     >
                       ×
@@ -349,7 +436,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               ))}
             </div>
           )}
-          <div className="mb-2 flex items-center gap-1.5 px-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 px-1">
             <TogglePill
               active={useRag}
               onClick={toggleRag}
@@ -362,7 +449,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               active={thinkingActive}
               onClick={toggleThinking}
               icon={<span aria-hidden="true">◆</span>}
-              label={thinkingActive ? t("Thinking") : t("Think")}
+              label={thinkingLabel}
               tooltipTitle={t("chat.thinking_title")}
               tooltipText={t("chat.thinking_tooltip")}
             />
@@ -372,7 +459,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               e.preventDefault();
               handleSend();
             }}
-            className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-radius-lg px-2.5 py-2 focus-within:border-primary-500/50 transition-colors"
+            className="flex items-end gap-1.5 rounded-radius-lg border border-border-subtle bg-surface px-2.5 py-1.5 shadow-sm transition-[border-color,box-shadow] focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/25 md:items-center md:py-2"
           >
             <textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -384,27 +471,34 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
-              disabled={loading}
+              disabled={busy}
               rows={1}
-              className="flex-1 bg-transparent text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none resize-none disabled:opacity-50"
+              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:py-0"
               style={{ minHeight: "20px", maxHeight: "96px" }}
             />
-            {loading ? (
+            {busy ? (
               <button
                 type="button"
-                onClick={cancel}
-                className="flex-shrink-0 p-1.5 bg-error-500/15 hover:bg-error-500/25 text-error-400 hover:text-error-300 rounded-radius-md transition-colors"
-                title={t("Stop generating")}
+                onClick={loading ? cancel : undefined}
+                disabled={backgroundLoading}
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 disabled:cursor-wait disabled:opacity-60 md:h-8 md:w-8"
+                title={
+                  backgroundLoading
+                    ? t("Generating in background")
+                    : t("Stop generating")
+                }
               >
-                <StopCircleIcon className="w-3.5 h-3.5" />
+                <StopCircleIcon
+                  className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}
+                />
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="flex-shrink-0 p-1.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-md transition-colors"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
               >
-                <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                <PaperAirplaneIcon className="h-4 w-4" />
               </button>
             )}
           </form>

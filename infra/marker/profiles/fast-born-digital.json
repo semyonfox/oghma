@@ -1,0 +1,17 @@
+{
+  "output_format": "markdown",
+  "lowres_image_dpi": 72,
+  "highres_image_dpi": 192,
+  "lowres_from_highres": false,
+  "defer_highres_images": false,
+  "ocr_fallback_policy": "empty_text_only",
+  "table_ocr_policy": "missing_text_only",
+  "extract_images": true,
+  "describe_extracted_images": false,
+  "paginate_output": false,
+  "pdftext_workers": 1,
+  "disable_multiprocessing": true,
+  "disable_tqdm": true,
+  "use_llm": false,
+  "profile_marker": false
+}

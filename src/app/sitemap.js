@@ -1,4 +1,5 @@
 import { blogPosts } from "@/lib/blog-data";
+import { AGENT_RESOURCE_PATHS } from "@/lib/public/agent-content";
 
 const BASE_URL = (
   process.env.NEXT_PUBLIC_APP_URL || "https://oghmanotes.ie"
@@ -15,6 +16,8 @@ export default function sitemap() {
     "/cookies",
     "/pricing",
     "/contact",
+    "/ai",
+    ...AGENT_RESOURCE_PATHS.filter((path) => path !== "/ai"),
   ];
 
   return [

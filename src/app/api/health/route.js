@@ -1,6 +1,7 @@
 import {NextResponse} from 'next/server';
 import sql from "@/database/pgsql.js";
 import logger from '@/lib/logger';
+import { ensureRedisReady } from '@/lib/redis';
 
 /**
  * Health check endpoint for Docker and monitoring
@@ -33,9 +34,14 @@ export async function GET(request) {
             dbStatus.error = dbErr.message;
             dbStatus.errorCode = dbErr.code || null;
         }
+        // This is a liveness check for the app/database, not a readiness gate
+        // for Redis. Keep it 200 when the app can serve traffic, but surface a
+        // degraded rate limiter so monitoring does not mistake per-process
+        // fallback protection for distributed rate limiting.
+        const rateLimiterReady = await ensureRedisReady();
         const healthy = dbStatus.connected;
         const response = {
-            status: healthy ? 'ok' : 'degraded',
+            status: healthy && rateLimiterReady ? 'ok' : 'degraded',
             timestamp: new Date().toISOString(),
         };
 
@@ -44,6 +50,10 @@ export async function GET(request) {
         if (monitorSecret && request?.headers?.get('x-health-secret') === monitorSecret) {
             response.service = 'ct216-project';
             response.database = dbStatus;
+            response.rateLimiter = {
+                redisReady: rateLimiterReady,
+                status: rateLimiterReady ? 'ok' : 'degraded',
+            };
         }
 
         return NextResponse.json(response, { status: healthy ? 200 : 503 });

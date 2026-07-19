@@ -14,8 +14,10 @@ markdownSanitizeSchema.attributes = {
   ...(markdownSanitizeSchema.attributes ?? {}),
   code: [
     ...(markdownSanitizeSchema.attributes?.code ?? []),
-    ["className", /^language-[a-z0-9_-]+$/i, "hljs"],
+    ["className", /^language-[a-z0-9_-]+$/i],
     ["className", "math-inline", "math-display"],
+    "dataMeta",
+    ["dataMeta"],
   ],
   span: [
     ...(markdownSanitizeSchema.attributes?.span ?? []),
