@@ -34,7 +34,7 @@ export async function sendEmail({ from, to, replyTo, subject, text, html }) {
         Authorization: `Bearer ${apiToken}`,
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(15_000),
       body: JSON.stringify({
         from: assertEmailValue(from, "from email"),
         to: assertEmailValue(to, "recipient email"),
