@@ -30,6 +30,7 @@ describe("E2E database schema contract", () => {
           "rate_limit_log",
           "chat_sessions",
           "chat_messages",
+          "chat_generations",
           "imported_file_cache",
           "imported_file_cache_chunks",
           "imported_file_cache_assets",
@@ -40,6 +41,7 @@ describe("E2E database schema contract", () => {
     expect(rows.map((row) => row.table_name).sort()).toEqual([
       "attachments",
       "canvas_import_jobs",
+      "chat_generations",
       "chat_messages",
       "chat_sessions",
       "imported_file_cache",
@@ -63,7 +65,7 @@ describe("E2E database schema contract", () => {
     expect(row.embeddings_table).toBeNull();
   });
 
-  it("matches runtime column names and types for calendar and ingestion", async () => {
+  it("matches runtime column names and types for calendar, ingestion, and chat", async () => {
     const rows = await sql`
       SELECT table_name, column_name, data_type, udt_name
       FROM information_schema.columns
@@ -77,12 +79,30 @@ describe("E2E database schema contract", () => {
             "created_at",
             "updated_at",
           ]}))
+ OR (table_name = 'chat_sessions' AND column_name = ANY(${[
+   "generation_status",
+   "pinned",
+ ]}))
+ OR (table_name = 'chat_generations' AND column_name = ANY(${[
+   "session_id",
+   "status",
+ ]}))
         )
     `;
 
-    const byColumn = new Map(rows.map((row) => [`${row.table_name}.${row.column_name}`, row]));
+    const byColumn = new Map(
+      rows.map((row) => [`${row.table_name}.${row.column_name}`, row]),
+    );
     expect(byColumn.get("login.calendar_export_token")?.udt_name).toBe("uuid");
-    expect(byColumn.get("ingestion_jobs.chunks_stored")?.data_type).toBe("integer");
+    expect(byColumn.get("ingestion_jobs.chunks_stored")?.data_type).toBe(
+      "integer",
+    );
     expect(byColumn.get("ingestion_jobs.error")?.data_type).toBe("text");
+    expect(byColumn.get("chat_sessions.generation_status")?.data_type).toBe(
+      "text",
+    );
+    expect(byColumn.get("chat_sessions.pinned")?.data_type).toBe("boolean");
+    expect(byColumn.get("chat_generations.session_id")?.udt_name).toBe("uuid");
+    expect(byColumn.get("chat_generations.status")?.data_type).toBe("text");
   });
 });
