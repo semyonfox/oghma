@@ -24,7 +24,7 @@ function assertEmailValue(value, fieldName) {
   return value;
 }
 
-async function sendEmail({ from, to, subject, text, html }) {
+export async function sendEmail({ from, to, replyTo, subject, text, html }) {
   const { accountId, apiToken } = getCloudflareEmailConfig();
   const response = await fetch(
     `${CLOUDFLARE_EMAIL_ENDPOINT}/accounts/${accountId}/email/sending/send`,
@@ -34,9 +34,13 @@ async function sendEmail({ from, to, subject, text, html }) {
         Authorization: `Bearer ${apiToken}`,
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(15_000),
       body: JSON.stringify({
         from: assertEmailValue(from, "from email"),
         to: assertEmailValue(to, "recipient email"),
+        ...(replyTo
+          ? { reply_to: assertEmailValue(replyTo, "reply-to email") }
+          : {}),
         subject,
         text,
         html,

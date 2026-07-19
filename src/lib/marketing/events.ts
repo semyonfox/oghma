@@ -113,7 +113,7 @@ export function cleanProperties(value: unknown): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   if (typeof input.has_phone === "boolean") output.has_phone = input.has_phone;
   if (typeof input.has_institution === "boolean") output.has_institution = input.has_institution;
-  if (typeof input.forwarded_to_web3forms === "boolean") output.forwarded_to_web3forms = input.forwarded_to_web3forms;
+  if (typeof input.notification_delivered === "boolean") output.notification_delivered = input.notification_delivered;
   if (input.form === "contact") output.form = "contact";
   if (typeof input.role === "string" && CONTACT_ROLES.has(input.role)) output.role = input.role;
   if (typeof input.interest === "string" && CONTACT_INTERESTS.has(input.interest)) output.interest = input.interest;

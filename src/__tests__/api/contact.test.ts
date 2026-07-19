@@ -58,7 +58,10 @@ describe("POST /api/contact", () => {
       { id: "00000000-0000-4000-8000-000000000001" },
     ]);
     mockSql.mockResolvedValueOnce([]);
-    process.env.WEB3FORMS_ACCESS_KEY = "test-key";
+    process.env.CLOUDFLARE_ACCOUNT_ID = "test-account";
+    process.env.CLOUDFLARE_EMAIL_API_TOKEN = "test-token";
+    process.env.EMAIL_FROM = "noreply@oghmanotes.ie";
+    process.env.CONTACT_TO_EMAIL = "owner@example.com";
     vi.stubGlobal(
       "fetch",
       vi
@@ -75,11 +78,28 @@ describe("POST /api/contact", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       success: true,
-      forwardedToWeb3Forms: true,
+      notificationDelivered: true,
     });
     expect(mockSql).toHaveBeenCalledTimes(2);
     expect(mockSql.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(fetch).mock.invocationCallOrder[0],
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.cloudflare.com/client/v4/accounts/test-account/email/sending/send",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
+    );
+    const requestOptions = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(String(requestOptions?.body))).toEqual(
+      expect.objectContaining({
+        from: "noreply@oghmanotes.ie",
+        to: "owner@example.com",
+        reply_to: "ada@example.com",
+      }),
     );
     expect(mockRecordMarketingEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventName: "contact_form_success" }),
@@ -98,7 +118,7 @@ describe("POST /api/contact", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       success: true,
-      forwardedToWeb3Forms: false,
+      notificationDelivered: false,
     });
     expect(mockSql).toHaveBeenCalledTimes(2);
   });

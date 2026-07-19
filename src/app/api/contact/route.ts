@@ -6,6 +6,7 @@ import logger from "@/lib/logger";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { cleanAttribution } from "@/lib/marketing/attribution";
+import { sendEmail } from "@/lib/email.js";
 
 const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
@@ -57,41 +58,64 @@ function leadAnalyticsProperties(body: z.infer<typeof contactSchema>) {
   };
 }
 
-async function forwardToWeb3Forms(body: z.infer<typeof contactSchema>) {
-  const accessKey = process.env.WEB3FORMS_ACCESS_KEY;
-  if (!accessKey) {
-    return { forwarded: false, error: "web3forms_not_configured" };
+function escapeHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character] ?? character,
+  );
+}
+
+async function sendContactNotification(body: z.infer<typeof contactSchema>) {
+  const from = process.env.EMAIL_FROM || process.env.CLOUDFLARE_EMAIL_FROM;
+  const to = process.env.CONTACT_TO_EMAIL;
+  if (!from || !to) {
+    return { delivered: false, error: "contact_email_not_configured" };
   }
 
-  const formData = new FormData();
-  formData.append("access_key", accessKey);
-  formData.append("subject", "OghmaNotes website lead");
-  formData.append("from_name", "OghmaNotes website");
-  formData.append("first_name", body.first_name);
-  formData.append("last_name", body.last_name);
-  formData.append("email", body.email);
-  formData.append("role", body.role);
-  formData.append("interest", body.interest);
-  formData.append("institution", body.institution);
-  formData.append("phone", body.phone);
-  formData.append("message", body.message);
+  const name = `${body.first_name} ${body.last_name}`;
+  const text = [
+    "New OghmaNotes website lead",
+    "",
+    `Name: ${name}`,
+    `Email: ${body.email}`,
+    `Role: ${body.role}`,
+    `Interest: ${body.interest}`,
+    `Institution: ${body.institution || "Not provided"}`,
+    `Phone: ${body.phone || "Not provided"}`,
+    "",
+    body.message,
+  ].join("\n");
+  const html = `<h1>New OghmaNotes website lead</h1>
+<p><strong>Name:</strong> ${escapeHtml(name)}<br>
+<strong>Email:</strong> ${escapeHtml(body.email)}<br>
+<strong>Role:</strong> ${escapeHtml(body.role)}<br>
+<strong>Interest:</strong> ${escapeHtml(body.interest)}<br>
+<strong>Institution:</strong> ${escapeHtml(body.institution || "Not provided")}<br>
+<strong>Phone:</strong> ${escapeHtml(body.phone || "Not provided")}</p>
+<p>${escapeHtml(body.message).replace(/\n/g, "<br>\n")}</p>`;
 
   try {
-    const response = await fetch("https://api.web3forms.com/submit", {
-      method: "POST",
-      body: formData,
-      signal: AbortSignal.timeout(5_000),
+    await sendEmail({
+      from,
+      to,
+      replyTo: body.email,
+      subject: "OghmaNotes website lead",
+      text,
+      html,
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.success) {
-      return { forwarded: false, error: "web3forms_error" };
-    }
-    return { forwarded: true, error: null };
+    return { delivered: true, error: null };
   } catch (error) {
-    logger.warn("web3forms forward failed", {
+    logger.warn("contact notification delivery failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return { forwarded: false, error: "web3forms_network_error" };
+    return { delivered: false, error: "contact_email_delivery_failed" };
   }
 }
 
@@ -112,7 +136,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // Silently accept honeypot submissions so bots do not learn which field
   // triggered the rejection. Do not store or forward them.
   if (body.website) {
-    return NextResponse.json({ success: true, forwardedToWeb3Forms: false });
+    return NextResponse.json({ success: true, notificationDelivered: false });
   }
 
   const attribution = cleanAttribution(body.marketing?.utm);
@@ -133,8 +157,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       utm_content,
       utm_term,
       first_touch,
-      forwarded_to_web3forms,
-      forward_error
+      notification_delivered,
+      notification_error
     )
     VALUES (
       ${body.first_name},
@@ -158,12 +182,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     RETURNING id
   `;
 
-  const forward = await forwardToWeb3Forms(body);
+  const notification = await sendContactNotification(body);
   try {
     await sql`
       UPDATE app.marketing_leads
-      SET forwarded_to_web3forms = ${forward.forwarded},
-          forward_error = ${forward.error}
+      SET notification_delivered = ${notification.delivered},
+          notification_error = ${notification.error}
       WHERE id = ${lead.id}::uuid
     `;
   } catch (updateError) {
@@ -185,7 +209,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       utm: attribution,
       properties: {
         ...leadAnalyticsProperties(body),
-        forwarded_to_web3forms: forward.forwarded,
+        notification_delivered: notification.delivered,
       },
     },
     request,
@@ -198,6 +222,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   return NextResponse.json({
     success: true,
-    forwardedToWeb3Forms: forward.forwarded,
+    notificationDelivered: notification.delivered,
   });
 });
