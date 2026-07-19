@@ -55,6 +55,7 @@ Canonical environment variables:
 | `CLOUDFLARE_ACCOUNT_ID` | Account containing the onboarded sending domain |
 | `CLOUDFLARE_EMAIL_API_TOKEN` | Token with Email Sending permission |
 | `EMAIL_FROM` | Sender address used by the app |
+| `CONTACT_TO_EMAIL` | Private recipient for website contact notifications |
 
 `CLOUDFLARE_EMAIL_FROM` remains a compatibility fallback in code, but new
 configuration should use `EMAIL_FROM`. The tracked production template
@@ -81,9 +82,11 @@ Every transactional template should include:
   the intended link;
 - no unnecessary private study data.
 
-Current templates cover account verification, password reset, and vault job
-completion. When adding another template, test both body formats and the
-expired/invalid-link path.
+Current templates cover account verification, password reset, vault job
+completion, and website contact notifications. Contact notifications set the
+visitor as `reply_to`; the application sender remains the verified
+`EMAIL_FROM` address. When adding another template, test both body formats and
+the expired/invalid-link path where applicable.
 
 Cloudflare Email Sending is for transactional mail. Do not reuse this path for
 unsolicited campaigns, scraped addresses, or broad product announcements.

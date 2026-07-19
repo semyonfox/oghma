@@ -84,7 +84,8 @@ Values are bounded to 30-3,650 days. Migration 036 also provides `app.purge_expi
 
 Contact submissions are validated, rate-limited, and checked with an HTML-form
 honeypot before durable storage. The lead row is inserted before the server
-attempts Web3Forms notification delivery. `WEB3FORMS_ACCESS_KEY` is server-only;
+attempts notification delivery through the application's Cloudflare Email
+Sending transport. `CONTACT_TO_EMAIL` selects the server-only recipient;
 delivery failures are recorded on the durable lead and do not ask the browser
 to retry an already stored submission.
 
