@@ -74,4 +74,13 @@ describe("layout pane coordination", () => {
       selectedNode: null,
     });
   });
+
+  it("allows both side panels to grow to 600 pixels", () => {
+    useLayoutStore.getState().setSizes(700, 700, 50);
+
+    expect(useLayoutStore.getState()).toMatchObject({
+      treeWidth: 600,
+      rightPanelWidth: 600,
+    });
+  });
 });

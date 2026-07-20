@@ -180,7 +180,11 @@ export default function NotesWorkspace() {
         )}
 
         {isDesktop === true && (
-          <PanelGroup orientation="horizontal" className="min-w-0 flex-1">
+          <PanelGroup
+            key={rightPanelOpen ? "with-inspector" : "without-inspector"}
+            orientation="horizontal"
+            className="min-w-0 flex-1"
+          >
             <Panel
               id="note-tree"
               defaultSize={`${treeWidth}px`}
@@ -230,7 +234,7 @@ export default function NotesWorkspace() {
                 id="note-inspector"
                 defaultSize={`${rightPanelWidth}px`}
                 minSize="250px"
-                maxSize="400px"
+                maxSize="600px"
                 groupResizeBehavior="preserve-pixel-size"
                 onResize={({ inPixels }, _id, previousSize) => {
                   if (previousSize)
