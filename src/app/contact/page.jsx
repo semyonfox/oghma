@@ -34,7 +34,7 @@ export default function ContactPage() {
         </ul>
       </InfoSection>
 
-      <section>
+      <section id="contact-form" className="scroll-mt-24">
         <ContactForm source="contact" />
       </section>
     </PublicInfoPage>

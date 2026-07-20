@@ -37,7 +37,7 @@ export default function AIPage() {
       operatingSystem: "Web",
       url: "https://oghmanotes.ie",
       description:
-        "AI-enhanced study workspace with semantic notes, cited RAG chat, adaptive quizzes, spaced repetition, Canvas sync, and assignment tracking.",
+        "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
     },
     hasPart: AGENT_RESOURCE_PATHS.map((path) => ({
       "@type": "WebPage",
@@ -58,9 +58,10 @@ export default function AIPage() {
 
       <InfoSection title="Short Answer">
         <p>
-          OghmaNotes is a RAG-powered study workspace for students who want
-          organized notes, cited AI answers, Canvas sync, adaptive quizzes, and
-          spaced repetition in one app.
+          OghmaNotes is a Canvas-connected study workspace for university
+          students. It brings supported course material and deadlines into the
+          same workspace as notes, cited answers, flashcards, and planning,
+          reducing repeated upload and setup.
         </p>
       </InfoSection>
 
@@ -91,13 +92,21 @@ export default function AIPage() {
       <InfoSection title="Primary CTAs">
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
-            href="/register?utm_source=ai_page&utm_medium=cta&utm_campaign=launch_beta"
+            href="/contact?utm_source=ai_page&utm_medium=cta&utm_campaign=launch_beta#contact-form"
+            data-marketing-event="cta_click"
+            data-marketing-page="ai"
+            data-marketing-location="primary_cta"
+            data-marketing-cta="request_beta_access"
             className="rounded-lg border border-primary-500/40 bg-primary-600 px-5 py-4 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
           >
-            Create a free account
+            Join the beta
           </Link>
           <Link
-            href="/contact?utm_source=ai_page&utm_medium=cta&utm_campaign=campus_pilot"
+            href="/contact?utm_source=ai_page&utm_medium=cta&utm_campaign=campus_pilot#contact-form"
+            data-marketing-event="cta_click"
+            data-marketing-page="ai"
+            data-marketing-location="campus_pilot"
+            data-marketing-cta="request_beta_access"
             className="rounded-lg border border-border-subtle bg-surface px-5 py-4 text-sm font-semibold text-text hover:border-border"
           >
             Ask about beta access or campus pilots

@@ -95,8 +95,6 @@ export default async function BlogPost({ params }) {
               ))}
             </ul>
 
-            <p className="mt-8">{t(post.section2Content)}</p>
-
             <h2 className="mt-16 text-3xl font-semibold tracking-tight text-pretty text-text">
               {t(post.section2Title)}
             </h2>
@@ -137,10 +135,14 @@ export default async function BlogPost({ params }) {
             <p className="mt-6">{t("blog.cta.description")}</p>
             <div className="mt-8">
               <Link
-                href="/register"
+                href="/contact?utm_source=blog&utm_medium=article_cta&utm_campaign=launch_beta#contact-form"
+                data-marketing-event="cta_click"
+                data-marketing-page="blog_article"
+                data-marketing-location="bottom"
+                data-marketing-cta="request_beta_access"
                 className="rounded-radius-md bg-primary-600 px-6 py-2.5 text-sm font-semibold text-text-on-primary hover:bg-primary-700"
               >
-                {t("blog.cta.button")}
+                {t("Join the beta")}
               </Link>
             </div>
           </div>

@@ -44,7 +44,7 @@ export default function Header() {
               height={32}
               preload
             />
-            <span className="font-serif text-lg font-semibold text-text hidden sm:block">
+            <span className="font-serif text-xl font-semibold tracking-[-0.02em] text-text hidden sm:block">
               {t("OghmaNotes")}
             </span>
           </Link>
@@ -64,14 +64,14 @@ export default function Header() {
             <Link
               key={item.name}
               href={item.href}
-              className="text-sm/6 font-semibold text-text"
+              className="text-[0.8125rem] font-semibold tracking-[0.025em] text-text transition-colors hover:text-primary-300"
             >
               {item.name}
             </Link>
           ))}
         </div>
         <div className="hidden lg:flex lg:flex-1 lg:justify-end">
-          <Link href="/login" className="text-sm/6 font-semibold text-text">
+          <Link href="/login" className="text-[0.8125rem] font-semibold tracking-[0.025em] text-text transition-colors hover:text-primary-300">
             {t("Log in")} <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>

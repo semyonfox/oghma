@@ -30,7 +30,9 @@ const plans = [
       "One vault with limited storage",
     ],
     cta: "Join the beta free",
-    href: "/register?utm_source=pricing&utm_medium=plan_cta&utm_campaign=free_canvas_import",
+    href: "/contact?utm_source=pricing&utm_medium=plan_cta&utm_campaign=launch_beta#contact-form",
+    trackingAction: "request_beta_access",
+    trackingLocation: "plan_free_import",
   },
   {
     name: "Semester",
@@ -45,7 +47,9 @@ const plans = [
       "A larger import and storage allowance",
     ],
     cta: "Get beta access",
-    href: "/register?utm_source=pricing&utm_medium=plan_cta&utm_campaign=semester_beta",
+    href: "/contact?utm_source=pricing&utm_medium=plan_cta&utm_campaign=semester_beta#contact-form",
+    trackingAction: "request_beta_access",
+    trackingLocation: "plan_semester",
     featured: true,
   },
   {
@@ -61,7 +65,9 @@ const plans = [
       "Checkout stays off until pricing is final",
     ],
     cta: "Ask about the beta",
-    href: "/contact?utm_source=pricing&utm_medium=plan_cta&utm_campaign=annual_interest",
+    href: "/contact?utm_source=pricing&utm_medium=plan_cta&utm_campaign=annual_interest#contact-form",
+    trackingAction: "request_beta_access",
+    trackingLocation: "plan_academic_year",
   },
 ];
 
@@ -131,7 +137,7 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <a href={plan.href} data-marketing-event="cta_click" data-marketing-page="pricing" data-marketing-location={plan.name} className={`mt-8 inline-flex items-center justify-center gap-2 rounded-radius-md px-4 py-3 text-sm font-semibold transition-colors ${plan.featured ? "bg-white text-primary-700 hover:bg-primary-50" : "bg-primary-600 text-text-on-primary hover:bg-primary-700"}`}>
+                  <a href={plan.href} data-marketing-event="cta_click" data-marketing-page="pricing" data-marketing-location={plan.trackingLocation} data-marketing-cta={plan.trackingAction} className={`mt-8 inline-flex items-center justify-center gap-2 rounded-radius-md px-4 py-3 text-sm font-semibold transition-colors ${plan.featured ? "bg-white text-primary-700 hover:bg-primary-50" : "bg-primary-600 text-text-on-primary hover:bg-primary-700"}`}>
                     {plan.cta}<ArrowRightIcon className="size-4" aria-hidden="true" />
                   </a>
                 </article>
@@ -173,7 +179,7 @@ export default function PricingPage() {
             <div className="mx-auto max-w-3xl rounded-radius-2xl border border-border-subtle bg-surface p-8 text-center sm:p-12">
               <h2 className="font-serif text-3xl font-semibold sm:text-4xl">See your own course appear first.</h2>
               <p className="mx-auto mt-5 max-w-xl text-base/7 text-text-secondary">Join the closed beta, try the limited first import, and tell us what is worth paying for before pricing is locked.</p>
-              <a href="/register?utm_source=pricing&utm_medium=bottom_cta&utm_campaign=free_canvas_import" data-marketing-event="cta_click" data-marketing-page="pricing" data-marketing-location="bottom" className="mt-8 inline-flex items-center gap-2 rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary hover:bg-primary-700">
+              <a href="/contact?utm_source=pricing&utm_medium=bottom_cta&utm_campaign=launch_beta#contact-form" data-marketing-event="cta_click" data-marketing-page="pricing" data-marketing-location="bottom" data-marketing-cta="request_beta_access" className="mt-8 inline-flex items-center gap-2 rounded-radius-md bg-primary-600 px-5 py-3 text-sm font-semibold text-text-on-primary hover:bg-primary-700">
                 Join the beta free<ArrowRightIcon className="size-4" aria-hidden="true" />
               </a>
             </div>

@@ -32,10 +32,10 @@ export const AGENT_RESOURCE_PATHS = [
 ];
 
 export const agentFacts = [
-  "OghmaNotes is an AI-enhanced study platform for university students.",
-  "It combines Markdown notes, PDF ingestion, cited RAG chat, semantic search, adaptive quizzes, spaced-repetition flashcards, Canvas LMS sync, and assignment tracking.",
-  "The primary audience is students who study from lecture notes, PDFs, readings, Canvas course material, and deadlines.",
-  "The primary conversion path is account creation for students, with contact routes for beta access, support, billing, partnerships, and campus pilots.",
+  "OghmaNotes is a Canvas-connected study workspace for university students.",
+  "It brings supported course structure, files, assignments, and deadlines into the same workspace as notes, cited answers, flashcards, and planning.",
+  "Canvas access depends on the institution, account permissions, and available APIs; imports and indexing may take time.",
+  "OghmaNotes is an independent beta product built by students at University of Galway. It is not an official university or Canvas service.",
 ];
 
 export const agentActions = [
@@ -269,7 +269,9 @@ export function getAgentResourceUrls(baseUrl = getBaseUrl()) {
 export function buildCompactAgentMarkdown(baseUrl = getBaseUrl()) {
   return `# OghmaNotes
 
-Study workspace for university students: notes, PDF/Canvas import, cited AI chat, search, quizzes, flashcards, and coursework.
+OghmaNotes is a Canvas-connected study workspace for university students. It keeps supported course material, deadlines, cited answers, notes, flashcards, and planning connected, without rebuilding the course in separate tools.
+
+Canvas access depends on the institution, account permissions, and available APIs; imports and indexing may take time. OghmaNotes is an independent closed-beta product, paid checkout is disabled, and it is not an official University of Galway or Canvas service.
 
 ## Register A New User As An Agent
 
@@ -296,28 +298,22 @@ export function buildPricingMarkdown(baseUrl = getBaseUrl()) {
 
 Website: ${baseUrl}
 Canonical pricing page: ${baseUrl}/pricing
-Full AI profile: ${baseUrl}/ai.md
-Last updated: 2026-07-09
+Full agent guide: ${baseUrl}/agents.md
+Last updated: 2026-07-20
 
-## Pricing Summary
+## Current status
 
-| Tier | Price | Summary |
+OghmaNotes is in closed beta. Paid checkout is not enabled, and final prices, allowances, renewal terms, and processing limits have not been set.
+
+| Plan | Current planning range | Intended use |
 | --- | --- | --- |
-| Free | EUR 0 | Basic notes, study tools, and limited AI usage while trying OghmaNotes. |
-| Standard | EUR 10 / month | Full study workflow for active students: imports, semantic search, chat, quizzes, and flashcards. |
-| Premium | EUR 18 / month | Higher usage limits for students with heavier course loads and larger document libraries. |
+| Free first import | EUR 0 | A limited Canvas or one-module import, manual notes, a small AI allowance, spaced repetition, limited storage, and one vault. |
+| Semester | EUR 39–49 | Current-course Canvas sync, cited search and chat, flashcards, planning tools, larger storage, and standard processing. |
+| Academic year | EUR 79–89 | A possible future full-year option. Checkout remains disabled until demand and limits are understood. |
 
-Paid checkout is being rolled out during the launch period. Users should check ${baseUrl}/pricing for current terms before purchasing.
+These are planning ranges, not checkout offers or contractual entitlements. Exact import and AI limits must be shown before processing or payment.
 
-## Buyer Fit
-
-- Free: students evaluating OghmaNotes or keeping a small notes workspace.
-- Standard: active students who want the full notes, import, search, chat, quiz, and flashcard workflow.
-- Premium: students with heavier course loads, larger document libraries, or higher AI usage needs.
-
-## Contact
-
-For beta access, billing questions, student groups, partnerships, or campus pilots, use ${baseUrl}/contact or email contact@oghmanotes.ie.
+For beta access or pricing questions, use ${baseUrl}/contact.
 `;
 }
 
@@ -328,31 +324,35 @@ Website: ${baseUrl}
 Full AI profile: ${baseUrl}/ai.md
 Pricing: ${baseUrl}/pricing
 Contact: ${baseUrl}/contact
-Last updated: 2026-07-09
+Last updated: 2026-07-20
 
 ## What is OghmaNotes?
 
-OghmaNotes is a RAG-powered study platform for university students. It combines Markdown notes, semantic search, cited AI chat, adaptive quizzes, spaced-repetition flashcards, Canvas LMS sync, and calendar-based coursework workflows.
+OghmaNotes is a Canvas-connected study workspace. It brings supported course material and deadlines into the same place as cited answers, notes, flashcards, and planning.
 
-## Who should use OghmaNotes?
+## What can it import from Canvas?
 
-Students who study from lecture notes, PDFs, readings, Canvas course pages, assignments, and deadlines. It is also relevant for student groups, lecturers, and campus teams evaluating AI-supported study workflows.
+Supported courses, files, assignments, and deadlines, where the institution, account permissions, and Canvas APIs allow it. Imports and indexing may take time.
 
-## Does OghmaNotes answer from my own notes?
+## How is it different from document-upload tools?
 
-Yes. Its RAG workflow retrieves relevant material from the student's own notes and uploaded documents so answers can be grounded in course material.
+Document tools begin after a student gathers and uploads sources. OghmaNotes begins with the supported Canvas course structure and keeps it connected to the study workflow.
 
-## Does OghmaNotes support Canvas?
+## Can it answer from my course material?
 
-Yes. OghmaNotes includes Canvas LMS integration for courses, assignments, files, and deadline workflows.
+Yes, after material has been indexed. Answers include citations, but AI can be wrong, so important answers should be checked against course sources and official guidance.
 
-## Can OghmaNotes generate quizzes and flashcards?
+## Can it make flashcards?
 
-Yes. OghmaNotes can generate adaptive quiz questions and spaced-repetition flashcards from study material.
+Yes. It can generate flashcards from indexed study material and support spaced-repetition review. Generated material can be wrong and should be checked.
 
 ## Is OghmaNotes free?
 
-OghmaNotes has a free launch tier. Paid launch tiers are listed at ${baseUrl}/pricing.
+OghmaNotes is in closed beta and paid checkout is disabled. A free first import and EUR 39–49 semester and EUR 79–89 academic-year planning ranges are provisional, not checkout offers.
+
+## Is it affiliated with Canvas or University of Galway?
+
+No. OghmaNotes is an independent beta product built by students at University of Galway. It is not an official university or Canvas service.
 
 ## Can agents act on behalf of a user?
 
@@ -363,7 +363,9 @@ Agents may summarize public product information and help navigate the site. They
 export function buildAgentMarkdown(baseUrl = getBaseUrl()) {
   return `# OghmaNotes Agent Guide
 
-OghmaNotes is a university study workspace for notes, PDF/Canvas import, cited AI chat, search, quizzes, flashcards, and coursework.
+OghmaNotes is a Canvas-connected study workspace for university students. It keeps supported course material, deadlines, cited answers, notes, flashcards, and planning connected, without rebuilding the course in separate tools.
+
+Canvas access depends on the institution, account permissions, and available APIs. Imports and indexing may take time. OghmaNotes is in closed beta, and paid checkout is not enabled.
 
 ## Quick Route Matrix
 
@@ -385,7 +387,7 @@ OghmaNotes is a university study workspace for notes, PDF/Canvas import, cited A
 - Contact: use the visible [contact form](${baseUrl}/contact) with approval.
 - API details: use [OpenAPI](${baseUrl}/openapi.json); do not guess fields.
 
-OghmaNotes does not guarantee grades or replace lecturers. Check AI answers against course sources.
+AI answers and generated study material can be wrong. Check important answers against course sources and official guidance. OghmaNotes does not guarantee grades or replace lecturers.
 `;
 }
 
@@ -570,7 +572,7 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
     openapi: "3.1.0",
     info: {
       title: "OghmaNotes Agent Action Guide",
-      version: "2026-07-09",
+      version: "2026-07-20",
       summary:
         "Structured public and authenticated action contracts for agents helping humans use OghmaNotes.",
       description:
@@ -1423,7 +1425,7 @@ export function agentMarkdownHeaders(
 }
 
 export function buildAgentSitemapXml(baseUrl = getBaseUrl()) {
-  const lastModified = "2026-07-09";
+  const lastModified = "2026-07-20";
   const urls = getAgentResourceUrls(baseUrl);
 
   return `<?xml version="1.0" encoding="UTF-8"?>

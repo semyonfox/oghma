@@ -62,13 +62,14 @@ describe("agent-readable content routes", () => {
       "https://oghmanotes.ie/llms.txt",
     );
     expect(text).toContain("# OghmaNotes");
-    expect(text).toContain("Study workspace for university students");
+    expect(text).toContain("Canvas-connected study workspace");
     expect(text).toContain("[OpenAPI](https://oghmanotes.ie/openapi.json)");
     expect(text).toContain("## Register A New User As An Agent");
     expect(text).toContain("POST https://oghmanotes.ie/agent/identity");
     expect(text).toContain("claim.verification_uri");
     expect(text.length).toBeLessThan(1500);
     expect(fullText).toContain("# OghmaNotes Agent Guide");
+    expect(await aiMarkdown().text()).toBe(fullText);
     expect(fullText.length).toBeLessThan(2500);
     expect(fullText).toBe(agentText);
     expect(text).not.toBe(fullText);
@@ -95,8 +96,30 @@ describe("agent-readable content routes", () => {
     expect(faq).toContain("# OghmaNotes FAQ");
     expect(faq).toContain("## What is OghmaNotes?");
     expect(pricing).toContain("# OghmaNotes Pricing");
-    expect(pricing).toContain("| Standard | EUR 10 / month |");
+    expect(pricing).toContain("closed beta");
+    expect(pricing).toContain("Paid checkout is not enabled");
+    expect(pricing).toContain("| Free first import | EUR 0 |");
+    expect(pricing).toContain("| Semester | EUR 39–49 |");
+    expect(pricing).toContain("| Academic year | EUR 79–89 |");
+    expect(pricing).not.toMatch(/EUR 10 \/ month|EUR 18 \/ month|Standard|Premium/);
     expect(faq).not.toBe(pricing);
+  });
+
+  it("keeps public machine copy within product claim boundaries", async () => {
+    const compact = await infoMarkdown().text();
+    const full = await agentsMarkdown().text();
+    const faq = await faqMarkdown().text();
+    const pricing = await pricingMarkdown().text();
+    const allCopy = [compact, full, faq, pricing].join("\n");
+
+    expect(allCopy).toContain("Canvas access depends on the institution");
+    expect(allCopy).toContain("AI answers and generated study material can be wrong");
+    expect(allCopy).toContain("closed beta");
+    expect(allCopy).toContain("not an official university or Canvas service");
+    expect(allCopy).toContain("Paid checkout is not enabled");
+    expect(allCopy).not.toMatch(
+      /available feedback|automatic (?:exam|revision) plan|unlimited (?:AI|storage|use)|official University of Galway service/i,
+    );
   });
 
   it("serves an agent sitemap with machine-readable resources", async () => {

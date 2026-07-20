@@ -9,14 +9,12 @@ import "./globals.css";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-dm-sans",
 });
 
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
   display: "swap",
   variable: "--font-source-serif",
 });
@@ -28,7 +26,7 @@ export const metadata = {
     template: "%s | OghmaNotes",
   },
   description:
-    "AI-enhanced study platform for university students with semantic notes, cited RAG chat, adaptive quizzes, spaced repetition, PDF ingestion, and Canvas LMS sync.",
+    "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
   metadataBase: new URL("https://oghmanotes.ie"),
   alternates: {
     canonical: "/",
@@ -72,7 +70,7 @@ export const metadata = {
   openGraph: {
     title: "OghmaNotes",
     description:
-      "AI-enhanced study platform with semantic notes, cited RAG chat, Canvas sync, adaptive quizzes, and spaced repetition.",
+      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
     url: "https://oghmanotes.ie",
     siteName: "OghmaNotes",
     locale: "en_IE",
@@ -90,7 +88,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "OghmaNotes",
     description:
-      "AI-enhanced study platform for notes, PDFs, cited RAG chat, quizzes, flashcards, and Canvas sync.",
+      "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
     images: ["/notes-screenshot.png"],
   },
 };
