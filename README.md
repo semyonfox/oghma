@@ -1,20 +1,48 @@
 # OghmaNotes
 
-OghmaNotes is a study workspace that turns notes, files, and Canvas LMS content into a searchable learning system.
+A full-stack learning workspace for student notes, uploaded files and Canvas LMS material. It separates request-serving work from long-running ingestion and retrieval workloads so imported content can become searchable without blocking the main application.
 
-## What it does
+> **Project provenance:** OghmaNotes began as a University of Galway team project by Samuel Regan, Semyon Fox and Shreyansh Singh. Its editor foundation incorporates MIT-licensed Notea components; see the repository attribution and licence material.
 
-- Organises notes and folders with Markdown and rich-text editing
-- Imports Canvas courses, files, and assignments in background jobs
-- Searches notes and extracted documents with keyword and semantic retrieval
-- Answers questions with citations to the user's own material
-- Generates quizzes and FSRS-based flashcard reviews
-- Tracks assignments, study blocks, Pomodoro sessions, and calendar exports
-- Imports and exports Markdown/Obsidian-style vaults
+## Engineering highlights
 
-## Run it locally
+- **Asynchronous ingestion:** a dedicated Node worker processes Canvas imports, file extraction, indexing and vault import/export jobs through Redis and BullMQ.
+- **Retrieval architecture:** PostgreSQL holds relational ownership and content metadata; Qdrant stores vectors for scoped semantic search and retrieval-augmented chat.
+- **Durable chat delivery:** background generation, persisted conversation state and replayable streamed events support reconnecting clients.
+- **Student workflows:** notes, files, Markdown/rich-text editing, semantic search, cited chat, quizzes and FSRS review, assignments and vault import/export.
+- **Deployment discipline:** Dockerized application and worker images, Jenkins build/test/migration/health-check stages, and documented development/production environments behind Cloudflare tunnels.
+- **Reproducible verification:** unit, integration and Playwright suites; isolated local services and deterministic fake-AI fixtures for development and end-to-end tests.
 
-The supported self-contained path uses disposable mock services and synthetic data:
+## Architecture
+
+```text
+Browser
+  │
+  ▼
+Next.js application ───────────────► PostgreSQL (ownership, metadata, state)
+  │                                  Qdrant (vector retrieval)
+  │                                  S3-compatible storage (files)
+  ▼
+Redis / BullMQ ───► Node worker ───► Canvas, extraction/OCR, AI providers
+```
+
+The application owns user-facing requests and durable relational state. The worker handles slow or retryable work; vector retrieval and object storage remain separate from the primary relational model.
+
+## Technology
+
+| Area | Technology |
+| --- | --- |
+| Application | Next.js, React, TypeScript |
+| Data and retrieval | PostgreSQL, Qdrant, pgvector-compatible workflows |
+| Async processing | Redis, BullMQ, Node worker |
+| Files | S3-compatible object storage |
+| AI pipeline | Configurable LLM, embedding, rerank and optional OCR providers |
+| Delivery | Docker, Jenkins, Cloudflare Tunnel |
+| Validation | Vitest, Playwright, ESLint, GitHub Actions |
+
+## Run locally
+
+The repository supports a disposable local stack with PostgreSQL, Redis, Qdrant, object storage and a deterministic fake AI provider.
 
 ```bash
 npm install
@@ -24,29 +52,18 @@ npm run mock:seed
 npm run dev:mock
 ```
 
-Open `http://127.0.0.1:3311`. See [SETUP.md](SETUP.md) for the test login, real-service configuration, worker commands, and cleanup.
+See [SETUP.md](./SETUP.md) for provider configuration, worker commands and environment details.
 
-## Architecture at a glance
+## Validation
 
-- Next.js 16 and React 19 provide the web app and API routes.
-- PostgreSQL stores relational data; Qdrant stores chunk vectors.
-- S3-compatible object storage holds notes, uploads, and exports.
-- Redis and BullMQ run the current background queues behind a provider abstraction.
-- A separate worker handles Canvas imports, extraction, indexing, and vault jobs.
-
-Production and development currently run on the homelab Docker/Jenkins stack described in [infra/HOMELAB.md](infra/HOMELAB.md). Future hosting decisions belong in [infra/TARGET_HOSTING.md](infra/TARGET_HOSTING.md), not in this overview.
+```bash
+npm run lint
+npm run test:ci
+npm run test:integration
+npm run e2e:smoke
+npm run build
+```
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md). The main entry points are:
-
-- [Product roadmap](docs/product/roadmap.md)
-- [Launch checklist](docs/product/launch-checklist.md)
-- [Current architecture](docs/engineering/architecture.md)
-- [Current operations](infra/README.md)
-
-Repository operating rules for coding agents live in [AGENTS.md](AGENTS.md).
-
-## Credits
-
-OghmaNotes began as a University of Galway team project by Samuel Regan, Semyon Fox, and Shreyansh Singh. Its editor foundation is based on the MIT-licensed Notea project.
+Start with [docs/README.md](./docs/README.md) for the canonical documentation map. The most relevant technical references are the [architecture](./docs/engineering/architecture.md), [import pipeline](./docs/engineering/import-pipeline.md) and [deployment/operations](./infra/HOMELAB.md) documents.
