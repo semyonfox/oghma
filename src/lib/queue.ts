@@ -282,7 +282,7 @@ export async function enqueueExtractRetryJob(
   delaySeconds: number,
 ): Promise<void> {
   if (getQueueProvider() === "cloudflare") {
-    await sendCloudflareQueueMessage(EXTRACT_RETRY_QUEUE, {
+    await sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
       body: { type: "extract-retry", ...data },
       content_type: "json",
       delay_seconds: delaySeconds,
@@ -290,7 +290,7 @@ export async function enqueueExtractRetryJob(
     return;
   }
 
-  await getExtractRetryQueue().add(
+  await getCanvasImportQueue().add(
     "extract-retry",
     { type: "extract-retry", ...data },
     { ...DEFAULT_OPTS, delay: delaySeconds * 1000 },

@@ -18,6 +18,7 @@ import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
 import { recordActivationMilestone } from "../marketing/events.ts";
+import { dispatchFairCanvasFiles } from "./import-scheduler.ts";
 import {
   cloneImportedPdfCacheToNote,
   canvasFileSource,
@@ -684,6 +685,10 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
     } catch {}
     await checkAndCompleteJob(jobId, userId);
     return false;
+  } finally {
+    await dispatchFairCanvasFiles(1).catch((dispatchError) => {
+      console.error("Failed to release next fair import file:", dispatchError);
+    });
   }
 }
 

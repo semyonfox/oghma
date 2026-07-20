@@ -18,7 +18,7 @@ names, tuning values, and live troubleshooting belong in the
 3. Files are downloaded and deduplicated, note/tree rows are created, and binary objects are stored through the S3-compatible provider.
 4. Extraction uses supported text parsers and optional Marker OCR. Extraction coverage records whether the result is partial.
 5. Text is normalized, chunked, and embedded. Chunk text stays in PostgreSQL; vectors are upserted to Qdrant.
-6. Job and per-file status rows drive UI progress. Extraction failures may enter the delayed `extract-retry` lane.
+6. Job and per-file status rows drive UI progress. Extraction failures re-enter the shared import lane after a delayed retry backoff.
 
 Files can appear before semantic indexing completes. Product copy must distinguish visible material from search/chat-ready material.
 
@@ -56,7 +56,7 @@ embedding model plus the current cache format version.
 
 [`src/lib/queue.ts`](../../src/lib/queue.ts) owns the provider switch:
 
-- **BullMQ** is the default and current homelab provider. Redis carries environment-prefixed `canvas-import` and `extract-retry` queues.
+- **BullMQ** is the default and current homelab provider. New work, including delayed extraction retries, uses the environment-prefixed `canvas-import` queue. The `extract-retry` consumer remains temporarily for messages created before the fairness rollout.
 - **Cloudflare Queues** is implemented as an alternate HTTP publish/pull provider selected by `QUEUE_PROVIDER=cloudflare`. It is the target migration path, not the assumed live value.
 - The same Node worker dispatches both providers and retains a PostgreSQL
   poller that reclaims Canvas import/sync discovery jobs whose enqueue was
@@ -67,6 +67,15 @@ Default BullMQ jobs use three attempts with exponential backoff. Vault import
 and export enqueue sites override this to one attempt; in particular, a
 partial vault-import retry is not yet idempotent and can create duplicate
 notes.
+
+Canvas discovery does not fan every file directly into the provider queue.
+Pending files pass through a provider-neutral scheduler using smooth weighted
+round robin across `free`, `semester`, and `academic_year` service classes with
+weights 1:3:5. Within a class, the least-recently served eligible user goes
+next, and each user has at most one dispatched file at a time. This preserves a
+paid queue advantage without allowing one large import or one class to starve
+the rest. `app.login.import_service_class` is local entitlement state and
+defaults to `free`.
 
 ## Concurrency and timing
 

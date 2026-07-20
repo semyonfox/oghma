@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const queueAdd = vi.hoisted(() => vi.fn());
 const queueConstructor = vi.hoisted(() =>
   vi.fn().mockImplementation(function QueueMock() {
     return {
-      add: vi.fn(),
+      add: queueAdd,
       addBulk: vi.fn(),
     };
   }),
@@ -30,7 +31,26 @@ describe("BullMQ queue prefixing", () => {
     vi.unstubAllEnvs();
     vi.resetModules();
     queueConstructor.mockClear();
+    queueAdd.mockClear();
     redisConstructor.mockClear();
+  });
+
+  it("puts delayed extraction retries on the shared Canvas queue", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+
+    const { enqueueExtractRetryJob } = await import("@/lib/queue");
+    await enqueueExtractRetryJob({ noteId: "note-1" }, 120);
+
+    expect(queueConstructor).toHaveBeenCalledTimes(1);
+    expect(queueConstructor).toHaveBeenCalledWith(
+      "oghma-dev-canvas-import",
+      expect.objectContaining({ connection: expect.anything() }),
+    );
+    expect(queueAdd).toHaveBeenCalledWith(
+      "extract-retry",
+      { type: "extract-retry", noteId: "note-1" },
+      expect.objectContaining({ delay: 120_000 }),
+    );
   });
 
   it("uses QUEUE_PREFIX in the queue names shared by producers and workers", async () => {

@@ -38,8 +38,16 @@ should not bypass it with provider-specific calls.
 
 The Canvas queue handles `canvas-discover`, `canvas-file`, `extract`,
 `marker-complete`, `vault-import`, `vault-export`, and the legacy
-`canvas-import` job name retained for in-flight compatibility. The retry queue
-handles delayed extraction retries.
+`canvas-import` job name retained for in-flight compatibility. New delayed
+extraction retries return to the Canvas queue so fresh and retried work share
+worker capacity. The retry queue consumer remains enabled to drain messages
+created before this change.
+
+Canvas per-file work is released by a database-backed weighted fair scheduler.
+The `free`, `semester`, and `academic_year` service classes receive 1:3:5
+shares, users rotate within a class, and only one file per user is dispatched
+at once. Paid entitlement comes from verified local
+`app.login.import_service_class` state.
 
 The worker also polls the database as a safety net for Canvas import/sync
 discovery jobs that were accepted but not enqueued cleanly. It cannot recreate
@@ -152,6 +160,14 @@ SELECT status, COUNT(*)
   FROM app.canvas_import_jobs
  GROUP BY status
  ORDER BY status;
+
+SELECT COALESCE(l.import_service_class, 'free') AS service_class,
+       COUNT(*) FILTER (WHERE ci.status = 'pending' AND ci.dispatched_at IS NULL) AS waiting,
+       COUNT(*) FILTER (WHERE ci.dispatched_at IS NOT NULL AND ci.status IN ('pending', 'downloading', 'processing', 'indexing')) AS active
+  FROM app.canvas_imports ci
+  JOIN app.login l ON l.user_id = ci.user_id
+ GROUP BY 1
+ ORDER BY 1;
 ```
 
 ## Dev Smoke Test
