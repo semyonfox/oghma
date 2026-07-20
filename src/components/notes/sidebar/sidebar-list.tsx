@@ -5,15 +5,14 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import React, { memo, useMemo, useState, useCallback } from "react";
+import React, { memo, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
 import {
   ArrowPathIcon,
-  ArrowsPointingInIcon,
+  ArrowUpTrayIcon,
   DocumentPlusIcon,
-  EllipsisHorizontalIcon,
   FolderPlusIcon,
   TrashIcon,
   XMarkIcon,
@@ -26,7 +25,6 @@ import {
 import "react-complex-tree/lib/style.css";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
-import CreateNoteModal from "@/components/notes/create-note-modal";
 import { useTreeData } from "./use-tree-data";
 import { DeleteConfirmTarget, useSidebarActions } from "./use-sidebar-actions";
 import {
@@ -45,28 +43,16 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId, refreshTree } =
+  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId } =
     useNoteTreeStore();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] =
     useState<DeleteConfirmTarget>(null);
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(
     null,
   );
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefreshTree = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshTree();
-    } catch (error) {
-      console.error("Failed to refresh filetree:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [refreshTree]);
 
   // active note from URL
   const activeId = useMemo(() => {
@@ -87,12 +73,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     handleExpandItem,
     handleCollapseItem,
     onMissingItems,
-    handleCreateNote,
-    handleCreateFolderFromModal,
     handleQuickNewNote,
     handleQuickNewFolder,
     handleUploadFiles,
-    handleCollapseAll,
     handleRename,
     handleDeleteRequest,
     handleBulkDeleteRequest,
@@ -250,37 +233,24 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             </button>
             <button
               type="button"
-              onClick={handleCollapseAll}
+              onClick={() => uploadInputRef.current?.click()}
               className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
-              title={t("Collapse all")}
-              aria-label={t("Collapse all")}
+              title={t("Upload")}
+              aria-label={t("Upload")}
             >
-              <ArrowsPointingInIcon className="h-4 w-4" aria-hidden="true" />
+              <ArrowUpTrayIcon className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              onClick={handleRefreshTree}
-              disabled={isRefreshing}
-              className={`flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5 ${
-                isRefreshing ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              title={t("Refresh filetree")}
-              aria-label={t("Refresh filetree")}
-            >
-              <ArrowPathIcon
-                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
-              title={t("More options")}
-              aria-label={t("More options")}
-            >
-              <EllipsisHorizontalIcon className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = "";
+                if (files.length > 0) void handleUploadFiles(files);
+              }}
+            />
           </div>
         </div>
 
@@ -453,14 +423,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </ControlledTreeEnvironment>
         </div>
       </section>
-
-      <CreateNoteModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onCreateNote={handleCreateNote}
-        onCreateFolder={handleCreateFolderFromModal}
-        onUploadFiles={handleUploadFiles}
-      />
 
       <NoteContextMenu
         onRename={handleRename}
