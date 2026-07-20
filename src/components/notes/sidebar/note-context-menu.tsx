@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
+import {
+  DocumentPlusIcon,
+  FolderPlusIcon,
+  PencilSquareIcon,
+  Square2StackIcon,
+  TrashIcon,
+  ViewColumnsIcon,
+} from "@heroicons/react/24/outline";
 
 interface NoteContextMenuPortalProps {
   onRename: (id: string) => void;
@@ -133,89 +141,26 @@ export default function NoteContextMenuPortal({
   };
   const isMultiSelectMenu = selectedCount > 1;
 
-  // svg icons inline for crisp rendering
   const icons = {
     pin: (
       <svg
-        className="w-3.5 h-3.5"
+        className="h-3.5 w-3.5"
         viewBox="0 0 20 20"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
+        aria-hidden="true"
       >
         <path d="M11.5 3.5l5 5-3 3-1-1-4 4-2.5-2.5 4-4-1-1-3 3" />
         <path d="M6 14l-2.5 2.5" />
       </svg>
     ),
-    rename: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M13.586 3.586a2 2 0 112.828 2.828l-9.5 9.5-3.5 1 1-3.5 9.172-9.828z" />
-      </svg>
-    ),
-    duplicate: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <rect x="5" y="5" width="11" height="11" rx="1" />
-        <path d="M4 15V4a1 1 0 011-1h11" />
-      </svg>
-    ),
-    newNote: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M4 4h8l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
-        <path d="M12 4v4h4" />
-      </svg>
-    ),
-    newFolder: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M3 5a1 1 0 011-1h4l2 2h6a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5z" />
-      </svg>
-    ),
-    split: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <rect x="2" y="3" width="16" height="14" rx="1" />
-        <line x1="10" y1="3" x2="10" y2="17" />
-      </svg>
-    ),
-    trash: (
-      <svg
-        className="w-3.5 h-3.5"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M5 6h10M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6" />
-      </svg>
-    ),
+    rename: <PencilSquareIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    duplicate: <Square2StackIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    newNote: <DocumentPlusIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    newFolder: <FolderPlusIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    split: <ViewColumnsIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    trash: <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />,
   };
 
   return createPortal(

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import LanguageSelector from "@/components/common/language-selector";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -144,26 +144,10 @@ export default function AccountSection({
                 onClick={() => avatarInputRef.current?.click()}
               >
                 {isUploadingAvatar && (
-                  <svg
-                    className="animate-spin size-4"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
+                  <ArrowPathIcon
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 )}
                 {isUploadingAvatar ? t("Uploading...") : t("Change avatar")}
               </button>

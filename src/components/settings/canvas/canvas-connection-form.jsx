@@ -1,6 +1,9 @@
 "use client";
 
-import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 export default function CanvasConnectionForm({
@@ -19,19 +22,10 @@ export default function CanvasConnectionForm({
       {/* expired / invalid token warning */}
       {connectionWarning && (
         <div className="flex items-center gap-2 rounded-radius-md bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400 ring-1 ring-yellow-500/20">
-          <svg
+          <ExclamationTriangleIcon
             className="size-4 shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-            />
-          </svg>
+            aria-hidden="true"
+          />
           {connectionWarning}
         </div>
       )}

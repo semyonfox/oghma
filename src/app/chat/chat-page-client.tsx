@@ -44,8 +44,19 @@ interface ContextItem {
 
 function PushPinIcon({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m8 3 1.5 2v5L7 13v1h10v-1l-2.5-3V5L16 3H8Zm4 11v7" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m8 3 1.5 2v5L7 13v1h10v-1l-2.5-3V5L16 3H8Zm4 11v7"
+      />
     </svg>
   );
 }

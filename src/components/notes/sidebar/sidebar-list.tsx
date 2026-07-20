@@ -9,7 +9,15 @@ import React, { memo, useMemo, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
-import { TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowsPointingInIcon,
+  DocumentPlusIcon,
+  EllipsisHorizontalIcon,
+  FolderPlusIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import {
   ControlledTreeEnvironment,
   Tree,
@@ -215,105 +223,63 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             {t("Notes")}
           </span>
           {!initLoaded && (
-            <svg
-              className="animate-spin h-3 w-3 text-text-tertiary mr-1"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
+            <ArrowPathIcon
+              className="mr-1 h-3 w-3 animate-spin text-text-tertiary"
+              aria-hidden="true"
+            />
           )}
           {/* action buttons - always visible */}
           <div className="flex items-center gap-0.5">
             <button
+              type="button"
               onClick={handleQuickNewNote}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
               title={t("New note")}
+              aria-label={t("New note")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 4h8l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
-                <path d="M12 4v4h4" />
-              </svg>
+              <DocumentPlusIcon className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
+              type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
               title={t("New folder")}
+              aria-label={t("New folder")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M3 5a1 1 0 011-1h4l2 2h6a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5z" />
-                <path d="M10 9v4M8 11h4" />
-              </svg>
+              <FolderPlusIcon className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
+              type="button"
               onClick={handleCollapseAll}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
               title={t("Collapse all")}
+              aria-label={t("Collapse all")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 8l6-4 6 4M4 12l6 4 6-4" />
-              </svg>
+              <ArrowsPointingInIcon className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
+              type="button"
               onClick={handleRefreshTree}
               disabled={isRefreshing}
-              className={`flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5 ${
+              className={`flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5 ${
                 isRefreshing ? "opacity-50 cursor-not-allowed" : ""
               }`}
               title={t("Refresh filetree")}
+              aria-label={t("Refresh filetree")}
             >
-              <svg
-                className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 10a6 6 0 1010.5-5.5M10 3V1m0 2V1" />
-              </svg>
+              <ArrowPathIcon
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
             </button>
             <button
+              type="button"
               onClick={() => setIsModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
               title={t("More options")}
+              aria-label={t("More options")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-              </svg>
+              <EllipsisHorizontalIcon className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>

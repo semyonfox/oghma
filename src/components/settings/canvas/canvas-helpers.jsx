@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  CheckCircleIcon as HeroCheckCircleIcon,
+  ChevronDownIcon as HeroChevronDownIcon,
+} from "@heroicons/react/24/outline";
+
 // localStorage keys
 export const LS_SELECTED = "canvas_selected_courses";
 export const LS_ERRORS = "canvas_course_errors";
@@ -7,41 +12,16 @@ export const LS_ACTIVE_JOB = "canvas_active_job";
 export const LS_FORBIDDEN = "canvas_forbidden_courses";
 export const LS_SYNCED = "canvas_synced_courses";
 
-/** Inline SVG check */
 export function CheckCircleIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
-      />
-    </svg>
-  );
+  return <HeroCheckCircleIcon className={className} aria-hidden="true" />;
 }
 
-/** Inline SVG chevron down */
 export function ChevronDownIcon({ className, open }) {
   return (
-    <svg
+    <HeroChevronDownIcon
       className={`${className} transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-      />
-    </svg>
+      aria-hidden="true"
+    />
   );
 }
 

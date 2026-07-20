@@ -2,6 +2,14 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { NoteModel } from "@/lib/notes/types/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import {
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
+  ChevronRightIcon,
+  DocumentIcon,
+  EllipsisHorizontalIcon,
+  PlusIcon,
+} from "@heroicons/react/24/outline";
 
 const INDENT_PX = 14;
 
@@ -160,45 +168,20 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             }}
           >
             {isLoading ? (
-              <svg
-                className="w-3 h-3 animate-spin text-text-tertiary"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
+              <ArrowPathIcon
+                className="h-3 w-3 animate-spin text-text-tertiary"
+                aria-hidden="true"
+              />
             ) : isFolder ? (
-              <svg
-                className={`w-[10px] h-[10px] text-text-tertiary transition-transform duration-100 ${isExpanded ? "rotate-90" : ""}`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <ChevronRightIcon
+                className={`h-3 w-3 text-text-tertiary transition-transform duration-100 ${isExpanded ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              />
             ) : (
-              <svg
-                className="w-1 h-1 text-text-tertiary/50"
-                viewBox="0 0 6 6"
-                fill="currentColor"
-              >
-                <circle cx="3" cy="3" r="2.5" />
-              </svg>
+              <DocumentIcon
+                className="h-3.5 w-3.5 text-text-tertiary"
+                aria-hidden="true"
+              />
             )}
           </span>
 
@@ -252,56 +235,35 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           {!isRenaming && (
             <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
               <button
+                type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
                 onClick={onDotsClick}
                 title={t("More actions")}
+                aria-label={t("More actions")}
                 tabIndex={-1}
               >
-                <svg
-                  className="w-3.5 h-3.5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-                </svg>
+                <EllipsisHorizontalIcon className="h-4 w-4" aria-hidden="true" />
               </button>
               <button
+                type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-primary-600/20 hover:text-primary-300 md:h-auto md:w-auto md:p-0.5"
                 onClick={onOpenInAIChat}
                 title={isFolder ? t("Chat with folder") : t("Chat with note")}
+                aria-label={isFolder ? t("Chat with folder") : t("Chat with note")}
                 tabIndex={-1}
               >
-                <svg
-                  className="w-3.5 h-3.5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="7" y="7" width="10" height="10" rx="1" />
-                  <path d="M9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3" />
-                </svg>
+                <ChatBubbleLeftRightIcon className="h-4 w-4" aria-hidden="true" />
               </button>
               {isFolder && (
                 <button
+                  type="button"
                   className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
                   onClick={onAddNote}
                   title={t("New note inside")}
+                  aria-label={t("New note inside")}
                   tabIndex={-1}
                 >
-                  <svg
-                    className="w-3.5 h-3.5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <PlusIcon className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </span>
