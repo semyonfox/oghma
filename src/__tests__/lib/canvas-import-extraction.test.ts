@@ -103,6 +103,12 @@ describe("processDirectExtraction", () => {
       }),
       expect.any(Function),
     );
+
+    const completionQuery = vi
+      .mocked(sql)
+      .mock.calls.map((call: any[]) => call[0]?.join(""))
+      .find((query: string | undefined) => query?.includes("SET status = 'done'"));
+    expect(completionQuery).toContain("chunks_stored");
   });
 });
 

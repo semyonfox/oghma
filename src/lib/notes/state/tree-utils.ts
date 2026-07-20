@@ -108,6 +108,7 @@ export interface ApiTreeItem {
   isFolder?: boolean;
   isExpanded?: boolean;
   s3Key?: string;
+  mimeType?: string;
   pinned?: NOTE_PINNED;
 }
 
@@ -126,6 +127,7 @@ export function buildTreeItemFromApi(item: ApiTreeItem): TreeItemModel {
       title: item.title ?? "Untitled",
       isFolder: item.isFolder ?? false,
       s3Key: item.s3Key ?? undefined,
+      mimeType: item.mimeType ?? undefined,
       deleted: NOTE_DELETED.NORMAL,
       shared: NOTE_SHARED.PRIVATE,
       pinned: item.pinned ?? NOTE_PINNED.UNPINNED,

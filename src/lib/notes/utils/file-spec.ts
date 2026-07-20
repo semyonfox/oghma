@@ -5,6 +5,7 @@ interface FileSource {
   title?: string | null;
   content?: string | null;
   s3Key?: string | null;
+  mimeType?: string | null;
 }
 
 const PDF_EXTENSIONS = new Set(['pdf']);
@@ -19,7 +20,12 @@ function getExtension(title?: string | null) {
   return parts.length > 1 ? parts.at(-1) || '' : '';
 }
 
-export function inferFileType(title?: string | null): FileType {
+export function inferFileType(title?: string | null, mimeType?: string | null): FileType {
+  const normalizedMimeType = mimeType?.trim().toLowerCase();
+  if (normalizedMimeType === 'application/pdf') return 'pdf';
+  if (normalizedMimeType?.startsWith('image/')) return 'image';
+  if (normalizedMimeType?.startsWith('video/')) return 'video';
+
   const extension = getExtension(title);
 
   if (PDF_EXTENSIONS.has(extension)) return 'pdf';
@@ -30,7 +36,7 @@ export function inferFileType(title?: string | null): FileType {
 }
 
 export function buildFileSpec(source: FileSource): FileSpec {
-  const fileType = inferFileType(source.title);
+  const fileType = inferFileType(source.title, source.mimeType);
   // for PDFs/media, prefer s3Key over content (Canvas imports store path in s3Key, not content)
   const sourcePath = fileType !== 'note'
     ? (source.s3Key || source.content || undefined)

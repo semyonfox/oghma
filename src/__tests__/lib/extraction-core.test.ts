@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const extractWithMarker = vi.hoisted(() => vi.fn());
+const getPdfText = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/ocr", () => ({ extractWithMarker }));
+vi.mock("pdf-parse", () => ({
+  PDFParse: class {
+    getText = getPdfText;
+  },
+}));
 
 import { extractContentFromBuffer } from "@/lib/ingestion/extraction-core";
 
@@ -17,6 +23,7 @@ describe("Marker OCR environment toggle", () => {
       metadata: null,
       pageRange: null,
     });
+    getPdfText.mockResolvedValue({ text: "CPU text layer" });
   });
 
   afterEach(() => {
@@ -51,6 +58,20 @@ describe("Marker OCR environment toggle", () => {
       expect(result.source).toBe("marker");
     },
   );
+
+  it("uses CPU PDF parsing before Marker even when Marker is enabled", async () => {
+    process.env.MARKER_OCR_ENABLED = "true";
+
+    const result = await extractContentFromBuffer({
+      buffer: Buffer.from("%PDF-1.7"),
+      filename: "lecture",
+      mimeType: "application/pdf",
+    });
+
+    expect(result.source).toBe("pdf-parse");
+    expect(result.rawText).toBe("CPU text layer");
+    expect(extractWithMarker).not.toHaveBeenCalled();
+  });
 
   it.each(["false", "0", "off", " FALSE ", "unexpected"])(
     "bypasses Marker OCR when MARKER_OCR_ENABLED=%s",

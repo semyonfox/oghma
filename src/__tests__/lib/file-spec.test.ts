@@ -36,6 +36,10 @@ describe('inferFileType', () => {
     it('handles titles with multiple dots', () => {
         expect(inferFileType('my.lecture.notes.pdf')).toBe('pdf');
     });
+
+    it('uses persisted MIME type when the title has no extension', () => {
+        expect(inferFileType('Lecture slides', 'application/pdf')).toBe('pdf');
+    });
 });
 
 describe('buildFileSpec', () => {
@@ -50,6 +54,12 @@ describe('buildFileSpec', () => {
         const spec = buildFileSpec({ id: '2', title: 'doc.pdf', content: 'fallback', s3Key: 'uploads/doc.pdf' });
         expect(spec.fileType).toBe('pdf');
         expect(spec.sourcePath).toBe('uploads/doc.pdf');
+    });
+
+    it('builds an extensionless PDF spec from attachment metadata', () => {
+        const spec = buildFileSpec({ id: '2', title: 'Lecture slides', s3Key: 'uploads/slides', mimeType: 'application/pdf' });
+        expect(spec.fileType).toBe('pdf');
+        expect(spec.sourcePath).toBe('uploads/slides');
     });
 
     it('falls back to content for media when s3Key is missing', () => {
