@@ -31,6 +31,18 @@ describe("campaign attribution", () => {
     });
   });
 
+  it("retains the deployed pricing-interest attribution", () => {
+    expect(cleanAttribution({ source: "pricing", medium: "plan_cta", campaign: "semester_beta" })).toEqual({
+      source: "pricing", medium: "plan_cta", campaign: "semester_beta",
+    });
+  });
+
+  it("retains the deployed blog beta CTA attribution", () => {
+    expect(cleanAttribution({ source: "blog", medium: "article_cta", campaign: "launch_beta" })).toEqual({
+      source: "blog", medium: "article_cta", campaign: "launch_beta",
+    });
+  });
+
   it("drops arbitrary query-derived attribution", () => {
     expect(cleanAttribution({ source: "ada@example.com", campaign: "private-medical-condition", content: "secret" })).toEqual({});
   });
@@ -64,8 +76,10 @@ describe("privacy-first marketing event boundaries", () => {
     expect(cleanNavigationOrigin("external")).toBe("external");
     expect(cleanNavigationOrigin("referrer.example")).toBeNull();
     expect(cleanNavigationPlacement("header")).toBe("header");
+    expect(cleanNavigationPlacement("plan_semester")).toBe("plan_semester");
     expect(cleanNavigationPlacement("sidebar_personal")).toBeNull();
     expect(cleanNavigationAction("connect_canvas_free")).toBe("connect_canvas_free");
+    expect(cleanNavigationAction("request_beta_access")).toBe("request_beta_access");
     expect(cleanNavigationAction("clicked-ada-profile")).toBeNull();
   });
 

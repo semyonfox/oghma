@@ -154,6 +154,7 @@ export default async function AnalyticsPage({
     { label: "Page views", value: report.summary.pageViews, icon: EyeIcon },
     { label: "Navigation", value: report.summary.navigationEvents, icon: UsersIcon },
     { label: "CTA actions", value: report.summary.ctaActions, icon: CursorArrowRaysIcon },
+    { label: "Beta interest", value: report.summary.betaInterest, icon: LinkIcon },
     { label: "Registrations", value: report.summary.registrations, icon: UserPlusIcon },
     { label: "Contact leads", value: report.summary.contactLeads, icon: LinkIcon },
   ];
@@ -207,7 +208,7 @@ export default async function AnalyticsPage({
           </div>
         </div>
 
-        <div className="mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border-subtle bg-border-subtle md:grid-cols-5">
+        <div className="mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border-subtle bg-border-subtle md:grid-cols-3 xl:grid-cols-6">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (

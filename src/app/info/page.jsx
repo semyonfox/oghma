@@ -31,10 +31,10 @@ export default function InfoPage() {
     >
       <InfoSection title="Short Answer">
         <p>
-          OghmaNotes is an AI study workspace for university students. It
-          combines Markdown notes, PDF and Canvas import, cited AI answers,
-          semantic search, adaptive quizzes, spaced-repetition flashcards, and
-          coursework tracking.
+          OghmaNotes is a Canvas-connected study workspace for university
+          students. It brings supported course material and deadlines into the
+          same workspace as notes, cited answers, flashcards, and planning,
+          reducing repeated upload and setup.
         </p>
       </InfoSection>
 

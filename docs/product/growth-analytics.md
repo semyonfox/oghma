@@ -43,6 +43,10 @@ The browser sends storage-free first-party observations to `POST /api/marketing/
 | `first_cited_answer` | chat API | first cited-answer milestone |
 | `first_flashcard_generated` | quiz generation | first generated-flashcard milestone |
 
+Pricing interest is recorded as a storage-free `navigation_transition` with action
+`request_beta_access`. The analytics summary counts that action as **Beta interest**;
+contact-form start, submission, and success remain separate downstream milestones.
+
 Authenticated milestones are idempotent through the partial unique index in migration `038_activation_milestones.sql`.
 
 ## Attribution

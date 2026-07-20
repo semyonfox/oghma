@@ -26,40 +26,10 @@ import { withErrorHandler } from "@/lib/api-error";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { registerSchema, validateBody } from "@/lib/validations/schemas";
 import { validateAgentRegistrationForSignup } from "@/lib/agent-registration";
+import { renderGettingStartedNote } from "@/lib/chat/app-guide";
 
 const GETTING_STARTED_TITLE = "Getting Started";
-const GETTING_STARTED_CONTENT = `# Welcome to OghmaNotes
-
-This note is your quick guide to getting value from the app.
-
-## What OghmaNotes is
-
-OghmaNotes is a study workspace where you can:
-
-- Write and organize Markdown notes in folders
-- Import course files from Canvas
-- Ask AI questions about your material
-- Generate study support like summaries and quizzes
-
-## How to use it
-
-1. Create notes and folders in the sidebar.
-2. Open Settings to connect/import Canvas files.
-3. Use AI Chat to ask questions about your notes.
-4. Keep related content together so search and AI results stay accurate.
-
-## Good first workflow
-
-1. Create a folder per module/course.
-2. Add weekly lecture notes.
-3. Import lecture PDFs/slides.
-4. Use AI Chat after each lecture for recap questions.
-
-## Fun fact: Who is Oghma?
-
-In Irish mythology, Oghma (or Ogma) is linked with eloquence, language, and learning, and is traditionally associated with the Ogham script.
-
-You're ready to start building your study vault.`;
+const GETTING_STARTED_CONTENT = renderGettingStartedNote();
 
 export const POST = withErrorHandler(async (request) => {
   try {

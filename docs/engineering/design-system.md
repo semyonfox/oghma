@@ -44,9 +44,13 @@ The file tree retains its deliberately dense sizing and small radius. Treat it a
 
 ## Typography and colour
 
-- DM Sans (`font-sans`) is the interface and body face.
-- Source Serif (`font-serif`) is reserved for page-level titles and intentional editorial display.
-- Prefer Tailwind's standard `text-xs` through `text-2xl` scale. Avoid new arbitrary pixel sizes.
+- Variable DM Sans (`font-sans`) is the interface and body face. Its open shapes and restrained weight range keep dense controls legible.
+- Variable Source Serif 4 (`font-serif`) is reserved for page-level titles, long-form note headings, and intentional editorial display. Chat headings stay in DM Sans because chat is compact interface content.
+- The shared Tailwind scale in `globals.css` pairs each `text-xs` through `text-7xl` size with an explicit line height. Prefer that scale; avoid new arbitrary pixel sizes and one-off line heights.
+- Long-form paragraphs target a maximum measure of `72ch`. Full-width tables, code, media, and application UI are intentional exceptions.
+- Headings use restrained negative tracking and balanced wrapping. Body copy uses normal tracking and at least 1.5 line-height where it may wrap across several lines.
+- Do not put fixed heights on text containers. The interface must tolerate the WCAG text-spacing overrides without clipping or overlap.
+- Public marketing pages use named roles: `type-display`, `type-section-title`, `type-eyebrow`, `type-lead`, `type-card-title`, and `type-body`. These roles keep hierarchy consistent across sections instead of repeating ad hoc size/weight combinations.
 - `text-text`, `text-text-secondary`, and `text-text-tertiary` form the content hierarchy.
 - Primary is **indigo** for focus and interaction; secondary teal represents learning/progress; amber identifies AI features; green and red retain success/error meaning.
 

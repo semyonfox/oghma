@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
 
 describe("tool activity display details", () => {
+  it("shows the selected app-guide topic", () => {
+    expect(toolCallDetail("getAppGuide", {
+      topic: "search-and-sources",
+    })).toBe("Search and sources");
+    expect(toolCallDetail("getAppGuide", {})).toBeUndefined();
+  });
+
   it("shows the search query without exposing result content", () => {
     expect(toolCallDetail("getChunks", { query: "invalid HTML syntax", mode: "both" }))
       .toBe("“invalid HTML syntax”");

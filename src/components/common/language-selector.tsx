@@ -104,9 +104,6 @@ export default function LanguageSelector({
           value={selectedLocale || activeLocale}
           onChange={(e) => handleLanguageChange(e.target.value as Locale)}
           className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none"
-          style={{
-            colorScheme: "dark",
-          }}
         >
           {languages.map((lang) => (
             <option key={lang.code} value={lang.code}>

@@ -31,10 +31,11 @@ const NAVIGATION_PATHS = new Set([
 const NAVIGATION_ORIGINS = new Set(["direct", "external", "internal"]);
 const NAVIGATION_PLACEMENTS = new Set([
   "header", "footer", "hero", "midpage_cta", "primary_ctas", "questions",
+  "plan_free_import", "plan_semester", "plan_academic_year", "bottom",
 ]);
 const NAVIGATION_ACTIONS = new Set([
   "nav_link", "connect_canvas_free", "compare_notebooklm", "view_semester_pricing",
-  "ask_about_beta_or_pilot", "contact_team",
+  "ask_about_beta_or_pilot", "contact_team", "join_beta_free", "request_beta_access",
 ]);
 
 const CONTACT_ROLES = new Set(["student", "lecturer", "university_staff", "partner_or_press"]);

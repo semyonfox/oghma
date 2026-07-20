@@ -9,9 +9,16 @@ export type Attribution = {
 // Attribution is a fixed campaign taxonomy, not a free-form query-string store.
 // Add a value here only when a campaign is intentionally deployed.
 const ALLOWED_UTM_VALUES: Record<keyof Attribution, ReadonlySet<string>> = {
-  source: new Set(["homepage", "ai_page", "pricing"]),
-  medium: new Set(["hero_cta", "midpage_cta", "cta"]),
-  campaign: new Set(["free_canvas_import", "semester_pricing", "campus_pilot", "launch_beta"]),
+  source: new Set(["homepage", "ai_page", "blog", "pricing"]),
+  medium: new Set(["hero_cta", "midpage_cta", "bottom_cta", "plan_cta", "article_cta", "cta"]),
+  campaign: new Set([
+    "free_canvas_import",
+    "semester_pricing",
+    "semester_beta",
+    "annual_interest",
+    "campus_pilot",
+    "launch_beta",
+  ]),
   content: new Set(),
   term: new Set(),
 };

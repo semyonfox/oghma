@@ -15,6 +15,10 @@ import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
 import {
+  APP_GUIDE_TOPIC_IDS,
+  getAppGuide,
+} from "@/lib/chat/app-guide";
+import {
   buildToolBudgetInstruction,
   buildToolBudgetControls,
   type ToolBudgetControls,
@@ -143,6 +147,7 @@ function buildToolInstruction(
   return (
     `Current date/time: ${now}\n\n` +
     "You have note and planning tools, plus optional Canvas tools. Tool schemas are provided separately — this section covers workflow and selection.\n\n" +
+    "APP HELP: For questions about using OghmaNotes, its screens, settings, capabilities, or troubleshooting, call getAppGuide before answering. Treat the guide result as the source of truth, include relevant app routes, and do not search the user's notes for product instructions unless they explicitly ask about instructions stored there.\n" +
     searchInstruction +
     "CREATE NOTE: findFolder (if parentID unknown) → makeMDNote. Skip findFolder if parentID is already known from context.\n" +
     "ORGANISE: moveNote (needs targetFolderId — use findFolder first), renameNote.\n" +
@@ -154,13 +159,22 @@ function buildToolInstruction(
   );
 }
 
-function createChatTools(
+export function createChatTools(
   userId: string,
   sessionId: string,
   scopedNoteIds: string[] | null,
   canvasTools: ToolSet,
   retrievalEnabled: boolean,
 ): { tools: ToolSet } {
+  const getAppGuideTool = tool({
+    description:
+      "Read the authoritative in-app guide for using OghmaNotes. Use for product workflows, screens, settings, capabilities, and troubleshooting. This tool is read-only and contains no user data.",
+    inputSchema: z.object({
+      topic: z.enum(APP_GUIDE_TOPIC_IDS).optional(),
+    }),
+    execute: async (input) => getAppGuide(input),
+  });
+
   const makeMDNote = tool({
     description:
       "Create a markdown note and save it to the user's library. " +
@@ -537,6 +551,7 @@ function createChatTools(
 
   return {
     tools: {
+      getAppGuide: getAppGuideTool,
       // retrieval tools are omitted when RAG is off (plain-chat mode)
       ...(retrievalEnabled ? { getChunks, readNote } : {}),
       findFolder,

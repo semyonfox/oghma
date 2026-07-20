@@ -16,6 +16,23 @@ test.describe("public smoke", () => {
       }),
     ).toBeVisible();
 
+    for (const path of [
+      "/about",
+      "/blog",
+      "/contact",
+      "/ai",
+      "/info",
+      "/privacy",
+      "/terms",
+      "/cookies",
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.ok(), `${path} should return a successful response`).toBe(
+        true,
+      );
+      await expect(page.locator("body")).not.toBeEmpty();
+    }
+
     await page.goto("/login");
     await expect(
       page.getByRole("heading", { name: /Sign in to your account/i }),

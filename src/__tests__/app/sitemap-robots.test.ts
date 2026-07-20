@@ -33,9 +33,19 @@ describe("sitemap metadata route", () => {
     expect(urls).not.toContain("https://oghmanotes.ie/login");
     expect(urls).not.toContain("https://oghmanotes.ie/register");
     expect(urls).not.toContain("https://oghmanotes.ie/notes");
-    expect(entries.every((entry) => entry.lastModified instanceof Date)).toBe(
-      true,
+    const blogEntries = entries.filter((entry) => entry.url.includes("/blog/"));
+    expect(blogEntries.map((entry) =>
+      "lastModified" in entry && entry.lastModified instanceof Date
+        ? entry.lastModified.toISOString().slice(0, 10)
+        : null,
+    )).toEqual(
+      blogPosts.map((post) => post.datetime),
     );
+    expect(
+      entries
+        .filter((entry) => !entry.url.includes("/blog/"))
+        .every((entry) => !("lastModified" in entry)),
+    ).toBe(true);
   });
 });
 

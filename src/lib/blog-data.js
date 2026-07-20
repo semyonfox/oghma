@@ -47,16 +47,16 @@ That means course files, lecture PDFs, assignment deadlines, and available cours
       {
         title: "Deadline context",
         description:
-          "Assignments and due dates belong beside notes, flashcards, and revision planning, not in a separate tab students forget to check.",
+          "Assignments and due dates belong beside notes, flashcards, and study planning, not in a separate tab students forget to check.",
       },
     ],
     section2Title: "The Product Promise",
     section2Content:
-      "Connect Canvas once and your whole semester starts to assemble itself. Large imports may take background processing time, and available data depends on Canvas permissions, but the goal is simple: remove setup before exam stress hits.",
+      "Connect Canvas once and supported course structure, files, assignments, and deadlines stay connected. Large imports may take background processing time, and available data depends on the institution, account permissions, and Canvas APIs.",
     callout:
       "NotebookLM is excellent for documents you upload. OghmaNotes is for the course you are actually taking.",
     section3Content:
-      "This is why the landing page now leads with Canvas import, cited answers, flashcards, deadlines, and revision planning instead of technical language like RAG or semantic search.",
+      "This is why the product leads with Canvas import, cited answers, notes, flashcards, deadlines, and study planning instead of technical language like RAG or semantic search.",
   },
   {
     slug: "canvas-import-limits",
@@ -64,16 +64,16 @@ That means course files, lecture PDFs, assignment deadlines, and available cours
     author: authors.samuel,
     authorRole: "RAG & Search",
     excerpt:
-      "A real Canvas history can contain thousands of pages, so OghmaNotes needs honest limits and background processing.",
+      "A real Canvas history can contain a large number of pages, so OghmaNotes needs honest limits and background processing.",
     date: "Jul 7, 2026",
     datetime: "2026-07-07",
     imageUrl:
       "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80",
     intro:
       "The free import is the magic moment, but it cannot be unlimited. Real university courses include scanned slides, large PDFs, and historical files.",
-    content: `OghmaNotes processes imported files so they can become searchable and useful for cited answers, flashcards, and revision planning. Some files are digital PDFs with easy text extraction. Others are scans or image-heavy slides that need OCR.
+    content: `OghmaNotes processes imported files so they can become searchable and useful for cited answers, flashcards, and study planning. Some files are digital PDFs with easy text extraction. Others are scans or image-heavy slides that need OCR.
 
-That processing has real cost. The product should let students see the value before paying, while also avoiding surprise backlog imports that silently process thousands of pages.`,
+That processing has real cost. The product should let students see the value before paying, while also avoiding surprise backlog imports that silently process a large number of pages.`,
     highlights: [
       {
         title: "Free should show the value",
@@ -83,7 +83,7 @@ That processing has real cost. The product should let students see the value bef
       {
         title: "Large histories need confirmation",
         description:
-          "If a Canvas account exposes thousands of pages, OghmaNotes should estimate the workload and ask before processing everything.",
+          "If a Canvas account exposes a large number of pages, OghmaNotes should estimate the workload and ask before processing everything.",
       },
       {
         title: "Background work should be visible",
@@ -124,7 +124,7 @@ OghmaNotes is designed for a different workflow. It starts from Canvas, where le
       {
         title: "OghmaNotes is course-first",
         description:
-          "It is built around Canvas import, coursework context, and revision planning.",
+          "It is built around Canvas import, coursework context, and study planning.",
       },
       {
         title: "The practical difference is setup",
@@ -134,7 +134,7 @@ OghmaNotes is designed for a different workflow. It starts from Canvas, where le
     ],
     section2Title: "Who Should Use OghmaNotes?",
     section2Content:
-      "OghmaNotes is best for students whose course material, deadlines, and feedback live in Canvas and who want one study system built around that reality.",
+      "OghmaNotes is best for students whose supported course material and deadlines live in Canvas and who want one study workspace built around that reality.",
     callout:
       "The positioning is simple: not another AI notes app, but the study tool students do not have to set up.",
     section3Content:

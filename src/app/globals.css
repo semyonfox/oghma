@@ -8,6 +8,31 @@
   /* === TYPOGRAPHY === */
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* A restrained 1.25 type scale with roomier leading for reading text. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.625rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.25rem;
+  --text-6xl: 3.75rem;
+  --text-6xl--line-height: 4rem;
+  --text-7xl: 4.5rem;
+  --text-7xl--line-height: 4.75rem;
 
   /* === RADII === */
   --radius-radius-sm: 4px;
@@ -222,6 +247,104 @@ body {
   line-height: 1.5;
 }
 
+body {
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p,
+li,
+blockquote {
+  hanging-punctuation: first last;
+}
+
+/* Keep native select menus legible in both browser colour schemes. */
+select {
+  color-scheme: dark;
+}
+
+html.light select {
+  color-scheme: light;
+}
+
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+select option:disabled {
+  color: var(--color-text-tertiary);
+}
+
+/* Public-page typography roles: hierarchy should remain obvious without colour. */
+.type-eyebrow {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+.type-display {
+    font-family: var(--font-serif);
+    font-size: clamp(3rem, 2.55rem + 2.25vw, 4.5rem);
+    font-optical-sizing: auto;
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    line-height: 0.96;
+    text-wrap: balance;
+  }
+
+.type-section-title {
+    font-family: var(--font-serif);
+    font-size: clamp(2.25rem, 1.8rem + 2.25vw, 3.75rem);
+    font-optical-sizing: auto;
+    font-weight: 650;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+.type-supporting-title {
+    font-family: var(--font-serif);
+    font-size: clamp(1.875rem, 1.54rem + 1.68vw, 3rem);
+    font-optical-sizing: auto;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+.type-lead {
+    max-width: 62ch;
+    font-size: clamp(1.125rem, 1.04rem + 0.38vw, 1.3125rem);
+    font-weight: 450;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+.type-card-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-optical-sizing: auto;
+    font-weight: 650;
+    letter-spacing: -0.018em;
+    line-height: 1.25;
+  }
+
+.type-body {
+    font-size: 1.0625rem;
+    line-height: 1.65;
+  }
+
 @layer components {
   /* Editor Styles */
   .editor-input {
@@ -356,11 +479,11 @@ body {
 
 .md-rendered {
   --md-flow-space: 1rem;
-  --md-heading-1-size: 2.65rem;
-  --md-heading-2-size: 2.05rem;
-  --md-heading-3-size: 1.55rem;
+  --md-heading-1-size: clamp(2rem, 1.62rem + 1.4vw, 2.75rem);
+  --md-heading-2-size: clamp(1.55rem, 1.34rem + 0.78vw, 2rem);
+  --md-heading-3-size: clamp(1.25rem, 1.13rem + 0.45vw, 1.5rem);
   font-size: 1rem;
-  line-height: 1.75;
+  line-height: 1.625;
   color: var(--md-text);
   overflow-wrap: anywhere;
 }
@@ -385,6 +508,7 @@ body {
 }
 
 .md-rendered p {
+  max-width: 72ch;
   margin: 0 0 var(--md-flow-space);
   color: var(--md-text-muted);
 }
@@ -397,16 +521,18 @@ body {
 .md-rendered h6 {
   margin: calc(var(--md-flow-space) * 1.75) 0 calc(var(--md-flow-space) * 0.6);
   color: var(--md-text);
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
   line-height: 1.2;
-  letter-spacing: -0.025em;
-  font-weight: 700;
+  letter-spacing: -0.018em;
+  font-weight: 650;
 }
 
 .md-rendered h1 {
   color: var(--md-heading-1);
   font-size: var(--md-heading-1-size);
-  line-height: 1.08;
-  font-weight: 750;
+  line-height: 1.06;
+  font-weight: 700;
 }
 
 .md-rendered h2 {
@@ -433,6 +559,16 @@ body {
 .md-rendered[data-markdown-variant="chat"] h5,
 .md-rendered[data-markdown-variant="chat"] h6 {
   font-size: 1rem;
+}
+
+.md-rendered[data-markdown-variant="chat"] h1,
+.md-rendered[data-markdown-variant="chat"] h2,
+.md-rendered[data-markdown-variant="chat"] h3,
+.md-rendered[data-markdown-variant="chat"] h4,
+.md-rendered[data-markdown-variant="chat"] h5,
+.md-rendered[data-markdown-variant="chat"] h6 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.012em;
 }
 
 .markdown-preview a,
@@ -484,7 +620,7 @@ body {
   color: var(--md-inline-code-text);
   padding: 0.08rem 0.32rem;
   font-size: 0.88em;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .md-rendered ul,
@@ -943,7 +1079,7 @@ html.light .glass-card-active {
   --crepe-color-hover: color-mix(in srgb, var(--md-accent) 10%, var(--color-surface));
   --crepe-color-selected: var(--md-selection);
   --crepe-color-inline-area: var(--md-inline-code-bg);
-  --crepe-font-title: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-title: var(--font-source-serif), ui-serif, Georgia, serif;
   --crepe-font-default: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.22);
@@ -978,11 +1114,29 @@ html.light .glass-card-active {
   max-width: var(--editor-write-max-width);
   margin-inline: auto;
   font-size: 1rem;
-  line-height: 1.65;
+  line-height: 1.625;
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror p {
+  max-width: 72ch;
+}
+
+.oghma-milkdown-editor .milkdown .ProseMirror h1,
+.oghma-milkdown-editor .milkdown .ProseMirror h2,
+.oghma-milkdown-editor .milkdown .ProseMirror h3,
+.oghma-milkdown-editor .milkdown .ProseMirror h4,
+.oghma-milkdown-editor .milkdown .ProseMirror h5,
+.oghma-milkdown-editor .milkdown .ProseMirror h6 {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.018em;
+  text-wrap: balance;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h1 {
   color: var(--md-heading-1);
+  font-size: var(--md-heading-1-size, 2.75rem);
+  line-height: 1.06;
 }
 
 @media (max-width: 767px) {
@@ -1015,10 +1169,14 @@ html.light .glass-card-active {
 
 .oghma-milkdown-editor .milkdown .ProseMirror h2 {
   color: var(--md-heading-2);
+  font-size: var(--md-heading-2-size, 2rem);
+  line-height: 1.12;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h3 {
   color: var(--md-heading-3);
+  font-size: var(--md-heading-3-size, 1.5rem);
+  line-height: 1.2;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror a {

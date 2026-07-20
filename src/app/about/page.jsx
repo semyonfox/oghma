@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/header";
+import Footer from "@/components/footer";
 import { aboutBlogCards, authors } from "@/lib/blog-data";
 import { getServerI18n } from "@/lib/i18n/server";
 
@@ -31,44 +32,6 @@ const getStats = (t) => [
   { label: t("Launch focus"), value: "Canvas" },
   { label: t("Current stage"), value: "Beta" },
   { label: t("Built in"), value: "Galway" },
-];
-const getValues = (t) => [
-  {
-    name: t("Be world-class"),
-    description: t(
-      "We strive for excellence in every feature we build, ensuring students get the best possible learning tools.",
-    ),
-  },
-  {
-    name: t("Share everything you know"),
-    description: t(
-      "Knowledge grows when shared. We build tools that make collaboration and knowledge-sharing effortless.",
-    ),
-  },
-  {
-    name: t("Always learning"),
-    description: t(
-      "We practice what we preach — constantly learning, iterating, and improving our platform based on feedback.",
-    ),
-  },
-  {
-    name: t("Be supportive"),
-    description: t(
-      "Every student learns differently. We design inclusive tools that support diverse learning styles and needs.",
-    ),
-  },
-  {
-    name: t("Take responsibility"),
-    description: t(
-      "We own our work end-to-end, from code quality to user experience, ensuring reliability you can count on.",
-    ),
-  },
-  {
-    name: t("Enjoy downtime"),
-    description: t(
-      "Balanced teams build better products. We value rest and creativity alongside focused development.",
-    ),
-  },
 ];
 const blogPosts = aboutBlogCards;
 const getTeam = (t) => [
@@ -103,34 +66,10 @@ const getTeam = (t) => [
     linkedin: authors.shreyansh.linkedin,
   },
 ];
-const getFooterNavigation = (t) => ({
-  main: [
-    { name: t("About"), href: "/about" },
-    { name: t("Blog"), href: "/blog" },
-  ],
-  social: [
-    {
-      name: t("GitHub"),
-      href: "https://github.com/semyonfox/oghma",
-      icon: (props) => (
-        <svg fill="currentColor" viewBox="0 0 24 24" {...props}>
-          <path
-            fillRule="evenodd"
-            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-            clipRule="evenodd"
-          />
-        </svg>
-      ),
-    },
-  ],
-});
-
 export default async function About() {
   const { t } = await getServerI18n();
   const stats = getStats(t);
-  const _values = getValues(t);
   const team = getTeam(t);
-  const footerNavigation = getFooterNavigation(t);
   return (
     <div className="bg-landing">
       <Header />
@@ -183,12 +122,12 @@ export default async function About() {
             <div className="mx-auto max-w-7xl px-6 pt-36 pb-32 sm:pt-60 lg:px-8 lg:pt-32">
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
-                  <h1 className="text-5xl font-semibold tracking-tight text-pretty text-text sm:text-7xl">
-                    {t("We are building the study system students do not have to set up")}
+                  <h1 className="font-serif text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.035em] text-pretty text-text sm:text-6xl">
+                    {t("Built around the course you already have.")}
                   </h1>
                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
                     {t(
-                      "OghmaNotes is an independent student-built product from University of Galway students. It starts with Canvas, then helps turn real course material into cited answers, flashcards, deadlines, and revision planning.",
+                      "OghmaNotes began as a University of Galway student project. It is independent and connects supported Canvas course material and deadlines with notes, cited answers, flashcards, and planning.",
                     )}
                   </p>
                 </div>
@@ -265,12 +204,12 @@ export default async function About() {
               <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
                 <p className="text-xl/8 text-text-secondary">
                   {t(
-                    "At OghmaNotes, we believe the biggest study bottleneck is setup. Students should not have to rebuild their semester by hand before they can revise.",
+                    "OghmaNotes connects supported Canvas course material and deadlines with notes, cited answers, flashcards, and planning, so students do not have to rebuild the same semester across separate tools.",
                   )}
                 </p>
                 <p className="mt-10 max-w-xl text-base/7 text-text-tertiary">
                   {t(
-                    "The product connects to Canvas, imports the course structure and files your account can access, and turns that material into a workspace for cited answers, active recall, and exam planning.",
+                    "Canvas access depends on the institution, account permissions, and available APIs. Imports and indexing may take time.",
                   )}
                 </p>
               </div>
@@ -309,80 +248,58 @@ export default async function About() {
         {/* Features section */}
         <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0">
-            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
+            <h2 className="type-section-title text-text">
               {t("Built around the real semester")}
             </h2>
-            <p className="mt-6 text-lg/8 text-text-secondary">
+            <p className="type-lead mt-6 text-text-secondary">
               {t(
                 "The public launch focus is Canvas import, course-aware study, and honest beta limits.",
               )}
             </p>
           </div>
-          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
-            {/* Feature 1 - AI-Powered Insights */}
-            <div className="group relative overflow-hidden rounded-2xl border border-primary-500/20 p-8 transition-all hover:border-primary-500/60 hover:shadow-lg hover:shadow-primary-500/20">
-              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-primary-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="mb-6 inline-flex rounded-lg bg-primary-500/10 p-3">
-                <span className="text-3xl">✨</span>
-              </div>
-              <h3 className="text-lg font-semibold text-text">
-                {t("Cited course answers")}
-              </h3>
-              <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                {t(
+          <ol className="mt-16 grid grid-cols-1 border-t border-border-subtle sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                name: t("Cited course answers"),
+                description: t(
                   "Ask questions from imported notes, slides, and course files, with answers grounded in available source material.",
-                )}
-              </p>
-            </div>
-
-            {/* Feature 2 - Canvas Sync */}
-            <div className="group relative overflow-hidden rounded-2xl border border-blue-500/20 p-8 transition-all hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/20">
-              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-blue-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="mb-6 inline-flex rounded-lg bg-blue-500/10 p-3">
-                <span className="text-3xl">🔗</span>
-              </div>
-              <h3 className="text-lg font-semibold text-text">
-                {t("Canvas-first import")}
-              </h3>
-              <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                {t(
+                ),
+              },
+              {
+                name: t("Canvas-first import"),
+                description: t(
                   "Bring lectures, files, assignments, and deadlines into one study workspace, subject to Canvas permissions.",
-                )}
-              </p>
-            </div>
-
-            {/* Feature 3 - Smart Organization */}
-            <div className="group relative overflow-hidden rounded-2xl border border-purple-500/20 p-8 transition-all hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/20">
-              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="mb-6 inline-flex rounded-lg bg-purple-500/10 p-3">
-                <span className="text-3xl">📚</span>
-              </div>
-              <h3 className="text-lg font-semibold text-text">
-                {t("Study structure")}
-              </h3>
-              <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                {t(
+                ),
+              },
+              {
+                name: t("Study structure"),
+                description: t(
                   "Keep modules, notes, imported files, flashcards, and revision work connected to the course they came from.",
-                )}
-              </p>
-            </div>
-
-            {/* Feature 4 - Work Anywhere */}
-            <div className="group relative overflow-hidden rounded-2xl border border-pink-500/20 p-8 transition-all hover:border-pink-500/60 hover:shadow-lg hover:shadow-pink-500/20">
-              <div className="absolute inset-0 -z-10 bg-gradient-to-br from-pink-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="mb-6 inline-flex rounded-lg bg-pink-500/10 p-3">
-                <span className="text-3xl">📱</span>
-              </div>
-              <h3 className="text-lg font-semibold text-text">
-                {t("Export and account control")}
-              </h3>
-              <p className="mt-3 text-sm text-text-tertiary leading-relaxed">
-                {t(
+                ),
+              },
+              {
+                name: t("Export and account control"),
+                description: t(
                   "Use export and account controls so your study material is not trapped in a beta product.",
-                )}
-              </p>
-            </div>
-          </div>
+                ),
+              },
+            ].map((feature, index) => (
+              <li
+                key={feature.name}
+                className="border-b border-border-subtle py-8 sm:px-6 sm:first:pl-0 lg:border-r lg:last:border-r-0 lg:last:pr-0"
+              >
+                <span className="type-eyebrow text-primary-300">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3 className="type-card-title mt-5 text-text">
+                  {feature.name}
+                </h3>
+                <p className="mt-3 text-base/7 text-text-tertiary">
+                  {feature.description}
+                </p>
+              </li>
+            ))}
+          </ol>
         </div>
 
         {/* Logo cloud */}
@@ -555,7 +472,7 @@ export default async function About() {
             </h2>
             <p className="mt-2 text-lg/8 text-text-tertiary">
               {t(
-                "Learn from our experts and community on note-taking, learning, and productivity.",
+                "Notes from the team on Canvas import, connected study workflows, and the limits of an early product.",
               )}
             </p>
           </div>
@@ -615,40 +532,7 @@ export default async function About() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-16 sm:mt-32">
-        <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
-          <nav
-            aria-label="Footer"
-            className="-mb-6 flex flex-wrap justify-center gap-x-12 gap-y-3 text-sm/6"
-          >
-            {footerNavigation.main.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className="text-text-tertiary hover:text-text"
-              >
-                {item.name}
-              </a>
-            ))}
-          </nav>
-          <div className="mt-16 flex justify-center gap-x-10">
-            {footerNavigation.social.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className="text-text-tertiary hover:text-text"
-              >
-                <span className="sr-only">{item.name}</span>
-                <item.icon aria-hidden="true" className="size-6" />
-              </a>
-            ))}
-          </div>
-          <p className="mt-10 text-center text-sm/6 text-text-tertiary">
-            {t("All rights reserved.")}
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

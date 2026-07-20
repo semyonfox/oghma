@@ -26,6 +26,7 @@ export interface MarketingAnalyticsReport {
     pageViews: number;
     navigationEvents: number;
     ctaActions: number;
+    betaInterest: number;
     registrations: number;
     contactLeads: number;
   };
@@ -91,6 +92,9 @@ export async function getMarketingAnalytics(
         COUNT(*) FILTER (
           WHERE event_name = 'navigation_transition' AND action IS NOT NULL
         ) AS cta_actions,
+        COUNT(*) FILTER (
+          WHERE event_name = 'navigation_transition' AND action = 'request_beta_access'
+        ) AS beta_interest,
         COUNT(*) FILTER (WHERE event_name = 'registration_success') AS registrations,
         COUNT(*) FILTER (WHERE event_name = 'contact_form_success') AS contact_leads
       FROM app.marketing_events
@@ -242,6 +246,7 @@ export async function getMarketingAnalytics(
       pageViews: count(summary.page_views),
       navigationEvents: count(summary.navigation_events),
       ctaActions: count(summary.cta_actions),
+      betaInterest: count(summary.beta_interest),
       registrations: count(summary.registrations),
       contactLeads: count(summary.contact_leads),
     },
