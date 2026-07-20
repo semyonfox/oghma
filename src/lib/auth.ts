@@ -68,6 +68,36 @@ export async function clearSessionCookie(): Promise<void> {
   (await cookies()).delete("session");
 }
 
+/**
+ * Token-only session check for high-frequency, low-stakes endpoints
+ * (presence heartbeats). Trusts the signed session cookie / NextAuth JWT
+ * without revalidating is_active / deleted_at in Postgres, so it costs no
+ * database query per call. Never use it on endpoints that read or mutate
+ * user data — those must go through validateSession/requireAuth.
+ */
+export async function validateSessionLite(): Promise<{
+  user_id: string;
+} | null> {
+  const token = await getSessionCookie();
+  if (token) {
+    const payload = verifyJWTToken(token);
+    if (typeof payload?.user_id === "string") {
+      return { user_id: payload.user_id };
+    }
+  }
+
+  try {
+    const session = await auth();
+    if (session?.user?.id) {
+      return { user_id: session.user.id };
+    }
+  } catch {
+    // NextAuth session invalid or expired
+  }
+
+  return null;
+}
+
 export async function validateSession(
   _request?: unknown,
 ): Promise<SessionUser | null> {

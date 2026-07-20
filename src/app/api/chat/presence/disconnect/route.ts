@@ -3,13 +3,14 @@
 // reliably set a JSON content type). Removing the tab's presence field starts
 // the disconnect grace window for any in-flight chat generation.
 import { NextRequest, NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, tracedError } from "@/lib/api-error";
+import { withErrorHandler, requireAuthLite, tracedError } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { isValidPresenceTabId, removeChatPresence } from "@/lib/chat/presence";
 import logger from "@/lib/logger";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const session = await requireAuth();
+  // same token-only auth as the heartbeat — see presence/route.ts
+  const session = await requireAuthLite();
 
   const limited = await checkRateLimit("chat-presence", session.user_id);
   if (limited) return limited;

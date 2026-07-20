@@ -2,14 +2,16 @@
 // chat worker can tell a real disconnect (tab closed) apart from in-app
 // navigation. Losing a heartbeat is never an error worth failing loudly for.
 import { NextRequest, NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, tracedError } from "@/lib/api-error";
+import { withErrorHandler, requireAuthLite, tracedError } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { parseJsonBody } from "@/lib/auth";
 import { isValidPresenceTabId, recordChatPresence } from "@/lib/chat/presence";
 import logger from "@/lib/logger";
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const session = await requireAuth();
+  // token-only auth: heartbeats fire every ~10s per tab, so they must not
+  // cost a Postgres session lookup each — presence is low-stakes by design
+  const session = await requireAuthLite();
 
   const limited = await checkRateLimit("chat-presence", session.user_id);
   if (limited) return limited;

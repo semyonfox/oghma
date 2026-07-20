@@ -4,6 +4,7 @@ const redisMock = vi.hoisted(() => ({
   hset: vi.fn(),
   hdel: vi.fn(),
   hgetall: vi.fn(),
+  hlen: vi.fn(),
   expire: vi.fn(),
 }));
 
@@ -27,6 +28,7 @@ describe("chat presence store", () => {
     vi.clearAllMocks();
     redisMock.hset.mockResolvedValue(1);
     redisMock.hdel.mockResolvedValue(1);
+    redisMock.hlen.mockResolvedValue(1);
     redisMock.expire.mockResolvedValue(1);
     redisMock.hgetall.mockResolvedValue({});
   });
@@ -43,6 +45,44 @@ describe("chat presence store", () => {
       `chat:presence:{${USER}}`,
       15 * 60,
     );
+    // small hash: the prune read must not run — heartbeats stay cheap
+    expect(redisMock.hgetall).not.toHaveBeenCalled();
+  });
+
+  it("prunes dead tab fields once the hash grows past the threshold", async () => {
+    const now = Date.now();
+    redisMock.hlen.mockResolvedValue(9);
+    redisMock.hgetall.mockResolvedValue({
+      [TAB]: String(now),
+      "fresh-tab": String(now - 5_000),
+      "dead-tab-1": String(now - PRESENCE_STALE_MS - 1_000),
+      "dead-tab-2": "not-a-timestamp",
+    });
+
+    await recordChatPresence(USER, TAB);
+
+    expect(redisMock.hdel).toHaveBeenCalledWith(
+      `chat:presence:{${USER}}`,
+      "dead-tab-1",
+      "dead-tab-2",
+    );
+  });
+
+  it("never prunes the tab that just heartbeated", async () => {
+    redisMock.hlen.mockResolvedValue(9);
+    redisMock.hgetall.mockResolvedValue({
+      [TAB]: "not-a-timestamp-yet-still-current",
+    });
+
+    await recordChatPresence(USER, TAB);
+
+    expect(redisMock.hdel).not.toHaveBeenCalled();
+  });
+
+  it("treats prune failures as harmless", async () => {
+    redisMock.hlen.mockRejectedValue(new Error("redis down"));
+
+    await expect(recordChatPresence(USER, TAB)).resolves.toBeUndefined();
   });
 
   it("removes only the disconnecting tab's field", async () => {

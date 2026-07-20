@@ -24,6 +24,13 @@ export const DISCONNECT_GRACE_MS = 15_000;
 /** Hash lifetime — long enough that an idle-but-open tab never loses its entry. */
 const PRESENCE_TTL_SECONDS = 15 * 60;
 
+/**
+ * Dead tab fields (closes whose beacon was lost) accumulate inside a hash
+ * that a long-lived tab keeps refreshing. Pruning kicks in only past this
+ * field count so the common heartbeat stays at two Redis ops.
+ */
+const PRESENCE_PRUNE_THRESHOLD = 8;
+
 const TAB_ID_RE = /^[a-zA-Z0-9-]{1,64}$/;
 
 function presenceKey(userId: string): string {
@@ -41,6 +48,22 @@ export async function recordChatPresence(
   const key = presenceKey(userId);
   await redis.hset(key, tabId, Date.now());
   await redis.expire(key, PRESENCE_TTL_SECONDS);
+
+  try {
+    if ((await redis.hlen(key)) <= PRESENCE_PRUNE_THRESHOLD) return;
+    const entries = await redis.hgetall(key);
+    const cutoff = Date.now() - PRESENCE_STALE_MS;
+    const stale = Object.entries(entries ?? {})
+      .filter(([field, value]) => {
+        if (field === tabId) return false;
+        const ts = Number.parseInt(String(value), 10);
+        return !Number.isFinite(ts) || ts < cutoff;
+      })
+      .map(([field]) => field);
+    if (stale.length > 0) await redis.hdel(key, ...stale);
+  } catch {
+    // pruning is hygiene, not correctness — the key's TTL still bounds it
+  }
 }
 
 export async function removeChatPresence(
