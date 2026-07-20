@@ -56,9 +56,55 @@ import sql from "@/database/pgsql.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding.js";
 import {
+  processDirectExtraction,
   processExtractionRetry,
   processMarkerComplete,
 } from "@/lib/canvas/import-extraction.js";
+
+describe("processDirectExtraction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes the original binary object buffer to PDF extraction", async () => {
+    const pdfBuffer = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0x00]);
+    const getObjectAndMeta = vi.fn().mockResolvedValue({ buffer: pdfBuffer });
+
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ status: "pending" }] as never)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ parent_id: null }] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
+    vi.mocked(processRagPipeline).mockResolvedValue({
+      noteId: "note-123",
+      chunksStored: 2,
+    } as never);
+
+    await processDirectExtraction({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/note-123/lecture.pdf",
+      filename: "lecture.pdf",
+      mimeType: "application/pdf",
+    });
+
+    expect(getObjectAndMeta).toHaveBeenCalledWith(
+      "notes/note-123/lecture.pdf",
+    );
+    expect(processRagPipeline).toHaveBeenCalledWith(
+      "note-123",
+      "user-123",
+      null,
+      pdfBuffer,
+      expect.objectContaining({
+        filename: "lecture.pdf",
+        mimeType: "application/pdf",
+      }),
+      expect.any(Function),
+    );
+  });
+});
 
 describe("processMarkerComplete", () => {
   beforeEach(() => {
