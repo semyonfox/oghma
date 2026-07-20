@@ -4,11 +4,9 @@ import { NoteModel } from "@/lib/notes/types/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import {
   ArrowPathIcon,
-  ChatBubbleLeftRightIcon,
   ChevronRightIcon,
-  DocumentIcon,
+  DocumentTextIcon,
   EllipsisHorizontalIcon,
-  PlusIcon,
 } from "@heroicons/react/24/outline";
 
 const INDENT_PX = 14;
@@ -32,9 +30,7 @@ export interface TreeItemProps {
   onToggle: () => void;
   onClick: (e: React.MouseEvent) => void;
   onRenameComplete: (newTitle: string) => void | Promise<void>;
-  onAddNote: (e: React.MouseEvent) => void | Promise<void>;
   onDotsClick: (e: React.MouseEvent) => void;
-  onOpenInAIChat: (e: React.MouseEvent) => void;
 }
 
 const TreeItem: React.FC<TreeItemProps> = memo(
@@ -57,9 +53,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
     onToggle,
     onClick,
     onRenameComplete,
-    onAddNote,
     onDotsClick,
-    onOpenInAIChat,
   }) => {
     const { t } = useI18n();
     const syncStatus = useSyncStatusStore((s) => s.status[itemId]);
@@ -178,7 +172,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 aria-hidden="true"
               />
             ) : (
-              <DocumentIcon
+              <DocumentTextIcon
                 className="h-3.5 w-3.5 text-text-tertiary"
                 aria-hidden="true"
               />
@@ -233,39 +227,16 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             )}
 
           {!isRenaming && (
-            <span className="flex-shrink-0 flex items-center gap-0 ml-0.5">
+            <span className="flex-shrink-0 ml-0.5">
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-[color,background-color,opacity] hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-5 md:w-5 md:opacity-0 md:group-hover/item:opacity-100 md:group-focus-within/item:opacity-100"
                 onClick={onDotsClick}
                 title={t("More actions")}
                 aria-label={t("More actions")}
-                tabIndex={-1}
               >
                 <EllipsisHorizontalIcon className="h-4 w-4" aria-hidden="true" />
               </button>
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-primary-600/20 hover:text-primary-300 md:h-auto md:w-auto md:p-0.5"
-                onClick={onOpenInAIChat}
-                title={isFolder ? t("Chat with folder") : t("Chat with note")}
-                aria-label={isFolder ? t("Chat with folder") : t("Chat with note")}
-                tabIndex={-1}
-              >
-                <ChatBubbleLeftRightIcon className="h-4 w-4" aria-hidden="true" />
-              </button>
-              {isFolder && (
-                <button
-                  type="button"
-                  className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
-                  onClick={onAddNote}
-                  title={t("New note inside")}
-                  aria-label={t("New note inside")}
-                  tabIndex={-1}
-                >
-                  <PlusIcon className="h-4 w-4" aria-hidden="true" />
-                </button>
-              )}
             </span>
           )}
         </div>

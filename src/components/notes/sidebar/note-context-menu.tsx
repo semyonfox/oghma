@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import {
+  ChatBubbleLeftRightIcon,
   DocumentPlusIcon,
   FolderPlusIcon,
   PencilSquareIcon,
@@ -21,6 +22,7 @@ interface NoteContextMenuPortalProps {
   onCreateNote: (parentId: string) => void;
   onCreateFolder: (parentId: string) => void;
   onOpenInSplit: (id: string) => void;
+  onOpenInAIChat: (id: string) => void;
 }
 
 // menu item component for consistency
@@ -73,6 +75,7 @@ export default function NoteContextMenuPortal({
   onCreateNote,
   onCreateFolder,
   onOpenInSplit,
+  onOpenInAIChat,
 }: NoteContextMenuPortalProps) {
   const { t } = useI18n();
   const {
@@ -160,6 +163,7 @@ export default function NoteContextMenuPortal({
     newNote: <DocumentPlusIcon className="h-3.5 w-3.5" aria-hidden="true" />,
     newFolder: <FolderPlusIcon className="h-3.5 w-3.5" aria-hidden="true" />,
     split: <ViewColumnsIcon className="h-3.5 w-3.5" aria-hidden="true" />,
+    chat: <ChatBubbleLeftRightIcon className="h-3.5 w-3.5" aria-hidden="true" />,
     trash: <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />,
   };
 
@@ -189,6 +193,12 @@ export default function NoteContextMenuPortal({
               onClick={() => run(() => onTogglePin(openMenuId))}
             />
           )}
+
+          <MenuItem
+            label={isFolder ? t("Chat with folder") : t("Chat with note")}
+            icon={icons.chat}
+            onClick={() => run(() => onOpenInAIChat(openMenuId))}
+          />
 
           <MenuItem
             label={t("Rename")}

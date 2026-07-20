@@ -198,7 +198,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
         {/* Section header - obsidian style */}
         <div
-          className="group mt-1 flex h-12 items-center px-2 md:h-7"
+          className="group mt-1 flex h-12 items-center px-2 md:h-11"
           role="toolbar"
           aria-label={t("Notes actions")}
         >
@@ -216,29 +216,29 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewNote}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
               title={t("New note")}
               aria-label={t("New note")}
             >
-              <DocumentPlusIcon className="h-4 w-4" aria-hidden="true" />
+              <DocumentPlusIcon className="h-5 w-5" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
               title={t("New folder")}
               aria-label={t("New folder")}
             >
-              <FolderPlusIcon className="h-4 w-4" aria-hidden="true" />
+              <FolderPlusIcon className="h-5 w-5" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => uploadInputRef.current?.click()}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
               title={t("Upload")}
               aria-label={t("Upload")}
             >
-              <ArrowUpTrayIcon className="h-4 w-4" aria-hidden="true" />
+              <ArrowUpTrayIcon className="h-5 w-5" aria-hidden="true" />
             </button>
             <input
               ref={uploadInputRef}
@@ -380,11 +380,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                       }
                       setRenamingId(null);
                     }}
-                    onAddNote={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      await handleContextCreateNote(itemId);
-                    }}
                     onDotsClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -407,11 +402,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                         setSelectedIds(new Set([itemId]));
                         setSelectionAnchorId(itemId);
                       }
-                    }}
-                    onOpenInAIChat={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleOpenInAIChat(itemId, nodeData, !!isFolder);
                     }}
                     initLoaded={initLoaded}
                   >
@@ -438,6 +428,12 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
         onCreateNote={handleContextCreateNote}
         onCreateFolder={handleCreateFolder}
         onOpenInSplit={handleOpenInSplit}
+        onOpenInAIChat={(id) => {
+          const item = tree.items[id];
+          const nodeData = item?.data;
+          const isFolder = !!(nodeData?.isFolder || item?.children?.length);
+          handleOpenInAIChat(id, nodeData, isFolder);
+        }}
       />
 
       {/* delete confirmation overlay */}
