@@ -25,18 +25,34 @@ describe("Marker OCR environment toggle", () => {
     vi.clearAllMocks();
   });
 
-  it("uses configured Marker OCR by default", async () => {
+  it("bypasses configured Marker OCR by default", async () => {
     const result = await extractContentFromBuffer({
       buffer: Buffer.from("document"),
       filename: "lecture.docx",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
 
-    expect(extractWithMarker).toHaveBeenCalledOnce();
-    expect(result.source).toBe("marker");
+    expect(extractWithMarker).not.toHaveBeenCalled();
+    expect(result.source).toBe("skipped");
   });
 
-  it.each(["false", "0", "off", " FALSE "])(
+  it.each(["true", "1", "on", " TRUE "])(
+    "uses Marker OCR only when MARKER_OCR_ENABLED=%s",
+    async (value) => {
+      process.env.MARKER_OCR_ENABLED = value;
+
+      const result = await extractContentFromBuffer({
+        buffer: Buffer.from("document"),
+        filename: "lecture.docx",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      expect(extractWithMarker).toHaveBeenCalledOnce();
+      expect(result.source).toBe("marker");
+    },
+  );
+
+  it.each(["false", "0", "off", " FALSE ", "unexpected"])(
     "bypasses Marker OCR when MARKER_OCR_ENABLED=%s",
     async (value) => {
       process.env.MARKER_OCR_ENABLED = value;

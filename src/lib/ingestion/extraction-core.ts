@@ -28,7 +28,7 @@ function isTextLikeFile(filename: string, mimeType?: string): boolean {
 
 function markerOcrEnabled(): boolean {
   const value = process.env.MARKER_OCR_ENABLED?.trim().toLowerCase();
-  return !["0", "false", "off"].includes(value ?? "");
+  return ["1", "true", "on"].includes(value ?? "");
 }
 
 async function extractPdfTextLayer(
