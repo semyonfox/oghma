@@ -198,9 +198,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     let lastEvent = "init";
     let activeSessionId: string | null = null;
 
+    // Aborts the in-flight LLM stream when the client goes away, so a dropped
+    // inline connection stops billing instead of generating into the void.
+    const inlineAbort = new AbortController();
+
     const markClientDisconnected = (reason: unknown) => {
       if (clientDisconnected) return;
       clientDisconnected = true;
+      inlineAbort.abort();
       logger.warn("Chat stream client disconnected", {
         chatStreamId,
         elapsedMs: Date.now() - startedAt,
@@ -214,6 +219,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               : String(reason ?? "unknown"),
       });
     };
+    request.signal.addEventListener("abort", () =>
+      markClientDisconnected("request aborted"),
+    );
 
     return new NextResponse(
       new ReadableStream({
@@ -410,6 +418,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               try {
                 const result = streamText({
                   model: model!,
+                  abortSignal: inlineAbort.signal,
                   ...llmCallOptions,
                 });
                 for await (const part of result.fullStream) {
@@ -450,6 +459,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   } else if (part.type === "finish") {
                     finishReason = part.finishReason;
                     rawFinishReason = part.rawFinishReason;
+                  } else if (part.type === "abort") {
+                    throw new Error("Generation aborted: client disconnected");
                   } else if (part.type === "error") {
                     throw part.error instanceof Error
                       ? part.error
@@ -563,6 +574,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 closeThinkingWindow();
                 const finalAnswer = await streamFinalAnswer({
                   model: model!,
+                  abortSignal: inlineAbort.signal,
                   messages: [
                     ...llmCallOptions.messages,
                     ...responseMessages,

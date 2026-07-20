@@ -2,6 +2,7 @@ import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
+import ChatPresenceController from "@/components/chat/chat-presence-controller";
 import GlobalSearchRoot from "@/components/search/global-search-root";
 import { Toaster } from "sonner";
 import "katex/dist/katex.min.css";
@@ -148,6 +149,7 @@ export default function RootLayout({ children }) {
         <I18nRootProvider>
           <ThemeProvider>
             <PomodoroTimerController />
+            <ChatPresenceController />
             <GlobalSearchRoot />
             {children}
             <Toaster position="bottom-center" />

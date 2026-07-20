@@ -32,6 +32,7 @@ import {
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
 import { cleanupMarketingData } from "../marketing/retention";
+import { dispatchFairCanvasFiles } from "./import-scheduler";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -202,6 +203,7 @@ setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();
+    await dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS);
   } catch (err) {
     console.error(`[${new Date().toISOString()}] DB poll error:`, errorMessage(err));
   }

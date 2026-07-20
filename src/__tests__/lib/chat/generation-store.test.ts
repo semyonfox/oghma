@@ -6,7 +6,9 @@ const sqlMock = vi.hoisted(() =>
 const redisMock = vi.hoisted(() => ({
   call: vi.fn(),
   del: vi.fn(),
+  exists: vi.fn(),
   expire: vi.fn(),
+  set: vi.fn(),
   xadd: vi.fn(),
 }));
 
@@ -18,10 +20,13 @@ vi.mock("@/lib/utils/uuid", () => ({
 
 import {
   appendChatGenerationEvent,
+  cancelChatGeneration,
   createChatGeneration,
+  isChatGenerationCancelRequested,
   loadChatGeneration,
   loadOwnedChatGeneration,
   readChatGenerationEvents,
+  requestChatGenerationCancel,
 } from "@/lib/chat/generation-store";
 
 describe("resumable chat generation store", () => {
@@ -155,5 +160,36 @@ describe("resumable chat generation store", () => {
       expect.stringContaining("chat-generation:"),
       "1720000000000-1",
     );
+  });
+
+  it("records and reads back a cancel request flag", async () => {
+    redisMock.set.mockResolvedValue("OK");
+    await requestChatGenerationCancel("11111111-1111-1111-1111-111111111111");
+    expect(redisMock.set).toHaveBeenCalledWith(
+      "chat-generation:11111111-1111-1111-1111-111111111111:cancel",
+      "1",
+      "EX",
+      3600,
+    );
+
+    redisMock.exists.mockResolvedValueOnce(1);
+    await expect(
+      isChatGenerationCancelRequested("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toBe(true);
+
+    redisMock.exists.mockResolvedValueOnce(0);
+    await expect(
+      isChatGenerationCancelRequested("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toBe(false);
+  });
+
+  it("cancels the generation and returns the session to idle", async () => {
+    await cancelChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    expect(sqlMock).toHaveBeenCalledTimes(2);
+    const [generationUpdate] = sqlMock.mock.calls[0] as [readonly string[]];
+    const [sessionUpdate] = sqlMock.mock.calls[1] as [readonly string[]];
+    expect(generationUpdate.join("?")).toContain("status = 'cancelled'");
+    expect(sessionUpdate.join("?")).toContain("generation_status = 'idle'");
   });
 });

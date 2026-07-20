@@ -32,6 +32,8 @@ export interface MessageMetadata {
   partial?: boolean;
   error?: string;
   toolCallLimitHit?: boolean;
+  /** true when the generation was aborted (user stop or disconnect) */
+  cancelled?: boolean;
 }
 
 export interface Message {

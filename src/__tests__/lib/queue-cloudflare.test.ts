@@ -45,7 +45,7 @@ describe("Cloudflare queue adapter", () => {
     );
   });
 
-  it("publishes delayed extraction retries to the retry queue", async () => {
+  it("publishes delayed extraction retries to the shared import queue", async () => {
     setCloudflareQueueEnv();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -56,7 +56,7 @@ describe("Cloudflare queue adapter", () => {
     await enqueueExtractRetryJob({ noteId: "note-1" }, 120);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.cloudflare.com/client/v4/accounts/account-1/queues/retry-queue-id/messages",
+      "https://api.cloudflare.com/client/v4/accounts/account-1/queues/canvas-queue-id/messages",
       expect.objectContaining({
         body: JSON.stringify({
           body: { type: "extract-retry", noteId: "note-1" },

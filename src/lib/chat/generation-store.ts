@@ -4,6 +4,7 @@ import { generateUUID } from "@/lib/utils/uuid";
 
 const EVENT_TTL_SECONDS = 60 * 60;
 const EVENT_MAX_LENGTH = 4_000;
+const CANCEL_FLAG_TTL_SECONDS = 60 * 60;
 
 export interface ChatGenerationPayload {
   userId: string;
@@ -46,6 +47,10 @@ function normalizeGenerationRecord(
 
 function eventKey(generationId: string): string {
   return `chat-generation:${generationId}:events`;
+}
+
+function cancelKey(generationId: string): string {
+  return `chat-generation:${generationId}:cancel`;
 }
 
 export async function createChatGeneration(
@@ -132,6 +137,38 @@ export async function failChatGeneration(
     FROM app.chat_generations g
     WHERE g.id = ${generationId}::uuid AND s.id = g.session_id
   `;
+}
+
+/**
+ * Terminal cancel: the worker aborted (user stop or disconnect) or the
+ * generation was cancelled before it started. Any partial assistant message
+ * has already been persisted, so the session returns to plain 'idle'.
+ */
+export async function cancelChatGeneration(generationId: string): Promise<void> {
+  await sql`
+    UPDATE app.chat_generations
+    SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
+    WHERE id = ${generationId}::uuid AND status <> 'completed'
+  `;
+  await sql`
+    UPDATE app.chat_sessions s
+    SET generation_status = 'idle', updated_at = NOW()
+    FROM app.chat_generations g
+    WHERE g.id = ${generationId}::uuid AND s.id = g.session_id
+  `;
+}
+
+/** Ask an in-flight worker to abort. Observed by the generation watchdog. */
+export async function requestChatGenerationCancel(
+  generationId: string,
+): Promise<void> {
+  await redis.set(cancelKey(generationId), "1", "EX", CANCEL_FLAG_TTL_SECONDS);
+}
+
+export async function isChatGenerationCancelRequested(
+  generationId: string,
+): Promise<boolean> {
+  return (await redis.exists(cancelKey(generationId))) === 1;
 }
 
 export async function requeueChatGeneration(

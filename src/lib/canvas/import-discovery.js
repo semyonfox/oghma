@@ -7,7 +7,7 @@
  */
 
 import sql from "../../database/pgsql.js";
-import { enqueueCanvasJobBatch } from "../queue.ts";
+import { dispatchFairCanvasFiles } from "./import-scheduler.ts";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
 import {
@@ -44,20 +44,6 @@ export function parseJobCourses(job) {
           term: c.term ?? null,
         }
       : { id: c, name: String(c), course_code: "", term: null },
-  );
-}
-
-// ── BullMQ fan-out ──────────────────────────────────────────────────────────
-
-async function sendFileMessages(records, jobId, userId) {
-  if (records.length === 0) return;
-  await enqueueCanvasJobBatch(
-    "canvas-file",
-    records.map((record) => ({
-      importRecordId: record.id,
-      jobId,
-      userId,
-    })),
   );
 }
 
@@ -524,7 +510,7 @@ export async function processDiscoverJob(jobId) {
 
     const pendingRecords =
       await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'`;
-    await sendFileMessages(pendingRecords, jobId, job.user_id);
+    await dispatchFairCanvasFiles();
 
     const startTime = job.started_at ? new Date(job.started_at) : new Date();
     const elapsedMs = Date.now() - startTime.getTime();
@@ -540,7 +526,7 @@ export async function processDiscoverJob(jobId) {
     });
 
     console.log(
-      `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} queued for job ${jobId}`,
+      `[${new Date().toISOString()}] Discovery done: ${total} total, ${pendingRecords.length} ready for fair scheduling for job ${jobId}`,
     );
     return true;
   } catch (error) {
