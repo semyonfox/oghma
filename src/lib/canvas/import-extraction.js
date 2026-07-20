@@ -717,7 +717,8 @@ export async function processDirectExtraction(msg) {
   `;
 
   const storage = getStorageProvider();
-  const buffer = await storage.getObject(s3Key);
+  const objectData = await storage.getObjectAndMeta(s3Key);
+  const buffer = objectData?.buffer;
   if (!buffer) {
     await sql`
       UPDATE app.ingestion_jobs
