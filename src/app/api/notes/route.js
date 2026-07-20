@@ -87,8 +87,9 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer`);
   }
 
-  // Generate UUID v7 for note
-  const noteId = generateUUID();
+  // The notes UI creates an optimistic UUID before POSTing so its tree item and
+  // route point at the same persisted note. API-only callers may omit it.
+  const noteId = body.id || generateUUID();
 
   // Create new note in PostgreSQL
   const isFolder = body.isFolder === true || body.is_folder === true;
