@@ -41,6 +41,9 @@ export const GET = withErrorHandler(async (request) => {
             n.is_folder as "isFolder",
             ti.is_expanded as "isExpanded",
             n.s3_key as "s3Key",
+            (SELECT a.mime_type FROM app.attachments a
+             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
+             LIMIT 1) as "mimeType",
             n.pinned
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
@@ -56,6 +59,9 @@ export const GET = withErrorHandler(async (request) => {
             n.is_folder as "isFolder",
             ti.is_expanded as "isExpanded",
             n.s3_key as "s3Key",
+            (SELECT a.mime_type FROM app.attachments a
+             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
+             LIMIT 1) as "mimeType",
             n.pinned
           FROM app.tree_items ti
           JOIN app.notes n ON ti.note_id = n.note_id
@@ -67,12 +73,13 @@ export const GET = withErrorHandler(async (request) => {
 
     const body = {
       parentId: parentId || 'root',
-      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null; pinned: number }) => ({
+      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null; mimeType: string | null; pinned: number }) => ({
         id: row.id,
         title: row.title,
         isFolder: row.isFolder,
         isExpanded: row.isExpanded,
         s3Key: row.s3Key || null,
+        mimeType: row.mimeType || null,
         pinned: row.pinned ?? 0,
       })),
     };

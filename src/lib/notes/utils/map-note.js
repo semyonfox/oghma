@@ -12,6 +12,7 @@ export function mapNoteFromDB(dbRow) {
     content: dbRow.content,
     isFolder: dbRow.is_folder,
     s3Key: dbRow.s3_key,
+    mimeType: dbRow.mime_type,
     deleted: 0,
     shared: dbRow.shared,
     pinned: dbRow.pinned,
