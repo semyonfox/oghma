@@ -45,8 +45,7 @@ This path starts local PostgreSQL, Redis, Qdrant, MinIO, Mailpit and a determini
 npm ci
 cp .env.mock.example .env.mock
 npm run mock:up
-node scripts/dev/run-mock.mjs node scripts/e2e/reset-db.mjs
-node scripts/dev/run-mock.mjs node scripts/e2e/create-storage-bucket.mjs
+npm run mock:seed
 npm run dev:mock
 ```
 
@@ -72,8 +71,6 @@ Stop and remove the disposable stack when finished:
 ```bash
 npm run mock:down
 ```
-
-> `npm run mock:seed` currently completes the database/storage setup but fails while seeding its sample paper because a Node script cannot resolve the project's `@/` alias. The explicit reset/bucket commands above are the verified setup path until that seed script is repaired.
 
 ## Development with your own services
 
