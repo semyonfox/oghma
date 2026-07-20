@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 export const uuidParam = z.string().uuid();
 
 export const noteCreateSchema = z.object({
+  id: z.string().uuid().optional(),
   title: z.string().max(500).optional(),
   content: z.string().optional(),
   isFolder: z.boolean().optional(),

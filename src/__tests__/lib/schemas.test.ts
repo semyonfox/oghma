@@ -44,6 +44,17 @@ describe("noteCreateSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("preserves a valid optimistic note id", () => {
+    const id = "550e8400-e29b-41d4-a716-446655440000";
+    const result = noteCreateSchema.safeParse({ id, title: "Hello" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.id).toBe(id);
+  });
+
+  it("rejects an invalid optimistic note id", () => {
+    expect(noteCreateSchema.safeParse({ id: "not-a-uuid" }).success).toBe(false);
+  });
+
   it("rejects title exceeding 500 characters", () => {
     expect(noteCreateSchema.safeParse({ title: "a".repeat(501) }).success).toBe(
       false,
