@@ -28,6 +28,111 @@ Redis / BullMQ ───► Node worker ───► Canvas, extraction/OCR, AI 
 
 The application owns user-facing requests and durable relational state. The worker handles slow or retryable work; vector retrieval and object storage remain separate from the primary relational model.
 
+## Prerequisites
+
+- Node.js 22+
+- npm
+- Docker Engine with Docker Compose for mock and integration services
+- For browser tests, Playwright Chromium and its OS dependencies
+
+Use **npm** for this repository.
+
+## Quick start: disposable mock environment
+
+This path starts local PostgreSQL, Redis, Qdrant, MinIO, Mailpit and a deterministic fake-AI provider. It is intended for development, not representative AI quality.
+
+```bash
+npm ci
+cp .env.mock.example .env.mock
+npm run mock:up
+node scripts/dev/run-mock.mjs node scripts/e2e/reset-db.mjs
+node scripts/dev/run-mock.mjs node scripts/e2e/create-storage-bucket.mjs
+npm run dev:mock
+```
+
+Open http://127.0.0.1:3311/login and sign in with:
+
+```text
+student.e2e@example.com
+E2ePassword123!
+```
+
+The mock stack does not automatically start the background worker. Start it only when exercising imports, indexing or other queued work:
+
+```bash
+# Second terminal
+node scripts/dev/run-mock.mjs npm run worker
+
+# Verify its queue dependencies
+node scripts/dev/run-mock.mjs npm run worker:healthcheck
+```
+
+Stop and remove the disposable stack when finished:
+
+```bash
+npm run mock:down
+```
+
+> `npm run mock:seed` currently completes the database/storage setup but fails while seeding its sample paper because a Node script cannot resolve the project's `@/` alias. The explicit reset/bucket commands above are the verified setup path until that seed script is repaired.
+
+## Development with your own services
+
+Copy `.env.example` to `.env.local` and configure PostgreSQL, Redis, Qdrant, S3-compatible storage, auth secrets and the providers you control:
+
+```bash
+cp .env.example .env.local
+npm run dev
+```
+
+The worker does not load `.env.local` automatically. In a second POSIX shell, explicitly load the same environment before starting it:
+
+```bash
+set -a
+. ./.env.local
+set +a
+npm run worker
+```
+
+App and worker must use matching database, Redis/queue, Qdrant, storage and provider configuration.
+
+## Validate
+
+```bash
+npm run lint
+npm run test:ci
+npm run build
+```
+
+For isolated integration services, use a disposable database only—`e2e:reset` intentionally resets it:
+
+```bash
+cp .env.e2e.example .env.e2e
+npm run e2e:services:up
+npm run e2e:reset
+npm run test:integration
+npm run e2e:services:down
+```
+
+Install Chromium without OS packages when they are already available:
+
+```bash
+npm exec playwright install chromium
+npm run e2e:smoke -- --workers=1
+```
+
+The smoke suite is available for local verification; check its current result rather than assuming every browser/platform combination is green.
+
+## Container images
+
+The application and worker images are independently buildable:
+
+```bash
+docker build -t oghma:local .
+docker build -f Dockerfile.worker -t oghma-worker:local .
+```
+
+The root Compose file is a homelab/Jenkins convenience configuration, not a fresh-clone production deployment. A real deployment needs private environment configuration plus PostgreSQL, Redis/BullMQ, Qdrant, S3-compatible storage, auth and provider services. Follow [infra/HOMELAB.md](./infra/HOMELAB.md), [the worker runbook](./docs/operations/import-worker.md) and the `Jenkinsfile` rather than copying private operator paths.
+
 ## Technology
 
 | Area | Technology |
@@ -39,30 +144,6 @@ The application owns user-facing requests and durable relational state. The work
 | AI pipeline | Configurable LLM, embedding, rerank and optional OCR providers |
 | Delivery | Docker, Jenkins, Cloudflare Tunnel |
 | Validation | Vitest, Playwright, ESLint, GitHub Actions |
-
-## Run locally
-
-The repository supports a disposable local stack with PostgreSQL, Redis, Qdrant, object storage and a deterministic fake AI provider.
-
-```bash
-npm install
-cp .env.mock.example .env.mock
-npm run mock:up
-npm run mock:seed
-npm run dev:mock
-```
-
-See [SETUP.md](./SETUP.md) for provider configuration, worker commands and environment details.
-
-## Validation
-
-```bash
-npm run lint
-npm run test:ci
-npm run test:integration
-npm run e2e:smoke
-npm run build
-```
 
 ## Documentation
 
