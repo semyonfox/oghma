@@ -30,7 +30,7 @@ function formAnalyticsPayload(form) {
   };
 }
 
-export default function ContactForm({ source = "contact" }) {
+export default function ContactForm({ source = "contact", centered = false }) {
   const { t } = useI18n();
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -113,7 +113,11 @@ export default function ContactForm({ source = "contact" }) {
       onSubmit={onSubmit}
       onFocusCapture={trackStart}
       onChangeCapture={trackStart}
-      className="mx-auto max-w-xl lg:mr-0 lg:max-w-lg"
+      className={
+        centered
+          ? "mx-auto w-full max-w-2xl"
+          : "mx-auto max-w-xl lg:mr-0 lg:max-w-lg"
+      }
     >
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
         <div aria-hidden="true" className="hidden">

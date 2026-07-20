@@ -34,8 +34,11 @@ export default function ContactPage() {
         </ul>
       </InfoSection>
 
-      <section id="contact-form" className="scroll-mt-24">
-        <ContactForm source="contact" />
+      <section
+        id="contact-form"
+        className="mx-auto w-full max-w-2xl scroll-mt-24"
+      >
+        <ContactForm source="contact" centered />
       </section>
     </PublicInfoPage>
   );

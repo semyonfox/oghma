@@ -164,8 +164,16 @@ function getHomeFeatures(t) {
 function getComparisonRows(t) {
   return [
     {
-      tool: t("Document tools"),
-      problem: t("Begin after you gather and upload the right sources."),
+      tool: t("NotebookLM"),
+      problem: t("Excellent for documents you upload, but you still have to gather and organise the sources."),
+    },
+    {
+      tool: t("ChatGPT or Gemini"),
+      problem: t("Powerful general assistants, but they do not automatically know your course, deadlines, or Canvas files."),
+    },
+    {
+      tool: t("Quizlet or Anki"),
+      problem: t("Useful for flashcards, but separate from your lectures, assignments, and deadlines."),
     },
     {
       tool: t("OghmaNotes"),
@@ -319,7 +327,7 @@ export default async function Home() {
             <h2 className="type-eyebrow text-center text-primary-300">
               {t("What changes once Canvas is connected")}
             </h2>
-            <p className="type-section-title mx-auto mt-4 max-w-4xl text-center text-text">
+            <p className="type-supporting-title mx-auto mt-4 max-w-4xl text-center text-text">
               {t("The study work starts already organised.")}
             </p>
           </FadeIn>
@@ -355,7 +363,7 @@ export default async function Home() {
               <h2 className="type-eyebrow text-primary-300">
                 {t("Why not just use NotebookLM?")}
               </h2>
-              <p className="type-section-title mt-4 text-text">
+              <p className="type-supporting-title mt-4 text-text">
                 {t("NotebookLM is great for documents you upload.")}
               </p>
               <p className="type-lead mx-auto mt-6 text-text-secondary">
@@ -390,10 +398,10 @@ export default async function Home() {
           <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <FadeIn>
               <div>
-                <h2 className="type-section-title text-text">
+                <h2 className="type-supporting-title text-text">
                   {t("Built by students. Clear about the beta.")}
                 </h2>
-                <p className="type-lead mt-6 text-text-secondary">
+                <p className="type-body mt-4 max-w-xl text-text-secondary">
                   {t(
                     "OghmaNotes is built by students at University of Galway. It is independent, early, and focused on making Canvas less painful during real assignment and exam weeks.",
                   )}
@@ -429,7 +437,7 @@ export default async function Home() {
           <div className="relative px-6 pt-24 pb-20 sm:pt-32 lg:static lg:px-8 lg:py-48">
             <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
               <FadeIn>
-                <h2 className="type-section-title text-text">
+                <h2 className="type-supporting-title text-text">
                   {t("Beta access, feedback, or data questions")}
                 </h2>
                 <p className="type-lead mt-6 text-text-secondary">
