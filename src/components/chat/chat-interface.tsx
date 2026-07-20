@@ -366,7 +366,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           }`}
         >
           {messages.length === 0 ? (
-            <ChatSplash />
+            <ChatSplash
+              onSelectPrompt={(prompt) => {
+                setInput(prompt);
+                requestAnimationFrame(() => inputRef.current?.focus());
+              }}
+            />
           ) : (
             messages.map((m, index) => (
               <FullMessageBubble

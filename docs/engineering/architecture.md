@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-07-15
+> **Last reviewed:** 2026-07-20
 >
 > **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -64,6 +64,12 @@ The worker handles durable LLM generation, Canvas discovery and files, direct ex
 Indexing stores chunk text and ownership in PostgreSQL, computes embeddings through the configured provider, and upserts vectors to Qdrant. Semantic search and chat embed the query, retrieve scoped Qdrant results, hydrate relational chunk data, optionally rerank it, and pass grounded context to the configured LLM.
 
 Chat supports streaming and non-streaming responses. Streaming prompts are durable BullMQ jobs: the worker writes ordered SSE events to an expiring Redis Stream while PostgreSQL owns generation state and the final assistant message. A browser reconnect supplies the last Redis event ID, replays missed events, and then continues live delivery. Sessions and messages are relational data. Assistant messages retain canonical plain `content` and optional structured `parts` for durable tool and error UI.
+
+The chat also has an always-available, read-only `getAppGuide` tool backed by
+[`src/lib/chat/app-guide.ts`](../../src/lib/chat/app-guide.ts). It answers product
+workflow, navigation, capability, and troubleshooting questions without using
+the user's note index. The same guide renders the starter note created during
+registration so those instructions have one source of truth.
 
 ## Canvas MCP boundary
 

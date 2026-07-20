@@ -3,6 +3,7 @@
 // during streaming.
 
 const TOOL_CALL_LABELS: Record<string, string> = {
+  getAppGuide: "Checking app guide",
   getChunks: "Searching notes",
   readNote: "Reading note",
   findFolder: "Looking up folder",

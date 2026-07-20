@@ -9,6 +9,11 @@ export function toolCallDetail(toolName: string, input: unknown): string | undef
   const value = record(input);
   if (!value) return undefined;
 
+  if (toolName === "getAppGuide" && typeof value.topic === "string") {
+    return value.topic
+      .replace(/-/g, " ")
+      .replace(/^./, (first) => first.toUpperCase());
+  }
   if (toolName === "getChunks" && typeof value.query === "string") {
     return `“${value.query}”`;
   }
