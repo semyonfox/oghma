@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { FolderOpenIcon } from "@heroicons/react/24/outline";
 import {
@@ -39,6 +39,8 @@ export default function NotesWorkspace() {
   const setSizes = useLayoutStore((s) => s.setSizes);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
+  const treeWidthRef = useRef(treeWidth);
+  const rightPanelWidthRef = useRef(rightPanelWidth);
 
   useEffect(() => {
     const route = resolveNoteRoute(pathname);
@@ -184,6 +186,13 @@ export default function NotesWorkspace() {
             key={rightPanelOpen ? "with-inspector" : "without-inspector"}
             orientation="horizontal"
             className="min-w-0 flex-1"
+            onLayoutChanged={() => {
+              setSizes(
+                treeWidthRef.current,
+                rightPanelWidthRef.current,
+                splitPosition,
+              );
+            }}
           >
             <Panel
               id="note-tree"
@@ -191,9 +200,8 @@ export default function NotesWorkspace() {
               minSize="200px"
               maxSize="600px"
               groupResizeBehavior="preserve-pixel-size"
-              onResize={({ inPixels }, _id, previousSize) => {
-                if (previousSize)
-                  setSizes(inPixels, rightPanelWidth, splitPosition);
+              onResize={({ inPixels }) => {
+                treeWidthRef.current = inPixels;
               }}
               className="flex min-w-0"
             >
@@ -236,9 +244,8 @@ export default function NotesWorkspace() {
                 minSize="250px"
                 maxSize="600px"
                 groupResizeBehavior="preserve-pixel-size"
-                onResize={({ inPixels }, _id, previousSize) => {
-                  if (previousSize)
-                    setSizes(treeWidth, inPixels, splitPosition);
+                onResize={({ inPixels }) => {
+                  rightPanelWidthRef.current = inPixels;
                 }}
                 className="flex min-w-0"
               >

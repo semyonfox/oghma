@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -62,6 +62,7 @@ export default function CalendarPage() {
   const splitPosition = useLayoutStore((state) => state.splitPosition);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
   const setSizes = useLayoutStore((state) => state.setSizes);
+  const taskPanelWidthRef = useRef(rightPanelWidth);
 
   useEffect(() => {
     setActiveNav("calendar");
@@ -146,6 +147,9 @@ export default function CalendarPage() {
           key={hasTaskSidebar ? "with-tasks" : "without-tasks"}
           orientation="horizontal"
           className="min-w-0 flex-1"
+          onLayoutChanged={() => {
+            setSizes(treeWidth, taskPanelWidthRef.current, splitPosition);
+          }}
         >
           <Panel id="calendar" minSize="480px" className="flex min-w-0">
             <main
@@ -320,10 +324,8 @@ export default function CalendarPage() {
               minSize="250px"
               maxSize="600px"
               groupResizeBehavior="preserve-pixel-size"
-              onResize={({ inPixels }, _id, previousSize) => {
-                if (previousSize) {
-                  setSizes(treeWidth, inPixels, splitPosition);
-                }
+              onResize={({ inPixels }) => {
+                taskPanelWidthRef.current = inPixels;
               }}
               className="flex min-w-0"
             >
