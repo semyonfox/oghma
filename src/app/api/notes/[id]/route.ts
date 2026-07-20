@@ -28,6 +28,7 @@ interface NoteSummaryRow {
   content: string;
   is_folder: boolean;
   s3_key: string | null;
+  mime_type: string | null;
   shared: number;
   pinned: number;
   created_at: string;
@@ -73,11 +74,15 @@ export const GET = withErrorHandler(async (request: NextRequest, { params }: Not
   }
 
   const rows = (await sql`
-     SELECT note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
-     FROM app.notes
-     WHERE note_id = ${noteId}::uuid
-       AND user_id = ${user.user_id}::uuid
-       AND deleted_at IS NULL
+     SELECT n.note_id, n.title, n.content, n.is_folder, n.s3_key, n.shared, n.pinned,
+            n.created_at, n.updated_at,
+            (SELECT a.mime_type FROM app.attachments a
+             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
+             LIMIT 1) AS mime_type
+     FROM app.notes n
+     WHERE n.note_id = ${noteId}::uuid
+       AND n.user_id = ${user.user_id}::uuid
+       AND n.deleted_at IS NULL
    `) as NoteSummaryRow[];
 
   const dbNote = rows[0];

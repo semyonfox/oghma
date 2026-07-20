@@ -11,6 +11,7 @@ import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
 import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
+import { detectMimeType } from "@/lib/uploads/detect-mime";
 
 function sanitizeFileName(raw: string): string {
   return raw
@@ -18,39 +19,6 @@ function sanitizeFileName(raw: string): string {
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .replace(/\.{2,}/g, ".")
     .substring(0, 255);
-}
-
-const MAGIC_NUMBERS: [string, Set<string>][] = [
-  ["25504446", new Set(["application/pdf"])],
-  ["89504e47", new Set(["image/png"])],
-  ["ffd8ff", new Set(["image/jpeg"])],
-  ["47494638", new Set(["image/gif"])],
-  ["52494646", new Set(["image/webp", "audio/wav"])],
-  [
-    "504b0304",
-    new Set([
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ]),
-  ],
-  ["d0cf11e0", new Set(["application/msword"])],
-  ["494433", new Set(["audio/mpeg"])],
-  ["fff1", new Set(["audio/mpeg"])],
-  ["fffb", new Set(["audio/mpeg"])],
-  ["00000020", new Set(["video/mp4"])],
-  ["0000001c", new Set(["video/mp4"])],
-];
-
-function validateMagicNumber(buffer: ArrayBuffer, mimeType: string): boolean {
-  if (mimeType.startsWith("text/")) return true;
-  const header = Buffer.from(buffer).subarray(0, 12).toString("hex");
-  for (const [magic, allowedTypes] of MAGIC_NUMBERS) {
-    if (header.startsWith(magic)) {
-      return allowedTypes.has(mimeType);
-    }
-  }
-  return false;
 }
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -90,13 +58,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) {
+  if (file.type && file.type !== "application/octet-stream" && !ALLOWED_MIME_TYPES.has(file.type)) {
     return tracedError(`File type '${file.type}' is not allowed`, 400);
   }
 
   const rawBuffer = await file.arrayBuffer();
-  if (file.type && !validateMagicNumber(rawBuffer, file.type)) {
+  const detectedMimeType = detectMimeType(rawBuffer, file.type);
+  if (file.type && !detectedMimeType) {
     return tracedError("File content does not match declared type", 400);
+  }
+  const mimeType = detectedMimeType || file.type;
+  if (!mimeType || !ALLOWED_MIME_TYPES.has(mimeType)) {
+    return tracedError("Could not determine an allowed file type", 400);
   }
 
   let createdNewNote = false;
@@ -130,7 +103,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   try {
     await xraySubsegment("s3-put", () =>
       storage.putObject(storagePath, Buffer.from(rawBuffer), {
-        contentType: file.type || "application/octet-stream",
+        contentType: mimeType,
       }),
     );
   } catch (s3Error) {
@@ -150,7 +123,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     await sql`
       INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
       VALUES (${attachmentId}::uuid, ${noteId}::uuid, ${session.user_id}::uuid,
-              ${fileName}, ${storagePath}, ${file.type || "application/octet-stream"}, ${file.size})
+              ${fileName}, ${storagePath}, ${mimeType}, ${file.size})
     `;
   } catch (dbError) {
     logger.warn(
@@ -193,12 +166,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     "text/x-markdown",
   ]);
 
-  if (extractableTypes.has(file.type)) {
+  let ingestionStatus = "not-applicable";
+  if (extractableTypes.has(mimeType)) {
     try {
       // insert job record so frontend can poll /api/ingestion-status
       await sql`
         INSERT INTO app.ingestion_jobs (note_id, user_id, s3_key, mime_type, status)
-        VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${file.type || "application/pdf"}, 'pending')
+        VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${storagePath}, ${mimeType}, 'pending')
         ON CONFLICT DO NOTHING
       `;
 
@@ -206,12 +180,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         noteId,
         userId: session.user_id,
         s3Key: storagePath,
-        mimeType: file.type || "application/pdf",
+        mimeType,
         filename: fileName,
       });
 
-      logger.info("extraction job queued", { noteId, mimeType: file.type });
+      ingestionStatus = "pending";
+      logger.info("extraction job queued", { noteId, mimeType });
     } catch (extractErr) {
+      ingestionStatus = "failed-to-queue";
       logger.warn("failed to queue extraction job", {
         error: extractErr,
         noteId,
@@ -226,7 +202,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     path: storagePath,
     url: signedUrl,
     size: file.size,
-    type: file.type,
+    type: mimeType,
+    ingestionStatus,
     attachmentId,
     createdNewNote,
   });

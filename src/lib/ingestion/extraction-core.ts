@@ -28,7 +28,7 @@ function isTextLikeFile(filename: string, mimeType?: string): boolean {
 
 function markerOcrEnabled(): boolean {
   const value = process.env.MARKER_OCR_ENABLED?.trim().toLowerCase();
-  return !["0", "false", "off"].includes(value ?? "");
+  return ["1", "true", "on"].includes(value ?? "");
 }
 
 async function extractPdfTextLayer(
@@ -56,8 +56,16 @@ export async function extractContentFromBuffer({
     return { rawText, chunks: chunkText(rawText), source: "text" };
   }
 
-  // Try Marker when configured and enabled; fall through to pdf-parse on
-  // failure or when operators explicitly bypass the OCR layer.
+  // Use the PDF text layer first. This is CPU-only and lets searchable PDFs
+  // become RAG-ready without waiting for the optional OCR service.
+  if (mimeType === "application/pdf") {
+    const textLayer = await extractPdfTextLayer(buffer);
+    if (textLayer) {
+      return { rawText: textLayer.rawText, chunks: textLayer.chunks, source: "pdf-parse" };
+    }
+  }
+
+  // Marker is an explicit fallback for scanned/image-only documents.
   if (process.env.MARKER_API_URL && markerOcrEnabled()) {
     try {
       const marker = await extractWithMarker(buffer, filename, { fastPath: true });
@@ -70,14 +78,7 @@ export async function extractContentFromBuffer({
         pageRange: marker.pageRange,
       };
     } catch {
-      // fall through to pdf-parse / skipped
-    }
-  }
-
-  if (mimeType === "application/pdf") {
-    const fallback = await extractPdfTextLayer(buffer);
-    if (fallback) {
-      return { rawText: fallback.rawText, chunks: fallback.chunks, source: "pdf-parse" };
+      // fall through to skipped
     }
   }
   return { rawText: "", chunks: [], source: "skipped" };

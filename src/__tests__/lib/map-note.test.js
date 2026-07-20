@@ -7,6 +7,7 @@ const FULL_ROW = {
     content: '# Hello',
     is_folder: false,
     s3_key: 'uploads/file.pdf',
+    mime_type: 'application/pdf',
     deleted: 0,
     shared: 0,
     pinned: 1,
@@ -22,6 +23,7 @@ describe('mapNoteFromDB', () => {
         expect(result.content).toBe('# Hello');
         expect(result.isFolder).toBe(false);
         expect(result.s3Key).toBe('uploads/file.pdf');
+        expect(result.mimeType).toBe('application/pdf');
         expect(result.deleted).toBe(0);
         expect(result.shared).toBe(0);
         expect(result.pinned).toBe(1);

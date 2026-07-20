@@ -12,6 +12,7 @@ interface TreeItem {
   isFolder: boolean;
   isExpanded: boolean;
   s3Key: string | null;
+  mimeType: string | null;
   pinned: number;
 }
 

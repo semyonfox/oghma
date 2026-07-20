@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -17,13 +17,24 @@ const layoutState = {
   rightPanelWidth: 280,
   rightPanelOpen: false,
   rightPanelTab: "meta" as const,
+  splitPosition: 50,
   paneA: { fileId: "", fileType: "note" },
   paneB: null,
   activePane: "A",
   setPaneA: mocks.setPaneA,
   setActivePane: vi.fn(),
   setRightPanelOpen: vi.fn(),
+  setSizes: vi.fn(),
 };
+
+vi.mock("react-resizable-panels", () => ({
+  Group: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  Panel: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  Separator: ({ "aria-label": ariaLabel }: { "aria-label"?: string }) =>
+    React.createElement("div", { role: "separator", "aria-label": ariaLabel }),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -62,7 +73,9 @@ vi.mock("@/lib/notes/hooks/use-note-tree-initialization", () => ({
   default: () => true,
 }));
 
-vi.mock("@/components/navigation/primary-navigation", () => ({ default: () => null }));
+vi.mock("@/components/navigation/primary-navigation", () => ({
+  default: () => null,
+}));
 vi.mock("@/components/navigation/mobile-app-header", () => ({
   default: () => null,
 }));
@@ -72,7 +85,9 @@ vi.mock("@/components/navigation/mobile-drawer", () => ({
 vi.mock("@/components/notes/note-tree-panel", () => ({
   default: () => null,
 }));
-vi.mock("@/components/editor/split-editor-pane", () => ({ default: () => null }));
+vi.mock("@/components/editor/split-editor-pane", () => ({
+  default: () => null,
+}));
 vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
 }));
@@ -114,5 +129,19 @@ describe("NotesWorkspace note route synchronization", () => {
       "/api/notes/550e8400-e29b-41d4-a716-446655440000",
       { signal: expect.any(AbortSignal) },
     );
+  });
+
+  it("renders resize handles for both desktop side panels", () => {
+    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    layoutState.rightPanelOpen = true;
+
+    render(React.createElement(NotesWorkspace));
+
+    expect(
+      screen.getByRole("separator", { name: "Resize notes panel" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("separator", { name: "Resize details panel" }),
+    ).toBeTruthy();
   });
 });

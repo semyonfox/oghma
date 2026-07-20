@@ -46,10 +46,14 @@ export const GET = withErrorHandler(async (request) => {
   // content is excluded from the list query — fetch individual notes for full content
   const sqlLimit = limit ?? 200;
   const notes = await sql`
-    SELECT note_id, title, is_folder, s3_key, shared, pinned, created_at, updated_at
-    FROM app.notes
-    WHERE user_id = ${user.user_id}::uuid AND deleted_at IS NULL
-    ORDER BY created_at DESC
+    SELECT n.note_id, n.title, n.is_folder, n.s3_key, n.shared, n.pinned,
+           n.created_at, n.updated_at,
+           (SELECT a.mime_type FROM app.attachments a
+            WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
+            LIMIT 1) AS mime_type
+    FROM app.notes n
+    WHERE n.user_id = ${user.user_id}::uuid AND n.deleted_at IS NULL
+    ORDER BY n.created_at DESC
     LIMIT ${sqlLimit} OFFSET ${skip}
   `;
 
@@ -87,8 +91,9 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, `Content must be ${MAX_CONTENT_LENGTH} bytes or fewer`);
   }
 
-  // Generate UUID v7 for note
-  const noteId = generateUUID();
+  // The notes UI creates an optimistic UUID before POSTing so its tree item and
+  // route point at the same persisted note. API-only callers may omit it.
+  const noteId = body.id || generateUUID();
 
   // Create new note in PostgreSQL
   const isFolder = body.isFolder === true || body.is_folder === true;

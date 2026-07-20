@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { FolderOpenIcon } from "@heroicons/react/24/outline";
+import {
+  Group as PanelGroup,
+  Panel,
+  Separator as PanelResizeHandle,
+} from "react-resizable-panels";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { schedulePrefetch } from "@/lib/notes/prefetch";
@@ -30,6 +35,8 @@ export default function NotesWorkspace() {
   const rightPanelOpen = useLayoutStore((s) => s.rightPanelOpen);
   const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
   const setRightPanelOpen = useLayoutStore((s) => s.setRightPanelOpen);
+  const splitPosition = useLayoutStore((s) => s.splitPosition);
+  const setSizes = useLayoutStore((s) => s.setSizes);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
 
@@ -51,7 +58,8 @@ export default function NotesWorkspace() {
     const controller = new AbortController();
     void fetch(`/api/notes/${fileId}`, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error(`note fetch failed: ${response.status}`);
+        if (!response.ok)
+          throw new Error(`note fetch failed: ${response.status}`);
         const note = await response.json();
         setPaneA(buildFileSpec(note));
       })
@@ -85,7 +93,8 @@ export default function NotesWorkspace() {
       const target = event.target;
       const canSwitchPane =
         target === document.body ||
-        (target instanceof HTMLElement && target.dataset.paneShortcut === "true");
+        (target instanceof HTMLElement &&
+          target.dataset.paneShortcut === "true");
 
       if (
         event.key === "Tab" &&
@@ -160,56 +169,96 @@ export default function NotesWorkspace() {
         </>
       )}
 
-      <div
-        className="min-h-0 flex-1 overflow-hidden md:grid"
-        style={
-          isDesktop === true
-            ? {
-                gridTemplateColumns: `3rem ${treeWidth}px 1fr ${rightPanelOpen ? rightPanelWidth : 0}px`,
-                gap: "0",
-              }
-            : undefined
-        }
-      >
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
           <div
             key="navigation"
-            className="flex flex-col overflow-hidden border-r border-border-subtle bg-background"
+            className="w-12 shrink-0 flex-col overflow-hidden border-r border-border-subtle bg-background md:flex"
           >
             <PrimaryNavigation />
           </div>
         )}
 
         {isDesktop === true && (
-          <div
-            key="tree"
-            className="flex flex-col overflow-hidden border-r border-border-subtle bg-background"
-          >
-            <NoteTreePanel />
-          </div>
+          <PanelGroup orientation="horizontal" className="min-w-0 flex-1">
+            <Panel
+              id="note-tree"
+              defaultSize={`${treeWidth}px`}
+              minSize="200px"
+              maxSize="600px"
+              groupResizeBehavior="preserve-pixel-size"
+              onResize={({ inPixels }, _id, previousSize) => {
+                if (previousSize)
+                  setSizes(inPixels, rightPanelWidth, splitPosition);
+              }}
+              className="flex min-w-0"
+            >
+              <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+                <NoteTreePanel />
+              </div>
+            </Panel>
+
+            <PanelResizeHandle
+              aria-label={t("Resize notes panel")}
+              className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
+            />
+
+            <Panel id="note-editor" minSize="320px" className="flex min-w-0">
+              <main
+                aria-label={t("Note editor")}
+                className="h-full min-h-0 w-full overflow-hidden bg-background"
+              >
+                {!noteDependenciesReady ? (
+                  <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+                    {t("Loading...")}
+                  </div>
+                ) : (
+                  <SplitEditorPane />
+                )}
+              </main>
+            </Panel>
+
+            {rightPanelOpen && (
+              <PanelResizeHandle
+                aria-label={t("Resize details panel")}
+                className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
+              />
+            )}
+
+            {rightPanelOpen && (
+              <Panel
+                id="note-inspector"
+                defaultSize={`${rightPanelWidth}px`}
+                minSize="250px"
+                maxSize="400px"
+                groupResizeBehavior="preserve-pixel-size"
+                onResize={({ inPixels }, _id, previousSize) => {
+                  if (previousSize)
+                    setSizes(treeWidth, inPixels, splitPosition);
+                }}
+                className="flex min-w-0"
+              >
+                <div className="glass-panel flex h-full w-full flex-col overflow-hidden">
+                  <NoteInspectorPanel />
+                </div>
+              </Panel>
+            )}
+          </PanelGroup>
         )}
 
-        <main
-          key="editor"
-          aria-label={t("Note editor")}
-          className="h-full min-h-0 overflow-hidden bg-background"
-        >
-          {isDesktop === null || !noteDependenciesReady ? (
-            <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
-              {t("Loading...")}
-            </div>
-          ) : (
-            <SplitEditorPane />
-          )}
-        </main>
-
-        {isDesktop === true && rightPanelOpen && (
-          <div
-            key="inspector"
-            className="glass-panel flex flex-col overflow-hidden"
+        {isDesktop !== true && (
+          <main
+            aria-label={t("Note editor")}
+            className="h-full min-h-0 w-full overflow-hidden bg-background"
           >
-            <NoteInspectorPanel />
-          </div>
+            {isDesktop === null || !noteDependenciesReady ? (
+              <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+                {t("Loading...")}
+              </div>
+            ) : (
+              <SplitEditorPane />
+            )}
+          </main>
         )}
       </div>
     </div>
