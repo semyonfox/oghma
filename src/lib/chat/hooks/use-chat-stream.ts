@@ -221,8 +221,18 @@ export function useChatStream(
   const [error, setError] = useState<string | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // durable background generation being consumed — lets Stop cancel the worker
+  const activeGenerationRef = useRef<string | null>(null);
 
   const cancel = useCallback(() => {
+    const generationId = activeGenerationRef.current;
+    if (generationId) {
+      // fire-and-forget: the worker watchdog aborts the LLM stream server-side
+      activeGenerationRef.current = null;
+      void fetch(`/api/chat/generations/${generationId}/cancel`, {
+        method: "POST",
+      }).catch(() => {});
+    }
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setLoading(false);
@@ -540,26 +550,33 @@ export function useChatStream(
     userText: string,
     signal: AbortSignal,
   ): Promise<void> {
+    activeGenerationRef.current = generationId;
     let afterId = "0-0";
     let attempts = 0;
-    while (!signal.aborted) {
-      try {
-        const response = await fetch(
-          `/api/chat/generations/${generationId}/stream?after=${encodeURIComponent(afterId)}`,
-          { headers: { Accept: "text/event-stream" }, signal },
-        );
-        if (!response.ok || !response.body) {
-          throw new Error(`Unable to resume response (${response.status})`);
+    try {
+      while (!signal.aborted) {
+        try {
+          const response = await fetch(
+            `/api/chat/generations/${generationId}/stream?after=${encodeURIComponent(afterId)}`,
+            { headers: { Accept: "text/event-stream" }, signal },
+          );
+          if (!response.ok || !response.body) {
+            throw new Error(`Unable to resume response (${response.status})`);
+          }
+          await consumeStream(response.body, assistantId, userText, (id) => {
+            afterId = id;
+          });
+          return;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          attempts += 1;
+          if (attempts >= 4) throw error;
+          await new Promise<void>((resolve) => setTimeout(resolve, attempts * 500));
         }
-        await consumeStream(response.body, assistantId, userText, (id) => {
-          afterId = id;
-        });
-        return;
-      } catch (error) {
-        if (signal.aborted) throw error;
-        attempts += 1;
-        if (attempts >= 4) throw error;
-        await new Promise<void>((resolve) => setTimeout(resolve, attempts * 500));
+      }
+    } finally {
+      if (activeGenerationRef.current === generationId) {
+        activeGenerationRef.current = null;
       }
     }
   }

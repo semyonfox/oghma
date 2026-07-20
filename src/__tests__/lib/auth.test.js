@@ -1,10 +1,19 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
 }));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
+}));
 
-import { generateJWTToken, verifyJWTToken } from "@/lib/auth";
+import { auth } from "@/auth";
+import { cookies } from "next/headers";
+import {
+  generateJWTToken,
+  verifyJWTToken,
+  validateSessionLite,
+} from "@/lib/auth";
 
 // JWT_SECRET is set in setup.ts
 
@@ -55,5 +64,44 @@ describe("verifyJWTToken", () => {
     delete process.env.JWT_SECRET;
     expect(() => verifyJWTToken(token)).toThrow();
     process.env.JWT_SECRET = original;
+  });
+});
+
+describe("validateSessionLite", () => {
+  beforeEach(() => {
+    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(cookies).mockResolvedValue({ get: () => undefined });
+  });
+
+  it("resolves the user from a valid session cookie without any db call", async () => {
+    const token = generateJWTToken({ user_id: "user-123" });
+    vi.mocked(cookies).mockResolvedValue({
+      get: (name) => (name === "session" ? { value: token } : undefined),
+    });
+
+    await expect(validateSessionLite()).resolves.toEqual({
+      user_id: "user-123",
+    });
+  });
+
+  it("rejects a tampered session cookie", async () => {
+    const token = generateJWTToken({ user_id: "user-123" });
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => ({ value: token.slice(0, -3) + "xxx" }),
+    });
+
+    await expect(validateSessionLite()).resolves.toBeNull();
+  });
+
+  it("falls back to the NextAuth session for OAuth users", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: "oauth-user-9" } });
+
+    await expect(validateSessionLite()).resolves.toEqual({
+      user_id: "oauth-user-9",
+    });
+  });
+
+  it("returns null when no credential is present", async () => {
+    await expect(validateSessionLite()).resolves.toBeNull();
   });
 });

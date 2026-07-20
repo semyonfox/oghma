@@ -50,14 +50,23 @@ import {
 } from "@/lib/chat/stream-events";
 import {
   appendChatGenerationEvent,
+  cancelChatGeneration,
   claimChatGeneration,
   completeChatGeneration,
   failChatGeneration,
+  isChatGenerationCancelRequested,
   loadChatGeneration,
   requeueChatGeneration,
   resetChatGenerationEvents,
 } from "@/lib/chat/generation-store";
+import {
+  hasFreshChatPresence,
+  resolveAbortReason,
+  type AbortReason,
+} from "@/lib/chat/presence";
 import { toSseEvent } from "@/lib/chat/sse";
+
+const WATCHDOG_INTERVAL_MS = 5_000;
 
 const EMPTY_RAG_RESULT: RagResult = {
   searchResults: [],
@@ -109,7 +118,73 @@ export async function processChatGeneration(
     | Awaited<ReturnType<typeof buildLlmCall>>["canvasMcpClient"]
     | undefined;
 
+  // Watchdog: aborts the LLM stream on explicit stop or real disconnect.
+  // A user who never had browser presence (pure API usage) is never
+  // disconnect-cancelled — only the explicit cancel flag applies to them.
+  const abortController = new AbortController();
+  let abortReason: AbortReason = null;
+  let sawPresence = false;
+  let firstAbsentAt: number | null = null;
+  let watchdogBusy = false;
+  const watchdogTick = async (): Promise<void> => {
+    if (watchdogBusy || abortReason) return;
+    watchdogBusy = true;
+    try {
+      const cancelRequested = await isChatGenerationCancelRequested(generationId);
+      const present = cancelRequested ? false : await hasFreshChatPresence(userId);
+      if (present) {
+        sawPresence = true;
+        firstAbsentAt = null;
+      } else if (firstAbsentAt === null) {
+        firstAbsentAt = Date.now();
+      }
+      const reason = resolveAbortReason({
+        cancelRequested,
+        present,
+        sawPresence,
+        firstAbsentAt,
+        now: Date.now(),
+      });
+      if (reason) {
+        abortReason = reason;
+        abortController.abort();
+      }
+    } catch {
+      // presence/redis hiccups must never abort a generation
+    } finally {
+      watchdogBusy = false;
+    }
+  };
+  const watchdog = setInterval(() => void watchdogTick(), WATCHDOG_INTERVAL_MS);
+  void watchdogTick();
+
+  // Assigned once streamed state exists so the catch path can persist the
+  // partial answer; before that a cancel simply finishes with no message.
+  let finalizeCancelled: (() => Promise<void>) | null = null;
+  let cancelFinalized = false;
+  const finishCancelled = async (): Promise<void> => {
+    if (cancelFinalized) return;
+    cancelFinalized = true;
+    if (finalizeCancelled) {
+      await finalizeCancelled();
+      return;
+    }
+    sendDone(writer);
+    await writer.flush();
+    await cancelChatGeneration(generationId);
+    logger.info("Background chat generation cancelled", {
+      generationId,
+      sessionId,
+      reason: abortReason ?? "stopped",
+      elapsedMs: Date.now() - startedAt,
+    });
+  };
+
   try {
+    if (await isChatGenerationCancelRequested(generationId)) {
+      await finishCancelled();
+      return;
+    }
     if (attempt > 1) {
       await resetChatGenerationEvents(generationId);
       await appendChatGenerationEvent(generationId, toSseEvent("reset", {}));
@@ -205,7 +280,45 @@ export async function processChatGeneration(
       ...overrides,
     });
 
-    const result = streamText({ model: llm.model, ...llm.llmCallOptions });
+    finalizeCancelled = async () => {
+      closeThinkingWindow();
+      flushText();
+      if (reply.trim() || parts.length > 0) {
+        await persistMessage(sessionId, "assistant", reply, {
+          parts,
+          sources: uniqueSources,
+          metadata: metadata({
+            partial: true,
+            cancelled: true,
+            error:
+              abortReason === "disconnected"
+                ? "Interrupted — you left the chat"
+                : "Stopped",
+          }),
+        });
+      }
+      sendDone(writer);
+      await writer.flush();
+      await cancelChatGeneration(generationId);
+      logger.info("Background chat generation cancelled", {
+        generationId,
+        sessionId,
+        reason: abortReason ?? "stopped",
+        elapsedMs: Date.now() - startedAt,
+        replyLength: reply.length,
+      });
+    };
+
+    if (abortReason) {
+      await finishCancelled();
+      return;
+    }
+
+    const result = streamText({
+      model: llm.model,
+      abortSignal: abortController.signal,
+      ...llm.llmCallOptions,
+    });
     for await (const part of result.fullStream) {
       if (part.type === "reasoning-delta") {
         if (!thinkingStartedAt) thinkingStartedAt = Date.now();
@@ -236,9 +349,15 @@ export async function processChatGeneration(
       } else if (part.type === "finish") {
         finishReason = part.finishReason;
         rawFinishReason = part.rawFinishReason;
+      } else if (part.type === "abort") {
+        break;
       } else if (part.type === "error") {
         throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
+    }
+    if (abortReason || abortController.signal.aborted) {
+      await finishCancelled();
+      return;
     }
     responseMessages = (await result.response).messages;
     closeThinkingWindow();
@@ -261,6 +380,7 @@ export async function processChatGeneration(
         }
         const finalAnswer = await streamFinalAnswer({
           model: llm.model,
+          abortSignal: abortController.signal,
           messages: [...llm.llmCallOptions.messages, ...responseMessages],
           maxOutputTokens: llm.llmCallOptions.maxOutputTokens,
           onTextDelta(text) {
@@ -296,6 +416,24 @@ export async function processChatGeneration(
       replyLength: reply.length,
     });
   } catch (error) {
+    // A watchdog abort surfaces as an AbortError (or an SDK error part) —
+    // that's a clean cancel, not a failure: persist the partial, no retry.
+    if (abortReason || abortController.signal.aborted) {
+      try {
+        await finishCancelled();
+      } catch (cancelError) {
+        logger.error("Failed to finalize cancelled chat generation", {
+          generationId,
+          sessionId,
+          error:
+            cancelError instanceof Error
+              ? cancelError.message
+              : String(cancelError),
+        });
+        await cancelChatGeneration(generationId).catch(() => {});
+      }
+      return;
+    }
     void Metrics.llmError();
     const detail = error instanceof Error ? error.message : String(error);
     logger.error("Background chat generation failed", { generationId, sessionId, error: detail });
@@ -308,6 +446,7 @@ export async function processChatGeneration(
     }
     throw error;
   } finally {
+    clearInterval(watchdog);
     await canvasMcpClient?.close().catch(() => {});
   }
 }

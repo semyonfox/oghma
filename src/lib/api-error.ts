@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "./logger";
 import { getTraceId, withTrace } from "./trace";
-import { validateSession } from "./auth";
+import { validateSession, validateSessionLite } from "./auth";
 import { isValidUUID } from "./utils/uuid";
 
 // ── Error classes ────────────────────────────────────────────────────────────
@@ -141,6 +141,17 @@ export async function requireAuth(): Promise<AuthUser> {
   const user = await validateSession();
   if (!user) throw new ApiError(401, "Unauthorized");
   return user as AuthUser;
+}
+
+/**
+ * Token-only variant of requireAuth for high-frequency, low-stakes routes
+ * (presence heartbeats): skips the per-request Postgres revalidation that
+ * validateSession performs. Never use it where user data is read or mutated.
+ */
+export async function requireAuthLite(): Promise<{ user_id: string }> {
+  const user = await validateSessionLite();
+  if (!user) throw new ApiError(401, "Unauthorized");
+  return user;
 }
 
 /**

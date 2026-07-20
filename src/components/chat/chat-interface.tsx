@@ -165,6 +165,17 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     onStreamComplete,
   });
   const busy = loading || backgroundLoading;
+
+  // Stop must reach the worker even before the background resume attaches,
+  // when the hook doesn't know the generation id yet.
+  const stopGenerating = () => {
+    if (backgroundGenerationId) {
+      void fetch(`/api/chat/generations/${backgroundGenerationId}/cancel`, {
+        method: "POST",
+      }).catch(() => {});
+    }
+    cancel();
+  };
   const resumedGenerationRef = useRef<string | null>(null);
   const ownsLiveStreamRef = useRef(false);
 
@@ -484,14 +495,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             {busy ? (
               <button
                 type="button"
-                onClick={loading ? cancel : undefined}
-                disabled={backgroundLoading}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 disabled:cursor-wait disabled:opacity-60 md:h-8 md:w-8"
-                title={
-                  backgroundLoading
-                    ? t("Generating in background")
-                    : t("Stop generating")
-                }
+                onClick={stopGenerating}
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 md:h-8 md:w-8"
+                title={t("Stop generating")}
               >
                 <StopCircleIcon
                   className={`h-4 w-4 ${backgroundLoading ? "animate-pulse" : ""}`}

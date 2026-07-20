@@ -93,6 +93,37 @@ describe("streamFinalAnswer", () => {
     });
     expect(model.doStreamCalls[0]?.prompt).toHaveLength(4);
   });
+
+  it("passes the caller's abort signal through to the model call", async () => {
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start" as const, warnings: [] },
+            { type: "text-start" as const, id: "answer" },
+            { type: "text-delta" as const, id: "answer", delta: "ok" },
+            { type: "text-end" as const, id: "answer" },
+            {
+              type: "finish" as const,
+              finishReason: { unified: "stop" as const, raw: "stop" },
+              usage,
+            },
+          ],
+        }),
+      }),
+    });
+    const controller = new AbortController();
+
+    await streamFinalAnswer({
+      model,
+      abortSignal: controller.signal,
+      messages: [{ role: "user", content: "hi" }],
+      maxOutputTokens: 64,
+      onTextDelta: vi.fn(),
+    });
+
+    expect(model.doStreamCalls[0]?.abortSignal).toBe(controller.signal);
+  });
 });
 
 describe("shouldSynthesizeFinalAnswer", () => {
