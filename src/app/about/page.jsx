@@ -122,8 +122,8 @@ export default async function About() {
             <div className="mx-auto max-w-7xl px-6 pt-36 pb-32 sm:pt-60 lg:px-8 lg:pt-32">
               <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
                 <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
-                  <h1 className="font-serif text-5xl font-semibold leading-[1.02] tracking-[-0.035em] text-pretty text-text sm:text-6xl">
-                    {t("We are building a study workspace around the course students already have.")}
+                  <h1 className="font-serif text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.035em] text-pretty text-text sm:text-6xl">
+                    {t("Built around the course you already have.")}
                   </h1>
                   <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
                     {t(
