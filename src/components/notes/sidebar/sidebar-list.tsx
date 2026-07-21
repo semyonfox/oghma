@@ -198,7 +198,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
         {/* Section header - obsidian style */}
         <div
-          className="group mt-1 flex h-12 items-center px-2 md:h-11"
+          className="group mt-1 flex h-12 items-center px-2 md:h-9"
           role="toolbar"
           aria-label={t("Notes actions")}
         >
@@ -216,29 +216,29 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewNote}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New note")}
               aria-label={t("New note")}
             >
-              <DocumentPlusIcon className="h-5 w-5" aria-hidden="true" />
+              <DocumentPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New folder")}
               aria-label={t("New folder")}
             >
-              <FolderPlusIcon className="h-5 w-5" aria-hidden="true" />
+              <FolderPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => uploadInputRef.current?.click()}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-8 md:w-8"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("Upload")}
               aria-label={t("Upload")}
             >
-              <ArrowUpTrayIcon className="h-5 w-5" aria-hidden="true" />
+              <ArrowUpTrayIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
             <input
               ref={uploadInputRef}
