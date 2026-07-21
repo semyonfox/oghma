@@ -10,6 +10,7 @@ import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { getTopLevelSelectedIds, treeItemContainsId } from "./selection-utils";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { wouldCreateTreeCycle } from "@/lib/notes/state/tree-cycle";
 
 export type DeleteConfirmTarget =
   | { mode: "single"; ids: [string] }
@@ -449,6 +450,15 @@ export function useSidebarActions(deps: {
       }
 
       if (typeof destParentId !== "string") return;
+      if (
+        wouldCreateTreeCycle(
+          useNoteTreeStore.getState().tree,
+          dragId,
+          destParentId,
+        )
+      ) {
+        return;
+      }
 
       moveItem({
         source: { parentId: sourceParentId, index: sourceIndex },

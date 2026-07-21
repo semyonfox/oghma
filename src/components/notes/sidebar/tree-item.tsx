@@ -2,9 +2,11 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { NoteModel } from "@/lib/notes/types/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import { inferFileType } from "@/lib/notes/utils/file-spec";
 import {
   ArrowPathIcon,
   ChevronRightIcon,
+  DocumentIcon,
   DocumentTextIcon,
   EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
@@ -63,6 +65,8 @@ const TreeItem: React.FC<TreeItemProps> = memo(
     const escapedRef = useRef(false);
     const committedRef = useRef(false);
     const pl = depth * INDENT_PX;
+    const isPdf =
+      inferFileType(nodeData?.title, nodeData?.mimeType) === "pdf";
 
     useEffect(() => {
       renameValueRef.current = renameValue;
@@ -172,10 +176,17 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                 aria-hidden="true"
               />
             ) : (
-              <DocumentTextIcon
-                className="h-3.5 w-3.5 text-text-tertiary"
-                aria-hidden="true"
-              />
+              isPdf ? (
+                <DocumentIcon
+                  className="h-3.5 w-3.5 text-red-400"
+                  aria-hidden="true"
+                />
+              ) : (
+                <DocumentTextIcon
+                  className="h-3.5 w-3.5 text-text-tertiary"
+                  aria-hidden="true"
+                />
+              )
             )}
           </span>
 

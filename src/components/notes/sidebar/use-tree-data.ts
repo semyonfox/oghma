@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import useNoteTreeStore from "@/lib/notes/state/tree";
+import { getCycleSafeChildren } from "@/lib/notes/state/tree-cycle";
 
 // converts the flat note tree to react-complex-tree format
 export function useTreeData() {
@@ -7,7 +8,7 @@ export function useTreeData() {
 
   return useMemo(() => {
     const result: Record<string, any> = {};
-    const dedup = (arr: string[]) => [...new Set(arr)];
+    const safeChildren = getCycleSafeChildren(tree);
 
     const root = tree.items["root"];
     if (root) {
@@ -15,7 +16,7 @@ export function useTreeData() {
         index: "root",
         canMove: false,
         canRename: false,
-        children: dedup(root.children),
+        children: safeChildren.root ?? [],
         isFolder: true,
         data: { title: "Root", isFolder: true },
       };
@@ -35,7 +36,7 @@ export function useTreeData() {
         index: id,
         canMove: true,
         canRename: false,
-        children: dedup(item.children || []),
+        children: safeChildren[id] ?? [],
         data: item.data,
         isFolder,
         canDropOn: isFolder,

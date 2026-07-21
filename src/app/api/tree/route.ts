@@ -3,6 +3,7 @@ import { withErrorHandler, requireAuth, requireValidId, ApiError } from '@/lib/a
 import { getTreeFromPG } from '@/lib/notes/storage/pg-tree.js';
 import { ROOT_ID } from '@/lib/notes/types/tree';
 import { cacheInvalidate, cacheKeys } from '@/lib/cache';
+import { wouldCreateTreeCycle } from '@/lib/notes/state/tree-cycle';
 
 interface TreeMutateAction {
     action: 'move' | 'mutate';
@@ -61,6 +62,9 @@ export const POST = withErrorHandler(async (request) => {
               // Determine new parent ID (null if moving to root)
               const newParentId = destination.parentId === ROOT_ID ? null : destination.parentId;
               if (newParentId) requireValidId(newParentId, "parent ID");
+              if (newParentId && wouldCreateTreeCycle(tree, noteId, newParentId)) {
+                throw new ApiError(400, 'Cannot move an item inside itself');
+              }
 
               // Move the note in the tree (position stored separately if needed)
               await moveNoteInTree(user.user_id, noteId, newParentId);
