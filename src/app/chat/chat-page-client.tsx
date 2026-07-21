@@ -95,7 +95,7 @@ interface ConversationHistoryProps {
   showHeader?: boolean;
 }
 
-function ConversationHistory({
+export function ConversationHistory({
   conversations,
   activeId,
   loaded,
@@ -110,6 +110,7 @@ function ConversationHistory({
 }: ConversationHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [pinnedOpen, setPinnedOpen] = useState(true);
   const cancelRenameRef = useRef(false);
   const pinnedConversations = conversations.filter((conversation) => conversation.pinned);
   const recentConversations = conversations.filter((conversation) => !conversation.pinned);
@@ -174,19 +175,60 @@ function ConversationHistory({
         </button>
       </div>
 
-      <nav className="obsidian-scrollbar flex-1 overflow-y-auto px-1.5 pb-3 pt-1">
+      <nav className="flex min-h-0 flex-1 flex-col overflow-hidden pb-3 pt-1">
         {[
           { label: "Pinned", items: pinnedConversations },
           { label: "Recent", items: recentConversations },
-        ].map((section) => section.items.length > 0 && (
-          <section key={section.label} className={section.label === "Pinned" ? "mb-2.5" : ""}>
-            {section.label === "Pinned" && (
-              <h3 className="flex h-6 items-center gap-0.5 px-2 text-[10px] font-semibold text-text-tertiary/80">
-                {t("Pinned")}
-                <ChevronDownIcon className="h-2.5 w-2.5" aria-hidden="true" />
+        ].map((section) => {
+          if (section.items.length === 0) return null;
+
+          const isPinned = section.label === "Pinned";
+          const hasBothSections =
+            pinnedConversations.length > 0 && recentConversations.length > 0;
+          const sectionOpen = !isPinned || pinnedOpen;
+
+          return (
+          <section
+            key={section.label}
+            className={`flex min-h-0 flex-col ${
+              isPinned
+                ? hasBothSections
+                  ? "max-h-[35%] shrink-0 border-b border-border-subtle/70 pb-2"
+                  : "flex-1"
+                : "flex-1 pt-1"
+            }`}
+          >
+            {isPinned ? (
+              <h3 className="shrink-0 px-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPinnedOpen((open) => !open)}
+                  className="flex h-7 w-full items-center rounded-radius-sm px-2 text-[10px] font-semibold text-text-tertiary/80 transition-colors hover:bg-subtle/70 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary-400/40"
+                  aria-expanded={pinnedOpen}
+                  aria-controls="pinned-conversations"
+                >
+                  <span className="flex-1 text-left">{t("Pinned")}</span>
+                  <span className="mr-1 tabular-nums text-text-tertiary/60">
+                    {pinnedConversations.length}
+                  </span>
+                  <ChevronDownIcon
+                    className={`h-3 w-3 transition-transform ${pinnedOpen ? "rotate-180" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
               </h3>
+            ) : (
+              hasBothSections && (
+                <h3 className="flex h-7 shrink-0 items-center px-3.5 text-[10px] font-semibold text-text-tertiary/80">
+                  {t("Recent")}
+                </h3>
+              )
             )}
-            <div className="space-y-0.5">
+            <div
+              id={isPinned ? "pinned-conversations" : undefined}
+              hidden={!sectionOpen}
+              className="obsidian-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5"
+            >
             {section.items.map((conv) => (
           <div
             key={conv.id}
@@ -264,7 +306,8 @@ function ConversationHistory({
             ))}
             </div>
           </section>
-        ))}
+          );
+        })}
         {loaded && conversations.length === 0 && (
           <p className="py-4 text-center text-xs text-text-tertiary">
             {t("chat.no_conversations")}
