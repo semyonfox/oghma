@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import {
+  ClipboardDocumentCheckIcon,
   DocumentIcon,
   RectangleGroupIcon,
   XMarkIcon,
@@ -50,6 +51,7 @@ const EditorPane: FC<EditorPaneProps> = ({
     (s) => s.tree.items.root?.children?.length ?? 0,
   );
   const genNewId = useNoteTreeStore((s) => s.genNewId);
+  const setRenamingId = useNoteTreeStore((s) => s.setRenamingId);
   const createNote = useNoteStore((s) => s.createNote);
 
   const paneRef = useRef<HTMLDivElement>(null);
@@ -149,17 +151,28 @@ const EditorPane: FC<EditorPaneProps> = ({
       }
 
       setPaneA(buildFileSpec(note));
+      setRenamingId(id);
       router.push(`/notes/${id}`);
     } catch {
       toast.error(t("Could not create your first note. Please try again."));
     } finally {
       setIsCreatingFirstNote(false);
     }
-  }, [createNote, genNewId, isCreatingFirstNote, router, setPaneA, t]);
+  }, [
+    createNote,
+    genNewId,
+    isCreatingFirstNote,
+    router,
+    setPaneA,
+    setRenamingId,
+    t,
+  ]);
 
   const showFirstRunOnboarding =
     pane === "A" && initLoaded && rootChildCount === 0;
   const aiChatIsOpen = rightPanelOpen && rightPanelTab === "ai";
+  const metadataIsOpen = rightPanelOpen && rightPanelTab === "meta";
+  const tasksAreOpen = rightPanelOpen && rightPanelTab === "tasks";
   const aiChatLabel = aiChatIsOpen
     ? `${t("Close")} ${t("AI Chat")}`
     : t("Open AI chat");
@@ -254,19 +267,23 @@ const EditorPane: FC<EditorPaneProps> = ({
 
         <div className="flex items-center gap-0.5">
           <button
+            type="button"
             onClick={() => openRightPanelTab("meta")}
-            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-auto md:w-auto md:p-1 ${
-              rightPanelOpen && rightPanelTab === "meta"
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
+              metadataIsOpen
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
             title={t("Toggle metadata panel")}
+            aria-label={t("Toggle metadata panel")}
+            aria-expanded={metadataIsOpen}
           >
-            <RectangleGroupIcon className="w-3.5 h-3.5" />
+            <RectangleGroupIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={() => openRightPanelTab("ai")}
-            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-auto md:w-auto md:p-1 ${
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
               aiChatIsOpen
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -275,7 +292,21 @@ const EditorPane: FC<EditorPaneProps> = ({
             aria-label={aiChatLabel}
             aria-expanded={aiChatIsOpen}
           >
-            <SparklesIcon className="w-3.5 h-3.5" aria-hidden="true" />
+            <SparklesIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openRightPanelTab("tasks")}
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
+              tasksAreOpen
+                ? "bg-subtle text-text-secondary"
+                : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
+            }`}
+            title={t("Global Tasks")}
+            aria-label={t("Global Tasks")}
+            aria-expanded={tasksAreOpen}
+          >
+            <ClipboardDocumentCheckIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           {pane === "B" && (
             <button

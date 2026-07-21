@@ -21,6 +21,7 @@ export interface TreeItemProps {
   isActive: boolean;
   isSelected: boolean;
   isDragging: boolean;
+  isDraggingOver: boolean;
   isLoading: boolean;
   hasChildren: boolean;
   depth: number;
@@ -44,6 +45,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
     isActive,
     isSelected,
     isDragging,
+    isDraggingOver,
     isLoading,
     hasChildren,
     depth,
@@ -142,6 +144,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
             }
             ${isActive && isSelected ? "ring-1 ring-primary-500/20" : ""}
             ${isDragging ? "opacity-40" : ""}
+            ${isDraggingOver ? "bg-primary-500/20 text-text-secondary ring-2 ring-inset ring-primary-400/70 shadow-[inset_3px_0_0_rgb(96_165_250)]" : ""}
           `}
           style={{ paddingLeft: `${pl + 4}px` }}
           draggable={true}

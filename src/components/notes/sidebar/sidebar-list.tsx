@@ -33,6 +33,7 @@ import {
   toggleSelectedId,
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
+import { clearPostDedupCache } from "@/lib/notes/api/request-deduplicator";
 
 interface SidebarListProps {
   onOpenNote?: () => void;
@@ -43,10 +44,17 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId } =
-    useNoteTreeStore();
+  const {
+    loadingChildren,
+    selectedIds,
+    setSelectedIds,
+    focusedId,
+    setFocusedId,
+    renamingId,
+    setRenamingId,
+    refreshTree,
+  } = useNoteTreeStore();
 
-  const [renamingId, setRenamingId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] =
     useState<DeleteConfirmTarget>(null);
@@ -89,7 +97,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     handleItemContextMenu,
     handleDrop,
   } = useSidebarActions({
-    setRenamingId,
     setDeleteConfirmTarget,
     deleteConfirmTarget,
     activeId,
@@ -205,14 +212,24 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
-          {!initLoaded && (
-            <ArrowPathIcon
-              className="mr-1 h-3 w-3 animate-spin text-text-tertiary"
-              aria-hidden="true"
-            />
-          )}
           {/* action buttons - always visible */}
           <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                clearPostDedupCache();
+                void refreshTree();
+              }}
+              disabled={!initLoaded}
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
+              title={t("Refresh notes")}
+              aria-label={t("Refresh notes")}
+            >
+              <ArrowPathIcon
+                className={`h-[18px] w-[18px] ${!initLoaded ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
             <button
               type="button"
               onClick={handleQuickNewNote}
@@ -327,6 +344,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                   item.isFolder || nodeData?.isFolder || hasChildren;
                 const _isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
                 const isDragging = (context as any)?.isDragging === true;
+                const isDraggingOver = context.isDraggingOver === true;
                 const isExpanded = expandedIds.has(item.index as string);
                 const isActive = activeId === item.index;
                 const isItemRenaming = renamingId === item.index;
@@ -343,6 +361,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                     isActive={!!isActive}
                     isSelected={isSelected}
                     isDragging={isDragging}
+                    isDraggingOver={isDraggingOver}
                     isLoading={loadingChildren.has(itemId)}
                     hasChildren={hasChildren}
                     depth={depth}

@@ -19,7 +19,6 @@ export type DeleteConfirmTarget =
 
 // sidebar CRUD operations and action callbacks
 export function useSidebarActions(deps: {
-  setRenamingId: (id: string | null) => void;
   setDeleteConfirmTarget: (target: DeleteConfirmTarget) => void;
   deleteConfirmTarget: DeleteConfirmTarget;
   activeId: string | null;
@@ -27,7 +26,6 @@ export function useSidebarActions(deps: {
   onDeleteSelectionCleared: () => void;
 }) {
   const {
-    setRenamingId,
     setDeleteConfirmTarget,
     deleteConfirmTarget,
     activeId,
@@ -49,53 +47,64 @@ export function useSidebarActions(deps: {
     setExpandedIds,
     selectedIds,
     setSelectedIds,
+    setRenamingId,
     refreshTree,
   } = useNoteTreeStore();
   const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
 
-  // create note from modal with title and language
-  const handleCreateNote = useCallback(
-    async (title: string, _language: string) => {
-      const newId = genNewId();
-      const newNote = await createNote({
-        id: newId,
-        title: title,
-        content: "\n",
-        pid: undefined,
-      });
-      if (newNote) router.push(`/notes/${newId}`);
+  const revealCreatedItem = useCallback(
+    async (itemId: string, parentId: string) => {
+      if (parentId !== "root") {
+        const newExpandedIds = new Set(expandedIds);
+        newExpandedIds.add(parentId);
+        setExpandedIds(newExpandedIds);
+        await mutateItem(parentId, { isExpanded: true });
+      }
+      setRenamingId(itemId);
     },
-    [genNewId, createNote, router],
+    [expandedIds, mutateItem, setExpandedIds, setRenamingId],
   );
 
-  // create folder from modal
-  const handleCreateFolderFromModal = useCallback(async () => {
-    await createFolder(undefined);
-  }, [createFolder]);
+  const createNoteAndStartRename = useCallback(
+    async (parentId: string) => {
+      const newId = genNewId();
+      const pid = parentId === "root" ? undefined : parentId;
+      const newNote = await createNote({
+        id: newId,
+        title: t("Untitled"),
+        content: "\n",
+        pid,
+      });
+      if (newNote) {
+        await revealCreatedItem(newId, parentId);
+        router.push(`/notes/${newId}`);
+      }
+    },
+    [createNote, genNewId, revealCreatedItem, router, t],
+  );
+
+  const createFolderAndStartRename = useCallback(
+    async (parentId: string) => {
+      const pid = parentId === "root" ? undefined : parentId;
+      const newFolder = await createFolder(pid);
+      if (newFolder) {
+        await revealCreatedItem(newFolder.id, parentId);
+      }
+    },
+    [createFolder, revealCreatedItem],
+  );
 
   // quick new note from toolbar button
-  const handleQuickNewNote = useCallback(async () => {
-    const newId = genNewId();
-    const newNote = await createNote({
-      id: newId,
-      title: t("Untitled"),
-      content: "\n",
-      pid: undefined,
-    });
-    if (newNote) {
-      setRenamingId(newId);
-      router.push(`/notes/${newId}`);
-    }
-  }, [genNewId, createNote, router, setRenamingId, t]);
+  const handleQuickNewNote = useCallback(
+    () => createNoteAndStartRename("root"),
+    [createNoteAndStartRename],
+  );
 
   // quick new folder from toolbar button
-  const handleQuickNewFolder = useCallback(async () => {
-    const newFolder = await createFolder(undefined);
-    if (newFolder) {
-      const folderId = typeof newFolder === "string" ? newFolder : newFolder.id;
-      if (folderId) setRenamingId(folderId);
-    }
-  }, [createFolder, setRenamingId]);
+  const handleQuickNewFolder = useCallback(
+    () => createFolderAndStartRename("root"),
+    [createFolderAndStartRename],
+  );
 
   // upload one file and create a note for it
   const uploadFile = useCallback(
@@ -306,53 +315,14 @@ export function useSidebarActions(deps: {
 
   // create note inside a folder (from context menu)
   const handleContextCreateNote = useCallback(
-    async (parentId: string) => {
-      const newId = genNewId();
-      const pid = parentId === "root" ? undefined : parentId;
-      const newNote = await createNote({
-        id: newId,
-        title: t("Untitled"),
-        content: "\n",
-        pid,
-      });
-      if (newNote) {
-        if (parentId !== "root") {
-          const newExpandedIds = new Set(expandedIds);
-          newExpandedIds.add(parentId);
-          setExpandedIds(newExpandedIds);
-          await mutateItem(parentId, { isExpanded: true });
-        }
-        setRenamingId(newId);
-        router.push(`/notes/${newId}`);
-      }
-    },
-    [
-      genNewId,
-      createNote,
-      mutateItem,
-      router,
-      expandedIds,
-      setExpandedIds,
-      setRenamingId,
-      t,
-    ],
+    (parentId: string) => createNoteAndStartRename(parentId),
+    [createNoteAndStartRename],
   );
 
   // create folder inside a folder (from context menu)
   const handleCreateFolder = useCallback(
-    async (parentId: string) => {
-      const pid = parentId === "root" ? undefined : parentId;
-      const newFolder = await createFolder(pid);
-      if (newFolder) {
-        if (parentId !== "root") {
-          const newExpandedIds = new Set(expandedIds);
-          newExpandedIds.add(parentId);
-          setExpandedIds(newExpandedIds);
-          await mutateItem(parentId, { isExpanded: true });
-        }
-      }
-    },
-    [createFolder, mutateItem, expandedIds, setExpandedIds],
+    (parentId: string) => createFolderAndStartRename(parentId),
+    [createFolderAndStartRename],
   );
 
   // open in split pane
@@ -514,8 +484,6 @@ export function useSidebarActions(deps: {
       [loadChildren],
     ),
     // CRUD actions
-    handleCreateNote,
-    handleCreateFolderFromModal,
     handleQuickNewNote,
     handleQuickNewFolder,
     handleUploadFiles,
