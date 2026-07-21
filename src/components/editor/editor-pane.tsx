@@ -159,6 +159,10 @@ const EditorPane: FC<EditorPaneProps> = ({
 
   const showFirstRunOnboarding =
     pane === "A" && initLoaded && rootChildCount === 0;
+  const aiChatIsOpen = rightPanelOpen && rightPanelTab === "ai";
+  const aiChatLabel = aiChatIsOpen
+    ? `${t("Close")} ${t("AI Chat")}`
+    : t("Open AI chat");
 
   // empty state — no file assigned to this pane
   if (!file || !file.fileId) {
@@ -263,13 +267,15 @@ const EditorPane: FC<EditorPaneProps> = ({
           <button
             onClick={() => openRightPanelTab("ai")}
             className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-auto md:w-auto md:p-1 ${
-              rightPanelOpen && rightPanelTab === "ai"
+              aiChatIsOpen
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
             }`}
-            title={t("Toggle AI assistant panel")}
+            title={aiChatLabel}
+            aria-label={aiChatLabel}
+            aria-expanded={aiChatIsOpen}
           >
-            <SparklesIcon className="w-3.5 h-3.5" />
+            <SparklesIcon className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           {pane === "B" && (
             <button
