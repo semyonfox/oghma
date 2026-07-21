@@ -18,13 +18,25 @@ interface AnchorInstance<T> {
   setData: (data?: T) => void;
 }
 
+interface PreviewAnchorInstance extends AnchorInstance<{ id?: string }> {
+  cancelClose: () => void;
+  scheduleClose: (delayMs?: number) => void;
+}
+
 interface PortalState {
   search: ModalInstance;
   trash: ModalInstance;
   menu: AnchorInstance<NoteModel>;
   share: AnchorInstance<NoteModel>;
-  preview: AnchorInstance<{ id?: string }>;
+  preview: PreviewAnchorInstance;
   linkToolbar: AnchorInstance<{ href: string; view?: any }>;
+}
+
+let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelPreviewClose() {
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+  previewCloseTimer = null;
 }
 
 const usePortalStore = create<PortalState>((set) => ({
@@ -63,10 +75,22 @@ const usePortalStore = create<PortalState>((set) => ({
   preview: {
     anchor: null,
     visible: false,
-    open: () =>
-      set((state) => ({ preview: { ...state.preview, visible: true } })),
-    close: () =>
-      set((state) => ({ preview: { ...state.preview, visible: false } })),
+    open: () => {
+      cancelPreviewClose();
+      set((state) => ({ preview: { ...state.preview, visible: true } }));
+    },
+    close: () => {
+      cancelPreviewClose();
+      set((state) => ({ preview: { ...state.preview, visible: false } }));
+    },
+    cancelClose: cancelPreviewClose,
+    scheduleClose: (delayMs = 500) => {
+      cancelPreviewClose();
+      previewCloseTimer = setTimeout(() => {
+        previewCloseTimer = null;
+        set((state) => ({ preview: { ...state.preview, visible: false } }));
+      }, delayMs);
+    },
     setAnchor: (anchor) =>
       set((state) => ({ preview: { ...state.preview, anchor } })),
     setData: (data) =>
