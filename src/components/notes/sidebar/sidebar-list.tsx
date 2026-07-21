@@ -45,6 +45,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const pathname = usePathname();
 
   const {
+    loading,
     loadingChildren,
     selectedIds,
     setSelectedIds,
@@ -220,13 +221,13 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 clearPostDedupCache();
                 void refreshTree();
               }}
-              disabled={!initLoaded}
+              disabled={loading}
               className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
               title={t("Refresh notes")}
               aria-label={t("Refresh notes")}
             >
               <ArrowPathIcon
-                className={`h-[18px] w-[18px] ${!initLoaded ? "animate-spin" : ""}`}
+                className={`h-[18px] w-[18px] ${loading ? "animate-spin" : ""}`}
                 aria-hidden="true"
               />
             </button>

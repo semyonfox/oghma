@@ -127,11 +127,11 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
   initTree: async () => {
     const state = get();
-    const { treeAPI, noteAPI, toast: _toast, initLoaded } = state;
+    const { treeAPI, noteAPI, toast: _toast, initLoaded, loading } = state;
 
     // Skip if already initialized to prevent overwriting locally added notes
     // with cached API responses
-    if (initLoaded) {
+    if (initLoaded || loading) {
       return;
     }
 
@@ -140,6 +140,8 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       console.warn("initTree called before dependencies were set — skipping");
       return;
     }
+
+    set({ loading: true });
 
     try {
       // Fetch only root items from API (lazy-loading)
@@ -168,6 +170,8 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       // don't set initLoaded on failure so the caller can retry
       const { toast: toastFn } = get();
       toastFn?.("Error loading notes", "error");
+    } finally {
+      set({ loading: false });
     }
   },
 

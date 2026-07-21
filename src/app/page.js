@@ -44,9 +44,9 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/notes-screenshot.png",
-        width: 1440,
-        height: 900,
+        url: "/notes-workspace-16x10.png",
+        width: 1920,
+        height: 1200,
         alt: "OghmaNotes study workspace with course notes, files, and AI chat",
       },
     ],
@@ -56,7 +56,7 @@ export const metadata = {
     title: "OghmaNotes - Your whole semester, already loaded",
     description:
       "Connect Canvas once. Keep your available course material, files, deadlines, cited answers, notes, flashcards, and planning connected in one study workspace.",
-    images: ["/notes-screenshot.png"],
+    images: ["/notes-workspace-16x10.png"],
   },
 };
 
@@ -68,7 +68,7 @@ const homeStructuredData = [
     applicationCategory: "EducationalApplication",
     operatingSystem: "Web",
     url: "https://oghmanotes.ie",
-    image: "https://oghmanotes.ie/notes-screenshot.png",
+    image: "https://oghmanotes.ie/notes-workspace-16x10.png",
     description:
       "OghmaNotes is a Canvas-connected study workspace. It brings supported course material and deadlines into the same place as cited answers, notes, flashcards, and planning.",
     audience: {
@@ -209,10 +209,10 @@ function HeroMockup() {
   return (
     <div className="relative mt-16 sm:mt-24 rounded-radius-2xl ring-1 ring-border-subtle shadow-2xl overflow-hidden">
       <Image
-        src="/notes-screenshot.png"
+        src="/notes-workspace-16x10.png"
         alt="OghmaNotes workspace with course files, notes, and study chat"
-        width={1440}
-        height={900}
+        width={1920}
+        height={1200}
         sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1280px"
         className="w-full h-auto block"
         priority
