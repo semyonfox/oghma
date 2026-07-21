@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
+import { linkSchema } from "@milkdown/kit/preset/commonmark";
 import { Slice } from "@milkdown/kit/prose/model";
 import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
 import { Plugin } from "@milkdown/kit/prose/state";
@@ -10,12 +11,33 @@ import { $prose } from "@milkdown/kit/utils";
 import DOMPurify from "dompurify";
 import { renderMermaidElement } from "@/lib/markdown/mermaid";
 import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
+import {
+  buildInternalNoteHref,
+  parseInternalNoteHref,
+} from "@/lib/notes/internal-links";
+import usePortalStore from "@/lib/notes/state/portal";
 
 interface MilkdownWriteEditorProps {
   value: string;
   onChange: (value: string, programmaticUpdate?: boolean) => void;
   onSave?: () => void;
   placeholder?: string;
+  currentNoteId?: string;
+  onOpenNote?: (noteId: string) => void;
+}
+
+interface NoteOption {
+  id: string;
+  title?: string;
+  isFolder?: boolean;
+}
+
+const NOTE_LINK_ICON = `<svg class="oghma-note-link-icon" viewBox="0 0 24 24" role="img"><title>Reference note</title><path d="M7 3.75h7l3 3v5.5M14 3.75v3h3M9.5 14.5l-1 1a2.12 2.12 0 0 0 3 3l1.25-1.25m1.75-2.75 1-1a2.12 2.12 0 0 0-3-3l-1.25 1.25m-.75 4.25 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function enhanceNoteReferenceButton(root: HTMLElement) {
+  const button = root.querySelector(".oghma-note-link-icon")?.closest("button");
+  button?.setAttribute("title", "Reference note");
+  button?.setAttribute("aria-label", "Reference note");
 }
 
 function replaceExternalMarkdown(crepe: Crepe, markdown: string) {
@@ -275,15 +297,84 @@ export default function MilkdownWriteEditor({
   onChange,
   onSave,
   placeholder = "Start writing...",
+  currentNoteId,
+  onOpenNote,
 }: MilkdownWriteEditorProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const pickerListRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const onChangeRef = useRef(onChange);
   const latestValueRef = useRef(value);
+  const pickerSelectionRef = useRef({ from: 0, to: 0 });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [noteOptions, setNoteOptions] = useState<NoteOption[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [selectedOption, setSelectedOption] = useState(0);
+  const preview = usePortalStore((state) => state.preview);
+  const openPickerRef = useRef<(from: number, to: number) => void>(() => {});
+
+  openPickerRef.current = (from, to) => {
+    pickerSelectionRef.current = { from, to };
+    setPickerQuery("");
+    setSelectedOption(0);
+    setPickerOpen(true);
+  };
+
+  const filteredNotes = useMemo(() => {
+    const query = pickerQuery.trim().toLocaleLowerCase();
+    return noteOptions
+      .filter((note) => !note.isFolder && note.id !== currentNoteId)
+      .filter(
+        (note) =>
+          !query ||
+          (note.title || "Untitled").toLocaleLowerCase().includes(query),
+      )
+      .slice(0, 12);
+  }, [currentNoteId, noteOptions, pickerQuery]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    pickerListRef.current
+      ?.querySelector<HTMLElement>(`[data-option-index="${selectedOption}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [pickerOpen, selectedOption]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setPickerLoading(true);
+      const query = pickerQuery.trim();
+      const params = query
+        ? `q=${encodeURIComponent(query)}`
+        : "limit=200";
+      fetch(`/api/notes?${params}`, { signal: controller.signal })
+        .then((response) => {
+          if (!response.ok) throw new Error("Unable to load notes");
+          return response.json();
+        })
+        .then((notes: NoteOption[]) => {
+          if (!cancelled) setNoteOptions(notes);
+        })
+        .catch((error) => {
+          if (!cancelled && error.name !== "AbortError") setNoteOptions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setPickerLoading(false);
+        });
+    }, pickerQuery ? 150 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [pickerOpen, pickerQuery]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -298,6 +389,18 @@ export default function MilkdownWriteEditor({
       },
       featureConfigs: {
         [CrepeFeature.Placeholder]: { text: placeholder },
+        [CrepeFeature.TopBar]: {
+          buildTopBar: (builder) => {
+            builder.getGroup("insert").addItem("note-reference", {
+              icon: NOTE_LINK_ICON,
+              active: () => false,
+              onRun: (ctx) => {
+                const { from, to } = ctx.get(editorViewCtx).state.selection;
+                openPickerRef.current(from, to);
+              },
+            });
+          },
+        },
         [CrepeFeature.CodeMirror]: {
           copyIcon: COPY_ICON,
           copyText: "",
@@ -319,19 +422,47 @@ export default function MilkdownWriteEditor({
     });
 
     let observer: MutationObserver | null = null;
+    let disposed = false;
+    const handleBeforeInput = (event: InputEvent) => {
+      if (event.data !== "[") return;
+      const view = crepe.editor.ctx.get(editorViewCtx);
+      const { from, empty } = view.state.selection;
+      if (
+        !empty ||
+        from < 1 ||
+        view.state.doc.textBetween(from - 1, from) !== "["
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      view.dispatch(view.state.tr.delete(from - 1, from));
+      openPickerRef.current(from - 1, from - 1);
+    };
+    root.addEventListener("beforeinput", handleBeforeInput as EventListener, true);
     void crepe.create().then(() => {
-      if (!root.isConnected) return;
+      if (disposed || !root.isConnected) {
+        void crepe.destroy();
+        return;
+      }
       crepeRef.current = crepe;
       if (crepe.getMarkdown() !== latestValueRef.current) {
         replaceExternalMarkdown(crepe, latestValueRef.current);
       }
       enhanceMilkdownCodeBlocks(root);
-      observer = new MutationObserver(() => enhanceMilkdownCodeBlocks(root));
+      enhanceNoteReferenceButton(root);
+      observer = new MutationObserver(() => {
+        enhanceMilkdownCodeBlocks(root);
+        enhanceNoteReferenceButton(root);
+      });
       observer.observe(root, { childList: true, subtree: true });
     });
 
     return () => {
+      disposed = true;
       observer?.disconnect();
+      root.removeEventListener("beforeinput", handleBeforeInput as EventListener, true);
       crepeRef.current = null;
       void crepe.destroy();
     };
@@ -346,17 +477,161 @@ export default function MilkdownWriteEditor({
     replaceExternalMarkdown(crepe, value);
   }, [value]);
 
+  const insertNoteReference = (note: NoteOption) => {
+    const crepe = crepeRef.current;
+    if (!crepe) return;
+
+    crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const { from, to } = pickerSelectionRef.current;
+      const safeFrom = Math.min(from, view.state.doc.content.size);
+      const safeTo = Math.min(to, view.state.doc.content.size);
+      const label = note.title || "Untitled";
+      const mark = linkSchema.type(ctx).create({
+        href: buildInternalNoteHref(note.id),
+        title: null,
+      });
+      const transaction =
+        safeFrom === safeTo
+          ? view.state.tr
+              .insertText(label, safeFrom)
+              .addMark(safeFrom, safeFrom + label.length, mark)
+          : view.state.tr.addMark(safeFrom, safeTo, mark);
+      view.dispatch(transaction.scrollIntoView());
+      view.focus();
+    });
+    setPickerOpen(false);
+  };
+
   return (
     <div
-      className="oghma-milkdown-editor h-full min-h-0 overflow-auto bg-app-page"
+      className="oghma-milkdown-editor relative h-full min-h-0 overflow-auto bg-app-page"
       onKeyDownCapture={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
           onSave?.();
         }
       }}
+      onClickCapture={(event) => {
+        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+          "a[href]",
+        );
+        const noteId = parseInternalNoteHref(anchor?.getAttribute("href"));
+        if (!noteId) return;
+        event.preventDefault();
+        if (event.metaKey || event.ctrlKey) {
+          window.open(buildInternalNoteHref(noteId), "_blank");
+        } else {
+          onOpenNote?.(noteId);
+        }
+      }}
+      onMouseOver={(event) => {
+        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+          "a[href]",
+        );
+        const noteId = parseInternalNoteHref(anchor?.getAttribute("href"));
+        if (!anchor || !noteId) return;
+        preview.cancelClose();
+        preview.setAnchor(anchor);
+        preview.setData({ id: noteId });
+        preview.open();
+      }}
+      onMouseOut={(event) => {
+        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+          "a[href]",
+        );
+        if (!parseInternalNoteHref(anchor?.getAttribute("href"))) return;
+        preview.scheduleClose();
+      }}
     >
       <div ref={rootRef} className="mx-auto min-h-full" />
+      {pickerOpen && (
+        <div
+          className="sticky bottom-4 z-50 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-radius-lg border border-border-subtle bg-surface-elevated p-2 shadow-2xl"
+          role="dialog"
+          aria-label="Reference a note"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setPickerOpen(false);
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="true"
+              aria-controls="note-reference-options"
+              value={pickerQuery}
+              onChange={(event) => {
+                setPickerQuery(event.target.value);
+                setSelectedOption(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  if (!filteredNotes.length) return;
+                  setSelectedOption((index) =>
+                    Math.min(index + 1, filteredNotes.length - 1),
+                  );
+                }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setSelectedOption((index) => Math.max(index - 1, 0));
+                }
+                if (event.key === "Enter" && filteredNotes[selectedOption]) {
+                  event.preventDefault();
+                  insertNoteReference(filteredNotes[selectedOption]);
+                }
+              }}
+              placeholder="Search notes…"
+              className="min-w-0 flex-1 rounded-radius-md border border-border-subtle bg-background px-3 py-2 text-sm text-text outline-none focus:border-primary-500"
+            />
+            <button
+              type="button"
+              onClick={() => setPickerOpen(false)}
+              className="flex h-9 w-9 items-center justify-center rounded-radius-md text-lg text-text-tertiary hover:bg-subtle hover:text-text"
+              aria-label="Close note picker"
+            >
+              ×
+            </button>
+          </div>
+          <div
+            ref={pickerListRef}
+            id="note-reference-options"
+            className="mt-1 max-h-64 overflow-y-auto"
+            role="listbox"
+          >
+            {pickerLoading ? (
+              <p className="px-3 py-4 text-sm text-text-tertiary">
+                Loading notes…
+              </p>
+            ) : filteredNotes.length ? (
+              filteredNotes.map((note, index) => (
+                <button
+                  key={note.id}
+                  type="button"
+                  role="option"
+                  aria-selected={index === selectedOption}
+                  data-option-index={index}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertNoteReference(note)}
+                  className={`block w-full rounded-radius-sm px-3 py-2 text-left text-sm ${
+                    index === selectedOption
+                      ? "bg-primary-500/15 text-text"
+                      : "text-text-secondary hover:bg-subtle"
+                  }`}
+                >
+                  {note.title || "Untitled"}
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-4 text-sm text-text-tertiary">
+                No matching notes
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

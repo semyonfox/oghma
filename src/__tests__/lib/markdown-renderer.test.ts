@@ -48,6 +48,17 @@ describe("MarkdownRenderer variants", () => {
     expect(html).not.toContain("onerror=");
   });
 
+  it("keeps internal note references in-app while external links open separately", () => {
+    const noteId = "01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d";
+    const html = renderMarkdown(
+      `[Internal](/notes/${noteId}) [External](https://example.com)`,
+    );
+
+    expect(html).toContain(`href="/notes/${noteId}"`);
+    expect(html).not.toContain(`href="/notes/${noteId}" target="_blank"`);
+    expect(html).toContain('href="https://example.com" target="_blank"');
+  });
+
   it("keeps chat and quiz raw HTML disabled and sanitized explicitly", () => {
     expect(markdownRendererVariants.chat).toMatchObject({
       allowRawHtml: false,

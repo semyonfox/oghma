@@ -426,6 +426,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               }}
               onSave={handleSave}
               placeholder={t("Start writing...")}
+              currentNoteId={file.fileId}
+              onOpenNote={(noteId) => router.push(`/notes/${noteId}`)}
             />
           </div>
         ) : (

@@ -13,6 +13,7 @@ import useLayoutStore, {
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import dynamic from "next/dynamic";
+import { removeMarkdown } from "@/lib/notes/utils/markdown";
 
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
@@ -29,6 +30,17 @@ interface InspectorNote {
   content?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface NoteReference {
+  id: string;
+  title?: string;
+  excerpt?: string;
+}
+
+interface NoteReferences {
+  incoming: NoteReference[];
+  outgoing: NoteReference[];
 }
 
 function formatTimestamp(value?: string) {
@@ -52,6 +64,45 @@ function formatTimestamp(value?: string) {
   };
 }
 
+function ReferenceList({
+  title,
+  emptyLabel,
+  references,
+}: {
+  title: string;
+  emptyLabel: string;
+  references: NoteReference[];
+}) {
+  return (
+    <section>
+      <h4 className="mb-2 text-xs font-medium text-text-tertiary">{title}</h4>
+      {references.length ? (
+        <ul className="space-y-1.5">
+          {references.map((reference) => (
+            <li key={reference.id}>
+              <a
+                href={`/notes/${reference.id}`}
+                className="block rounded-radius-sm border border-border-subtle px-2.5 py-2 transition-colors hover:bg-subtle"
+              >
+                <span className="block truncate text-sm text-text-secondary">
+                  {reference.title || "Untitled"}
+                </span>
+                {reference.excerpt && (
+                  <span className="mt-0.5 block line-clamp-2 text-xs text-text-tertiary">
+                    {removeMarkdown(reference.excerpt)}
+                  </span>
+                )}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-text-tertiary/70">{emptyLabel}</p>
+      )}
+    </section>
+  );
+}
+
 export default function NoteInspectorPanel({
   presentation = "desktop",
 }: {
@@ -69,6 +120,10 @@ export default function NoteInspectorPanel({
   } = useLayoutStore();
   const activeFile = activePane === "B" && paneB ? paneB : paneA;
   const [note, setNote] = useState<InspectorNote | null>(null);
+  const [references, setReferences] = useState<NoteReferences>({
+    incoming: [],
+    outgoing: [],
+  });
   const [loading, setLoading] = useState(false);
   // tab state is driven by the layout store so icon-nav and file-view-pane can control it
   const activeTab = rightPanelTab;
@@ -76,6 +131,7 @@ export default function NoteInspectorPanel({
   useEffect(() => {
     if (!activeFile?.fileId) {
       setNote(null);
+      setReferences({ incoming: [], outgoing: [] });
       return;
     }
 
@@ -84,15 +140,22 @@ export default function NoteInspectorPanel({
     const loadNote = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/notes/${activeFile.fileId}`);
+        const [response, referencesResponse] = await Promise.all([
+          fetch(`/api/notes/${activeFile.fileId}`),
+          fetch(`/api/notes/${activeFile.fileId}/backlinks`),
+        ]);
         if (!response.ok) {
           if (!cancelled) setNote(null);
           return;
         }
 
         const data = await response.json();
+        const referencesData = referencesResponse.ok
+          ? await referencesResponse.json()
+          : { incoming: [], outgoing: [] };
         if (!cancelled) {
           setNote(data);
+          setReferences(referencesData);
         }
       } catch {
         if (!cancelled) setNote(null);
@@ -102,9 +165,15 @@ export default function NoteInspectorPanel({
     };
 
     void loadNote();
+    const handleNoteSave = (event: Event) => {
+      const detail = (event as CustomEvent<{ fileId?: string }>).detail;
+      if (detail?.fileId === activeFile.fileId) void loadNote();
+    };
+    window.addEventListener("note-content-sync", handleNoteSave);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("note-content-sync", handleNoteSave);
     };
   }, [activeFile?.fileId]);
 
@@ -346,6 +415,19 @@ export default function NoteInspectorPanel({
                       <PlusIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
+
+                <div className="space-y-4 border-t border-border-subtle pt-4">
+                  <ReferenceList
+                    title={t("Linked from")}
+                    emptyLabel={t("No backlinks yet")}
+                    references={references.incoming}
+                  />
+                  <ReferenceList
+                    title={t("Links to")}
+                    emptyLabel={t("No note references yet")}
+                    references={references.outgoing}
+                  />
                 </div>
               </>
             ) : (

@@ -20,7 +20,9 @@ describe("NOTE_ID_REGEXP", () => {
 
 describe("isNoteLink", () => {
   it("accepts a valid v7 note path", () => {
-    expect(isNoteLink("/01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d")).toBe(true);
+    expect(
+      isNoteLink("/notes/01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d"),
+    ).toBe(true);
   });
 
   it("rejects a path without a leading slash", () => {
@@ -28,9 +30,9 @@ describe("isNoteLink", () => {
   });
 
   it("rejects a path with trailing segments", () => {
-    expect(isNoteLink("/01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d/history")).toBe(
-      false,
-    );
+    expect(
+      isNoteLink("/notes/01962eb7-3571-7a2b-9c4d-5e6f7a8b9c0d/history"),
+    ).toBe(false);
   });
 
   it("rejects plain strings", () => {
@@ -39,7 +41,9 @@ describe("isNoteLink", () => {
     expect(isNoteLink("")).toBe(false);
   });
 
-  it("rejects v4 UUIDs (wrong version nibble)", () => {
-    expect(isNoteLink("/123e4567-e89b-42d3-a456-426614174000")).toBe(false);
+  it("accepts legacy v4 UUID note routes", () => {
+    expect(
+      isNoteLink("/notes/123e4567-e89b-42d3-a456-426614174000"),
+    ).toBe(true);
   });
 });
