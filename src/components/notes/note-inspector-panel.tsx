@@ -31,6 +31,27 @@ interface InspectorNote {
   updatedAt?: string;
 }
 
+function formatTimestamp(value?: string) {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return {
+    iso: date.toISOString(),
+    label: new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
+      timeZoneName: "shortOffset",
+    }).format(date),
+  };
+}
+
 export default function NoteInspectorPanel({
   presentation = "desktop",
 }: {
@@ -88,6 +109,14 @@ export default function NoteInspectorPanel({
   }, [activeFile?.fileId]);
 
   const tags = useMemo(() => extractTags(note?.content), [note?.content]);
+  const createdTimestamp = useMemo(
+    () => formatTimestamp(note?.createdAt),
+    [note?.createdAt],
+  );
+  const updatedTimestamp = useMemo(
+    () => formatTimestamp(note?.updatedAt),
+    [note?.updatedAt],
+  );
 
   // inline tag editing
   const [newTag, setNewTag] = useState("");
@@ -238,17 +267,31 @@ export default function NoteInspectorPanel({
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Created")}</dt>
                     <dd className="mt-0.5 text-text-tertiary text-sm">
-                      {note.createdAt
-                        ? new Date(note.createdAt).toLocaleDateString()
-                        : t("Unknown")}
+                      {createdTimestamp ? (
+                        <time
+                          dateTime={createdTimestamp.iso}
+                          title={createdTimestamp.iso}
+                        >
+                          {createdTimestamp.label}
+                        </time>
+                      ) : (
+                        t("Unknown")
+                      )}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Updated")}</dt>
                     <dd className="mt-0.5 text-text-tertiary text-sm">
-                      {note.updatedAt
-                        ? new Date(note.updatedAt).toLocaleDateString()
-                        : t("Unknown")}
+                      {updatedTimestamp ? (
+                        <time
+                          dateTime={updatedTimestamp.iso}
+                          title={updatedTimestamp.iso}
+                        >
+                          {updatedTimestamp.label}
+                        </time>
+                      ) : (
+                        t("Unknown")
+                      )}
                     </dd>
                   </div>
                   <div>
