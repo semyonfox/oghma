@@ -10,12 +10,24 @@ echo "✓ Linting TypeScript/JavaScript..."
 npm run lint:all
 
 # 2. Validate Dockerfile.marker syntax (if it exists and Docker is available).
-# Non-fatal: the docker CLI existing does not mean the daemon is running or
-# that this docker version supports the validate flags — never block commits
-# on machines without a usable Docker.
+# The docker CLI existing does not guarantee a usable daemon or a buildx
+# version that supports --check. Skip only those known environment failures;
+# genuine Dockerfile validation errors must still block the commit.
 if [ -f Dockerfile.marker ] && command -v docker >/dev/null 2>&1; then
   echo "✓ Validating Dockerfile.marker..."
-  npm run docker:marker:validate || echo "⚠ Docker validation skipped (daemon unavailable or incompatible docker version)"
+  if validation_output=$(npm run docker:marker:validate 2>&1); then
+    printf '%s\n' "$validation_output"
+  else
+    validation_status=$?
+    if printf '%s\n' "$validation_output" | grep -Eqi \
+      'cannot connect to the docker daemon|is the docker daemon running|error during connect|docker daemon is not running|unknown flag:.*--check|unknown shorthand flag:.*check|buildx.*is not a docker command|unknown command.*buildx'; then
+      echo "⚠ Docker validation skipped (daemon unavailable or incompatible docker version)"
+      printf '%s\n' "$validation_output"
+    else
+      printf '%s\n' "$validation_output" >&2
+      exit "$validation_status"
+    fi
+  fi
 fi
 
 # 3. Validate tracked shell scripts when ShellCheck is installed
