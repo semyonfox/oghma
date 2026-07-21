@@ -10,7 +10,6 @@ import {
   TrashIcon,
   ChatBubbleLeftRightIcon,
   PencilSquareIcon,
-  Cog6ToothIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
@@ -273,17 +272,6 @@ function ConversationHistory({
         )}
       </nav>
 
-      <div className="flex shrink-0 items-center border-t border-border-subtle px-2 py-2">
-        <Link
-          href="/settings"
-          onClick={onDismiss}
-          className="flex h-10 w-10 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-8 md:w-8"
-          title={t("chat.configure_ai")}
-          aria-label={t("chat.configure_ai")}
-        >
-          <Cog6ToothIcon className="h-4 w-4" />
-        </Link>
-      </div>
     </div>
   );
 }
