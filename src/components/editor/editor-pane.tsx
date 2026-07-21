@@ -8,7 +8,7 @@ import {
   DocumentIcon,
   RectangleGroupIcon,
   XMarkIcon,
-  CpuChipIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -269,7 +269,7 @@ const EditorPane: FC<EditorPaneProps> = ({
             }`}
             title={t("Toggle AI assistant panel")}
           >
-            <CpuChipIcon className="w-3.5 h-3.5" />
+            <SparklesIcon className="w-3.5 h-3.5" />
           </button>
           {pane === "B" && (
             <button
