@@ -74,7 +74,9 @@ test.describe("chat responsive smoke", () => {
       await page.getByRole("button", { name: "Pin to favorites" }).click();
       await expect(page.getByRole("button", { name: "Unpin" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Pinned" })).toBeVisible();
-      await expect(page.getByRole("link", { name: /Configure AI/ })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Settings" }),
+      ).toHaveCount(1);
     }
   });
 });
