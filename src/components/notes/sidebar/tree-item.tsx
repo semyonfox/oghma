@@ -191,7 +191,10 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           </span>
 
           {isRenaming ? (
-            <div onKeyDownCapture={(e) => e.stopPropagation()}>
+            <div
+              className="min-w-0 flex-1"
+              onKeyDownCapture={(e) => e.stopPropagation()}
+            >
               <input
                 ref={renameInputRef}
                 type="text"
@@ -209,7 +212,7 @@ const TreeItem: React.FC<TreeItemProps> = memo(
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="flex-1 min-w-0 truncate bg-subtle border border-primary-500/50 rounded-radius-sm px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
+                className="w-full min-w-0 truncate bg-subtle border border-primary-500/50 rounded-radius-sm px-1 py-0 outline-none text-text-secondary text-[13px] leading-tight"
               />
             </div>
           ) : (
