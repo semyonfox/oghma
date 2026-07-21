@@ -78,9 +78,9 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/notes-workspace-16x10.png",
-        width: 1920,
-        height: 1200,
+        url: "/notes-workspace-ultrawide.png",
+        width: 3440,
+        height: 1440,
         alt: "OghmaNotes editor interface",
       },
     ],
@@ -90,7 +90,7 @@ export const metadata = {
     title: "OghmaNotes",
     description:
       "A Canvas-connected study workspace that keeps supported course material, deadlines, cited answers, notes, flashcards, and planning together.",
-    images: ["/notes-workspace-16x10.png"],
+    images: ["/notes-workspace-ultrawide.png"],
   },
 };
 
