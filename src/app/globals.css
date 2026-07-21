@@ -571,6 +571,15 @@ select option:disabled {
   letter-spacing: -0.012em;
 }
 
+.md-rendered[data-markdown-variant="note"] h1,
+.md-rendered[data-markdown-variant="note"] h2,
+.md-rendered[data-markdown-variant="note"] h3,
+.md-rendered[data-markdown-variant="note"] h4,
+.md-rendered[data-markdown-variant="note"] h5,
+.md-rendered[data-markdown-variant="note"] h6 {
+  font-family: var(--font-sans);
+}
+
 .markdown-preview a,
 .md-rendered a {
   color: var(--md-link);
@@ -755,11 +764,10 @@ select option:disabled {
 
 /* drag-between line indicator */
 .rct-tree-drag-between-line {
-  height: 3px !important;
-  background: rgb(96, 165, 250) !important;
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.85), 0 0 8px rgb(96 165 250 / 0.65);
-  opacity: 1;
+  height: 2px !important;
+  background: rgb(59, 130, 246) !important;
+  border-radius: 1px;
+  opacity: 0.7;
 }
 
 /* obsidian-style scrollbar */
@@ -1073,7 +1081,7 @@ html.light .glass-card-active {
   --crepe-color-hover: color-mix(in srgb, var(--md-accent) 10%, var(--color-surface));
   --crepe-color-selected: var(--md-selection);
   --crepe-color-inline-area: var(--md-inline-code-bg);
-  --crepe-font-title: var(--font-source-serif), ui-serif, Georgia, serif;
+  --crepe-font-title: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --crepe-font-default: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.22);
@@ -1126,7 +1134,7 @@ html.light .glass-card-active {
 .oghma-milkdown-editor .milkdown .ProseMirror h4,
 .oghma-milkdown-editor .milkdown .ProseMirror h5,
 .oghma-milkdown-editor .milkdown .ProseMirror h6 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-optical-sizing: auto;
   letter-spacing: -0.018em;
   text-wrap: balance;
