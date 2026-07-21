@@ -45,8 +45,8 @@ export const metadata = {
     images: [
       {
         url: "/notes-screenshot.png",
-        width: 3440,
-        height: 1440,
+        width: 1920,
+        height: 1200,
         alt: "OghmaNotes study workspace with course notes, files, and AI chat",
       },
     ],
@@ -211,8 +211,8 @@ function HeroMockup() {
       <Image
         src="/notes-screenshot.png"
         alt="OghmaNotes workspace with course files, notes, and study chat"
-        width={3440}
-        height={1440}
+        width={1920}
+        height={1200}
         sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1280px"
         className="w-full h-auto block"
         priority
