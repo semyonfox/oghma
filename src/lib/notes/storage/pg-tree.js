@@ -5,6 +5,31 @@ import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 
 const ROOT_ID = 'root';
 
+export class TreeCycleError extends Error {
+  constructor() {
+    super('Cannot move an item inside itself');
+    this.name = 'TreeCycleError';
+  }
+}
+
+function assertValidTreeParent(rows, noteId, newParentId) {
+  if (!newParentId) return;
+
+  const parentByNote = new Map(
+    rows.map((row) => [String(row.note_id), row.parent_id ? String(row.parent_id) : null]),
+  );
+  const visited = new Set();
+  let ancestorId = newParentId;
+
+  while (ancestorId) {
+    if (ancestorId === noteId || visited.has(ancestorId)) {
+      throw new TreeCycleError();
+    }
+    visited.add(ancestorId);
+    ancestorId = parentByNote.get(ancestorId) ?? null;
+  }
+}
+
 /**
  * Get tree for a specific user from PostgreSQL (sorted A-Z by title)
  */
@@ -126,12 +151,7 @@ export async function updateTreeItem(userId, noteId, updates) {
     }
 
     if (updates.parentId !== undefined) {
-      await sql`
-        UPDATE app.tree_items
-        SET parent_id = ${updates.parentId || null},
-            updated_at = NOW()
-        WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-      `;
+      await moveNoteInTree(userId, noteId, updates.parentId);
     }
   } catch (error) {
     console.error('Error updating tree item:', error);
@@ -144,14 +164,31 @@ export async function updateTreeItem(userId, noteId, updates) {
  */
 export async function moveNoteInTree(userId, noteId, newParentId) {
   try {
-    // tree_items.parent_id is UUID and references the parent note's UUID
     const actualParentId = newParentId || null;
 
-    await sql`
-      UPDATE app.tree_items
-      SET parent_id = ${actualParentId}, updated_at = NOW()
-      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
-    `;
+    await sql.begin(async (tx) => {
+      // Serialize tree moves for one user before reading parent relationships.
+      // The transaction-scoped advisory lock closes the race where two valid
+      // snapshots could otherwise be updated into a cycle.
+      await tx`
+        SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+      `;
+
+      const rows = await tx`
+        SELECT note_id, parent_id
+        FROM app.tree_items
+        WHERE user_id = ${userId}::uuid
+        FOR UPDATE
+      `;
+
+      assertValidTreeParent(rows, String(noteId), actualParentId && String(actualParentId));
+
+      await tx`
+        UPDATE app.tree_items
+        SET parent_id = ${actualParentId}, updated_at = NOW()
+        WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+      `;
+    });
   } catch (error) {
     console.error('Error moving note in tree:', error);
     throw error;
