@@ -193,8 +193,12 @@ export function ConversationHistory({
             className={`flex min-h-0 flex-col ${
               isPinned
                 ? hasBothSections
-                  ? "max-h-[35%] shrink-0 border-b border-border-subtle/70 pb-2"
-                  : "flex-1"
+                  ? pinnedOpen
+                    ? "max-h-[35%] shrink-0 border-b border-border-subtle/70 pb-2"
+                    : "shrink-0 border-b border-border-subtle/70 pb-1"
+                  : pinnedOpen
+                    ? "flex-1"
+                    : "shrink-0"
                 : "flex-1 pt-1"
             }`}
           >
@@ -224,9 +228,9 @@ export function ConversationHistory({
                 </h3>
               )
             )}
+            {sectionOpen && (
             <div
               id={isPinned ? "pinned-conversations" : undefined}
-              hidden={!sectionOpen}
               className="obsidian-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5"
             >
             {section.items.map((conv) => (
@@ -305,6 +309,7 @@ export function ConversationHistory({
           </div>
             ))}
             </div>
+            )}
           </section>
           );
         })}

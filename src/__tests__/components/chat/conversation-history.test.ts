@@ -42,16 +42,19 @@ describe("ConversationHistory", () => {
 
     const toggle = screen.getByRole("button", { name: /Pinned/ });
     const pinnedPanel = document.getElementById("pinned-conversations");
+    const pinnedSection = toggle.closest("section");
 
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(pinnedPanel?.hidden).toBe(false);
-    expect(pinnedPanel?.closest("section")?.className).toContain("max-h-[35%]");
+    expect(pinnedPanel).toBeTruthy();
+    expect(pinnedSection?.className).toContain("max-h-[35%]");
     expect(screen.getByText("Recent conversation")).toBeTruthy();
 
     fireEvent.click(toggle);
 
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(pinnedPanel?.hidden).toBe(true);
+    expect(document.getElementById("pinned-conversations")).toBeNull();
+    expect(screen.queryByText("Pinned conversation")).toBeNull();
+    expect(pinnedSection?.className).not.toContain("max-h-[35%]");
     expect(screen.getByText("Recent conversation")).toBeTruthy();
   });
 });
