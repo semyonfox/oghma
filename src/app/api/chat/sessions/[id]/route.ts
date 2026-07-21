@@ -5,6 +5,13 @@ import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { normalizeChatSessionContext } from "@/lib/chat/session";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
+import {
+  loadOwnedChatGeneration,
+  requestChatGenerationCancel,
+} from "@/lib/chat/generation-store";
+
+const GENERATION_STOP_TIMEOUT_MS = 6_000;
+const GENERATION_STOP_POLL_MS = 100;
 
 type AuthResult =
   | { error: NextResponse }
@@ -19,6 +26,50 @@ async function authenticate(
   if (!isValidUUID(id))
     return { error: tracedError("Invalid session id", 400) };
   return { user: user as { user_id: string }, id };
+}
+
+async function stopActiveSessionGenerations(
+  sessionId: string,
+  userId: string,
+): Promise<boolean> {
+  const active = await sql`
+    SELECT id
+    FROM app.chat_generations
+    WHERE session_id = ${sessionId}::uuid
+      AND user_id = ${userId}::uuid
+      AND status IN ('queued', 'generating')
+  `;
+  const generationIds = active.map((row: { id: string }) => row.id);
+  if (generationIds.length === 0) return true;
+
+  await Promise.all(
+    generationIds.map((generationId: string) =>
+      requestChatGenerationCancel(generationId),
+    ),
+  );
+  const deadline = Date.now() + GENERATION_STOP_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const records = await Promise.all(
+      generationIds.map((id: string) => loadOwnedChatGeneration(id, userId)),
+    );
+    if (
+      records.every(
+        (record) =>
+          !record ||
+          record.status === "completed" ||
+          record.status === "failed" ||
+          record.status === "cancelled",
+      )
+    ) {
+      return true;
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, GENERATION_STOP_POLL_MS),
+    );
+  }
+
+  return false;
 }
 
 // GET /api/chat/sessions/:id — fetch all messages for a session
@@ -131,6 +182,10 @@ export const DELETE = withErrorHandler(
       const auth = await authenticate(params);
       if ("error" in auth) return auth.error;
       const { user, id } = auth;
+
+      if (!(await stopActiveSessionGenerations(id, user.user_id))) {
+        return tracedError("Chat generation is still stopping", 409);
+      }
 
       const deleted = await sql`
             DELETE FROM app.chat_sessions

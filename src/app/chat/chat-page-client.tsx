@@ -19,6 +19,7 @@ import MobileDrawer from "@/components/navigation/mobile-drawer";
 import useMediaQuery from "@/lib/hooks/use-media-query";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
+import { forgetSidebarChatSession } from "@/lib/chat/sidebar-session";
 
 interface Conversation {
   id: string;
@@ -557,6 +558,7 @@ export default function ChatPageClient() {
   const deleteConversation = async (id: string) => {
     const res = await fetch(`/api/chat/sessions/${id}`, { method: "DELETE" });
     if (!res.ok) return;
+    forgetSidebarChatSession(id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeId === id) {
       setHistoryOpen(false);

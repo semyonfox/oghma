@@ -13,6 +13,11 @@ import useLayoutStore, {
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { extractTags } from "@/lib/notes/utils/file-spec";
 import dynamic from "next/dynamic";
+import {
+  readSidebarChatSession,
+  rememberSidebarChatSession,
+} from "@/lib/chat/sidebar-session";
+import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
@@ -29,6 +34,55 @@ interface InspectorNote {
   content?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+function NoteSidebarChat({
+  noteId,
+  noteTitle,
+}: {
+  noteId: string;
+  noteTitle?: string;
+}) {
+  const { t } = useI18n();
+  const [sessionId, setSessionId] = useState<string>();
+
+  useEffect(() => {
+    setSessionId(readSidebarChatSession(noteId));
+  }, [noteId]);
+
+  const routeContext = { noteId, noteTitle };
+  const fullChatHref = sessionId
+    ? buildChatSessionHref(sessionId, routeContext)
+    : buildNewChatHref(routeContext);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-border-subtle px-3 py-2">
+        <p className="truncate text-xs text-text-tertiary">
+          {noteTitle || t("Untitled")}
+        </p>
+        <a
+          href={fullChatHref}
+          className="flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
+          title={t("Open full chat")}
+        >
+          {t("Full chat")}
+          <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+        </a>
+      </div>
+      <ChatInterface
+        compact
+        sessionId={sessionId}
+        noteId={noteId}
+        noteTitle={noteTitle}
+        onSessionCreated={(newSessionId) => {
+          rememberSidebarChatSession(noteId, newSessionId);
+          setSessionId(newSessionId);
+        }}
+        className="min-h-0 flex-1"
+      />
+    </div>
+  );
 }
 
 function formatTimestamp(value?: string) {
@@ -364,28 +418,11 @@ export default function NoteInspectorPanel({
             aria-labelledby="tab-ai"
             className="flex-1 flex flex-col min-h-0"
           >
-            {activeFile?.fileId && (
-              <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-                <p className="text-xs text-text-tertiary truncate">
-                  {activeFile.title || t("Untitled")}
-                </p>
-                <a
-                  href={`/chat?noteId=${activeFile.fileId}&noteTitle=${encodeURIComponent(activeFile.title || "")}`}
-                  className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-                  title={t("Open full chat")}
-                >
-                  {t("Full chat")}
-                  <ArrowTopRightOnSquareIcon className="w-3 h-3" />
-                </a>
-              </div>
-            )}
             {activeFile?.fileId ? (
-              <ChatInterface
+              <NoteSidebarChat
                 key={activeFile.fileId}
-                compact
                 noteId={activeFile.fileId}
                 noteTitle={activeFile.title}
-                className="flex-1 min-h-0"
               />
             ) : (
               <div className="p-4 flex flex-col items-center gap-2 text-center">
