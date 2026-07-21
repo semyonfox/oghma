@@ -39,6 +39,7 @@ import {
   type CourseVisibilityItem,
 } from "@/components/course-visibility/course-visibility-manager";
 import NewTaskModal from "./new-task-modal";
+import AssignmentTypeIcon from "./assignment-type-icon";
 
 interface AssignmentTrackerProps {
   surface?: "compact" | "full";
@@ -441,11 +442,14 @@ export default function AssignmentTracker({
             )}
           </div>
 
-          <h3
-            className={`mt-1 text-sm font-medium leading-snug ${completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}
-          >
-            {assignment.title}
-          </h3>
+          <div className="mt-1 flex min-w-0 items-start gap-1.5">
+            <AssignmentTypeIcon type={assignment.assignment_type} />
+            <h3
+              className={`min-w-0 text-sm font-medium leading-snug ${completed ? "text-text-tertiary line-through" : "text-text-secondary"}`}
+            >
+              {assignment.title}
+            </h3>
+          </div>
 
           <div className="mt-1.5 flex items-center gap-2 text-xs">
             {due.text && <span className={toneClasses[due.tone]}>{due.text}</span>}

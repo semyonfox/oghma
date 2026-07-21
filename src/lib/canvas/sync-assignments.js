@@ -52,6 +52,23 @@ function isSubmitted(assignment) {
   return !!(submission?.submitted_at || ws === "submitted" || ws === "graded");
 }
 
+export function deriveAssignmentType(assignment) {
+  if (!assignment || typeof assignment !== "object") return "unknown";
+
+  if (assignment.is_quiz_assignment === true) return "quiz";
+
+  const submissionTypes = Array.isArray(assignment.submission_types)
+    ? assignment.submission_types
+    : [];
+  if (submissionTypes.some((type) => type === "online_quiz" || type === "quiz")) {
+    return "quiz";
+  }
+
+  if (submissionTypes.length > 0) return "assignment";
+
+  return "unknown";
+}
+
 export function shouldSyncAssignment(assignment) {
   if (!assignment) return false;
   if (assignment.locked_for_user === true) return false;
@@ -93,18 +110,19 @@ export async function syncAssignmentMetadata(
     if (!shouldSyncAssignment(a)) continue;
     try {
       const status = deriveStatus(a);
+      const assignmentType = deriveAssignmentType(a);
       const submission = a.submission;
 
       await sql`
         INSERT INTO app.assignments (
           user_id, canvas_course_id, canvas_assignment_id,
           title, description, course_name, course_color,
-          due_at, status, source,
+          due_at, status, source, assignment_type,
           submitted_at, score, points_possible
         ) VALUES (
           ${userId}::uuid, ${Number(courseId)}, ${a.id},
           ${a.name}, ${a.description ?? null}, ${courseTitle}, ${courseColor},
-          ${a.due_at ?? null}, ${status}, 'canvas',
+          ${a.due_at ?? null}, ${status}, 'canvas', ${assignmentType},
           ${submission?.submitted_at ?? null},
           ${submission?.score ?? null},
           ${a.points_possible ?? null}
@@ -123,6 +141,7 @@ export async function syncAssignmentMetadata(
           submitted_at = EXCLUDED.submitted_at,
           score = EXCLUDED.score,
           points_possible = EXCLUDED.points_possible,
+          assignment_type = EXCLUDED.assignment_type,
           updated_at = NOW()
       `;
       synced++;
