@@ -10,7 +10,6 @@ import {
   TrashIcon,
   ChatBubbleLeftRightIcon,
   PencilSquareIcon,
-  Cog6ToothIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import ChatInterface from "@/components/chat/chat-interface";
@@ -44,8 +43,19 @@ interface ContextItem {
 
 function PushPinIcon({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m8 3 1.5 2v5L7 13v1h10v-1l-2.5-3V5L16 3H8Zm4 11v7" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m8 3 1.5 2v5L7 13v1h10v-1l-2.5-3V5L16 3H8Zm4 11v7"
+      />
     </svg>
   );
 }
@@ -85,7 +95,7 @@ interface ConversationHistoryProps {
   showHeader?: boolean;
 }
 
-function ConversationHistory({
+export function ConversationHistory({
   conversations,
   activeId,
   loaded,
@@ -100,6 +110,7 @@ function ConversationHistory({
 }: ConversationHistoryProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [pinnedOpen, setPinnedOpen] = useState(true);
   const cancelRenameRef = useRef(false);
   const pinnedConversations = conversations.filter((conversation) => conversation.pinned);
   const recentConversations = conversations.filter((conversation) => !conversation.pinned);
@@ -164,19 +175,64 @@ function ConversationHistory({
         </button>
       </div>
 
-      <nav className="obsidian-scrollbar flex-1 overflow-y-auto px-1.5 pb-3 pt-1">
+      <nav className="flex min-h-0 flex-1 flex-col overflow-hidden pb-3 pt-1">
         {[
           { label: "Pinned", items: pinnedConversations },
           { label: "Recent", items: recentConversations },
-        ].map((section) => section.items.length > 0 && (
-          <section key={section.label} className={section.label === "Pinned" ? "mb-2.5" : ""}>
-            {section.label === "Pinned" && (
-              <h3 className="flex h-6 items-center gap-0.5 px-2 text-[10px] font-semibold text-text-tertiary/80">
-                {t("Pinned")}
-                <ChevronDownIcon className="h-2.5 w-2.5" aria-hidden="true" />
+        ].map((section) => {
+          if (section.items.length === 0) return null;
+
+          const isPinned = section.label === "Pinned";
+          const hasBothSections =
+            pinnedConversations.length > 0 && recentConversations.length > 0;
+          const sectionOpen = !isPinned || pinnedOpen;
+
+          return (
+          <section
+            key={section.label}
+            className={`flex min-h-0 flex-col ${
+              isPinned
+                ? hasBothSections
+                  ? pinnedOpen
+                    ? "max-h-[35%] shrink-0 border-b border-border-subtle/70 pb-2"
+                    : "shrink-0 border-b border-border-subtle/70 pb-1"
+                  : pinnedOpen
+                    ? "flex-1"
+                    : "shrink-0"
+                : "flex-1 pt-1"
+            }`}
+          >
+            {isPinned ? (
+              <h3 className="shrink-0 px-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPinnedOpen((open) => !open)}
+                  className="flex h-7 w-full items-center rounded-radius-sm px-2 text-[10px] font-semibold text-text-tertiary/80 transition-colors hover:bg-subtle/70 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary-400/40"
+                  aria-expanded={pinnedOpen}
+                  aria-controls="pinned-conversations"
+                >
+                  <span className="flex-1 text-left">{t("Pinned")}</span>
+                  <span className="mr-1 tabular-nums text-text-tertiary/60">
+                    {pinnedConversations.length}
+                  </span>
+                  <ChevronDownIcon
+                    className={`h-3 w-3 transition-transform ${pinnedOpen ? "rotate-180" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
               </h3>
+            ) : (
+              hasBothSections && (
+                <h3 className="flex h-7 shrink-0 items-center px-3.5 text-[10px] font-semibold text-text-tertiary/80">
+                  {t("Recent")}
+                </h3>
+              )
             )}
-            <div className="space-y-0.5">
+            {sectionOpen && (
+            <div
+              id={isPinned ? "pinned-conversations" : undefined}
+              className="obsidian-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5"
+            >
             {section.items.map((conv) => (
           <div
             key={conv.id}
@@ -220,7 +276,7 @@ function ConversationHistory({
               <Link
                 href={`/chat/${conv.id}`}
                 onClick={() => onSelectConversation(conv.id)}
-                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-28 text-left focus-visible:outline-none md:min-h-8 md:pr-20"
+                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-32 text-left transition-[padding] duration-150 focus-visible:outline-none md:min-h-8 md:pr-16 md:group-hover:pr-28 md:group-focus-within:pr-28"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
                 {conv.pinned && <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />}
@@ -253,8 +309,10 @@ function ConversationHistory({
           </div>
             ))}
             </div>
+            )}
           </section>
-        ))}
+          );
+        })}
         {loaded && conversations.length === 0 && (
           <p className="py-4 text-center text-xs text-text-tertiary">
             {t("chat.no_conversations")}
@@ -262,17 +320,6 @@ function ConversationHistory({
         )}
       </nav>
 
-      <div className="flex shrink-0 items-center border-t border-border-subtle px-2 py-2">
-        <Link
-          href="/settings"
-          onClick={onDismiss}
-          className="flex h-10 w-10 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-8 md:w-8"
-          title={t("chat.configure_ai")}
-          aria-label={t("chat.configure_ai")}
-        >
-          <Cog6ToothIcon className="h-4 w-4" />
-        </Link>
-      </div>
     </div>
   );
 }

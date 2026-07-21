@@ -7,6 +7,8 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   ArrowsPointingOutIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { usePdfCache } from "@/lib/notes/pdf-cache/use-pdf-cache";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -146,44 +148,20 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3 mt-16">
-            <svg
-              className="w-6 h-6 animate-spin text-text-tertiary"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="3"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
+            <ArrowPathIcon
+              className="h-6 w-6 animate-spin text-text-tertiary"
+              aria-hidden="true"
+            />
             <span className="text-sm text-text-tertiary">
               {t("pdf_viewer.loading")}
             </span>
           </div>
         ) : !pdfPath ? (
           <div className="flex flex-col items-center gap-3 mt-16 text-center px-6">
-            <svg
-              className="w-8 h-8 text-red-400/60"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-              />
-            </svg>
+            <ExclamationTriangleIcon
+              className="h-8 w-8 text-red-400/60"
+              aria-hidden="true"
+            />
             <p className="text-sm text-red-400/80">{t("pdf_viewer.error")}</p>
             <p className="text-xs text-text-tertiary">
               {urlError === "http-404"
@@ -199,25 +177,10 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
             onLoadSuccess={onDocumentLoadSuccess}
             loading={
               <div className="flex flex-col items-center gap-3 mt-16">
-                <svg
-                  className="w-6 h-6 animate-spin text-text-tertiary"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
+                <ArrowPathIcon
+                  className="h-6 w-6 animate-spin text-text-tertiary"
+                  aria-hidden="true"
+                />
                 <span className="text-sm text-text-tertiary">
                   {t("pdf_viewer.preparing")}
                 </span>

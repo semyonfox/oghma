@@ -5,11 +5,18 @@ import useNoteTreeStore from "@/lib/notes/state/tree";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useContextMenuStore from "@/lib/notes/state/context-menu";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
-import React, { memo, useMemo, useState, useCallback } from "react";
+import React, { memo, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Favorites } from "./favorites";
-import { TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowUpTrayIcon,
+  DocumentPlusIcon,
+  FolderPlusIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import {
   ControlledTreeEnvironment,
   Tree,
@@ -18,7 +25,6 @@ import {
 import "react-complex-tree/lib/style.css";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
-import CreateNoteModal from "@/components/notes/create-note-modal";
 import { useTreeData } from "./use-tree-data";
 import { DeleteConfirmTarget, useSidebarActions } from "./use-sidebar-actions";
 import {
@@ -27,6 +33,7 @@ import {
   toggleSelectedId,
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
+import { clearPostDedupCache } from "@/lib/notes/api/request-deduplicator";
 
 interface SidebarListProps {
   onOpenNote?: () => void;
@@ -37,28 +44,23 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { loadingChildren, selectedIds, setSelectedIds, focusedId, setFocusedId, refreshTree } =
-    useNoteTreeStore();
+  const {
+    loadingChildren,
+    selectedIds,
+    setSelectedIds,
+    focusedId,
+    setFocusedId,
+    renamingId,
+    setRenamingId,
+    refreshTree,
+  } = useNoteTreeStore();
 
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] =
     useState<DeleteConfirmTarget>(null);
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(
     null,
   );
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefreshTree = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshTree();
-    } catch (error) {
-      console.error("Failed to refresh filetree:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [refreshTree]);
 
   // active note from URL
   const activeId = useMemo(() => {
@@ -79,12 +81,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     handleExpandItem,
     handleCollapseItem,
     onMissingItems,
-    handleCreateNote,
-    handleCreateFolderFromModal,
     handleQuickNewNote,
     handleQuickNewFolder,
     handleUploadFiles,
-    handleCollapseAll,
     handleRename,
     handleDeleteRequest,
     handleBulkDeleteRequest,
@@ -98,7 +97,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
     handleItemContextMenu,
     handleDrop,
   } = useSidebarActions({
-    setRenamingId,
     setDeleteConfirmTarget,
     deleteConfirmTarget,
     activeId,
@@ -207,114 +205,69 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
 
         {/* Section header - obsidian style */}
         <div
-          className="group mt-1 flex h-12 items-center px-2 md:h-7"
+          className="group mt-1 flex h-12 items-center px-2 md:h-9"
           role="toolbar"
           aria-label={t("Notes actions")}
         >
           <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary select-none">
             {t("Notes")}
           </span>
-          {!initLoaded && (
-            <svg
-              className="animate-spin h-3 w-3 text-text-tertiary mr-1"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-          )}
           {/* action buttons - always visible */}
           <div className="flex items-center gap-0.5">
             <button
+              type="button"
+              onClick={() => {
+                clearPostDedupCache();
+                void refreshTree();
+              }}
+              disabled={!initLoaded}
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
+              title={t("Refresh notes")}
+              aria-label={t("Refresh notes")}
+            >
+              <ArrowPathIcon
+                className={`h-[18px] w-[18px] ${!initLoaded ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
               onClick={handleQuickNewNote}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New note")}
+              aria-label={t("New note")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 4h8l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
-                <path d="M12 4v4h4" />
-              </svg>
+              <DocumentPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
             <button
+              type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New folder")}
+              aria-label={t("New folder")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M3 5a1 1 0 011-1h4l2 2h6a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5z" />
-                <path d="M10 9v4M8 11h4" />
-              </svg>
+              <FolderPlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
             <button
-              onClick={handleCollapseAll}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
-              title={t("Collapse all")}
+              type="button"
+              onClick={() => uploadInputRef.current?.click()}
+              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              title={t("Upload")}
+              aria-label={t("Upload")}
             >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 8l6-4 6 4M4 12l6 4 6-4" />
-              </svg>
+              <ArrowUpTrayIcon className="h-[18px] w-[18px]" aria-hidden="true" />
             </button>
-            <button
-              onClick={handleRefreshTree}
-              disabled={isRefreshing}
-              className={`flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5 ${
-                isRefreshing ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              title={t("Refresh filetree")}
-            >
-              <svg
-                className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M4 10a6 6 0 1010.5-5.5M10 3V1m0 2V1" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary md:h-auto md:w-auto md:p-0.5"
-              title={t("More options")}
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-              </svg>
-            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = "";
+                if (files.length > 0) void handleUploadFiles(files);
+              }}
+            />
           </div>
         </div>
 
@@ -391,6 +344,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                   item.isFolder || nodeData?.isFolder || hasChildren;
                 const _isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
                 const isDragging = (context as any)?.isDragging === true;
+                const isDraggingOver = context.isDraggingOver === true;
                 const isExpanded = expandedIds.has(item.index as string);
                 const isActive = activeId === item.index;
                 const isItemRenaming = renamingId === item.index;
@@ -407,6 +361,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                     isActive={!!isActive}
                     isSelected={isSelected}
                     isDragging={isDragging}
+                    isDraggingOver={isDraggingOver}
                     isLoading={loadingChildren.has(itemId)}
                     hasChildren={hasChildren}
                     depth={depth}
@@ -444,11 +399,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                       }
                       setRenamingId(null);
                     }}
-                    onAddNote={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      await handleContextCreateNote(itemId);
-                    }}
                     onDotsClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -472,11 +422,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                         setSelectionAnchorId(itemId);
                       }
                     }}
-                    onOpenInAIChat={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleOpenInAIChat(itemId, nodeData, !!isFolder);
-                    }}
                     initLoaded={initLoaded}
                   >
                     {children}
@@ -487,14 +432,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
           </ControlledTreeEnvironment>
         </div>
       </section>
-
-      <CreateNoteModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onCreateNote={handleCreateNote}
-        onCreateFolder={handleCreateFolderFromModal}
-        onUploadFiles={handleUploadFiles}
-      />
 
       <NoteContextMenu
         onRename={handleRename}
@@ -510,6 +447,12 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
         onCreateNote={handleContextCreateNote}
         onCreateFolder={handleCreateFolder}
         onOpenInSplit={handleOpenInSplit}
+        onOpenInAIChat={(id) => {
+          const item = tree.items[id];
+          const nodeData = item?.data;
+          const isFolder = !!(nodeData?.isFolder || item?.children?.length);
+          handleOpenInAIChat(id, nodeData, isFolder);
+        }}
       />
 
       {/* delete confirmation overlay */}

@@ -65,6 +65,19 @@ Indexing stores chunk text and ownership in PostgreSQL, computes embeddings thro
 
 Chat supports streaming and non-streaming responses. Streaming prompts are durable BullMQ jobs: the worker writes ordered SSE events to an expiring Redis Stream while PostgreSQL owns generation state and the final assistant message. A browser reconnect supplies the last Redis event ID, replays missed events, and then continues live delivery. Sessions and messages are relational data. Assistant messages retain canonical plain `content` and optional structured `parts` for durable tool and error UI.
 
+Generations are cancellable. Every open browser tab heartbeats a per-user,
+per-tab presence hash in Redis through [`src/lib/chat/presence.ts`](../../src/lib/chat/presence.ts)
+and removes its own field with a `pagehide` beacon. A worker watchdog aborts
+the LLM stream when the user explicitly stops (Redis cancel flag set by
+`/api/chat/generations/[id]/cancel`) or when presence has been absent for a
+full grace window — a real disconnect. In-app navigation and other open tabs
+keep presence alive, so only closing the last tab (or a crash, via staleness)
+cancels; users that never had browser presence, such as API clients, are only
+ever cancelled explicitly. On abort the worker persists any partial answer as
+an interrupted assistant message, marks the generation `cancelled`, and does
+not retry. The inline SSE path aborts the same way when its client connection
+drops.
+
 The chat also has an always-available, read-only `getAppGuide` tool backed by
 [`src/lib/chat/app-guide.ts`](../../src/lib/chat/app-guide.ts). It answers product
 workflow, navigation, capability, and troubleshooting questions without using

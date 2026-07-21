@@ -3,12 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type FileType = "note" | "pdf" | "image" | "video";
 export type NavSection =
-  | "notes"
-  | "search"
-  | "calendar"
-  | "chat"
-  | "quiz"
-  | "settings";
+  "notes" | "search" | "calendar" | "chat" | "quiz" | "settings";
 export type RightPanelTab = "meta" | "ai" | "tasks";
 
 interface PaneState {
@@ -37,7 +32,7 @@ interface LayoutState {
 
   // UI sizes (persist to localStorage)
   treeWidth: number; // 200-600px
-  rightPanelWidth: number; // 250-400px
+  rightPanelWidth: number; // 250-600px
   splitPosition: number; // 0-100 between panes (%)
 
   // Tree state
@@ -185,7 +180,7 @@ const useLayoutStore = create<LayoutState>()(
       setSizes: (tree, right, split) => {
         set({
           treeWidth: Math.max(200, Math.min(600, tree)),
-          rightPanelWidth: Math.max(250, Math.min(400, right)),
+          rightPanelWidth: Math.max(250, Math.min(600, right)),
           splitPosition: Math.max(0, Math.min(100, split)),
         });
       },

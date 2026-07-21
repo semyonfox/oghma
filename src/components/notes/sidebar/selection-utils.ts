@@ -1,4 +1,5 @@
 import { ROOT_ID, TreeModel } from "@/lib/notes/types/tree";
+export { treeItemContainsId } from "@/lib/notes/state/tree-cycle";
 
 export function getVisibleTreeItemIds(
   tree: TreeModel,
@@ -9,10 +10,12 @@ export function getVisibleTreeItemIds(
   if (!root) return [];
 
   const result: string[] = [];
+  const visited = new Set<string>();
 
   const visit = (id: string) => {
-    if (id === ROOT_ID || !tree.items[id]) return;
+    if (id === ROOT_ID || !tree.items[id] || visited.has(id)) return;
 
+    visited.add(id);
     result.push(id);
 
     if (!expandedIds.has(id)) return;
@@ -75,27 +78,14 @@ export function getTopLevelSelectedIds(
 
   return Array.from(selected).filter((id) => {
     let parentId = parentById.get(id);
+    const visited = new Set<string>();
     while (parentId) {
+      if (visited.has(parentId)) return true;
+      visited.add(parentId);
       if (selected.has(parentId)) return false;
       if (parentId === ROOT_ID) return true;
       parentId = parentById.get(parentId);
     }
     return true;
   });
-}
-
-export function treeItemContainsId(
-  tree: TreeModel,
-  ancestorId: string,
-  descendantId: string,
-): boolean {
-  const ancestor = tree.items[ancestorId];
-  if (!ancestor) return false;
-
-  for (const childId of ancestor.children) {
-    if (childId === descendantId) return true;
-    if (treeItemContainsId(tree, childId, descendantId)) return true;
-  }
-
-  return false;
 }

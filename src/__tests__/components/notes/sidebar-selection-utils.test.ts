@@ -7,6 +7,10 @@ import {
   treeItemContainsId,
   toggleSelectedId,
 } from "@/components/notes/sidebar/selection-utils";
+import {
+  getCycleSafeChildren,
+  wouldCreateTreeCycle,
+} from "@/lib/notes/state/tree-cycle";
 
 describe("sidebar selection utilities", () => {
   it("excludes selected descendants when an ancestor is selected", () => {
@@ -70,5 +74,24 @@ describe("sidebar selection utilities", () => {
 
     expect(treeItemContainsId(tree, "folder", "child")).toBe(true);
     expect(treeItemContainsId(tree, "folder", "after")).toBe(false);
+  });
+
+  it("tolerates a self-parent cycle when collecting visible items", () => {
+    let tree = TreeActions.addItem(DEFAULT_TREE, "folder");
+    tree = TreeActions.mutateItem(tree, "folder", { children: ["folder"] });
+
+    expect(getVisibleTreeItemIds(tree, new Set(["folder"]))).toEqual([
+      "folder",
+    ]);
+    expect(getCycleSafeChildren(tree).folder).toEqual([]);
+  });
+
+  it("rejects moving a folder into itself or a descendant", () => {
+    let tree = TreeActions.addItem(DEFAULT_TREE, "folder");
+    tree = TreeActions.addItem(tree, "child", "folder");
+
+    expect(wouldCreateTreeCycle(tree, "folder", "folder")).toBe(true);
+    expect(wouldCreateTreeCycle(tree, "folder", "child")).toBe(true);
+    expect(wouldCreateTreeCycle(tree, "child", ROOT_ID)).toBe(false);
   });
 });

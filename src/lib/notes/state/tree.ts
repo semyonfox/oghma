@@ -31,6 +31,7 @@ export interface NoteTreeState {
   expandedIds: Set<string>;
   selectedIds: Set<string>;
   focusedId: string | null;
+  renamingId: string | null;
   // API instances for dependency injection
   treeAPI: any;
   noteAPI: any;
@@ -64,6 +65,7 @@ export interface NoteTreeState {
   setExpandedIds: (ids: Set<string>) => void;
   setSelectedIds: (ids: Set<string>) => void;
   setFocusedId: (id: string | null) => void;
+  setRenamingId: (id: string | null) => void;
 }
 
 const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
@@ -76,6 +78,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   expandedIds: new Set<string>(),
   selectedIds: new Set<string>(),
   focusedId: null,
+  renamingId: null,
   treeAPI: null,
   noteAPI: null,
   toast: null,
@@ -98,6 +101,10 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
   setFocusedId: (id: string | null) => {
     set({ focusedId: id });
+  },
+
+  setRenamingId: (id: string | null) => {
+    set({ renamingId: id });
   },
 
   fetchNotes: async (tree: TreeModel) => {

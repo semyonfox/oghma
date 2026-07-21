@@ -14,7 +14,6 @@ import React, {
 import { useRouter, usePathname } from "next/navigation";
 import IconButton from "@/components/icon-button";
 import useNoteTreeStore from "@/lib/notes/state/tree";
-import useNoteStore from "@/lib/notes/state/note";
 import usePortalStore from "@/lib/notes/state/portal";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -53,8 +52,7 @@ const SidebarListItem: FC<{
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
-  const { mutateItem, initLoaded, genNewId } = useNoteTreeStore();
-  const { createNote } = useNoteStore();
+  const { initLoaded } = useNoteTreeStore();
   const {
     activePane: _activePane,
     setPaneA,
@@ -104,29 +102,6 @@ const SidebarListItem: FC<{
     }
     return `/${item.id}`;
   }, [pathname, item.id, isFolder]);
-
-  const onAddNote = useCallback(
-    async (e: React.MouseEvent) => {
-      e.preventDefault();
-      // Create a new note under this item without navigation
-      const newId = genNewId();
-      const newNote = await createNote({
-        id: newId,
-        title: "Untitled",
-        content: "\n",
-        pid: item.id,
-      });
-
-      if (newNote) {
-        // Expand the parent and navigate to the new note
-        await mutateItem(item.id, {
-          isExpanded: true,
-        });
-        router.push(`/notes/${newId}`);
-      }
-    },
-    [item.id, mutateItem, genNewId, createNote, router],
-  );
 
   const handleClickMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -229,16 +204,6 @@ const SidebarListItem: FC<{
     if (emoji?.length === 1) return emoji[0];
     return undefined;
   }, [item.title]);
-
-  // Determine if this is a true folder (use isFolder flag primarily, with emoji fallback)
-  const isActualFolder = useMemo(() => {
-    // Primary check: use the isFolder flag from database
-    if (item.isFolder === true) return true;
-    // Emoji check: title contains folder emoji
-    if (item.title?.includes("📁")) return true;
-    // Secondary check: if it has children, it's a folder
-    return hasChildren;
-  }, [item.isFolder, item.title, hasChildren]);
 
   return (
     <>
@@ -366,15 +331,6 @@ const SidebarListItem: FC<{
           aria-label={t("Note actions")}
         ></IconButton>
 
-        {isActualFolder && (
-          <IconButton
-            icon="Plus"
-            onClick={onAddNote}
-            className="p-1 ml-1 text-text-tertiary hover:text-text-secondary rounded-radius-sm transition-colors hidden group-hover:block flex-shrink-0"
-            title={t("Add a page inside this folder")}
-            aria-label={t("Add note")}
-          ></IconButton>
-        )}
       </div>
 
       {isFolder && !hasChildren && isExpanded && (
