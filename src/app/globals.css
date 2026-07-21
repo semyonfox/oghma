@@ -1104,6 +1104,11 @@ html.light .glass-card-active {
   margin: 0.2rem;
 }
 
+.oghma-milkdown-editor .milkdown-top-bar .top-bar-item svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .oghma-milkdown-editor .milkdown-top-bar .top-bar-divider {
   height: 1.4rem;
   margin: 0.35rem;
