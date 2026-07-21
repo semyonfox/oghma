@@ -27,9 +27,8 @@ interface InspectorNote {
   id: string;
   title?: string;
   content?: string;
-  created_at?: string;
-  updated_at?: string;
-  note_id?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function NoteInspectorPanel({
@@ -239,23 +238,23 @@ export default function NoteInspectorPanel({
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Created")}</dt>
                     <dd className="mt-0.5 text-text-tertiary text-sm">
-                      {note.created_at
-                        ? new Date(note.created_at).toLocaleDateString()
+                      {note.createdAt
+                        ? new Date(note.createdAt).toLocaleDateString()
                         : t("Unknown")}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("Updated")}</dt>
                     <dd className="mt-0.5 text-text-tertiary text-sm">
-                      {note.updated_at
-                        ? new Date(note.updated_at).toLocaleDateString()
+                      {note.updatedAt
+                        ? new Date(note.updatedAt).toLocaleDateString()
                         : t("Unknown")}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-text-tertiary">{t("ID")}</dt>
                     <dd className="mt-0.5 break-all font-mono text-xs text-text-tertiary/50">
-                      {note.note_id || note.id || activeFile.fileId}
+                      {note.id || activeFile.fileId}
                     </dd>
                   </div>
                 </dl>
