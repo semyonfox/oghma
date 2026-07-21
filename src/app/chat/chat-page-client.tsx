@@ -231,7 +231,7 @@ function ConversationHistory({
               <Link
                 href={`/chat/${conv.id}`}
                 onClick={() => onSelectConversation(conv.id)}
-                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-28 text-left focus-visible:outline-none md:min-h-8 md:pr-20"
+                className="flex min-h-11 w-full items-center gap-1.5 px-2.5 pr-32 text-left focus-visible:outline-none md:min-h-8 md:pr-28"
                 aria-current={conv.id === activeId ? "page" : undefined}
               >
                 {conv.pinned && <PushPinIcon className="h-3 w-3 shrink-0 text-primary-400" />}
