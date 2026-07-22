@@ -20,13 +20,15 @@ import { createAsyncLimiter } from "./async-limiter.js";
 import { parseEnvConcurrency } from "./import-metrics.js";
 import logger from "../logger.ts";
 import { sanitizePostgresText } from "../text-sanitize.ts";
+import {
+  markerQueueEnabled,
+  processAllPdfsWithMarker,
+  submitMarkerJob,
+} from "../runpod-marker.ts";
 
 // ── Concurrency limiters ────────────────────────────────────────────────────
 
-const CANVAS_OCR_CONCURRENCY = parseEnvConcurrency(
-  "CANVAS_OCR_CONCURRENCY",
-  2,
-);
+const CANVAS_OCR_CONCURRENCY = parseEnvConcurrency("CANVAS_OCR_CONCURRENCY", 2);
 const CANVAS_EMBED_CONCURRENCY = parseEnvConcurrency(
   "CANVAS_EMBED_CONCURRENCY",
   3,
@@ -86,14 +88,58 @@ export async function processRagPipeline(
     extractionOverride = null,
   } = ragOpts;
   try {
-    const extractionStart = Date.now();
-    const extraction = extractionOverride ?? await ocrLimiter(() =>
-      extractContentFromBuffer({
-        buffer,
+    const canQueueMarker = markerQueueEnabled() && Boolean(s3Key);
+    const queueMarker = async () => {
+      const storage = getStorageProvider();
+      const submitted = await submitMarkerJob({
+        storage,
+        sourceKey: s3Key,
+        noteId,
+        userId,
+        jobId,
         filename: filename ?? "document.pdf",
         mimeType,
-      }),
-    );
+        parentFolderId,
+      });
+      await Promise.all([
+        sql`
+          UPDATE app.canvas_imports
+          SET status = 'pending_marker', error_message = NULL, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid
+        `,
+        sql`
+          UPDATE app.ingestion_jobs
+          SET status = 'pending', error = NULL, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+        `,
+      ]);
+      logger.info("marker-serverless-submitted", {
+        jobId,
+        runpodJobId: submitted.runpodJobId,
+        noteId,
+        filename,
+      });
+      return { noteId, chunksStored: 0, pendingMarker: true };
+    };
+
+    if (
+      canQueueMarker &&
+      mimeType === "application/pdf" &&
+      processAllPdfsWithMarker()
+    ) {
+      return await queueMarker();
+    }
+
+    const extractionStart = Date.now();
+    const extraction =
+      extractionOverride ??
+      (await ocrLimiter(() =>
+        extractContentFromBuffer({
+          buffer,
+          filename: filename ?? "document.pdf",
+          mimeType,
+        }),
+      ));
     const extractionElapsedMs = Date.now() - extractionStart;
 
     const {
@@ -104,6 +150,9 @@ export async function processRagPipeline(
       markerMetadata = null,
       pageRange = null,
     } = extraction;
+    if (source === "skipped" && canQueueMarker) {
+      return await queueMarker();
+    }
     // coverage record so page-limited marker runs are never mistaken for
     // full-document extraction (partial notes can be found and re-enriched)
     const extractionCoverage = JSON.stringify({

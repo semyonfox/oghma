@@ -62,6 +62,13 @@ export abstract class StoreProvider {
    */
   abstract getSignUrl(path: string, expiresIn?: number): Promise<string>;
 
+  /** Generate a signed URL that permits uploading one object. */
+  abstract getPutSignUrl(
+    path: string,
+    expiresIn?: number,
+    contentType?: string
+  ): Promise<string>;
+
   /**
    * Check if an object exists in storage
    */

@@ -2,7 +2,7 @@
 
 > **Status:** Dated research snapshot; not a live provider-price sheet
 > **Study generated:** 2026-06-14 at 22:23
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-07-22
 > **Source of truth for:** The aggregate workload measured by the June 2026 app-scoped Canvas audit and the assumptions used in that cost model. Current product allowances live in [pricing.md](../product/pricing.md).
 
 ## Executive Read
@@ -52,6 +52,11 @@ The original model used these June 2026 inputs:
 | H100 rental | USD 2.89/hour at 25 pages/second |
 
 These rates and throughput figures were inputs to the original audit, not independently reproducible benchmarks stored in this repository. They exclude startup time, minimum billing, failed jobs, retries, engineering, storage, queueing, monitoring, and quality control. Rebenchmark the actual extraction stack before a spend decision.
+
+The July Marker++ corpus reports now supersede these GPU throughput and
+provider-cost assumptions for serving decisions. Use the canonical benchmark
+directory linked from [the documentation index](../README.md); retain this
+study for its 8,603-page onboarding and 614-page recurring workload evidence.
 
 ## Modelled Results
 
