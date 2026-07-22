@@ -547,6 +547,7 @@ async function main() {
       "042_resumable_chat_generations.sql",
       "043_chat_session_pinning.sql",
       "045_imported_file_cache.sql",
+      "049_note_links.sql",
     ]) {
       await sql.unsafe(
         await readFile(

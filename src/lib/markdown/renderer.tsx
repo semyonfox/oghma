@@ -11,6 +11,7 @@ import type { Components } from "react-markdown";
 import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 import { markdownSanitizeSchema } from "./sanitize-schema";
+import { parseInternalNoteHref } from "@/lib/notes/internal-links";
 
 export type MarkdownRendererVariant = "note" | "chat" | "quiz";
 
@@ -105,17 +106,20 @@ export interface MarkdownRendererProps {
 }
 
 const baseComponents: Partial<Components> = {
-  a: ({ href, children, ...props }: any) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children, ...props }: any) => {
+    const isInternalNote = Boolean(parseInternalNoteHref(href));
+    return (
+      <a
+        href={href}
+        target={isInternalNote ? undefined : "_blank"}
+        rel={isInternalNote ? undefined : "noopener noreferrer"}
+        className="text-[var(--md-link)] underline underline-offset-2 hover:text-[var(--md-link-hover)] transition-colors"
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
   // pre extracts language and delegates to CodeBlock; CodeBlock owns async Shiki highlighting.
   pre: ({ children }: any) => {
     const codeEl = (children as any)?.props;

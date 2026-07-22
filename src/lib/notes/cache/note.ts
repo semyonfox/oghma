@@ -1,7 +1,8 @@
 // extracted from Notea (MIT License)
 import { TreeModel } from '@/lib/notes/types/tree';
 import { noteCacheInstance, NoteCacheItem } from '@/lib/notes/cache';
-import { isNoteLink, NoteModel } from '@/lib/notes/types/note';
+import { NoteModel } from '@/lib/notes/types/note';
+import { parseInternalNoteHref } from '@/lib/notes/internal-links';
 import { removeMarkdown } from '@/lib/notes/utils/markdown';
 import markdownLinkExtractor from 'markdown-link-extractor';
 
@@ -45,9 +46,8 @@ async function setItem(id: string, note: NoteModel) {
     const linkIds: string[] = [];
     if (Array.isArray(extractorLinks) && extractorLinks.length) {
         extractorLinks.forEach((link) => {
-            if (isNoteLink(link)) {
-                linkIds.push(link.slice(1));
-            }
+            const noteId = parseInternalNoteHref(link);
+            if (noteId) linkIds.push(noteId);
         });
     }
     return noteCacheInstance.setItem<NoteCacheItem>(id, {

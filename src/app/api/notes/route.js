@@ -8,6 +8,7 @@ import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
+import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
 
 // Constants
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
@@ -24,6 +25,7 @@ export const GET = withErrorHandler(async (request) => {
   const fieldsParam = url.searchParams.get("fields");
   const skipParam = url.searchParams.get("skip");
   const limitParam = url.searchParams.get("limit");
+  const query = url.searchParams.get("q")?.trim().slice(0, 200) || null;
 
   // Parse fields from comma-separated string
   const fields = fieldsParam
@@ -31,20 +33,26 @@ export const GET = withErrorHandler(async (request) => {
     : undefined;
 
   // Parse pagination
-  const skip = skipParam ? parseInt(skipParam, 10) : 0;
-  const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+  const parsedSkip = skipParam ? parseInt(skipParam, 10) : 0;
+  const parsedLimit = limitParam ? parseInt(limitParam, 10) : undefined;
+  const skip = Number.isFinite(parsedSkip) && parsedSkip >= 0 ? parsedSkip : 0;
+  const limit =
+    parsedLimit !== undefined && Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 200)
+      : undefined;
 
   // check cache for this page (before field filtering)
   const listKey = cacheKeys.notesList(user.user_id, skip, limit);
-  const cachedList = await cacheGet(listKey);
-  if (cachedList) {
+  const cachedList = query ? null : await cacheGet(listKey);
+  if (!query && cachedList) {
     const filtered = cachedList.map((note) => filterNoteFields(note, fields));
     return NextResponse.json(filtered);
   }
 
   // Get user's notes from PostgreSQL with SQL-level pagination
   // content is excluded from the list query — fetch individual notes for full content
-  const sqlLimit = limit ?? 200;
+  const sqlLimit = query ? 50 : (limit ?? 200);
+  const searchPattern = query ? `%${query}%` : null;
   const notes = await sql`
     SELECT n.note_id, n.title, n.is_folder, n.s3_key, n.shared, n.pinned,
            n.created_at, n.updated_at,
@@ -52,14 +60,16 @@ export const GET = withErrorHandler(async (request) => {
             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
             LIMIT 1) AS mime_type
     FROM app.notes n
-    WHERE n.user_id = ${user.user_id}::uuid AND n.deleted_at IS NULL
+    WHERE n.user_id = ${user.user_id}::uuid
+      AND n.deleted_at IS NULL
+      AND (${searchPattern}::text IS NULL OR n.title ILIKE ${searchPattern})
     ORDER BY n.created_at DESC
     LIMIT ${sqlLimit} OFFSET ${skip}
   `;
 
   // Map to NoteModel format and cache full list (pre-field-filter)
   const mapped = notes.map(mapNoteFromDB);
-  await cacheSet(listKey, mapped, 120);
+  if (!query) await cacheSet(listKey, mapped, 120);
 
   // Filter fields if requested
   const filtered = mapped.map((note) => filterNoteFields(note, fields));
@@ -109,6 +119,17 @@ export const POST = withErrorHandler(async (request) => {
   // If pid is provided, use it; otherwise add to root (parent_id = null)
   const parentId = body.pid || null;
   await addNoteToTree(user.user_id, note.note_id, parentId);
+
+  if (body.content) {
+    try {
+      await replaceNoteLinks(user.user_id, note.note_id, body.content);
+    } catch (linkErr) {
+      logger.error("note link index creation failed", {
+        noteId: note.note_id,
+        error: linkErr,
+      });
+    }
+  }
 
   // invalidate tree + note list caches
   await cacheInvalidate(
