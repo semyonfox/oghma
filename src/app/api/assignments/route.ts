@@ -47,7 +47,7 @@ export const GET = withErrorHandler(async (request) => {
   const rows = await sql`
     SELECT a.id, a.user_id, a.canvas_course_id, a.canvas_assignment_id,
            a.title, a.description, a.course_name, a.course_color,
-           a.due_at, a.estimated_hours, a.logged_hours, a.source,
+           a.due_at, a.estimated_hours, a.logged_hours, a.source, a.assignment_type,
            ${effectiveStatus} AS status,
            a.submitted_at, a.score, a.points_possible,
            a.created_at, a.updated_at
@@ -92,15 +92,15 @@ export const POST = withErrorHandler(async (request) => {
   const [row] = await sql`
     INSERT INTO app.assignments (
       user_id, title, description, course_name, course_color,
-      due_at, estimated_hours, source, status
+      due_at, estimated_hours, source, assignment_type, status
     ) VALUES (
       ${user.user_id}::uuid, ${title.trim()}, ${description ?? null},
       ${course_name ?? null}, ${course_color ?? null},
-      ${due_at ?? null}, ${estimated_hours ?? null}, 'manual', ${initialStatus}
+      ${due_at ?? null}, ${estimated_hours ?? null}, 'manual', 'manual', ${initialStatus}
     )
     RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
               title, description, course_name, course_color,
-              due_at, estimated_hours, logged_hours, source, status,
+              due_at, estimated_hours, logged_hours, source, assignment_type, status,
               submitted_at, score, points_possible,
               created_at, updated_at
   `;

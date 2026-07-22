@@ -14,6 +14,7 @@ import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
 import { isoToDateKey, parseLocalDateKey } from "@/lib/notes/utils/calendar-date";
 import { getEffectiveAssignmentStatus } from "@/lib/notes/utils/assignment-status";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
 
 interface DayAgendaProps {
   dateKey: string;
@@ -264,15 +265,18 @@ export default function DayAgenda({
                           )}
                         </button>
                         <div className="min-w-0 flex-1 pt-1">
-                          <h4
-                            className={`text-sm font-medium ${
-                              completed
-                                ? "text-text-tertiary line-through"
-                                : "text-text-secondary"
-                            }`}
-                          >
-                            {assignment.title}
-                          </h4>
+                          <div className="flex min-w-0 items-start gap-1.5">
+                            <AssignmentTypeIcon type={assignment.assignment_type} />
+                            <h4
+                              className={`min-w-0 text-sm font-medium ${
+                                completed
+                                  ? "text-text-tertiary line-through"
+                                  : "text-text-secondary"
+                              }`}
+                            >
+                              {assignment.title}
+                            </h4>
+                          </div>
                           <p className="mt-1 text-xs text-text-tertiary">
                             {assignment.due_at
                               ? timeFormatter.format(new Date(assignment.due_at))

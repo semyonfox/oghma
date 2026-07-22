@@ -18,7 +18,8 @@ export const GET = withErrorHandler(async (request) => {
   }
 
   const rows = await sql`
-    SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color
+    SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color,
+           a.assignment_type
     FROM app.time_blocks tb
     LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${user.user_id}::uuid
     WHERE tb.user_id = ${user.user_id}::uuid

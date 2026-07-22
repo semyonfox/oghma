@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { shouldSyncAssignment } from "@/lib/canvas/sync-assignments.js";
+import {
+  deriveAssignmentType,
+  shouldSyncAssignment,
+} from "@/lib/canvas/sync-assignments.js";
 
 describe("shouldSyncAssignment", () => {
   it("skips unpublished assignments", () => {
@@ -42,8 +45,26 @@ describe("shouldSyncAssignment", () => {
   });
 
   it("keeps dated assignments", () => {
-    expect(
-      shouldSyncAssignment({ published: true, due_at: "2026-03-01T10:00:00Z" }),
-    ).toBe(true);
+    expect(shouldSyncAssignment({ published: true, due_at: "2026-03-01T10:00:00Z" })).toBe(true);
+  });
+});
+
+describe("deriveAssignmentType", () => {
+  it("marks Canvas quiz assignments from structured quiz flags", () => {
+    expect(deriveAssignmentType({ is_quiz_assignment: true })).toBe("quiz");
+  });
+
+  it("marks Canvas quiz assignments from quiz submission types", () => {
+    expect(deriveAssignmentType({ submission_types: ["online_quiz"] })).toBe("quiz");
+    expect(deriveAssignmentType({ submission_types: ["quiz"] })).toBe("quiz");
+  });
+
+  it("marks normal Canvas assignments as assignment", () => {
+    expect(deriveAssignmentType({ submission_types: ["online_upload"] })).toBe("assignment");
+  });
+
+  it("falls back to unknown when Canvas does not expose enough signal", () => {
+    expect(deriveAssignmentType({})).toBe("unknown");
+    expect(deriveAssignmentType(null)).toBe("unknown");
   });
 });
