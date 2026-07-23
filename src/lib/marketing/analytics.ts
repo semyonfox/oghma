@@ -36,6 +36,8 @@ export interface MarketingAnalyticsReport {
   landingPages: RankedMetric[];
   pages: RankedMetric[];
   transitions: RankedMetric[];
+  journeys: RankedMetric[];
+  ctaJourneys: RankedMetric[];
   ctas: RankedMetric[];
   destinations: RankedMetric[];
   funnel: FunnelMetric[];
@@ -81,6 +83,8 @@ export async function getMarketingAnalytics(
     landingRows,
     pageRows,
     transitionRows,
+    journeyRows,
+    ctaJourneyRows,
     ctaRows,
     destinationRows,
     funnelRows,
@@ -90,7 +94,8 @@ export async function getMarketingAnalytics(
         COUNT(*) FILTER (WHERE event_name = 'page_view') AS page_views,
         COUNT(*) FILTER (WHERE event_name = 'navigation_transition') AS navigation_events,
         COUNT(*) FILTER (
-          WHERE event_name = 'navigation_transition' AND action IS NOT NULL
+          WHERE event_name IN ('cta_click', 'pricing_click')
+            AND action IS NOT NULL
         ) AS cta_actions,
         COUNT(*) FILTER (
           WHERE event_name = 'navigation_transition' AND action = 'request_beta_access'
@@ -190,12 +195,49 @@ export async function getMarketingAnalytics(
     `,
     sql`
       SELECT
+        array_to_string(path_chain, ' -> ') AS label,
+        COUNT(*) AS count
+      FROM app.marketing_events
+      WHERE occurred_at >= ${since}
+        AND event_name = 'navigation_transition'
+        AND cardinality(path_chain) >= 3
+      GROUP BY path_chain
+      HAVING COUNT(*) >= ${MINIMUM_DIMENSION_COUNT}
+      ORDER BY count DESC, label
+      LIMIT 20
+    `,
+    sql`
+      SELECT
+        array_to_string(path_chain, ' -> ') AS label,
+        COUNT(*) AS count,
+        concat_ws(
+          ' / ',
+          attribution_action,
+          attribution_placement,
+          attribution_path
+        ) AS detail
+      FROM app.marketing_events
+      WHERE occurred_at >= ${since}
+        AND event_name = 'navigation_transition'
+        AND cardinality(path_chain) >= 2
+        AND attribution_action IS NOT NULL
+      GROUP BY
+        path_chain,
+        attribution_action,
+        attribution_placement,
+        attribution_path
+      HAVING COUNT(*) >= ${MINIMUM_DIMENSION_COUNT}
+      ORDER BY count DESC, label
+      LIMIT 20
+    `,
+    sql`
+      SELECT
         action AS label,
         COUNT(*) AS count,
         COALESCE(placement, '(unmarked)') AS detail
       FROM app.marketing_events
       WHERE occurred_at >= ${since}
-        AND event_name = 'navigation_transition'
+        AND event_name IN ('cta_click', 'pricing_click')
         AND action IS NOT NULL
       GROUP BY action, placement
       HAVING COUNT(*) >= ${MINIMUM_DIMENSION_COUNT}
@@ -260,6 +302,8 @@ export async function getMarketingAnalytics(
     landingPages: ranked(landingRows as Row[]),
     pages: ranked(pageRows as Row[]),
     transitions: ranked(transitionRows as Row[]),
+    journeys: ranked(journeyRows as Row[]),
+    ctaJourneys: ranked(ctaJourneyRows as Row[]),
     ctas: ranked(ctaRows as Row[]),
     destinations: ranked(destinationRows as Row[]),
     funnel: (funnelRows as Row[]).map((row) => ({

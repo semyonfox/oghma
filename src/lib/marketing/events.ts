@@ -55,6 +55,10 @@ export interface MarketingEventInput {
   originClass?: unknown;
   placement?: unknown;
   action?: unknown;
+  pathChain?: unknown;
+  attributionPath?: unknown;
+  attributionPlacement?: unknown;
+  attributionAction?: unknown;
   utm?: { source?: unknown; medium?: unknown; campaign?: unknown; content?: unknown; term?: unknown };
   properties?: unknown;
 }
@@ -98,6 +102,13 @@ export const cleanNavigationOrigin = (value: unknown) => cleanNavigationValue(va
 export const cleanNavigationPlacement = (value: unknown) => cleanNavigationValue(value, NAVIGATION_PLACEMENTS);
 export const cleanNavigationAction = (value: unknown) => cleanNavigationValue(value, NAVIGATION_ACTIONS);
 
+/** A complete, bounded observation rather than a joinable visitor trail. */
+export function cleanPathChain(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 4) return null;
+  const paths = value.map(cleanNavigationPath);
+  return paths.every((path): path is string => path !== null) ? paths : null;
+}
+
 function cleanReferrer(value: unknown): string | null {
   const text = cleanText(value, 300);
   if (!text) return null;
@@ -138,8 +149,20 @@ export async function recordMarketingEvent(input: MarketingEventInput, request?:
   const originClass = cleanNavigationOrigin(input.originClass);
   const placement = cleanNavigationPlacement(input.placement);
   const action = cleanNavigationAction(input.action);
+  const pathChain = cleanPathChain(input.pathChain);
+  const attributionPath = cleanNavigationPath(input.attributionPath);
+  const attributionPlacement = cleanNavigationPlacement(input.attributionPlacement);
+  const attributionAction = cleanNavigationAction(input.attributionAction);
   // Navigation observations must be useful, coarse dimensions rather than arbitrary payloads.
   if (eventName === "navigation_transition" && (!toPath || !originClass)) return false;
+  if (
+    eventName === "navigation_transition"
+    && pathChain
+    && (
+      pathChain[pathChain.length - 1] !== toPath
+      || (pathChain.length > 1 && pathChain[pathChain.length - 2] !== fromPath)
+    )
+  ) return false;
   // Public ingestion cannot associate an observation with an account or retain
   // free-form path, source, target, or attribution values.
   const isPublicIngestion = options.trusted === false;
@@ -150,10 +173,12 @@ export async function recordMarketingEvent(input: MarketingEventInput, request?:
     INSERT INTO app.marketing_events (
       event_name, user_id, path, referrer, source, target_url,
       from_path, to_path, origin_class, placement, action,
+      path_chain, attribution_path, attribution_placement, attribution_action,
       utm_source, utm_medium, utm_campaign, utm_content, utm_term, properties, occurred_at
     ) VALUES (
       ${eventName}, ${userId}, ${isPublicIngestion ? cleanNavigationPath(input.path) : cleanPath(input.path)}, ${isPublicIngestion ? null : cleanReferrer(input.referrer)}, ${isPublicIngestion ? null : cleanText(input.source, 120)}, ${isPublicIngestion ? null : cleanUrl(input.targetUrl)},
       ${fromPath}, ${toPath}, ${originClass}, ${placement}, ${action},
+      ${pathChain}, ${attributionPath}, ${attributionPlacement}, ${attributionAction},
       ${attribution.source ?? null}, ${attribution.medium ?? null}, ${attribution.campaign ?? null}, ${attribution.content ?? null}, ${attribution.term ?? null}, ${sql.json(cleanProperties(input.properties))}, ${new Date()}
     )`;
   return true;

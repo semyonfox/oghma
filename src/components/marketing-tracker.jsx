@@ -51,10 +51,20 @@ function clickProperties(element) {
   };
 }
 
+const MAX_PATH_CHAIN_LENGTH = 4;
+
+export function appendBoundedPathChain(paths, path) {
+  if (!path) return paths;
+  if (paths.at(-1) === path) return paths;
+  return [...paths, path].slice(-MAX_PATH_CHAIN_LENGTH);
+}
+
 export default function MarketingTracker() {
   const pathname = usePathname();
   const previousPath = useRef(null);
   const sentClickTransition = useRef(null);
+  const pathChain = useRef([]);
+  const lastCta = useRef(null);
 
   useEffect(() => {
     if (!isPublicMarketingPath(pathname)) return;
@@ -62,16 +72,22 @@ export default function MarketingTracker() {
     if (previousPath.current === currentPath) return;
 
     const fromPath = previousPath.current;
+    const nextPathChain = appendBoundedPathChain(pathChain.current, currentPath);
     const alreadyRecorded = sentClickTransition.current?.fromPath === fromPath && sentClickTransition.current?.toPath === currentPath;
     if (!alreadyRecorded) {
       trackMarketingEvent("navigation_transition", {
         fromPath,
         toPath: currentPath,
         originClass: fromPath ? "internal" : originForInitialPage(),
+        pathChain: nextPathChain,
+        attributionPath: lastCta.current?.path,
+        attributionPlacement: lastCta.current?.placement,
+        attributionAction: lastCta.current?.action,
       });
     }
     sentClickTransition.current = null;
     previousPath.current = currentPath;
+    pathChain.current = nextPathChain;
 
     trackMarketingEvent("page_view", {
       source: "public_site",
@@ -89,23 +105,36 @@ export default function MarketingTracker() {
       if (!(element instanceof HTMLElement)) return;
 
       const eventName = inferClickEvent(element);
+      const context = navigationContext(element);
       if (eventName) {
         trackMarketingEvent(eventName, {
           source: element.dataset.marketingSource || "public_site",
           targetUrl: element instanceof HTMLAnchorElement ? element.href : element.formAction || null,
+          ...context,
           properties: clickProperties(element),
         });
       }
 
       const toPath = targetPath(element);
       if (!toPath || toPath === window.location.pathname) return;
-      const context = navigationContext(element);
+      if (context.action && context.action !== "nav_link") {
+        lastCta.current = {
+          path: window.location.pathname,
+          placement: context.placement,
+          action: context.action,
+        };
+      }
+      const nextPathChain = appendBoundedPathChain(pathChain.current, toPath);
       sentClickTransition.current = { fromPath: window.location.pathname, toPath };
       trackMarketingEvent("navigation_transition", {
         fromPath: window.location.pathname,
         toPath,
         originClass: "internal",
         ...context,
+        pathChain: nextPathChain,
+        attributionPath: lastCta.current?.path,
+        attributionPlacement: lastCta.current?.placement,
+        attributionAction: lastCta.current?.action,
       });
     }
 

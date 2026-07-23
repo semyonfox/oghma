@@ -186,10 +186,16 @@ async function applyCurrentSchemaPatch(sql) {
       origin_class   TEXT,
       placement      TEXT,
       action         TEXT,
+      path_chain     TEXT[],
+      attribution_path TEXT,
+      attribution_placement TEXT,
+      attribution_action TEXT,
       CONSTRAINT marketing_events_event_name_length
         CHECK (char_length(event_name) BETWEEN 1 AND 96),
       CONSTRAINT marketing_events_navigation_origin_class
-        CHECK (origin_class IS NULL OR origin_class IN ('direct', 'external', 'internal'))
+        CHECK (origin_class IS NULL OR origin_class IN ('direct', 'external', 'internal')),
+      CONSTRAINT marketing_events_path_chain_length
+        CHECK (path_chain IS NULL OR cardinality(path_chain) BETWEEN 1 AND 4)
     );
 
     CREATE TABLE IF NOT EXISTS app.rate_limit_log (
@@ -248,6 +254,10 @@ async function applyCurrentSchemaPatch(sql) {
     CREATE INDEX IF NOT EXISTS idx_marketing_events_navigation_aggregate
       ON app.marketing_events(to_path, from_path, origin_class, placement, action, occurred_at DESC)
       WHERE event_name = 'navigation_transition';
+    CREATE INDEX IF NOT EXISTS idx_marketing_events_journey_aggregate
+      ON app.marketing_events(path_chain, attribution_action, attribution_placement, occurred_at DESC)
+      WHERE event_name = 'navigation_transition'
+        AND cardinality(path_chain) >= 2;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_events_activation_milestone_once
       ON app.marketing_events(user_id, event_name)
       WHERE user_id IS NOT NULL
