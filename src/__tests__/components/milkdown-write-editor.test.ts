@@ -5,7 +5,19 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
+  shouldApplyExternalMarkdown,
 } from "@/components/editor/milkdown-write-editor";
+
+describe("Milkdown value synchronization", () => {
+  it("does not replace the document when a normalized list value echoes through React", () => {
+    const emitted = "- first\n- second";
+
+    expect(shouldApplyExternalMarkdown(emitted, emitted)).toBe(false);
+    expect(
+      shouldApplyExternalMarkdown("- first\n- second\n- third", emitted),
+    ).toBe(true);
+  });
+});
 
 describe("Milkdown spike code controls", () => {
   it("adds accessible wrap and copy controls without touching code text", () => {
