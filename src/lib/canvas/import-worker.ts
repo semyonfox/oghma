@@ -91,7 +91,6 @@ export async function processImportJob(jobId: string): Promise<boolean> {
         console.log(
           `Quiz seed: ${seeded} questions generated for job ${jobId}`,
         );
-
       }
     } catch (seedErr) {
       console.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
@@ -120,4 +119,10 @@ export async function processImportJob(jobId: string): Promise<boolean> {
 // ── Re-exports for worker-entry.js ──────────────────────────────────────────
 
 export { processDiscoverJob } from "./import-discovery.js";
-export { processCanvasFile, processDirectExtraction, processExtractionRetry, processMarkerComplete } from "./import-extraction.js";
+export {
+  processCanvasFile,
+  processDirectExtraction,
+  processExtractionRetry,
+  processMarkerComplete,
+  processMarkerFailed,
+} from "./import-extraction.js";

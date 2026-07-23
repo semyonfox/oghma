@@ -4,7 +4,7 @@
 >
 > Audience: Maintainers and deployment operators
 >
-> Last reviewed: 2026-07-11
+> Last reviewed: 2026-07-22
 
 Infrastructure documents have one responsibility each:
 
@@ -15,6 +15,7 @@ Infrastructure documents have one responsibility each:
 | [AWS_INFRASTRUCTURE.md](AWS_INFRASTRUCTURE.md) | Retained or fallback AWS surface only |
 | [MIGRATION_RECORD.md](MIGRATION_RECORD.md) | Completed AWS-to-homelab migration record |
 | [Import worker runbook](../docs/operations/import-worker.md) | Canvas, extraction, retry, and vault workload operations |
+| [Marker infrastructure boundary](marker/README.md) | Current benchmark tooling versus retired AWS provisioning scripts and package pins |
 | [Email operations](../docs/operations/email.md) | Human inbox and transactional-email ownership |
 | [Secrets policy](../docs/operations/secrets.md) | Safe repository boundary for runtime credentials |
 

@@ -239,7 +239,14 @@ async function runRagPipeline(noteId, userId, parentFolderId, buffer, ragOpts) {
   );
 }
 
-async function createAttachment(noteId, userId, filename, s3Key, mimeType, fileSize) {
+async function createAttachment(
+  noteId,
+  userId,
+  filename,
+  s3Key,
+  mimeType,
+  fileSize,
+) {
   await sql`
     INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
     VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
@@ -255,19 +262,41 @@ async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
   const canvasModuleId = opts.moduleId ?? null;
   let canvasAssignmentId = null;
   if (!opts.moduleId && opts.parentFolderId) {
-    const [parent] = await sql`SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${opts.parentFolderId}::uuid`;
+    const [parent] =
+      await sql`SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${opts.parentFolderId}::uuid`;
     canvasAssignmentId = parent?.canvas_assignment_id ?? null;
   }
-  const binary = await findOrCreateNote(opts.userId, file.display_name, opts.parentFolderId, {
-    s3Key: cache.storage_key, canvasCourseId, canvasModuleId, canvasAssignmentId,
+  const binary = await findOrCreateNote(
+    opts.userId,
+    file.display_name,
+    opts.parentFolderId,
+    {
+      s3Key: cache.storage_key,
+      canvasCourseId,
+      canvasModuleId,
+      canvasAssignmentId,
+    },
+  );
+  await createAttachment(
+    binary.noteId,
+    opts.userId,
+    file.display_name,
+    cache.storage_key,
+    cache.mime_type,
+    Number(cache.file_size),
+  );
+  const md = await findOrCreateNote(
+    opts.userId,
+    file.display_name.replace(/\.[^.]+$/, "") + ".md",
+    opts.parentFolderId,
+    { content: "", canvasCourseId, canvasModuleId, canvasAssignmentId },
+  );
+  const chunksStored = await cloneImportedPdfCacheToNote({
+    cacheId: cache.id,
+    noteId: md.noteId,
+    userId: opts.userId,
+    onlyIfEmpty: !md.created,
   });
-  await createAttachment(binary.noteId, opts.userId, file.display_name,
-    cache.storage_key, cache.mime_type, Number(cache.file_size));
-  const md = await findOrCreateNote(opts.userId,
-    file.display_name.replace(/\.[^.]+$/, "") + ".md", opts.parentFolderId,
-    { content: "", canvasCourseId, canvasModuleId, canvasAssignmentId });
-  const chunksStored = await cloneImportedPdfCacheToNote({ cacheId: cache.id,
-    noteId: md.noteId, userId: opts.userId, onlyIfEmpty: !md.created });
   await sql`UPDATE app.notes SET imported_file_cache_id = ${cache.id}::uuid,
     s3_key = ${cache.storage_key}, updated_at = NOW() WHERE note_id = ${binary.noteId}::uuid`;
   await sql`UPDATE app.canvas_imports SET imported_file_cache_id = ${cache.id}::uuid,
@@ -327,9 +356,14 @@ async function _runFileImport(importRecordId, file, opts) {
     return { skipped: true };
   }
 
-  const canvasSource = resolvedMimeType === "application/pdf"
-    ? canvasFileSource({ baseUrl: client.baseUrl, file, mimeType: resolvedMimeType })
-    : null;
+  const canvasSource =
+    resolvedMimeType === "application/pdf"
+      ? canvasFileSource({
+          baseUrl: client.baseUrl,
+          file,
+          mimeType: resolvedMimeType,
+        })
+      : null;
   if (canvasSource) {
     const sourceCache = await getImportedFileCacheByCanvasSource(canvasSource);
     if (sourceCache) {
@@ -340,9 +374,14 @@ async function _runFileImport(importRecordId, file, opts) {
         fileSizeBytes: canvasSource.fileSize,
       });
       const reused = await reuseImportedPdfCache(
-        sourceCache, file, opts, importRecordId,
+        sourceCache,
+        file,
+        opts,
+        importRecordId,
       );
-      await setImportStatus(importRecordId, "complete", { noteId: reused.noteId });
+      await setImportStatus(importRecordId, "complete", {
+        noteId: reused.noteId,
+      });
       return;
     }
   }
@@ -395,40 +434,75 @@ async function _runFileImport(importRecordId, file, opts) {
         await recordImportedFileCanvasSource(ready.id, canvasSource);
         return reuseImportedPdfCache(ready, file, opts, importRecordId);
       }
-      const cache = await ensureImportedFileCacheRow({ sha256,
-        mimeType: resolvedMimeType, fileSize: buffer.length, storageKey: s3Key });
+      const cache = await ensureImportedFileCacheRow({
+        sha256,
+        mimeType: resolvedMimeType,
+        fileSize: buffer.length,
+        storageKey: s3Key,
+      });
       await recordImportedFileCanvasSource(cache.id, canvasSource);
       await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
       const { noteId } = await findOrCreateNote(
-        userId, file.display_name, parentFolderId,
+        userId,
+        file.display_name,
+        parentFolderId,
         { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
       );
-      await createAttachment(noteId, userId, file.display_name, s3Key,
-        resolvedMimeType, buffer.length);
+      await createAttachment(
+        noteId,
+        userId,
+        file.display_name,
+        s3Key,
+        resolvedMimeType,
+        buffer.length,
+      );
       await setImportStatus(importRecordId, "indexing", { noteId });
       await sql`UPDATE app.notes SET imported_file_cache_id = ${cache.id}::uuid
         WHERE note_id = ${noteId}::uuid`;
       await sql`UPDATE app.canvas_imports SET imported_file_cache_id = ${cache.id}::uuid
         WHERE id = ${importRecordId}::uuid`;
       try {
-        const result = await runRagPipeline(noteId, userId, parentFolderId, buffer, {
-          filename: file.display_name, mimeType: resolvedMimeType, s3Key,
-          jobId: opts.jobId, canvasCourseId, canvasModuleId, canvasAssignmentId,
-        });
+        const result = await runRagPipeline(
+          noteId,
+          userId,
+          parentFolderId,
+          buffer,
+          {
+            filename: file.display_name,
+            mimeType: resolvedMimeType,
+            s3Key,
+            jobId: opts.jobId,
+            canvasCourseId,
+            canvasModuleId,
+            canvasAssignmentId,
+          },
+        );
         if (!result) {
-          await markImportedFileCacheFailed(cache.id, "Extraction deferred to retry pipeline");
+          await markImportedFileCacheFailed(
+            cache.id,
+            "Extraction deferred to retry pipeline",
+          );
           return null;
         }
-        await captureImportedPdfCache({ cacheId: cache.id, sourceNoteId: result.noteId });
+        if (result.pendingMarker) return result;
+        await captureImportedPdfCache({
+          cacheId: cache.id,
+          sourceNoteId: result.noteId,
+        });
         return result;
       } catch (error) {
-        await markImportedFileCacheFailed(cache.id,
-          error instanceof Error ? error.message : String(error));
+        await markImportedFileCacheFailed(
+          cache.id,
+          error instanceof Error ? error.message : String(error),
+        );
         throw error;
       }
     });
     if (!ragResult) return;
-    await setImportStatus(importRecordId, "complete", { noteId: ragResult.noteId });
+    if (ragResult.pendingMarker) return;
+    await setImportStatus(importRecordId, "complete", {
+      noteId: ragResult.noteId,
+    });
     return;
   }
 
@@ -441,8 +515,14 @@ async function _runFileImport(importRecordId, file, opts) {
   );
 
   // create attachment record so the upload GET handler can verify ownership
-  await createAttachment(noteId, userId, file.display_name, s3Key,
-    resolvedMimeType, buffer.length);
+  await createAttachment(
+    noteId,
+    userId,
+    file.display_name,
+    s3Key,
+    resolvedMimeType,
+    buffer.length,
+  );
 
   await setImportStatus(importRecordId, "indexing", { noteId });
 
@@ -467,6 +547,7 @@ async function _runFileImport(importRecordId, file, opts) {
   if (ragResult === null) {
     return;
   }
+  if (ragResult.pendingMarker) return;
 
   logger.info("canvas-import-file-processed", {
     jobId: opts.jobId,
@@ -583,7 +664,6 @@ async function checkAndCompleteJob(jobId, userId) {
         await import("../quiz/generate-background.ts");
       const seeded = await seedQuestionsAfterImport(userId, chunkIds, 5);
       console.log(`Quiz seed: ${seeded} questions for job ${jobId}`);
-
     }
   } catch (seedErr) {
     console.warn(`Quiz seed failed (non-fatal): ${seedErr.message}`);
@@ -760,6 +840,10 @@ export async function processDirectExtraction(msg) {
       );
       return;
     }
+    if (result.pendingMarker) {
+      console.log(`[${ts()}] Marker queued for note ${noteId}`);
+      return;
+    }
 
     const chunksStored = result.chunksStored ?? 0;
     await sql`
@@ -840,6 +924,9 @@ export async function processExtractionRetry(msg) {
           timer,
         ]);
 
+        if (result?.pendingMarker) {
+          return;
+        }
         if (result) {
           if (importRow?.imported_file_cache_id) {
             await captureImportedPdfCache({
@@ -893,6 +980,25 @@ export async function processExtractionRetry(msg) {
 }
 
 // ── Marker-complete handler ──────────────────────────────────────────────────
+
+export async function processMarkerFailed(msg) {
+  const { noteId, userId, jobId, runpodJobId, error } = msg;
+  const message =
+    error || `RunPod Marker job ${runpodJobId ?? "unknown"} failed`;
+  await Promise.all([
+    sql`
+      UPDATE app.canvas_imports
+      SET status = 'error', error_message = ${message}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND status = 'pending_marker'
+    `,
+    sql`
+      UPDATE app.ingestion_jobs
+      SET status = 'failed', error = ${message}, updated_at = NOW()
+      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    `,
+  ]);
+  if (jobId) await checkAndCompleteJob(jobId, userId);
+}
 
 export async function processMarkerComplete(msg) {
   const {
@@ -981,7 +1087,9 @@ export async function processMarkerComplete(msg) {
   const { normalizeMarkerMarkdown } = await import("../marker-output.ts");
   const { splitMarkdownToChunks } = await import("../ocr.ts");
 
-  const normalizedText = sanitizePostgresText(normalizeMarkerMarkdown(rawMarkdown));
+  const normalizedText = sanitizePostgresText(
+    normalizeMarkerMarkdown(rawMarkdown),
+  );
   const chunks = splitMarkdownToChunks(normalizedText).map((chunk) =>
     sanitizePostgresText(chunk),
   );
@@ -1007,7 +1115,8 @@ export async function processMarkerComplete(msg) {
           // runpod marker echoes the applied page_range in its response, so a
           // stored page-limited result is recorded as partial coverage
           pageRange:
-            typeof markerOutput.page_range === "string" && markerOutput.page_range
+            typeof markerOutput.page_range === "string" &&
+            markerOutput.page_range
               ? markerOutput.page_range
               : null,
         },

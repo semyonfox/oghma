@@ -28,6 +28,7 @@ import {
   processExtractionRetry,
   processDirectExtraction,
   processMarkerComplete,
+  processMarkerFailed,
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
@@ -40,7 +41,8 @@ const DB_POLL_INTERVAL_MS = 30_000;
 const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
 const CF_QUEUE_VISIBILITY_TIMEOUT_MS = parseInt(
-  process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS ?? `${12 * 60 * 60 * 1000}`,
+  process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_MS ??
+    `${12 * 60 * 60 * 1000}`,
   10,
 );
 const CF_QUEUE_RETRY_DELAY_SECONDS = parseInt(
@@ -73,9 +75,11 @@ function requireString(data: CanvasJobData, field: string): string {
   return value;
 }
 
-function requireCanvasFileData(
-  data: CanvasJobData,
-): { importRecordId: string; jobId: string; userId: string } {
+function requireCanvasFileData(data: CanvasJobData): {
+  importRecordId: string;
+  jobId: string;
+  userId: string;
+} {
   return {
     importRecordId: requireString(data, "importRecordId"),
     jobId: requireString(data, "jobId"),
@@ -138,7 +142,10 @@ async function claimOrphanedJobs(): Promise<boolean> {
   );
   for (const row of orphaned) {
     try {
-      await enqueueCanvasJob("canvas-discover", { jobId: row.id, userId: row.user_id });
+      await enqueueCanvasJob("canvas-discover", {
+        jobId: row.id,
+        userId: row.user_id,
+      });
     } catch (err) {
       console.error(
         `[${new Date().toISOString()}] orphan re-enqueue failed:`,
@@ -181,6 +188,9 @@ export async function processCanvasJob(job: {
     case "marker-complete":
       await processMarkerComplete(requireJobData(job));
       return;
+    case "marker-failed":
+      await processMarkerFailed(requireJobData(job));
+      return;
     case "vault-export":
       await processVaultExport(requireJobData(job));
       return;
@@ -205,7 +215,10 @@ setInterval(async () => {
     await claimOrphanedJobs();
     await dispatchFairCanvasFiles(MAX_CONCURRENT_JOBS);
   } catch (err) {
-    console.error(`[${new Date().toISOString()}] DB poll error:`, errorMessage(err));
+    console.error(
+      `[${new Date().toISOString()}] DB poll error:`,
+      errorMessage(err),
+    );
   }
 }, DB_POLL_INTERVAL_MS);
 
@@ -216,9 +229,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function cloudflareJobFromMessage(
-  message: CloudflarePulledMessage,
-): { id: string; name: string; data: CanvasJobData } {
+function cloudflareJobFromMessage(message: CloudflarePulledMessage): {
+  id: string;
+  name: string;
+  data: CanvasJobData;
+} {
   const data = parseCloudflareQueueBody(message);
   const type = typeof data.type === "string" ? data.type : "unknown";
   return {
@@ -228,7 +243,9 @@ function cloudflareJobFromMessage(
   };
 }
 
-async function processCloudflareQueueBatch(queueName: string): Promise<boolean> {
+async function processCloudflareQueueBatch(
+  queueName: string,
+): Promise<boolean> {
   const batch = await pullCloudflareQueueMessages(queueName, {
     batchSize: MAX_CONCURRENT_JOBS,
     visibilityTimeoutMs: CF_QUEUE_VISIBILITY_TIMEOUT_MS,
@@ -326,7 +343,10 @@ async function startBullMqWorkers(): Promise<void> {
       );
     });
     w.on("error", (err) => {
-      console.error(`[${new Date().toISOString()}] Worker error:`, errorMessage(err));
+      console.error(
+        `[${new Date().toISOString()}] Worker error:`,
+        errorMessage(err),
+      );
     });
   }
 
