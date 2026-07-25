@@ -50,10 +50,10 @@
   --color-border: rgba(255, 255, 255, 0.1);
   --color-border-subtle: rgba(255, 255, 255, 0.05);
 
-  /* Text colors with proper contrast */
-  --color-text: #f1f5f9;
-  --color-text-secondary: #cbd5e1;
-  --color-text-tertiary: #94a3b8;
+  /* Dark mode: prose is white by default. Colour is reserved for meaning, actions, and code. */
+  --color-text: #ffffff;
+  --color-text-secondary: #ffffff;
+  --color-text-tertiary: #ffffff;
   --color-text-on-primary: #ffffff;
 
   /* === AI: Amber for AI Features === */
