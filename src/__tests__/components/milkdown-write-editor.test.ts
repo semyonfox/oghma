@@ -4,12 +4,10 @@ import { fireEvent } from "@testing-library/dom";
 import DOMPurify from "dompurify";
 import { describe, expect, it, vi } from "vitest";
 import {
+  createMermaidPreviewHost,
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
-  getMermaidSourceFromExpandTarget,
-  nextMermaidPanPosition,
   shouldApplyExternalMarkdown,
-  updateMermaidPreviewZoom,
 } from "@/components/editor/milkdown-write-editor";
 
 describe("Milkdown value synchronization", () => {
@@ -24,89 +22,23 @@ describe("Milkdown value synchronization", () => {
 });
 
 describe("Milkdown spike code controls", () => {
-  it("retains a Mermaid preview ID after Milkdown reserializes the preview DOM", () => {
-    const source = 'flowchart LR\nA["Quoted label"] --> B';
-    const stage = document.createElement("div");
-    stage.id = "oghma-mermaid-preview-test";
-    stage.className = "oghma-mermaid-stage";
-    stage.innerHTML =
-      '<button type="button" class="oghma-mermaid-expand-button"><svg><path /></svg></button>';
+  it("retains the inert Mermaid host after Milkdown reserializes it", () => {
+    const host = createMermaidPreviewHost("oghma-mermaid-preview-test");
 
-    document.body.innerHTML = DOMPurify.sanitize(stage, {
+    document.body.innerHTML = DOMPurify.sanitize(host, {
       ADD_TAGS: ["foreignObject"],
       ADD_ATTR: ["xmlns"],
       HTML_INTEGRATION_POINTS: { foreignobject: true },
     });
-    const icon = document.querySelector("path");
-
-    expect(
-      getMermaidSourceFromExpandTarget(
-        icon,
-        new Map([["oghma-mermaid-preview-test", source]]),
-      ),
-    ).toBe(source);
-  });
-
-  it("zooms a Mermaid preview relative to its intrinsic width", () => {
-    document.body.innerHTML = `
-      <div class="oghma-mermaid-stage" data-mermaid-zoom="100">
-        <div class="oghma-mermaid-diagram" style="--oghma-mermaid-intrinsic-width: 800px"></div>
-        <div class="oghma-mermaid-inline-controls">
-          <button data-oghma-mermaid-action="zoom-out"></button>
-          <button class="oghma-mermaid-inline-reset" data-oghma-mermaid-action="reset">100%</button>
-          <button data-oghma-mermaid-action="zoom-in"><svg><path /></svg></button>
-        </div>
-      </div>`;
-    const stage = document.querySelector<HTMLElement>(".oghma-mermaid-stage")!;
-    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({
-      bottom: 640,
-      height: 600,
-      left: 0,
-      right: 800,
-      top: 40,
-      width: 800,
-      x: 0,
-      y: 40,
-      toJSON: () => ({}),
-    });
-
-    expect(updateMermaidPreviewZoom(document.querySelector("path"))).toBe(true);
-    const diagram = document.querySelector<HTMLElement>(
-      ".oghma-mermaid-diagram",
-    )!;
-    expect(stage.dataset.mermaidZoom).toBe("125");
-    expect(stage.dataset.mermaidZoomed).toBe("true");
-    expect(stage.dataset.mermaidPannable).toBe("true");
-    expect(
-      stage.style.getPropertyValue(
-        "--oghma-mermaid-inline-viewport-height",
-      ),
-    ).toBe("600px");
-    expect(
-      diagram.style.getPropertyValue("--oghma-mermaid-inline-width"),
-    ).toBe("1000px");
-    expect(
-      diagram.style.getPropertyValue("--oghma-mermaid-inline-percent"),
-    ).toBe("125%");
-    expect(document.querySelector(".oghma-mermaid-inline-reset")?.textContent).toBe(
-      "125%",
+    const restored = document.querySelector<HTMLElement>(
+      "[data-oghma-mermaid-host]",
     );
-
-    expect(
-      updateMermaidPreviewZoom(
-        document.querySelector(".oghma-mermaid-inline-reset"),
-      ),
-    ).toBe(true);
-    expect(stage.dataset.mermaidZoom).toBe("100");
-    expect(
-      stage.style.getPropertyValue(
-        "--oghma-mermaid-inline-viewport-height",
-      ),
-    ).toBe("");
+    expect(restored?.dataset.oghmaMermaidHost).toBe(
+      "oghma-mermaid-preview-test",
+    );
   });
 
-  it("anchors Mermaid controls in the code-block toolbar", () => {
-    const source = "flowchart LR\nA-->B";
+  it("leaves diagram controls to the isolated preview viewer", () => {
     document.body.innerHTML = `
       <div id="root">
         <div class="milkdown-code-block">
@@ -120,9 +52,7 @@ describe("Milkdown spike code controls", () => {
           <div class="codemirror-host"></div>
           <div class="preview-panel">
             <div class="preview">
-              <div id="oghma-mermaid-preview-toolbar" class="oghma-mermaid-stage">
-                <div class="oghma-mermaid-diagram" style="--oghma-mermaid-intrinsic-width: 800px"></div>
-              </div>
+              <div data-oghma-mermaid-host="oghma-mermaid-preview-test"></div>
             </div>
           </div>
         </div>
@@ -132,78 +62,13 @@ describe("Milkdown spike code controls", () => {
     enhanceMilkdownCodeBlocks(root);
     enhanceMilkdownCodeBlocks(root);
 
-    const toolbar = root.querySelector(".tools-button-group")!;
-    const expand = toolbar.querySelector<HTMLButtonElement>(
-      '[data-oghma-mermaid-action="expand"]',
-    )!;
-    const zoomIn = toolbar.querySelector<HTMLButtonElement>(
-      '[data-oghma-mermaid-action="zoom-in"]',
-    )!;
-    const zoomOut = toolbar.querySelector<HTMLButtonElement>(
-      '[data-oghma-mermaid-action="zoom-out"]',
-    )!;
-    expect(toolbar.querySelectorAll("[data-oghma-mermaid-action]")).toHaveLength(
-      4,
-    );
-    expect(
-      toolbar.querySelector(".oghma-mermaid-zoom-group")?.children,
-    ).toHaveLength(3);
-    expect(toolbar.querySelector(".oghma-code-copy")).not.toBeNull();
-    expect(expand.dataset.oghmaMermaidPreviewId).toBe(
-      "oghma-mermaid-preview-toolbar",
-    );
-    expect(
-      getMermaidSourceFromExpandTarget(
-        expand,
-        new Map([["oghma-mermaid-preview-toolbar", source]]),
-      ),
-    ).toBe(source);
-    expect(updateMermaidPreviewZoom(zoomIn)).toBe(true);
-    expect(
-      document
-        .querySelector<HTMLElement>(".oghma-mermaid-stage")
-        ?.dataset.mermaidZoom,
-    ).toBe("125");
-    expect(
-      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
-    ).toBe("125%");
-
-    updateMermaidPreviewZoom(zoomIn);
-    updateMermaidPreviewZoom(zoomIn);
-    updateMermaidPreviewZoom(zoomIn);
-    expect(zoomIn.disabled).toBe(true);
-    expect(
-      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
-    ).toBe("200%");
-
-    expect(
-      updateMermaidPreviewZoom(
-        toolbar.querySelector(".oghma-mermaid-inline-reset"),
-      ),
-    ).toBe(true);
-    expect(zoomIn.disabled).toBe(false);
-    expect(
-      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
-    ).toBe("100%");
-    updateMermaidPreviewZoom(zoomOut);
-    updateMermaidPreviewZoom(zoomOut);
-    expect(zoomOut.disabled).toBe(true);
-    expect(
-      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
-    ).toBe("50%");
+    expect(root.querySelector("[data-oghma-mermaid-action]")).toBeNull();
     expect(
       root.querySelector(".preview-toggle-button")?.getAttribute("aria-label"),
     ).toBe("Edit diagram source");
     expect(
       root.querySelector(".oghma-code-copy")?.getAttribute("aria-label"),
     ).toBe("Copy Mermaid source");
-  });
-
-  it("turns pointer movement into grab-to-pan scroll offsets", () => {
-    expect(nextMermaidPanPosition(300, 40, 500, 200, 425, 170)).toEqual({
-      left: 375,
-      top: 70,
-    });
   });
 
   it("adds accessible wrap and copy controls without touching code text", () => {

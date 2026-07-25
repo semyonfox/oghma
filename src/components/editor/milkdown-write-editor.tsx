@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
 import { linkSchema } from "@milkdown/kit/preset/commonmark";
@@ -9,7 +10,7 @@ import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import DOMPurify from "dompurify";
-import { renderMermaidElement } from "@/lib/markdown/mermaid";
+import MermaidInlineViewer from "@/lib/markdown/components/mermaid-inline-viewer";
 import MermaidViewerDialog from "@/lib/markdown/components/mermaid-viewer-dialog";
 import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 import {
@@ -63,130 +64,13 @@ export function shouldApplyExternalMarkdown(
 const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 13H3.5A1.5 1.5 0 0 1 2 11.5v-8A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
 const CHECK_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WRAP_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h11a3 3 0 0 1 0 6H7m0 0 3-3m-3 3 3 3M3 15h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const MINUS_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
-const PLUS_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
-const EXPAND_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M7 17H3v-4m10 4h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const MERMAID_INLINE_MIN_ZOOM = 50;
-const MERMAID_INLINE_MAX_ZOOM = 200;
-const MERMAID_INLINE_ZOOM_STEP = 25;
 let mermaidPreviewSequence = 0;
 
-function createMermaidPreviewStage(
-  diagram: HTMLElement,
-  previewId: string,
-) {
-  const stage = document.createElement("div");
-  stage.id = previewId;
-  stage.className = "oghma-mermaid-stage";
-  stage.contentEditable = "false";
-  stage.dataset.mermaidZoom = "100";
-  stage.append(diagram);
-  return stage;
-}
-
-function getMermaidStageFromControl(button: HTMLButtonElement) {
-  const previewId = button.dataset.oghmaMermaidPreviewId;
-  if (previewId) return document.getElementById(previewId);
-  return button.closest<HTMLElement>(".oghma-mermaid-stage");
-}
-
-export function updateMermaidPreviewZoom(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
-  const button = target.closest<HTMLButtonElement>(
-    "[data-oghma-mermaid-action]",
-  );
-  const action = button?.dataset.oghmaMermaidAction;
-  if (!button || !action || action === "expand") return false;
-  const stage = getMermaidStageFromControl(button);
-  const diagram = stage?.querySelector<HTMLElement>(".oghma-mermaid-diagram");
-  if (!stage || !diagram) return false;
-
-  const current = Number(stage.dataset.mermaidZoom ?? "100");
-  const next =
-    action === "reset"
-      ? 100
-      : Math.min(
-          MERMAID_INLINE_MAX_ZOOM,
-          Math.max(
-            MERMAID_INLINE_MIN_ZOOM,
-            current +
-              (action === "zoom-in" ? 1 : -1) * MERMAID_INLINE_ZOOM_STEP,
-          ),
-        );
-  if (current === 100 && next !== 100) {
-    const fittedHeight = stage.getBoundingClientRect().height;
-    if (fittedHeight > 0) {
-      stage.style.setProperty(
-        "--oghma-mermaid-inline-viewport-height",
-        `${fittedHeight}px`,
-      );
-    }
-  } else if (next === 100) {
-    stage.style.removeProperty("--oghma-mermaid-inline-viewport-height");
-  }
-  const intrinsicWidth = Number.parseFloat(
-    diagram.style.getPropertyValue("--oghma-mermaid-intrinsic-width"),
-  );
-  if (Number.isFinite(intrinsicWidth) && intrinsicWidth > 0) {
-    diagram.style.setProperty(
-      "--oghma-mermaid-inline-width",
-      `${(intrinsicWidth * next) / 100}px`,
-    );
-  }
-  diagram.style.setProperty("--oghma-mermaid-inline-percent", `${next}%`);
-  stage.dataset.mermaidZoom = String(next);
-  stage.dataset.mermaidZoomed = String(next !== 100);
-  stage.dataset.mermaidPannable = String(next > 100);
-  const controlRoot =
-    button.closest<HTMLElement>(".tools-button-group") ?? stage;
-  const controls = Array.from(
-    controlRoot.querySelectorAll<HTMLButtonElement>(
-      "[data-oghma-mermaid-action]",
-    ),
-  ).filter(
-    (control) =>
-      !control.dataset.oghmaMermaidPreviewId ||
-      control.dataset.oghmaMermaidPreviewId === stage.id,
-  );
-  const reset = controls.find(
-    (control) => control.dataset.oghmaMermaidAction === "reset",
-  );
-  if (reset) reset.textContent = `${next}%`;
-  const zoomOut = controls.find(
-    (control) => control.dataset.oghmaMermaidAction === "zoom-out",
-  );
-  if (zoomOut) zoomOut.disabled = next === MERMAID_INLINE_MIN_ZOOM;
-  const zoomIn = controls.find(
-    (control) => control.dataset.oghmaMermaidAction === "zoom-in",
-  );
-  if (zoomIn) zoomIn.disabled = next === MERMAID_INLINE_MAX_ZOOM;
-  return true;
-}
-
-export function nextMermaidPanPosition(
-  startLeft: number,
-  startTop: number,
-  startX: number,
-  startY: number,
-  currentX: number,
-  currentY: number,
-) {
-  return {
-    left: startLeft - (currentX - startX),
-    top: startTop - (currentY - startY),
-  };
-}
-
-export function getMermaidSourceFromExpandTarget(
-  target: EventTarget | null,
-  sources: ReadonlyMap<string, string>,
-) {
-  if (!(target instanceof Element)) return null;
-  const expand = target.closest<HTMLButtonElement>(
-    ".oghma-mermaid-expand-button",
-  );
-  const stage = expand ? getMermaidStageFromControl(expand) : null;
-  return stage?.id ? sources.get(stage.id) ?? null : null;
+export function createMermaidPreviewHost(previewId: string) {
+  const host = document.createElement("div");
+  host.dataset.oghmaMermaidHost = previewId;
+  host.contentEditable = "false";
+  return host;
 }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -367,68 +251,6 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     const controls = block.querySelector<HTMLElement>(".tools-button-group");
     if (!controls) return;
 
-    const mermaidStage = block.querySelector<HTMLElement>(
-      ".oghma-mermaid-stage[id]",
-    );
-    controls
-      .querySelectorAll<HTMLElement>("[data-oghma-mermaid-preview-id]")
-      .forEach((control) => {
-        if (control.dataset.oghmaMermaidPreviewId !== mermaidStage?.id) {
-          control.remove();
-        }
-      });
-    controls
-      .querySelectorAll<HTMLElement>(".oghma-mermaid-zoom-group:empty")
-      .forEach((group) => group.remove());
-    if (
-      mermaidStage &&
-      !Array.from(
-        controls.querySelectorAll<HTMLElement>(
-          "[data-oghma-mermaid-preview-id]",
-        ),
-      ).some(
-        (control) =>
-          control.dataset.oghmaMermaidPreviewId === mermaidStage.id,
-      )
-    ) {
-      const zoomOut = iconButton(
-        "Zoom diagram out",
-        "oghma-mermaid-viewer-button",
-        MINUS_ICON,
-      );
-      zoomOut.dataset.oghmaMermaidAction = "zoom-out";
-      const reset = document.createElement("button");
-      reset.type = "button";
-      reset.className = "oghma-mermaid-inline-reset";
-      reset.dataset.oghmaMermaidAction = "reset";
-      reset.title = "Reset diagram zoom";
-      reset.setAttribute("aria-label", "Reset diagram zoom");
-      reset.textContent = "100%";
-      const zoomIn = iconButton(
-        "Zoom diagram in",
-        "oghma-mermaid-viewer-button",
-        PLUS_ICON,
-      );
-      zoomIn.dataset.oghmaMermaidAction = "zoom-in";
-      const expand = iconButton(
-        "View diagram large",
-        "oghma-mermaid-expand-button",
-        EXPAND_ICON,
-      );
-      expand.dataset.oghmaMermaidAction = "expand";
-      [zoomOut, reset, zoomIn, expand].forEach((control) => {
-        control.dataset.oghmaMermaidPreviewId = mermaidStage.id;
-      });
-      const zoomGroup = document.createElement("div");
-      zoomGroup.className = "oghma-mermaid-zoom-group";
-      zoomGroup.setAttribute("role", "group");
-      zoomGroup.setAttribute("aria-label", "Diagram zoom");
-      zoomGroup.append(zoomOut, reset, zoomIn);
-      const previewToggle = controls.querySelector(".preview-toggle-button");
-      controls.insertBefore(zoomGroup, previewToggle);
-      controls.insertBefore(expand, previewToggle);
-    }
-
     const content = block.querySelector<HTMLElement>(".cm-content");
     let wrap = controls.querySelector<HTMLButtonElement>(".oghma-code-wrap");
     if (!wrap) {
@@ -448,7 +270,7 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     );
 
     const copy = controls.querySelector<HTMLButtonElement>(
-      "button:not(.oghma-code-wrap):not(.preview-toggle-button):not([data-oghma-mermaid-action])",
+      "button:not(.oghma-code-wrap):not(.preview-toggle-button)",
     );
     if (copy && !copy.dataset.oghmaEnhanced) {
       const copyLabel =
@@ -512,15 +334,6 @@ export default function MilkdownWriteEditor({
   const latestValueRef = useRef(value);
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
   const pickerSelectionRef = useRef({ from: 0, to: 0 });
-  const mermaidSourcesRef = useRef(new Map<string, string>());
-  const mermaidPanRef = useRef<{
-    pointerId: number;
-    viewport: HTMLElement;
-    x: number;
-    y: number;
-    left: number;
-    top: number;
-  } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [noteOptions, setNoteOptions] = useState<NoteOption[]>([]);
@@ -595,7 +408,42 @@ export default function MilkdownWriteEditor({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const mermaidSources = mermaidSourcesRef.current;
+    const mermaidSources = new Map<string, string>();
+    const mermaidRoots = new Map<
+      string,
+      { host: HTMLElement; root: Root }
+    >();
+
+    const syncMermaidPreviews = () => {
+      const activeIds = new Set<string>();
+      root
+        .querySelectorAll<HTMLElement>("[data-oghma-mermaid-host]")
+        .forEach((host) => {
+          const previewId = host.dataset.oghmaMermaidHost;
+          if (!previewId) return;
+          const source = mermaidSources.get(previewId);
+          if (!source) return;
+          activeIds.add(previewId);
+          const existing = mermaidRoots.get(previewId);
+          if (existing?.host === host) return;
+          existing?.root.unmount();
+          const previewRoot = createRoot(host);
+          previewRoot.render(
+            <MermaidInlineViewer
+              source={source}
+              onExpand={() => setExpandedMermaid(source)}
+            />,
+          );
+          mermaidRoots.set(previewId, { host, root: previewRoot });
+        });
+
+      mermaidRoots.forEach((entry, previewId) => {
+        if (activeIds.has(previewId) && entry.host.isConnected) return;
+        entry.root.unmount();
+        mermaidRoots.delete(previewId);
+        mermaidSources.delete(previewId);
+      });
+    };
 
     const crepe = new Crepe({
       root,
@@ -622,20 +470,11 @@ export default function MilkdownWriteEditor({
           copyIcon: COPY_ICON,
           copyText: "",
           previewOnlyByDefault: true,
-          renderPreview: (language, content, applyPreview) => {
+          renderPreview: (language, content) => {
             if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
-            void renderMermaidElement(content)
-              .then((diagram) => {
-                mermaidSources.forEach((_source, previewId) => {
-                  if (!document.getElementById(previewId)) {
-                    mermaidSources.delete(previewId);
-                  }
-                });
-                const previewId = `oghma-mermaid-preview-${Date.now()}-${mermaidPreviewSequence++}`;
-                mermaidSources.set(previewId, content);
-                applyPreview(createMermaidPreviewStage(diagram, previewId));
-              })
-              .catch(() => applyPreview(null));
+            const previewId = `oghma-mermaid-preview-${Date.now()}-${mermaidPreviewSequence++}`;
+            mermaidSources.set(previewId, content);
+            return createMermaidPreviewHost(previewId);
           },
         },
       },
@@ -680,9 +519,11 @@ export default function MilkdownWriteEditor({
       }
       enhanceMilkdownCodeBlocks(root);
       enhanceNoteReferenceButton(root);
+      syncMermaidPreviews();
       observer = new MutationObserver(() => {
         enhanceMilkdownCodeBlocks(root);
         enhanceNoteReferenceButton(root);
+        syncMermaidPreviews();
       });
       observer.observe(root, { childList: true, subtree: true });
     });
@@ -692,6 +533,8 @@ export default function MilkdownWriteEditor({
       observer?.disconnect();
       root.removeEventListener("beforeinput", handleBeforeInput as EventListener, true);
       crepeRef.current = null;
+      mermaidRoots.forEach((entry) => entry.root.unmount());
+      mermaidRoots.clear();
       mermaidSources.clear();
       void crepe.destroy();
     };
@@ -747,80 +590,7 @@ export default function MilkdownWriteEditor({
           onSave?.();
         }
       }}
-      onPointerDownCapture={(event) => {
-        if (event.pointerType !== "mouse" || event.button !== 0) return;
-        const diagram = (event.target as Element).closest<HTMLElement>(
-          '.oghma-mermaid-stage[data-mermaid-pannable="true"] .oghma-mermaid-diagram',
-        );
-        const viewport = diagram?.closest<HTMLElement>(
-          ".preview-panel .preview",
-        );
-        if (
-          !viewport ||
-          (viewport.scrollWidth <= viewport.clientWidth &&
-            viewport.scrollHeight <= viewport.clientHeight)
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        mermaidPanRef.current = {
-          pointerId: event.pointerId,
-          viewport,
-          x: event.clientX,
-          y: event.clientY,
-          left: viewport.scrollLeft,
-          top: viewport.scrollTop,
-        };
-        viewport.classList.add("is-dragging");
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerMoveCapture={(event) => {
-        const pan = mermaidPanRef.current;
-        if (!pan || pan.pointerId !== event.pointerId) return;
-        event.preventDefault();
-        const next = nextMermaidPanPosition(
-          pan.left,
-          pan.top,
-          pan.x,
-          pan.y,
-          event.clientX,
-          event.clientY,
-        );
-        pan.viewport.scrollLeft = next.left;
-        pan.viewport.scrollTop = next.top;
-      }}
-      onPointerUpCapture={(event) => {
-        const pan = mermaidPanRef.current;
-        if (!pan || pan.pointerId !== event.pointerId) return;
-        pan.viewport.classList.remove("is-dragging");
-        mermaidPanRef.current = null;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-      }}
-      onPointerCancelCapture={(event) => {
-        const pan = mermaidPanRef.current;
-        if (!pan || pan.pointerId !== event.pointerId) return;
-        pan.viewport.classList.remove("is-dragging");
-        mermaidPanRef.current = null;
-      }}
       onClickCapture={(event) => {
-        if (updateMermaidPreviewZoom(event.target)) {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        const mermaidSource = getMermaidSourceFromExpandTarget(
-          event.target,
-          mermaidSourcesRef.current,
-        );
-        if (mermaidSource !== null) {
-          event.preventDefault();
-          event.stopPropagation();
-          setExpandedMermaid(mermaidSource);
-          return;
-        }
         const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
           "a[href]",
         );
