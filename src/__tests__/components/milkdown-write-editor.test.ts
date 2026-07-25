@@ -130,6 +130,7 @@ describe("Milkdown spike code controls", () => {
     const root = document.querySelector<HTMLElement>("#root")!;
 
     enhanceMilkdownCodeBlocks(root);
+    enhanceMilkdownCodeBlocks(root);
 
     const toolbar = root.querySelector(".tools-button-group")!;
     const expand = toolbar.querySelector<HTMLButtonElement>(
@@ -141,6 +142,10 @@ describe("Milkdown spike code controls", () => {
     expect(toolbar.querySelectorAll("[data-oghma-mermaid-action]")).toHaveLength(
       4,
     );
+    expect(
+      toolbar.querySelector(".oghma-mermaid-zoom-group")?.children,
+    ).toHaveLength(3);
+    expect(toolbar.querySelector(".oghma-code-copy")).not.toBeNull();
     expect(expand.dataset.oghmaMermaidPreviewId).toBe(
       "oghma-mermaid-preview-toolbar",
     );
@@ -159,6 +164,9 @@ describe("Milkdown spike code controls", () => {
     expect(
       root.querySelector(".preview-toggle-button")?.getAttribute("aria-label"),
     ).toBe("Edit diagram source");
+    expect(
+      root.querySelector(".oghma-code-copy")?.getAttribute("aria-label"),
+    ).toBe("Copy Mermaid source");
   });
 
   it("turns pointer movement into grab-to-pan scroll offsets", () => {

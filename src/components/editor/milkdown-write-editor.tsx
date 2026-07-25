@@ -364,6 +364,9 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
           control.remove();
         }
       });
+    controls
+      .querySelectorAll<HTMLElement>(".oghma-mermaid-zoom-group:empty")
+      .forEach((group) => group.remove());
     if (
       mermaidStage &&
       !Array.from(
@@ -403,10 +406,13 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
       [zoomOut, reset, zoomIn, expand].forEach((control) => {
         control.dataset.oghmaMermaidPreviewId = mermaidStage.id;
       });
+      const zoomGroup = document.createElement("div");
+      zoomGroup.className = "oghma-mermaid-zoom-group";
+      zoomGroup.setAttribute("role", "group");
+      zoomGroup.setAttribute("aria-label", "Diagram zoom");
+      zoomGroup.append(zoomOut, reset, zoomIn);
       const previewToggle = controls.querySelector(".preview-toggle-button");
-      controls.insertBefore(zoomOut, previewToggle);
-      controls.insertBefore(reset, previewToggle);
-      controls.insertBefore(zoomIn, previewToggle);
+      controls.insertBefore(zoomGroup, previewToggle);
       controls.insertBefore(expand, previewToggle);
     }
 
@@ -432,18 +438,28 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
       "button:not(.oghma-code-wrap):not(.preview-toggle-button):not([data-oghma-mermaid-action])",
     );
     if (copy && !copy.dataset.oghmaEnhanced) {
+      const copyLabel =
+        block.dataset.oghmaLanguage === "mermaid"
+          ? "Copy Mermaid source"
+          : "Copy code";
+      copy.classList.add("oghma-code-copy");
       copy.innerHTML = COPY_ICON;
-      copy.title = "Copy code";
-      copy.setAttribute("aria-label", "Copy code");
+      copy.title = copyLabel;
+      copy.setAttribute("aria-label", copyLabel);
       copy.addEventListener("click", () => {
         copy.innerHTML = CHECK_ICON;
         copy.title = "Copied";
-        copy.setAttribute("aria-label", "Code copied");
+        copy.setAttribute(
+          "aria-label",
+          block.dataset.oghmaLanguage === "mermaid"
+            ? "Mermaid source copied"
+            : "Code copied",
+        );
         window.setTimeout(() => {
           if (!copy.isConnected) return;
           copy.innerHTML = COPY_ICON;
-          copy.title = "Copy code";
-          copy.setAttribute("aria-label", "Copy code");
+          copy.title = copyLabel;
+          copy.setAttribute("aria-label", copyLabel);
         }, 1600);
       });
       copy.dataset.oghmaEnhanced = "true";

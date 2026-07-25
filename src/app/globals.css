@@ -1266,11 +1266,20 @@ html.light .glass-card-active {
   opacity: 1;
 }
 
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .tools {
+  min-height: 3rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 65%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+}
+
 .oghma-milkdown-editor .milkdown-code-block .tools-button-group button {
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
-  flex: 0 0 2rem;
+  flex: 0 0 2.25rem;
   font-size: 0;
 }
 
@@ -1280,8 +1289,58 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown-code-block .tools-button-group {
+  align-items: center;
   flex-shrink: 0;
   gap: 0.25rem;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]:has(
+    .preview-toggle-button[aria-label="Edit diagram source"]
+  )
+  .oghma-code-wrap {
+  display: none;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .oghma-mermaid-zoom-group {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--radius-radius-md);
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .oghma-mermaid-zoom-group
+  button {
+  border: 0;
+  border-radius: 0;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .oghma-mermaid-zoom-group
+  button
+  + button {
+  border-left: 1px solid var(--md-code-border);
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .oghma-mermaid-expand-button {
+  margin-left: 0.125rem;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]:has(
+    .preview-toggle-button[aria-label="Edit diagram source"]
+  )
+  .preview-toggle-button {
+  border-color: color-mix(in srgb, var(--color-primary-500) 55%, transparent);
+  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
+  color: var(--md-text);
 }
 
 .oghma-milkdown-editor .milkdown-code-block .preview-panel .preview {
