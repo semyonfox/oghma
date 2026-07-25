@@ -1296,9 +1296,9 @@ html.light .glass-card-active {
   display: grid;
   height: auto;
   min-height: 8rem;
-  max-height: 18rem;
+  max-height: none;
   place-items: center;
-  overflow: auto;
+  overflow: visible;
 }
 
 .oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .oghma-mermaid-diagram,
@@ -1386,9 +1386,9 @@ html.light .glass-card-active {
 
 .oghma-mermaid-preview {
   height: auto;
-  max-height: 18rem;
+  max-height: none;
   padding: 1.25rem;
-  overflow: auto;
+  overflow: visible;
 }
 
 .oghma-mermaid-diagram {
@@ -1423,14 +1423,10 @@ html.light .glass-card-active {
 
 .oghma-mermaid-stage > .oghma-mermaid-expand-button {
   position: absolute;
+  z-index: 1;
   top: 0.5rem;
   right: 0.5rem;
   background: var(--md-code-bg);
-  opacity: 0;
-}
-
-.oghma-mermaid-stage:hover > .oghma-mermaid-expand-button,
-.oghma-mermaid-stage:focus-within > .oghma-mermaid-expand-button {
   opacity: 1;
 }
 
@@ -1458,12 +1454,6 @@ html.light .glass-card-active {
 
 .oghma-mermaid-viewer-canvas > .oghma-mermaid-diagram {
   width: 100%;
-}
-
-@media (hover: none) {
-  .oghma-mermaid-stage > .oghma-mermaid-expand-button {
-    opacity: 1;
-  }
 }
 
 .oghma-mermaid-block pre[data-mermaid-state="fallback"] {
