@@ -137,14 +137,27 @@ export function updateMermaidPreviewZoom(target: EventTarget | null) {
   stage.dataset.mermaidZoom = String(next);
   stage.dataset.mermaidZoomed = String(next !== 100);
   stage.dataset.mermaidPannable = String(next > 100);
-  const reset = stage.querySelector<HTMLElement>(".oghma-mermaid-inline-reset");
+  const controlRoot =
+    button.closest<HTMLElement>(".tools-button-group") ?? stage;
+  const controls = Array.from(
+    controlRoot.querySelectorAll<HTMLButtonElement>(
+      "[data-oghma-mermaid-action]",
+    ),
+  ).filter(
+    (control) =>
+      !control.dataset.oghmaMermaidPreviewId ||
+      control.dataset.oghmaMermaidPreviewId === stage.id,
+  );
+  const reset = controls.find(
+    (control) => control.dataset.oghmaMermaidAction === "reset",
+  );
   if (reset) reset.textContent = `${next}%`;
-  const zoomOut = stage.querySelector<HTMLButtonElement>(
-    '[data-oghma-mermaid-action="zoom-out"]',
+  const zoomOut = controls.find(
+    (control) => control.dataset.oghmaMermaidAction === "zoom-out",
   );
   if (zoomOut) zoomOut.disabled = next === MERMAID_INLINE_MIN_ZOOM;
-  const zoomIn = stage.querySelector<HTMLButtonElement>(
-    '[data-oghma-mermaid-action="zoom-in"]',
+  const zoomIn = controls.find(
+    (control) => control.dataset.oghmaMermaidAction === "zoom-in",
   );
   if (zoomIn) zoomIn.disabled = next === MERMAID_INLINE_MAX_ZOOM;
   return true;

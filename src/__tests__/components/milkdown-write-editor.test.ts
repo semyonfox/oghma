@@ -139,6 +139,9 @@ describe("Milkdown spike code controls", () => {
     const zoomIn = toolbar.querySelector<HTMLButtonElement>(
       '[data-oghma-mermaid-action="zoom-in"]',
     )!;
+    const zoomOut = toolbar.querySelector<HTMLButtonElement>(
+      '[data-oghma-mermaid-action="zoom-out"]',
+    )!;
     expect(toolbar.querySelectorAll("[data-oghma-mermaid-action]")).toHaveLength(
       4,
     );
@@ -161,6 +164,33 @@ describe("Milkdown spike code controls", () => {
         .querySelector<HTMLElement>(".oghma-mermaid-stage")
         ?.dataset.mermaidZoom,
     ).toBe("125");
+    expect(
+      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
+    ).toBe("125%");
+
+    updateMermaidPreviewZoom(zoomIn);
+    updateMermaidPreviewZoom(zoomIn);
+    updateMermaidPreviewZoom(zoomIn);
+    expect(zoomIn.disabled).toBe(true);
+    expect(
+      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
+    ).toBe("200%");
+
+    expect(
+      updateMermaidPreviewZoom(
+        toolbar.querySelector(".oghma-mermaid-inline-reset"),
+      ),
+    ).toBe(true);
+    expect(zoomIn.disabled).toBe(false);
+    expect(
+      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
+    ).toBe("100%");
+    updateMermaidPreviewZoom(zoomOut);
+    updateMermaidPreviewZoom(zoomOut);
+    expect(zoomOut.disabled).toBe(true);
+    expect(
+      toolbar.querySelector(".oghma-mermaid-inline-reset")?.textContent,
+    ).toBe("50%");
     expect(
       root.querySelector(".preview-toggle-button")?.getAttribute("aria-label"),
     ).toBe("Edit diagram source");
