@@ -64,18 +64,29 @@ const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6"
 const CHECK_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WRAP_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h11a3 3 0 0 1 0 6H7m0 0 3-3m-3 3 3 3M3 15h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const EXPAND_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M7 17H3v-4m10 4h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+let mermaidPreviewSequence = 0;
 
 function createMermaidPreviewStage(
   diagram: HTMLElement,
-  onExpand: () => void,
+  previewId: string,
 ) {
   const stage = document.createElement("div");
+  stage.id = previewId;
   stage.className = "oghma-mermaid-stage";
   stage.contentEditable = "false";
   const expand = iconButton("View diagram large", "oghma-mermaid-expand-button", EXPAND_ICON);
-  expand.addEventListener("click", onExpand);
   stage.append(diagram, expand);
   return stage;
+}
+
+export function getMermaidSourceFromExpandTarget(
+  target: EventTarget | null,
+  sources: ReadonlyMap<string, string>,
+) {
+  if (!(target instanceof Element)) return null;
+  const expand = target.closest(".oghma-mermaid-expand-button");
+  const stage = expand?.closest<HTMLElement>(".oghma-mermaid-stage");
+  return stage?.id ? sources.get(stage.id) ?? null : null;
 }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -329,6 +340,7 @@ export default function MilkdownWriteEditor({
   const latestValueRef = useRef(value);
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
   const pickerSelectionRef = useRef({ from: 0, to: 0 });
+  const mermaidSourcesRef = useRef(new Map<string, string>());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [noteOptions, setNoteOptions] = useState<NoteOption[]>([]);
@@ -403,6 +415,7 @@ export default function MilkdownWriteEditor({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    const mermaidSources = mermaidSourcesRef.current;
 
     const crepe = new Crepe({
       root,
@@ -432,11 +445,14 @@ export default function MilkdownWriteEditor({
             if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
             void renderMermaidElement(content)
               .then((diagram) => {
-                applyPreview(
-                  createMermaidPreviewStage(diagram, () => {
-                    setExpandedMermaid(content);
-                  }),
-                );
+                mermaidSources.forEach((_source, previewId) => {
+                  if (!document.getElementById(previewId)) {
+                    mermaidSources.delete(previewId);
+                  }
+                });
+                const previewId = `oghma-mermaid-preview-${Date.now()}-${mermaidPreviewSequence++}`;
+                mermaidSources.set(previewId, content);
+                applyPreview(createMermaidPreviewStage(diagram, previewId));
               })
               .catch(() => applyPreview(null));
           },
@@ -495,6 +511,7 @@ export default function MilkdownWriteEditor({
       observer?.disconnect();
       root.removeEventListener("beforeinput", handleBeforeInput as EventListener, true);
       crepeRef.current = null;
+      mermaidSources.clear();
       void crepe.destroy();
     };
     // The editor instance owns its initial value; later values use replaceAll below.
@@ -550,6 +567,16 @@ export default function MilkdownWriteEditor({
         }
       }}
       onClickCapture={(event) => {
+        const mermaidSource = getMermaidSourceFromExpandTarget(
+          event.target,
+          mermaidSourcesRef.current,
+        );
+        if (mermaidSource !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          setExpandedMermaid(mermaidSource);
+          return;
+        }
         const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
           "a[href]",
         );

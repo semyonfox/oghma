@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 
 import { fireEvent } from "@testing-library/dom";
+import DOMPurify from "dompurify";
 import { describe, expect, it, vi } from "vitest";
 import {
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
+  getMermaidSourceFromExpandTarget,
   shouldApplyExternalMarkdown,
 } from "@/components/editor/milkdown-write-editor";
 
@@ -20,6 +22,29 @@ describe("Milkdown value synchronization", () => {
 });
 
 describe("Milkdown spike code controls", () => {
+  it("retains a Mermaid preview ID after Milkdown reserializes the preview DOM", () => {
+    const source = 'flowchart LR\nA["Quoted label"] --> B';
+    const stage = document.createElement("div");
+    stage.id = "oghma-mermaid-preview-test";
+    stage.className = "oghma-mermaid-stage";
+    stage.innerHTML =
+      '<button type="button" class="oghma-mermaid-expand-button"><svg><path /></svg></button>';
+
+    document.body.innerHTML = DOMPurify.sanitize(stage, {
+      ADD_TAGS: ["foreignObject"],
+      ADD_ATTR: ["xmlns"],
+      HTML_INTEGRATION_POINTS: { foreignobject: true },
+    });
+    const icon = document.querySelector("path");
+
+    expect(
+      getMermaidSourceFromExpandTarget(
+        icon,
+        new Map([["oghma-mermaid-preview-test", source]]),
+      ),
+    ).toBe(source);
+  });
+
   it("adds accessible wrap and copy controls without touching code text", () => {
     vi.useFakeTimers();
     document.body.innerHTML = `
