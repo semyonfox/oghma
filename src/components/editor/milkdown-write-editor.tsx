@@ -80,25 +80,14 @@ function createMermaidPreviewStage(
   stage.className = "oghma-mermaid-stage";
   stage.contentEditable = "false";
   stage.dataset.mermaidZoom = "100";
-  const controls = document.createElement("div");
-  controls.className = "oghma-mermaid-inline-controls";
-  controls.setAttribute("aria-label", "Diagram preview controls");
-  const zoomOut = iconButton("Zoom diagram out", "oghma-mermaid-viewer-button", MINUS_ICON);
-  zoomOut.dataset.oghmaMermaidAction = "zoom-out";
-  const reset = document.createElement("button");
-  reset.type = "button";
-  reset.className = "oghma-mermaid-inline-reset";
-  reset.dataset.oghmaMermaidAction = "reset";
-  reset.title = "Reset diagram zoom";
-  reset.setAttribute("aria-label", "Reset diagram zoom");
-  reset.textContent = "100%";
-  const zoomIn = iconButton("Zoom diagram in", "oghma-mermaid-viewer-button", PLUS_ICON);
-  zoomIn.dataset.oghmaMermaidAction = "zoom-in";
-  const expand = iconButton("View diagram large", "oghma-mermaid-expand-button", EXPAND_ICON);
-  expand.dataset.oghmaMermaidAction = "expand";
-  controls.append(zoomOut, reset, zoomIn, expand);
-  stage.append(diagram, controls);
+  stage.append(diagram);
   return stage;
+}
+
+function getMermaidStageFromControl(button: HTMLButtonElement) {
+  const previewId = button.dataset.oghmaMermaidPreviewId;
+  if (previewId) return document.getElementById(previewId);
+  return button.closest<HTMLElement>(".oghma-mermaid-stage");
 }
 
 export function updateMermaidPreviewZoom(target: EventTarget | null) {
@@ -108,7 +97,7 @@ export function updateMermaidPreviewZoom(target: EventTarget | null) {
   );
   const action = button?.dataset.oghmaMermaidAction;
   if (!button || !action || action === "expand") return false;
-  const stage = button.closest<HTMLElement>(".oghma-mermaid-stage");
+  const stage = getMermaidStageFromControl(button);
   const diagram = stage?.querySelector<HTMLElement>(".oghma-mermaid-diagram");
   if (!stage || !diagram) return false;
 
@@ -180,8 +169,10 @@ export function getMermaidSourceFromExpandTarget(
   sources: ReadonlyMap<string, string>,
 ) {
   if (!(target instanceof Element)) return null;
-  const expand = target.closest(".oghma-mermaid-expand-button");
-  const stage = expand?.closest<HTMLElement>(".oghma-mermaid-stage");
+  const expand = target.closest<HTMLButtonElement>(
+    ".oghma-mermaid-expand-button",
+  );
+  const stage = expand ? getMermaidStageFromControl(expand) : null;
   return stage?.id ? sources.get(stage.id) ?? null : null;
 }
 
@@ -363,6 +354,62 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     const controls = block.querySelector<HTMLElement>(".tools-button-group");
     if (!controls) return;
 
+    const mermaidStage = block.querySelector<HTMLElement>(
+      ".oghma-mermaid-stage[id]",
+    );
+    controls
+      .querySelectorAll<HTMLElement>("[data-oghma-mermaid-preview-id]")
+      .forEach((control) => {
+        if (control.dataset.oghmaMermaidPreviewId !== mermaidStage?.id) {
+          control.remove();
+        }
+      });
+    if (
+      mermaidStage &&
+      !Array.from(
+        controls.querySelectorAll<HTMLElement>(
+          "[data-oghma-mermaid-preview-id]",
+        ),
+      ).some(
+        (control) =>
+          control.dataset.oghmaMermaidPreviewId === mermaidStage.id,
+      )
+    ) {
+      const zoomOut = iconButton(
+        "Zoom diagram out",
+        "oghma-mermaid-viewer-button",
+        MINUS_ICON,
+      );
+      zoomOut.dataset.oghmaMermaidAction = "zoom-out";
+      const reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "oghma-mermaid-inline-reset";
+      reset.dataset.oghmaMermaidAction = "reset";
+      reset.title = "Reset diagram zoom";
+      reset.setAttribute("aria-label", "Reset diagram zoom");
+      reset.textContent = "100%";
+      const zoomIn = iconButton(
+        "Zoom diagram in",
+        "oghma-mermaid-viewer-button",
+        PLUS_ICON,
+      );
+      zoomIn.dataset.oghmaMermaidAction = "zoom-in";
+      const expand = iconButton(
+        "View diagram large",
+        "oghma-mermaid-expand-button",
+        EXPAND_ICON,
+      );
+      expand.dataset.oghmaMermaidAction = "expand";
+      [zoomOut, reset, zoomIn, expand].forEach((control) => {
+        control.dataset.oghmaMermaidPreviewId = mermaidStage.id;
+      });
+      const previewToggle = controls.querySelector(".preview-toggle-button");
+      controls.insertBefore(zoomOut, previewToggle);
+      controls.insertBefore(reset, previewToggle);
+      controls.insertBefore(zoomIn, previewToggle);
+      controls.insertBefore(expand, previewToggle);
+    }
+
     const content = block.querySelector<HTMLElement>(".cm-content");
     let wrap = controls.querySelector<HTMLButtonElement>(".oghma-code-wrap");
     if (!wrap) {
@@ -382,7 +429,7 @@ export function enhanceMilkdownCodeBlocks(root: HTMLElement) {
     );
 
     const copy = controls.querySelector<HTMLButtonElement>(
-      "button:not(.oghma-code-wrap):not(.preview-toggle-button)",
+      "button:not(.oghma-code-wrap):not(.preview-toggle-button):not([data-oghma-mermaid-action])",
     );
     if (copy && !copy.dataset.oghmaEnhanced) {
       copy.innerHTML = COPY_ICON;
@@ -545,6 +592,7 @@ export default function MilkdownWriteEditor({
         [CrepeFeature.CodeMirror]: {
           copyIcon: COPY_ICON,
           copyText: "",
+          previewOnlyByDefault: true,
           renderPreview: (language, content, applyPreview) => {
             if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
             void renderMermaidElement(content)

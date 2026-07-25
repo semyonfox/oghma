@@ -1434,35 +1434,18 @@ html.light .glass-card-active {
   align-items: start;
 }
 
-.oghma-mermaid-inline-controls {
-  position: sticky;
-  z-index: 2;
-  display: flex;
-  grid-area: 1 / 1;
-  align-self: start;
-  justify-self: end;
-  gap: 0.25rem;
-  top: 0.5rem;
-  right: 0.5rem;
-  margin: 0.5rem;
-  padding: 0.25rem;
-  border: 1px solid var(--md-code-border);
-  border-radius: var(--radius-radius-md);
-  background: var(--md-code-bg);
-  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 18%);
-}
-
 .oghma-mermaid-stage > .oghma-mermaid-diagram {
   grid-area: 1 / 1;
   margin-inline: auto;
 }
 
 .oghma-mermaid-inline-reset {
-  min-width: 3rem;
-  padding: 0 0.35rem;
+  width: 3rem !important;
+  flex-basis: 3rem !important;
+  padding: 0 0.35rem !important;
   border-radius: var(--radius-radius-md);
   color: var(--md-text-muted);
-  font-size: 0.7rem;
+  font-size: 0.7rem !important;
   font-variant-numeric: tabular-nums;
 }
 

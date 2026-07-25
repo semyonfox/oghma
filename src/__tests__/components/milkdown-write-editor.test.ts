@@ -105,6 +105,62 @@ describe("Milkdown spike code controls", () => {
     ).toBe("");
   });
 
+  it("anchors Mermaid controls in the code-block toolbar", () => {
+    const source = "flowchart LR\nA-->B";
+    document.body.innerHTML = `
+      <div id="root">
+        <div class="milkdown-code-block">
+          <div class="tools">
+            <button class="language-button">mermaid</button>
+            <div class="tools-button-group">
+              <button>Copy</button>
+              <button class="preview-toggle-button"><svg></svg>Edit</button>
+            </div>
+          </div>
+          <div class="codemirror-host"></div>
+          <div class="preview-panel">
+            <div class="preview">
+              <div id="oghma-mermaid-preview-toolbar" class="oghma-mermaid-stage">
+                <div class="oghma-mermaid-diagram" style="--oghma-mermaid-intrinsic-width: 800px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const root = document.querySelector<HTMLElement>("#root")!;
+
+    enhanceMilkdownCodeBlocks(root);
+
+    const toolbar = root.querySelector(".tools-button-group")!;
+    const expand = toolbar.querySelector<HTMLButtonElement>(
+      '[data-oghma-mermaid-action="expand"]',
+    )!;
+    const zoomIn = toolbar.querySelector<HTMLButtonElement>(
+      '[data-oghma-mermaid-action="zoom-in"]',
+    )!;
+    expect(toolbar.querySelectorAll("[data-oghma-mermaid-action]")).toHaveLength(
+      4,
+    );
+    expect(expand.dataset.oghmaMermaidPreviewId).toBe(
+      "oghma-mermaid-preview-toolbar",
+    );
+    expect(
+      getMermaidSourceFromExpandTarget(
+        expand,
+        new Map([["oghma-mermaid-preview-toolbar", source]]),
+      ),
+    ).toBe(source);
+    expect(updateMermaidPreviewZoom(zoomIn)).toBe(true);
+    expect(
+      document
+        .querySelector<HTMLElement>(".oghma-mermaid-stage")
+        ?.dataset.mermaidZoom,
+    ).toBe("125");
+    expect(
+      root.querySelector(".preview-toggle-button")?.getAttribute("aria-label"),
+    ).toBe("Edit diagram source");
+  });
+
   it("turns pointer movement into grab-to-pan scroll offsets", () => {
     expect(nextMermaidPanPosition(300, 40, 500, 200, 425, 170)).toEqual({
       left: 375,
