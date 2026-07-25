@@ -57,15 +57,31 @@ describe("Milkdown spike code controls", () => {
           <button data-oghma-mermaid-action="zoom-in"><svg><path /></svg></button>
         </div>
       </div>`;
+    const stage = document.querySelector<HTMLElement>(".oghma-mermaid-stage")!;
+    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({
+      bottom: 640,
+      height: 600,
+      left: 0,
+      right: 800,
+      top: 40,
+      width: 800,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
 
     expect(updateMermaidPreviewZoom(document.querySelector("path"))).toBe(true);
-    const stage = document.querySelector<HTMLElement>(".oghma-mermaid-stage")!;
     const diagram = document.querySelector<HTMLElement>(
       ".oghma-mermaid-diagram",
     )!;
     expect(stage.dataset.mermaidZoom).toBe("125");
     expect(stage.dataset.mermaidZoomed).toBe("true");
     expect(stage.dataset.mermaidPannable).toBe("true");
+    expect(
+      stage.style.getPropertyValue(
+        "--oghma-mermaid-inline-viewport-height",
+      ),
+    ).toBe("600px");
     expect(
       diagram.style.getPropertyValue("--oghma-mermaid-inline-width"),
     ).toBe("1000px");
@@ -75,6 +91,18 @@ describe("Milkdown spike code controls", () => {
     expect(document.querySelector(".oghma-mermaid-inline-reset")?.textContent).toBe(
       "125%",
     );
+
+    expect(
+      updateMermaidPreviewZoom(
+        document.querySelector(".oghma-mermaid-inline-reset"),
+      ),
+    ).toBe(true);
+    expect(stage.dataset.mermaidZoom).toBe("100");
+    expect(
+      stage.style.getPropertyValue(
+        "--oghma-mermaid-inline-viewport-height",
+      ),
+    ).toBe("");
   });
 
   it("turns pointer movement into grab-to-pan scroll offsets", () => {

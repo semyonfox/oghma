@@ -124,6 +124,17 @@ export function updateMermaidPreviewZoom(target: EventTarget | null) {
               (action === "zoom-in" ? 1 : -1) * MERMAID_INLINE_ZOOM_STEP,
           ),
         );
+  if (current === 100 && next !== 100) {
+    const fittedHeight = stage.getBoundingClientRect().height;
+    if (fittedHeight > 0) {
+      stage.style.setProperty(
+        "--oghma-mermaid-inline-viewport-height",
+        `${fittedHeight}px`,
+      );
+    }
+  } else if (next === 100) {
+    stage.style.removeProperty("--oghma-mermaid-inline-viewport-height");
+  }
   const intrinsicWidth = Number.parseFloat(
     diagram.style.getPropertyValue("--oghma-mermaid-intrinsic-width"),
   );

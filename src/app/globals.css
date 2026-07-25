@@ -1429,6 +1429,11 @@ html.light .glass-card-active {
   place-items: center;
 }
 
+.oghma-mermaid-stage[data-mermaid-zoomed="true"] {
+  height: var(--oghma-mermaid-inline-viewport-height);
+  align-items: start;
+}
+
 .oghma-mermaid-inline-controls {
   position: sticky;
   z-index: 2;
@@ -1449,6 +1454,7 @@ html.light .glass-card-active {
 
 .oghma-mermaid-stage > .oghma-mermaid-diagram {
   grid-area: 1 / 1;
+  margin-inline: auto;
 }
 
 .oghma-mermaid-inline-reset {
