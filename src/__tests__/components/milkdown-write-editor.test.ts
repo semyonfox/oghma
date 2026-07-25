@@ -8,6 +8,7 @@ import {
   enhanceMilkdownCodeBlocks,
   getMermaidSourceFromExpandTarget,
   shouldApplyExternalMarkdown,
+  updateMermaidPreviewZoom,
 } from "@/components/editor/milkdown-write-editor";
 
 describe("Milkdown value synchronization", () => {
@@ -43,6 +44,35 @@ describe("Milkdown spike code controls", () => {
         new Map([["oghma-mermaid-preview-test", source]]),
       ),
     ).toBe(source);
+  });
+
+  it("zooms a Mermaid preview relative to its intrinsic width", () => {
+    document.body.innerHTML = `
+      <div class="oghma-mermaid-stage" data-mermaid-zoom="100">
+        <div class="oghma-mermaid-diagram" style="--oghma-mermaid-intrinsic-width: 800px"></div>
+        <div class="oghma-mermaid-inline-controls">
+          <button data-oghma-mermaid-action="zoom-out"></button>
+          <button class="oghma-mermaid-inline-reset" data-oghma-mermaid-action="reset">100%</button>
+          <button data-oghma-mermaid-action="zoom-in"><svg><path /></svg></button>
+        </div>
+      </div>`;
+
+    expect(updateMermaidPreviewZoom(document.querySelector("path"))).toBe(true);
+    const stage = document.querySelector<HTMLElement>(".oghma-mermaid-stage")!;
+    const diagram = document.querySelector<HTMLElement>(
+      ".oghma-mermaid-diagram",
+    )!;
+    expect(stage.dataset.mermaidZoom).toBe("125");
+    expect(stage.dataset.mermaidZoomed).toBe("true");
+    expect(
+      diagram.style.getPropertyValue("--oghma-mermaid-inline-width"),
+    ).toBe("1000px");
+    expect(
+      diagram.style.getPropertyValue("--oghma-mermaid-inline-percent"),
+    ).toBe("125%");
+    expect(document.querySelector(".oghma-mermaid-inline-reset")?.textContent).toBe(
+      "125%",
+    );
   });
 
   it("adds accessible wrap and copy controls without touching code text", () => {

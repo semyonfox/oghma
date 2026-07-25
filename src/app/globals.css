@@ -1392,8 +1392,14 @@ html.light .glass-card-active {
 }
 
 .oghma-mermaid-diagram {
-  width: 100%;
-  min-width: var(--oghma-mermaid-intrinsic-width, 0);
+  width: min(
+    var(
+      --oghma-mermaid-inline-width,
+      var(--oghma-mermaid-intrinsic-width, 100%)
+    ),
+    var(--oghma-mermaid-inline-percent, 100%)
+  );
+  min-width: 0;
 }
 
 .oghma-mermaid-diagram svg {
@@ -1418,16 +1424,50 @@ html.light .glass-card-active {
   position: relative;
   display: grid;
   width: 100%;
+  min-width: 0;
   place-items: center;
 }
 
-.oghma-mermaid-stage > .oghma-mermaid-expand-button {
-  position: absolute;
-  z-index: 1;
+.oghma-mermaid-inline-controls {
+  position: sticky;
+  z-index: 2;
+  display: flex;
+  grid-area: 1 / 1;
+  align-self: start;
+  justify-self: end;
+  gap: 0.25rem;
   top: 0.5rem;
   right: 0.5rem;
+  margin: 0.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--radius-radius-md);
   background: var(--md-code-bg);
-  opacity: 1;
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 18%);
+}
+
+.oghma-mermaid-stage > .oghma-mermaid-diagram {
+  grid-area: 1 / 1;
+}
+
+.oghma-mermaid-inline-reset {
+  min-width: 3rem;
+  padding: 0 0.35rem;
+  border-radius: var(--radius-radius-md);
+  color: var(--md-text-muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.oghma-mermaid-inline-reset:hover {
+  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
+  color: var(--md-text);
+}
+
+.oghma-mermaid-stage[data-mermaid-zoomed="true"]
+  .oghma-mermaid-diagram
+  svg {
+  max-width: none !important;
 }
 
 .oghma-mermaid-viewer-viewport {

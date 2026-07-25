@@ -63,7 +63,12 @@ export function shouldApplyExternalMarkdown(
 const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 13H3.5A1.5 1.5 0 0 1 2 11.5v-8A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
 const CHECK_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WRAP_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h11a3 3 0 0 1 0 6H7m0 0 3-3m-3 3 3 3M3 15h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const MINUS_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const PLUS_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
 const EXPAND_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M7 17H3v-4m10 4h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const MERMAID_INLINE_MIN_ZOOM = 50;
+const MERMAID_INLINE_MAX_ZOOM = 200;
+const MERMAID_INLINE_ZOOM_STEP = 25;
 let mermaidPreviewSequence = 0;
 
 function createMermaidPreviewStage(
@@ -74,9 +79,72 @@ function createMermaidPreviewStage(
   stage.id = previewId;
   stage.className = "oghma-mermaid-stage";
   stage.contentEditable = "false";
+  stage.dataset.mermaidZoom = "100";
+  const controls = document.createElement("div");
+  controls.className = "oghma-mermaid-inline-controls";
+  controls.setAttribute("aria-label", "Diagram preview controls");
+  const zoomOut = iconButton("Zoom diagram out", "oghma-mermaid-viewer-button", MINUS_ICON);
+  zoomOut.dataset.oghmaMermaidAction = "zoom-out";
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.className = "oghma-mermaid-inline-reset";
+  reset.dataset.oghmaMermaidAction = "reset";
+  reset.title = "Reset diagram zoom";
+  reset.setAttribute("aria-label", "Reset diagram zoom");
+  reset.textContent = "100%";
+  const zoomIn = iconButton("Zoom diagram in", "oghma-mermaid-viewer-button", PLUS_ICON);
+  zoomIn.dataset.oghmaMermaidAction = "zoom-in";
   const expand = iconButton("View diagram large", "oghma-mermaid-expand-button", EXPAND_ICON);
-  stage.append(diagram, expand);
+  expand.dataset.oghmaMermaidAction = "expand";
+  controls.append(zoomOut, reset, zoomIn, expand);
+  stage.append(diagram, controls);
   return stage;
+}
+
+export function updateMermaidPreviewZoom(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  const button = target.closest<HTMLButtonElement>(
+    "[data-oghma-mermaid-action]",
+  );
+  const action = button?.dataset.oghmaMermaidAction;
+  if (!button || !action || action === "expand") return false;
+  const stage = button.closest<HTMLElement>(".oghma-mermaid-stage");
+  const diagram = stage?.querySelector<HTMLElement>(".oghma-mermaid-diagram");
+  if (!stage || !diagram) return false;
+
+  const current = Number(stage.dataset.mermaidZoom ?? "100");
+  const next =
+    action === "reset"
+      ? 100
+      : Math.min(
+          MERMAID_INLINE_MAX_ZOOM,
+          Math.max(
+            MERMAID_INLINE_MIN_ZOOM,
+            current +
+              (action === "zoom-in" ? 1 : -1) * MERMAID_INLINE_ZOOM_STEP,
+          ),
+        );
+  const intrinsicWidth = Number.parseFloat(
+    diagram.style.getPropertyValue("--oghma-mermaid-intrinsic-width"),
+  );
+  if (Number.isFinite(intrinsicWidth) && intrinsicWidth > 0) {
+    diagram.style.setProperty(
+      "--oghma-mermaid-inline-width",
+      `${(intrinsicWidth * next) / 100}px`,
+    );
+  }
+  diagram.style.setProperty("--oghma-mermaid-inline-percent", `${next}%`);
+  stage.dataset.mermaidZoom = String(next);
+  stage.dataset.mermaidZoomed = String(next !== 100);
+  stage.querySelector<HTMLElement>(".oghma-mermaid-inline-reset")!.textContent =
+    `${next}%`;
+  stage.querySelector<HTMLButtonElement>(
+    '[data-oghma-mermaid-action="zoom-out"]',
+  )!.disabled = next === MERMAID_INLINE_MIN_ZOOM;
+  stage.querySelector<HTMLButtonElement>(
+    '[data-oghma-mermaid-action="zoom-in"]',
+  )!.disabled = next === MERMAID_INLINE_MAX_ZOOM;
+  return true;
 }
 
 export function getMermaidSourceFromExpandTarget(
@@ -567,6 +635,11 @@ export default function MilkdownWriteEditor({
         }
       }}
       onClickCapture={(event) => {
+        if (updateMermaidPreviewZoom(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         const mermaidSource = getMermaidSourceFromExpandTarget(
           event.target,
           mermaidSourcesRef.current,
