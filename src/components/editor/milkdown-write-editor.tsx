@@ -136,15 +136,32 @@ export function updateMermaidPreviewZoom(target: EventTarget | null) {
   diagram.style.setProperty("--oghma-mermaid-inline-percent", `${next}%`);
   stage.dataset.mermaidZoom = String(next);
   stage.dataset.mermaidZoomed = String(next !== 100);
-  stage.querySelector<HTMLElement>(".oghma-mermaid-inline-reset")!.textContent =
-    `${next}%`;
-  stage.querySelector<HTMLButtonElement>(
+  stage.dataset.mermaidPannable = String(next > 100);
+  const reset = stage.querySelector<HTMLElement>(".oghma-mermaid-inline-reset");
+  if (reset) reset.textContent = `${next}%`;
+  const zoomOut = stage.querySelector<HTMLButtonElement>(
     '[data-oghma-mermaid-action="zoom-out"]',
-  )!.disabled = next === MERMAID_INLINE_MIN_ZOOM;
-  stage.querySelector<HTMLButtonElement>(
+  );
+  if (zoomOut) zoomOut.disabled = next === MERMAID_INLINE_MIN_ZOOM;
+  const zoomIn = stage.querySelector<HTMLButtonElement>(
     '[data-oghma-mermaid-action="zoom-in"]',
-  )!.disabled = next === MERMAID_INLINE_MAX_ZOOM;
+  );
+  if (zoomIn) zoomIn.disabled = next === MERMAID_INLINE_MAX_ZOOM;
   return true;
+}
+
+export function nextMermaidPanPosition(
+  startLeft: number,
+  startTop: number,
+  startX: number,
+  startY: number,
+  currentX: number,
+  currentY: number,
+) {
+  return {
+    left: startLeft - (currentX - startX),
+    top: startTop - (currentY - startY),
+  };
 }
 
 export function getMermaidSourceFromExpandTarget(
@@ -409,6 +426,14 @@ export default function MilkdownWriteEditor({
   const lastLocallyEmittedValueRef = useRef<string | null>(null);
   const pickerSelectionRef = useRef({ from: 0, to: 0 });
   const mermaidSourcesRef = useRef(new Map<string, string>());
+  const mermaidPanRef = useRef<{
+    pointerId: number;
+    viewport: HTMLElement;
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+  } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [noteOptions, setNoteOptions] = useState<NoteOption[]>([]);
@@ -633,6 +658,64 @@ export default function MilkdownWriteEditor({
           event.preventDefault();
           onSave?.();
         }
+      }}
+      onPointerDownCapture={(event) => {
+        if (event.pointerType !== "mouse" || event.button !== 0) return;
+        const diagram = (event.target as Element).closest<HTMLElement>(
+          '.oghma-mermaid-stage[data-mermaid-pannable="true"] .oghma-mermaid-diagram',
+        );
+        const viewport = diagram?.closest<HTMLElement>(
+          ".preview-panel .preview",
+        );
+        if (
+          !viewport ||
+          (viewport.scrollWidth <= viewport.clientWidth &&
+            viewport.scrollHeight <= viewport.clientHeight)
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        mermaidPanRef.current = {
+          pointerId: event.pointerId,
+          viewport,
+          x: event.clientX,
+          y: event.clientY,
+          left: viewport.scrollLeft,
+          top: viewport.scrollTop,
+        };
+        viewport.classList.add("is-dragging");
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMoveCapture={(event) => {
+        const pan = mermaidPanRef.current;
+        if (!pan || pan.pointerId !== event.pointerId) return;
+        event.preventDefault();
+        const next = nextMermaidPanPosition(
+          pan.left,
+          pan.top,
+          pan.x,
+          pan.y,
+          event.clientX,
+          event.clientY,
+        );
+        pan.viewport.scrollLeft = next.left;
+        pan.viewport.scrollTop = next.top;
+      }}
+      onPointerUpCapture={(event) => {
+        const pan = mermaidPanRef.current;
+        if (!pan || pan.pointerId !== event.pointerId) return;
+        pan.viewport.classList.remove("is-dragging");
+        mermaidPanRef.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      }}
+      onPointerCancelCapture={(event) => {
+        const pan = mermaidPanRef.current;
+        if (!pan || pan.pointerId !== event.pointerId) return;
+        pan.viewport.classList.remove("is-dragging");
+        mermaidPanRef.current = null;
       }}
       onClickCapture={(event) => {
         if (updateMermaidPreviewZoom(event.target)) {

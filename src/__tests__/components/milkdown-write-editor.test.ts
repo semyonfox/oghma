@@ -7,6 +7,7 @@ import {
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
   getMermaidSourceFromExpandTarget,
+  nextMermaidPanPosition,
   shouldApplyExternalMarkdown,
   updateMermaidPreviewZoom,
 } from "@/components/editor/milkdown-write-editor";
@@ -64,6 +65,7 @@ describe("Milkdown spike code controls", () => {
     )!;
     expect(stage.dataset.mermaidZoom).toBe("125");
     expect(stage.dataset.mermaidZoomed).toBe("true");
+    expect(stage.dataset.mermaidPannable).toBe("true");
     expect(
       diagram.style.getPropertyValue("--oghma-mermaid-inline-width"),
     ).toBe("1000px");
@@ -73,6 +75,13 @@ describe("Milkdown spike code controls", () => {
     expect(document.querySelector(".oghma-mermaid-inline-reset")?.textContent).toBe(
       "125%",
     );
+  });
+
+  it("turns pointer movement into grab-to-pan scroll offsets", () => {
+    expect(nextMermaidPanPosition(300, 40, 500, 200, 425, 170)).toEqual({
+      left: 375,
+      top: 70,
+    });
   });
 
   it("adds accessible wrap and copy controls without touching code text", () => {

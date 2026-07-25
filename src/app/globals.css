@@ -1407,6 +1407,7 @@ html.light .glass-card-active {
   width: 100% !important;
   height: auto !important;
   max-height: none;
+  overflow: visible;
 }
 
 .oghma-mermaid-diagram svg text,
@@ -1468,6 +1469,27 @@ html.light .glass-card-active {
   .oghma-mermaid-diagram
   svg {
   max-width: none !important;
+}
+
+.oghma-mermaid-stage[data-mermaid-pannable="true"]
+  > .oghma-mermaid-diagram {
+  cursor: grab;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .preview-panel
+  .preview.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]
+  .preview-panel
+  .preview.is-dragging
+  .oghma-mermaid-diagram {
+  cursor: grabbing;
 }
 
 .oghma-mermaid-viewer-viewport {
