@@ -248,6 +248,43 @@ export class CanvasClient {
   }
 
   /**
+   * Returns bounded Canvas planner items for the user.
+   *
+   * @param {string} startDate - ISO timestamp for Canvas start_date
+   * @param {string} endDate - ISO timestamp for Canvas end_date
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getPlannerItems(startDate, endDate) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+    });
+    return this.#getPaginated(`/planner/items?${params.toString()}`);
+  }
+
+  /**
+   * Returns all discussion topics for a course.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getDiscussionTopics(courseId) {
+    return this.#getPaginated(`/courses/${courseId}/discussion_topics`);
+  }
+
+  /**
+   * Returns Canvas announcements, which are exposed as discussion topics.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getAnnouncements(courseId) {
+    return this.#getPaginated(
+      `/courses/${courseId}/discussion_topics?only_announcements=true`,
+    );
+  }
+
+  /**
    * Returns all modules inside a course.
    * Modules are the folder-like containers Canvas uses to organise content.
    *
