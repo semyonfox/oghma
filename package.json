@@ -68,7 +68,7 @@
     "bullmq": "5.78.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.12",
     "fflate": "0.8.3",
     "idb": "^8.0.3",
     "ioredis": "5.11.1",
