@@ -4,6 +4,7 @@ import { fireEvent } from "@testing-library/dom";
 import DOMPurify from "dompurify";
 import { describe, expect, it, vi } from "vitest";
 import {
+  collectMermaidPortals,
   createMermaidPreviewHost,
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
@@ -22,6 +23,26 @@ describe("Milkdown value synchronization", () => {
 });
 
 describe("Milkdown spike code controls", () => {
+  it("retains a Mermaid source while Milkdown delays inserting its preview host", () => {
+    const root = document.createElement("div");
+    const sources = new Map([
+      ["oghma-mermaid-preview-lazy", "graph TD\nA-->B"],
+    ]);
+
+    expect(collectMermaidPortals(root, sources)).toEqual([]);
+    expect(sources.has("oghma-mermaid-preview-lazy")).toBe(true);
+
+    const host = createMermaidPreviewHost("oghma-mermaid-preview-lazy");
+    root.append(host);
+    expect(collectMermaidPortals(root, sources)).toEqual([
+      {
+        id: "oghma-mermaid-preview-lazy",
+        host,
+        source: "graph TD\nA-->B",
+      },
+    ]);
+  });
+
   it("retains the inert Mermaid host after Milkdown reserializes it", () => {
     const host = createMermaidPreviewHost("oghma-mermaid-preview-test");
 

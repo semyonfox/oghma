@@ -34,10 +34,27 @@ interface NoteOption {
   isFolder?: boolean;
 }
 
-interface MermaidPortal {
+export interface MermaidPortal {
   id: string;
   host: HTMLElement;
   source: string;
+}
+
+export function collectMermaidPortals(
+  root: HTMLElement,
+  sources: ReadonlyMap<string, string>,
+) {
+  const portals: MermaidPortal[] = [];
+  root
+    .querySelectorAll<HTMLElement>("[data-oghma-mermaid-host]")
+    .forEach((host) => {
+      const id = host.dataset.oghmaMermaidHost;
+      if (!id) return;
+      const source = sources.get(id);
+      if (!source) return;
+      portals.push({ id, host, source });
+    });
+  return portals;
 }
 
 const NOTE_LINK_ICON = `<svg class="oghma-note-link-icon" viewBox="0 0 24 24" role="img"><title>Reference note</title><path d="M7 3.75h7l3 3v5.5M14 3.75v3h3M9.5 14.5l-1 1a2.12 2.12 0 0 0 3 3l1.25-1.25m1.75-2.75 1-1a2.12 2.12 0 0 0-3-3l-1.25 1.25m-.75 4.25 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -418,16 +435,7 @@ export default function MilkdownWriteEditor({
     const mermaidSources = new Map<string, string>();
 
     const syncMermaidPreviews = () => {
-      const next: MermaidPortal[] = [];
-      root
-        .querySelectorAll<HTMLElement>("[data-oghma-mermaid-host]")
-        .forEach((host) => {
-          const id = host.dataset.oghmaMermaidHost;
-          if (!id) return;
-          const source = mermaidSources.get(id);
-          if (!source) return;
-          next.push({ id, host, source });
-        });
+      const next = collectMermaidPortals(root, mermaidSources);
 
       setMermaidPortals((current) => {
         const unchanged =
@@ -439,10 +447,6 @@ export default function MilkdownWriteEditor({
               entry.source === next[index]?.source,
           );
         return unchanged ? current : next;
-      });
-      const activeIds = new Set(next.map((entry) => entry.id));
-      mermaidSources.forEach((_source, id) => {
-        if (!activeIds.has(id)) mermaidSources.delete(id);
       });
     };
 
