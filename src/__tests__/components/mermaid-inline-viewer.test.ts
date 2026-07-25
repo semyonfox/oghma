@@ -53,11 +53,13 @@ describe("Mermaid inline viewer sizing", () => {
       '<svg viewBox="0 0 800 400" aria-label="Rendered diagram"></svg>';
     vi.mocked(renderMermaidElement).mockResolvedValue(diagram);
     const onExpand = vi.fn();
+    const onEdit = vi.fn();
 
     render(
       createElement(MermaidInlineViewer, {
         source: "flowchart LR\nA-->B",
         onExpand,
+        onEdit,
       }),
     );
 
@@ -67,7 +69,9 @@ describe("Mermaid inline viewer sizing", () => {
     expect(
       screen.getByRole("button", { name: "Reset diagram zoom" }).textContent,
     ).toBe("100%");
+    fireEvent.click(screen.getByRole("button", { name: "Edit diagram source" }));
+    expect(onEdit).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "View diagram large" }));
-    expect(onExpand).toHaveBeenCalledOnce();
+    await waitFor(() => expect(onExpand).toHaveBeenCalledOnce());
   });
 });

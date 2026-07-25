@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createPortal } from "react-dom";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
 import { linkSchema } from "@milkdown/kit/preset/commonmark";
@@ -32,6 +32,12 @@ interface NoteOption {
   id: string;
   title?: string;
   isFolder?: boolean;
+}
+
+interface MermaidPortal {
+  id: string;
+  host: HTMLElement;
+  source: string;
 }
 
 const NOTE_LINK_ICON = `<svg class="oghma-note-link-icon" viewBox="0 0 24 24" role="img"><title>Reference note</title><path d="M7 3.75h7l3 3v5.5M14 3.75v3h3M9.5 14.5l-1 1a2.12 2.12 0 0 0 3 3l1.25-1.25m1.75-2.75 1-1a2.12 2.12 0 0 0-3-3l-1.25 1.25m-.75 4.25 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -340,6 +346,7 @@ export default function MilkdownWriteEditor({
   const [pickerLoading, setPickerLoading] = useState(false);
   const [selectedOption, setSelectedOption] = useState(0);
   const [expandedMermaid, setExpandedMermaid] = useState<string | null>(null);
+  const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
   const preview = usePortalStore((state) => state.preview);
   const openPickerRef = useRef<(from: number, to: number) => void>(() => {});
 
@@ -409,39 +416,33 @@ export default function MilkdownWriteEditor({
     const root = rootRef.current;
     if (!root) return;
     const mermaidSources = new Map<string, string>();
-    const mermaidRoots = new Map<
-      string,
-      { host: HTMLElement; root: Root }
-    >();
 
     const syncMermaidPreviews = () => {
-      const activeIds = new Set<string>();
+      const next: MermaidPortal[] = [];
       root
         .querySelectorAll<HTMLElement>("[data-oghma-mermaid-host]")
         .forEach((host) => {
-          const previewId = host.dataset.oghmaMermaidHost;
-          if (!previewId) return;
-          const source = mermaidSources.get(previewId);
+          const id = host.dataset.oghmaMermaidHost;
+          if (!id) return;
+          const source = mermaidSources.get(id);
           if (!source) return;
-          activeIds.add(previewId);
-          const existing = mermaidRoots.get(previewId);
-          if (existing?.host === host) return;
-          existing?.root.unmount();
-          const previewRoot = createRoot(host);
-          previewRoot.render(
-            <MermaidInlineViewer
-              source={source}
-              onExpand={() => setExpandedMermaid(source)}
-            />,
-          );
-          mermaidRoots.set(previewId, { host, root: previewRoot });
+          next.push({ id, host, source });
         });
 
-      mermaidRoots.forEach((entry, previewId) => {
-        if (activeIds.has(previewId) && entry.host.isConnected) return;
-        entry.root.unmount();
-        mermaidRoots.delete(previewId);
-        mermaidSources.delete(previewId);
+      setMermaidPortals((current) => {
+        const unchanged =
+          current.length === next.length &&
+          current.every(
+            (entry, index) =>
+              entry.id === next[index]?.id &&
+              entry.host === next[index]?.host &&
+              entry.source === next[index]?.source,
+          );
+        return unchanged ? current : next;
+      });
+      const activeIds = new Set(next.map((entry) => entry.id));
+      mermaidSources.forEach((_source, id) => {
+        if (!activeIds.has(id)) mermaidSources.delete(id);
       });
     };
 
@@ -533,8 +534,6 @@ export default function MilkdownWriteEditor({
       observer?.disconnect();
       root.removeEventListener("beforeinput", handleBeforeInput as EventListener, true);
       crepeRef.current = null;
-      mermaidRoots.forEach((entry) => entry.root.unmount());
-      mermaidRoots.clear();
       mermaidSources.clear();
       void crepe.destroy();
     };
@@ -623,6 +622,22 @@ export default function MilkdownWriteEditor({
       }}
     >
       <div ref={rootRef} className="mx-auto min-h-full" />
+      {mermaidPortals.map(({ id, host, source }) =>
+        createPortal(
+          <MermaidInlineViewer
+            source={source}
+            onExpand={() => setExpandedMermaid(source)}
+            onEdit={() => {
+              host
+                .closest(".milkdown-code-block")
+                ?.querySelector<HTMLButtonElement>(".preview-toggle-button")
+                ?.click();
+            }}
+          />,
+          host,
+          id,
+        ),
+      )}
       <MermaidViewerDialog
         open={expandedMermaid !== null}
         source={expandedMermaid ?? ""}

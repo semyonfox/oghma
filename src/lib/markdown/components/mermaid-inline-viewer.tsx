@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowsPointingOutIcon,
+  CheckIcon,
+  ClipboardDocumentIcon,
   MinusIcon,
+  PencilSquareIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 import { renderMermaidElement } from "../mermaid";
@@ -57,11 +60,13 @@ export function clampMermaidTranslation(
 interface MermaidInlineViewerProps {
   source: string;
   onExpand: () => void;
+  onEdit: () => void;
 }
 
 export default function MermaidInlineViewer({
   source,
   onExpand,
+  onEdit,
 }: MermaidInlineViewerProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -83,6 +88,7 @@ export default function MermaidInlineViewer({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -232,45 +238,83 @@ export default function MermaidInlineViewer({
         role="toolbar"
         aria-label="Diagram controls"
         onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
-        <div className="oghma-mermaid-inline-zoom" role="group" aria-label="Zoom">
+        <span className="oghma-mermaid-inline-language">mermaid</span>
+        <div className="oghma-mermaid-inline-actions">
           <button
             type="button"
-            onClick={() => changeZoom(zoom - ZOOM_STEP)}
-            aria-label="Zoom diagram out"
-            title="Zoom out"
-            disabled={zoom === MIN_ZOOM}
+            className="oghma-mermaid-inline-copy"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(source)
+                .then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1600);
+                })
+                .catch(() => {});
+            }}
+            aria-label={copied ? "Mermaid source copied" : "Copy Mermaid source"}
+            title={copied ? "Copied" : "Copy Mermaid source"}
           >
-            <MinusIcon aria-hidden="true" />
+            {copied ? (
+              <CheckIcon aria-hidden="true" />
+            ) : (
+              <ClipboardDocumentIcon aria-hidden="true" />
+            )}
+          </button>
+          <div
+            className="oghma-mermaid-inline-zoom"
+            role="group"
+            aria-label="Zoom"
+          >
+            <button
+              type="button"
+              onClick={() => changeZoom(zoom - ZOOM_STEP)}
+              aria-label="Zoom diagram out"
+              title="Zoom out"
+              disabled={zoom === MIN_ZOOM}
+            >
+              <MinusIcon aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => changeZoom(100)}
+              className="oghma-mermaid-inline-percent"
+              aria-label="Reset diagram zoom"
+              title="Reset zoom"
+            >
+              {zoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => changeZoom(zoom + ZOOM_STEP)}
+              aria-label="Zoom diagram in"
+              title="Zoom in"
+              disabled={zoom === MAX_ZOOM}
+            >
+              <PlusIcon aria-hidden="true" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.setTimeout(onExpand, 0)}
+            className="oghma-mermaid-inline-expand"
+            aria-label="View diagram large"
+            title="View large"
+          >
+            <ArrowsPointingOutIcon aria-hidden="true" />
           </button>
           <button
             type="button"
-            onClick={() => changeZoom(100)}
-            className="oghma-mermaid-inline-percent"
-            aria-label="Reset diagram zoom"
-            title="Reset zoom"
+            onClick={onEdit}
+            className="oghma-mermaid-inline-edit"
+            aria-label="Edit diagram source"
+            title="Edit diagram source"
           >
-            {zoom}%
-          </button>
-          <button
-            type="button"
-            onClick={() => changeZoom(zoom + ZOOM_STEP)}
-            aria-label="Zoom diagram in"
-            title="Zoom in"
-            disabled={zoom === MAX_ZOOM}
-          >
-            <PlusIcon aria-hidden="true" />
+            <PencilSquareIcon aria-hidden="true" />
           </button>
         </div>
-        <button
-          type="button"
-          onClick={onExpand}
-          className="oghma-mermaid-inline-expand"
-          aria-label="View diagram large"
-          title="View large"
-        >
-          <ArrowsPointingOutIcon aria-hidden="true" />
-        </button>
       </div>
       <div
         ref={viewportRef}

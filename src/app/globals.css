@@ -1295,6 +1295,14 @@ html.light .glass-card-active {
 
 .oghma-milkdown-editor
   .milkdown-code-block[data-oghma-language="mermaid"]:has(
+    > .codemirror-host.hidden
+  )
+  > .tools {
+  display: none;
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]:has(
     .preview-toggle-button[aria-label="Edit diagram source"]
   )
   .preview-toggle-button {
@@ -1439,11 +1447,33 @@ html.light .glass-card-active {
   display: flex;
   min-height: 3rem;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   border-bottom: 1px solid var(--md-code-border);
   padding: 0.375rem 0.5rem;
   background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+}
+
+.oghma-mermaid-inline-language {
+  overflow: hidden;
+  border-radius: var(--radius-radius-sm);
+  padding: 0.25rem 0.55rem;
+  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
+  color: var(--md-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oghma-mermaid-inline-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .oghma-mermaid-inline-zoom {
@@ -1498,9 +1528,24 @@ html.light .glass-card-active {
   font-variant-numeric: tabular-nums;
 }
 
-.oghma-mermaid-inline-expand {
+.oghma-mermaid-inline-copy,
+.oghma-mermaid-inline-expand,
+.oghma-mermaid-inline-edit {
   border: 1px solid var(--md-code-border) !important;
   border-radius: var(--radius-radius-md);
+}
+
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]:not(
+    :has(> .codemirror-host.hidden)
+  )
+  .oghma-mermaid-inline-copy,
+.oghma-milkdown-editor
+  .milkdown-code-block[data-oghma-language="mermaid"]:not(
+    :has(> .codemirror-host.hidden)
+  )
+  .oghma-mermaid-inline-edit {
+  display: none;
 }
 
 .oghma-mermaid-inline-viewport {
