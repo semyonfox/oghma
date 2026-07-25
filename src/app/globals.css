@@ -6,15 +6,17 @@
 
 @theme {
   /* === TYPOGRAPHY === */
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-display: "Strichpunkt Sans Variable", var(--font-source-serif), ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* A restrained 1.25 type scale with roomier leading for reading text. */
-  --text-xs: 0.75rem;
-  --text-xs--line-height: 1rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.375rem;
+  /* Small labels remain compact; regular UI text starts at Oliver's 16 px floor. */
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5rem;
   --text-base: 1rem;
   --text-base--line-height: 1.625rem;
   --text-lg: 1.125rem;
@@ -182,8 +184,9 @@ html.light {
   --color-border: rgba(0, 0, 0, 0.12);
   --color-border-subtle: rgba(0, 0, 0, 0.06);
   --color-text: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #64748b;
+  /* Strong enough for reading outdoors, not just a dark-mode desk setup. */
+  --color-text-secondary: #334155;
+  --color-text-tertiary: #475569;
   --color-input: #ffffff;
   --color-subtle: rgba(0, 0, 0, 0.04);
   --color-subtle-hover: rgba(0, 0, 0, 0.08);
@@ -294,7 +297,7 @@ select option:disabled {
   }
 
 .type-display {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-size: clamp(3rem, 2.55rem + 2.25vw, 4.5rem);
     font-optical-sizing: auto;
     font-weight: 650;
@@ -304,7 +307,7 @@ select option:disabled {
   }
 
 .type-section-title {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-size: clamp(2.25rem, 1.8rem + 2.25vw, 3.75rem);
     font-optical-sizing: auto;
     font-weight: 650;
@@ -314,7 +317,7 @@ select option:disabled {
   }
 
 .type-supporting-title {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-size: clamp(1.875rem, 1.54rem + 1.68vw, 3rem);
     font-optical-sizing: auto;
     font-weight: 650;
@@ -332,7 +335,7 @@ select option:disabled {
   }
 
 .type-card-title {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-size: 1.25rem;
     font-optical-sizing: auto;
     font-weight: 650;
@@ -1081,8 +1084,8 @@ html.light .glass-card-active {
   --crepe-color-hover: color-mix(in srgb, var(--md-accent) 10%, var(--color-surface));
   --crepe-color-selected: var(--md-selection);
   --crepe-color-inline-area: var(--md-inline-code-bg);
-  --crepe-font-title: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
-  --crepe-font-default: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --crepe-font-title: var(--font-sans);
+  --crepe-font-default: var(--font-sans);
   --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 0.22);
   --crepe-shadow-2: 0 8px 24px rgb(0 0 0 / 0.3);
