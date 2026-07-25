@@ -26,6 +26,14 @@ export async function renderMermaidElement(source: string) {
     ADD_ATTR: ["xmlns"],
     HTML_INTEGRATION_POINTS: { foreignobject: true },
   });
+  const renderedSvg = preview.querySelector<SVGSVGElement>("svg");
+  const viewBoxWidth = Number(renderedSvg?.getAttribute("viewBox")?.trim().split(/\s+/)[2]);
+  if (Number.isFinite(viewBoxWidth) && viewBoxWidth > 0) {
+    preview.style.setProperty(
+      "--oghma-mermaid-intrinsic-width",
+      `${viewBoxWidth}px`,
+    );
+  }
   preview
     .querySelectorAll<SVGForeignObjectElement>("foreignObject")
     .forEach((foreignObject) => {

@@ -46,4 +46,17 @@ describe("Mermaid rendering", () => {
       preview.querySelector<HTMLElement>(".nodeLabel")?.style.getPropertyValue("color"),
     ).toBe("rgb(255, 255, 255)");
   });
+
+  it("preserves the diagram's intrinsic width for responsive sizing", async () => {
+    render.mockResolvedValue({
+      svg: '<svg viewBox="0 0 208 65" width="100%" style="max-width: 208px"><text>A</text></svg>',
+    });
+
+    const preview = await renderMermaidElement("flowchart LR\nA-->B");
+
+    expect(
+      preview.style.getPropertyValue("--oghma-mermaid-intrinsic-width"),
+    ).toBe("208px");
+    expect(preview.querySelector("svg")?.style.maxWidth).toBe("208px");
+  });
 });

@@ -18,6 +18,7 @@ const { renderMermaidElement } = vi.hoisted(() => ({
   renderMermaidElement: vi.fn(async () => {
     const diagram = document.createElement("div");
     diagram.className = "oghma-mermaid-diagram";
+    diagram.style.setProperty("--oghma-mermaid-intrinsic-width", "208px");
     diagram.innerHTML = "<svg><text>Readable</text></svg>";
     return diagram;
   }),
@@ -63,9 +64,18 @@ describe("Mermaid viewer zoom", () => {
     expect(await screen.findByRole("dialog")).not.toBeNull();
     expect(renderMermaidElement).toHaveBeenCalledWith("flowchart LR\nA-->B");
     expect(await screen.findByText("Readable")).not.toBeNull();
+    const canvas = document.querySelector<HTMLElement>(
+      ".oghma-mermaid-viewer-canvas",
+    );
+    expect(
+      canvas?.style.getPropertyValue("--oghma-mermaid-viewer-width"),
+    ).toBe("208px");
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(screen.getByText("125%")).not.toBeNull();
+    expect(
+      canvas?.style.getPropertyValue("--oghma-mermaid-viewer-width"),
+    ).toBe("260px");
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

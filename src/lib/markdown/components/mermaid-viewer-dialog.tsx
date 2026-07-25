@@ -53,6 +53,7 @@ export default function MermaidViewerDialog({
   const [dragging, setDragging] = useState(false);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [intrinsicWidth, setIntrinsicWidth] = useState<number | null>(null);
 
   const resetView = () => {
     setZoom(MERMAID_FIT_ZOOM);
@@ -67,11 +68,16 @@ export default function MermaidViewerDialog({
     let active = true;
     setFailed(false);
     setLoading(true);
+    setIntrinsicWidth(null);
     resetView();
 
     void renderMermaidElement(source)
       .then((diagram) => {
         if (!active || !diagramRef.current) return;
+        const width = Number.parseFloat(
+          diagram.style.getPropertyValue("--oghma-mermaid-intrinsic-width"),
+        );
+        setIntrinsicWidth(Number.isFinite(width) && width > 0 ? width : null);
         diagramRef.current.replaceChildren(diagram);
         setLoading(false);
       })
@@ -148,8 +154,8 @@ export default function MermaidViewerDialog({
                 type="button"
                 onClick={resetView}
                 className="oghma-mermaid-viewer-button"
-                aria-label="Fit diagram and reset position"
-                title="Fit diagram and reset position"
+                aria-label="Reset diagram zoom and position"
+                title="Reset diagram zoom and position"
               >
                 <ArrowPathIcon aria-hidden="true" />
               </button>
@@ -196,7 +202,13 @@ export default function MermaidViewerDialog({
             <div
               ref={diagramRef}
               className="oghma-mermaid-viewer-canvas"
-              style={{ width: `${zoom}%` }}
+              style={
+                {
+                  "--oghma-mermaid-viewer-width": intrinsicWidth
+                    ? `${(intrinsicWidth * zoom) / 100}px`
+                    : "100%",
+                } as React.CSSProperties
+              }
               aria-busy={loading}
             />
             {failed && (
