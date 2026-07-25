@@ -145,6 +145,7 @@
     "vitest": "4.1.9"
   },
   "overrides": {
+    "@hono/node-server": "2.0.11",
     "ioredis": "$ioredis",
     "postcss": "$postcss",
     "typescript-eslint": "8.61.1"
