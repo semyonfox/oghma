@@ -11,6 +11,7 @@ export async function renderMermaidElement(source: string) {
     securityLevel: "strict",
     suppressErrorRendering: true,
     theme: dark ? "dark" : "default",
+    flowchart: { useMaxWidth: true },
   });
 
   const id = `oghma-mermaid-${Date.now()}-${diagramSequence++}`;

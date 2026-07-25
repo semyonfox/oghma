@@ -26,7 +26,12 @@ describe("Mermaid rendering", () => {
     const preview = await renderMermaidElement("flowchart LR\nA-->B");
 
     expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ securityLevel: "strict", startOnLoad: false, theme: "dark" }),
+      expect.objectContaining({
+        securityLevel: "strict",
+        startOnLoad: false,
+        theme: "dark",
+        flowchart: { useMaxWidth: true },
+      }),
     );
     expect(preview.innerHTML).toContain("Safe");
     expect(preview.innerHTML).not.toContain("script");

@@ -10,6 +10,7 @@ import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
 import DOMPurify from "dompurify";
 import { renderMermaidElement } from "@/lib/markdown/mermaid";
+import MermaidViewerDialog from "@/lib/markdown/components/mermaid-viewer-dialog";
 import { markdownSanitizeSchema } from "@/lib/markdown/sanitize-schema";
 import {
   buildInternalNoteHref,
@@ -62,6 +63,20 @@ export function shouldApplyExternalMarkdown(
 const COPY_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 13H3.5A1.5 1.5 0 0 1 2 11.5v-8A1.5 1.5 0 0 1 3.5 2h8A1.5 1.5 0 0 1 13 3.5V4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
 const CHECK_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const WRAP_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h11a3 3 0 0 1 0 6H7m0 0 3-3m-3 3 3 3M3 15h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const EXPAND_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M7 17H3v-4m10 4h4v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function createMermaidPreviewStage(
+  diagram: HTMLElement,
+  onExpand: () => void,
+) {
+  const stage = document.createElement("div");
+  stage.className = "oghma-mermaid-stage";
+  stage.contentEditable = "false";
+  const expand = iconButton("View diagram large", "oghma-mermaid-expand-button", EXPAND_ICON);
+  expand.addEventListener("click", onExpand);
+  stage.append(diagram, expand);
+  return stage;
+}
 
 const LANGUAGE_NAMES: Record<string, string> = {
   js: "JavaScript",
@@ -319,6 +334,7 @@ export default function MilkdownWriteEditor({
   const [noteOptions, setNoteOptions] = useState<NoteOption[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [selectedOption, setSelectedOption] = useState(0);
+  const [expandedMermaid, setExpandedMermaid] = useState<string | null>(null);
   const preview = usePortalStore((state) => state.preview);
   const openPickerRef = useRef<(from: number, to: number) => void>(() => {});
 
@@ -415,7 +431,13 @@ export default function MilkdownWriteEditor({
           renderPreview: (language, content, applyPreview) => {
             if (language.toLowerCase() !== "mermaid" || !content.trim()) return null;
             void renderMermaidElement(content)
-              .then(applyPreview)
+              .then((diagram) => {
+                applyPreview(
+                  createMermaidPreviewStage(diagram, () => {
+                    setExpandedMermaid(content);
+                  }),
+                );
+              })
               .catch(() => applyPreview(null));
           },
         },
@@ -560,6 +582,11 @@ export default function MilkdownWriteEditor({
       }}
     >
       <div ref={rootRef} className="mx-auto min-h-full" />
+      <MermaidViewerDialog
+        open={expandedMermaid !== null}
+        source={expandedMermaid ?? ""}
+        onClose={() => setExpandedMermaid(null)}
+      />
       {pickerOpen && (
         <div
           className="sticky bottom-4 z-50 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-radius-lg border border-border-subtle bg-surface-elevated p-2 shadow-2xl"

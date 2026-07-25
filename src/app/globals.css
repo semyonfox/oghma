@@ -1294,15 +1294,16 @@ html.light .glass-card-active {
 
 .oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .preview-panel .preview {
   display: grid;
-  height: 18rem;
-  min-height: 18rem;
+  height: auto;
+  min-height: 8rem;
+  max-height: 18rem;
   place-items: center;
   overflow: auto;
 }
 
 .oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .oghma-mermaid-diagram,
 .oghma-milkdown-editor .milkdown-code-block[data-oghma-language="mermaid"] .oghma-mermaid-diagram svg {
-  max-height: 16rem;
+  max-height: none;
 }
 
 .oghma-milkdown-editor .milkdown-code-block button:focus-visible {
@@ -1335,6 +1336,47 @@ html.light .glass-card-active {
   font-size: 0.75rem;
 }
 
+.oghma-mermaid-expand-button,
+.oghma-mermaid-viewer-button {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--md-code-border);
+  border-radius: var(--radius-radius-md);
+  color: var(--md-text-muted);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.oghma-mermaid-expand-button:hover,
+.oghma-mermaid-viewer-button:hover:not(:disabled) {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-500-alpha, rgb(59 130 246 / 10%));
+  color: var(--md-text);
+}
+
+.oghma-mermaid-expand-button:focus-visible,
+.oghma-mermaid-viewer-button:focus-visible,
+.oghma-mermaid-viewer-viewport:focus-visible {
+  outline: 2px solid var(--color-primary-400);
+  outline-offset: 2px;
+}
+
+.oghma-mermaid-expand-button svg,
+.oghma-mermaid-viewer-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.oghma-mermaid-viewer-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .oghma-mermaid-preview,
 .oghma-mermaid-diagram {
   display: grid;
@@ -1343,7 +1385,8 @@ html.light .glass-card-active {
 }
 
 .oghma-mermaid-preview {
-  height: 18rem;
+  height: auto;
+  max-height: 18rem;
   padding: 1.25rem;
   overflow: auto;
 }
@@ -1353,10 +1396,74 @@ html.light .glass-card-active {
 }
 
 .oghma-mermaid-diagram svg {
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 16rem;
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none;
+}
+
+.oghma-mermaid-diagram svg text,
+.oghma-mermaid-diagram svg tspan {
+  color: #fff !important;
+  fill: #fff !important;
+}
+
+.oghma-mermaid-diagram svg foreignObject,
+.oghma-mermaid-diagram svg foreignObject * {
+  color: #fff !important;
+}
+
+.oghma-mermaid-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  place-items: center;
+}
+
+.oghma-mermaid-stage > .oghma-mermaid-expand-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--md-code-bg);
+  opacity: 0;
+}
+
+.oghma-mermaid-stage:hover > .oghma-mermaid-expand-button,
+.oghma-mermaid-stage:focus-within > .oghma-mermaid-expand-button {
+  opacity: 1;
+}
+
+.oghma-mermaid-viewer-viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  background: var(--md-code-bg);
+}
+
+.oghma-mermaid-viewer-viewport.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.oghma-mermaid-viewer-canvas {
+  display: grid;
+  min-height: 100%;
+  max-width: none;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.oghma-mermaid-viewer-canvas > .oghma-mermaid-diagram {
+  width: 100%;
+}
+
+@media (hover: none) {
+  .oghma-mermaid-stage > .oghma-mermaid-expand-button {
+    opacity: 1;
+  }
 }
 
 .oghma-mermaid-block pre[data-mermaid-state="fallback"] {
