@@ -1315,6 +1315,7 @@ html.light .glass-card-active {
   .milkdown-code-block[data-oghma-language="mermaid"]
   .oghma-mermaid-zoom-group
   button {
+  opacity: 1 !important;
   border: 0;
   border-radius: 0;
 }
