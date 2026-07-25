@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
+
+function validateDateParam(value: string | null, name: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, `${name} must be a valid ISO date`);
+  }
+  return value;
+}
 
 function sanitizePlannerRow(row: Record<string, unknown>) {
   return {
@@ -25,8 +34,8 @@ function sanitizePlannerRow(row: Record<string, unknown>) {
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const user = await requireAuth();
   const url = new URL(request.url);
-  const start = url.searchParams.get("start");
-  const end = url.searchParams.get("end");
+  const start = validateDateParam(url.searchParams.get("start"), "start");
+  const end = validateDateParam(url.searchParams.get("end"), "end");
   const includeUndated = url.searchParams.get("includeUndated") === "1";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
   const conditions = [sql`cpi.user_id = ${user.user_id}::uuid`];

@@ -61,7 +61,7 @@ async function tombstoneMissingRows({ userId, canvasDomain, startDate, endDate, 
       AND deleted_at IS NULL
       AND display_at >= ${startDate}::timestamptz
       AND display_at <= ${endDate}::timestamptz
-      AND NOT ((plannable_type || ':' || plannable_id) = ANY(${stableKeys}))
+      AND NOT ((plannable_type || ':' || plannable_id) = ANY(${stableKeys}::text[]))
     RETURNING id
   `;
   return rows.length;

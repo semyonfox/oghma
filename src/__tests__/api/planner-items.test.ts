@@ -2,7 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/database/pgsql.js", () => { const sqlMock = vi.fn(); sqlMock.mockResolvedValue([]); return { default: sqlMock }; });
-vi.mock("@/lib/api-error", () => ({ requireAuth: vi.fn(), withErrorHandler: (handler: any) => handler }));
+vi.mock("@/lib/api-error", () => ({
+  ApiError: class ApiError extends Error {
+    statusCode: number;
+    userMessage: string;
+    constructor(statusCode: number, userMessage: string) {
+      super(userMessage);
+      this.statusCode = statusCode;
+      this.userMessage = userMessage;
+    }
+  },
+  requireAuth: vi.fn(),
+  withErrorHandler: (handler: any) => handler,
+}));
 
 import sql from "@/database/pgsql.js";
 import { requireAuth } from "@/lib/api-error";
@@ -19,5 +31,12 @@ describe("GET /api/planner/items", () => {
     expect(body).toEqual([{ id: "item-1", source: "canvas", plannable_type: "announcement", plannable_id: "99", canvas_course_id: 42, course_name: "CS101", title: "Exam notice", body: "Read this", html_url: "https://canvas.example/announcements/99", display_at: "2026-02-01T10:00:00.000Z", due_at: null, date_source: "posted_at", item_state: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }]);
     expect(JSON.stringify(body)).not.toContain("raw_planner_item");
     expect(JSON.stringify(body)).not.toContain("raw_plannable");
+  });
+
+  it("rejects malformed date-window parameters before building SQL", async () => {
+    await expect(
+      GET(new NextRequest("http://localhost/api/planner/items?start=not-a-date&end=2026-03-01T00:00:00.000Z")),
+    ).rejects.toMatchObject({ statusCode: 400, userMessage: "start must be a valid ISO date" });
+    expect(vi.mocked(sql)).not.toHaveBeenCalled();
   });
 });
