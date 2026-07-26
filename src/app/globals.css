@@ -50,10 +50,10 @@
   --color-border: rgba(255, 255, 255, 0.1);
   --color-border-subtle: rgba(255, 255, 255, 0.05);
 
-  /* Dark mode: prose is white by default. Colour is reserved for meaning, actions, and code. */
-  --color-text: #ffffff;
-  --color-text-secondary: #ffffff;
-  --color-text-tertiary: #ffffff;
+  /* Text colors with proper contrast */
+  --color-text: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
   --color-text-on-primary: #ffffff;
 
   /* === AI: Amber for AI Features === */
@@ -1144,7 +1144,7 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h1 {
-  color: var(--md-heading-1);
+  color: var(--color-text);
   font-size: var(--md-heading-1-size, 2.75rem);
   line-height: 1.06;
 }
@@ -1178,13 +1178,13 @@ html.light .glass-card-active {
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h2 {
-  color: var(--md-heading-2);
+  color: var(--color-text);
   font-size: var(--md-heading-2-size, 2rem);
   line-height: 1.12;
 }
 
 .oghma-milkdown-editor .milkdown .ProseMirror h3 {
-  color: var(--md-heading-3);
+  color: var(--color-text);
   font-size: var(--md-heading-3-size, 1.5rem);
   line-height: 1.2;
 }
