@@ -126,16 +126,19 @@ export default function ContactForm({ source = "contact", centered = false }) {
         </div>
         <div>
           <label
-            htmlFor="first-name"
+            htmlFor="full-name"
             className="block text-sm/6 font-semibold text-text"
           >
-            {t("First name")}
+            {t("Full name")}
           </label>
+          {/* the field is still named first_name on the wire: the API schema
+              and app.marketing_leads column keep that name */}
           <div className="mt-2.5">
             <input
-              id="first-name"
+              id="full-name"
               name="first_name"
               type="text"
+              autoComplete="name"
               required
               className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
