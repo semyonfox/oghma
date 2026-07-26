@@ -100,23 +100,3 @@ export function validateBody<T>(
   }
   return { success: true, data: result.data };
 }
-
-export function validateParams<T>(
-  schema: ZodType<T>,
-  data: unknown,
-): ValidationResult<T> {
-  const result = schema.safeParse(data);
-  if (!result.success) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        {
-          error: "Invalid parameters",
-          details: result.error.flatten().fieldErrors,
-        },
-        { status: 400 },
-      ),
-    };
-  }
-  return { success: true, data: result.data };
-}

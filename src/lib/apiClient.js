@@ -119,7 +119,7 @@ export async function register(
     email,
     password,
     marketing,
-    ...(agentRegistration || {}),
+    ...agentRegistration,
   });
 }
 

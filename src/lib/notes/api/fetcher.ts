@@ -1,6 +1,6 @@
 // extracted from Notea (MIT License)
 import { useCallback, useRef, useState } from 'react';
-import { deduplicatedFetch, recordRequest } from './request-deduplicator';
+import { deduplicatedFetch } from './request-deduplicator';
 
 interface Params {
     url: string;
@@ -39,7 +39,7 @@ export default function useFetcher() {
 
             init.headers = {
                 ...init.headers,
-                ...(params.headers || {}),
+                ...params.headers,
             };
 
             try {
@@ -50,7 +50,6 @@ export default function useFetcher() {
                 if (useDeduplication) {
                     // For GET: use deduplication to avoid sending duplicate requests
                     data = await deduplicatedFetch(params.url, init);
-                    recordRequest(false); // Count this request
                 } else {
                     // For POST/PUT/DELETE: always make fresh requests
                     const response = await fetch(params.url, init);

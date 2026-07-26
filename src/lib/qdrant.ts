@@ -1,7 +1,6 @@
 import logger from "@/lib/logger";
 
 const DEFAULT_COLLECTION = "oghma_chunks";
-const DEFAULT_VECTOR_SIZE = 4096;
 
 interface QdrantPointPayload {
   chunk_id: string;
@@ -98,7 +97,7 @@ async function qdrantFetch<T>(
     ...init,
     headers: {
       ...qdrantHeaders(),
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 
@@ -327,10 +326,4 @@ export async function getChunkVectors(chunkIds: string[]): Promise<ChunkVectorRe
     const chunkId = point.payload?.chunk_id || String(point.id);
     return chunkId && Array.isArray(vector) ? [{ chunkId, vector }] : [];
   });
-}
-
-export function configuredQdrantVectorSize(): number {
-  const raw = process.env.QDRANT_VECTOR_SIZE || process.env.EMBEDDING_DIMENSIONS;
-  const parsed = raw ? Number.parseInt(raw, 10) : DEFAULT_VECTOR_SIZE;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_VECTOR_SIZE;
 }

@@ -7,9 +7,8 @@ import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
 
-// sentinel IDs for special Canvas structures
+// sentinel ID for special Canvas structures
 export const ASSIGNMENTS_PARENT_MODULE_ID = -1;
-export const FORBIDDEN_SENTINEL_ID = 0;
 
 // ── Folder naming ───────────────────────────────────────────────────────────
 

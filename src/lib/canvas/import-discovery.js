@@ -157,12 +157,19 @@ async function discoverModuleFiles(
   );
 }
 
-async function discoverAssignmentFiles(
+/**
+ * Walks a course's assignments that carry processable attachments, creating the
+ * Assignments/<assignment> folders. Both import pipelines share this walk and
+ * differ only in `handleAttachments`: two-phase discovery queues a pending row,
+ * the legacy single pass downloads immediately.
+ */
+async function eachAssignmentWithFiles(
   courseId,
   userId,
   courseTitle,
   courseFolderId,
   ctx,
+  handleAttachments,
 ) {
   const { client, jobId } = ctx;
   const { data: assignments, forbidden } = await fetchResource(
@@ -175,12 +182,10 @@ async function discoverAssignmentFiles(
   );
   if (forbidden || !assignments || assignments.length === 0) return;
 
+  const hasProcessableFile = (att) =>
+    PROCESSABLE_TYPES.has(resolveMimeType(att.display_name, att.content_type));
   const assignmentsWithFiles = assignments.filter((a) =>
-    (a.attachments ?? []).some((att) =>
-      PROCESSABLE_TYPES.has(
-        resolveMimeType(att.display_name, att.content_type),
-      ),
-    ),
+    (a.attachments ?? []).some(hasProcessableFile),
   );
   if (assignmentsWithFiles.length === 0) return;
 
@@ -196,10 +201,8 @@ async function discoverAssignmentFiles(
 
   await pooled(
     assignmentsWithFiles.map((assignment) => async () => {
-      const attachments = (assignment.attachments ?? []).filter((att) =>
-        PROCESSABLE_TYPES.has(
-          resolveMimeType(att.display_name, att.content_type),
-        ),
+      const attachments = (assignment.attachments ?? []).filter(
+        hasProcessableFile,
       );
       const assignmentFolderId = await findOrCreateFolder(
         userId,
@@ -210,6 +213,27 @@ async function discoverAssignmentFiles(
           canvasAssignmentId: assignment.id,
         },
       );
+      await handleAttachments(assignment, attachments, assignmentFolderId);
+    }),
+    FILE_CONCURRENCY,
+  );
+}
+
+async function discoverAssignmentFiles(
+  courseId,
+  userId,
+  courseTitle,
+  courseFolderId,
+  ctx,
+) {
+  const { jobId } = ctx;
+  await eachAssignmentWithFiles(
+    courseId,
+    userId,
+    courseTitle,
+    courseFolderId,
+    ctx,
+    async (assignment, attachments, assignmentFolderId) => {
       const s3Prefix = `canvas/${userId}/${courseId}/assignments/${assignment.id}`;
       for (const att of attachments) {
         await insertPendingFile(
@@ -222,8 +246,7 @@ async function discoverAssignmentFiles(
           s3Prefix,
         );
       }
-    }),
-    FILE_CONCURRENCY,
+    },
   );
 }
 
@@ -246,12 +269,22 @@ async function discoverCourse(course, userId, ctx) {
     discoverAssignmentFiles(courseId, userId, courseTitle, courseFolderId, ctx),
   ]);
 
+  await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+}
+
+// metadata sync is best-effort: a course still imports if the tracker sync fails
+async function syncAssignmentMetadataQuietly(
+  courseId,
+  userId,
+  courseTitle,
+  client,
+) {
   try {
     const { synced, errors } = await syncAssignmentMetadata(
       courseId,
       userId,
       courseTitle,
-      ctx.client,
+      client,
     );
     if (synced > 0 || errors > 0) {
       console.log(
@@ -346,50 +379,13 @@ async function processAssignments(
   ctx,
 ) {
   const { client, jobId } = ctx;
-  const { data: assignments, forbidden } = await fetchResource(
-    (id) => client.getAssignments(id),
+  await eachAssignmentWithFiles(
     courseId,
     userId,
     courseTitle,
-    "assignments",
-    jobId,
-  );
-  if (forbidden || !assignments || assignments.length === 0) return;
-
-  const assignmentsWithFiles = assignments.filter((a) =>
-    (a.attachments ?? []).some((att) =>
-      PROCESSABLE_TYPES.has(
-        resolveMimeType(att.display_name, att.content_type),
-      ),
-    ),
-  );
-  if (assignmentsWithFiles.length === 0) return;
-
-  const assignmentsFolderId = await findOrCreateFolder(
-    userId,
-    "Assignments",
     courseFolderId,
-    {
-      canvasCourseId: Number(courseId),
-      canvasModuleId: ASSIGNMENTS_PARENT_MODULE_ID,
-    },
-  );
-  await pooled(
-    assignmentsWithFiles.map((assignment) => async () => {
-      const attachments = (assignment.attachments ?? []).filter((att) =>
-        PROCESSABLE_TYPES.has(
-          resolveMimeType(att.display_name, att.content_type),
-        ),
-      );
-      const assignmentFolderId = await findOrCreateFolder(
-        userId,
-        assignment.name,
-        assignmentsFolderId,
-        {
-          canvasCourseId: Number(courseId),
-          canvasAssignmentId: assignment.id,
-        },
-      );
+    ctx,
+    async (assignment, attachments, assignmentFolderId) => {
       const opts = {
         userId,
         courseId,
@@ -404,8 +400,7 @@ async function processAssignments(
         attachments.map((att) => () => downloadAndStoreFile(att, opts)),
         FILE_CONCURRENCY,
       );
-    }),
-    FILE_CONCURRENCY,
+    },
   );
 }
 
@@ -425,23 +420,7 @@ export async function processCourse(course, userId, ctx) {
   await processAssignments(courseId, userId, courseTitle, courseFolderId, ctx);
 
   // sync assignment metadata (titles, due dates, scores) for the tracker
-  try {
-    const { synced, errors } = await syncAssignmentMetadata(
-      courseId,
-      userId,
-      courseTitle,
-      ctx.client,
-    );
-    if (synced > 0 || errors > 0) {
-      console.log(
-        `[sync-assignments] course ${courseTitle}: ${synced} synced, ${errors} errors`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[sync-assignments] skipped for course ${courseTitle}: ${err.message}`,
-    );
-  }
+  await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
 }
 
 // ── Two-phase discovery entry point ─────────────────────────────────────────
