@@ -73,9 +73,9 @@ export default function Footer() {
 
   return (
     <footer className="bg-background border-t border-border-subtle">
-      <div className="mx-auto max-w-7xl px-6 pt-16 pb-8 sm:pt-24 lg:px-8 lg:pt-32">
-        <div className="xl:grid xl:grid-cols-3 xl:gap-8">
-          <div className="space-y-8">
+      <div className="mx-auto max-w-7xl px-6 pt-12 pb-6 sm:pt-16 lg:px-8 lg:pt-20">
+        <div className="xl:grid xl:grid-cols-3 xl:gap-6">
+          <div className="space-y-4">
             <div className="font-serif text-2xl font-bold text-text flex items-center gap-2">
               <BrandLogo size={32} />
               {t("OghmaNotes")}
@@ -100,10 +100,10 @@ export default function Footer() {
               ))}
             </div>
             {/* Language Switcher */}
-            <div className="pt-4">
+            <div className="pt-1">
               <label
                 htmlFor="language-select"
-                className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-2"
+                className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-1.5"
               >
                 {t("Language")}
               </label>
@@ -121,13 +121,13 @@ export default function Footer() {
               </select>
             </div>
           </div>
-          <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
-            <div className="md:grid md:grid-cols-2 md:gap-8">
+          <div className="mt-10 grid grid-cols-2 gap-6 xl:col-span-2 xl:mt-0">
+            <div className="md:grid md:grid-cols-2 md:gap-6">
               <div>
                 <h3 className="text-sm/6 font-semibold text-text">
                   {t("Features")}
                 </h3>
-                <ul role="list" className="mt-6 space-y-4">
+                <ul role="list" className="mt-4 space-y-2">
                   {navigation.features.map((item) => (
                     <li key={item.name}>
                       <a
@@ -140,11 +140,11 @@ export default function Footer() {
                   ))}
                 </ul>
               </div>
-              <div className="mt-10 md:mt-0">
+              <div className="mt-6 md:mt-0">
                 <h3 className="text-sm/6 font-semibold text-text">
                   {t("Support")}
                 </h3>
-                <ul role="list" className="mt-6 space-y-4">
+                <ul role="list" className="mt-4 space-y-2">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
                       <a
@@ -158,12 +158,12 @@ export default function Footer() {
                 </ul>
               </div>
             </div>
-            <div className="md:grid md:grid-cols-2 md:gap-8">
+            <div className="md:grid md:grid-cols-2 md:gap-6">
               <div>
                 <h3 className="text-sm/6 font-semibold text-text">
                   {t("Company")}
                 </h3>
-                <ul role="list" className="mt-6 space-y-4">
+                <ul role="list" className="mt-4 space-y-2">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
                       <a
@@ -176,11 +176,11 @@ export default function Footer() {
                   ))}
                 </ul>
               </div>
-              <div className="mt-10 md:mt-0">
+              <div className="mt-6 md:mt-0">
                 <h3 className="text-sm/6 font-semibold text-text">
                   {t("Legal")}
                 </h3>
-                <ul role="list" className="mt-6 space-y-4">
+                <ul role="list" className="mt-4 space-y-2">
                   {navigation.legal.map((item) => (
                     <li key={item.name}>
                       <a
@@ -196,7 +196,7 @@ export default function Footer() {
             </div>
           </div>
         </div>
-        <div className="mt-16 border-t border-border-subtle pt-8 sm:mt-20 lg:mt-24">
+        <div className="mt-10 border-t border-border-subtle pt-6 sm:mt-12 lg:mt-14">
           <p className="text-xs/5 text-text-tertiary">
             {t("© {year} OghmaNotes. All rights reserved.", {
               year: new Date().getFullYear(),
