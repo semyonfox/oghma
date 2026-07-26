@@ -348,11 +348,6 @@ select option:disabled {
     line-height: 1.65;
   }
 
-/* The supplied mark is white. Keep it visible against light public surfaces. */
-html.light img[src$="/oghmanotes.svg"] {
-  filter: brightness(0) saturate(100%);
-}
-
 @layer components {
   /* Editor Styles */
   .editor-input {

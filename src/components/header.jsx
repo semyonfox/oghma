@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import BrandLogo from "@/components/brand-logo";
 import Link from "next/link";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -37,13 +37,7 @@ export default function Header() {
         <div className="flex lg:flex-1">
           <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
             <span className="sr-only">{t("OghmaNotes")}</span>
-            <Image
-              src="/oghmanotes.svg"
-              alt={t("OghmaNotes")}
-              width={32}
-              height={32}
-              preload
-            />
+            <BrandLogo size={32} priority />
             <span className="font-display text-xl font-semibold tracking-[-0.02em] text-text">
               {t("OghmaNotes")}
             </span>
@@ -86,12 +80,7 @@ export default function Header() {
           <div className="flex items-center justify-between">
             <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
               <span className="sr-only">{t("OghmaNotes")}</span>
-              <Image
-                src="/oghmanotes.svg"
-                alt={t("OghmaNotes")}
-                width={32}
-                height={32}
-              />
+              <BrandLogo size={32} />
               <span className="font-display text-lg font-semibold text-text">
                 {t("OghmaNotes")}
               </span>

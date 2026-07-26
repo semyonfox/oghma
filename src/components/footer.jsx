@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import BrandLogo from "@/components/brand-logo";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { configLocale } from "@/locales";
 
@@ -77,12 +77,7 @@ export default function Footer() {
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           <div className="space-y-8">
             <div className="font-serif text-2xl font-bold text-text flex items-center gap-2">
-              <Image
-                src="/oghmanotes.svg"
-                alt="OghmaNotes Logo"
-                width={32}
-                height={32}
-              />
+              <BrandLogo size={32} />
               {t("OghmaNotes")}
             </div>
             <p className="text-sm/6 text-balance text-text-tertiary">
