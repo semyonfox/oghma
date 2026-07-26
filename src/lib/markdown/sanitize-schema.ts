@@ -11,7 +11,7 @@ markdownSanitizeSchema.tagNames = [
   "sub",
 ];
 markdownSanitizeSchema.attributes = {
-  ...(markdownSanitizeSchema.attributes ?? {}),
+  ...markdownSanitizeSchema.attributes,
   code: [
     ...(markdownSanitizeSchema.attributes?.code ?? []),
     ["className", /^language-[a-z0-9_-]+$/i],
