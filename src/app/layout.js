@@ -1,4 +1,5 @@
-import { DM_Sans, Source_Serif_4 } from "next/font/google";
+import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
+import "@fontsource-variable/strichpunkt-sans";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
@@ -8,10 +9,10 @@ import { Toaster } from "sonner";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const sourceSans = Source_Sans_3({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-dm-sans",
+  variable: "--font-source-sans",
 });
 
 const sourceSerif = Source_Serif_4({
@@ -102,7 +103,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${sourceSerif.variable}`}
+      className={`${sourceSans.variable} ${sourceSerif.variable}`}
       suppressHydrationWarning
     >
       <head>

@@ -33,9 +33,7 @@ import { POST } from "@/app/api/contact/route";
 
 const validBody = {
   first_name: "Ada",
-  last_name: "Lovelace",
   email: "ada@example.com",
-  role: "student",
   interest: "beta_access",
   message: "Please add me to the beta.",
   source: "contact",
@@ -134,8 +132,8 @@ describe("POST /api/contact", () => {
     expect(mockRecordMarketingEvent).not.toHaveBeenCalled();
   });
 
-  it("rejects role values outside the public form contract", async () => {
-    const response = await POST(request({ ...validBody, role: "spammer" }));
+  it("rejects submissions without a recognised reason for contact", async () => {
+    const response = await POST(request({ ...validBody, interest: "spammer" }));
 
     expect(response.status).toBe(400);
     expect(mockSql).not.toHaveBeenCalled();

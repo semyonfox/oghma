@@ -44,7 +44,7 @@ export default function Header() {
               height={32}
               preload
             />
-            <span className="font-serif text-xl font-semibold tracking-[-0.02em] text-text hidden sm:block">
+            <span className="font-display text-xl font-semibold tracking-[-0.02em] text-text">
               {t("OghmaNotes")}
             </span>
           </Link>
@@ -92,7 +92,7 @@ export default function Header() {
                 width={32}
                 height={32}
               />
-              <span className="font-serif text-lg font-semibold text-text">
+              <span className="font-display text-lg font-semibold text-text">
                 {t("OghmaNotes")}
               </span>
             </Link>
