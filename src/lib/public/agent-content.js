@@ -520,7 +520,7 @@ function decorateAgentOpenApiDocument(document) {
     { name: "Contact", description: "Public contact routes." },
   ];
   document.components = {
-    ...(document.components ?? {}),
+    ...document.components,
     securitySchemes: {
       sessionCookie: {
         type: "apiKey",

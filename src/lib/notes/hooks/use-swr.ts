@@ -1,20 +1,6 @@
 /**
- * SWR Hook - Stale-While-Revalidate Pattern
- *
- * Strategy: Serve cached data immediately, then revalidate in background
- *
- * Benefits:
- * - Instant UI response (perceived performance)
- * - Always up-to-date data (background refresh)
- * - Reduced server load (cached responses)
- * - Network error resilience (cached fallback)
- *
- * Typical flow:
- * 1. User loads page
- * 2. Cached data shown immediately
- * 3. Background fetch starts
- * 4. New data replaces cache when ready
- * 5. Components rerender with fresh data
+ * Stale-while-revalidate hook. Serves cached data immediately, revalidates in
+ * the background, and falls back to the cache when a fetch fails.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -33,8 +19,7 @@ interface SWROptions {
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
-  error?: Error;
-  accessCount?: number;
+  // drives LRU eviction once the cache passes CACHE_CONFIG.maxSize
   lastAccessedAt?: number;
 }
 
@@ -55,9 +40,6 @@ const CACHE_CONFIG = {
 let cleanupIntervalId: NodeJS.Timeout | null = null;
 let activeHookCount = 0;
 
-/**
- * Start automatic cache cleanup
- */
 function startCacheCleanup() {
   if (cleanupIntervalId) return; // Already running
 
@@ -95,9 +77,6 @@ function startCacheCleanup() {
   }, CACHE_CONFIG.cleanupInterval);
 }
 
-/**
- * Stop automatic cache cleanup (for testing/shutdown)
- */
 export function stopCacheCleanup() {
   if (cleanupIntervalId) {
     clearInterval(cleanupIntervalId);
@@ -105,9 +84,6 @@ export function stopCacheCleanup() {
   }
 }
 
-/**
- * React hook for SWR data fetching
- */
 export function useSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
@@ -134,9 +110,6 @@ export function useSWR<T>(
   const lastFetchRef = useRef<number>(0);
   const revalidateTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  /**
-   * Check if cache is still fresh
-   */
   const isCacheFresh = useCallback((): boolean => {
     const cached = globalCache.get(key);
     if (!cached) return false;
@@ -145,22 +118,13 @@ export function useSWR<T>(
     return age < cacheDuration;
   }, [key, cacheDuration]);
 
-  /**
-   * Get cached data if available (tracks access for LRU eviction)
-   */
   const getCachedData = useCallback((): T | undefined => {
     const cached = globalCache.get(key);
-    if (cached) {
-      // Update access tracking for LRU (Least Recently Used) eviction
-      cached.lastAccessedAt = Date.now();
-      cached.accessCount = (cached.accessCount ?? 0) + 1;
-    }
+    // reading counts as an access, which is what LRU eviction sorts on
+    if (cached) cached.lastAccessedAt = Date.now();
     return cached?.data;
   }, [key]);
 
-  /**
-   * Fetch and cache data
-   */
   const fetchData = useCallback(
     async (isBackground = false) => {
       if (!isBackground) {
@@ -224,9 +188,6 @@ export function useSWR<T>(
     [key, fetcher, isCacheFresh, getCachedData, dedupeDuration],
   );
 
-  /**
-   * Manual mutation (update cache without fetching)
-   */
   const mutate = useCallback(
     async (newData?: T): Promise<T | undefined> => {
       if (newData !== undefined) {
@@ -243,30 +204,19 @@ export function useSWR<T>(
     [key, fetchData],
   );
 
-  /**
-   * Initial load and setup
-   */
   useEffect(() => {
-    // Start automatic cache cleanup on first hook usage
     activeHookCount++;
     startCacheCleanup();
 
     const cached = getCachedData();
-
-    // If we have fresh cache, use it immediately
     if (cached && isCacheFresh()) {
+      // Serve the cache immediately, then refresh behind it.
       setData(cached);
       setIsLoading(false);
-      // Still revalidate in background
       fetchData(true).catch(console.error);
-      return () => {
-        activeHookCount--;
-        if (activeHookCount === 0) stopCacheCleanup();
-      };
+    } else {
+      fetchData(false).catch(console.error);
     }
-
-    // No fresh cache, fetch now
-    fetchData(false).catch(console.error);
 
     return () => {
       activeHookCount--;
@@ -274,9 +224,6 @@ export function useSWR<T>(
     };
   }, [key, fetchData, getCachedData, isCacheFresh]);
 
-  /**
-   * Revalidation interval
-   */
   useEffect(() => {
     if (revalidateInterval <= 0) return;
 
@@ -291,9 +238,6 @@ export function useSWR<T>(
     };
   }, [revalidateInterval, fetchData]);
 
-  /**
-   * Revalidate on focus
-   */
   useEffect(() => {
     if (!revalidateOnFocus) return;
 
@@ -317,67 +261,3 @@ export function useSWR<T>(
   };
 }
 
-/**
- * Clear global SWR cache
- */
-export function clearSWRCache(): void {
-  globalCache.clear();
-  console.debug("[SWR] Cache cleared");
-}
-
-/**
- * Get detailed cache statistics for monitoring
- */
-export function getSWRCacheStats() {
-  const entries = Array.from(globalCache.entries());
-  const now = Date.now();
-
-  return {
-    // Basic stats
-    cacheSize: globalCache.size,
-    maxCacheSize: CACHE_CONFIG.maxSize,
-    ongoingRequests: ongoingRequests.size,
-
-    // Cache health
-    entries: entries.map(([key, entry]) => ({
-      key,
-      age: now - entry.timestamp,
-      accessCount: entry.accessCount ?? 0,
-      lastAccessedAt: entry.lastAccessedAt
-        ? now - entry.lastAccessedAt
-        : "never",
-    })),
-
-    // Memory warnings
-    warnings: {
-      nearCapacity: globalCache.size > CACHE_CONFIG.maxSize * 0.8,
-      hasStaleEntries: entries.some(
-        ([_key, e]) => now - e.timestamp > CACHE_CONFIG.maxCacheDuration,
-      ),
-    },
-  };
-}
-
-/**
- * Get estimated memory usage of the cache (rough estimate)
- */
-export function estimateCacheMemory(): {
-  entries: number;
-  estimatedBytes: number;
-} {
-  let estimatedBytes = 0;
-
-  for (const entry of globalCache.values()) {
-    // Rough estimate: JSON.stringify the data to estimate size
-    try {
-      estimatedBytes += JSON.stringify(entry.data).length;
-    } catch {
-      estimatedBytes += 1024; // Default 1 KB if serialization fails
-    }
-  }
-
-  return {
-    entries: globalCache.size,
-    estimatedBytes,
-  };
-}

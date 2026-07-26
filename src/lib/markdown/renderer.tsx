@@ -82,7 +82,7 @@ function remarkCodeFenceMeta() {
       if (node.type === "code" && typeof node.meta === "string") {
         node.data = node.data ?? {};
         node.data.hProperties = {
-          ...(node.data.hProperties ?? {}),
+          ...node.data.hProperties,
           dataMeta: node.meta,
         };
       }

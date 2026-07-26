@@ -60,25 +60,6 @@ const useUIBaseStore = create<UIStoreData>((_set) => ({
   IS_DEMO: undefined,
 }));
 
-// Initialize with props
-export const initUIStore = ({
-  ua = DEFAULT_UA,
-  settings: _settings,
-  disablePassword,
-  IS_DEMO,
-}: {
-  ua?: UserAgentType;
-  settings?: Settings;
-  disablePassword?: boolean;
-  IS_DEMO?: boolean;
-} = {}) => {
-  useUIBaseStore.setState({
-    ua,
-    disablePassword,
-    IS_DEMO,
-  });
-};
-
 // module-scope stores — created once, hook identity is stable across renders
 const useSidebarStore = createSidebarStore(false, false);
 const useSplitStore = createSplitStore(DEFAULT_SETTINGS.split_sizes);
