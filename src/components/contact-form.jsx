@@ -184,6 +184,7 @@ export default function ContactForm({ source = "contact", centered = false }) {
               <option value="support">{t("Support")}</option>
               <option value="billing">{t("Billing")}</option>
               <option value="partnership">{t("Partnership")}</option>
+              <option value="other">{t("Other")}</option>
             </select>
           </div>
         </div>
