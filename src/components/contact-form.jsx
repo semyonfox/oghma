@@ -179,6 +179,7 @@ export default function ContactForm({ source = "contact", centered = false }) {
               <option value="beta_access">{t("Beta access")}</option>
               <option value="campus_pilot">{t("Campus pilot")}</option>
               <option value="support">{t("Support")}</option>
+              <option value="billing">{t("Billing")}</option>
               <option value="partnership">{t("Partnership")}</option>
             </select>
           </div>
