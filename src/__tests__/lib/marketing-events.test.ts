@@ -15,8 +15,8 @@ import { cleanAttribution } from "@/lib/marketing/attribution";
 
 describe("marketing event property cleaning", () => {
   it("keeps only the closed aggregate schema", () => {
-    expect(cleanProperties({ form: "contact", role: "student", interest: "campus_pilot", has_phone: true, message_length_bucket: "101-500" })).toEqual({
-      form: "contact", role: "student", interest: "campus_pilot", has_phone: true, message_length_bucket: "101-500",
+    expect(cleanProperties({ form: "contact", interest: "campus_pilot", message_length_bucket: "101-500" })).toEqual({
+      form: "contact", interest: "campus_pilot", message_length_bucket: "101-500",
     });
   });
 
