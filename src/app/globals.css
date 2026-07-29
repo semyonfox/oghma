@@ -1127,10 +1127,6 @@ html.light .glass-card-active {
   line-height: 1.625;
 }
 
-.oghma-milkdown-editor .milkdown .ProseMirror p {
-  max-width: 72ch;
-}
-
 .oghma-milkdown-editor .milkdown .ProseMirror h1,
 .oghma-milkdown-editor .milkdown .ProseMirror h2,
 .oghma-milkdown-editor .milkdown .ProseMirror h3,
