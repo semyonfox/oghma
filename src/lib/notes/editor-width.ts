@@ -11,7 +11,7 @@ export const EDITOR_WIDTH_OPTIONS: Array<{
 }> = [
   { value: "small", label: "Small", detail: "58ch" },
   { value: "medium", label: "Medium", detail: "72ch" },
-  { value: "large", label: "Large", detail: "88ch" },
+  { value: "large", label: "Large", detail: "62rem" },
   { value: "full", label: "Full", detail: "Full width" },
 ];
 
@@ -31,7 +31,7 @@ export const EDITOR_WIDTH_STYLES: Record<
     previewMaxWidth: "48rem",
   },
   large: {
-    sourceMaxWidth: "88ch",
+    sourceMaxWidth: "62rem",
     previewMaxWidth: "62rem",
   },
   full: {

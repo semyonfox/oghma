@@ -34,7 +34,7 @@ describe("editor width settings", () => {
       previewMaxWidth: "40rem",
     });
     expect(getEditorWidthStyle("large")).toMatchObject({
-      sourceMaxWidth: "88ch",
+      sourceMaxWidth: "62rem",
       previewMaxWidth: "62rem",
     });
     expect(getEditorWidthStyle("full")).toMatchObject({
