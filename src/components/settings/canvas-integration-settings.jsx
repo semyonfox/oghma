@@ -26,7 +26,7 @@ import {
  *
  * Handles the full Canvas LMS connection flow on the settings page.
  * Progress is persisted in localStorage so navigating away and back
- * doesn't lose the ongoing import state.
+ * does not lose the active import state.
  */
 export default function CanvasIntegrationSettings() {
   const { t } = useI18n();

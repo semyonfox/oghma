@@ -167,7 +167,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       await uiCache.setItem(TREE_CACHE_KEY, newTree);
     } catch (error) {
       console.error("Error initializing tree:", error);
-      // don't set initLoaded on failure so the caller can retry
+      // Leave initLoaded unset after a failure so the caller can retry.
       const { toast: toastFn } = get();
       toastFn?.("Error loading notes", "error");
     } finally {

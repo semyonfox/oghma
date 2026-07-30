@@ -86,7 +86,7 @@ over the private env file. Enabling Marker in a deployed environment therefore
 requires an intentional deployment-code change as well as a configured URL;
 an env-file edit alone cannot enable it.
 
-Queued RunPod extraction additionally requires the endpoint/API credentials, a
+Queued RunPod extraction also requires the endpoint/API credentials, a
 high-entropy webhook token, a public HTTPS app base URL, and
 `STORAGE_PUBLIC_ENDPOINT`. Oghma submits one document to `/run`; the worker
 downloads the source and uploads full JSON through short-lived signed object
@@ -95,7 +95,7 @@ through `marker-complete` or `marker-failed`. `app.marker_jobs` correlates the
 callback and makes retries observable. Keep `MARKER_PROCESS_ALL_PDFS=false` to
 retain the text-layer-first path; enable it only for a controlled quality run.
 
-Cloudflare queue mode additionally requires the account ID, queue IDs, and a
+Cloudflare queue mode also requires the account ID, queue IDs, and a
 Queues API token named by `.env.example`. It still uses the long-running Node
 worker; changing the queue provider does not move extraction into a Worker.
 

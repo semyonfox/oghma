@@ -15,7 +15,7 @@ function runWhenIdle(fn: () => void) {
 }
 
 // fire-and-forget with a small stagger between requests so we
-// don't flood the API — prefetch failures are always silent
+// Limit API calls. Prefetch failures are always silent.
 async function staggered<T>(
   items: T[],
   fn: (item: T) => Promise<void>,

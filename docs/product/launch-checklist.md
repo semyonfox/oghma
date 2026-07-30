@@ -25,7 +25,7 @@ Unchecked items are not assumed complete. Record evidence or a link when closing
 - [ ] Review Cloudflare tunnel, proxy, WAF, and rate-limit rules for auth, upload, Canvas, contact, and chat endpoints.
 - [ ] Store production secrets only in the selected runtime secret store or protected Jenkins environment files.
 - [ ] Verify account deletion, grace-period recovery, and user export end to end.
-- [ ] Ensure the privacy policy covers stored chats, model evaluation, lead capture, first-party analytics, and retention periods.
+- [ ] Verify that the privacy policy covers stored chats, model evaluation, lead capture, first-party analytics, and retention periods.
 - [ ] Confirm the no-analytics-cookie posture in [growth-analytics.md](growth-analytics.md) matches the deployed site before deciding whether consent UI is required.
 - [ ] Maintain a current processor and data-residency inventory for the actual launch stack.
 

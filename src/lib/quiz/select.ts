@@ -218,7 +218,7 @@ export async function getSessionCandidates(
           AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `;
 
-  // exclude cards already answered correctly today so they don't resurface in a new session
+  // Exclude cards answered correctly today so they do not appear in a new session.
   const correctTodayRows = await sql`
     SELECT DISTINCT card_id FROM app.quiz_reviews
     WHERE user_id = ${userId}::uuid

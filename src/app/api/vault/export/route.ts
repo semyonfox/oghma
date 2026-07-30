@@ -57,7 +57,7 @@ export const POST = withErrorHandler(async (request) => {
       userId: user.user_id,
     }, { attempts: 1 });
   } catch (err) {
-    // enqueue failed — clean up the orphan queued row so it doesn't block future requests
+    // Enqueue failed. Remove the orphaned queue row so it does not block future requests.
     await sql`
       UPDATE app.canvas_import_jobs
       SET status = 'failed', error_message = 'Failed to enqueue job', completed_at = NOW(), updated_at = NOW()

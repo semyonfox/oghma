@@ -106,7 +106,7 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
-  // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
+  // Security check: verify that no duplicate emails exist. The UNIQUE constraint should prevent this.
   if (data.length > 1) {
     logger.error("multiple accounts with same email detected", {
       emailHash: require("crypto")
@@ -152,7 +152,7 @@ export const POST = withErrorHandler(async (request) => {
   const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
 
   // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
-  //    We don't await this — login speed is unaffected.
+  //    Do not await this call. It must not delay login.
   queueCanvasSync(user.user_id).catch((err) =>
     logger.warn("canvas auto-sync queue failed", { error: err.message }),
   );

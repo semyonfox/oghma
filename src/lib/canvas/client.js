@@ -113,7 +113,7 @@ export class CanvasClient {
     }
   }
 
-  // pauses if Canvas X-Rate-Limit-Remaining header indicates we're close to the limit
+  // Pause if the Canvas X-Rate-Limit-Remaining header shows that the quota is low.
   async #respectRateLimit(response) {
     const remaining = response.headers.get("x-rate-limit-remaining");
     if (remaining !== null && parseFloat(remaining) < 10) {

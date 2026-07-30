@@ -39,7 +39,7 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   // Cancel any existing queued/processing job and insert the new one atomically
-  // so no worker can pick up the old job after we've already replaced it
+  // This prevents a worker from taking the old job after its replacement.
   const job = await sql.begin(async (sql) => {
     await sql`
       UPDATE app.canvas_import_jobs

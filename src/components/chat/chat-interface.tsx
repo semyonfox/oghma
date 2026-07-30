@@ -167,7 +167,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const busy = loading || backgroundLoading;
 
   // Stop must reach the worker even before the background resume attaches,
-  // when the hook doesn't know the generation id yet.
+  // Use this state when the hook does not know the generation ID yet.
   const stopGenerating = () => {
     if (backgroundGenerationId) {
       void fetch(`/api/chat/generations/${backgroundGenerationId}/cancel`, {

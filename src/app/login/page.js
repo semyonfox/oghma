@@ -68,7 +68,7 @@ export default function LoginPage() {
       // Login successful - redirect to /notes
       router.replace("/notes");
 
-      // Fallback redirect in case router.replace doesn't work
+      // Use this fallback redirect if router.replace does not work.
       setTimeout(() => {
         window.location.href = "/notes";
       }, 1000);

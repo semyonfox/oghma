@@ -109,7 +109,7 @@ async function main() {
               // if placeholder is completely gone, append it or check harder
               if (!found && !result.includes(ph)) {
                 // try to find the translated variable name in the result
-                // just ensure the placeholder exists
+                // Only verify that the placeholder exists.
                 result = result.replace(/\{[^}]*\}/g, ph);
               }
             }

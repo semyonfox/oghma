@@ -139,7 +139,7 @@ ${blocks.join("\n\n")}`;
  * System prompt for when note retrieval (RAG) is disabled for a message.
  * No note context is injected and the model is NOT told to retrieve via tools —
  * it answers from general knowledge and the conversation only. This is the
- * token-saving path for questions that don't need the user's notes.
+ * token-saving path for questions that do not need the user's notes.
  */
 export function buildPlainSystemPrompt(): string {
   return "You are a helpful study assistant. Note retrieval is turned off for this message, so you are not searching the user's notes — answer using your general knowledge and the conversation so far. Do not claim to have read or searched the user's notes. If a question genuinely requires their notes, let them know they can re-enable note search to include that context.";

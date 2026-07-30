@@ -48,7 +48,7 @@ export const DELETE = withErrorHandler(async () => {
     `;
     const chunkIds: string[] = chunkRows.map((r: { id: string }) => r.id);
 
-    // ── 2. Delete from S3 (best-effort — log failures but don't abort) ───────
+    // 2. Delete from S3. Log failures, but do not stop the request.
     let s3Deleted = 0;
     let s3Failed = 0;
 

@@ -10,7 +10,7 @@ const INTER_BATCH_DELAY_MS = 300;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Get chunk IDs that don't have any quiz questions yet for a given user.
+ * Get chunk IDs that do not have quiz questions for a given user.
  * Optionally scoped to specific chunk IDs or a course.
  */
 export async function getUncoveredChunkIds(
@@ -186,4 +186,3 @@ export async function seedQuestionsAfterImport(
 
   return generateBatch(userId, uncovered);
 }
-

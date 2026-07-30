@@ -7,7 +7,7 @@ import sql from "@/database/pgsql.js";
  *
  * Check tree integrity:
  * - Orphaned notes (in notes but not in tree_items)
- * - Circular references (shouldn't exist)
+ * - Circular references (must not exist)
  * - Basic stats
  *
  * @returns Health status and any issues

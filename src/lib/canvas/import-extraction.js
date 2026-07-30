@@ -569,7 +569,7 @@ async function _runFileImport(importRecordId, file, opts) {
 export async function downloadAndStoreFile(file, opts) {
   const importRecordId = uuidv4();
   try {
-    // start the timeout only after the task has acquired a limiter slot.
+    // Start the timeout only after the task gets a limiter slot.
     // otherwise long queue wait time is incorrectly counted as processing time.
     await globalFileLimiter(async () => {
       let timerId;

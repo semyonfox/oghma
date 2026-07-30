@@ -18,9 +18,9 @@ The core loop every phase measures is: **connect Canvas → import course materi
 
 Phases advance on evidence, but a semester product has external windows the evidence must land inside:
 
-- **Early September 2026** — Semester 1 begins. The "whole semester, already loaded" moment is strongest in the first weeks of term, when students have fresh courses and empty workspaces. The controlled beta must be live then to produce real evidence; missing it pushes equivalent conditions to late January 2027.
+- **Early September 2026** — Semester 1 starts. The "whole semester, already loaded" moment is strongest in the first weeks of term, when students have fresh courses and empty workspaces. The controlled beta must be live then to produce real evidence; missing it pushes equivalent conditions to late January 2027.
 - **December 2026 and April–May 2027** — Exam seasons. Peak flashcard and review usage, and the worst time to break imports or run risky migrations. Treat them as change-freeze windows for anything touching import, retrieval, or review data.
-- **Late January 2027** — Semester 2 begins. The natural soft-launch window if the September beta produces exit evidence, and the fallback beta window if it does not.
+- **Late January 2027** — Semester 2 starts. The natural soft-launch window if the September beta produces exit evidence, and the fallback beta window if it does not.
 
 A window disciplines sequencing; it does not override exit evidence. A phase that misses its window waits for the next one rather than shipping unready.
 

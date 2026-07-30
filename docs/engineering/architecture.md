@@ -103,7 +103,7 @@ The Jenkins pipeline is the deploy authority. In outline it:
 
 1. builds app and worker images;
 2. runs the isolated integration/Playwright smoke gate;
-3. ensures Qdrant is available;
+3. keeps Qdrant available;
 4. applies pending migrations through `scripts/prebuild-migrate.mjs`;
 5. swaps the app and worker with health checks and rollback handling;
 6. runs live smoke tests before cleaning retained rollback containers and images.

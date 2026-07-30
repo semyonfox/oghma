@@ -1,6 +1,6 @@
-// Tab-close beacon. Fired via navigator.sendBeacon from `pagehide`, so the
-// tab id travels as a query parameter and the body stays empty (beacons can't
-// reliably set a JSON content type). Removing the tab's presence field starts
+// Tab-close beacon. The pagehide handler calls navigator.sendBeacon.
+// The tab ID is a query parameter because beacons cannot reliably set a JSON content type.
+// Removing the tab's presence field starts
 // the disconnect grace window for any in-flight chat generation.
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler, requireAuthLite, tracedError } from "@/lib/api-error";
