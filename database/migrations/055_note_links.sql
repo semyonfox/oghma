@@ -1,5 +1,9 @@
 -- Store resolved internal note references so backlinks are indexed and do not
 -- require scanning every note body when the inspector opens.
+--
+-- This was originally assigned the colliding 049 prefix. Keeping it under a
+-- new identity makes it run safely after any legacy 049 record; the DDL is
+-- idempotent for databases that already received the original migration.
 
 CREATE TABLE IF NOT EXISTS app.note_links (
     user_id        UUID NOT NULL REFERENCES app.login(user_id) ON DELETE CASCADE,

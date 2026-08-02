@@ -3,10 +3,22 @@
 -- 2. fix VARCHAR → TEXT on canvas_import_jobs.status
 -- 3. create assignments, time_blocks, pomodoro_sessions (pre-migration tables with no DDL)
 
--- safety: backfill deleted_at for any rows where deleted=1 but deleted_at is null
-UPDATE app.notes
-SET deleted_at = NOW()
-WHERE deleted = 1 AND deleted_at IS NULL;
+-- safety: backfill deleted_at for any rows where the legacy deleted flag exists.
+-- Fresh schemas already use deleted_at only.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'app'
+      AND table_name = 'notes'
+      AND column_name = 'deleted'
+  ) THEN
+    UPDATE app.notes
+    SET deleted_at = NOW()
+    WHERE deleted = 1 AND deleted_at IS NULL;
+  END IF;
+END $$;
 
 -- drop the redundant integer column
 ALTER TABLE app.notes DROP COLUMN IF EXISTS deleted;

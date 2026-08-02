@@ -6,6 +6,11 @@ import postgres from "postgres";
 import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
 import { MIGRATION_SQL } from "../standalone-migration.mjs";
+import {
+  migrationId,
+  migrationVersion,
+  readMigrationFiles,
+} from "../migration-catalog.mjs";
 import { loadE2EEnvFiles } from "./lib/env.mjs";
 
 loadE2EEnvFiles();
@@ -165,39 +170,6 @@ async function applyCurrentSchemaPatch(sql) {
       UNIQUE(note_id, s3_key)
     );
 
-    CREATE TABLE IF NOT EXISTS app.marketing_events (
-      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      event_name     TEXT NOT NULL,
-      user_id        UUID REFERENCES app.login(user_id) ON DELETE SET NULL,
-      path           TEXT,
-      referrer       TEXT,
-      source         TEXT,
-      target_url     TEXT,
-      utm_source     TEXT,
-      utm_medium     TEXT,
-      utm_campaign   TEXT,
-      utm_content    TEXT,
-      utm_term       TEXT,
-      properties     JSONB NOT NULL DEFAULT '{}'::jsonb,
-      occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      from_path      TEXT,
-      to_path        TEXT,
-      origin_class   TEXT,
-      placement      TEXT,
-      action         TEXT,
-      path_chain     TEXT[],
-      attribution_path TEXT,
-      attribution_placement TEXT,
-      attribution_action TEXT,
-      CONSTRAINT marketing_events_event_name_length
-        CHECK (char_length(event_name) BETWEEN 1 AND 96),
-      CONSTRAINT marketing_events_navigation_origin_class
-        CHECK (origin_class IS NULL OR origin_class IN ('direct', 'external', 'internal')),
-      CONSTRAINT marketing_events_path_chain_length
-        CHECK (path_chain IS NULL OR cardinality(path_chain) BETWEEN 1 AND 4)
-    );
-
     CREATE TABLE IF NOT EXISTS app.rate_limit_log (
       id         BIGSERIAL PRIMARY KEY,
       category   TEXT NOT NULL,
@@ -243,32 +215,54 @@ async function applyCurrentSchemaPatch(sql) {
       ON app.quiz_cards(user_id, state);
     CREATE INDEX IF NOT EXISTS idx_time_blocks_user_range
       ON app.time_blocks(user_id, starts_at, ends_at);
-    CREATE INDEX IF NOT EXISTS idx_marketing_events_event_time
-      ON app.marketing_events(event_name, occurred_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_marketing_events_user_time
-      ON app.marketing_events(user_id, occurred_at DESC)
-      WHERE user_id IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS idx_marketing_events_utm_campaign_time
-      ON app.marketing_events(utm_campaign, occurred_at DESC)
-      WHERE utm_campaign IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS idx_marketing_events_navigation_aggregate
-      ON app.marketing_events(to_path, from_path, origin_class, placement, action, occurred_at DESC)
-      WHERE event_name = 'navigation_transition';
-    CREATE INDEX IF NOT EXISTS idx_marketing_events_journey_aggregate
-      ON app.marketing_events(path_chain, attribution_action, attribution_placement, occurred_at DESC)
-      WHERE event_name = 'navigation_transition'
-        AND cardinality(path_chain) >= 2;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_events_activation_milestone_once
-      ON app.marketing_events(user_id, event_name)
-      WHERE user_id IS NOT NULL
-        AND event_name IN (
-          'email_verified',
-          'canvas_import_started',
-          'canvas_import_completed',
-          'first_cited_answer',
-          'first_flashcard_generated'
-        );
   `);
+}
+
+async function applyCanonicalMigrations(sql) {
+  // The standalone snapshot plus applyCurrentSchemaPatch form the legacy E2E
+  // bootstrap. Every later schema change must come from the checked-in
+  // canonical migration catalog.
+  const catalog = readMigrationFiles(
+    new URL("../../database/migrations", import.meta.url),
+  );
+  await sql`
+    CREATE TABLE IF NOT EXISTS app.schema_migrations (
+      version TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // The snapshot already contains this legacy schema. Record those filenames
+  // with their historical numeric identities, just as production bootstrap
+  // does, then exercise the current full-filename identity for later files.
+  for (const migration of catalog.filter(
+    (filename) => Number(migrationVersion(filename)) <= 17,
+  )) {
+    await sql`
+      INSERT INTO app.schema_migrations (version, name)
+      VALUES (${migrationVersion(migration)}, ${migration})
+      ON CONFLICT (version) DO NOTHING
+    `;
+  }
+
+  const migrations = catalog.filter(
+    (filename) => Number(migrationVersion(filename)) > 17,
+  );
+
+  for (const migration of migrations) {
+    const migrationSql = await readFile(
+      new URL(`../../database/migrations/${migration}`, import.meta.url),
+      "utf8",
+    );
+    await sql.begin(async (tx) => {
+      await tx.unsafe(migrationSql);
+      await tx`
+        INSERT INTO app.schema_migrations (version, name)
+        VALUES (${migrationId(migration)}, ${migration})
+      `;
+    });
+  }
 }
 
 function qdrantUrl() {
@@ -552,20 +546,7 @@ async function main() {
     await sql.unsafe("DROP SCHEMA IF EXISTS app CASCADE; CREATE SCHEMA app;");
     await sql.unsafe(MIGRATION_SQL);
     await applyCurrentSchemaPatch(sql);
-    for (const migration of [
-      "041_chat_generation_status.sql",
-      "042_resumable_chat_generations.sql",
-      "043_chat_session_pinning.sql",
-      "045_imported_file_cache.sql",
-      "049_note_links.sql",
-    ]) {
-      await sql.unsafe(
-        await readFile(
-          new URL(`../../database/migrations/${migration}`, import.meta.url),
-          "utf8",
-        ),
-      );
-    }
+    await applyCanonicalMigrations(sql);
     await resetQdrant();
     await seedUser(sql);
     await flushRedis();
