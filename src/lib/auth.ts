@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import sql from "@/database/pgsql.js";
 import { auth } from "@/auth";
+import { generateTraceId, getTraceId } from "@/lib/trace";
 
 export interface SessionUser {
   user_id: string;
@@ -139,6 +140,11 @@ export async function validateSession(
 
 // response formatting
 
+function responseTraceId(): string {
+  const traceId = getTraceId();
+  return traceId === "no-trace" ? generateTraceId() : traceId;
+}
+
 export function createSuccessResponse(
   data: Record<string, unknown>,
   status: number = 200,
@@ -152,7 +158,12 @@ export function createErrorResponse(
   additionalData: Record<string, unknown> = {},
 ): NextResponse {
   return NextResponse.json(
-    { success: false, error: message, ...additionalData },
+    {
+      success: false,
+      error: message,
+      ...additionalData,
+      traceId: responseTraceId(),
+    },
     { status },
   );
 }
@@ -162,7 +173,9 @@ export function createValidationErrorResponse(errors: unknown[]): NextResponse {
     {
       success: false,
       error: "Validation failed",
+      details: errors,
       validationErrors: errors,
+      traceId: responseTraceId(),
     },
     { status: 400 },
   );

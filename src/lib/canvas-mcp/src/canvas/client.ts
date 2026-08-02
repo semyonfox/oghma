@@ -11,6 +11,7 @@ export interface CanvasClientOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
 
 type QueryValue = string | number | boolean | undefined | null | Array<string | number | boolean>;
 export type Query = Record<string, QueryValue>;
@@ -70,7 +71,7 @@ export class CanvasClient {
     }
 
     private async requestAbsolute(url: string): Promise<Response> {
-        const headers = new Headers({ authorization: `Bearer ${this.token}`, accept: "application/json" });
+        const headers = new Headers({ authorization: `Bearer ${this.token}`, accept: CANVAS_JSON_ACCEPT });
         const init = (): RequestInit => ({ method: "GET", headers, signal: AbortSignal.timeout(this.timeoutMs) });
         let res = await this.fetchImpl(url, init());
         if (res.status >= 500) {
@@ -87,7 +88,7 @@ export class CanvasClient {
         const url = this.buildUrl(path, opts.query);
         const headers = new Headers({
             authorization: `Bearer ${this.token}`,
-            accept: "application/json",
+            accept: CANVAS_JSON_ACCEPT,
         });
         if (opts.body !== undefined) headers.set("content-type", "application/json");
 

@@ -11,6 +11,10 @@ import { v4 as uuidv4 } from "uuid";
 import { getStorageProvider } from "../storage/init.ts";
 import { addNoteToTree } from "../notes/storage/pg-tree.js";
 import { CanvasClient } from "./client.js";
+import {
+  canvasIdForBigintColumn,
+  canvasModuleIdForBigintColumn,
+} from "./id.js";
 import { createAsyncLimiter } from "./async-limiter.js";
 import { parseEnvConcurrency } from "./import-metrics.js";
 import { processRagPipeline } from "./import-embedding.js";
@@ -199,10 +203,14 @@ export async function fetchResource(
 ) {
   const { data, forbidden } = await fetchFn(courseId);
   if (forbidden) {
+    const canvasCourseId = canvasIdForBigintColumn(
+      courseId,
+      "Canvas course ID",
+    );
     console.log(`Course ${kind} restricted: ${courseTitle}`);
     await sql`
       INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, error_message, job_id)
-      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${courseId}::int, 0, 0, ${courseTitle + " (" + kind + ")"}, 'text/plain', 'forbidden', ${"Course " + kind + " restricted by lecturer"}, ${jobId}::uuid)
+      VALUES (${uuidv4()}::uuid, ${userId}::uuid, ${canvasCourseId}::bigint, 0, 0, ${courseTitle + " (" + kind + ")"}, 'text/plain', 'forbidden', ${"Course " + kind + " restricted by lecturer"}, ${jobId}::uuid)
     `;
   }
   return { data, forbidden };
@@ -258,13 +266,23 @@ async function createAttachment(
 }
 
 async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
-  const canvasCourseId = opts.courseId ? Number(opts.courseId) : null;
-  const canvasModuleId = opts.moduleId ?? null;
+  const canvasCourseId = opts.courseId
+    ? canvasIdForBigintColumn(opts.courseId, "Canvas course ID")
+    : null;
+  const canvasModuleId = opts.moduleId
+    ? canvasIdForBigintColumn(opts.moduleId, "Canvas module ID")
+    : null;
   let canvasAssignmentId = null;
   if (!opts.moduleId && opts.parentFolderId) {
     const [parent] =
       await sql`SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${opts.parentFolderId}::uuid`;
-    canvasAssignmentId = parent?.canvas_assignment_id ?? null;
+    canvasAssignmentId =
+      parent?.canvas_assignment_id == null
+        ? null
+        : canvasIdForBigintColumn(
+            String(parent.canvas_assignment_id),
+            "Canvas assignment ID",
+          );
   }
   const binary = await findOrCreateNote(
     opts.userId,
@@ -329,12 +347,20 @@ async function _runFileImport(importRecordId, file, opts) {
   }
 
   // atomically check dedup + claim the import slot
-  const moduleIdVal = moduleId ?? -1;
+  const canvasCourseIdForStorage = canvasIdForBigintColumn(
+    courseId,
+    "Canvas course ID",
+  );
+  const canvasModuleIdForStorage = canvasModuleIdForBigintColumn(moduleId ?? -1);
+  const canvasFileIdForStorage = canvasIdForBigintColumn(
+    file.id,
+    "Canvas file ID",
+  );
   const claimed = await sql.begin(async (tx) => {
     // skip if already successfully imported, indexing, or queued for retry
     const [existing] = await tx`
         SELECT status FROM app.canvas_imports
-        WHERE user_id = ${userId}::uuid AND canvas_file_id = ${file.id}::int
+        WHERE user_id = ${userId}::uuid AND canvas_file_id = ${canvasFileIdForStorage}::bigint
           AND status IN ('complete', 'indexing', 'pending_retry', 'pending_marker')
         LIMIT 1
       `;
@@ -343,7 +369,7 @@ async function _runFileImport(importRecordId, file, opts) {
     // upsert: insert new record or reclaim a stale one atomically
     await tx`
       INSERT INTO app.canvas_imports (id, user_id, canvas_course_id, canvas_module_id, canvas_file_id, filename, mime_type, status, job_id)
-      VALUES (${importRecordId}::uuid, ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int, ${file.id}::int, ${file.display_name}, ${resolvedMimeType}, 'downloading', ${opts.jobId ?? null})
+      VALUES (${importRecordId}::uuid, ${userId}::uuid, ${canvasCourseIdForStorage}::bigint, ${canvasModuleIdForStorage}::bigint, ${canvasFileIdForStorage}::bigint, ${file.display_name}, ${resolvedMimeType}, 'downloading', ${opts.jobId ?? null})
       ON CONFLICT (user_id, canvas_file_id)
       DO UPDATE SET status = 'downloading', job_id = ${opts.jobId ?? null},
                     filename = ${file.display_name}, mime_type = ${resolvedMimeType}, created_at = NOW()
@@ -417,14 +443,24 @@ async function _runFileImport(importRecordId, file, opts) {
 
   // resolve canvas metadata: module files have moduleId set; assignment files do not,
   // so look up canvas_assignment_id from the parent assignment folder
-  const canvasCourseId = courseId ? Number(courseId) : null;
-  const canvasModuleId = moduleId ?? null;
+  const canvasCourseId = courseId
+    ? canvasIdForBigintColumn(courseId, "Canvas course ID")
+    : null;
+  const canvasModuleId = moduleId
+    ? canvasIdForBigintColumn(moduleId, "Canvas module ID")
+    : null;
   let canvasAssignmentId = null;
   if (!moduleId && parentFolderId) {
     const [parentFolder] = await sql`
       SELECT canvas_assignment_id FROM app.notes WHERE note_id = ${parentFolderId}::uuid LIMIT 1
     `;
-    canvasAssignmentId = parentFolder?.canvas_assignment_id ?? null;
+    canvasAssignmentId =
+      parentFolder?.canvas_assignment_id == null
+        ? null
+        : canvasIdForBigintColumn(
+            String(parentFolder.canvas_assignment_id),
+            "Canvas assignment ID",
+          );
   }
 
   if (isCacheablePdf) {
@@ -737,10 +773,17 @@ export async function processCanvasFile({ importRecordId, jobId, userId }) {
       return false;
     }
 
+    const storedModuleId =
+      record.canvas_module_id == null
+        ? null
+        : String(record.canvas_module_id);
     await _runFileImport(importRecordId, file, {
       userId,
       courseId: String(record.canvas_course_id),
-      moduleId: record.canvas_module_id > 0 ? record.canvas_module_id : null,
+      moduleId:
+        storedModuleId && storedModuleId !== "0" && storedModuleId !== "-1"
+          ? storedModuleId
+          : null,
       parentFolderId: record.parent_folder_id,
       client,
       storage,

@@ -1,5 +1,10 @@
 import { after, NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import {
+  withErrorHandler,
+  requireAuth,
+  ApiError,
+  parseJsonObject,
+} from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
 import { encrypt } from "@/lib/crypto";
@@ -7,6 +12,7 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import logger from "@/lib/logger";
 import { recordMarketingEvent } from "@/lib/marketing/events";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
 
 const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
@@ -22,6 +28,14 @@ function noStoreJson(body, init) {
   return response;
 }
 
+function upstreamCourseId(value) {
+  try {
+    return canvasIdForBigintColumn(value, "Canvas course ID");
+  } catch {
+    throw new ApiError(502, "Canvas returned an invalid course ID");
+  }
+}
+
 export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
@@ -33,17 +47,33 @@ export const GET = withErrorHandler(async () => {
 
   if (error) return noStoreJson({ connected: false });
 
-  const coursesWithModules = await Promise.all(
-    (courses ?? []).map(async (course) => {
-      const { data: modules } = await client.getModules(course.id);
-      return { ...course, modules: modules ?? [] };
-    }),
-  );
+  const [coursesWithModules, forbiddenCourseRows] = await Promise.all([
+    Promise.all(
+      (courses ?? []).map(async (course) => {
+        const id = upstreamCourseId(course.id);
+        const { data: modules } = await client.getModules(id);
+        return { ...course, id, modules: modules ?? [] };
+      }),
+    ),
+    sql`
+      SELECT DISTINCT canvas_course_id
+      FROM app.canvas_imports
+      WHERE user_id = ${user.user_id}::uuid
+        AND status = 'forbidden'
+        AND canvas_course_id IS NOT NULL
+    `,
+  ]);
 
   return noStoreJson({
     connected: true,
     domain: credentials.domain,
     courses: coursesWithModules,
+    // This is the durable source of truth for the restricted course badge.
+    // Keep IDs as decimal strings: Canvas IDs can exceed JavaScript's safe
+    // integer range.
+    forbiddenCourseIds: (forbiddenCourseRows ?? []).map((row) =>
+      String(row.canvas_course_id),
+    ),
   });
 });
 
@@ -62,7 +92,7 @@ export const POST = withErrorHandler(async (request) => {
   const limited = await checkRateLimit("canvas-connect", user.user_id);
   if (limited) return limited;
 
-  const { token, domain, marketing } = await request.json();
+  const { token, domain, marketing } = await parseJsonObject(request);
   const normalizedToken = typeof token === "string" ? token.trim() : "";
   const normalizedDomain =
     typeof domain === "string" ? domain.trim().toLowerCase() : "";
@@ -85,6 +115,10 @@ export const POST = withErrorHandler(async (request) => {
   if (error) {
     throw new ApiError(400, `Canvas connection failed: ${error}`);
   }
+  const normalizedCourses = (courses ?? []).map((course) => ({
+    ...course,
+    id: upstreamCourseId(course.id),
+  }));
 
   // encrypt token before persisting
   const encryptedToken = encrypt(normalizedToken, user.user_id);
@@ -105,7 +139,7 @@ export const POST = withErrorHandler(async (request) => {
         utm: marketing?.utm,
         properties: {
           location: "settings",
-          course_count: Array.isArray(courses) ? courses.length : 0,
+          course_count: normalizedCourses.length,
           first_touch: marketing?.firstTouch,
         },
       },
@@ -117,5 +151,8 @@ export const POST = withErrorHandler(async (request) => {
     }),
   );
 
-  return noStoreJson({ success: true, courses: courses ?? [] });
+  return noStoreJson({
+    success: true,
+    courses: normalizedCourses,
+  });
 });

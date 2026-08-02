@@ -4,7 +4,8 @@ import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
 
 export interface Assignment {
   id: string;
-  canvas_course_id: number | null;
+  canvas_course_id: string | null;
+  canvas_assignment_id: string | null;
   title: string;
   description: string | null;
   course_name: string | null;

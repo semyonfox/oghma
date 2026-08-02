@@ -13,6 +13,7 @@ import sql from "@/database/pgsql.js";
  *   activeJob: { jobId, status, createdAt, startedAt } | null,
  *   progress: { total, completed, downloading, processing, pendingMarker, percent },
  *   issues: { forbidden, error },
+ *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
  *   recentLogs: [{ filename, status, errorMessage, updatedAt }],
  * }
@@ -118,12 +119,22 @@ export const GET = withErrorHandler(async () => {
   // this prevents the progress bar from jumping backwards as new files are found
   const denominator = job?.expected_total ?? total;
   const settled = completed + pendingMarker + forbidden + errorCount;
+  const etaCompleted = indexed + forbidden + errorCount;
   const progressPercent =
     !isActive && denominator > 0
       ? 100
       : denominator > 0
         ? Math.min(99, Math.round((settled / denominator) * 100))
         : null;
+  // An ETA is only meaningful once at least one file has settled. Use the
+  // observed job rate rather than inventing a fixed processing duration.
+  const elapsedSecs = job?.started_at
+    ? Math.max(0, (Date.now() - new Date(job.started_at).getTime()) / 1000)
+    : null;
+  const estimatedSecsRemaining =
+    isActive && job?.status === "processing" && etaCompleted > 0 && denominator > etaCompleted && elapsedSecs != null
+      ? Math.max(1, Math.ceil((elapsedSecs / etaCompleted) * (denominator - etaCompleted)))
+      : null;
 
   return NextResponse.json({
     success: true,
@@ -142,12 +153,19 @@ export const GET = withErrorHandler(async () => {
       forbidden,
       error: errorCount,
     },
+    // `pending_marker` means the file was handed off to the asynchronous
+    // Marker pipeline; it is not evidence that a cold start is happening.
+    // The pipeline currently exposes no cold-start signal, so be explicit
+    // rather than showing a misleading warm-up warning.
+    markerColdStarting: false,
+    estimatedSecsRemaining,
     recentLogs: (recentLogs ?? []).map((r) => ({
       filename: r.filename,
       status: r.status,
       errorMessage: r.error_message,
       updatedAt: r.updated_at,
-      courseId: r.canvas_course_id,
+      courseId:
+        r.canvas_course_id == null ? null : String(r.canvas_course_id),
       noteId: r.note_id,
     })),
   });

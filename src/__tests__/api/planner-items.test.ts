@@ -28,7 +28,7 @@ describe("GET /api/planner/items", () => {
     const response = await GET(new NextRequest("http://localhost/api/planner/items?start=2026-01-01T00:00:00.000Z&end=2026-03-01T00:00:00.000Z"));
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(body).toEqual([{ id: "item-1", source: "canvas", plannable_type: "announcement", plannable_id: "99", canvas_course_id: 42, course_name: "CS101", title: "Exam notice", body: "Read this", html_url: "https://canvas.example/announcements/99", display_at: "2026-02-01T10:00:00.000Z", due_at: null, date_source: "posted_at", item_state: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }]);
+    expect(body).toEqual([{ id: "item-1", source: "canvas", plannable_type: "announcement", plannable_id: "99", canvas_course_id: "42", course_name: "CS101", title: "Exam notice", body: "Read this", html_url: "https://canvas.example/announcements/99", display_at: "2026-02-01T10:00:00.000Z", due_at: null, date_source: "posted_at", item_state: "active", created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" }]);
     expect(JSON.stringify(body)).not.toContain("raw_planner_item");
     expect(JSON.stringify(body)).not.toContain("raw_plannable");
   });

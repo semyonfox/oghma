@@ -283,7 +283,7 @@ export default function AssignmentTracker({
               count: current.count + 1,
             });
             return map;
-          }, new Map<number, { courseId: number; courseName: string; count: number }>()),
+          }, new Map<string, { courseId: string; courseName: string; count: number }>()),
         ).map(([, item]) => ({
           courseId: item.courseId,
           courseName: item.courseName,

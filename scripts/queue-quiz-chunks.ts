@@ -201,7 +201,7 @@ async function main() {
     text: string;
     document_id: string;
     title: string;
-    canvas_course_id: number | null;
+    canvas_course_id: string | null;
   }>) {
     const bloomLevel = 1; // always start new chunks at Remember
     const qtype = pickType(bloomLevel);

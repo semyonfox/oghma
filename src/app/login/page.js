@@ -17,6 +17,7 @@ export default function LoginPage() {
   const { t } = useI18n();
   const userRef = useRef(null);
   const errRef = useRef(null);
+  const redirectFallbackRef = useRef(null);
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -30,6 +31,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     userRef.current?.focus();
+    return () => {
+      if (redirectFallbackRef.current !== null) {
+        window.clearTimeout(redirectFallbackRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -65,13 +71,16 @@ export default function LoginPage() {
     try {
       const _response = await login(email, pwd, rememberMe);
 
-      // Login successful - redirect to /notes
-      router.replace("/notes");
-
-      // Use this fallback redirect if router.replace does not work.
-      setTimeout(() => {
-        window.location.href = "/notes";
+      // Keep a guarded hard-navigation fallback for browsers where the client
+      // router stalls. Clear it when the login page unmounts so it cannot yank
+      // a user back to /notes after they have already navigated elsewhere.
+      redirectFallbackRef.current = window.setTimeout(() => {
+        redirectFallbackRef.current = null;
+        if (window.location.pathname === "/login") {
+          window.location.replace("/notes");
+        }
       }, 1000);
+      router.replace("/notes");
     } catch (err) {
       // check if the error is a verification-required response
       if (err.status === 403 && err.data?.requiresVerification) {

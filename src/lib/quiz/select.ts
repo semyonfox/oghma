@@ -101,7 +101,7 @@ export async function resolveChunkIds(
                 SELECT c.id FROM app.chunks c
                 JOIN app.notes n ON c.document_id = n.note_id
                 WHERE c.user_id = ${userId}::uuid
-                  AND n.canvas_course_id = ${filterValue as number}
+                  AND n.canvas_course_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
@@ -111,7 +111,7 @@ export async function resolveChunkIds(
                 SELECT c.id FROM app.chunks c
                 JOIN app.notes n ON c.document_id = n.note_id
                 WHERE c.user_id = ${userId}::uuid
-                  AND n.canvas_module_id = ${filterValue as number}
+                  AND n.canvas_module_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);

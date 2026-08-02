@@ -19,13 +19,16 @@ describe("CanvasClient.get", () => {
     beforeEach(() => vi.restoreAllMocks());
 
     it("sends bearer auth and returns parsed JSON", async () => {
-        const fetch = mockFetch([{ status: 200, body: { id: 1, name: "c1" } }]);
+        const fetch = mockFetch([{ status: 200, body: { id: "9007199254740993", name: "c1" } }]);
         const client = new CanvasClient({ domain: "x.instructure.com", token: "tok", fetch });
-        const result = await client.get<{ id: number; name: string }>("/api/v1/courses/1");
-        expect(result).toEqual({ id: 1, name: "c1" });
+        const result = await client.get<{ id: string; name: string }>("/api/v1/courses/1");
+        expect(result).toEqual({ id: "9007199254740993", name: "c1" });
         const [url, init] = fetch.mock.calls[0];
         expect(url).toBe("https://x.instructure.com/api/v1/courses/1");
         expect((init.headers as Headers).get("authorization")).toBe("Bearer tok");
+        expect((init.headers as Headers).get("accept")).toBe(
+            "application/json+canvas-string-ids",
+        );
     });
 
     it("serializes query params", async () => {

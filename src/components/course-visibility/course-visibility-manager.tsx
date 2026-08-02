@@ -8,7 +8,7 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
 
 export interface CourseVisibilityItem {
-  courseId: number;
+  courseId: string;
   courseName: string;
   isActive: boolean;
   contextText?: string | null;
@@ -16,7 +16,7 @@ export interface CourseVisibilityItem {
 }
 
 export interface CourseVisibilityItemSource {
-  courseId: number;
+  courseId: string;
   courseName: string;
   isActive?: boolean;
   contextText?: string | null;
@@ -46,7 +46,7 @@ export function mergeCourseVisibilityItems(
   sources: CourseVisibilityItemSource[],
   settings: CourseSetting[],
 ): CourseVisibilityItem[] {
-  const merged = new Map<number, CourseVisibilityItem>();
+  const merged = new Map<string, CourseVisibilityItem>();
 
   for (const setting of settings) {
     merged.set(setting.canvasCourseId, {
@@ -94,7 +94,7 @@ function CourseVisibilityManager({
 }: CourseVisibilityManagerProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
-  const [busyCourseId, setBusyCourseId] = useState<number | null>(null);
+  const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState<false | "archive" | "restore">(false);
   const grouped = useMemo(
     () => groupCourseVisibilityItems(items, query),

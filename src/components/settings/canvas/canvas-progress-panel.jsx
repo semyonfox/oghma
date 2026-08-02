@@ -18,6 +18,7 @@ export default function CanvasProgressPanel({
   importSummary,
   recentLogs,
   markerColdStarting,
+  estimatedSecsRemaining,
 }) {
   const { t } = useI18n();
   const [logsSuccessOpen, setLogsSuccessOpen] = useState(false);
@@ -81,10 +82,10 @@ export default function CanvasProgressPanel({
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {isImporting && !isDiscovering && progress?.estimatedSecsRemaining && (
+          {isImporting && !isDiscovering && estimatedSecsRemaining != null && (
             <span className="text-xs text-text-tertiary tabular-nums">
               {t("{time} left", {
-                time: formatTime(progress.estimatedSecsRemaining),
+                time: formatTime(estimatedSecsRemaining),
               })}
             </span>
           )}

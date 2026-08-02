@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -17,7 +18,7 @@ export const profileTools: ToolDef[] = [
         description:
             "Get the profile of a user by ID. Students can fetch visible profiles of users in shared courses.",
         inputSchema: z.object({
-            user_id: z.number().int().positive(),
+            user_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const profile = await canvas.get(`/api/v1/users/${args.user_id}/profile`, {});
@@ -42,7 +43,7 @@ export const profileTools: ToolDef[] = [
         name: "canvas_update_user_profile",
         description: "Update a user's profile. Requires educator permissions.",
         inputSchema: z.object({
-            user_id: z.number().int().positive(),
+            user_id: canvasIdSchema,
             name: z.string().optional(),
             short_name: z.string().optional(),
             bio: z.string().optional(),
@@ -69,7 +70,7 @@ export const profileTools: ToolDef[] = [
         name: "canvas_create_user",
         description: "Create a new user in an account. Requires admin permissions.",
         inputSchema: z.object({
-            account_id: z.number().int().positive(),
+            account_id: canvasIdSchema,
             name: z.string(),
             login_id: z.string(),
         }),

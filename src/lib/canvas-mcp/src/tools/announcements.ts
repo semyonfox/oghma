@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -36,7 +37,7 @@ export const announcementTools: ToolDef[] = [
     description:
       "List announcements for a specific course (backed by discussion_topics?only_announcements=true). Paginated.",
     inputSchema: z.object({
-      course_id: z.number().int().positive(),
+      course_id: canvasIdSchema,
     }),
     handler: async (args: any, { canvas }) => {
       const announcements = await canvas.collectPaginated(
@@ -54,8 +55,8 @@ export const announcementTools: ToolDef[] = [
     description:
       "Get a single announcement by its discussion topic ID within a course. Announcements are discussion topics with is_announcement=true.",
     inputSchema: z.object({
-      course_id: z.number().int().positive(),
-      announcement_id: z.number().int().positive(),
+      course_id: canvasIdSchema,
+      announcement_id: canvasIdSchema,
     }),
     handler: async (args: any, { canvas }) => {
       const announcement = await canvas.get(
@@ -87,7 +88,7 @@ export const announcementTools: ToolDef[] = [
     description:
       "Create an announcement in a course. Requires educator permissions.",
     inputSchema: z.object({
-      course_id: z.number().int().positive(),
+      course_id: canvasIdSchema,
       title: z.string(),
       message: z.string(),
       delayed_post_at: z.string().optional(),
@@ -112,8 +113,8 @@ export const announcementTools: ToolDef[] = [
     description:
       "Delete an announcement from a course. Requires educator permissions.",
     inputSchema: z.object({
-      course_id: z.number().int().positive(),
-      announcement_id: z.number().int().positive(),
+      course_id: canvasIdSchema,
+      announcement_id: canvasIdSchema,
     }),
     handler: async (args: any, { canvas }) => {
       const result = await canvas.delete(
@@ -127,12 +128,12 @@ export const announcementTools: ToolDef[] = [
     description:
       "Delete multiple announcements from a course. Requires educator permissions.",
     inputSchema: z.object({
-      course_id: z.number().int().positive(),
-      announcement_ids: z.array(z.number().int().positive()),
+      course_id: canvasIdSchema,
+      announcement_ids: z.array(canvasIdSchema),
     }),
     handler: async (args: any, { canvas }) => {
       const results = await Promise.all(
-        args.announcement_ids.map((id: number) =>
+        args.announcement_ids.map((id: string) =>
           canvas.delete(
             `/api/v1/courses/${args.course_id}/discussion_topics/${id}`,
           ),

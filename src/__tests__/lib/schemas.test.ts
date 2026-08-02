@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  assignmentCreateSchema,
+  assignmentUpdateSchema,
+  chatRequestSchema,
   loginSchema,
   noteCreateSchema,
   noteUpdateSchema,
@@ -7,9 +10,44 @@ import {
   quizSessionCreateSchema,
   registerSchema,
   searchQuerySchema,
+  timeBlockCreateSchema,
+  timeBlockRangeSchema,
+  timeBlockUpdateSchema,
   uuidParam,
   validateBody,
 } from "@/lib/validations/schemas";
+
+describe("assignment request schemas", () => {
+  it("enforces valid assignment types, dates, and numbers", () => {
+    expect(assignmentCreateSchema.safeParse({ title: "Essay", due_at: "2026-08-02T10:00:00.000Z", estimated_hours: 2 }).success).toBe(true);
+    expect(assignmentUpdateSchema.safeParse({ status: "done", due_at: null, estimated_hours: null }).success).toBe(true);
+    expect(assignmentUpdateSchema.safeParse({ status: "finished" }).success).toBe(false);
+    expect(assignmentCreateSchema.safeParse({ title: "Essay", due_at: "2026-08-02T10:00:00" }).success).toBe(false);
+    expect(assignmentCreateSchema.safeParse({ title: "Essay", estimated_hours: "2" }).success).toBe(false);
+  });
+});
+
+describe("chat request schema", () => {
+  it("rejects wrong message and option types before chat processing", () => {
+    expect(chatRequestSchema.safeParse({ message: "Explain recursion", stream: true, background: false }).success).toBe(true);
+    expect(chatRequestSchema.safeParse({ message: 1 }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ message: "Hi", noteIds: "id" }).success).toBe(false);
+    expect(chatRequestSchema.safeParse({ message: "Hi", stream: "true" }).success).toBe(false);
+  });
+});
+
+describe("time block request schemas", () => {
+  it("requires valid ordered dates and permits explicitly unlinking an assignment", () => {
+    expect(timeBlockCreateSchema.safeParse({ starts_at: "2026-08-02T10:00:00.000Z", ends_at: "2026-08-02T11:00:00.000Z" }).success).toBe(true);
+    expect(timeBlockCreateSchema.safeParse({ starts_at: "2026-08-02T11:00:00.000Z", ends_at: "2026-08-02T10:00:00.000Z" }).success).toBe(false);
+    expect(timeBlockRangeSchema.safeParse({ start: "not-a-date", end: "2026-08-02T11:00:00.000Z" }).success).toBe(false);
+    expect(timeBlockRangeSchema.safeParse({ start: "2026-08-02T11:00:00.000Z", end: "2026-08-02T10:00:00.000Z" }).success).toBe(false);
+    const result = timeBlockUpdateSchema.safeParse({ assignment_id: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.assignment_id).toBeNull();
+    expect(timeBlockUpdateSchema.safeParse({ completed: "true" }).success).toBe(false);
+  });
+});
 
 // ─── uuidParam ───────────────────────────────────────────────────────────────
 
@@ -199,19 +237,44 @@ describe("registerSchema", () => {
 // ─── quizSessionCreateSchema ──────────────────────────────────────────────────
 
 describe("quizSessionCreateSchema", () => {
-  it("accepts valid filter types", () => {
-    for (const filterType of [
-      "course",
-      "module",
-      "note",
-      "search",
-      "chat_session",
-      "all",
+  it("accepts each filter with its matching value contract", () => {
+    for (const input of [
+      { filterType: "course", filterValue: "9007199254740993" },
+      { filterType: "module", filterValue: 42 },
+      {
+        filterType: "note",
+        filterValue: ["123e4567-e89b-12d3-a456-426614174000"],
+      },
+      { filterType: "search", filterValue: "graph algorithms" },
+      {
+        filterType: "chat_session",
+        filterValue: "123e4567-e89b-12d3-a456-426614174000",
+      },
+      { filterType: "all" },
     ]) {
-      expect(quizSessionCreateSchema.safeParse({ filterType }).success).toBe(
-        true,
-      );
+      expect(quizSessionCreateSchema.safeParse(input).success).toBe(true);
     }
+  });
+
+  it("preserves 64-bit course IDs and rejects mismatched filter values", () => {
+    const parsed = quizSessionCreateSchema.safeParse({
+      filterType: "course",
+      filterValue: "9007199254740993",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.filterType === "course") {
+      expect(parsed.data.filterValue).toBe("9007199254740993");
+    }
+    expect(
+      quizSessionCreateSchema.safeParse({
+        filterType: "course",
+        filterValue: "not-an-id",
+      }).success,
+    ).toBe(false);
+    expect(
+      quizSessionCreateSchema.safeParse({ filterType: "note", filterValue: 42 })
+        .success,
+    ).toBe(false);
   });
 
   it("rejects unknown filter type", () => {
@@ -259,6 +322,9 @@ describe("validateBody", () => {
       const body = await result.response.json();
       expect(body.error).toBe("Validation failed");
       expect(body.details).toBeDefined();
+      expect(body.validationErrors).toEqual(body.details);
+      expect(body.success).toBe(false);
+      expect(body.traceId).toMatch(/^(?!no-trace$).+/);
     }
   });
 });

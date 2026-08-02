@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withErrorHandler, requireAuth, requireValidId, ApiError, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
+import { assignmentUpdateSchema, validateBody } from '@/lib/validations/schemas';
 
 /**
  * GET /api/assignments/:id
@@ -12,9 +13,11 @@ export const GET = withErrorHandler(async (_request, context: any) => {
   requireValidId(id);
 
   const [row] = await sql`
-    SELECT id, user_id, canvas_course_id, canvas_assignment_id,
+    SELECT id, user_id,
+           canvas_course_id::text AS canvas_course_id,
+           canvas_assignment_id::text AS canvas_assignment_id,
            title, description, course_name, course_color,
-           due_at, estimated_hours, logged_hours, source,
+           due_at, estimated_hours, logged_hours, source, assignment_type,
            CASE
              WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
              WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'
@@ -40,19 +43,15 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
   const { id } = await context.params;
   requireValidId(id);
 
-  const body = await request.json();
-  const allowed = ['title', 'description', 'status', 'estimated_hours', 'course_color', 'due_at', 'course_name'];
-  const updates: Record<string, any> = {};
-
-  for (const key of allowed) {
-    if (key in body) {
-      updates[key] = body[key];
-    }
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    throw new ApiError(400, 'Invalid JSON body');
   }
-
-  if (Object.keys(updates).length === 0) {
-    throw new ApiError(400, 'No valid fields to update');
-  }
+  const validation = validateBody(assignmentUpdateSchema, rawBody);
+  if (!validation.success) return validation.response;
+  const updates: Record<string, unknown> = { ...validation.data };
 
   updates.updated_at = new Date();
 
@@ -63,9 +62,11 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
       WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
       RETURNING *
     )
-    SELECT id, user_id, canvas_course_id, canvas_assignment_id,
+    SELECT id, user_id,
+           canvas_course_id::text AS canvas_course_id,
+           canvas_assignment_id::text AS canvas_assignment_id,
            title, description, course_name, course_color,
-           due_at, estimated_hours, logged_hours, source,
+           due_at, estimated_hours, logged_hours, source, assignment_type,
            CASE
              WHEN status <> 'done' AND due_at IS NOT NULL AND due_at < NOW() THEN 'late'
              WHEN status = 'late' AND (due_at IS NULL OR due_at >= NOW()) THEN 'upcoming'

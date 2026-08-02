@@ -17,7 +17,8 @@ function sanitizePlannerRow(row: Record<string, unknown>) {
     source: row.source,
     plannable_type: row.plannable_type,
     plannable_id: row.plannable_id,
-    canvas_course_id: row.canvas_course_id,
+    canvas_course_id:
+      row.canvas_course_id == null ? null : String(row.canvas_course_id),
     course_name: row.course_name,
     title: row.title,
     body: row.body,

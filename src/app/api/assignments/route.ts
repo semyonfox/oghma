@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
+import { assignmentCreateSchema, validateBody } from "@/lib/validations/schemas";
 
 /**
  * GET /api/assignments
@@ -45,7 +46,9 @@ export const GET = withErrorHandler(async (request) => {
 
   const where = conditions.reduce((a, c) => sql`${a} AND ${c}`);
   const rows = await sql`
-    SELECT a.id, a.user_id, a.canvas_course_id, a.canvas_assignment_id,
+    SELECT a.id, a.user_id,
+           a.canvas_course_id::text AS canvas_course_id,
+           a.canvas_assignment_id::text AS canvas_assignment_id,
            a.title, a.description, a.course_name, a.course_color,
            a.due_at, a.estimated_hours, a.logged_hours, a.source, a.assignment_type,
            ${effectiveStatus} AS status,
@@ -69,19 +72,15 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const body = await request.json();
-  const {
-    title,
-    course_name,
-    course_color,
-    due_at,
-    estimated_hours,
-    description,
-  } = body;
-
-  if (!title || typeof title !== "string" || title.trim().length === 0) {
-    throw new ApiError(400, "Title is required");
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    throw new ApiError(400, "Invalid JSON body");
   }
+  const validation = validateBody(assignmentCreateSchema, rawBody);
+  if (!validation.success) return validation.response;
+  const { title, course_name, course_color, due_at, estimated_hours, description } = validation.data;
 
   const dueDate = due_at ? new Date(due_at) : null;
   const initialStatus =
@@ -94,11 +93,13 @@ export const POST = withErrorHandler(async (request) => {
       user_id, title, description, course_name, course_color,
       due_at, estimated_hours, source, assignment_type, status
     ) VALUES (
-      ${user.user_id}::uuid, ${title.trim()}, ${description ?? null},
+      ${user.user_id}::uuid, ${title}, ${description ?? null},
       ${course_name ?? null}, ${course_color ?? null},
       ${due_at ?? null}, ${estimated_hours ?? null}, 'manual', 'manual', ${initialStatus}
     )
-    RETURNING id, user_id, canvas_course_id, canvas_assignment_id,
+    RETURNING id, user_id,
+              canvas_course_id::text AS canvas_course_id,
+              canvas_assignment_id::text AS canvas_assignment_id,
               title, description, course_name, course_color,
               due_at, estimated_hours, logged_hours, source, assignment_type, status,
               submitted_at, score, points_possible,

@@ -9,14 +9,46 @@ vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
   withErrorHandler:
     (handler: (request: NextRequest) => Promise<Response>) =>
-    (request: NextRequest) =>
-      handler(request),
+    async (request: NextRequest) => {
+      try {
+        return await handler(request);
+      } catch (error) {
+        const apiError = error as { statusCode?: number; userMessage?: string };
+        return new Response(JSON.stringify({ error: apiError.userMessage }), {
+          status: apiError.statusCode ?? 500,
+        });
+      }
+    },
   ApiError: class extends Error {
     constructor(
       public statusCode: number,
       public userMessage: string,
     ) {
       super(userMessage);
+    }
+  },
+  parseJsonObject: async (request: Request) => {
+    try {
+      const body = await request.json();
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        const error = new Error("JSON body must be an object") as Error & {
+          statusCode: number;
+          userMessage: string;
+        };
+        error.statusCode = 400;
+        error.userMessage = "JSON body must be an object";
+        throw error;
+      }
+      return body;
+    } catch (error) {
+      if ((error as { statusCode?: number }).statusCode === 400) throw error;
+      const invalid = new Error("Invalid JSON body") as Error & {
+        statusCode: number;
+        userMessage: string;
+      };
+      invalid.statusCode = 400;
+      invalid.userMessage = "Invalid JSON body";
+      throw invalid;
     }
   },
 }));
@@ -89,7 +121,7 @@ describe("POST /api/canvas/download", () => {
     expect(CanvasClient).toHaveBeenCalledWith("canvas.example.edu", "token");
     expect(discoverCanvasRawExportEntries).toHaveBeenCalledWith(
       expect.any(Object),
-      [{ id: 123, name: "Course", course_code: "CT216", term: null }],
+      [{ id: "123", name: "Course", course_code: "CT216", term: null }],
       expect.objectContaining({
         courseDiscovery: expect.objectContaining({
           mode: "selected",
@@ -143,13 +175,13 @@ describe("POST /api/canvas/download", () => {
       expect.any(Object),
       [
         {
-          id: 123,
+          id: "123",
           name: "Active Course",
           course_code: "AC101",
           term: { name: "2026" },
         },
         {
-          id: 456,
+          id: "456",
           name: "Completed Course",
           course_code: "CC101",
           term: { name: "2025" },
@@ -163,4 +195,40 @@ describe("POST /api/canvas/download", () => {
       }),
     );
   });
+
+  it.each(["{", "null"])(
+    "rejects malformed or non-object JSON instead of exporting every course: %s",
+    async (body) => {
+      const response = await POST(
+        new NextRequest("http://localhost/api/canvas/download", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      expect(discoverCanvasRawExportEntries).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    JSON.stringify({ courseIds: "123" }),
+    JSON.stringify({ courseIds: [] }),
+    JSON.stringify({ courseIds: [{ id: "123", course_code: 123 }] }),
+  ])(
+    "rejects an invalid selected-course field instead of exporting every course: %s",
+    async (body) => {
+      const response = await POST(
+        new NextRequest("http://localhost/api/canvas/download", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      expect(discoverCanvasRawExportEntries).not.toHaveBeenCalled();
+    },
+  );
 });

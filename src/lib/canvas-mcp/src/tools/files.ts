@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult, textResult } from "./types.ts";
 
@@ -8,7 +9,7 @@ export const fileTools: ToolDef[] = [
         description:
             "List files in a course. Optionally filter by search_term, content_types, or sort order.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             search_term: z.string().optional(),
             content_types: z.array(z.string()).optional(),
             sort: z.string().optional(),
@@ -27,7 +28,7 @@ export const fileTools: ToolDef[] = [
         name: "canvas_list_folders",
         description: "List all folders in a course.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const folders = await canvas.collectPaginated(
@@ -41,7 +42,7 @@ export const fileTools: ToolDef[] = [
         name: "canvas_list_folder_files",
         description: "List files inside a specific folder by folder ID.",
         inputSchema: z.object({
-            folder_id: z.number().int().positive(),
+            folder_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const files = await canvas.collectPaginated(`/api/v1/folders/${args.folder_id}/files`, {
@@ -55,7 +56,7 @@ export const fileTools: ToolDef[] = [
         description:
             "Get metadata for a single file by ID. Optionally include user and usage_rights.",
         inputSchema: z.object({
-            file_id: z.number().int().positive(),
+            file_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -70,7 +71,7 @@ export const fileTools: ToolDef[] = [
         description:
             "Get the pre-authenticated download URL for a file. Returns the url field from the file metadata.",
         inputSchema: z.object({
-            file_id: z.number().int().positive(),
+            file_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const file = await canvas.get(`/api/v1/files/${args.file_id}`, {});
@@ -100,7 +101,7 @@ export const fileTools: ToolDef[] = [
             "See https://canvas.instructure.com/doc/api/file.file_uploads.html for the full spec. " +
             "Requires educator/admin permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             name: z.string(),
             size: z.number().int().positive(),
             content_type: z.string().optional(),
@@ -136,7 +137,7 @@ export const fileTools: ToolDef[] = [
         name: "canvas_delete_file",
         description: "Delete a file by ID. Requires educator permissions.",
         inputSchema: z.object({
-            file_id: z.number().int().positive(),
+            file_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/files/${args.file_id}`);
@@ -155,7 +156,7 @@ export const fileTools: ToolDef[] = [
             "destination_path is accepted but ignored. " +
             "Equivalent to canvas_get_file_download_url.",
         inputSchema: z.object({
-            file_id: z.number().int().positive(),
+            file_id: canvasIdSchema,
             destination_path: z.string(),
         }),
         handler: async (args: any, { canvas }) => {

@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import {
+  withErrorHandler,
+  requireAuth,
+  ApiError,
+  parseJsonObject,
+} from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { recordActivationMilestone } from "@/lib/marketing/events";
+import { normalizeCanvasCourseSelection } from "@/lib/canvas/id.js";
 
 /**
  * POST /api/canvas/import
@@ -20,10 +26,19 @@ import { recordActivationMilestone } from "@/lib/marketing/events";
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const { courseIds } = await request.json();
+  const { courseIds } = await parseJsonObject(request);
 
   if (!Array.isArray(courseIds) || courseIds.length === 0) {
     throw new ApiError(400, "courseIds array is required");
+  }
+  let normalizedCourseIds;
+  try {
+    normalizedCourseIds = courseIds.map(normalizeCanvasCourseSelection);
+  } catch (error) {
+    throw new ApiError(
+      400,
+      error instanceof Error ? error.message : "Invalid Canvas course ID",
+    );
   }
 
   const credentials = await loadCanvasCredentials(user.user_id);
@@ -48,7 +63,7 @@ export const POST = withErrorHandler(async (request) => {
     `;
     const [inserted] = await sql`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status)
-      VALUES (${user.user_id}::uuid, ${JSON.stringify(courseIds)}::jsonb, 'queued')
+      VALUES (${user.user_id}::uuid, ${JSON.stringify(normalizedCourseIds)}::jsonb, 'queued')
       RETURNING id
     `;
     return inserted;

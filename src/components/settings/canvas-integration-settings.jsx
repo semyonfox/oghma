@@ -73,6 +73,8 @@ export default function CanvasIntegrationSettings() {
     isSyncing,
     markerColdStarting,
     setMarkerColdStarting,
+    estimatedSecsRemaining,
+    setEstimatedSecsRemaining,
     handleImport,
     handleSync,
     handleCancel,
@@ -113,25 +115,24 @@ export default function CanvasIntegrationSettings() {
           setCourses(data.courses ?? []);
 
           // use server-side forbidden courses as source of truth
-          if (data.forbiddenCourseIds?.length > 0) {
-            const serverForbidden = {};
+          const serverForbidden = {};
+          if (Array.isArray(data.forbiddenCourseIds)) {
             for (const id of data.forbiddenCourseIds)
               serverForbidden[String(id)] = true;
             setForbiddenCourses(serverForbidden);
             localStorage.setItem(LS_FORBIDDEN, JSON.stringify(serverForbidden));
           } else {
-            // clear stale localStorage forbidden data
-            const cached = JSON.parse(
-              localStorage.getItem(LS_FORBIDDEN) ?? "{}",
-            );
-            setForbiddenCourses(cached);
+            // Older servers did not expose this contract. Do not reuse stale
+            // client state as if it were a server-confirmed restriction.
+            setForbiddenCourses({});
+            localStorage.removeItem(LS_FORBIDDEN);
           }
 
           const savedIds = JSON.parse(
             localStorage.getItem(LS_SELECTED) ?? "[]",
           );
-          const validIds = (data.courses ?? []).map((c) => c.id);
-          setSelectedCourseIds(savedIds.filter((id) => validIds.includes(id)));
+          const validIds = (data.courses ?? []).map((c) => String(c.id));
+          setSelectedCourseIds(savedIds.map(String).filter((id) => validIds.includes(id)));
 
           fetch("/api/canvas/sync")
             .then((r) => r.json())
@@ -155,9 +156,11 @@ export default function CanvasIntegrationSettings() {
                 setProgress(statusData.progress);
                 setRecentLogs(statusData.recentLogs ?? []);
                 setMarkerColdStarting(Boolean(statusData.markerColdStarting));
+                setEstimatedSecsRemaining(statusData.estimatedSecsRemaining ?? null);
                 startPolling();
               } else {
                 setMarkerColdStarting(false);
+                setEstimatedSecsRemaining(null);
                 // job already finished while away
                 localStorage.removeItem(LS_ACTIVE_JOB);
                 if (statusData.progress) {
@@ -171,7 +174,7 @@ export default function CanvasIntegrationSettings() {
                   const logs = statusData.recentLogs ?? [];
                   setRecentLogs(logs);
                   // backfill forbidden from returned logs
-                  const newForbidden = { ...savedSynced };
+                  const newForbidden = { ...serverForbidden };
                   for (const log of logs) {
                     if (log.status === "forbidden" && log.courseId)
                       newForbidden[String(log.courseId)] = true;
@@ -252,8 +255,8 @@ export default function CanvasIntegrationSettings() {
       setCourses(data.courses ?? []);
 
       const savedIds = JSON.parse(localStorage.getItem(LS_SELECTED) ?? "[]");
-      const validIds = (data.courses ?? []).map((c) => c.id);
-      setSelectedCourseIds(savedIds.filter((id) => validIds.includes(id)));
+      const validIds = (data.courses ?? []).map((c) => String(c.id));
+      setSelectedCourseIds(savedIds.map(String).filter((id) => validIds.includes(id)));
     } catch {
       trackMarketingEvent("canvas_connect_error", {
         source: "settings_canvas",
@@ -281,6 +284,7 @@ export default function CanvasIntegrationSettings() {
       setProgress(null);
       setRecentLogs([]);
       setMarkerColdStarting(false);
+      setEstimatedSecsRemaining(null);
       setDomain("");
       if (tokenInputRef.current) {
         tokenInputRef.current.value = "";
@@ -304,9 +308,9 @@ export default function CanvasIntegrationSettings() {
       const selectedCourses =
         selectedCourseIds.length > 0
           ? courses
-              .filter((c) => selectedCourseIds.includes(c.id))
+              .filter((c) => selectedCourseIds.includes(String(c.id)))
               .map((c) => ({
-                id: c.id,
+                id: String(c.id),
                 name: c.name,
                 course_code: c.course_code,
                 term: c.term ?? null,
@@ -351,10 +355,11 @@ export default function CanvasIntegrationSettings() {
   };
 
   const toggleCourse = (courseId) => {
+    const id = String(courseId);
     setSelectedCourseIds((prev) =>
-      prev.includes(courseId)
-        ? prev.filter((id) => id !== courseId)
-        : [...prev, courseId],
+      prev.includes(id)
+        ? prev.filter((selectedId) => selectedId !== id)
+        : [...prev, id],
     );
   };
 
@@ -364,29 +369,30 @@ export default function CanvasIntegrationSettings() {
     if (allSelected) {
       setSelectedCourseIds([]);
     } else {
-      setSelectedCourseIds(courses.map((c) => c.id));
+      setSelectedCourseIds(courses.map((c) => String(c.id)));
     }
   };
 
   const getCourseStatus = (courseId) => {
-    if ((isImporting || isSyncing) && selectedCourseIds.includes(courseId)) {
+    const id = String(courseId);
+    if ((isImporting || isSyncing) && selectedCourseIds.includes(id)) {
       return { status: "syncing", error: null };
     }
     // forbidden badge is permanent — shown even when not importing
-    if (forbiddenCourses[courseId]) {
+    if (forbiddenCourses[id]) {
       return { status: "forbidden", error: null };
     }
-    if (courseErrors[courseId]) {
-      return { status: "error", error: courseErrors[courseId] };
+    if (courseErrors[id]) {
+      return { status: "error", error: courseErrors[id] };
     }
-    if (syncedCourses[courseId]) {
+    if (syncedCourses[id]) {
       // while the forbidden list + sync availability are still loading, show a
       // neutral "checking" tag instead of prematurely flashing out-of-sync
       if (!syncChecked) {
         return { status: "checking", error: null };
       }
       // a course with no modules/files has nothing to sync — never "out of sync"
-      const course = courses.find((c) => c.id === courseId);
+      const course = courses.find((c) => String(c.id) === id);
       const hasContent = (course?.modules?.length ?? 0) > 0;
       return {
         status: syncAvailable && hasContent ? "outOfSync" : "synced",
@@ -466,6 +472,7 @@ export default function CanvasIntegrationSettings() {
               importSummary={importSummary}
               recentLogs={recentLogs}
               markerColdStarting={markerColdStarting}
+              estimatedSecsRemaining={estimatedSecsRemaining}
             />
           )}
 

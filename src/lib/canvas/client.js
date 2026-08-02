@@ -20,6 +20,7 @@ const RETRYABLE_CODES = new Set([
 ]);
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
+const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
 
 function isRetryable(err) {
   return (
@@ -54,7 +55,7 @@ export class CanvasClient {
         const response = await fetch(`${this.baseUrl}${path}`, {
           headers: {
             Authorization: `Bearer ${this.token}`,
-            Accept: "application/json",
+            Accept: CANVAS_JSON_ACCEPT,
           },
         });
 
@@ -142,7 +143,7 @@ export class CanvasClient {
           const response = await fetch(url, {
             headers: {
               Authorization: `Bearer ${this.token}`,
-              Accept: "application/json",
+              Accept: CANVAS_JSON_ACCEPT,
             },
           });
 

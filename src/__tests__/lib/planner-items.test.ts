@@ -26,7 +26,38 @@ describe("Canvas planner-item normalization", () => {
 
   it("normalizes a planner object to the public/storage contract", () => {
     const normalized = normalizePlannerItem({ context_type: "Course", course_id: 42, context_name: "CS101", plannable_type: "discussion_topic", plannable_id: 99, plannable: { id: 99, title: "Week 1 discussion", message: "<p>Discuss</p>", html_url: "https://canvas.example/courses/42/discussion_topics/99", todo_date: "2026-02-02T10:00:00Z" } }, { canvasDomain: "canvas.example", canvasUserId: 7 });
-    expect(normalized).toMatchObject({ canvas_domain: "canvas.example", canvas_user_id: 7, canvas_course_id: 42, canvas_context_type: "Course", context_name: "CS101", plannable_type: "discussion_topic", plannable_id: "99", title: "Week 1 discussion", body: "<p>Discuss</p>", html_url: "https://canvas.example/courses/42/discussion_topics/99", display_at: "2026-02-02T10:00:00Z", due_at: null, date_source: "todo_date", item_state: "active" });
+    expect(normalized).toMatchObject({ canvas_domain: "canvas.example", canvas_user_id: "7", canvas_course_id: "42", canvas_context_type: "Course", context_name: "CS101", plannable_type: "discussion_topic", plannable_id: "99", title: "Week 1 discussion", body: "<p>Discuss</p>", html_url: "https://canvas.example/courses/42/discussion_topics/99", display_at: "2026-02-02T10:00:00Z", due_at: null, date_source: "todo_date", item_state: "active" });
+  });
+
+  it("preserves bigint Canvas IDs supplied as decimal strings", () => {
+    const normalized = normalizePlannerItem(
+      {
+        course_id: "9007199254740993",
+        plannable_type: "assignment",
+        plannable_id: "9007199254740995",
+      },
+      { canvasDomain: "canvas.example", canvasUserId: "9007199254740994" },
+    );
+    expect(normalized).toMatchObject({
+      canvas_user_id: "9007199254740994",
+      canvas_course_id: "9007199254740993",
+      plannable_id: "9007199254740995",
+    });
+  });
+
+  it("rejects planner IDs that cannot be represented losslessly", () => {
+    expect(() =>
+      normalizePlannerItem({
+        plannable_type: "assignment",
+        plannable_id: 9007199254740992,
+      }),
+    ).toThrow("safe integer");
+    expect(() =>
+      normalizePlannerItem({
+        plannable_type: "assignment",
+        plannable_id: "9223372036854775808",
+      }),
+    ).toThrow("supported Canvas ID range");
   });
 
   it("builds assignment-backed dedupe keys from stable assignment identities", () => {

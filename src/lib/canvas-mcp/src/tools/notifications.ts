@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -52,7 +53,7 @@ export const notificationTools: ToolDef[] = [
         name: "canvas_dismiss_account_notification",
         description: "Dismiss an account-level notification banner by ID. Requires educator permissions.",
         inputSchema: z.object({
-            notification_id: z.number().int().positive(),
+            notification_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -66,7 +67,7 @@ export const notificationTools: ToolDef[] = [
         description:
             "Update a notification preference for a specific communication channel. Requires educator permissions.",
         inputSchema: z.object({
-            channel_id: z.number().int().positive(),
+            channel_id: canvasIdSchema,
             notification: z.string(),
             frequency: z.enum(["immediately", "daily", "weekly", "never"]),
         }),

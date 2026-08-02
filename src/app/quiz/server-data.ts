@@ -14,7 +14,7 @@ export interface QuizDashboardSummary {
 }
 
 export interface QuizDashboardCourse {
-  courseId: number;
+  courseId: string;
   courseName: string;
   totalCards: number;
   dueCount: number;
@@ -28,7 +28,7 @@ export interface QuizDashboardInitialData {
 }
 
 interface QuizCourseRow {
-  canvas_course_id: number;
+  canvas_course_id: string;
   course_name: string;
   total_cards: number;
   due_count: number;
@@ -137,7 +137,7 @@ export async function getQuizDashboardData(
       hasContent: contentRows[0].has_content,
     },
     courses: (courseRows as unknown as QuizCourseRow[]).map((course) => ({
-      courseId: course.canvas_course_id,
+      courseId: String(course.canvas_course_id),
       courseName: course.course_name,
       totalCards: course.total_cards,
       dueCount: course.due_count,

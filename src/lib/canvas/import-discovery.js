@@ -18,6 +18,11 @@ import {
 import { syncAssignmentMetadata } from "./sync-assignments.js";
 import { decrypt } from "../crypto.ts";
 import logger from "../logger.ts";
+import {
+  canvasIdForBigintColumn,
+  canvasModuleIdForBigintColumn,
+  normalizeCanvasCourseSelection,
+} from "./id.js";
 
 import {
   PROCESSABLE_TYPES,
@@ -35,16 +40,10 @@ export function parseJobCourses(job) {
     typeof job.course_ids === "string"
       ? JSON.parse(job.course_ids)
       : job.course_ids;
-  return raw.map((c) =>
-    typeof c === "object" && c !== null
-      ? {
-          id: c.id,
-          name: c.name ?? String(c.id),
-          course_code: c.course_code ?? "",
-          term: c.term ?? null,
-        }
-      : { id: c, name: String(c), course_code: "", term: null },
-  );
+  if (!Array.isArray(raw)) {
+    throw new Error("Canvas import job course_ids must be an array");
+  }
+  return raw.map(normalizeCanvasCourseSelection);
 }
 
 // ── Pending file insertion ──────────────────────────────────────────────────
@@ -60,21 +59,24 @@ async function insertPendingFile(
   parentFolderId,
   s3Prefix,
 ) {
+  const moduleIdVal = moduleId ?? -1;
+  const canvasCourseId = canvasIdForBigintColumn(courseId, "Canvas course ID");
+  const canvasModuleId = canvasModuleIdForBigintColumn(moduleIdVal);
+  const canvasFileId = canvasIdForBigintColumn(file.id, "Canvas file ID");
   const resolvedMimeType = resolveMimeType(
     file.display_name,
     file.content_type,
   );
   if (!PROCESSABLE_TYPES.has(resolvedMimeType)) return;
 
-  const moduleIdVal = moduleId ?? -1;
   await sql`
     INSERT INTO app.canvas_imports (
       id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
       filename, mime_type, status, job_id, parent_folder_id, s3_prefix
     )
     VALUES (
-      gen_random_uuid(), ${userId}::uuid, ${courseId}::int, ${moduleIdVal}::int,
-      ${file.id}::int, ${file.display_name}, ${resolvedMimeType},
+      gen_random_uuid(), ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasModuleId}::bigint,
+      ${canvasFileId}::bigint, ${file.display_name}, ${resolvedMimeType},
       'pending', ${jobId}::uuid, ${parentFolderId}::uuid, ${s3Prefix}
     )
     ON CONFLICT (user_id, canvas_file_id)
@@ -127,8 +129,8 @@ async function discoverModuleFiles(
         module.name,
         courseFolderId,
         {
-          canvasCourseId: Number(courseId),
-          canvasModuleId: module.id,
+          canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
+          canvasModuleId: canvasIdForBigintColumn(module.id, "Canvas module ID"),
         },
       );
       const s3Prefix = `canvas/${userId}/${courseId}/${module.id}`;
@@ -144,7 +146,7 @@ async function discoverModuleFiles(
             userId,
             file,
             jobId,
-            Number(courseId),
+            canvasIdForBigintColumn(courseId, "Canvas course ID"),
             module.id,
             folderId,
             s3Prefix,
@@ -194,7 +196,7 @@ async function eachAssignmentWithFiles(
     "Assignments",
     courseFolderId,
     {
-      canvasCourseId: Number(courseId),
+      canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
       canvasModuleId: ASSIGNMENTS_PARENT_MODULE_ID,
     },
   );
@@ -209,8 +211,11 @@ async function eachAssignmentWithFiles(
         assignment.name,
         assignmentsFolderId,
         {
-          canvasCourseId: Number(courseId),
-          canvasAssignmentId: assignment.id,
+          canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
+          canvasAssignmentId: canvasIdForBigintColumn(
+            assignment.id,
+            "Canvas assignment ID",
+          ),
         },
       );
       await handleAttachments(assignment, attachments, assignmentFolderId);
@@ -240,7 +245,7 @@ async function discoverAssignmentFiles(
           userId,
           att,
           jobId,
-          Number(courseId),
+          canvasIdForBigintColumn(courseId, "Canvas course ID"),
           null,
           assignmentFolderId,
           s3Prefix,
@@ -260,7 +265,7 @@ async function discoverCourse(course, userId, ctx) {
   console.log(`Discovering course: ${courseTitle}`);
 
   const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
-    canvasCourseId: course.id,
+    canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
     canvasAcademicYear: academicYear,
   });
 
@@ -331,8 +336,8 @@ async function processModules(
         module.name,
         courseFolderId,
         {
-          canvasCourseId: Number(courseId),
-          canvasModuleId: module.id,
+          canvasCourseId: canvasIdForBigintColumn(courseId, "Canvas course ID"),
+          canvasModuleId: canvasIdForBigintColumn(module.id, "Canvas module ID"),
         },
       );
       const metaResults = await pooled(
@@ -413,7 +418,7 @@ export async function processCourse(course, userId, ctx) {
   );
   console.log(`Processing course: ${courseTitle}`);
   const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
-    canvasCourseId: course.id,
+    canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
     canvasAcademicYear: academicYear,
   });
   await processModules(courseId, userId, courseTitle, courseFolderId, ctx);
