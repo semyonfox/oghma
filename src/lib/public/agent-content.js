@@ -568,6 +568,40 @@ function decorateAgentOpenApiDocument(document) {
 }
 
 export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
+  const noteUpdateOperation = () => ({
+    summary: "Update one note",
+    description:
+      "Requires a signed-in session. Updating content can refresh the note's search index.",
+    parameters: [
+      {
+        name: "id",
+        in: "path",
+        required: true,
+        schema: { type: "string", format: "uuid" },
+      },
+    ],
+    requestBody: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              title: { type: "string", maxLength: 500 },
+              content: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Updated note object" },
+      "400": { description: "Validation failed" },
+      "401": { description: "Unauthorized" },
+      "404": { description: "Note not found" },
+    },
+  });
+
   const document = {
     openapi: "3.1.0",
     info: {
@@ -952,16 +986,61 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
                 schema: {
                   type: "object",
                   required: ["message"],
+                  additionalProperties: false,
                   properties: {
-                    message: { type: "string", maxLength: 2000 },
+                    message: { type: "string", minLength: 1, maxLength: 2000 },
                     stream: { type: "boolean", default: false },
                     useRag: { type: "boolean", default: true },
                     noteId: { type: "string" },
                     noteTitle: { type: "string" },
                     noteIds: { type: "array", items: { type: "string" } },
                     folderIds: { type: "array", items: { type: "string" } },
-                    sessionId: { type: "string" },
-                    history: { type: "array", items: { type: "object" } },
+                    selectedNotes: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "title"],
+                        additionalProperties: false,
+                        properties: {
+                          id: { type: "string" },
+                          title: { type: "string" },
+                        },
+                      },
+                    },
+                    selectedFolders: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["id", "title"],
+                        additionalProperties: false,
+                        properties: {
+                          id: { type: "string" },
+                          title: { type: "string" },
+                        },
+                      },
+                    },
+                    sessionId: { type: ["string", "null"] },
+                    history: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        required: ["role", "content"],
+                        additionalProperties: false,
+                        properties: {
+                          role: {
+                            type: "string",
+                            enum: ["user", "assistant", "system"],
+                          },
+                          content: { type: "string" },
+                        },
+                      },
+                    },
+                    background: { type: "boolean", default: false },
+                    thinkingMode: {
+                      type: "string",
+                      enum: ["off", "auto"],
+                    },
+                    clientDateTime: { type: "string" },
                   },
                 },
               },
@@ -972,7 +1051,8 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
               description:
                 "Chat answer as JSON or server-sent events when stream=true",
             },
-            "400": { description: "Missing or too-long message" },
+            "202": { description: "Background generation accepted when stream=true and background=true" },
+            "400": { description: "Invalid JSON object or invalid chat request" },
             "401": { description: "Unauthorized" },
             "429": { description: "Rate limited" },
           },
@@ -1003,6 +1083,13 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
               required: false,
               schema: { type: "integer", minimum: 1, maximum: 200 },
             },
+            {
+              name: "q",
+              in: "query",
+              required: false,
+              schema: { type: "string", maxLength: 200 },
+              description: "Optional title search query.",
+            },
           ],
           responses: {
             "200": { description: "Array of notes and folders" },
@@ -1020,12 +1107,18 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
                 schema: {
                   type: "object",
                   properties: {
+                    id: {
+                      type: "string",
+                      format: "uuid",
+                      description: "Optional caller-supplied note ID.",
+                    },
                     title: { type: "string", maxLength: 500 },
                     content: { type: "string" },
                     isFolder: { type: "boolean" },
                     is_folder: { type: "boolean" },
                     pid: {
-                      type: "string",
+                      type: ["string", "null"],
+                      format: "uuid",
                       description: "Optional parent folder note ID.",
                     },
                   },
@@ -1064,39 +1157,8 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
             "404": { description: "Note not found" },
           },
         },
-        patch: {
-          summary: "Update one note",
-          description:
-            "Requires a signed-in session. Updating content can refresh the note's search index.",
-          parameters: [
-            {
-              name: "id",
-              in: "path",
-              required: true,
-              schema: { type: "string", format: "uuid" },
-            },
-          ],
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string", maxLength: 500 },
-                    content: { type: "string" },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            "200": { description: "Updated note object" },
-            "400": { description: "Validation failed" },
-            "401": { description: "Unauthorized" },
-            "404": { description: "Note not found" },
-          },
-        },
+        put: noteUpdateOperation(),
+        patch: noteUpdateOperation(),
         delete: {
           summary: "Soft-delete one note",
           description:
@@ -1139,7 +1201,13 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
               name: "course",
               in: "query",
               required: false,
-              schema: { type: "string" },
+              schema: {
+                type: "string",
+                pattern: "^(?:0|[1-9][0-9]{0,18})$",
+                maxLength: 19,
+              },
+              description:
+                "Canvas course ID as a signed-64-bit-compatible decimal string.",
             },
             {
               name: "exclude",
@@ -1151,7 +1219,7 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
           ],
           responses: {
             "200": { description: "Search results" },
-            "400": { description: "Invalid mode" },
+            "400": { description: "Invalid mode or Canvas course ID" },
             "401": { description: "Unauthorized" },
           },
         },
@@ -1327,13 +1395,29 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
                 schema: {
                   type: "object",
                   required: ["title"],
+                  additionalProperties: false,
                   properties: {
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    course_name: { type: "string" },
-                    course_color: { type: "string" },
-                    due_at: { type: "string", format: "date-time" },
-                    estimated_hours: { type: "number" },
+                    title: { type: "string", minLength: 1, maxLength: 500 },
+                    description: {
+                      type: ["string", "null"],
+                      maxLength: 10000,
+                    },
+                    course_name: {
+                      type: ["string", "null"],
+                      maxLength: 500,
+                    },
+                    course_color: {
+                      type: ["string", "null"],
+                      maxLength: 500,
+                    },
+                    due_at: {
+                      type: ["string", "null"],
+                      format: "date-time",
+                    },
+                    estimated_hours: {
+                      type: ["number", "null"],
+                      minimum: 0,
+                    },
                   },
                 },
               },
@@ -1341,7 +1425,7 @@ export function buildAgentOpenApiJson(baseUrl = getBaseUrl()) {
           },
           responses: {
             "201": { description: "Created assignment" },
-            "400": { description: "Title is required" },
+            "400": { description: "Validation failed" },
             "401": { description: "Unauthorized" },
           },
         },
