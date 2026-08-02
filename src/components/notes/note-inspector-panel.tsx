@@ -19,6 +19,7 @@ import {
 } from "@/lib/chat/sidebar-session";
 import { buildChatSessionHref, buildNewChatHref } from "@/lib/chat/routes";
 import { removeMarkdown } from "@/lib/notes/utils/markdown";
+import { toast } from "sonner";
 
 const ChatInterface = dynamic(
   () => import("@/components/chat/chat-interface"),
@@ -255,37 +256,45 @@ export default function NoteInspectorPanel({
       const updatedContent = note?.content
         ? `${note.content.trimEnd()}\n${tagLine}\n`
         : `${tagLine}\n`;
-      await fetch(`/api/notes/${activeFile.fileId}`, {
+      const response = await fetch(`/api/notes/${activeFile.fileId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: updatedContent }),
       });
+      if (!response.ok) throw new Error("Failed to save tag");
       setNote((prev) =>
         prev ? { ...prev, content: updatedContent } : prev,
       );
       setNewTag("");
+    } catch {
+      toast.error(t("Failed to save note"));
     } finally {
       setIsSavingTag(false);
     }
-  }, [newTag, activeFile?.fileId, note?.content]);
+  }, [newTag, activeFile?.fileId, note?.content, t]);
 
   const removeTag = useCallback(
     async (tagToRemove: string) => {
       if (!activeFile?.fileId || !note?.content) return;
-      const updatedContent = note.content
-        .split("\n")
-        .filter((line) => line.trim() !== `#${tagToRemove}`)
-        .join("\n");
-      await fetch(`/api/notes/${activeFile.fileId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: updatedContent }),
-      });
-      setNote((prev) =>
-        prev ? { ...prev, content: updatedContent } : prev,
-      );
+      try {
+        const updatedContent = note.content
+          .split("\n")
+          .filter((line) => line.trim() !== `#${tagToRemove}`)
+          .join("\n");
+        const response = await fetch(`/api/notes/${activeFile.fileId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: updatedContent }),
+        });
+        if (!response.ok) throw new Error("Failed to save tag");
+        setNote((prev) =>
+          prev ? { ...prev, content: updatedContent } : prev,
+        );
+      } catch {
+        toast.error(t("Failed to save note"));
+      }
     },
-    [activeFile?.fileId, note?.content],
+    [activeFile?.fileId, note?.content, t],
   );
 
   const tabClasses = (tab: Exclude<RightPanelTab, "tasks">) => `
