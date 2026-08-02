@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -120,7 +121,7 @@ export const calendarTools: ToolDef[] = [
         name: "canvas_update_calendar_event",
         description: "Update a calendar event. Requires educator permissions.",
         inputSchema: z.object({
-            event_id: z.number().int().positive(),
+            event_id: canvasIdSchema,
             title: z.string().optional(),
             start_at: z.string().optional(),
             end_at: z.string().optional(),
@@ -142,7 +143,7 @@ export const calendarTools: ToolDef[] = [
         name: "canvas_delete_calendar_event",
         description: "Delete a calendar event. Requires educator permissions.",
         inputSchema: z.object({
-            event_id: z.number().int().positive(),
+            event_id: canvasIdSchema,
             cancel_reason: z.string().optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -157,7 +158,7 @@ export const calendarTools: ToolDef[] = [
             title: z.string(),
             details: z.string().optional(),
             todo_date: z.string().optional(),
-            course_id: z.number().int().positive().optional(),
+            course_id: canvasIdSchema.optional(),
         }),
         handler: async (args: any, { canvas }) => {
             const note = await canvas.post("/api/v1/planner_notes", {
@@ -173,7 +174,7 @@ export const calendarTools: ToolDef[] = [
         name: "canvas_update_planner_note",
         description: "Update a planner note. Requires educator permissions.",
         inputSchema: z.object({
-            note_id: z.number().int().positive(),
+            note_id: canvasIdSchema,
             title: z.string().optional(),
             details: z.string().optional(),
             todo_date: z.string().optional(),
@@ -191,7 +192,7 @@ export const calendarTools: ToolDef[] = [
         name: "canvas_delete_planner_note",
         description: "Delete a planner note. Requires educator permissions.",
         inputSchema: z.object({
-            note_id: z.number().int().positive(),
+            note_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/planner_notes/${args.note_id}`);
@@ -202,7 +203,7 @@ export const calendarTools: ToolDef[] = [
         name: "canvas_mark_planner_item_complete",
         description: "Mark a planner override item as complete. Requires educator permissions.",
         inputSchema: z.object({
-            override_id: z.number().int().positive(),
+            override_id: canvasIdSchema,
             marked_complete: z.boolean(),
         }),
         handler: async (args: any, { canvas }) => {

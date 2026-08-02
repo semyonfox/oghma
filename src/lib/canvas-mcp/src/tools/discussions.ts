@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -8,7 +9,7 @@ export const discussionTools: ToolDef[] = [
         description:
             "List discussion topics for a course. Excludes announcements by default. Optionally filter by search_term or include extra fields.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             only_announcements: z.boolean().optional(),
             search_term: z.string().optional(),
             include: z.array(z.string()).optional(),
@@ -32,8 +33,8 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_get_discussion_topic",
         description: "Get full details for a single discussion topic by ID within a course.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -51,8 +52,8 @@ export const discussionTools: ToolDef[] = [
         description:
             "Get the full threaded view of a discussion topic including all replies and participants.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const view = await canvas.get(
@@ -66,8 +67,8 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_list_discussion_entries",
         description: "List top-level entries (posts) for a discussion topic. Paginated.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const entries = await canvas.collectPaginated(
@@ -81,9 +82,9 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_get_discussion_entry",
         description: "Get a single discussion entry by ID within a topic.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
-            entry_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
+            entry_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const entry = await canvas.get(
@@ -102,7 +103,7 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_create_discussion_topic",
         description: "Create a new discussion topic in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             title: z.string(),
             message: z.string(),
             discussion_type: z.enum(["side_comment", "threaded"]).optional(),
@@ -123,8 +124,8 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_post_discussion_entry",
         description: "Post a top-level reply to a discussion topic. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
             message: z.string(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -139,9 +140,9 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_reply_to_discussion_entry",
         description: "Reply to an existing discussion entry. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
-            entry_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
+            entry_id: canvasIdSchema,
             message: z.string(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -156,8 +157,8 @@ export const discussionTools: ToolDef[] = [
         name: "canvas_delete_discussion_topic",
         description: "Delete a discussion topic from a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            topic_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            topic_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(

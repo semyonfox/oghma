@@ -19,7 +19,7 @@ describe("GET /api/quiz/dashboard/courses", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(validateSession).mockResolvedValue({ user_id: "user-123" } as never);
-    vi.mocked(sql).mockResolvedValue([] as never);
+    vi.mocked(sql).mockReset().mockResolvedValue([] as never);
   });
 
   it("filters archived courses by default", async () => {
@@ -42,5 +42,27 @@ describe("GET /api/quiz/dashboard/courses", () => {
     expect(response.status).toBe(200);
     const query = vi.mocked(sql).mock.calls[0]?.[0]?.join("");
     expect(query).not.toContain("ucs.is_active IS NULL OR ucs.is_active = true");
+  });
+
+  it("serializes bigint course IDs as exact decimal strings", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          canvas_course_id: "9007199254740993",
+          course_name: "Big ID course",
+          total_cards: 1,
+          due_count: 1,
+          mastered_count: 0,
+          is_active: true,
+        },
+      ] as never);
+
+    const response = await getDashboardCourses(
+      new NextRequest("http://localhost/api/quiz/dashboard/courses"),
+    );
+    expect((await response.json()).courses[0].courseId).toBe(
+      "9007199254740993",
+    );
   });
 });

@@ -5,6 +5,7 @@ import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { searchChunkVectors } from "@/lib/qdrant";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
 
 interface ResultItem {
   note_id: string;
@@ -32,7 +33,7 @@ async function keywordSearch(
         WHERE user_id = ${userId}::uuid
           AND deleted_at IS NULL
           AND (title ILIKE ${pattern} OR content ILIKE ${pattern})
-          ${course ? sql`AND canvas_course_id = ${course}` : sql``}
+          ${course ? sql`AND canvas_course_id = ${course}::bigint` : sql``}
         ORDER BY
             CASE WHEN title ILIKE ${pattern} THEN 0 ELSE 1 END,
             updated_at DESC
@@ -72,7 +73,7 @@ async function semanticSearch(
     WHERE c.user_id = ${userId}::uuid
       AND c.id = ANY(${chunkIds}::uuid[])
       AND n.deleted_at IS NULL
-      ${course ? sql`AND n.canvas_course_id = ${course}` : sql``}
+      ${course ? sql`AND n.canvas_course_id = ${course}::bigint` : sql``}
   `;
   const byChunkId = new Map<string, any>(
     rows.map((row: any) => [row.chunk_id, row]),
@@ -101,10 +102,19 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim();
   const mode = url.searchParams.get("mode") || "keyword";
-  const course = url.searchParams.get("course") || undefined;
+  const rawCourse = url.searchParams.get("course") || undefined;
 
   if (!query || query.length < 2) {
     return NextResponse.json({ results: [] });
+  }
+
+  let course: string | undefined;
+  if (rawCourse) {
+    try {
+      course = canvasIdForBigintColumn(rawCourse, "Canvas course ID");
+    } catch {
+      return tracedError("Invalid course ID", 400);
+    }
   }
 
   const userId = user.user_id;

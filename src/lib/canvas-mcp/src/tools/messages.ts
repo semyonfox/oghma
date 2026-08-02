@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -26,7 +27,7 @@ export const messageTools: ToolDef[] = [
         name: "canvas_get_conversation",
         description: "Get full details for a single conversation by ID.",
         inputSchema: z.object({
-            conversation_id: z.number().int().positive(),
+            conversation_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -50,7 +51,7 @@ export const messageTools: ToolDef[] = [
         description:
             "Mark a conversation as read (or set another workflow_state). Safe self-state toggle only.",
         inputSchema: z.object({
-            conversation_id: z.number().int().positive(),
+            conversation_id: canvasIdSchema,
             workflow_state: z.enum(["read", "unread", "archived"]).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -89,7 +90,7 @@ export const messageTools: ToolDef[] = [
         name: "canvas_reply_to_conversation",
         description: "Add a reply message to an existing conversation. Requires educator permissions.",
         inputSchema: z.object({
-            conversation_id: z.number().int().positive(),
+            conversation_id: canvasIdSchema,
             body: z.string(),
             recipients: z.array(z.string()).optional(),
         }),
@@ -129,7 +130,7 @@ export const messageTools: ToolDef[] = [
         name: "canvas_delete_conversation",
         description: "Delete a conversation by ID. Requires educator permissions.",
         inputSchema: z.object({
-            conversation_id: z.number().int().positive(),
+            conversation_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(`/api/v1/conversations/${args.conversation_id}`);

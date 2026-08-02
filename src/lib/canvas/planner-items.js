@@ -1,3 +1,5 @@
+import { canvasIdForBigintColumn } from "./id.js";
+
 const PLANNABLE_TYPES = new Set(["assignment", "quiz", "discussion_topic", "announcement", "calendar_event", "planner_note", "other"]);
 
 const TYPE_ALIASES = new Map([
@@ -9,15 +11,14 @@ const TYPE_ALIASES = new Map([
   ["PlannerNote", "planner_note"], ["planner_note", "planner_note"],
 ]);
 
-function asTextId(value) {
+function asCanvasIdOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
-  return String(value);
+  return canvasIdForBigintColumn(value);
 }
 
-function asNumberOrNull(value) {
+function asCanvasBigintIdOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return canvasIdForBigintColumn(value);
 }
 
 function firstString(...values) {
@@ -80,20 +81,20 @@ export function choosePlannerDates(item, options = {}) {
 export function normalizePlannerItem(item, options = {}) {
   const plannable = item?.plannable ?? {};
   const plannableType = normalizePlannableType(item, options);
-  const plannableId = asTextId(item?.plannable_id ?? plannable?.id ?? item?.id);
+  const plannableId = asCanvasIdOrNull(item?.plannable_id ?? plannable?.id ?? item?.id);
   if (!plannableId) throw new Error("Canvas planner item is missing a stable plannable id");
   const title = firstString(item?.title, item?.name, plannable?.title, plannable?.name) ?? "Untitled Canvas item";
   const dates = choosePlannerDates({ ...item, plannable_type: plannableType }, options);
   return {
     canvas_domain: options.canvasDomain,
-    canvas_user_id: asNumberOrNull(options.canvasUserId ?? item?.user_id),
-    canvas_course_id: asNumberOrNull(item?.course_id ?? item?.canvas_course_id ?? plannable?.course_id),
+    canvas_user_id: asCanvasBigintIdOrNull(options.canvasUserId ?? item?.user_id),
+    canvas_course_id: asCanvasBigintIdOrNull(item?.course_id ?? item?.canvas_course_id ?? plannable?.course_id),
     canvas_context_type: item?.context_type ?? null,
-    canvas_context_id: asNumberOrNull(item?.context_id),
+    canvas_context_id: asCanvasBigintIdOrNull(item?.context_id),
     context_name: item?.context_name ?? null,
     plannable_type: plannableType,
     plannable_id: plannableId,
-    canvas_planner_item_id: asTextId(item?.id ?? item?.planner_item_id),
+    canvas_planner_item_id: asCanvasIdOrNull(item?.id ?? item?.planner_item_id),
     title,
     body: firstString(item?.body, item?.description, plannable?.body, plannable?.message, plannable?.description),
     html_url: firstString(item?.html_url, item?.url, plannable?.html_url, plannable?.url),
@@ -107,6 +108,6 @@ export function normalizePlannerItem(item, options = {}) {
 
 export function buildAssignmentDedupeKey(item) {
   if (item?.plannable_type !== "assignment" && item?.plannable_type !== "quiz") return null;
-  const id = asTextId(item?.plannable_id);
+  const id = asCanvasIdOrNull(item?.plannable_id);
   return id ? `assignment:${id}` : null;
 }

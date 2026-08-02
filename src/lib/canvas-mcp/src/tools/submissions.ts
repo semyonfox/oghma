@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema, canvasUserIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult, textResult } from "./types.ts";
 
@@ -8,8 +9,8 @@ export const submissionTools: ToolDef[] = [
         description:
             "Get the authenticated student's own submission for a specific assignment. Supports include[] for submission_comments, rubric_assessment, and submission_history.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -27,8 +28,8 @@ export const submissionTools: ToolDef[] = [
         description:
             "List the authenticated student's submissions for a course. Defaults to student_ids=[self]. Optionally filter by workflow_state (submitted, graded, pending_review) or include[] fields.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            student_ids: z.array(z.string()).optional(),
+            course_id: canvasIdSchema,
+            student_ids: z.array(canvasUserIdSchema).optional(),
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),
@@ -50,9 +51,9 @@ export const submissionTools: ToolDef[] = [
         description:
             "Get submission comments for a specific assignment submission. Defaults to the authenticated student's own submission (user_id=self). Wraps include[]=submission_comments.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
-            user_id: z.string().optional(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
+            user_id: canvasUserIdSchema.optional(),
         }),
         handler: async (args: any, { canvas }) => {
             const userId = args.user_id ?? "self";
@@ -84,8 +85,8 @@ export const submissionTools: ToolDef[] = [
         description:
             "List peer reviews assigned for a specific assignment. Supports include[] for submission_comments and user details.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -119,8 +120,8 @@ export const submissionTools: ToolDef[] = [
             "online_upload and media_recording require multi-step flows (see stub message returned by those types). " +
             "Requires appropriate permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             submission_type: z.enum(["online_text_entry", "online_url", "online_upload", "media_recording"]),
             body: z.string().optional(),
             url: z.string().optional(),
@@ -167,9 +168,9 @@ export const submissionTools: ToolDef[] = [
         name: "canvas_grade_submission",
         description: "Grade a student's submission for an assignment. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
-            user_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
+            user_id: canvasIdSchema,
             posted_grade: z.string().optional(),
             excuse: z.boolean().optional(),
         }),
@@ -190,8 +191,8 @@ export const submissionTools: ToolDef[] = [
         name: "canvas_bulk_grade_submissions",
         description: "Bulk update grades for multiple submissions on an assignment. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             grade_data: z.record(z.string(), z.object({ posted_grade: z.string() })),
         }),
         handler: async (args: any, { canvas }) => {
@@ -206,9 +207,9 @@ export const submissionTools: ToolDef[] = [
         name: "canvas_post_submission_comment",
         description: "Post a comment on a student's submission for an assignment. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
-            user_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
+            user_id: canvasIdSchema,
             comment: z.string(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -225,8 +226,8 @@ export const submissionTools: ToolDef[] = [
         name: "canvas_list_section_submissions",
         description: "List all submissions for a section across assignments. Requires educator permissions.",
         inputSchema: z.object({
-            section_id: z.number().int().positive(),
-            assignment_ids: z.array(z.number().int().positive()).optional(),
+            section_id: canvasIdSchema,
+            assignment_ids: z.array(canvasIdSchema).optional(),
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),

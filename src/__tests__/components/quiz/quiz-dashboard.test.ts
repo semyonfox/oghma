@@ -126,7 +126,7 @@ const initialDashboard = {
 
 const initialCourses = [
   {
-    courseId: 42,
+    courseId: "42",
     courseName: "Course A",
     totalCards: 3,
     dueCount: 1,
@@ -172,25 +172,25 @@ describe("QuizDashboard archive refresh", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(okJson({ dueCount: 1, totalCards: 2, mastery: 50, reviewedToday: 1, weekAccuracy: 50, currentStreak: 3, longestStreak: 4, hasContent: true }))
-      .mockResolvedValueOnce(okJson({ courses: [{ courseId: 42, courseName: "Course A", totalCards: 3, dueCount: 1, mastery: 33, isActive: false }] }));
+      .mockResolvedValueOnce(okJson({ courses: [{ courseId: "42", courseName: "Course A", totalCards: 3, dueCount: 1, mastery: 33, isActive: false }] }));
     vi.stubGlobal("fetch", fetchMock);
 
     await renderDashboard();
 
     await act(async () => {
       await mocks.lastManagerProps.onToggleCourse(
-        { courseId: 42, courseName: "Course A", isActive: true },
+        { courseId: "42", courseName: "Course A", isActive: true },
         false,
       );
     });
 
-    expect(mocks.archiveCourse).toHaveBeenCalledWith(42, "Course A");
+    expect(mocks.archiveCourse).toHaveBeenCalledWith("42", "Course A");
     expect(mocks.fetchSettings).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses");
     expect(mocks.setCourses).toHaveBeenLastCalledWith([
       {
-        courseId: 42,
+        courseId: "42",
         courseName: "Course A",
         totalCards: 3,
         dueCount: 1,

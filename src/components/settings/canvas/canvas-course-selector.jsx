@@ -61,7 +61,7 @@ export default function CanvasCourseSelector({
                 >
                   <input
                     type="checkbox"
-                    checked={selectedCourseIds.includes(course.id)}
+                    checked={selectedCourseIds.includes(String(course.id))}
                     onChange={() => onToggleCourse(course.id)}
                     className="mt-0.5 shrink-0"
                   />

@@ -48,7 +48,7 @@ export const GET = withErrorHandler(async (request) => {
     `;
 
     const result = courses.map((c: any) => ({
-        courseId: c.canvas_course_id,
+        courseId: String(c.canvas_course_id),
         courseName: c.course_name,
         totalCards: c.total_cards,
         dueCount: c.due_count,

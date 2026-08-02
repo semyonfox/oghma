@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  parseJsonObject,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
 
 export const PATCH = withErrorHandler(
   async (
@@ -13,11 +18,18 @@ export const PATCH = withErrorHandler(
 
     const userId = user.user_id;
     const { courseId: courseIdStr } = await params;
-    const courseId = parseInt(courseIdStr, 10);
-    if (isNaN(courseId)) return tracedError("Invalid course ID", 400);
+    let courseId: string;
+    try {
+      courseId = canvasIdForBigintColumn(courseIdStr, "Canvas course ID");
+    } catch {
+      return tracedError("Invalid course ID", 400);
+    }
 
-    const body = await request.json();
+    const body = await parseJsonObject(request);
     const { isActive } = body;
+    if (typeof isActive !== "boolean") {
+      return tracedError("isActive must be a boolean", 400);
+    }
 
     const setting = await sql`
       UPDATE app.user_course_settings
@@ -28,10 +40,10 @@ export const PATCH = withErrorHandler(
           ELSE NULL 
         END,
         updated_at = NOW()
-      WHERE user_id = ${userId}::uuid AND canvas_course_id = ${courseId}
+      WHERE user_id = ${userId}::uuid AND canvas_course_id = ${courseId}::bigint
       RETURNING 
         id,
-        canvas_course_id as "canvasCourseId",
+        canvas_course_id::text as "canvasCourseId",
         course_name as "courseName",
         is_active as "isActive",
         auto_archived as "autoArchived",
@@ -56,12 +68,16 @@ export const DELETE = withErrorHandler(
 
     const userId = user.user_id;
     const { courseId: courseIdStr } = await params;
-    const courseId = parseInt(courseIdStr, 10);
-    if (isNaN(courseId)) return tracedError("Invalid course ID", 400);
+    let courseId: string;
+    try {
+      courseId = canvasIdForBigintColumn(courseIdStr, "Canvas course ID");
+    } catch {
+      return tracedError("Invalid course ID", 400);
+    }
 
     await sql`
       DELETE FROM app.user_course_settings
-      WHERE user_id = ${userId}::uuid AND canvas_course_id = ${courseId}
+      WHERE user_id = ${userId}::uuid AND canvas_course_id = ${courseId}::bigint
     `;
 
     return NextResponse.json({ success: true });

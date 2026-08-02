@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -24,7 +25,7 @@ export const courseTools: ToolDef[] = [
         name: "canvas_get_course",
         description: "Get full details for a single course by ID.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -38,7 +39,7 @@ export const courseTools: ToolDef[] = [
         name: "canvas_list_sections",
         description: "List sections for a course.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const sections = await canvas.collectPaginated(`/api/v1/courses/${args.course_id}/sections`, {
@@ -56,7 +57,7 @@ export const courseTools: ToolDef[] = [
         name: "canvas_create_course",
         description: "Create a new course in an account. Requires admin permissions.",
         inputSchema: z.object({
-            account_id: z.number().int().positive(),
+            account_id: canvasIdSchema,
             name: z.string(),
             course_code: z.string().optional(),
         }),

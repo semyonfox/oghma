@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import sql from "@/database/pgsql.js";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
 
 /**
  * POST /api/canvas/sync
@@ -50,20 +51,11 @@ export const POST = withErrorHandler(async () => {
   const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: allCourses } = await client.getCourses();
 
-  const courses = (allCourses ?? [])
-    .filter((c) => prevCourseIds.has(String(c.id)))
-    .map((c) => ({
-      id: c.id,
-      name: c.name ?? String(c.id),
-      course_code: c.course_code ?? "",
-      term: c.term ?? null,
-    }));
-
-  // Fall back to bare ID objects for any course no longer visible in Canvas
-  for (const id of prevCourseIds) {
-    if (!courses.some((c) => String(c.id) === id)) {
-      courses.push({ id: Number(id), name: String(id), course_code: "" });
-    }
+  let courses;
+  try {
+    courses = buildCanvasSyncCourses(prevCourseIds, allCourses);
+  } catch {
+    throw new ApiError(502, "Canvas returned invalid course metadata");
   }
 
   if (courses.length === 0) {

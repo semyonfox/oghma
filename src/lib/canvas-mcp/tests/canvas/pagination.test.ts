@@ -24,6 +24,11 @@ describe("CanvasClient.getPaginated", () => {
     }
     expect(out).toEqual([1, 2, 3, 4, 5]);
     expect(fetch).toHaveBeenCalledTimes(3);
+    for (const [, init] of fetch.mock.calls) {
+      expect((init.headers as Headers).get("accept")).toBe(
+        "application/json+canvas-string-ids",
+      );
+    }
   });
 
   it("collectPaginated returns flat array", async () => {

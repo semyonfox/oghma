@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -8,7 +9,7 @@ export const assignmentTools: ToolDef[] = [
         description:
             "List assignments for a course, with optional bucket filter (upcoming, overdue, past, etc.) and search.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             bucket: z
                 .enum(["past", "overdue", "undated", "ungraded", "unsubmitted", "upcoming", "future"])
                 .optional(),
@@ -32,8 +33,8 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_get_assignment",
         description: "Get full details for a single assignment by course and assignment ID.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -50,7 +51,7 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_list_assignment_groups",
         description: "List assignment groups for a course, optionally including assignments and submissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -69,7 +70,7 @@ export const assignmentTools: ToolDef[] = [
         description:
             "List missing submissions for the authenticated student, with optional course and filter constraints.",
         inputSchema: z.object({
-            course_ids: z.array(z.string()).optional(),
+            course_ids: z.array(canvasIdSchema).optional(),
             include: z.array(z.string()).optional(),
             filter: z.array(z.string()).optional(),
         }),
@@ -92,7 +93,7 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_create_assignment",
         description: "Create a new assignment in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             name: z.string(),
             submission_types: z.array(z.string()).optional(),
             due_at: z.string().optional(),
@@ -117,8 +118,8 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_update_assignment",
         description: "Update an existing assignment in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
             name: z.string().optional(),
             due_at: z.string().optional(),
             points_possible: z.number().optional(),
@@ -141,8 +142,8 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_delete_assignment",
         description: "Delete an assignment from a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -155,7 +156,7 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_create_assignment_group",
         description: "Create an assignment group in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             name: z.string(),
             group_weight: z.number().optional(),
         }),
@@ -174,9 +175,9 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_bulk_update_assignment_dates",
         description: "Bulk update due dates for multiple assignments in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             assignment_dates: z.array(z.object({
-                id: z.number().int().positive(),
+                id: canvasIdSchema,
                 due_at: z.string().optional(),
                 lock_at: z.string().optional(),
                 unlock_at: z.string().optional(),
@@ -194,10 +195,10 @@ export const assignmentTools: ToolDef[] = [
         name: "canvas_assign_peer_review",
         description: "Assign a peer review for an assignment to a specific reviewer. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            assignment_id: z.number().int().positive(),
-            reviewer_id: z.number().int().positive(),
-            reviewee_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            assignment_id: canvasIdSchema,
+            reviewer_id: canvasIdSchema,
+            reviewee_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const review = await canvas.post(

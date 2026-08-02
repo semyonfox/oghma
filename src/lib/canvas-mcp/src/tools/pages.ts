@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -8,7 +9,7 @@ export const pageTools: ToolDef[] = [
         description:
             "List pages for a course. Optionally sort by title/created_at/updated_at, filter by search_term, or filter by published state.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             sort: z.enum(["title", "created_at", "updated_at"]).optional(),
             search_term: z.string().optional(),
             published: z.boolean().optional(),
@@ -31,7 +32,7 @@ export const pageTools: ToolDef[] = [
         description:
             "Get a single page by its URL slug. Returns the full page including HTML body content.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
         handler: async (args: any, { canvas }) => {
@@ -46,7 +47,7 @@ export const pageTools: ToolDef[] = [
         name: "canvas_get_front_page",
         description: "Get the front page for a course.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const page = await canvas.get(
@@ -60,7 +61,7 @@ export const pageTools: ToolDef[] = [
         name: "canvas_list_page_revisions",
         description: "List revision history for a page identified by its URL slug.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
         handler: async (args: any, { canvas }) => {
@@ -76,9 +77,9 @@ export const pageTools: ToolDef[] = [
         description:
             "Get a specific revision of a page by revision ID. Pass summary=true to get a lightweight response without body HTML.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
-            revision_id: z.number().int().positive(),
+            revision_id: canvasIdSchema,
             summary: z.boolean().optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -101,7 +102,7 @@ export const pageTools: ToolDef[] = [
         name: "canvas_create_page",
         description: "Create a new page in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             title: z.string(),
             body: z.string().optional(),
             published: z.boolean().optional(),
@@ -126,7 +127,7 @@ export const pageTools: ToolDef[] = [
         name: "canvas_update_page",
         description: "Update an existing page. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
             title: z.string().optional(),
             body: z.string().optional(),
@@ -152,7 +153,7 @@ export const pageTools: ToolDef[] = [
         name: "canvas_delete_page",
         description: "Delete a page from a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
         handler: async (args: any, { canvas }) => {
@@ -166,9 +167,9 @@ export const pageTools: ToolDef[] = [
         name: "canvas_revert_page_revision",
         description: "Revert a page to a specific revision. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             page_url: z.string().min(1),
-            revision_id: z.number().int().positive(),
+            revision_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const revision = await canvas.post(

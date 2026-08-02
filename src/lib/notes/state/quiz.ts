@@ -14,7 +14,7 @@ interface QuizState {
     hasContent: boolean;
   } | null;
   courses: {
-    courseId: number;
+    courseId: string;
     courseName: string;
     totalCards: number;
     dueCount: number;

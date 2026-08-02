@@ -75,10 +75,49 @@ describe("GET /api/canvas/status", () => {
       pendingMarker: 2,
       percent: 80,
     });
+    expect(body.markerColdStarting).toBe(false);
+    expect(body.estimatedSecsRemaining).toBeGreaterThan(0);
     expect(body.recentLogs[0]).toMatchObject({
       filename: "lecture.pdf",
       status: "pending_marker",
+      courseId: "42",
       noteId: "note-123",
     });
+  });
+
+  it("does not estimate completion before any file has settled", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: "job-123",
+          status: "processing",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: null,
+          expected_total: 5,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 1,
+          indexed: 0,
+          indexing: 1,
+          downloading: 0,
+          processing: 0,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/status"),
+    );
+    const body = await response.json();
+
+    expect(body.progress.completed).toBe(1);
+    expect(body.estimatedSecsRemaining).toBeNull();
   });
 });

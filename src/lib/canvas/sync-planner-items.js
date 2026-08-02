@@ -71,7 +71,7 @@ async function tombstoneMissingRows({ userId, canvasDomain, startDate, endDate, 
  * @param {object} params
  * @param {string} params.userId
  * @param {string} params.canvasDomain
- * @param {number|null} [params.canvasUserId]
+ * @param {string|number|null} [params.canvasUserId]
  * @param {{ getPlannerItems(startDate: string, endDate: string): Promise<{ data?: any[], forbidden?: boolean, error?: string }> }} params.client
  * @param {string} [params.startDate]
  * @param {string} [params.endDate]

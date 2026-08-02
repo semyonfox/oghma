@@ -11,6 +11,7 @@
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
+import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
@@ -185,20 +186,7 @@ async function queueCanvasSync(userId) {
   const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: allCourses } = await client.getCourses();
 
-  const courses = (allCourses ?? [])
-    .filter((c) => prevCourseIds.has(String(c.id)))
-    .map((c) => ({
-      id: c.id,
-      name: c.name ?? String(c.id),
-      course_code: c.course_code ?? "",
-    }));
-
-  // include courses no longer visible in Canvas (bare ID fallback)
-  for (const id of prevCourseIds) {
-    if (!courses.some((c) => String(c.id) === id)) {
-      courses.push({ id: Number(id), name: String(id), course_code: "" });
-    }
-  }
+  const courses = buildCanvasSyncCourses(prevCourseIds, allCourses);
 
   if (courses.length === 0) return;
 

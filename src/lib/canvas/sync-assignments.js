@@ -11,6 +11,7 @@
  */
 
 import sql from "../../database/pgsql.js";
+import { canvasIdForBigintColumn } from "./id.js";
 
 // deterministic color palette for course badges
 const COURSE_COLORS = [
@@ -120,7 +121,7 @@ export async function syncAssignmentMetadata(
           due_at, status, source, assignment_type,
           submitted_at, score, points_possible
         ) VALUES (
-          ${userId}::uuid, ${Number(courseId)}, ${a.id},
+          ${userId}::uuid, ${canvasIdForBigintColumn(courseId, "Canvas course ID")}::bigint, ${canvasIdForBigintColumn(a.id, "Canvas assignment ID")}::bigint,
           ${a.name}, ${a.description ?? null}, ${courseTitle}, ${courseColor},
           ${a.due_at ?? null}, ${status}, 'canvas', ${assignmentType},
           ${submission?.submitted_at ?? null},

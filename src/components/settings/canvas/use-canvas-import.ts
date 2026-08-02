@@ -11,8 +11,13 @@ import useNoteStore from "@/lib/notes/state/note";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 
 interface UseCanvasImportParams {
-  selectedCourseIds: number[];
-  courses: { id: number; name: string; course_code: string; term?: string }[];
+  selectedCourseIds: string[];
+  courses: {
+    id: string;
+    name: string;
+    course_code: string;
+    term?: string | { id?: string; name?: string } | null;
+  }[];
   courseErrors: Record<string, string>;
   setCourseErrors: (v: Record<string, string>) => void;
   forbiddenCourses: Record<string, boolean>;
@@ -53,6 +58,7 @@ export default function useCanvasImport({
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [markerColdStarting, setMarkerColdStarting] = useState(false);
+  const [estimatedSecsRemaining, setEstimatedSecsRemaining] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -73,6 +79,7 @@ export default function useCanvasImport({
         setIsDiscovering(data.activeJob?.phase === "discovering");
         setProgress(data.progress);
         setMarkerColdStarting(Boolean(data.markerColdStarting));
+        setEstimatedSecsRemaining(data.estimatedSecsRemaining ?? null);
         const logs = data.recentLogs ?? [];
         setRecentLogs(logs);
 
@@ -98,6 +105,7 @@ export default function useCanvasImport({
           setIsImporting(false);
           setIsDiscovering(false);
           setMarkerColdStarting(false);
+          setEstimatedSecsRemaining(null);
           localStorage.removeItem(LS_ACTIVE_JOB);
           if (data.progress) {
             setImportSummary({
@@ -167,9 +175,9 @@ export default function useCanvasImport({
     try {
       // send full course objects so the worker can use name/course_code/term for folder titles
       const selectedCourses = courses
-        .filter((c) => selectedCourseIds.includes(c.id))
+        .filter((c) => selectedCourseIds.includes(String(c.id)))
         .map((c) => ({
-          id: c.id,
+          id: String(c.id),
           name: c.name,
           course_code: c.course_code,
           term: c.term ?? null,
@@ -304,6 +312,8 @@ export default function useCanvasImport({
     isSyncing,
     markerColdStarting,
     setMarkerColdStarting,
+    estimatedSecsRemaining,
+    setEstimatedSecsRemaining,
     handleImport,
     handleSync,
     handleCancel,

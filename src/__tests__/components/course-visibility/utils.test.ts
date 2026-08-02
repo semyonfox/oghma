@@ -9,7 +9,7 @@ import type { CourseSetting } from "@/lib/notes/state/courses.zustand";
 const settings: CourseSetting[] = [
   {
     id: "setting-1",
-    canvasCourseId: 7,
+    canvasCourseId: "7",
     courseName: "Archived Algebra",
     isActive: false,
     autoArchived: false,
@@ -21,14 +21,14 @@ describe("course visibility helpers", () => {
   it("merges source courses with stored settings using settings as the visibility source of truth", () => {
     const sources: CourseVisibilityItemSource[] = [
       {
-        courseId: 5,
+        courseId: "5",
         courseName: "Biology",
         isActive: true,
         contextText: "2 due · 9 cards",
         hasDueItems: true,
       },
       {
-        courseId: 7,
+        courseId: "7",
         courseName: "Archived Algebra",
         isActive: true,
         contextText: "0 due · 14 cards",
@@ -38,14 +38,14 @@ describe("course visibility helpers", () => {
 
     expect(mergeCourseVisibilityItems(sources, settings)).toEqual([
       {
-        courseId: 7,
+        courseId: "7",
         courseName: "Archived Algebra",
         isActive: false,
         contextText: "0 due · 14 cards",
         hasDueItems: false,
       },
       {
-        courseId: 5,
+        courseId: "5",
         courseName: "Biology",
         isActive: true,
         contextText: "2 due · 9 cards",
@@ -57,9 +57,9 @@ describe("course visibility helpers", () => {
   it("groups active and archived courses alphabetically after filtering", () => {
     const grouped = groupCourseVisibilityItems(
       [
-        { courseId: 3, courseName: "Zoology", isActive: true },
-        { courseId: 1, courseName: "Calculus", isActive: false },
-        { courseId: 2, courseName: "Algorithms", isActive: true },
+        { courseId: "3", courseName: "Zoology", isActive: true },
+        { courseId: "1", courseName: "Calculus", isActive: false },
+        { courseId: "2", courseName: "Algorithms", isActive: true },
       ],
       "l",
     );

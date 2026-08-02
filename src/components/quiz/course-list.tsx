@@ -3,7 +3,7 @@
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 interface Course {
-  courseId: number;
+  courseId: string;
   courseName: string;
   totalCards: number;
   dueCount: number;
@@ -13,7 +13,7 @@ interface Course {
 
 interface CourseListProps {
   courses: Course[];
-  onSelectCourse: (courseId: number) => void;
+  onSelectCourse: (courseId: string | null) => void;
   allNotesStats?: {
     totalCards: number;
     dueCount: number;
@@ -21,7 +21,7 @@ interface CourseListProps {
   } | null;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  loadingCourseId?: number | string | null;
+  loadingCourseId?: string | null;
   showArchived: boolean;
   onToggleArchived: () => void;
   onOpenManager: () => void;
@@ -185,7 +185,7 @@ export default function CourseList({
             mastery={allNotesStats.mastery}
             isLoading={loadingCourseId === "all"}
             disabled={anyLoading}
-            onClick={() => onSelectCourse(0)}
+            onClick={() => onSelectCourse(null)}
           />
         )}
 
