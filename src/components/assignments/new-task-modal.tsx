@@ -53,7 +53,7 @@ export default function NewTaskModal({
       const created = await createAssignment({
         title: title.trim(),
         course_name: courseName || null,
-        due_at: dueAt || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
         estimated_hours: estimatedHours ? Number(estimatedHours) : null,
         description: description || null,
       });

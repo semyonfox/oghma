@@ -8,7 +8,7 @@ vi.mock("@/database/pgsql.js", () => {
 });
 vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
-  withErrorHandler: (h: (r: NextRequest, ctx: { params: { jobId: string } }) => Promise<Response>) => h,
+  withErrorHandler: (h: (r: NextRequest, ctx: { params: Promise<{ jobId: string }> }) => Promise<Response>) => h,
   ApiError: class extends Error {
     constructor(public statusCode: number, public userMessage: string, public internalDetails?: string) {
       super(userMessage);
@@ -29,7 +29,7 @@ describe("DELETE /api/vault/jobs/[jobId]/cancel", () => {
   it("sets cancel_requested_at and returns 200", async () => {
     vi.mocked(sql).mockResolvedValueOnce([{ id: "j1" }] as never);
     const req = new NextRequest("http://localhost/api/vault/jobs/j1/cancel", { method: "DELETE" });
-    const res = await DELETE(req, { params: { jobId: "j1" } } as never);
+    const res = await DELETE(req, { params: Promise.resolve({ jobId: "j1" }) } as never);
     expect(res.status).toBe(200);
     expect(vi.mocked(sql)).toHaveBeenCalled();
   });
@@ -38,7 +38,7 @@ describe("DELETE /api/vault/jobs/[jobId]/cancel", () => {
     vi.mocked(sql).mockResolvedValueOnce([] as never);
     const req = new NextRequest("http://localhost/api/vault/jobs/x/cancel", { method: "DELETE" });
     await expect(
-      DELETE(req, { params: { jobId: "x" } } as never)
+      DELETE(req, { params: Promise.resolve({ jobId: "x" }) } as never)
     ).rejects.toThrow(); // ApiError thrown — withErrorHandler converts to 404 response in production
   });
 });

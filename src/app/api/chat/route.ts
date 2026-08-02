@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { Metrics } from "@/lib/metrics";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { withErrorHandler, tracedError, parseJsonObject } from "@/lib/api-error";
+import { chatRequestSchema, validateBody } from "@/lib/validations/schemas";
 import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 import logger from "@/lib/logger";
 import {
@@ -22,7 +23,6 @@ import {
 import {
   markChatGenerationFailed,
   persistMessage,
-  type ChatMessage,
 } from "@/lib/chat/session";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 import { labelForTool } from "@/lib/chat/tool-labels";
@@ -98,7 +98,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const limited = await checkRateLimit("chat", userId);
   if (limited) return limited;
 
-  const body = await request.json();
+  const validation = validateBody(chatRequestSchema, await parseJsonObject(request));
+  if (!validation.success) return validation.response;
+  const body = validation.data;
   const {
     message,
     noteId,
@@ -107,29 +109,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     folderIds = [],
     selectedNotes = [],
     selectedFolders = [],
-    sessionId: requestedSessionId,
+    sessionId,
     history: requestHistory = [],
     stream = false,
     background = false,
     thinkingMode: requestedThinkingMode,
     useRag = true,
     clientDateTime: rawClientDateTime,
-  }: {
-    message: string;
-    noteId?: string;
-    noteTitle?: string;
-    noteIds?: string[];
-    folderIds?: string[];
-    selectedNotes?: { id: string; title: string }[];
-    selectedFolders?: { id: string; title: string }[];
-    sessionId?: string;
-    history?: ChatMessage[];
-    stream?: boolean;
-    background?: boolean;
-    thinkingMode?: unknown;
-    useRag?: boolean;
-    clientDateTime?: unknown;
   } = body;
+  const requestedSessionId = sessionId ?? undefined;
 
   const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
   const clientDateTime = normalizeClientDateTime(rawClientDateTime);

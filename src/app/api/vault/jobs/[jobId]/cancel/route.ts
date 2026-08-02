@@ -3,9 +3,9 @@ import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import sql from "@/database/pgsql.js";
 
 export const DELETE = withErrorHandler(
-  async (_request, { params }: { params: { jobId: string } }) => {
+  async (_request, { params }: { params: Promise<{ jobId: string }> }) => {
     const user = await requireAuth();
-    const { jobId } = params;
+    const { jobId } = await params;
 
     const [updated] = await sql`
       UPDATE app.canvas_import_jobs

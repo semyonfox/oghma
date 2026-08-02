@@ -1,5 +1,7 @@
 import { z, ZodType } from "zod";
 import { NextResponse } from "next/server";
+import { generateTraceId, getTraceId } from "@/lib/trace";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
 
 // ── shared schemas ──────────────────────────────────────────────────────────
 
@@ -62,18 +64,163 @@ export const agentRegistrationCompleteSchema = z.object({
   user_code: z.string().regex(/^\d{6}$/),
 });
 
-export const quizSessionCreateSchema = z.object({
-  filterType: z.enum([
-    "course",
-    "module",
-    "note",
-    "search",
-    "chat_session",
-    "all",
-  ]),
-  filterValue: z.unknown().optional(),
-  maxQuestions: z.coerce.number().int().min(1).max(100).optional(),
-});
+const quizMaxQuestions = z.coerce.number().int().min(1).max(100).optional();
+const canvasBigintId = z
+  .union([z.string(), z.number()])
+  .transform((value, context) => {
+    try {
+      return canvasIdForBigintColumn(value, "Canvas ID");
+    } catch (error) {
+      context.addIssue({
+        code: "custom",
+        message: error instanceof Error ? error.message : "Invalid Canvas ID",
+      });
+      return z.NEVER;
+    }
+  });
+
+export const quizSessionCreateSchema = z.discriminatedUnion("filterType", [
+  z
+    .object({
+      filterType: z.literal("course"),
+      filterValue: canvasBigintId,
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+  z
+    .object({
+      filterType: z.literal("module"),
+      filterValue: canvasBigintId,
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+  z
+    .object({
+      filterType: z.literal("note"),
+      filterValue: z.array(z.string().uuid()).min(1),
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+  z
+    .object({
+      filterType: z.literal("search"),
+      filterValue: z.string().trim().min(2).max(2000),
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+  z
+    .object({
+      filterType: z.literal("chat_session"),
+      filterValue: z.string().uuid(),
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+  z
+    .object({
+      filterType: z.literal("all"),
+      maxQuestions: quizMaxQuestions,
+    })
+    .strict(),
+]);
+
+const isoDateTime = z.string().datetime({ offset: true });
+
+const nullableText = z.string().max(500).nullable();
+
+export const assignmentCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(500),
+    description: z.string().max(10000).nullable().optional(),
+    course_name: nullableText.optional(),
+    course_color: nullableText.optional(),
+    due_at: isoDateTime.nullable().optional(),
+    estimated_hours: z.number().finite().min(0).nullable().optional(),
+  })
+  .strict();
+
+export const assignmentUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(500).optional(),
+    description: z.string().max(10000).nullable().optional(),
+    status: z.enum(["upcoming", "in_progress", "done", "late"]).optional(),
+    estimated_hours: z.number().finite().min(0).nullable().optional(),
+    course_color: nullableText.optional(),
+    due_at: isoDateTime.nullable().optional(),
+    course_name: nullableText.optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field is required",
+  });
+
+export const timeBlockCreateSchema = z
+  .object({
+    assignment_id: z.string().uuid().nullable().optional(),
+    title: z.string().max(500).nullable().optional(),
+    starts_at: isoDateTime,
+    ends_at: isoDateTime,
+  })
+  .strict()
+  .refine((data) => Date.parse(data.ends_at) > Date.parse(data.starts_at), {
+    message: "ends_at must be after starts_at",
+    path: ["ends_at"],
+  });
+
+export const timeBlockRangeSchema = z
+  .object({
+    start: isoDateTime,
+    end: isoDateTime,
+  })
+  .refine((data) => Date.parse(data.end) > Date.parse(data.start), {
+    message: "end must be after start",
+    path: ["end"],
+  });
+
+export const timeBlockUpdateSchema = z
+  .object({
+    assignment_id: z.string().uuid().nullable().optional(),
+    title: z.string().max(500).nullable().optional(),
+    starts_at: isoDateTime.optional(),
+    ends_at: isoDateTime.optional(),
+    completed: z.boolean().optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field is required",
+  })
+  .refine(
+    (data) =>
+      !data.starts_at ||
+      !data.ends_at ||
+      Date.parse(data.ends_at) > Date.parse(data.starts_at),
+    { message: "ends_at must be after starts_at", path: ["ends_at"] },
+  );
+
+const chatScopeItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+}).strict();
+
+export const chatRequestSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  noteId: z.string().optional(),
+  noteTitle: z.string().optional(),
+  noteIds: z.array(z.string()).optional(),
+  folderIds: z.array(z.string()).optional(),
+  selectedNotes: z.array(chatScopeItemSchema).optional(),
+  selectedFolders: z.array(chatScopeItemSchema).optional(),
+  // The browser sends `null` until the first session has been created.
+  sessionId: z.string().nullable().optional(),
+  history: z.array(z.object({
+    role: z.enum(["user", "assistant", "system"]),
+    content: z.string(),
+  }).strict()).optional(),
+  stream: z.boolean().optional(),
+  background: z.boolean().optional(),
+  thinkingMode: z.enum(["off", "auto"]).optional(),
+  useRag: z.boolean().optional(),
+  clientDateTime: z.string().optional(),
+}).strict();
 
 // ── validation helpers ──────────────────────────────────────────────────────
 
@@ -87,12 +234,18 @@ export function validateBody<T>(
 ): ValidationResult<T> {
   const result = schema.safeParse(data);
   if (!result.success) {
+    const details = result.error.flatten().fieldErrors;
+    const currentTraceId = getTraceId();
     return {
       success: false,
       response: NextResponse.json(
         {
+          success: false,
           error: "Validation failed",
-          details: result.error.flatten().fieldErrors,
+          details,
+          validationErrors: details,
+          traceId:
+            currentTraceId === "no-trace" ? generateTraceId() : currentTraceId,
         },
         { status: 400 },
       ),

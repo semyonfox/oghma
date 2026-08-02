@@ -109,17 +109,24 @@ export function tracedError(message: string, status: number): NextResponse {
 
 // ── Route wrapper ────────────────────────────────────────────────────────────
 
-type RouteHandler = (
+type RouteHandler<Context = unknown> = (
   request: NextRequest,
-  context?: any,
+  context: Context,
 ) => Promise<NextResponse>;
 
-export function withErrorHandler(handler: RouteHandler): RouteHandler {
+type WrappedRouteHandler<Context = unknown> = (
+  request: NextRequest,
+  context?: Context,
+) => Promise<NextResponse>;
+
+export function withErrorHandler<Context = unknown>(
+  handler: RouteHandler<Context>,
+): WrappedRouteHandler<Context> {
   return (request, context) =>
     withTrace(async () => {
       try {
         assertTrustedOrigin(request);
-        return await handler(request, context);
+        return await handler(request, context as Context);
       } catch (error) {
         return apiErrorResponse(error);
       }
@@ -163,4 +170,18 @@ export function requireValidId(value: unknown, fieldName = "ID"): string {
     throw new ApiError(400, `Invalid ${fieldName}`);
   }
   return value;
+}
+
+/** Parse an object JSON request body, reporting client payload errors as 400s. */
+export async function parseJsonObject(request: Request): Promise<Record<string, unknown>> {
+  try {
+    const body: unknown = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new ApiError(400, "JSON body must be an object");
+    }
+    return body as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, "Invalid JSON body");
+  }
 }
