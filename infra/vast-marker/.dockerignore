@@ -1,0 +1,13 @@
+*
+!Dockerfile
+!requirements.txt
+!constraints-vllm.txt
+!marker-plus-plus.tar.gz
+!marker-plus-plus.tar.gz.sha256
+!marker-plus-plus.manifest.json
+!prefetch_models.py
+!backend.py
+!worker.py
+!generate_benchmark_pdf.py
+!start-backend.sh
+!vast-onstart.sh

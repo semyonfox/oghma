@@ -32,6 +32,8 @@ export interface ObjectMetadata {
   readonly content?: string;
   readonly meta?: Readonly<Record<string, string>>;
   readonly contentType?: string;
+  /** Known object byte length when the storage backend returned it. */
+  readonly contentLength?: number;
   readonly buffer?: Buffer;
 }
 
@@ -66,7 +68,8 @@ export abstract class StoreProvider {
   abstract getPutSignUrl(
     path: string,
     expiresIn?: number,
-    contentType?: string
+    contentType?: string,
+    ifNoneMatch?: boolean
   ): Promise<string>;
 
   /**
@@ -83,11 +86,12 @@ export abstract class StoreProvider {
   ): Promise<string | undefined>;
 
   /**
-   * Retrieve only metadata for an object
+   * Retrieve only metadata for an object. A successful HEAD may return an
+   * empty record; `undefined` means the object was confirmed missing.
    */
   abstract getObjectMeta(
     path: string
-  ): Promise<Record<string, string> | undefined>;
+  ): Promise<Pick<ObjectMetadata, "meta" | "contentType" | "contentLength"> | undefined>;
 
   /**
    * Retrieve object content and metadata together

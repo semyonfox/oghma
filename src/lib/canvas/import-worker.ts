@@ -23,9 +23,9 @@ import sql from "../../database/pgsql.js";
 import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
 import { parseJobCourses, processCourse } from "./import-discovery.js";
+import { checkAndCompleteJob } from "./import-extraction.js";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
-import { recordActivationMilestone } from "../marketing/events";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -40,8 +40,6 @@ async function runJobPipeline(
   userId: string,
   courses: Array<unknown>,
 ): Promise<void> {
-  await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}`;
-
   const [creds] =
     await sql`SELECT canvas_token, canvas_domain FROM app.login WHERE user_id = ${userId}`;
   if (!creds) throw new Error("User or Canvas credentials not found");
@@ -59,59 +57,47 @@ async function runJobPipeline(
 
 export async function processImportJob(jobId: string): Promise<boolean> {
   console.log(`[${new Date().toISOString()}] Processing import job: ${jobId}`);
+  let job:
+    | { id: string; user_id: string; course_ids: string | Array<unknown> }
+    | undefined;
   try {
-    const [job] =
-      await sql`SELECT * FROM app.canvas_import_jobs WHERE id = ${jobId}`;
+    // This legacy message type is still at-least-once. Claim only a queued
+    // Canvas generation; a duplicate or cancellation must not run a second
+    // full course walk just because its stale queue payload arrived late.
+    [job] = await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'processing',
+          started_at = COALESCE(started_at, NOW()),
+          error_message = NULL,
+          updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+        AND type = 'canvas'
+        AND status = 'queued'
+      RETURNING *
+    `;
     if (!job) {
-      console.error(`Job not found: ${jobId}`);
-      return false;
-    }
-    if (job.status === "cancelled") {
-      console.log(`Job ${jobId} was cancelled`);
-      return false;
-    }
-    if (job.status !== "queued" && job.status !== "processing") {
-      console.log(`Job ${jobId} already in terminal state: ${job.status}`);
+      console.log(`Job ${jobId} is already claimed, terminal, cancelled, or missing`);
       return false;
     }
     await runJobPipeline(jobId, job.user_id, parseJobCourses(job));
 
-    // seed initial quiz questions from newly imported chunks (non-fatal)
-    try {
-      const chunks = await sql`
-        SELECT c.id FROM app.chunks c
-        JOIN app.canvas_imports ci ON ci.note_id = c.document_id
-        WHERE ci.job_id = ${jobId}::uuid AND c.user_id = ${job.user_id}::uuid
-      `;
-      const chunkIds = chunks.map((r: { id: string }) => r.id);
-      if (chunkIds.length > 0) {
-        const { seedQuestionsAfterImport } =
-          await import("../quiz/generate-background.ts");
-        const seeded = await seedQuestionsAfterImport(job.user_id, chunkIds, 5);
-        console.log(
-          `Quiz seed: ${seeded} questions generated for job ${jobId}`,
-        );
-      }
-    } catch (seedErr) {
-      console.warn(`Quiz seed failed (non-fatal): ${errorMessage(seedErr)}`);
+    const completed = await checkAndCompleteJob(jobId, job.user_id);
+    if (!completed) {
+      console.log(`Job ${jobId} remains active while file work or Marker completion is pending`);
+      return true;
     }
-
-    await sql`UPDATE app.canvas_import_jobs SET status = 'complete', completed_at = NOW() WHERE id = ${jobId}`;
-
-    await recordActivationMilestone(
-      "canvas_import_completed",
-      job.user_id,
-    ).catch((eventError) => {
-      console.warn(
-        `Failed to record Canvas completion milestone: ${errorMessage(eventError)}`,
-      );
-    });
 
     console.log(`Job completed: ${jobId}`);
     return true;
   } catch (error) {
     console.error(`Job failed: ${jobId}`, error);
-    await sql`UPDATE app.canvas_import_jobs SET status = 'failed', error_message = ${errorMessage(error)}, updated_at = NOW() WHERE id = ${jobId}`;
+    await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'failed', error_message = ${errorMessage(error)}, updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+        AND type = 'canvas'
+        AND status = 'processing'
+    `;
     return false;
   }
 }
@@ -123,6 +109,7 @@ export {
   processCanvasFile,
   processDirectExtraction,
   processExtractionRetry,
+  recoverPendingExtractionRetries,
   processMarkerComplete,
   processMarkerFailed,
 } from "./import-extraction.js";

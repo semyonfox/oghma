@@ -12,6 +12,10 @@ export interface ExtractionRetryMessage {
   mimeType: string;
   parentFolderId: string | null;
   attempt: number;
+  // Canvas retries bind their delivery to one durable file generation. Direct
+  // extraction retries intentionally omit these fields.
+  importRecordId?: string | null;
+  jobId?: string | null;
 }
 
 export function getExtractionRetryDelaySeconds(attempt: number): number {

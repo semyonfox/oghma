@@ -33,6 +33,7 @@ import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 export const POST = withErrorHandler(async (request) => {
   // 1. Parse and validate request body
@@ -191,13 +192,13 @@ async function queueCanvasSync(userId) {
   if (courses.length === 0) return;
 
   // cancel any existing queued/processing job before inserting
-  const job = await sql.begin(async (sql) => {
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${userId} AND status IN ('queued', 'discovering', 'processing')
-    `;
-    const [inserted] = await sql`
+  const job = await sql.begin(async (tx) => {
+    await cancelActiveCanvasImportJobs(
+      tx,
+      userId,
+      "Replaced by an automatic Canvas sync",
+    );
+    const [inserted] = await tx`
       INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status, job_type)
       VALUES (${generateUUID()}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
       RETURNING id

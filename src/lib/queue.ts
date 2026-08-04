@@ -15,8 +15,6 @@ interface CloudflareQueueMessage {
 interface CloudflareQueueConfig {
   accountId: string;
   apiToken: string;
-  canvasQueueId: string;
-  extractRetryQueueId: string;
 }
 
 let _connection: IORedis | null = null;
@@ -34,6 +32,7 @@ function getConnection(): IORedis {
 const BASE_CANVAS_IMPORT_QUEUE = "canvas-import";
 const BASE_EXTRACT_RETRY_QUEUE = "extract-retry";
 const BASE_CHAT_GENERATION_QUEUE = "chat-generation";
+const BASE_MARKER_DISPATCH_QUEUE = "marker-dispatch";
 
 function sanitizeQueuePrefix(value: string | undefined): string | null {
   const sanitized = value
@@ -78,6 +77,7 @@ function prefixedQueueName(baseName: string): string {
 export const CANVAS_IMPORT_QUEUE = prefixedQueueName(BASE_CANVAS_IMPORT_QUEUE);
 export const EXTRACT_RETRY_QUEUE = prefixedQueueName(BASE_EXTRACT_RETRY_QUEUE);
 export const CHAT_GENERATION_QUEUE = prefixedQueueName(BASE_CHAT_GENERATION_QUEUE);
+export const MARKER_DISPATCH_QUEUE = prefixedQueueName(BASE_MARKER_DISPATCH_QUEUE);
 
 export function getQueueProvider(): QueueProvider {
   const provider = process.env.QUEUE_PROVIDER?.toLowerCase();
@@ -89,6 +89,7 @@ export function getQueueProvider(): QueueProvider {
 let _canvasImportQueue: Queue | null = null;
 let _extractRetryQueue: Queue | null = null;
 let _chatGenerationQueue: Queue | null = null;
+let _markerDispatchQueue: Queue | null = null;
 
 export function getCanvasImportQueue(): Queue {
   if (_canvasImportQueue) return _canvasImportQueue;
@@ -114,6 +115,14 @@ export function getChatGenerationQueue(): Queue {
   return _chatGenerationQueue;
 }
 
+export function getMarkerDispatchQueue(): Queue {
+  if (_markerDispatchQueue) return _markerDispatchQueue;
+  _markerDispatchQueue = new Queue(MARKER_DISPATCH_QUEUE, {
+    connection: getConnection(),
+  });
+  return _markerDispatchQueue;
+}
+
 export async function enqueueChatGeneration(generationId: string): Promise<void> {
   if (getQueueProvider() !== "bullmq") {
     throw new Error("Chat generation currently requires the BullMQ queue provider");
@@ -131,8 +140,14 @@ export async function enqueueChatGeneration(generationId: string): Promise<void>
   );
 }
 
-// `attempts: 3` is safe for canvas-import (workers check terminal states before
-// mutating; see src/lib/canvas/import-extraction.js) and extract-retry.
+const DEFAULT_CANVAS_QUEUE_ATTEMPTS = Math.max(
+  1,
+  Number.parseInt(process.env.CANVAS_FILE_QUEUE_MAX_ATTEMPTS ?? "", 10) || 3,
+);
+
+// Bounded retries are safe for canvas-import (workers atomically reclaim a
+// pending row before mutating; see src/lib/canvas/import-extraction.js) and
+// extract-retry.
 // Vault import is NOT yet retry-safe: `createNote()` mints fresh UUIDs per entry,
 // so a partial-failure retry would create duplicates. Vault enqueue sites override
 // attempts: 1 until import-worker is made idempotent (planned alongside cancellation).
@@ -140,7 +155,7 @@ export async function enqueueChatGeneration(generationId: string): Promise<void>
 const DEFAULT_OPTS: JobsOptions = {
   removeOnComplete: { count: 200 },
   removeOnFail: { count: 200 },
-  attempts: 3,
+  attempts: DEFAULT_CANVAS_QUEUE_ATTEMPTS,
   backoff: { type: "exponential", delay: 1000 },
 };
 
@@ -150,14 +165,9 @@ function getCloudflareQueueConfig(): CloudflareQueueConfig {
     process.env.CLOUDFLARE_QUEUES_API_TOKEN ??
     process.env.CLOUDFLARE_QUEUE_API_TOKEN ??
     process.env.CF_QUEUES_API_TOKEN;
-  const canvasQueueId = process.env.CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID;
-  const extractRetryQueueId = process.env.CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID;
-
   const missing = [
     ["CLOUDFLARE_ACCOUNT_ID", accountId],
     ["CLOUDFLARE_QUEUES_API_TOKEN", apiToken],
-    ["CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID", canvasQueueId],
-    ["CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID", extractRetryQueueId],
   ]
     .filter(([, value]) => !value)
     .map(([name]) => name);
@@ -168,24 +178,28 @@ function getCloudflareQueueConfig(): CloudflareQueueConfig {
     );
   }
 
-  return {
-    accountId: accountId!,
-    apiToken: apiToken!,
-    canvasQueueId: canvasQueueId!,
-    extractRetryQueueId: extractRetryQueueId!,
-  };
+  return { accountId: accountId!, apiToken: apiToken! };
 }
 
+// Each queue id is only required by deployments that actually publish to it.
+const CLOUDFLARE_QUEUE_ID_VARS: Record<string, string> = {
+  [CANVAS_IMPORT_QUEUE]: "CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID",
+  [EXTRACT_RETRY_QUEUE]: "CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID",
+  [MARKER_DISPATCH_QUEUE]: "CLOUDFLARE_MARKER_DISPATCH_QUEUE_ID",
+};
+
 function getCloudflareQueueId(queueName: string): string {
-  const config = getCloudflareQueueConfig();
-  switch (queueName) {
-    case CANVAS_IMPORT_QUEUE:
-      return config.canvasQueueId;
-    case EXTRACT_RETRY_QUEUE:
-      return config.extractRetryQueueId;
-    default:
-      throw new Error(`Unknown Cloudflare queue name: ${queueName}`);
+  const variableName = CLOUDFLARE_QUEUE_ID_VARS[queueName];
+  if (!variableName) {
+    throw new Error(`Unknown Cloudflare queue name: ${queueName}`);
   }
+  const queueId = process.env[variableName];
+  if (!queueId) {
+    throw new Error(
+      `Missing Cloudflare Queues configuration for QUEUE_PROVIDER=cloudflare: ${variableName}`,
+    );
+  }
+  return queueId;
 }
 
 function cloudflareQueueUrl(queueId: string, action?: "messages" | "pull" | "ack"): string {
@@ -251,32 +265,6 @@ export async function enqueueCanvasJob(
   await getCanvasImportQueue().add(type, { type, ...data }, { ...DEFAULT_OPTS, ...opts });
 }
 
-export async function enqueueCanvasJobBatch(
-  type: string,
-  payloads: Record<string, unknown>[],
-): Promise<void> {
-  if (payloads.length === 0) return;
-  if (getQueueProvider() === "cloudflare") {
-    await Promise.all(
-      payloads.map((data) =>
-        sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
-          body: { type, ...data },
-          content_type: "json",
-        }),
-      ),
-    );
-    return;
-  }
-
-  await getCanvasImportQueue().addBulk(
-    payloads.map((data) => ({
-      name: type,
-      data: { type, ...data },
-      opts: DEFAULT_OPTS,
-    })),
-  );
-}
-
 export async function enqueueExtractRetryJob(
   data: Record<string, unknown>,
   delaySeconds: number,
@@ -295,6 +283,75 @@ export async function enqueueExtractRetryJob(
     { type: "extract-retry", ...data },
     { ...DEFAULT_OPTS, delay: delaySeconds * 1000 },
   );
+}
+
+export async function enqueueMarkerDispatchJob(
+  callbackId: string,
+): Promise<void> {
+  // A transport timeout can mean the GPU is still working. Re-delivery is
+  // harmless because marker-serverless claims state atomically, but this
+  // queue must not itself create a second paid provider attempt.
+  const attempts = 1;
+  const data = { type: "marker-dispatch", callbackId };
+
+  if (getQueueProvider() === "cloudflare") {
+    await sendCloudflareQueueMessage(MARKER_DISPATCH_QUEUE, {
+      body: data,
+      content_type: "json",
+    });
+    return;
+  }
+
+  await getMarkerDispatchQueue().add("marker-dispatch", data, {
+    ...DEFAULT_OPTS,
+    jobId: `marker-dispatch-${callbackId}`,
+    attempts,
+    removeOnComplete: true,
+    removeOnFail: true,
+  });
+}
+
+async function enqueueMarkerContinuationJob(
+  type: "marker-complete" | "marker-failed",
+  callbackId: string,
+): Promise<void> {
+  const attempts = Math.max(
+    1,
+    Number.parseInt(process.env.MARKER_COMPLETION_MAX_ATTEMPTS ?? "", 10) || 3,
+  );
+  const data = { type, markerJobId: callbackId };
+
+  if (getQueueProvider() === "cloudflare") {
+    await sendCloudflareQueueMessage(CANVAS_IMPORT_QUEUE, {
+      body: data,
+      content_type: "json",
+    });
+    return;
+  }
+
+  // Completion is DB-claimed, so at-least-once delivery is safe. Remove the
+  // completed job so recovery can enqueue a new deterministic job ID after a
+  // crash or an exhausted transient queue delivery.
+  await getCanvasImportQueue().add(type, data, {
+    ...DEFAULT_OPTS,
+    jobId: `${type}-${callbackId}`,
+    attempts,
+    backoff: { type: "exponential", delay: 15_000 },
+    removeOnComplete: true,
+    removeOnFail: true,
+  });
+}
+
+export async function enqueueMarkerCompletionJob(
+  callbackId: string,
+): Promise<void> {
+  await enqueueMarkerContinuationJob("marker-complete", callbackId);
+}
+
+export async function enqueueMarkerFailureJob(
+  callbackId: string,
+): Promise<void> {
+  await enqueueMarkerContinuationJob("marker-failed", callbackId);
 }
 
 export function getQueueConnection(): IORedis {

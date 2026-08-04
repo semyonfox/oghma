@@ -23,6 +23,8 @@ describe("repaired migration invariants", () => {
         "054_marker_serverless_jobs.sql",
         "055_note_links.sql",
         "056_canvas_ids_bigint.sql",
+        "057_marker_provider_dispatch.sql",
+        "058_marker_dispatch_guards.sql",
       ]})
       ORDER BY name
     `;
@@ -38,6 +40,14 @@ describe("repaired migration invariants", () => {
       },
       { version: "055_note_links", name: "055_note_links.sql" },
       { version: "056_canvas_ids_bigint", name: "056_canvas_ids_bigint.sql" },
+      {
+        version: "057_marker_provider_dispatch",
+        name: "057_marker_provider_dispatch.sql",
+      },
+      {
+        version: "058_marker_dispatch_guards",
+        name: "058_marker_dispatch_guards.sql",
+      },
     ]);
   });
 
@@ -100,6 +110,41 @@ describe("repaired migration invariants", () => {
         AND indexname = 'idx_marker_jobs_note'
     `;
     expect(index.indexdef).toMatch(/\(note_id, created_at DESC\)/);
+
+    const [activeNoteIndex] = await sql`
+      SELECT indexdef
+      FROM pg_indexes
+      WHERE schemaname = 'app'
+        AND tablename = 'marker_jobs'
+        AND indexname = 'marker_jobs_one_active_note'
+    `;
+    expect(activeNoteIndex.indexdef).toMatch(/UNIQUE/);
+    expect(activeNoteIndex.indexdef).toMatch(/note_id/);
+
+    const completionColumns = await sql`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = 'app' AND table_name = 'marker_jobs'
+        AND column_name = ANY(${[
+          "completion_attempts",
+          "completion_enqueued_at",
+          "completion_started_at",
+          "result_bytes",
+          "result_sha256",
+        ]})
+    `;
+    expect(completionColumns.map((row) => row.column_name).sort()).toEqual([
+      "completion_attempts",
+      "completion_enqueued_at",
+      "completion_started_at",
+      "result_bytes",
+      "result_sha256",
+    ]);
+    expect(
+      constraints.some(
+        (row) => row.conname === "marker_jobs_attempts_nonnegative" && row.contype === "c",
+      ),
+    ).toBe(true);
   });
 
   it("prevents invalid note links and indexes backlink lookups", async () => {

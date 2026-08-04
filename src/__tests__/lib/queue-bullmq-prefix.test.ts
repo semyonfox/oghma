@@ -60,18 +60,22 @@ describe("BullMQ queue prefixing", () => {
       CANVAS_IMPORT_QUEUE,
       EXTRACT_RETRY_QUEUE,
       CHAT_GENERATION_QUEUE,
+      MARKER_DISPATCH_QUEUE,
       getCanvasImportQueue,
       getChatGenerationQueue,
       getExtractRetryQueue,
+      getMarkerDispatchQueue,
     } = await import("@/lib/queue");
 
     expect(CANVAS_IMPORT_QUEUE).toBe("oghma-dev-canvas-import");
     expect(EXTRACT_RETRY_QUEUE).toBe("oghma-dev-extract-retry");
     expect(CHAT_GENERATION_QUEUE).toBe("oghma-dev-chat-generation");
+    expect(MARKER_DISPATCH_QUEUE).toBe("oghma-dev-marker-dispatch");
 
     getCanvasImportQueue();
     getExtractRetryQueue();
     getChatGenerationQueue();
+    getMarkerDispatchQueue();
 
     expect(queueConstructor).toHaveBeenNthCalledWith(
       1,
@@ -87,6 +91,51 @@ describe("BullMQ queue prefixing", () => {
       2,
       "oghma-dev-extract-retry",
       expect.objectContaining({ connection: expect.anything() }),
+    );
+    expect(queueConstructor).toHaveBeenNthCalledWith(
+      4,
+      "oghma-dev-marker-dispatch",
+      expect.objectContaining({ connection: expect.anything() }),
+    );
+  });
+
+  it("queues one application-originated Marker dispatch and leaves recovery to the DB", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+
+    const { enqueueMarkerDispatchJob } = await import("@/lib/queue");
+    await enqueueMarkerDispatchJob("callback-1");
+
+    expect(queueConstructor).toHaveBeenCalledWith(
+      "oghma-dev-marker-dispatch",
+      expect.objectContaining({ connection: expect.anything() }),
+    );
+    expect(queueAdd).toHaveBeenCalledWith(
+      "marker-dispatch",
+      { type: "marker-dispatch", callbackId: "callback-1" },
+      expect.objectContaining({
+        jobId: "marker-dispatch-callback-1",
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
+    );
+  });
+
+  it("uses a deterministic, removable continuation job for Marker completion", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+
+    const { enqueueMarkerCompletionJob } = await import("@/lib/queue");
+    await enqueueMarkerCompletionJob("callback-1");
+
+    expect(queueAdd).toHaveBeenCalledWith(
+      "marker-complete",
+      { type: "marker-complete", markerJobId: "callback-1" },
+      expect.objectContaining({
+        jobId: "marker-complete-callback-1",
+        attempts: 3,
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
     );
   });
 

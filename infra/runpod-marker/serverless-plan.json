@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "provider": "runpod",
+  "purpose": "RunPod Marker++ endpoint; OghmaNotes dispatch remains separately fail-closed",
+  "image": {
+    "reference": "REPLACE_WITH_IMMUTABLE_IMAGE_DIGEST",
+    "markerPlusPlusCommit": "d31ecd2223588c8a2d014ece9d04fb99b0e45d57",
+    "cudaRuntime": "12.9",
+    "gpuFamilyBuildArg": "nonblackwell"
+  },
+  "gpuPoolPreference": [
+    {
+      "gpuPoolId": "ADA_24",
+      "gpu": "RTX 4090 / 24 GB",
+      "role": "primary",
+      "measured": true
+    },
+    {
+      "gpuPoolId": "AMPERE_24",
+      "gpu": "L4, A5000, or RTX 3090 / 24 GB",
+      "role": "not included; requires an explicit, separately measured update",
+      "measured": false
+    }
+  ],
+  "v2EndpointIntent": {
+    "apiModel": "RunPod v2 image-based endpoint; resolve dynamic pool availability before creation",
+    "name": "oghma-marker-serverless",
+    "imageName": "REPLACE_WITH_IMMUTABLE_IMAGE_DIGEST",
+    "gpuPoolIds": ["ADA_24"],
+    "gpuCount": 1,
+    "workersMin": 0,
+    "workersMax": 1,
+    "idleTimeout": 5,
+    "flashboot": true,
+    "executionTimeoutMs": 1800000,
+    "environment": {
+      "MARKER_RUNTIME": "serverless",
+      "MARKER_HANDLER_CONCURRENCY": "3",
+      "MARKER_CONVERT_CONCURRENCY": "1",
+      "MARKER_PDFTEXT_WORKERS": "1",
+      "MARKER_ALLOWED_OBJECT_HOSTS": "REPLACE_WITH_STORAGE_PUBLIC_HOST",
+      "MARKER_MAX_SOURCE_BYTES": "262144000",
+      "MARKER_MAX_RESULT_BYTES": "134217728",
+      "MARKER_PROCESS_WARM_TIMEOUT_SECONDS": "180",
+      "TORCH_DEVICE": "cpu",
+      "HF_HUB_OFFLINE": "1",
+      "TRANSFORMERS_OFFLINE": "1",
+      "MARKER_TELEMETRY_INTERVAL_SECONDS": "1",
+      "RUNPOD_INIT_TIMEOUT": "800"
+    }
+  },
+  "forbiddenUntilSeparateApproval": [
+    "networkVolumeId",
+    "networkVolumeIds",
+    "MARKER_API_TOKEN",
+    "RUNPOD_API_KEY",
+    "MARKER_OCR_ENABLED",
+    "MARKER_PROCESS_ALL_PDFS"
+  ],
+  "readbackAssertions": {
+    "gpuCount": 1,
+    "workersMin": 0,
+    "workersMax": 1,
+    "idleTimeout": 5,
+    "flashboot": true,
+    "environment.RUNPOD_INIT_TIMEOUT": "800",
+    "environment.TORCH_DEVICE": "cpu",
+    "environment.HF_HUB_OFFLINE": "1",
+    "environment.TRANSFORMERS_OFFLINE": "1"
+  }
+}

@@ -9,6 +9,8 @@ export const IMPORT_CLASS_WEIGHTS: Record<ImportServiceClass, number> = {
   academic_year: 5,
 };
 
+const STALE_DISPATCH_LEASE = "5 minutes";
+
 export function chooseWeightedClass(
   current: Partial<Record<ImportServiceClass, number>>,
   eligible: ImportServiceClass[],
@@ -39,12 +41,45 @@ interface DispatchRecord {
 }
 
 /**
+ * The queue publication happens after the scheduler transaction commits. If
+ * the process dies in that small gap, `dispatched_at` must not strand a
+ * pending row forever. Releasing only still-pending rows is safe because the
+ * consumer compare-and-swaps pending -> downloading before doing any work.
+ */
+export async function recoverStaleCanvasDispatches(limit = 100): Promise<number> {
+  const released = await sql`
+    WITH candidates AS (
+      SELECT ci.id
+      FROM app.canvas_imports ci
+      JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
+      WHERE ci.status = 'pending'
+        AND ci.dispatched_at < NOW() - ${STALE_DISPATCH_LEASE}::interval
+        AND cij.type = 'canvas'
+        AND cij.status = 'processing'
+      ORDER BY ci.dispatched_at
+      LIMIT ${limit}
+      FOR UPDATE OF ci SKIP LOCKED
+    )
+    UPDATE app.canvas_imports ci
+    SET dispatched_at = NULL, updated_at = NOW()
+    FROM candidates
+    WHERE ci.id = candidates.id
+    RETURNING ci.id
+  `;
+  return released.length;
+}
+
+/**
  * Releases a bounded number of Canvas files into the provider queue. Classes
  * use smooth weighted round robin; users within a class use least-recently
  * served order. One in-flight file per user prevents a large import monopolising
  * worker slots. The advisory lock makes selection safe across worker replicas.
  */
 export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
+  const recovered = await recoverStaleCanvasDispatches();
+  if (recovered > 0) {
+    console.warn(`Released ${recovered} stale Canvas dispatch lease(s)`);
+  }
   const selected = await sql.begin(async (tx: any) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('oghma-import-fair-dispatch'))`;
     const records: DispatchRecord[] = [];
@@ -57,6 +92,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         JOIN app.login l ON l.user_id = ci.user_id
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL
+          AND cij.type = 'canvas'
           AND cij.status = 'processing'
           AND NOT EXISTS (
             SELECT 1 FROM app.canvas_imports active
@@ -97,6 +133,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         LEFT JOIN app.import_scheduler_users isu ON isu.user_id = ci.user_id
         WHERE ci.status = 'pending'
           AND ci.dispatched_at IS NULL
+          AND cij.type = 'canvas'
           AND cij.status = 'processing'
           AND COALESCE(l.import_service_class, 'free') = ${decision.chosen}
           AND NOT EXISTS (

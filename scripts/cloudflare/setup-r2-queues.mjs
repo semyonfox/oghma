@@ -8,6 +8,9 @@ const r2Bucket = process.env.R2_BUCKET_NAME ?? process.env.STORAGE_BUCKET ?? "og
 const queuePrefix = process.env.CLOUDFLARE_QUEUE_PREFIX ?? "oghma";
 const canvasQueue = process.env.CLOUDFLARE_CANVAS_IMPORT_QUEUE_NAME ?? `${queuePrefix}-canvas-import`;
 const retryQueue = process.env.CLOUDFLARE_EXTRACT_RETRY_QUEUE_NAME ?? `${queuePrefix}-extract-retry`;
+const markerQueue =
+  process.env.CLOUDFLARE_MARKER_DISPATCH_QUEUE_NAME ??
+  `${queuePrefix}-marker-dispatch`;
 
 function runWrangler(args, options = {}) {
   const fullArgs = ["wrangler", ...args];
@@ -99,6 +102,7 @@ async function main() {
   const r2Ready = runWranglerAllowExists(["r2", "bucket", "create", r2Bucket]);
   runWranglerAllowExists(["queues", "create", canvasQueue]);
   runWranglerAllowExists(["queues", "create", retryQueue]);
+  runWranglerAllowExists(["queues", "create", markerQueue]);
   runWranglerAllowExists([
     "queues",
     "consumer",
@@ -107,6 +111,21 @@ async function main() {
     canvasQueue,
     "--batch-size",
     process.env.CLOUDFLARE_QUEUE_BATCH_SIZE ?? "10",
+    "--message-retries",
+    process.env.CLOUDFLARE_QUEUE_MESSAGE_RETRIES ?? "3",
+    "--visibility-timeout-secs",
+    process.env.CLOUDFLARE_QUEUE_VISIBILITY_TIMEOUT_SECS ?? `${12 * 60 * 60}`,
+    "--retry-delay-secs",
+    process.env.CLOUDFLARE_QUEUE_RETRY_DELAY_SECONDS ?? "60",
+  ]);
+  runWranglerAllowExists([
+    "queues",
+    "consumer",
+    "http",
+    "add",
+    markerQueue,
+    "--batch-size",
+    process.env.CLOUDFLARE_MARKER_QUEUE_BATCH_SIZE ?? "3",
     "--message-retries",
     process.env.CLOUDFLARE_QUEUE_MESSAGE_RETRIES ?? "3",
     "--visibility-timeout-secs",
@@ -132,6 +151,7 @@ async function main() {
 
   const canvasQueueId = await queueIdByName(canvasQueue);
   const retryQueueId = await queueIdByName(retryQueue);
+  const markerQueueId = await queueIdByName(markerQueue);
 
   console.log("\nCloudflare resources ready. Add these to the Jenkins env files:");
   if (r2Ready) {
@@ -145,6 +165,7 @@ async function main() {
   console.log("QUEUE_PROVIDER=cloudflare");
   console.log(`CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID=${canvasQueueId}`);
   console.log(`CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID=${retryQueueId}`);
+  console.log(`CLOUDFLARE_MARKER_DISPATCH_QUEUE_ID=${markerQueueId}`);
   console.log("CLOUDFLARE_QUEUES_API_TOKEN=<token with Account Queues Edit>");
 }
 
