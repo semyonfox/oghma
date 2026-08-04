@@ -4,7 +4,7 @@
 >
 > Audience: Maintainers and deployment operators
 >
-> Last reviewed: 2026-07-25
+> Last reviewed: 2026-08-04
 
 Infrastructure documents have one responsibility each:
 
@@ -18,6 +18,8 @@ Infrastructure documents have one responsibility each:
 | [Marker infrastructure boundary](marker/README.md) | Current benchmark tooling versus retired AWS provisioning scripts and package pins |
 | [Vast Marker image](vast-marker/README.md) | Build-ready, undeployed Vast PyWorker image and capacity profiles |
 | [Vast Marker operations](../docs/operations/vast-marker.md) | Provider boundary, scale-to-zero plan, funding-time launch gates, monitoring, and rollback |
+| [RunPod Marker image](runpod-marker/README.md) | Build-ready, undeployed RunPod Serverless Marker++ image with baked model assets |
+| [RunPod Marker operations](../docs/operations/runpod-marker.md) | Async provider boundary, telemetry, cold-start proof, and launch gates |
 | [Email operations](../docs/operations/email.md) | Human inbox and transactional-email ownership |
 | [Secrets policy](../docs/operations/secrets.md) | Safe repository boundary for runtime credentials |
 

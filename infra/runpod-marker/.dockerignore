@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!requirements.txt
+!constraints-vllm.txt
+!constraints-markerpp.txt
+!marker-plus-plus.tar.gz
+!marker-plus-plus.tar.gz.sha256
+!marker-plus-plus.manifest.json
+!prefetch_models.py
+!server.py
+!handler.py
+!run.sh

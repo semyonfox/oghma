@@ -97,8 +97,23 @@ diagrams/rendered/
 screenshots/demo-architecture-*.png
 screenshots/demo-architecture-*.svg
 
-# local RunPod experiments
-infra/runpod-marker/
+# RunPod Marker: keep only the reproducible, credential-free Serverless worker
+# source. Local image archives, benchmark scratch, bootstrap scripts, and other
+# experiments remain ignored.
+infra/runpod-marker/*
+!infra/runpod-marker/.dockerignore
+!infra/runpod-marker/Dockerfile
+!infra/runpod-marker/README.md
+!infra/runpod-marker/constraints-markerpp.txt
+!infra/runpod-marker/constraints-vllm.txt
+!infra/runpod-marker/handler.py
+!infra/runpod-marker/prefetch_models.py
+!infra/runpod-marker/requirements.txt
+!infra/runpod-marker/run.sh
+!infra/runpod-marker/server.py
+!infra/runpod-marker/serverless-plan.json
+!infra/runpod-marker/template.env.example
+!infra/runpod-marker/test_handler.py
 scripts/runpod-marker-quick-deploy.sh
 scripts/runpod-marker-tail.sh
 

@@ -96,8 +96,8 @@ presence and container configuration without printing secret values.
 Jenkins preserves the private env-file value for the normal app and worker
 containers. Retry-drain remains explicitly OCR-disabled so a deployment cannot
 unexpectedly spend GPU budget while replaying generic extraction retries.
-Enable Marker only through a reviewed development env file after the Vast
-runbook's endpoint and round-trip checks pass.
+Enable Marker only through a reviewed development env file after the selected
+provider's endpoint and round-trip checks pass.
 
 Serverless extraction additionally requires `MARKER_SERVERLESS_PROVIDER`, that
 provider's endpoint-scoped credential, and `STORAGE_PUBLIC_ENDPOINT`. Oghma
@@ -111,8 +111,10 @@ automatically resubmitted as a second paid conversion. Keep
 `MARKER_PROCESS_ALL_PDFS=false` to retain the
 text-layer-first path; enable it only for a controlled quality run. Vast
 configuration and launch gates belong in the
-[Vast Marker runbook](vast-marker.md). New serverless dispatches are Vast-only;
-the retained RunPod webhook route exists solely to drain a legacy row safely.
+[Vast Marker runbook](vast-marker.md) and
+[RunPod Marker runbook](runpod-marker.md). Set exactly one provider per
+deployment: `vast` or `runpod`. Both use the same durable state machine and
+strict result-object contract; neither automatically repeats a paid dispatch.
 
 Cloudflare queue mode additionally requires the account ID, all three queue
 IDs, and a Queues API token named by `.env.example`. It still uses the

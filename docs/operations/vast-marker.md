@@ -13,6 +13,11 @@ created while preparing this runbook. The account was unfunded. Commands in
 the funding-time section are intentionally inert until an operator supplies a
 template hash and runs them.
 
+The application also supports RunPod through the same durable result-object
+contract. This document owns the Vast profile only; select exactly one provider
+per deployment and use the [RunPod Marker runbook](runpod-marker.md) for the
+RunPod endpoint profile and telemetry.
+
 ## Decision
 
 Use Vast Serverless for elastic GPU capacity, but do not make Vast the durable

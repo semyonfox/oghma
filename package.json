@@ -45,6 +45,8 @@
     "benchmark:marker:aws": "python3 scripts/marker-aws-session.py",
     "benchmark:marker:test": "python3 -m unittest discover -s scripts/tests -p 'test_marker_bench*.py'",
     "marker:vast:plan": "node scripts/vast-marker-plan.mjs",
+    "marker:runpod:build": "bash scripts/build-runpod-marker-image.sh",
+    "marker:runpod:validate": "RUNPOD_MARKER_VALIDATE_ONLY=1 bash scripts/build-runpod-marker-image.sh",
     "marker:serverless:status": "node scripts/marker-serverless-status.mjs",
     "prepare": "husky",
     "i18n:audit": "node scripts/i18n-audit.mjs",
