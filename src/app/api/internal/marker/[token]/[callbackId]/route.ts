@@ -7,11 +7,16 @@ import {
   enqueueMarkerCompletionJob,
   enqueueMarkerFailureJob,
 } from "@/lib/queue";
+import { summarizeRunPodJobStatus } from "@/lib/runpod-serverless";
 
 interface RunPodWebhook {
   id?: string;
   status?: string;
   error?: string;
+  delayTime?: unknown;
+  executionTime?: unknown;
+  workerId?: unknown;
+  output?: unknown;
 }
 
 const UUID_PATTERN =
@@ -26,6 +31,11 @@ function tokenMatches(received: string): boolean {
     left.length > 0 &&
     timingSafeEqual(left, right)
   );
+}
+
+function providerError(value: unknown, fallback: string | null = null): string | null {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return value.replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 1_000);
 }
 
 export async function POST(
@@ -44,6 +54,10 @@ export async function POST(
   if (!body?.status) {
     return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
   }
+  const summary = summarizeRunPodJobStatus(body);
+  if (!summary.status || (body.id && !summary.id)) {
+    return NextResponse.json({ error: "invalid webhook" }, { status: 400 });
+  }
   const [job] = await sql`
     SELECT * FROM app.marker_jobs WHERE callback_id = ${callbackId}::uuid LIMIT 1
   `;
@@ -54,24 +68,40 @@ export async function POST(
     return NextResponse.json({ error: "provider mismatch" }, { status: 409 });
   }
   const expectedJobId = job.provider_job_id ?? job.runpod_job_id;
-  if (expectedJobId && body.id && expectedJobId !== body.id) {
+  if (expectedJobId && expectedJobId !== summary.id) {
     return NextResponse.json({ error: "job mismatch" }, { status: 409 });
   }
 
-  const status = body.status.toUpperCase();
+  const status = summary.status;
   const completed = status === "COMPLETED";
   if (!["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status)) {
     // RunPod may issue informational statuses before a terminal webhook. Do
     // not let one move an Oghma-owned job state.
+    await sql`
+      UPDATE app.marker_jobs
+      SET provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
+          || ${JSON.stringify(summary.metrics)}::jsonb
+      WHERE callback_id = ${callbackId}::uuid
+        AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
+    `;
     return NextResponse.json({ accepted: true, terminal: false });
   }
+
+  const error = completed
+    ? null
+    : providerError(
+      body.error,
+      `RunPod job ${summary.id ?? expectedJobId ?? "unknown"} ${status.toLowerCase()}`,
+    );
 
   const transitioned = await sql`
     UPDATE app.marker_jobs
     SET status = ${completed ? "completion_queued" : "failure_queued"},
-        provider_job_id = COALESCE(${body.id ?? null}, provider_job_id),
-        runpod_job_id = COALESCE(${body.id ?? null}, runpod_job_id),
-        error = ${body.error ?? null},
+        provider_job_id = COALESCE(${summary.id ?? null}, provider_job_id),
+        runpod_job_id = COALESCE(${summary.id ?? null}, runpod_job_id),
+        provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
+            || ${JSON.stringify(summary.metrics)}::jsonb,
+        error = ${error},
         updated_at = NOW()
     WHERE callback_id = ${callbackId}::uuid
       AND status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
@@ -87,12 +117,15 @@ export async function POST(
       await enqueueMarkerFailureJob(callbackId);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = providerError(
+      error instanceof Error ? error.message : String(error),
+      "Marker continuation queue is unavailable",
+    );
     await sql`
       UPDATE app.marker_jobs
       SET status = ${
         completed ? "completion_enqueue_failed" : "failure_enqueue_failed"
-      }, error = ${message.slice(0, 1_000)}, updated_at = NOW()
+      }, error = ${message}, updated_at = NOW()
       WHERE callback_id = ${callbackId}::uuid
         AND status IN ('completion_queued', 'failure_queued')
     `;

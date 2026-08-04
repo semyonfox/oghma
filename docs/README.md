@@ -1,7 +1,7 @@
 # Documentation
 
 > **Status:** Current navigation map
-> **Last reviewed:** 2026-07-25
+> **Last reviewed:** 2026-08-04
 > **Source of truth for:** Which document owns each kind of project information
 
 Use this page to find the owner of a fact. Link to that owner instead of copying its content into another checklist or handover.
@@ -54,6 +54,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |
+| [RunPod Serverless Marker](operations/runpod-marker.md) | Ready-to-provision async GPU endpoint, baked image, telemetry, launch gates, and rollback |
 | Marker++ [benchmark index](https://github.com/semyonfox/marker-plus-plus/blob/main/docs/benchmarks/README.md) (separate repository) | Canonical Marker/Marker++ GPU measurements, analysis, evidence boundaries, dashboard, and serving decision |
 | [Email](operations/email.md) | Human inbox ownership and transactional-email setup |
 | [Secrets](operations/secrets.md) | Safe secret ownership, rotation, and recovery policy |

@@ -29,7 +29,10 @@ vi.mock("@/lib/vast-serverless", () => ({
   vastWorkloadCost: vi.fn(() => 100),
 }));
 
-import { dispatchMarkerJob } from "@/lib/marker-serverless";
+import {
+  dispatchMarkerJob,
+  recoverMarkerDispatchJobs,
+} from "@/lib/marker-serverless";
 
 const exhaustedJob = {
   callback_id: "11111111-1111-4111-8111-111111111111",
@@ -120,6 +123,21 @@ describe("Marker durable dispatch limits", () => {
     expect(mocks.enqueueMarkerCompletionJob).toHaveBeenCalledWith(
       awaitingResult.callback_id,
     );
+    expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("continues recovery of already-paid outcomes while the dispatch kill switch is off", async () => {
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "false";
+    // With fresh dispatch recovery skipped, the remaining three reads are
+    // stale dispatch, awaiting-result, and completion/failure recovery.
+    mocks.sql
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await expect(recoverMarkerDispatchJobs()).resolves.toBe(0);
+
+    expect(mocks.sql).toHaveBeenCalledTimes(3);
     expect(mocks.requestVastEndpoint).not.toHaveBeenCalled();
   });
 });

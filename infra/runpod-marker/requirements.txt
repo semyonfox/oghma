@@ -1,0 +1,7 @@
+# RunPod queue runtime and the small JSON encoder used by the conversion
+# helper. Marker++ and Surya are installed from the exact Git commit in the
+# Dockerfile under constraints-markerpp.txt.
+fastapi==0.139.2
+python-multipart==0.0.32
+runpod==1.11.0
+uvicorn[standard]==0.46.0

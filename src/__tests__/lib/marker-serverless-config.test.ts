@@ -52,15 +52,20 @@ describe("Marker serverless configuration", () => {
     expect(markerQueueEnabled()).toBe(false);
   });
 
-  it("fails closed for retired RunPod configuration", () => {
+  it("enables RunPod only when its complete provider configuration and both gates are set", () => {
     process.env.MARKER_OCR_ENABLED = "true";
+    process.env.MARKER_SERVERLESS_PROVIDER = "runpod";
+    process.env.MARKER_SERVERLESS_DISPATCH_ENABLED = "true";
     process.env.STORAGE_PUBLIC_ENDPOINT = "https://objects.example";
     process.env.RUNPOD_MARKER_ENDPOINT_ID = "endpoint";
     process.env.RUNPOD_API_KEY = "key";
     process.env.RUNPOD_MARKER_WEBHOOK_TOKEN = "token";
     process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL = "https://app.example";
 
-    expect(markerServerlessProvider()).toBeNull();
+    expect(markerServerlessProvider()).toBe("runpod");
+    expect(markerQueueEnabled()).toBe(true);
+
+    delete process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL;
     expect(markerQueueEnabled()).toBe(false);
   });
 });

@@ -10,14 +10,19 @@ import type { ObjectMetadata } from "@/lib/storage/base";
 import { getStorageProvider } from "@/lib/storage/init";
 import type { StoreS3 } from "@/lib/storage/s3";
 import {
+  getRunPodJobStatus,
+  submitRunPodJob,
+  type RunPodJobMetrics,
+} from "@/lib/runpod-serverless";
+import {
   requestVastEndpoint,
   vastWorkloadCost,
   type VastRequestMetrics,
 } from "@/lib/vast-serverless";
 
-/** Only Vast is supported for new Marker++ jobs. */
-export type MarkerServerlessProvider = "vast";
-type StoredMarkerProvider = MarkerServerlessProvider | "runpod";
+export type MarkerServerlessProvider = "vast" | "runpod";
+type StoredMarkerProvider = MarkerServerlessProvider;
+type ProviderMetrics = VastRequestMetrics | RunPodJobMetrics;
 
 function positiveInt(name: string, fallback: number): number {
   const value = Number.parseInt(process.env[name] ?? "", 10);
@@ -65,7 +70,7 @@ export function markerServerlessProvider(): MarkerServerlessProvider | null {
   const configured = process.env.MARKER_SERVERLESS_PROVIDER
     ?.trim()
     .toLowerCase();
-  return configured === "vast" ? "vast" : null;
+  return configured === "vast" || configured === "runpod" ? configured : null;
 }
 
 function vastConfigured(): boolean {
@@ -73,6 +78,64 @@ function vastConfigured(): boolean {
     process.env.VAST_MARKER_ENDPOINT_NAME?.trim() &&
       process.env.VAST_MARKER_ENDPOINT_API_KEY?.trim(),
   );
+}
+
+function runpodConfigured(): boolean {
+  const webhookBaseUrl = process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL?.trim();
+  if (
+    !process.env.RUNPOD_MARKER_ENDPOINT_ID?.trim() ||
+    !process.env.RUNPOD_API_KEY?.trim() ||
+    !process.env.RUNPOD_MARKER_WEBHOOK_TOKEN?.trim() ||
+    !webhookBaseUrl
+  ) {
+    return false;
+  }
+  try {
+    const url = new URL(webhookBaseUrl);
+    return (
+      url.protocol === "https:" &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+
+function runpodWebhookUrl(callbackId: string): string {
+  const token = process.env.RUNPOD_MARKER_WEBHOOK_TOKEN?.trim();
+  const base = process.env.RUNPOD_MARKER_WEBHOOK_BASE_URL?.trim();
+  if (!token || !base) throw new Error("RunPod webhook is not configured");
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    throw new Error("RunPod webhook base URL is invalid");
+  }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
+    throw new Error("RunPod webhook base URL must use HTTPS without credentials");
+  }
+  return new URL(
+    `/api/internal/marker/${encodeURIComponent(token)}/${encodeURIComponent(callbackId)}`,
+    url,
+  ).toString();
+}
+
+function runpodConfig(callbackId: string) {
+  if (!runpodConfigured()) throw new Error("RunPod Marker is not configured");
+  return {
+    endpointId: process.env.RUNPOD_MARKER_ENDPOINT_ID!.trim(),
+    apiKey: process.env.RUNPOD_API_KEY!.trim(),
+    webhookUrl: runpodWebhookUrl(callbackId),
+    executionTimeoutMs: positiveInt(
+      "RUNPOD_MARKER_EXECUTION_TIMEOUT_MS",
+      30 * 60 * 1_000,
+    ),
+    ttlSeconds: positiveInt("RUNPOD_MARKER_JOB_TTL_SECONDS", 12 * 60 * 60),
+    requestTimeoutMs: positiveInt("RUNPOD_MARKER_REQUEST_TIMEOUT_MS", 10_000),
+    statusTimeoutMs: positiveInt("RUNPOD_MARKER_STATUS_TIMEOUT_MS", 10_000),
+  };
 }
 
 function hasSafePublicStorageEndpoint(): boolean {
@@ -99,7 +162,11 @@ export function markerQueueEnabled(): boolean {
   ) {
     return false;
   }
-  return markerServerlessProvider() === "vast" && vastConfigured();
+  const provider = markerServerlessProvider();
+  return (
+    (provider === "vast" && vastConfigured()) ||
+    (provider === "runpod" && runpodConfigured())
+  );
 }
 
 export function processAllPdfsWithMarker(): boolean {
@@ -142,7 +209,7 @@ export async function submitMarkerJob({
   parentFolderId,
 }: SubmitMarkerJobInput): Promise<SubmittedMarkerJob> {
   const provider = markerServerlessProvider();
-  if (provider !== "vast" || !markerQueueEnabled()) {
+  if (!provider || !markerQueueEnabled()) {
     throw new Error(
       "Marker serverless queue is incomplete; configure a provider, its endpoint credential, and STORAGE_PUBLIC_ENDPOINT",
     );
@@ -174,9 +241,9 @@ export async function submitMarkerJob({
       FOR UPDATE
     `;
     if (activeMarker) {
-      if (activeMarker.provider !== "vast") {
+      if (activeMarker.provider !== provider) {
         throw new Error(
-          "An unfinished legacy Marker job already owns this note; let it finish or cancel it before submitting a Vast job",
+          "An unfinished Marker job for another provider already owns this note; let it finish or cancel it before submitting a new job",
         );
       }
       return {
@@ -228,9 +295,9 @@ export async function submitMarkerJob({
         FOR UPDATE
       `;
       if (racedMarker) {
-        if (racedMarker.provider !== "vast") {
+        if (racedMarker.provider !== provider) {
           throw new Error(
-            "An unfinished legacy Marker job already owns this note; let it finish or cancel it before submitting a Vast job",
+            "An unfinished Marker job for another provider already owns this note; let it finish or cancel it before submitting a new job",
           );
         }
         return {
@@ -321,7 +388,7 @@ interface MarkerJobRow {
 async function markResultReady(
   job: MarkerJobRow,
   providerJobId: string | null,
-  metrics: VastRequestMetrics | null,
+  metrics: ProviderMetrics | null,
 ): Promise<boolean> {
   const rows = await sql`
     UPDATE app.marker_jobs
@@ -351,7 +418,7 @@ async function markResultReady(
 async function completeWithResult(
   job: MarkerJobRow,
   providerJobId: string | null,
-  metrics: VastRequestMetrics | null,
+  metrics: ProviderMetrics | null,
 ): Promise<void> {
   try {
     await markResultReady(job, providerJobId, metrics);
@@ -380,7 +447,8 @@ function markerOptions(): Record<string, unknown> {
 
 interface ProviderResult {
   providerJobId: string | null;
-  metrics: VastRequestMetrics;
+  metrics: ProviderMetrics;
+  resultReady: boolean;
 }
 
 async function dispatchVast(
@@ -459,6 +527,41 @@ async function dispatchVast(
     // job ID. Keep it only in provider_metrics.
     providerJobId: job.provider_job_id,
     metrics: result.metrics,
+    resultReady: true,
+  };
+}
+
+async function dispatchRunPod(
+  storage: StoreS3,
+  job: MarkerJobRow,
+): Promise<ProviderResult> {
+  const ttlSeconds = positiveInt("MARKER_SERVERLESS_URL_TTL_SECONDS", 3_600);
+  const [sourceUrl, resultUrl] = await Promise.all([
+    storage.getExternalSignUrl(job.source_key, ttlSeconds),
+    storage.getPutSignUrl(job.result_key, ttlSeconds, "application/json", true),
+  ]);
+  const submitted = await submitRunPodJob(
+    {
+      requestId: job.callback_id,
+      sourceUrl,
+      resultUrl,
+      resultKey: job.result_key,
+      // The third-party worker never receives Oghma user/note IDs or an
+      // original filename. Its v1 object envelope binds the opaque callback
+      // ID and deterministic result key before Oghma accepts completion.
+      filename: "document.pdf",
+      options: markerOptions(),
+      submittedAtUnixMs: Date.now(),
+    },
+    runpodConfig(job.callback_id),
+  );
+  return {
+    providerJobId: submitted.jobId,
+    metrics: submitted.metrics,
+    // /run acknowledges queue ownership, not a durable result. The callback
+    // and immutable-object observer advance this state without a second paid
+    // submission if the acknowledgement was lost.
+    resultReady: false,
   };
 }
 
@@ -466,11 +569,72 @@ async function dispatchToProvider(
   storage: StoreS3,
   job: MarkerJobRow,
 ): Promise<ProviderResult> {
-  if (job.provider !== "vast") {
-    throw new Error(`Retired Marker provider: ${job.provider}`);
+  if (job.provider === "vast") {
+    if (!vastConfigured()) throw new Error("Vast Marker is not configured");
+    return await dispatchVast(storage, job);
   }
-  if (!vastConfigured()) throw new Error("Vast Marker is not configured");
-  return await dispatchVast(storage, job);
+  if (job.provider === "runpod") {
+    if (!runpodConfigured()) throw new Error("RunPod Marker is not configured");
+    return await dispatchRunPod(storage, job);
+  }
+  throw new Error(`Unsupported Marker provider: ${job.provider}`);
+}
+
+async function markAwaitingResult(
+  job: MarkerJobRow,
+  providerJobId: string | null,
+  metrics: ProviderMetrics,
+): Promise<boolean> {
+  const rows = await sql`
+    UPDATE app.marker_jobs
+    SET status = 'awaiting_result',
+        provider_job_id = COALESCE(${providerJobId}, provider_job_id),
+        runpod_job_id = CASE
+          WHEN provider = 'runpod' THEN COALESCE(${providerJobId}, runpod_job_id)
+          ELSE runpod_job_id
+        END,
+        provider_metrics = COALESCE(
+          ${JSON.stringify(metrics)}::jsonb,
+          provider_metrics
+        ),
+        error = NULL,
+        updated_at = NOW()
+    WHERE callback_id = ${job.callback_id}::uuid
+      AND status = 'dispatching'
+      AND dispatch_attempts = ${job.dispatch_attempts}
+    RETURNING callback_id
+  `;
+  return rows.length > 0;
+}
+
+async function observeRunPodStatus(job: MarkerJobRow): Promise<string | null> {
+  if (
+    job.provider !== "runpod" ||
+    !job.provider_job_id ||
+    !runpodConfigured()
+  ) {
+    return null;
+  }
+  try {
+    const status = await getRunPodJobStatus(
+      job.provider_job_id,
+      runpodConfig(job.callback_id),
+    );
+    if (Object.keys(status.metrics).length > 0) {
+      await sql`
+        UPDATE app.marker_jobs
+        SET provider_metrics = COALESCE(provider_metrics, '{}'::jsonb)
+            || ${JSON.stringify(status.metrics)}::jsonb
+        WHERE callback_id = ${job.callback_id}::uuid
+          AND status = 'awaiting_result'
+      `;
+    }
+    return status.status ?? null;
+  } catch {
+    // A provider status probe is advisory. The immutable result object remains
+    // authoritative and a transient GET failure must never cause redispatch.
+    return null;
+  }
 }
 
 async function recordAmbiguousDispatchOutcome(
@@ -553,6 +717,18 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     }
     if (result !== undefined) {
       await completeWithResult(existing, existing.provider_job_id, null);
+      return;
+    }
+    const providerStatus = await observeRunPodStatus(existing);
+    if (
+      providerStatus === "FAILED" ||
+      providerStatus === "CANCELLED" ||
+      providerStatus === "TIMED_OUT"
+    ) {
+      await recordTerminalDispatchFailure(
+        existing,
+        `RunPod job ${existing.provider_job_id ?? "unknown"} ${providerStatus.toLowerCase()}`,
+      );
       return;
     }
     const updatedAt = new Date(existing.updated_at).getTime();
@@ -655,6 +831,11 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
     return;
   }
 
+  if (!dispatched.resultReady) {
+    await markAwaitingResult(job, dispatched.providerJobId, dispatched.metrics);
+    return;
+  }
+
   await completeWithResult(
     job,
     dispatched.providerJobId,
@@ -663,26 +844,32 @@ export async function dispatchMarkerJob(callbackId: string): Promise<void> {
 }
 
 export async function recoverMarkerDispatchJobs(limit = 50): Promise<number> {
-  if (!dispatchEnabled()) return 0;
+  const mayDispatchNewWork = dispatchEnabled();
   const completionLimit = maxCompletionAttempts();
-  const dispatchRows = (await sql`
-    WITH candidates AS (
-      SELECT callback_id
-      FROM app.marker_jobs
-      WHERE status IN (
-        'dispatch_queued', 'dispatch_paused', 'enqueue_failed', 'recovering'
-      )
-        AND updated_at < NOW() - INTERVAL '15 seconds'
-      ORDER BY updated_at
-      LIMIT ${limit}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE app.marker_jobs jobs
-    SET status = 'recovering', updated_at = NOW()
-    FROM candidates
-    WHERE jobs.callback_id = candidates.callback_id
-    RETURNING jobs.callback_id
-  `) as { callback_id: string }[];
+  // The kill switch prevents fresh paid submissions only. It must not strand a
+  // job that was already submitted before an operator paused dispatch: that
+  // row still needs immutable-result observation and completion/failure
+  // recovery without issuing another provider request.
+  const dispatchRows = mayDispatchNewWork
+    ? ((await sql`
+        WITH candidates AS (
+          SELECT callback_id
+          FROM app.marker_jobs
+          WHERE status IN (
+            'dispatch_queued', 'dispatch_paused', 'enqueue_failed', 'recovering'
+          )
+            AND updated_at < NOW() - INTERVAL '15 seconds'
+          ORDER BY updated_at
+          LIMIT ${limit}
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE app.marker_jobs jobs
+        SET status = 'recovering', updated_at = NOW()
+        FROM candidates
+        WHERE jobs.callback_id = candidates.callback_id
+        RETURNING jobs.callback_id
+      `) as { callback_id: string }[])
+    : [];
 
   for (const row of dispatchRows) {
     try {
