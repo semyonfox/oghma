@@ -186,7 +186,8 @@ export class StoreS3 extends StoreProvider {
   async getPutSignUrl(
     path: string,
     expiresIn = 600,
-    contentType = 'application/octet-stream'
+    contentType = 'application/octet-stream',
+    ifNoneMatch = false,
   ): Promise<string> {
     return getSignedUrl(
       this.publicClient,
@@ -194,6 +195,7 @@ export class StoreS3 extends StoreProvider {
         Bucket: this.config.bucket,
         Key: this.getPath(path),
         ContentType: contentType,
+        ...(ifNoneMatch ? { IfNoneMatch: '*' } : {}),
       }),
       { expiresIn }
     );
@@ -246,7 +248,11 @@ export class StoreS3 extends StoreProvider {
   /**
    * Retrieve object metadata only
    */
-  async getObjectMeta(path: string): Promise<Record<string, string> | undefined> {
+  async getObjectMeta(
+    path: string,
+  ): Promise<
+    Pick<ObjectMetadata, "meta" | "contentType" | "contentLength"> | undefined
+  > {
     try {
       const result = await this.client.send(
         new HeadObjectCommand({
@@ -254,7 +260,17 @@ export class StoreS3 extends StoreProvider {
           Key: this.getPath(path),
         })
       );
-      return result.Metadata;
+      // A successful HEAD proves existence even when the object has no custom
+      // user metadata. Keep `undefined` exclusively for a confirmed 404 so
+      // callers can distinguish absence from both an empty metadata map and a
+      // real storage failure.
+      return {
+        ...(result.Metadata ? { meta: result.Metadata } : {}),
+        ...(result.ContentType ? { contentType: result.ContentType } : {}),
+        ...(typeof result.ContentLength === "number"
+          ? { contentLength: result.ContentLength }
+          : {}),
+      };
     } catch (error) {
       if (isNoSuchKeyError(error)) {
         return undefined;
@@ -285,6 +301,7 @@ export class StoreS3 extends StoreProvider {
          content: await toStr(buffer, isCompressed),
          meta: result.Metadata,
          contentType: result.ContentType,
+         contentLength: result.ContentLength,
          buffer,
        };
     } catch (error) {

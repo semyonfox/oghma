@@ -4,7 +4,7 @@
 >
 > Audience: Maintainers and deployment operators
 >
-> Last reviewed: 2026-07-22
+> Last reviewed: 2026-07-25
 
 Infrastructure documents have one responsibility each:
 
@@ -16,6 +16,8 @@ Infrastructure documents have one responsibility each:
 | [MIGRATION_RECORD.md](MIGRATION_RECORD.md) | Completed AWS-to-homelab migration record |
 | [Import worker runbook](../docs/operations/import-worker.md) | Canvas, extraction, retry, and vault workload operations |
 | [Marker infrastructure boundary](marker/README.md) | Current benchmark tooling versus retired AWS provisioning scripts and package pins |
+| [Vast Marker image](vast-marker/README.md) | Build-ready, undeployed Vast PyWorker image and capacity profiles |
+| [Vast Marker operations](../docs/operations/vast-marker.md) | Provider boundary, scale-to-zero plan, funding-time launch gates, monitoring, and rollback |
 | [Email operations](../docs/operations/email.md) | Human inbox and transactional-email ownership |
 | [Secrets policy](../docs/operations/secrets.md) | Safe repository boundary for runtime credentials |
 

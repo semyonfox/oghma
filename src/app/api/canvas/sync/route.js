@@ -6,6 +6,7 @@ import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
+import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 /**
  * POST /api/canvas/sync
@@ -66,13 +67,13 @@ export const POST = withErrorHandler(async () => {
   }
 
   // cancel any in-flight job and insert the sync atomically
-  const job = await sql.begin(async (sql) => {
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
-    `;
-    const [inserted] = await sql`
+  const job = await sql.begin(async (tx) => {
+    await cancelActiveCanvasImportJobs(
+      tx,
+      user.user_id,
+      "Replaced by a newer Canvas sync",
+    );
+    const [inserted] = await tx`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
       VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
       RETURNING id
@@ -107,7 +108,9 @@ export const GET = withErrorHandler(async () => {
     sql`SELECT COUNT(DISTINCT canvas_course_id)::int AS count FROM app.canvas_imports WHERE user_id = ${user.user_id}`,
     sql`
       SELECT id, status, created_at FROM app.canvas_import_jobs
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
+      WHERE user_id = ${user.user_id}
+        AND type = 'canvas'
+        AND status IN ('queued', 'discovering', 'processing')
       ORDER BY created_at DESC LIMIT 1
     `,
   ]);

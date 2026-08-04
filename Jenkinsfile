@@ -199,7 +199,6 @@ pipeline {
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
-                          -e MARKER_OCR_ENABLED=false \
                           -e QDRANT_URL=http://oghma-qdrant:6333 \
                           -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
                           --memory "\$APP_MEM" \
@@ -237,7 +236,6 @@ pipeline {
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
-                          -e MARKER_OCR_ENABLED=false \
                           -e QDRANT_URL=http://oghma-qdrant:6333 \
                           -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
                           --memory "\$APP_MEM" \
@@ -307,7 +305,6 @@ pipeline {
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
-                          -e MARKER_OCR_ENABLED=false \
                           -e QDRANT_URL=http://oghma-qdrant:6333 \
                           -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
                           --memory "\$WORKER_MEM" \
@@ -342,7 +339,6 @@ pipeline {
                           -e MIGRATION_DATABASE_URL= \
                           -e DEPLOY_ENV="\$DEPLOY_ENV" \
                           -e QUEUE_PREFIX="\$QUEUE_PREFIX" \
-                          -e MARKER_OCR_ENABLED=false \
                           -e QDRANT_URL=http://oghma-qdrant:6333 \
                           -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
                           --memory "\$WORKER_MEM" \

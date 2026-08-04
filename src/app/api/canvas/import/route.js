@@ -12,6 +12,7 @@ import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { recordActivationMilestone } from "@/lib/marketing/events";
 import { normalizeCanvasCourseSelection } from "@/lib/canvas/id.js";
+import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 /**
  * POST /api/canvas/import
@@ -55,13 +56,13 @@ export const POST = withErrorHandler(async (request) => {
 
   // Cancel any existing queued/processing job and insert the new one atomically
   // This prevents a worker from taking the old job after its replacement.
-  const job = await sql.begin(async (sql) => {
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
-    `;
-    const [inserted] = await sql`
+  const job = await sql.begin(async (tx) => {
+    await cancelActiveCanvasImportJobs(
+      tx,
+      user.user_id,
+      "Replaced by a newer Canvas import",
+    );
+    const [inserted] = await tx`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status)
       VALUES (${user.user_id}::uuid, ${JSON.stringify(normalizedCourseIds)}::jsonb, 'queued')
       RETURNING id
@@ -97,12 +98,9 @@ export const POST = withErrorHandler(async (request) => {
 export const DELETE = withErrorHandler(async () => {
   const user = await requireAuth();
 
-  const cancelled = await sql`
-    UPDATE app.canvas_import_jobs
-    SET status = 'cancelled', completed_at = NOW()
-    WHERE user_id = ${user.user_id} AND status IN ('queued', 'discovering', 'processing')
-    RETURNING id
-  `;
+  const cancelled = await sql.begin((tx) =>
+    cancelActiveCanvasImportJobs(tx, user.user_id, "Cancelled by user"),
+  );
 
   if (cancelled.length === 0) {
     return NextResponse.json({
@@ -112,13 +110,7 @@ export const DELETE = withErrorHandler(async () => {
     });
   }
 
-  // mark in-flight file records so the worker skips them
   const jobId = cancelled[0].id;
-  await sql`
-    UPDATE app.canvas_imports
-    SET status = 'cancelled', error_message = 'Cancelled by user', updated_at = NOW()
-    WHERE job_id = ${jobId}::uuid AND status IN ('pending', 'downloading', 'processing', 'indexing')
-  `;
 
   return NextResponse.json({ success: true, cancelled: true, jobId });
 });

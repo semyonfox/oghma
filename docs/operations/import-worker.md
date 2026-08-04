@@ -4,7 +4,7 @@
 >
 > Audience: OghmaNotes operators and import-pipeline maintainers
 >
-> Last verified: 2026-07-22 against the worker, queue facade, R2 browser upload,
+> Last verified: 2026-08-04 against the worker, queue facade, R2 browser upload,
 > Jenkinsfile, and tracked environment templates
 
 This runbook covers Canvas import, extraction retry, and vault import/export
@@ -22,7 +22,7 @@ workloads. General container deployment, migrations, and rollback belong in
 | Optional provider        | Cloudflare Queues HTTP publish/pull when `QUEUE_PROVIDER=cloudflare`                                                                             |
 | Object storage           | S3-compatible provider selected by the `STORAGE_*` environment                                                                                   |
 | Vector storage           | Qdrant, with per-environment collections injected by Jenkins                                                                                     |
-| Extraction               | Local parsers first; Marker uses either direct `MARKER_API_URL` or queued `RUNPOD_MARKER_ENDPOINT_ID`, and remains gated by `MARKER_OCR_ENABLED` |
+| Extraction               | Local parsers first; Marker uses direct `MARKER_API_URL` or provider-neutral serverless dispatch, and remains gated by `MARKER_OCR_ENABLED` |
 
 The queue provider is selected through the facade. API routes and workers
 should not bypass it with provider-specific calls.
@@ -31,14 +31,16 @@ should not bypass it with provider-specific calls.
 
 `src/lib/queue.ts` prefixes queue names. Jenkins currently supplies:
 
-| Environment | Prefix      | Canvas queue              | Retry queue               |
-| ----------- | ----------- | ------------------------- | ------------------------- |
-| Production  | `oghma`     | `oghma-canvas-import`     | `oghma-extract-retry`     |
-| Development | `oghma-dev` | `oghma-dev-canvas-import` | `oghma-dev-extract-retry` |
+| Environment | Prefix      | Canvas queue              | Retry queue               | Marker dispatch queue         |
+| ----------- | ----------- | ------------------------- | ------------------------- | ----------------------------- |
+| Production  | `oghma`     | `oghma-canvas-import`     | `oghma-extract-retry`     | `oghma-marker-dispatch`       |
+| Development | `oghma-dev` | `oghma-dev-canvas-import` | `oghma-dev-extract-retry` | `oghma-dev-marker-dispatch`   |
 
 The Canvas queue handles `canvas-discover`, `canvas-file`, `extract`,
-`marker-complete`, `marker-failed`, `vault-import`, `vault-export`, and the legacy
-`canvas-import` job name retained for in-flight compatibility. New delayed
+`marker-complete`, `marker-failed`, `vault-import`, `vault-export`, and the
+legacy `canvas-import` job name retained for in-flight compatibility.
+`marker-dispatch` has its own queue and concurrency because cold-start plus
+conversion must not occupy the general import lane. New delayed
 extraction retries return to the Canvas queue so fresh and retried work share
 worker capacity. The retry queue consumer remains enabled to drain messages
 created before this change.
@@ -50,9 +52,11 @@ at once. Paid entitlement comes from verified local
 `app.login.import_service_class` state.
 
 The worker also polls the database as a safety net for Canvas import/sync
-discovery jobs that were accepted but not enqueued cleanly. It cannot recreate
-arbitrary direct-extraction, retry, or vault payloads. That mechanism is
-recovery, not a substitute for queue health.
+discovery jobs that were accepted but not enqueued cleanly, and for durable
+Canvas `pending_retry` rows whose retry publication was interrupted. Retried
+Canvas messages carry the exact import-row and job IDs and are claimed before
+they can index. It cannot reconstruct arbitrary direct-extraction or vault
+payloads. That mechanism is recovery, not a substitute for queue health.
 
 ## Configuration Truth
 
@@ -66,12 +70,21 @@ There are three distinct values to discuss:
 
 | Variable                                 |                           Code default | Production template |
 | ---------------------------------------- | -------------------------------------: | ------------------: |
+| `CANVAS_DISCOVERY_CONCURRENCY`           |                                    `1` |                 `1` |
 | `CANVAS_GLOBAL_FILE_CONCURRENCY`         |                                    `6` |                 `2` |
 | `CANVAS_OCR_CONCURRENCY`                 |                                    `2` |                 `1` |
 | `CANVAS_EMBED_CONCURRENCY`               |                                    `3` |                 `1` |
-| `CANVAS_FILE_TIMEOUT_MS`                 | `600000` in the import extraction path |            `600000` |
+| `CANVAS_FILE_QUEUE_MAX_ATTEMPTS`         |                                    `3` |                 `3` |
+| `CANVAS_FILE_TIMEOUT_MS`                 |      `600000` supervision warning |            `600000` |
+| `CANVAS_MAX_FILE_BYTES`                  |                    `262144000` (250 MiB) |        `262144000` |
 | `CANVAS_POLL_INTERVAL_MS`                |                                 `3000` |              `3000` |
 | `MARKER_OCR_ENABLED`                     |                                `false` |             `false` |
+| `MARKER_SERVERLESS_DISPATCH_ENABLED`     |                                `false` |             `false` |
+| `MARKER_DISPATCH_CONSUMER_ENABLED`       |                                 `true` |              `true` |
+| `MARKER_DISPATCH_CONCURRENCY`            |                                    `1` |                 `1` |
+| `MARKER_COMPLETION_MAX_ATTEMPTS`         |                                    `3` |                 `3` |
+| `MARKER_RESULT_GRACE_SECONDS`            |                                 `1800` |              `1800` |
+| `MARKER_SERVERLESS_URL_TTL_SECONDS`      |                                 `3600` |              `3600` |
 | `QUEUE_PROVIDER`                         |                               `bullmq` |            `bullmq` |
 | `REDIS_HOST`                             |                            `localhost` |       `oghma-redis` |
 | `REDIS_PORT`                             |                                 `6379` |              `6379` |
@@ -80,24 +93,31 @@ There are three distinct values to discuss:
 Do not infer live production tuning from either default column. Check variable
 presence and container configuration without printing secret values.
 
-Jenkins also passes `MARKER_OCR_ENABLED=false` explicitly to deployed app,
-worker, smoke-test, and retry-drain containers. That command-line value wins
-over the private env file. Enabling Marker in a deployed environment therefore
-requires an intentional deployment-code change as well as a configured URL;
-an env-file edit alone cannot enable it.
+Jenkins preserves the private env-file value for the normal app and worker
+containers. Retry-drain remains explicitly OCR-disabled so a deployment cannot
+unexpectedly spend GPU budget while replaying generic extraction retries.
+Enable Marker only through a reviewed development env file after the Vast
+runbook's endpoint and round-trip checks pass.
 
-Queued RunPod extraction also requires the endpoint/API credentials, a
-high-entropy webhook token, a public HTTPS app base URL, and
-`STORAGE_PUBLIC_ENDPOINT`. Oghma submits one document to `/run`; the worker
-downloads the source and uploads full JSON through short-lived signed object
-URLs. The webhook contains only completion metadata and re-enters this worker
-through `marker-complete` or `marker-failed`. `app.marker_jobs` correlates the
-callback and makes retries observable. Keep `MARKER_PROCESS_ALL_PDFS=false` to
-retain the text-layer-first path; enable it only for a controlled quality run.
+Serverless extraction additionally requires `MARKER_SERVERLESS_PROVIDER`, that
+provider's endpoint-scoped credential, and `STORAGE_PUBLIC_ENDPOINT`. Oghma
+creates `app.marker_jobs` before enqueueing provider work. The isolated
+dispatch consumer signs short-lived source/result URLs only when work starts;
+full output returns to object storage, and only small completion metadata
+re-enters the Canvas queue. The database poller recovers lost dispatch and
+completion enqueues. An ambiguous provider response is observed through its
+immutable result object for `MARKER_RESULT_GRACE_SECONDS`; it is never
+automatically resubmitted as a second paid conversion. Keep
+`MARKER_PROCESS_ALL_PDFS=false` to retain the
+text-layer-first path; enable it only for a controlled quality run. Vast
+configuration and launch gates belong in the
+[Vast Marker runbook](vast-marker.md). New serverless dispatches are Vast-only;
+the retained RunPod webhook route exists solely to drain a legacy row safely.
 
-Cloudflare queue mode also requires the account ID, queue IDs, and a
-Queues API token named by `.env.example`. It still uses the long-running Node
-worker; changing the queue provider does not move extraction into a Worker.
+Cloudflare queue mode additionally requires the account ID, all three queue
+IDs, and a Queues API token named by `.env.example`. It still uses the
+long-running Node worker; changing the queue provider does not move extraction
+into a Cloudflare Worker.
 
 Jenkins injects the Qdrant endpoint and per-environment collections documented
 in the [homelab runtime guide](../../infra/HOMELAB.md). Keep collection naming
@@ -182,6 +202,11 @@ SELECT COALESCE(l.import_service_class, 'free') AS service_class,
   JOIN app.login l ON l.user_id = ci.user_id
  GROUP BY 1
  ORDER BY 1;
+
+SELECT status, COUNT(*)
+  FROM app.canvas_imports
+ WHERE status = 'pending_retry'
+ GROUP BY status;
 ```
 
 ## Dev Smoke Test
@@ -232,9 +257,9 @@ re-evaluating that model.
 ### Jobs remain indexing
 
 - For direct mode, check extraction errors and `MARKER_API_URL` reachability.
-- For queue mode, inspect `app.marker_jobs`, RunPod job status, the public
-  signed-storage hostname, and `pending_marker` records without logging URLs or
-  tokens.
+- For serverless mode, run `npm run marker:serverless:status`, then inspect the
+  provider endpoint, public object-storage hostname, and `pending_marker`
+  records without logging URLs or tokens.
 - Check `CANVAS_OCR_CONCURRENCY` and provider timeouts.
 - Check embedding-provider responses and Qdrant connectivity.
 - Confirm the note/job terminal-state guards are preventing duplicate work.
@@ -260,3 +285,4 @@ Stop workload verification and use the homelab deployment guide. Do not edit
 - `src/lib/canvas/import-extraction.js`
 - `src/lib/canvas/import-embedding.js`
 - `scripts/worker-healthcheck.mjs`
+- [Vast Serverless Marker runbook](vast-marker.md)
