@@ -37,7 +37,7 @@ async function redisCheck(key: string, rule: RateLimitRule, now: number): Promis
   const count = (results[1]?.[1] as number) ?? 0;
 
   if (count >= rule.limit) {
-    // over limit — remove the entry we just added (it shouldn't count)
+    // The request is over the limit. Remove the new entry because it must not count.
     // get the oldest entry to calculate retryAfter
     const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
     const oldestTs = oldest.length >= 2 ? parseInt(oldest[1], 10) : now;

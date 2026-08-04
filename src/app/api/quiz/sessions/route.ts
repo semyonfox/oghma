@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  parseJsonObject,
+  withErrorHandler,
+  tracedError,
+} from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
   resolveChunkIds,
@@ -26,7 +30,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
   if (!user) return tracedError("Unauthorized", 401);
 
-  const rawBody = await request.json();
+  const rawBody = await parseJsonObject(request);
 
   // validate input shape
   const zodResult = validateBody(quizSessionCreateSchema, rawBody);
@@ -34,7 +38,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const body = zodResult.data;
 
   const filterType = body.filterType as FilterType;
-  const filterValue = body.filterValue;
+  const filterValue = "filterValue" in body ? body.filterValue : undefined;
 
   if (!filterType) return tracedError("filterType is required", 400);
 
@@ -73,9 +77,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       `;
 
     const bgChunkIds: string[] = [];
-    const moduleCounts = new Map<number, number>();
-    for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: number }>) {
-      const moduleId = Number(row.module_id);
+    const moduleCounts = new Map<string, number>();
+    for (const row of uncoveredChunkMeta as Array<{ id: string; module_id: string }>) {
+      const moduleId = String(row.module_id);
       const used = moduleCounts.get(moduleId) ?? 0;
       if (used >= AI_GENERATION_PER_MODULE) continue;
       bgChunkIds.push(row.id);

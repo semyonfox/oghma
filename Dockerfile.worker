@@ -5,5 +5,7 @@ RUN npm pkg delete scripts.prepare && npm ci --legacy-peer-deps --omit=dev
 COPY tsconfig.json ./
 COPY scripts/ ./scripts/
 COPY src/ ./src/
+COPY infra/vast-marker/jvastai_root.cer /app/certs/vast-jvastai-root.cer
 ENV NODE_ENV=production
+ENV NODE_EXTRA_CA_CERTS=/app/certs/vast-jvastai-root.cer
 CMD ["npm", "exec", "--", "tsx", "src/lib/canvas/worker-entry.ts"]

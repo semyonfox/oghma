@@ -1,0 +1,18 @@
+# Exact Marker++ v2 application environment. It deliberately does not inherit
+# the vLLM layer's Transformers 5.7 lock: Marker++ commit d31ecd2 requires
+# Transformers >=5.12.1, and Surya 0.22.1 exact-pins OpenCV 4.11. The
+# Dockerfile puts this stack in the root interpreter and overlays the separate
+# vLLM dependencies only in /opt/vllm-venv.
+fastapi==0.139.2
+huggingface_hub==1.13.0
+numpy==2.2.6
+opencv-python-headless==4.11.0.86
+pillow==10.4.0
+pydantic==2.13.3
+pydantic-settings==2.14.0
+python-multipart==0.0.32
+safetensors==0.8.0
+surya-ocr==0.22.1
+tokenizers==0.22.2
+transformers==5.14.1
+uvicorn==0.46.0

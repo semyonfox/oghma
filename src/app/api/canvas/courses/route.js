@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import { loadCanvasCredentials } from '@/lib/canvas/credentials';
+import { canvasIdForBigintColumn } from '@/lib/canvas/id.js';
+
+function upstreamCourseId(value) {
+  try {
+    return canvasIdForBigintColumn(value, 'Canvas course ID');
+  } catch {
+    throw new ApiError(502, 'Canvas returned an invalid course ID');
+  }
+}
 
 /**
  * GET /api/canvas/courses
@@ -33,9 +42,11 @@ export const GET = withErrorHandler(async () => {
   // the folder structure the import will create
   const moduleResults = await Promise.allSettled(
     (courses ?? []).map(async (course) => {
-      const { data: modules } = await client.getModules(course.id);
+      const id = upstreamCourseId(course.id);
+      const { data: modules } = await client.getModules(id);
       return {
         ...course,
+        id,
         modules: modules ?? [],
       };
     })
@@ -44,7 +55,11 @@ export const GET = withErrorHandler(async () => {
   const coursesWithModules = moduleResults.map((result, i) =>
     result.status === 'fulfilled'
       ? result.value
-      : { ...(courses ?? [])[i], modules: [] }
+      : {
+          ...(courses ?? [])[i],
+          id: upstreamCourseId((courses ?? [])[i]?.id),
+          modules: [],
+        }
   );
 
   return NextResponse.json({

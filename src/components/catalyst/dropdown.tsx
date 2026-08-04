@@ -35,7 +35,7 @@ export function DropdownMenu({
         'isolate w-max rounded-xl p-1',
         // Invisible border that is only visible in `forced-colors` mode for accessibility purposes
         'outline outline-transparent focus:outline-hidden',
-        // Handle scrolling when menu won't fit in viewport
+        // Handle scrolling when the menu does not fit in the viewport.
         'overflow-y-auto',
         // Popover background
         'bg-white/75 backdrop-blur-xl dark:bg-zinc-800/75',

@@ -3,6 +3,7 @@
 import { FC } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
@@ -147,7 +148,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           onClick={onNavigate}
           className="mb-3 flex min-h-11 items-center gap-3 rounded-radius-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-subtle"
         >
-          <img src="/oghmanotes.svg" alt="" className="h-6 w-6" />
+          <BrandLogo size={24} className="h-6 w-6" />
           <span>{t("OghmaNotes")}</span>
         </Link>
 
@@ -227,7 +228,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         href="/"
         className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center transition-opacity hover:opacity-70"
       >
-        <img src="/oghmanotes.svg" alt="OghmaNotes Logo" className="h-6 w-6" />
+        <BrandLogo size={24} alt="OghmaNotes Logo" className="h-6 w-6" />
       </Link>
 
       <div className="flex flex-1 flex-col gap-1">

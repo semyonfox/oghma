@@ -123,7 +123,3 @@ export function highlightCode(
 
   return remember(key, highlighted);
 }
-
-export function __clearShikiCacheForTests() {
-  cache.clear();
-}

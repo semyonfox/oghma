@@ -56,7 +56,7 @@ workflow and confirm that Jenkins can still read the files afterward.
    template.
 2. Document its purpose without giving a real value or derivation recipe.
 3. Add the real value through the private deployment workflow.
-4. Ensure the app and worker receive the same value when both need it.
+4. Verify that the app and worker receive the same value when both need it.
 5. Deploy to development and exercise the affected path.
 6. Confirm logs and error messages do not expose the value.
 7. Promote through the normal `dev` to `main` flow.

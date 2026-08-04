@@ -256,7 +256,19 @@ export default async function AnalyticsPage({
           <Section title="Navigation transitions" description="Aggregate from/to paths without a visitor trail">
             <RankedList rows={report.transitions} />
           </Section>
-          <Section title="CTA performance" description="Explicit marketing CTAs and pricing links">
+          <Section
+            title="Common route chains"
+            description="Bounded three- or four-page sequences kept only in memory; small cells are suppressed"
+          >
+            <RankedList rows={report.journeys} />
+          </Section>
+          <Section
+            title="CTA-assisted journeys"
+            description="Bounded route chains attributed to the latest allowlisted CTA action, placement, and source page"
+          >
+            <RankedList rows={report.ctaJourneys} />
+          </Section>
+          <Section title="CTA performance" description="Explicit CTA and pricing clicks by semantic action and placement">
             <RankedList rows={report.ctas} />
           </Section>
           <Section title="Link destinations" description="Allowlisted public destination paths">

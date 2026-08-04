@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "template": {
+    "name": "oghma-marker-cu129",
+    "image": "<VAST_MARKER_IMAGE_TAG>",
+    "launch_mode": "args",
+    "disk_space_gb": 80,
+    "environment": {
+      "MARKER_ALLOWED_OBJECT_HOSTS": "<PUBLIC_OBJECT_HOST>",
+      "MARKER_API_PROCESSES": "4",
+      "MARKER_ADMISSION_CONCURRENCY": "3",
+      "MARKER_BENCHMARK_CONCURRENCY": "3",
+      "MARKER_BENCHMARK_RUNS": "2",
+      "MARKER_PDFTEXT_WORKERS": "1",
+      "VLLM_MAX_NUM_SEQS": "32",
+      "VLLM_MAX_BATCHED_TOKENS": "8192",
+      "VLLM_GPU_MEMORY_UTILIZATION": "0.85"
+    }
+  },
+  "endpoint": {
+    "endpoint_name": "oghma-marker",
+    "min_load": 0,
+    "min_cold_load": 0,
+    "min_workers": 0,
+    "target_util": 0.85,
+    "cold_mult": 0,
+    "cold_workers": 0,
+    "max_workers": 1,
+    "max_queue_time": 120,
+    "target_queue_time": 30,
+    "inactivity_timeout": 300
+  },
+  "workergroup": {
+    "endpoint_name": "oghma-marker",
+    "template_hash": "<VAST_TEMPLATE_HASH>",
+    "test_workers": 1,
+    "cold_workers": 0,
+    "gpu_ram": 24,
+    "search_params": "verified=true rentable=true rented=false reliability>=0.98 cpu_arch=amd64 cpu_cores_effective>=16 cpu_ram>=64 num_gpus=1 gpu_name=RTX_4090 gpu_ram>=24 cuda_max_good>=12.9 disk_bw>=500 disk_space>=80 allocated_storage=80 inet_down>=200 inet_up>=100 inet_down_cost<=0.005 inet_up_cost<=0.005 dph_total<=0.45"
+  },
+  "application": {
+    "provider": "vast",
+    "dispatch_consumer_enabled": true,
+    "dispatch_concurrency": 1,
+    "dispatch_attempts": 1
+  }
+}

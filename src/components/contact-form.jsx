@@ -16,16 +16,10 @@ function messageLengthBucket(value) {
 
 function formAnalyticsPayload(form) {
   const formData = new FormData(form);
-  const institution = formData.get("institution");
-  const phone = formData.get("phone");
   const message = formData.get("message");
 
   return {
-    role: formData.get("role") || undefined,
     interest: formData.get("interest") || undefined,
-    has_institution:
-      typeof institution === "string" && institution.trim().length > 0,
-    has_phone: typeof phone === "string" && phone.trim().length > 0,
     message_length_bucket: messageLengthBucket(message),
   };
 }
@@ -132,106 +126,25 @@ export default function ContactForm({ source = "contact", centered = false }) {
         </div>
         <div>
           <label
-            htmlFor="first-name"
+            htmlFor="full-name"
             className="block text-sm/6 font-semibold text-text"
           >
-            {t("First name")}
+            {t("Full name")}
           </label>
+          {/* the field is still named first_name on the wire: the API schema
+              and app.marketing_leads column keep that name */}
           <div className="mt-2.5">
             <input
-              id="first-name"
+              id="full-name"
               name="first_name"
               type="text"
+              autoComplete="name"
               required
               className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
             />
           </div>
         </div>
         <div>
-          <label
-            htmlFor="last-name"
-            className="block text-sm/6 font-semibold text-text"
-          >
-            {t("Last name")}
-          </label>
-          <div className="mt-2.5">
-            <input
-              id="last-name"
-              name="last_name"
-              type="text"
-              required
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
-            />
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="role"
-            className="block text-sm/6 font-semibold text-text"
-          >
-            {t("I am a")}
-          </label>
-          <div className="mt-2.5">
-            <select
-              id="role"
-              name="role"
-              required
-              defaultValue=""
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
-            >
-              <option value="" disabled>
-                {t("Select a role")}
-              </option>
-              <option value="student">{t("Student")}</option>
-              <option value="lecturer">{t("Lecturer")}</option>
-              <option value="university_staff">{t("University staff")}</option>
-              <option value="partner_or_press">{t("Partner or press")}</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="interest"
-            className="block text-sm/6 font-semibold text-text"
-          >
-            {t("I need help with")}
-          </label>
-          <div className="mt-2.5">
-            <select
-              id="interest"
-              name="interest"
-              required
-              defaultValue=""
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
-            >
-              <option value="" disabled>
-                {t("Select an option")}
-              </option>
-              <option value="beta_access">{t("Beta access")}</option>
-              <option value="campus_pilot">{t("Campus pilot")}</option>
-              <option value="support">{t("Support")}</option>
-              <option value="billing">{t("Billing")}</option>
-              <option value="partnership">{t("Partnership")}</option>
-            </select>
-          </div>
-        </div>
-        <div className="sm:col-span-2">
-          <label
-            htmlFor="institution"
-            className="block text-sm/6 font-semibold text-text"
-          >
-            {t("University or organization")}
-          </label>
-          <div className="mt-2.5">
-            <input
-              id="institution"
-              name="institution"
-              type="text"
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-2">
           <label
             htmlFor="email"
             className="block text-sm/6 font-semibold text-text"
@@ -250,18 +163,29 @@ export default function ContactForm({ source = "contact", centered = false }) {
         </div>
         <div className="sm:col-span-2">
           <label
-            htmlFor="phone"
+            htmlFor="interest"
             className="block text-sm/6 font-semibold text-text"
           >
-            {t("Phone number")}
+            {t("What brings you here?")}
           </label>
           <div className="mt-2.5">
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border placeholder:text-text-tertiary focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
-            />
+            <select
+              id="interest"
+              name="interest"
+              required
+              defaultValue=""
+              className="block w-full rounded-radius-md bg-input px-3.5 py-2 text-base text-text outline-1 -outline-offset-1 outline-border focus:outline-2 focus:-outline-offset-2 focus:outline-primary-500"
+            >
+              <option value="" disabled>
+                {t("Select an option")}
+              </option>
+              <option value="beta_access">{t("Beta access")}</option>
+              <option value="campus_pilot">{t("Campus pilot")}</option>
+              <option value="support">{t("Support")}</option>
+              <option value="billing">{t("Billing")}</option>
+              <option value="partnership">{t("Partnership")}</option>
+              <option value="other">{t("Other")}</option>
+            </select>
           </div>
         </div>
         <div className="sm:col-span-2">

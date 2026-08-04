@@ -42,7 +42,7 @@ export function usePdfCache(
   const [error, setError] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
 
-  // stable cache key — UUIDv7 fileId is fine when sourcePath isn't available
+  // Use the UUIDv7 fileId as a stable cache key when sourcePath is unavailable.
   const cacheKey = sourcePath ?? fileId ?? null;
 
   useEffect(() => {

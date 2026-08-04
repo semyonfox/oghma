@@ -6,6 +6,7 @@ import {
   cleanNavigationPath,
   cleanNavigationPlacement,
   cleanPath,
+  cleanPathChain,
   cleanProperties,
   cleanUrl,
   hasPrivacySignal,
@@ -14,8 +15,8 @@ import { cleanAttribution } from "@/lib/marketing/attribution";
 
 describe("marketing event property cleaning", () => {
   it("keeps only the closed aggregate schema", () => {
-    expect(cleanProperties({ form: "contact", role: "student", interest: "campus_pilot", has_phone: true, message_length_bucket: "101-500" })).toEqual({
-      form: "contact", role: "student", interest: "campus_pilot", has_phone: true, message_length_bucket: "101-500",
+    expect(cleanProperties({ form: "contact", interest: "campus_pilot", message_length_bucket: "101-500" })).toEqual({
+      form: "contact", interest: "campus_pilot", message_length_bucket: "101-500",
     });
   });
 
@@ -81,6 +82,27 @@ describe("privacy-first marketing event boundaries", () => {
     expect(cleanNavigationAction("connect_canvas_free")).toBe("connect_canvas_free");
     expect(cleanNavigationAction("request_beta_access")).toBe("request_beta_access");
     expect(cleanNavigationAction("clicked-ada-profile")).toBeNull();
+  });
+
+  it("accepts only bounded chains of allowlisted public paths", () => {
+    expect(cleanPathChain(["/", "/pricing", "/register"])).toEqual([
+      "/",
+      "/pricing",
+      "/register",
+    ]);
+    expect(cleanPathChain(["/", "/blog/canvas-first-study-system", "/register"])).toEqual([
+      "/",
+      "/blog/canvas-first-study-system",
+      "/register",
+    ]);
+    expect(cleanPathChain(["/", "/pricing", "/register", "/login", "/contact"])).toBeNull();
+    expect(cleanPathChain(["/", "/notes/private-id", "/register"])).toBeNull();
+    expect(cleanPathChain(["/", "/pricing?campaign=free", "/register"])).toEqual([
+      "/",
+      "/pricing",
+      "/register",
+    ]);
+    expect(cleanPathChain("home>pricing>register")).toBeNull();
   });
 
   it("honors Global Privacy Control and Do Not Track headers", () => {

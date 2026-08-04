@@ -7,9 +7,8 @@ import sql from '../../database/pgsql.js';
 import { v4 as uuidv4 } from 'uuid';
 import { addNoteToTree } from '../notes/storage/pg-tree.js';
 
-// sentinel IDs for special Canvas structures
+// sentinel ID for special Canvas structures
 export const ASSIGNMENTS_PARENT_MODULE_ID = -1;
-export const FORBIDDEN_SENTINEL_ID = 0;
 
 // ── Folder naming ───────────────────────────────────────────────────────────
 
@@ -64,10 +63,10 @@ function findCanvasFolder(userId, canvas) {
   return sql`
     SELECT note_id FROM app.notes
     WHERE user_id = ${userId}::uuid
-      AND canvas_course_id = ${canvasCourseId}::int
+      AND canvas_course_id = ${canvasCourseId}::bigint
       AND CASE
-        WHEN ${hasAssignment} THEN canvas_assignment_id = ${canvasAssignmentId ?? 0}::int
-        WHEN ${hasModule}     THEN canvas_module_id = ${canvasModuleId ?? 0}::int
+        WHEN ${hasAssignment} THEN canvas_assignment_id = ${canvasAssignmentId ?? 0}::bigint
+        WHEN ${hasModule}     THEN canvas_module_id = ${canvasModuleId ?? 0}::bigint
         ELSE canvas_module_id IS NULL AND canvas_assignment_id IS NULL
       END
       AND is_folder = true AND deleted_at IS NULL

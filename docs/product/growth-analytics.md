@@ -22,6 +22,8 @@ The browser sends storage-free first-party observations to `POST /api/marketing/
 - honors Global Privacy Control and Do Not Track in both browser and server paths;
 - accepts only allowlisted public paths, UI placements, actions, and campaign values;
 - exposes aggregate reports only and suppresses dimension cells below five observations;
+- keeps at most four allowlisted public paths in React memory to report bounded
+  route chains, with no cookie, storage key, or visitor/session identifier;
 - loads no third-party analytics, advertising pixel, replay, heatmap, or fingerprinting script.
 
 `app.marketing_leads` remains separate because visitors intentionally submit contact details. Raw lead access is not exposed through the analytics dashboard.
@@ -31,7 +33,7 @@ The browser sends storage-free first-party observations to `POST /api/marketing/
 | Event | Canonical source | Meaning |
 |---|---|---|
 | `page_view` | public tracker | aggregate public-page traffic |
-| `navigation_transition` | public tracker | allowlisted from/to path and coarse origin |
+| `navigation_transition` | public tracker | allowlisted from/to path, coarse origin, and an optional bounded in-memory path chain |
 | `cta_click`, `nav_click`, `pricing_click` | public tracker | aggregate interaction counts |
 | `contact_form_start`, `contact_form_submit`, `contact_form_success`, `contact_form_error` | contact client/API | lead funnel state |
 | `registration_form_start`, `registration_submit`, `registration_success`, `registration_error` | registration client/API | account creation funnel |
@@ -48,6 +50,13 @@ Pricing interest is recorded as a storage-free `navigation_transition` with acti
 contact-form start, submission, and success remain separate downstream milestones.
 
 Authenticated milestones are idempotent through the partial unique index in migration `038_activation_milestones.sql`.
+
+For navigation chains, the browser includes at most the latest four allowlisted
+public paths in each individual observation. It also carries the most recent
+allowlisted CTA action, placement, and source page within that in-memory chain.
+Refreshing or closing the tab discards the context. There is no journey ID, so
+separate observations cannot be joined into longer visitor trails. The
+dashboard suppresses chains and CTA-attribution cells below five observations.
 
 ## Attribution
 
@@ -71,6 +80,7 @@ The dashboard offers 7-, 30-, and 90-day windows for:
 - coarse entry origin and landing paths;
 - approved campaign dimensions;
 - popular public pages, aggregate transitions, CTA placement/action, and destinations;
+- bounded three-/four-page chains and the latest CTA associated with those chains;
 - registration, contact, verification, Canvas, cited-answer, and flashcard milestones.
 
 ## Retention

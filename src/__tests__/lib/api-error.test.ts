@@ -4,10 +4,28 @@ vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
 
-import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
+import { ApiError, assertTrustedOrigin, parseJsonObject } from "@/lib/api-error";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe("parseJsonObject", () => {
+  it("returns a documented 400 error for malformed JSON", async () => {
+    await expect(
+      parseJsonObject(new Request("https://app.example.com/api/chat", {
+        method: "POST", body: "{", headers: { "content-type": "application/json" },
+      })),
+    ).rejects.toMatchObject({ statusCode: 400, userMessage: "Invalid JSON body" });
+  });
+
+  it("rejects null and array JSON request bodies", async () => {
+    for (const body of ["null", "[]"]) {
+      await expect(parseJsonObject(new Request("https://app.example.com/api/chat", {
+        method: "POST", body, headers: { "content-type": "application/json" },
+      }))).rejects.toMatchObject({ statusCode: 400, userMessage: "JSON body must be an object" });
+    }
+  });
 });
 
 describe("assertTrustedOrigin", () => {

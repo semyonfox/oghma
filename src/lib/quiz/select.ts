@@ -101,7 +101,7 @@ export async function resolveChunkIds(
                 SELECT c.id FROM app.chunks c
                 JOIN app.notes n ON c.document_id = n.note_id
                 WHERE c.user_id = ${userId}::uuid
-                  AND n.canvas_course_id = ${filterValue as number}
+                  AND n.canvas_course_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
@@ -111,7 +111,7 @@ export async function resolveChunkIds(
                 SELECT c.id FROM app.chunks c
                 JOIN app.notes n ON c.document_id = n.note_id
                 WHERE c.user_id = ${userId}::uuid
-                  AND n.canvas_module_id = ${filterValue as number}
+                  AND n.canvas_module_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
       return rows.map((r: any) => r.id);
@@ -218,7 +218,7 @@ export async function getSessionCandidates(
           AND (ucs.is_active IS NULL OR ucs.is_active = true)
     `;
 
-  // exclude cards already answered correctly today so they don't resurface in a new session
+  // Exclude cards answered correctly today so they do not appear in a new session.
   const correctTodayRows = await sql`
     SELECT DISTINCT card_id FROM app.quiz_reviews
     WHERE user_id = ${userId}::uuid

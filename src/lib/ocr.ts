@@ -5,13 +5,6 @@
 import { normalizeMarkerMarkdown } from "./marker-output";
 import type { MarkerImages } from "./marker-output";
 
-export class MarkerPendingError extends Error {
-  constructor() {
-    super("Marker did not respond within fast-path timeout");
-    this.name = "MarkerPendingError";
-  }
-}
-
 export interface MarkerResult {
   text: string;
   chunks: string[];
@@ -32,8 +25,6 @@ const TOTAL_TIMEOUT_MS = parsePositiveIntEnv(
   "MARKER_REQUEST_TIMEOUT_MS",
   600_000,
 );
-
-const MARKER_FAST_PATH_MS = parsePositiveIntEnv("MARKER_FAST_PATH_MS", 5_000);
 
 function markerPageRange(): string | null {
   const range = process.env.MARKER_PAGE_RANGE?.trim();
@@ -64,20 +55,17 @@ function markerAuthHeaders(): HeadersInit | undefined {
 export async function extractWithMarker(
   buffer: Buffer,
   filename: string,
-  options: { fastPath?: boolean } = {},
 ): Promise<MarkerResult> {
   const markerUrl = process.env.MARKER_API_URL;
   if (!markerUrl) {
     throw new Error("Marker is not configured (set MARKER_API_URL)");
   }
 
-  const timeoutMs = options.fastPath ? MARKER_FAST_PATH_MS : TOTAL_TIMEOUT_MS;
   const result = await callMarker(
     `${markerUrl}/marker/upload`,
     buffer,
     filename,
-    timeoutMs,
-    Boolean(options.fastPath),
+    TOTAL_TIMEOUT_MS,
   );
   if (!result) throw new Error("Marker returned no result");
   return { ...result, source: "marker", pageRange: markerPageRange() };
@@ -88,7 +76,6 @@ async function callMarker(
   buffer: Buffer,
   filename: string,
   timeoutMs: number,
-  isFastPath: boolean,
 ): Promise<{
   text: string;
   chunks: string[];
@@ -136,14 +123,6 @@ async function callMarker(
     const metadata =
       json.metadata && typeof json.metadata === "object" ? json.metadata : null;
     return { text, chunks, images, metadata };
-  } catch (err) {
-    if (
-      isFastPath &&
-      (err as { name?: string })?.name === "AbortError"
-    ) {
-      throw new MarkerPendingError();
-    }
-    throw err;
   } finally {
     clearTimeout(timeout);
   }

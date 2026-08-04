@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
+import {
+  withErrorHandler,
+  requireAuth,
+  ApiError,
+  parseJsonObject,
+} from "@/lib/api-error";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import {
   createCanvasRawExportZipStream,
   discoverCanvasRawExportEntries,
 } from "@/lib/canvas/raw-export.js";
+import { normalizeCanvasCourseSelection } from "@/lib/canvas/id.js";
 
 export const runtime = "nodejs";
 
@@ -26,25 +32,6 @@ function pathWithQuery(path, params = {}) {
   }
   const queryString = query.toString();
   return queryString ? `${path}?${queryString}` : path;
-}
-
-function normalizeCourse(course) {
-  return typeof course === "object" && course !== null
-    ? {
-        id: course.id,
-        name: course.name ?? String(course.id),
-        course_code: course.course_code ?? "",
-        term: course.term ?? null,
-      }
-    : { id: course, name: String(course), course_code: "", term: null };
-}
-
-async function readJsonBody(request) {
-  try {
-    return await request.json();
-  } catch {
-    return {};
-  }
 }
 
 async function discoverExportCourses(client) {
@@ -71,7 +58,10 @@ async function discoverExportCourses(client) {
 
     counts[enrollmentState] = data.length;
     for (const course of data) {
-      if (course?.id) coursesById.set(String(course.id), normalizeCourse(course));
+      if (course?.id) {
+        const normalized = normalizeCanvasCourseSelection(course);
+        coursesById.set(normalized.id, normalized);
+      }
     }
   }
 
@@ -83,7 +73,10 @@ async function discoverExportCourses(client) {
       skipped.push(`_course_discovery/default: ${error ?? "restricted"}`);
     }
     for (const course of data ?? []) {
-      if (course?.id) coursesById.set(String(course.id), normalizeCourse(course));
+      if (course?.id) {
+        const normalized = normalizeCanvasCourseSelection(course);
+        coursesById.set(normalized.id, normalized);
+      }
     }
     counts.default = data?.length ?? 0;
   }
@@ -102,7 +95,7 @@ async function discoverExportCourses(client) {
 
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
-  const body = await readJsonBody(request);
+  const body = await parseJsonObject(request);
 
   const credentials = await loadCanvasCredentials(user.user_id);
   if (!credentials) {
@@ -110,17 +103,37 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const selectedCourses =
-    Array.isArray(body.courseIds) && body.courseIds.length > 0
-      ? {
-          courses: body.courseIds.map(normalizeCourse),
-          skipped: [],
-          courseDiscovery: {
-            mode: "selected",
-            course_count: body.courseIds.length,
-          },
-        }
-      : await discoverExportCourses(client);
+  let selectedCourses;
+  const hasCourseIds = Object.prototype.hasOwnProperty.call(body, "courseIds");
+  if (
+    hasCourseIds &&
+    (!Array.isArray(body.courseIds) || body.courseIds.length === 0)
+  ) {
+    throw new ApiError(400, "courseIds must be a non-empty array when provided");
+  }
+  if (hasCourseIds) {
+    try {
+      selectedCourses = {
+        courses: body.courseIds.map(normalizeCanvasCourseSelection),
+        skipped: [],
+        courseDiscovery: {
+          mode: "selected",
+          course_count: body.courseIds.length,
+        },
+      };
+    } catch (error) {
+      throw new ApiError(
+        400,
+        error instanceof Error ? error.message : "Invalid Canvas course ID",
+      );
+    }
+  } else {
+    try {
+      selectedCourses = await discoverExportCourses(client);
+    } catch {
+      throw new ApiError(502, "Canvas returned an invalid course ID");
+    }
+  }
 
   if (selectedCourses.courses.length === 0) {
     throw new ApiError(404, "No Canvas courses found");

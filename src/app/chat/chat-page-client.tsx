@@ -12,6 +12,7 @@ import {
   PencilSquareIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
+import BrandLogo from "@/components/brand-logo";
 import ChatInterface from "@/components/chat/chat-interface";
 import PrimaryNavigation from "@/components/navigation/primary-navigation";
 import MobileAppHeader from "@/components/navigation/mobile-app-header";
@@ -156,8 +157,8 @@ export function ConversationHistory({
             </span>
           </div>
           <Link href="/" onClick={onDismiss} className="flex-shrink-0">
-            <img
-              src="/oghmanotes.svg"
+            <BrandLogo
+              size={20}
               alt="OghmaNotes"
               className="h-5 w-5 opacity-60 transition-opacity hover:opacity-100"
             />

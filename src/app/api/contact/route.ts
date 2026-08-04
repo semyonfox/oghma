@@ -10,9 +10,7 @@ import { sendEmail } from "@/lib/email.js";
 
 const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),
-  last_name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255),
-  role: z.enum(["student", "lecturer", "university_staff", "partner_or_press"]),
   interest: z.enum([
     "beta_access",
     "campus_pilot",
@@ -20,8 +18,6 @@ const contactSchema = z.object({
     "billing",
     "partnership",
   ]),
-  institution: z.string().trim().max(200).optional().default(""),
-  phone: z.string().trim().max(80).optional().default(""),
   message: z.string().trim().min(1).max(5000),
   marketing: z
     .object({
@@ -45,10 +41,7 @@ function leadAnalyticsProperties(body: z.infer<typeof contactSchema>) {
   return {
     page: body.source,
     form: "contact",
-    role: body.role,
     interest: body.interest,
-    has_institution: body.institution.length > 0,
-    has_phone: body.phone.length > 0,
     message_length_bucket:
       messageLength <= 100
         ? "0-100"
@@ -79,26 +72,20 @@ async function sendContactNotification(body: z.infer<typeof contactSchema>) {
     return { delivered: false, error: "contact_email_not_configured" };
   }
 
-  const name = `${body.first_name} ${body.last_name}`;
+  const name = body.first_name;
   const text = [
     "New OghmaNotes website lead",
     "",
     `Name: ${name}`,
     `Email: ${body.email}`,
-    `Role: ${body.role}`,
     `Interest: ${body.interest}`,
-    `Institution: ${body.institution || "Not provided"}`,
-    `Phone: ${body.phone || "Not provided"}`,
     "",
     body.message,
   ].join("\n");
   const html = `<h1>New OghmaNotes website lead</h1>
 <p><strong>Name:</strong> ${escapeHtml(name)}<br>
 <strong>Email:</strong> ${escapeHtml(body.email)}<br>
-<strong>Role:</strong> ${escapeHtml(body.role)}<br>
-<strong>Interest:</strong> ${escapeHtml(body.interest)}<br>
-<strong>Institution:</strong> ${escapeHtml(body.institution || "Not provided")}<br>
-<strong>Phone:</strong> ${escapeHtml(body.phone || "Not provided")}</p>
+<strong>Interest:</strong> ${escapeHtml(body.interest)}</p>
 <p>${escapeHtml(body.message).replace(/\n/g, "<br>\n")}</p>`;
 
   try {
@@ -162,12 +149,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     )
     VALUES (
       ${body.first_name},
-      ${body.last_name},
+      ${""},
       ${body.email},
-      ${body.role},
+      ${null},
       ${body.interest},
-      ${body.institution || null},
-      ${body.phone || null},
+      ${null},
+      ${null},
       ${body.message},
       ${"contact_form"},
       ${attribution.source ?? null},

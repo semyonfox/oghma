@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
 
 export interface Assignment {
   id: string;
-  canvas_course_id: number | null;
+  canvas_course_id: string | null;
+  canvas_assignment_id: string | null;
   title: string;
   description: string | null;
   course_name: string | null;
@@ -13,6 +15,7 @@ export interface Assignment {
   estimated_hours: number | null;
   logged_hours: number;
   source: "canvas" | "manual";
+  assignment_type: AssignmentType;
   submitted_at: string | null;
   score: number | null;
   points_possible: number | null;

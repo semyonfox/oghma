@@ -22,7 +22,7 @@ export function useCanvasImportStatus(options = {}) {
 
   const abortRef = useRef(null);
 
-  // remembers a manual dismissal so the 3s poll doesn't re-show the toast
+  // Remember a manual dismissal so the three-second poll does not show the toast again.
   const dismissedRef = useRef(false);
   // tracks active->inactive transitions so a brand-new import clears the dismissal
   const wasActiveRef = useRef(false);

@@ -26,8 +26,14 @@ describe("E2E database schema contract", () => {
           "attachments",
           "canvas_import_jobs",
           "ingestion_jobs",
+          "assignments",
+          "canvas_planner_items",
+          "marker_jobs",
+          "note_links",
+          "marketing_leads",
           "marketing_events",
           "rate_limit_log",
+          "user_course_settings",
           "chat_sessions",
           "chat_messages",
           "chat_generations",
@@ -39,8 +45,10 @@ describe("E2E database schema contract", () => {
     `;
 
     expect(rows.map((row) => row.table_name).sort()).toEqual([
+      "assignments",
       "attachments",
       "canvas_import_jobs",
+      "canvas_planner_items",
       "chat_generations",
       "chat_messages",
       "chat_sessions",
@@ -50,10 +58,14 @@ describe("E2E database schema contract", () => {
       "imported_file_sources",
       "ingestion_jobs",
       "login",
+      "marker_jobs",
       "marketing_events",
+      "marketing_leads",
+      "note_links",
       "notes",
       "rate_limit_log",
       "tree_items",
+      "user_course_settings",
     ]);
   });
 
@@ -65,9 +77,36 @@ describe("E2E database schema contract", () => {
     expect(row.embeddings_table).toBeNull();
   });
 
-  it("matches runtime column names and types for calendar, ingestion, and chat", async () => {
+  it("stores every Canvas integer identity as bigint", async () => {
+    const expected = [
+      "assignments.canvas_assignment_id",
+      "assignments.canvas_course_id",
+      "canvas_imports.canvas_course_id",
+      "canvas_imports.canvas_file_id",
+      "canvas_imports.canvas_module_id",
+      "notes.canvas_assignment_id",
+      "notes.canvas_course_id",
+      "notes.canvas_module_id",
+      "user_course_settings.canvas_course_id",
+    ];
     const rows = await sql`
-      SELECT table_name, column_name, data_type, udt_name
+      SELECT table_name, column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = 'app'
+        AND (table_name || '.' || column_name) = ANY(${expected})
+    `;
+
+    expect(rows.map((row) => `${row.table_name}.${row.column_name}`).sort()).toEqual(
+      expected,
+    );
+    expect(new Set(rows.map((row) => row.data_type))).toEqual(
+      new Set(["bigint"]),
+    );
+  });
+
+  it("matches runtime column names and types for current calendar, ingestion, chat, and planner schema", async () => {
+    const rows = await sql`
+      SELECT table_name, column_name, data_type, udt_name, is_nullable
       FROM information_schema.columns
       WHERE table_schema = 'app'
         AND (
@@ -87,6 +126,12 @@ describe("E2E database schema contract", () => {
    "session_id",
    "status",
  ]}))
+ OR (table_name = 'assignments' AND column_name = 'assignment_type')
+ OR (table_name = 'canvas_planner_items' AND column_name = ANY(${[
+   "plannable_type",
+   "date_source",
+ ]}))
+ OR (table_name = 'marketing_leads' AND column_name = 'role')
         )
     `;
 
@@ -104,5 +149,13 @@ describe("E2E database schema contract", () => {
     expect(byColumn.get("chat_sessions.pinned")?.data_type).toBe("boolean");
     expect(byColumn.get("chat_generations.session_id")?.udt_name).toBe("uuid");
     expect(byColumn.get("chat_generations.status")?.data_type).toBe("text");
+    expect(byColumn.get("assignments.assignment_type")?.data_type).toBe("text");
+    expect(byColumn.get("canvas_planner_items.plannable_type")?.data_type).toBe(
+      "text",
+    );
+    expect(byColumn.get("canvas_planner_items.date_source")?.data_type).toBe(
+      "text",
+    );
+    expect(byColumn.get("marketing_leads.role")?.is_nullable).toBe("YES");
   });
 });

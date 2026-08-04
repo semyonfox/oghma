@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-07-20
+> **Last reviewed:** 2026-07-25
 >
 > **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -29,7 +29,7 @@ flowchart LR
     Worker --> Postgres
     Worker --> Qdrant
     Worker --> Objects
-    Worker --> OCR[Optional Marker OCR]
+    Worker --> OCR[Optional direct or serverless Marker OCR]
     Worker --> Canvas[Canvas API]
     Worker --> LLM[LLM provider]
 ```
@@ -49,15 +49,24 @@ Qdrant is the current vector store. Migration `030_qdrant_embeddings.sql` remove
 
 ## Background work and queues
 
-[`src/lib/queue.ts`](../../src/lib/queue.ts) is the queue-provider boundary for the `canvas-import`, `extract-retry`, and BullMQ-only `chat-generation` lanes.
+[`src/lib/queue.ts`](../../src/lib/queue.ts) is the queue-provider boundary for
+the `canvas-import`, `extract-retry`, `marker-dispatch`, and BullMQ-only
+`chat-generation` lanes.
 
 - `QUEUE_PROVIDER=bullmq` is the default and the current homelab mode. Queue names are environment-prefixed and use Redis.
 - `QUEUE_PROVIDER=cloudflare` publishes and pulls through the Cloudflare Queues HTTP API. This is the migration target supported by the same worker process, not evidence that production has switched providers.
 - [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts) runs
   either BullMQ consumers or Cloudflare pull loops, plus a PostgreSQL safety
-  net for Canvas import/sync discovery jobs whose enqueue was lost.
+  net for Canvas import/sync discovery jobs and serverless Marker dispatches
+  whose enqueue or completion handoff was lost.
 
-The worker handles durable LLM generation, Canvas discovery and files, direct extraction, extraction retries, Marker completion callbacks, and vault import/export. See [Import pipeline](import-pipeline.md) for the import processing contract and tuning boundaries.
+The worker handles durable LLM generation, Canvas discovery and files, direct
+extraction, extraction retries, serverless Marker dispatch/completion, and
+vault import/export. PostgreSQL and object storage remain authoritative when
+Marker runs on an ephemeral provider. Vast is the ready-to-provision target,
+not a live dependency; see the [Vast Marker runbook](../operations/vast-marker.md).
+See [Import pipeline](import-pipeline.md) for the import processing contract
+and tuning boundaries.
 
 ## Search and chat
 
@@ -103,7 +112,7 @@ The Jenkins pipeline is the deploy authority. In outline it:
 
 1. builds app and worker images;
 2. runs the isolated integration/Playwright smoke gate;
-3. ensures Qdrant is available;
+3. keeps Qdrant available;
 4. applies pending migrations through `scripts/prebuild-migrate.mjs`;
 5. swaps the app and worker with health checks and rollback handling;
 6. runs live smoke tests before cleaning retained rollback containers and images.

@@ -10,7 +10,7 @@ export function generateSecureToken(): string {
 
 /**
  * hashes a raw token using SHA-256
- * used before storing tokens in the database so a DB breach doesn't expose raw values
+ * used before token storage so a database breach does not expose raw values
  */
 export function hashToken(rawToken: string): string {
   return crypto.createHash("sha256").update(rawToken).digest("hex");

@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering overview
 >
-> **Last reviewed:** 2026-07-17
+> **Last reviewed:** 2026-08-04
 >
 > **Source of truth:** [`src/lib/queue.ts`](../../src/lib/queue.ts), [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts), and the import workers
 
@@ -47,6 +47,11 @@ separate reference-aware retention operation. Sharing a cached document adds a
 new user-owned note reference; annotations remain private unless a future
 explicit annotation-sharing action is introduced.
 
+The current Canvas sync path discovers newly seen Canvas file IDs. It does not
+yet reimport a completed file whose Canvas ID is unchanged but whose revision
+metadata later changes; that needs an explicit revision/replacement policy
+before it can be described as a full content-sync guarantee.
+
 `IMPORT_PIPELINE_VERSION` invalidates derived artifacts when extraction,
 chunking, Marker policy, or embedding compatibility changes. Operators should
 set it explicitly during such a rollout; otherwise it defaults to the selected
@@ -56,12 +61,16 @@ embedding model plus the current cache format version.
 
 [`src/lib/queue.ts`](../../src/lib/queue.ts) owns the provider switch:
 
-- **BullMQ** is the default and current homelab provider. New work, including delayed extraction retries, uses the environment-prefixed `canvas-import` queue. The `extract-retry` consumer remains temporarily for messages created before the fairness rollout.
+- **BullMQ** is the default and current homelab provider. New import work,
+  including delayed extraction retries, uses the environment-prefixed
+  `canvas-import` queue. Long serverless OCR waits use the separate
+  `marker-dispatch` queue. The `extract-retry` consumer remains temporarily
+  for messages created before the fairness rollout.
 - **Cloudflare Queues** is implemented as an alternate HTTP publish/pull provider selected by `QUEUE_PROVIDER=cloudflare`. It is the target migration path, not the assumed live value.
-- The same Node worker dispatches both providers and retains a PostgreSQL
-  poller that reclaims Canvas import/sync discovery jobs whose enqueue was
-  lost. It cannot reconstruct arbitrary direct-extraction, retry, or vault
-  payloads.
+- The same Node worker dispatches both queue providers and retains PostgreSQL
+  recovery for Canvas discovery plus Marker jobs whose dispatch or completion
+  enqueue was lost. It cannot reconstruct arbitrary direct-extraction, retry,
+  or vault payloads.
 
 Default BullMQ jobs use three attempts with exponential backoff. Vault import
 and export enqueue sites override this to one attempt; in particular, a
@@ -90,13 +99,40 @@ variable.
 
 ## Reliability boundaries
 
-- Canvas per-file claims and terminal-state checks reduce duplicate mutation.
-- The worker marks long-running `processing`/`discovering` jobs failed after
-  its stuck threshold and periodically re-enqueues orphaned Canvas discovery
-  jobs.
+- Canvas discovery, per-file execution, and the legacy in-flight message path
+  use database claims scoped to an active Canvas job, so stale or duplicate
+  deliveries cannot take over a newer generation. Queue publication leases are
+  reclaimed when a process dies between its database commit and queue publish.
+- Canvas extraction retries persist `pending_retry` before publishing, carry
+  the exact import-row/job generation, and compare-and-swap that row to an
+  active indexing claim. The worker re-enqueues stale durable retry rows after
+  a publication crash; a redelivery after completion is a no-op.
+- Canvas resource discovery follows pagination links, uses Canvas string IDs,
+  starts serially by default to avoid throttle penalties, includes the flat
+  course Files inventory, and rejects a partial/failed API listing rather than
+  treating it as an empty course. Downloaded files are bounded by
+  `CANVAS_MAX_FILE_BYTES` before buffering.
+- The worker heartbeats actively owned Canvas files and treats
+  `CANVAS_FILE_TIMEOUT_MS` as a supervision warning rather than racing a
+  non-abortable parser/indexer against a false timeout. It periodically
+  re-enqueues orphaned Canvas discovery jobs.
 - Vault jobs persist progress and support cooperative cancellation between files.
 - Marker page ranges produce explicit extraction-coverage metadata, but there is no automatic full-document enrichment pass after a successful partial preview.
 - `MARKER_OCR_ENABLED=false` bypasses Marker even when `MARKER_API_URL` is configured. `pdf-parse` remains a text-layer fallback, not OCR, so scanned PDFs will not become searchable while OCR is disabled.
+- Serverless Marker creates `app.marker_jobs` before provider work, uses a
+  stable result key, signs object URLs only at dispatch, and makes at most one
+  application-originated GPU call for that durable row. An ambiguous outcome
+  enters `awaiting_result` and observes the immutable result object rather
+  than automatically redispatching. Completion queue messages carry only the
+  durable job UUID; the worker validates the bound v1 result object and marks
+  the Canvas import complete only after note/chunk/vector writes succeed.
+  `MARKER_SERVERLESS_DISPATCH_ENABLED=false` pauses existing dispatch without
+  deleting its state.
+- Replacing or cancelling a Canvas job cancels its queued file, retry, and
+  Marker state transactionally. A GPU conversion already in flight cannot be
+  unsent and may still write its signed result object. Cancellation wins before
+  a completion claim begins; a completion already holding its claim may finish
+  its indexing work, but no cancelled state is later resurrected.
 - Qdrant updates go through [`src/lib/rag/indexing.ts`](../../src/lib/rag/indexing.ts), keeping vector-provider details out of the import stages.
 
 ## Important implementation files
@@ -110,6 +146,8 @@ variable.
 | [`src/lib/canvas/import-extraction.js`](../../src/lib/canvas/import-extraction.js) | Download, dedupe/claim, note creation, timeouts, and retry handlers |
 | [`src/lib/canvas/import-cache.ts`](../../src/lib/canvas/import-cache.ts) | Content hashing, shared artifacts, cached vector reuse, and ownership guards |
 | [`src/lib/canvas/import-embedding.js`](../../src/lib/canvas/import-embedding.js) | Extraction, chunking, embedding, and Qdrant indexing handoff |
+| [`src/lib/marker-serverless.ts`](../../src/lib/marker-serverless.ts) | Durable Marker submission, provider dispatch, result handoff, and recovery |
+| [`src/lib/vast-serverless.ts`](../../src/lib/vast-serverless.ts) | Bounded Vast REST routing/polling client |
 | [`src/lib/canvas/extraction-retry.ts`](../../src/lib/canvas/extraction-retry.ts) | Delayed retry schedule |
 | [`src/lib/vault/import-worker.ts`](../../src/lib/vault/import-worker.ts) | Streaming vault import, progress, and cancellation |
 | [`src/lib/vault/export-worker.js`](../../src/lib/vault/export-worker.js) | Streaming vault export, progress, and cancellation |

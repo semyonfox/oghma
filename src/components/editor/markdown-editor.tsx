@@ -184,8 +184,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
         if (!cancelled && result && currentFileId.current === stale) {
           serverUpdatedAt.current = result.updatedAt;
 
-          // if a draft was restored, don't overwrite the user's unsaved work —
-          // but check if the server version is actually newer (conflict)
+          // If a draft was restored, do not overwrite the user's unsaved work.
+          // Check whether the server version is newer.
           if (draftRestored) {
             const draft = await readDraft(file.fileId);
             const serverMs = result.updatedAt
@@ -193,7 +193,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               : 0;
             const draftMs = draft?.draftAt ?? 0;
             if (serverMs > draftMs) {
-              // server has a newer version than the draft — warn once, don't block
+              // The server has a newer version than the draft. Warn once, but do not block.
               toast.warning(
                 t(
                   "This note was saved elsewhere. Your draft is older — save to overwrite, or discard.",
@@ -426,6 +426,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
               }}
               onSave={handleSave}
               placeholder={t("Start writing...")}
+              currentNoteId={file.fileId}
+              onOpenNote={(noteId) => router.push(`/notes/${noteId}`)}
             />
           </div>
         ) : (

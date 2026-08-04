@@ -47,7 +47,7 @@ app/worker/Qdrant shape; it is not the persistent homelab stack definition.
 | `oghma-nginx` | Persistent stack | Routes production and development app traffic |
 | `oghma-cloudflared-prod` | Persistent stack | Tunnel for `oghmanotes.ie` |
 | `oghma-cloudflared-dev` | Persistent stack | Tunnel for `dev.oghmanotes.ie` |
-| `oghma-qdrant` | Ensured by Jenkins | Vector storage with a persistent Docker volume |
+| `oghma-qdrant` | Maintained by Jenkins | Vector storage with a persistent Docker volume |
 | `oghma-prod` / `oghma-dev` | Replaced by Jenkins | Next.js app |
 | `oghma-prod-worker` / `oghma-dev-worker` | Replaced by Jenkins | Long-running Node chat/import/vault worker |
 
@@ -82,7 +82,7 @@ environments:
 1. Reject branches other than `dev` and `main`.
 2. Build app and worker images in parallel.
 3. Run the disposable E2E smoke suite.
-4. Ensure `oghma-qdrant` and its persistent volume are available.
+4. Verify that `oghma-qdrant` and its persistent volume are available.
 5. Run `node scripts/prebuild-migrate.mjs` in the app image using
    `MIGRATION_DATABASE_URL`.
 6. Drain pending extraction retries with the worker image.

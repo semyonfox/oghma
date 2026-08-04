@@ -27,7 +27,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     await recordChatPresence(session.user_id, data.tabId);
   } catch (err) {
     // Redis being unavailable also disables disconnect-cancel in the worker,
-    // so a dropped heartbeat is harmless — don't surface it to the client.
+    // A dropped heartbeat is harmless. Do not report it to the client.
     recorded = false;
     logger.warn("chat presence heartbeat failed", {
       error: err instanceof Error ? err.message : String(err),

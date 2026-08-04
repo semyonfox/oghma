@@ -176,7 +176,7 @@ beforeEach(() => {
   sqlMock.mockResolvedValue([]);
   sqlMock.__txMock.mockResolvedValue([]);
   sqlMock.begin.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(sqlMock.__txMock));
-  // mock global fetch so streak fire-and-forget doesn't blow up
+  // Mock global fetch so the asynchronous streak request does not fail.
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
 });
 

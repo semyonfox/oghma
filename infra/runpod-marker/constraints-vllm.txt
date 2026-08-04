@@ -1,0 +1,12 @@
+# Inference-runtime lock for the CUDA 12.9 vLLM layer. Keep this separate from
+# Marker++'s venv: Marker++ requires a newer Transformers line.
+fastapi==0.136.1
+huggingface-hub==1.13.0
+numpy==2.2.6
+opencv-python-headless==4.13.0.92
+pillow==12.2.0
+pydantic==2.13.3
+safetensors==0.7.0
+tokenizers==0.22.2
+transformers==5.7.0
+uvicorn==0.46.0

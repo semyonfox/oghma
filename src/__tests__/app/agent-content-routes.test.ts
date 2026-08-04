@@ -177,10 +177,47 @@ describe("agent-readable content routes", () => {
       { sessionCookie: [] },
     ]);
     expect(body.paths["/api/notes"].get["x-private-data"]).toBe(true);
+    expect(body.paths["/api/notes"].get.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "q" })]),
+    );
+    expect(body.paths["/api/notes/{id}"].put).toBeDefined();
+    expect(body.paths["/api/notes/{id}"].patch).toBeDefined();
+    expect(body.paths["/api/notes"].post.requestBody.content["application/json"].schema.properties.id).toMatchObject({
+      type: "string",
+      format: "uuid",
+    });
+    expect(body.paths["/api/notes"].post.requestBody.content["application/json"].schema.properties.pid).toMatchObject({
+      type: ["string", "null"],
+      format: "uuid",
+    });
+    expect(body.paths["/api/chat"].post.responses["202"]).toBeDefined();
+    expect(
+      body.paths["/api/chat"].post.requestBody.content["application/json"]
+        .schema.properties.sessionId,
+    ).toEqual({ type: ["string", "null"] });
     expect(body.paths["/api/notes"].post["x-human-confirmation-required"]).toBe(
       true,
     );
     expect(body.paths["/api/search"].get.summary).toBe("Search notes");
+    expect(
+      body.paths["/api/search"].get.parameters.find(
+        (parameter: { name: string }) => parameter.name === "course",
+      ).schema,
+    ).toMatchObject({
+      type: "string",
+      pattern: "^(?:0|[1-9][0-9]{0,18})$",
+      maxLength: 19,
+    });
+    expect(
+      body.paths["/api/assignments"].post.requestBody.content[
+        "application/json"
+      ].schema.properties.due_at,
+    ).toEqual({ type: ["string", "null"], format: "date-time" });
+    expect(
+      body.paths["/api/assignments"].post.requestBody.content[
+        "application/json"
+      ].schema.properties.estimated_hours,
+    ).toMatchObject({ type: ["number", "null"], minimum: 0 });
     expect(body.paths["/api/canvas/connect"].post.summary).toBe(
       "Connect Canvas",
     );

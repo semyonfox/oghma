@@ -56,7 +56,7 @@ def test_start_builds_size_converters_and_is_idempotent():
 
 def test_concurrent_start_builds_once():
     # Real scenario: the startup warm-task and the first request can both call start().
-    # The init lock must ensure the pool is built exactly once.
+    # The init lock must make sure the pool is built exactly once.
     async def run():
         counter = {"built": 0}
         pool = ConverterPool(_builder(counter), size=3)

@@ -61,25 +61,25 @@ export async function extractContentFromBuffer({
   if (mimeType === "application/pdf") {
     const textLayer = await extractPdfTextLayer(buffer);
     if (textLayer) {
-      return { rawText: textLayer.rawText, chunks: textLayer.chunks, source: "pdf-parse" };
+      return {
+        rawText: textLayer.rawText,
+        chunks: textLayer.chunks,
+        source: "pdf-parse",
+      };
     }
   }
 
   // Marker is an explicit fallback for scanned/image-only documents.
   if (process.env.MARKER_API_URL && markerOcrEnabled()) {
-    try {
-      const marker = await extractWithMarker(buffer, filename, { fastPath: true });
-      return {
-        rawText: marker.text,
-        chunks: marker.chunks,
-        source: "marker",
-        markerImages: marker.images ?? {},
-        markerMetadata: marker.metadata ?? null,
-        pageRange: marker.pageRange,
-      };
-    } catch {
-      // fall through to skipped
-    }
+    const marker = await extractWithMarker(buffer, filename);
+    return {
+      rawText: marker.text,
+      chunks: marker.chunks,
+      source: "marker",
+      markerImages: marker.images ?? {},
+      markerMetadata: marker.metadata ?? null,
+      pageRange: marker.pageRange,
+    };
   }
   return { rawText: "", chunks: [], source: "skipped" };
 }

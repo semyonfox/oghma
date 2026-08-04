@@ -20,6 +20,20 @@ const RETRYABLE_CODES = new Set([
 ]);
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
+const CANVAS_JSON_ACCEPT = "application/json+canvas-string-ids";
+const RETRYABLE_HTTP_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function positiveByteLimit(name, fallback) {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+// Downloads are buffered before their S3 upload and extraction. Keep a hard
+// bound here, before an untrusted Canvas response can exhaust worker memory.
+export const MAX_CANVAS_FILE_BYTES = positiveByteLimit(
+  "CANVAS_MAX_FILE_BYTES",
+  250 * 1024 * 1024,
+);
 
 function isRetryable(err) {
   return (
@@ -29,6 +43,27 @@ function isRetryable(err) {
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfterSeconds = Number(response?.headers?.get("retry-after"));
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+    return Math.min(60_000, Math.round(retryAfterSeconds * 1_000));
+  }
+  return RETRY_BASE_MS * 2 ** attempt;
+}
+
+function nextPageUrl(linkHeader) {
+  if (!linkHeader) return null;
+  // Treat Canvas pagination URLs as opaque. Link relation parameters are not
+  // guaranteed to be the first parameter, so do not rely on one header shape.
+  for (const entry of linkHeader.split(/,(?=\s*<)/)) {
+    const url = entry.match(/<([^>]+)>/)?.[1];
+    if (url && /(?:^|;)\s*rel\s*=\s*"?next"?(?:\s*;|\s*$)/i.test(entry)) {
+      return url;
+    }
+  }
+  return null;
 }
 
 export class CanvasClient {
@@ -54,7 +89,7 @@ export class CanvasClient {
         const response = await fetch(`${this.baseUrl}${path}`, {
           headers: {
             Authorization: `Bearer ${this.token}`,
-            Accept: "application/json",
+            Accept: CANVAS_JSON_ACCEPT,
           },
         });
 
@@ -79,7 +114,7 @@ export class CanvasClient {
 
         if (response.status === 429) {
           if (attempt < MAX_RETRIES) {
-            await sleep(RETRY_BASE_MS * 2 ** attempt);
+            await sleep(retryDelayMs(response, attempt));
             continue;
           }
           return {
@@ -87,6 +122,11 @@ export class CanvasClient {
             forbidden: false,
             error: "Canvas API rate limited — try again later",
           };
+        }
+
+        if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await sleep(retryDelayMs(response, attempt));
+          continue;
         }
 
         if (!response.ok) {
@@ -113,7 +153,7 @@ export class CanvasClient {
     }
   }
 
-  // pauses if Canvas X-Rate-Limit-Remaining header indicates we're close to the limit
+  // Pause if the Canvas X-Rate-Limit-Remaining header shows that the quota is low.
   async #respectRateLimit(response) {
     const remaining = response.headers.get("x-rate-limit-remaining");
     if (remaining !== null && parseFloat(remaining) < 10) {
@@ -142,7 +182,7 @@ export class CanvasClient {
           const response = await fetch(url, {
             headers: {
               Authorization: `Bearer ${this.token}`,
-              Accept: "application/json",
+              Accept: CANVAS_JSON_ACCEPT,
             },
           });
 
@@ -166,7 +206,7 @@ export class CanvasClient {
 
           if (response.status === 429) {
             if (attempt < MAX_RETRIES) {
-              await sleep(RETRY_BASE_MS * 2 ** attempt);
+              await sleep(retryDelayMs(response, attempt));
               continue;
             }
             return {
@@ -174,6 +214,11 @@ export class CanvasClient {
               forbidden: false,
               error: "Canvas API rate limited — try again later",
             };
+          }
+
+          if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+            await sleep(retryDelayMs(response, attempt));
+            continue;
           }
 
           if (!response.ok) {
@@ -185,12 +230,16 @@ export class CanvasClient {
           }
 
           const page = await response.json();
+          if (!Array.isArray(page)) {
+            return {
+              data: results,
+              forbidden: false,
+              error: "Canvas API returned a non-array paginated response",
+            };
+          }
           results.push(...page);
 
-          // Canvas puts the next page URL in the Link header: <url>; rel="next"
-          const linkHeader = response.headers.get("Link");
-          const nextMatch = linkHeader?.match(/<([^>]+)>;\s*rel="next"/);
-          url = nextMatch ? nextMatch[1] : null;
+          url = nextPageUrl(response.headers.get("Link"));
           pageSuccess = true;
         } catch (err) {
           if (attempt < MAX_RETRIES && isRetryable(err)) {
@@ -248,6 +297,43 @@ export class CanvasClient {
   }
 
   /**
+   * Returns bounded Canvas planner items for the user.
+   *
+   * @param {string} startDate - ISO timestamp for Canvas start_date
+   * @param {string} endDate - ISO timestamp for Canvas end_date
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getPlannerItems(startDate, endDate) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+    });
+    return this.#getPaginated(`/planner/items?${params.toString()}`);
+  }
+
+  /**
+   * Returns all discussion topics for a course.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getDiscussionTopics(courseId) {
+    return this.#getPaginated(`/courses/${courseId}/discussion_topics`);
+  }
+
+  /**
+   * Returns Canvas announcements, which are exposed as discussion topics.
+   *
+   * @param {string} courseId
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getAnnouncements(courseId) {
+    return this.#getPaginated(
+      `/courses/${courseId}/discussion_topics?only_announcements=true`,
+    );
+  }
+
+  /**
    * Returns all modules inside a course.
    * Modules are the folder-like containers Canvas uses to organise content.
    *
@@ -269,6 +355,14 @@ export class CanvasClient {
    */
   async getModuleItems(courseId, moduleId) {
     return this.#getPaginated(`/courses/${courseId}/modules/${moduleId}/items`);
+  }
+
+  /**
+   * Returns the course's flat Files inventory. This includes files that are
+   * not placed in a module or attached to an assignment.
+   */
+  async getCourseFiles(courseId) {
+    return this.#getPaginated(`/courses/${courseId}/files`);
   }
 
   /**
@@ -329,7 +423,7 @@ export class CanvasClient {
 
         if (response.status === 429) {
           if (attempt < MAX_RETRIES) {
-            await sleep(RETRY_BASE_MS * 2 ** attempt);
+            await sleep(retryDelayMs(response, attempt));
             continue;
           }
           return {
@@ -337,6 +431,11 @@ export class CanvasClient {
             forbidden: false,
             error: "Download rate limited",
           };
+        }
+
+        if (RETRYABLE_HTTP_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await sleep(retryDelayMs(response, attempt));
+          continue;
         }
 
         if (!response.ok) {
@@ -347,8 +446,54 @@ export class CanvasClient {
           };
         }
 
-        const arrayBuffer = await response.arrayBuffer();
-        return { buffer: Buffer.from(arrayBuffer), forbidden: false };
+        const declaredLength = Number(response.headers.get("content-length"));
+        if (
+          Number.isFinite(declaredLength) &&
+          declaredLength > MAX_CANVAS_FILE_BYTES
+        ) {
+          return {
+            buffer: null,
+            forbidden: false,
+            error: `Canvas file exceeds CANVAS_MAX_FILE_BYTES (${MAX_CANVAS_FILE_BYTES} bytes)`,
+          };
+        }
+
+        if (!response.body) {
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          if (buffer.length > MAX_CANVAS_FILE_BYTES) {
+            return {
+              buffer: null,
+              forbidden: false,
+              error: `Canvas file exceeds CANVAS_MAX_FILE_BYTES (${MAX_CANVAS_FILE_BYTES} bytes)`,
+            };
+          }
+          return { buffer, forbidden: false };
+        }
+
+        const reader = response.body.getReader();
+        const chunks = [];
+        let bytesRead = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = Buffer.from(value);
+            bytesRead += chunk.length;
+            if (bytesRead > MAX_CANVAS_FILE_BYTES) {
+              await reader.cancel().catch(() => undefined);
+              return {
+                buffer: null,
+                forbidden: false,
+                error: `Canvas file exceeds CANVAS_MAX_FILE_BYTES (${MAX_CANVAS_FILE_BYTES} bytes)`,
+              };
+            }
+            chunks.push(chunk);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        return { buffer: Buffer.concat(chunks, bytesRead), forbidden: false };
       } catch (err) {
         if (attempt < MAX_RETRIES && isRetryable(err)) {
           await sleep(RETRY_BASE_MS * 2 ** attempt);

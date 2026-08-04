@@ -22,7 +22,7 @@ describe("GET /api/canvas/status", () => {
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "user-123" } as never);
   });
 
-  it("counts pending_marker files as settled progress", async () => {
+  it("keeps pending_marker files active until GPU indexing finishes", async () => {
     vi.mocked(sql)
       .mockResolvedValueOnce([
         {
@@ -42,6 +42,7 @@ describe("GET /api/canvas/status", () => {
           indexing: 1,
           downloading: 1,
           processing: 0,
+          pending_retry: 0,
           pending_marker: 2,
           forbidden: 0,
           error: 0,
@@ -73,12 +74,89 @@ describe("GET /api/canvas/status", () => {
       total: 5,
       completed: 2,
       pendingMarker: 2,
-      percent: 80,
+      percent: 40,
     });
+    expect(body.markerColdStarting).toBe(false);
+    expect(body.estimatedSecsRemaining).toBeGreaterThan(0);
     expect(body.recentLogs[0]).toMatchObject({
       filename: "lecture.pdf",
       status: "pending_marker",
+      courseId: "42",
       noteId: "note-123",
     });
+  });
+
+  it("does not estimate completion before any file has settled", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: "job-123",
+          status: "processing",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: null,
+          expected_total: 5,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 1,
+          indexed: 0,
+          indexing: 1,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 0,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/status"),
+    );
+    const body = await response.json();
+
+    expect(body.progress.completed).toBe(1);
+    expect(body.estimatedSecsRemaining).toBeNull();
+  });
+
+  it("does not report a failed parent as 100 percent complete", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: "job-123",
+          status: "failed",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: null,
+          expected_total: 1,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 1,
+          indexed: 0,
+          indexing: 0,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 1,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/status"),
+    );
+    const body = await response.json();
+
+    expect(body.activeJob).toBeNull();
+    expect(body.progress).toMatchObject({ retrying: 1, percent: 0 });
   });
 });

@@ -10,12 +10,12 @@ const INTER_BATCH_DELAY_MS = 300;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Get chunk IDs that don't have any quiz questions yet for a given user.
+ * Get chunk IDs that do not have quiz questions for a given user.
  * Optionally scoped to specific chunk IDs or a course.
  */
 export async function getUncoveredChunkIds(
   userId: string,
-  opts?: { chunkIds?: string[]; courseId?: number; limit?: number },
+  opts?: { chunkIds?: string[]; courseId?: string; limit?: number },
 ): Promise<string[]> {
   const limit = opts?.limit ?? BATCH_SIZE;
 
@@ -43,7 +43,7 @@ export async function getUncoveredChunkIds(
       SELECT c.id FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.user_id = ${userId}::uuid
-        AND n.canvas_course_id = ${opts.courseId}
+        AND n.canvas_course_id = ${opts.courseId}::bigint
         AND n.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM app.quiz_questions qq
@@ -186,4 +186,3 @@ export async function seedQuestionsAfterImport(
 
   return generateBatch(userId, uncovered);
 }
-

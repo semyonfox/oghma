@@ -177,9 +177,9 @@ async def marker_upload(
             content={"success": False, "error": "only markdown output is supported"},
         )
 
-    # the pooled converters are built without per-request config, so honouring
-    # page_range here isn't possible. reject instead of silently returning the
-    # full document — the runpod serving path supports page_range
+    # The pooled converters do not use per-request configuration.
+    # Reject page_range instead of silently returning the full document.
+    # The RunPod serving path supports page_range.
     if page_range:
         return JSONResponse(
             status_code=400,

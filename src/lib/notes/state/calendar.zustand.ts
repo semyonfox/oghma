@@ -6,6 +6,7 @@ import {
   formatDateKey,
   parseLocalDateKey,
 } from "@/lib/notes/utils/calendar-date";
+import type { AssignmentType } from "@/lib/notes/utils/assignment-type";
 
 export type CalendarView = "month" | "week";
 
@@ -20,6 +21,7 @@ export interface TimeBlock {
   assignment_title?: string;
   course_name?: string;
   course_color?: string;
+  assignment_type?: AssignmentType | null;
 }
 
 interface CalendarState {

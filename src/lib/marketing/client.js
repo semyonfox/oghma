@@ -83,6 +83,12 @@ export function trackMarketingEvent(eventName, options = {}) {
     originClass: options.originClass,
     placement: options.placement,
     action: options.action,
+    // Bounded, allowlisted context only. This contains no session key and is
+    // lost when the page is refreshed or the tab is closed.
+    pathChain: options.pathChain,
+    attributionPath: options.attributionPath,
+    attributionPlacement: options.attributionPlacement,
+    attributionAction: options.attributionAction,
     utm: options.utm || getCurrentUtm(),
     properties: { ...options.properties },
   };

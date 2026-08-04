@@ -11,6 +11,8 @@ export async function renderMermaidElement(source: string) {
     securityLevel: "strict",
     suppressErrorRendering: true,
     theme: dark ? "dark" : "default",
+    htmlLabels: false,
+    flowchart: { useMaxWidth: true },
   });
 
   const id = `oghma-mermaid-${Date.now()}-${diagramSequence++}`;
@@ -20,7 +22,32 @@ export async function renderMermaidElement(source: string) {
   preview.setAttribute("role", "img");
   preview.setAttribute("aria-label", "Mermaid diagram preview");
   preview.innerHTML = DOMPurify.sanitize(svg, {
-    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ["foreignObject"],
+    ADD_ATTR: ["xmlns"],
+    HTML_INTEGRATION_POINTS: { foreignobject: true },
+  });
+  const renderedSvg = preview.querySelector<SVGSVGElement>("svg");
+  const viewBoxWidth = Number(renderedSvg?.getAttribute("viewBox")?.trim().split(/\s+/)[2]);
+  if (Number.isFinite(viewBoxWidth) && viewBoxWidth > 0) {
+    preview.style.setProperty(
+      "--oghma-mermaid-intrinsic-width",
+      `${viewBoxWidth}px`,
+    );
+  }
+  preview
+    .querySelectorAll<SVGForeignObjectElement>("foreignObject")
+    .forEach((foreignObject) => {
+      if (!foreignObject.closest("svg")) {
+        foreignObject.remove();
+        return;
+      }
+      foreignObject.querySelectorAll<HTMLElement>("*").forEach((label) => {
+        label.style.setProperty("color", "#fff", "important");
+      });
+    });
+  preview.querySelectorAll<SVGElement>("text, tspan").forEach((label) => {
+    label.style.setProperty("color", "#fff", "important");
+    label.style.setProperty("fill", "#fff", "important");
   });
   return preview;
 }

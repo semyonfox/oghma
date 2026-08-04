@@ -11,8 +11,9 @@ import sql from "@/database/pgsql.js";
  * {
  *   success: true,
  *   activeJob: { jobId, status, createdAt, startedAt } | null,
- *   progress: { total, completed, downloading, processing, pendingMarker, percent },
+ *   progress: { total, completed, downloading, processing, retrying, pendingMarker, percent },
  *   issues: { forbidden, error },
+ *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
  *   recentLogs: [{ filename, status, errorMessage, updatedAt }],
  * }
@@ -24,7 +25,7 @@ export const GET = withErrorHandler(async () => {
   const activeJobs = await sql`
     SELECT id, status, job_type, created_at, started_at, completed_at, expected_total
     FROM app.canvas_import_jobs
-    WHERE user_id = ${user.user_id}
+    WHERE user_id = ${user.user_id} AND type = 'canvas'
     ORDER BY created_at DESC
     LIMIT 1
   `;
@@ -60,6 +61,7 @@ export const GET = withErrorHandler(async () => {
         COUNT(CASE WHEN status = 'indexing'    THEN 1 END) as indexing,
         COUNT(CASE WHEN status = 'downloading' THEN 1 END) as downloading,
         COUNT(CASE WHEN status = 'processing'  THEN 1 END) as processing,
+        COUNT(CASE WHEN status = 'pending_retry' THEN 1 END) as pending_retry,
         COUNT(CASE WHEN status = 'pending_marker' THEN 1 END) as pending_marker,
         COUNT(CASE WHEN status = 'forbidden'   THEN 1 END) as forbidden,
         COUNT(CASE WHEN status = 'error'       THEN 1 END) as error
@@ -89,6 +91,7 @@ export const GET = withErrorHandler(async () => {
     indexing: 0,
     downloading: 0,
     processing: 0,
+    pending_retry: 0,
     pending_marker: 0,
     forbidden: 0,
     error: 0,
@@ -99,6 +102,7 @@ export const GET = withErrorHandler(async () => {
     indexing,
     downloading,
     processing,
+    retrying,
     pendingMarker,
     forbidden,
     errorCount,
@@ -108,6 +112,7 @@ export const GET = withErrorHandler(async () => {
     "indexing",
     "downloading",
     "processing",
+    "pending_retry",
     "pending_marker",
     "forbidden",
     "error",
@@ -117,13 +122,28 @@ export const GET = withErrorHandler(async () => {
   // use expected_total from the discovery phase as denominator when available —
   // this prevents the progress bar from jumping backwards as new files are found
   const denominator = job?.expected_total ?? total;
-  const settled = completed + pendingMarker + forbidden + errorCount;
+  // GPU handoff is visible as pendingMarker but is not settled: the document
+  // has not reached the note/chunk/vector stores until completion succeeds.
+  const settled = completed + forbidden + errorCount;
+  const etaCompleted = indexed + forbidden + errorCount;
+  // Only an explicitly completed parent owns 100%. A failed/cancelled parent
+  // may have terminal file rows too, but reporting it as complete hides the
+  // operational distinction the user needs to resolve it.
   const progressPercent =
-    !isActive && denominator > 0
-      ? 100
-      : denominator > 0
-        ? Math.min(99, Math.round((settled / denominator) * 100))
-        : null;
+    denominator > 0
+      ? job?.status === "complete"
+        ? 100
+        : Math.min(99, Math.round((settled / denominator) * 100))
+      : null;
+  // An ETA is only meaningful once at least one file has settled. Use the
+  // observed job rate rather than inventing a fixed processing duration.
+  const elapsedSecs = job?.started_at
+    ? Math.max(0, (Date.now() - new Date(job.started_at).getTime()) / 1000)
+    : null;
+  const estimatedSecsRemaining =
+    isActive && job?.status === "processing" && etaCompleted > 0 && denominator > etaCompleted && elapsedSecs != null
+      ? Math.max(1, Math.ceil((elapsedSecs / etaCompleted) * (denominator - etaCompleted)))
+      : null;
 
   return NextResponse.json({
     success: true,
@@ -135,6 +155,7 @@ export const GET = withErrorHandler(async () => {
       indexing,
       downloading,
       processing,
+      retrying,
       pendingMarker,
       percent: progressPercent,
     },
@@ -142,12 +163,19 @@ export const GET = withErrorHandler(async () => {
       forbidden,
       error: errorCount,
     },
+    // `pending_marker` means the file was handed off to the asynchronous
+    // Marker pipeline; it is not evidence that a cold start is happening.
+    // The pipeline currently exposes no cold-start signal, so be explicit
+    // rather than showing a misleading warm-up warning.
+    markerColdStarting: false,
+    estimatedSecsRemaining,
     recentLogs: (recentLogs ?? []).map((r) => ({
       filename: r.filename,
       status: r.status,
       errorMessage: r.error_message,
       updatedAt: r.updated_at,
-      courseId: r.canvas_course_id,
+      courseId:
+        r.canvas_course_id == null ? null : String(r.canvas_course_id),
       noteId: r.note_id,
     })),
   });

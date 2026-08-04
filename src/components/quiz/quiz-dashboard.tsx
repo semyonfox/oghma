@@ -263,7 +263,7 @@ export default function QuizDashboard({
         <CourseList
           courses={visibleCourses}
           onSelectCourse={(courseId) => {
-            if (courseId === 0) startReview("all");
+            if (courseId === null) startReview("all");
             else startReview("course", courseId);
           }}
           allNotesStats={

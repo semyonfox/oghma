@@ -13,6 +13,7 @@ import { deleteNoteRagIndex, replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
+import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
 
 interface NoteRouteParams {
   id: string;
@@ -115,7 +116,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
   if (!bodyValidation.success) return bodyValidation.response;
   const body = bodyValidation.data;
 
-  if (body.title && body.title.length > MAX_TITLE_LENGTH) {
+  if (body.title !== undefined && body.title.length > MAX_TITLE_LENGTH) {
     logger.warn("note title exceeds max length", {
       length: body.title.length,
       noteId,
@@ -125,7 +126,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
       400,
     );
   }
-  if (body.content && body.content.length > MAX_CONTENT_LENGTH) {
+  if (body.content !== undefined && body.content.length > MAX_CONTENT_LENGTH) {
     logger.warn("note content exceeds max length", {
       length: body.content.length,
       noteId,
@@ -151,15 +152,15 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
 
   const updatedRows = (await sql`
      UPDATE app.notes
-     SET title = ${body.title || existingNote.title},
-         content = ${body.content || existingNote.content},
+     SET title = ${body.title ?? existingNote.title},
+         content = ${body.content ?? existingNote.content},
          updated_at = NOW()
      WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
    `) as NoteSummaryRow[];
 
   const keysToInvalidate = [cacheKeys.note(user.user_id, noteId)];
-  if (body.title && body.title !== existingNote.title) {
+  if (body.title !== undefined && body.title !== existingNote.title) {
     keysToInvalidate.push(
       cacheKeys.treeFull(user.user_id),
       cacheKeys.notesList(user.user_id, 0, undefined),
@@ -167,7 +168,13 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
   }
   await cacheInvalidate(...keysToInvalidate);
 
-  if (body.content && body.content !== existingNote.content) {
+  if (body.content !== undefined && body.content !== existingNote.content) {
+    try {
+      await replaceNoteLinks(user.user_id, noteId, body.content);
+    } catch (linkErr) {
+      logger.error("note link index update failed", { noteId, error: linkErr });
+    }
+
     const cleanedText = processExtractedText(body.content);
     if (cleanedText !== (existingNote.extracted_text ?? "")) {
       try {

@@ -9,6 +9,8 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   formatDateKey,
 } from "@/lib/notes/utils/calendar-date";
+import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
+import { getAssignmentTypeLabel, type AssignmentType } from "@/lib/notes/utils/assignment-type";
 
 const MIN_HOUR_HEIGHT = 56;
 const START_HOUR = 6;
@@ -148,6 +150,8 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
       top: number;
       title: string;
       color: string;
+      type: AssignmentType;
+      typeLabel: string;
     }[] = [];
     for (const a of assignments) {
       if (!a.due_at) continue;
@@ -162,6 +166,8 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
         top: (hour - START_HOUR) * hourHeight,
         title: a.title,
         color: a.course_color ?? "#ef4444",
+        type: a.assignment_type,
+        typeLabel: getAssignmentTypeLabel(a.assignment_type),
       });
     }
     return markers;
@@ -358,13 +364,20 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
                       top: marker.top,
                       borderColor: marker.color,
                     }}
-                    title={t("Due: {title}", { title: marker.title })}
+                    title={t("Due: {title}", {
+                      title: `${marker.typeLabel}: ${marker.title}`,
+                    })}
                   >
                     <span
-                      className="absolute right-0 top-0 max-w-[calc(100%-0.25rem)] -translate-y-full truncate rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
+                      className="absolute right-0 top-0 flex max-w-[calc(100%-0.25rem)] -translate-y-full items-center gap-1 truncate rounded-t-radius-sm px-1 py-0.5 text-[10px] font-medium text-white shadow-sm"
                       style={{ backgroundColor: marker.color }}
                     >
-                      {marker.title}
+                      <AssignmentTypeIcon
+                        type={marker.type}
+                        className="h-3 w-3 text-white"
+                        label={marker.typeLabel}
+                      />
+                      <span className="truncate">{marker.title}</span>
                     </span>
                   </div>
                 ))}

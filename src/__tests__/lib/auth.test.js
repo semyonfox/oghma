@@ -13,9 +13,36 @@ import {
   generateJWTToken,
   verifyJWTToken,
   validateSessionLite,
+  createErrorResponse,
+  createValidationErrorResponse,
 } from "@/lib/auth";
 
 // JWT_SECRET is set in setup.ts
+
+describe("auth error responses", () => {
+  it("uses the canonical traced error envelope", async () => {
+    const response = createErrorResponse("Unauthorized", 401, { reason: "expired" });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: "Unauthorized",
+      reason: "expired",
+      traceId: expect.any(String),
+    });
+  });
+
+  it("keeps validationErrors as a compatibility alias for details", async () => {
+    const errors = [{ field: "email", message: "Invalid" }];
+    const response = createValidationErrorResponse(errors);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: "Validation failed",
+      details: errors,
+      validationErrors: errors,
+      traceId: expect.any(String),
+    });
+  });
+});
 
 describe("generateJWTToken", () => {
   it("returns a string token", () => {

@@ -173,7 +173,7 @@ export async function generateQuestion(
   moduleName: string,
   bloomLevel: BloomLevel,
   questionType: QuestionType,
-  courseId?: number,
+  courseId?: string,
 ): Promise<QuizQuestion | null> {
   const cleanedChunkText = chunkText
     .replace(/^\s*\{\d+\}-+\s*$/gm, "")
@@ -191,7 +191,7 @@ export async function generateQuestion(
       FROM app.quiz_questions qq
       JOIN app.notes n ON qq.note_id = n.note_id
       WHERE qq.user_id = ${userId}::uuid
-        AND n.canvas_course_id = ${courseId}
+        AND n.canvas_course_id = ${courseId}::bigint
         AND n.deleted_at IS NULL
       ORDER BY qq.created_at DESC
       LIMIT 5

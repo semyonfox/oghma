@@ -4,8 +4,8 @@ import logger from '@/lib/logger';
 // track connection state for consumers that need to know if redis is available
 export let redisReady = false;
 
-// lazy init — next build evaluates this module at page data collection time
-// but REDIS_HOST/PORT aren't available yet (comes from .env.production at runtime)
+// Use lazy initialization because the Next.js build evaluates this module during page data collection.
+// REDIS_HOST and REDIS_PORT are not available yet. They come from .env.production at runtime.
 let _redis: Cluster | Redis | null = null;
 let _redisReadyWait: Promise<boolean> | null = null;
 

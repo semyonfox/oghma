@@ -73,7 +73,7 @@ Definition lists, footnotes, highlights, abbreviations, callouts, custom task st
 | **BlockNote** | Rejected because its official documentation describes Markdown conversion as lossy and recommends storing its block JSON. |
 | **ProseMirror directly** | Rejected for the first implementation because it is deliberately a toolkit rather than a ready editor; Milkdown already supplies the Markdown transformation layer. |
 | **MDX** | Not an editor and not an acceptable note format. It introduces JSX/JavaScript semantics and is unsafe for untrusted authors without strong isolation. |
-| **CodeMirror live preview** | Retains perfect literal source fidelity but has reached a demonstrated UX ceiling for block widgets, cursor mapping, nested structures, and arbitrary HTML. |
+| **CodeMirror live preview** | Retains perfect literal source fidelity but has reached an observed UX ceiling for block widgets, cursor mapping, nested structures, and arbitrary HTML. |
 
 ## Why Milkdown Crepe is first
 
@@ -159,9 +159,9 @@ Future behavior, not part of the first release gate:
 - persist a user-level line-wrap preference;
 - optional line numbers;
 - optional language auto-detection;
-- filename/title UI only after a demonstrated need.
+- filename/title UI only after a documented need.
 
-Milkdown's embedded CodeMirror should own editable code and highlighting. Do not transplant T3 Code's chat-specific Suspense/Shiki LRU cache into the editor unless profiling demonstrates a need. Do not adopt `@pierre/trees` solely for language icons; begin with a small explicit mapping and text fallback.
+Milkdown's embedded CodeMirror should own editable code and highlighting. Do not transplant T3 Code's chat-specific Suspense/Shiki LRU cache into the editor unless profiling shows a need. Do not adopt `@pierre/trees` solely for language icons; start with a small explicit mapping and text fallback.
 
 ## Raw HTML strategy
 

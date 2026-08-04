@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
+import {
+  timeBlockCreateSchema,
+  timeBlockRangeSchema,
+  validateBody,
+} from '@/lib/validations/schemas';
 
 /**
  * GET /api/time-blocks?start=ISO&end=ISO
@@ -10,15 +15,16 @@ export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
   const url = new URL(request.url);
-  const start = url.searchParams.get('start');
-  const end = url.searchParams.get('end');
-
-  if (!start || !end) {
-    throw new ApiError(400, 'start and end params required');
-  }
+  const rangeValidation = validateBody(timeBlockRangeSchema, {
+    start: url.searchParams.get('start'),
+    end: url.searchParams.get('end'),
+  });
+  if (!rangeValidation.success) return rangeValidation.response;
+  const { start, end } = rangeValidation.data;
 
   const rows = await sql`
-    SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color
+    SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color,
+           a.assignment_type
     FROM app.time_blocks tb
     LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${user.user_id}::uuid
     WHERE tb.user_id = ${user.user_id}::uuid
@@ -37,20 +43,19 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  const body = await request.json();
-  const { assignment_id, title, starts_at, ends_at } = body;
-
-  if (!starts_at || !ends_at) {
-    throw new ApiError(400, 'starts_at and ends_at required');
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    throw new ApiError(400, 'Invalid JSON body');
   }
+  const validation = validateBody(timeBlockCreateSchema, rawBody);
+  if (!validation.success) return validation.response;
+  const { assignment_id, title, starts_at, ends_at } = validation.data;
 
   const start = new Date(starts_at);
   const end = new Date(ends_at);
   const durationMins = (end.getTime() - start.getTime()) / 60000;
-
-  if (durationMins <= 0) {
-    throw new ApiError(400, 'End must be after start');
-  }
 
   // verify assignment_id belongs to the caller before linking (I3)
   if (assignment_id) {

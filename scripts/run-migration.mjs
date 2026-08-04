@@ -2,14 +2,19 @@
 
 // migration runner with --dry-run, --status, and optional file argument
 // usage:
-//   node scripts/run-migration.mjs                    # runs 017 consolidation
+//   node scripts/run-migration.mjs                    # runs 017 user course settings
 //   node scripts/run-migration.mjs 015-oauth-accounts.sql
 //   node scripts/run-migration.mjs --dry-run          # shows SQL without executing
 //   node scripts/run-migration.mjs --status            # shows applied vs pending
 
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import postgres from 'postgres';
+import {
+  migrationId,
+  isMigrationApplied,
+  readMigrationFiles,
+} from './migration-catalog.mjs';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
@@ -19,7 +24,7 @@ const help = args.includes('--help') || args.includes('-h');
 const target = args.find(a => !a.startsWith('--'));
 
 const migrationsDir = resolve('./database/migrations');
-const defaultMigration = '017_consolidation_and_fixes.sql';
+const defaultMigration = '017_user_course_settings.sql';
 
 if (help) {
   console.log(`OghmaNotes migration runner
@@ -33,7 +38,7 @@ options:
   --help       show this message
 
 examples:
-  node scripts/run-migration.mjs                           # run 017 consolidation
+  node scripts/run-migration.mjs                           # run 017 user course settings
   node scripts/run-migration.mjs --all                     # run all pending migrations
   node scripts/run-migration.mjs --status                  # check migration state
   node scripts/run-migration.mjs --dry-run                 # preview 017 SQL
@@ -70,8 +75,7 @@ async function status() {
   console.log('database:', masked);
 
   const applied = await getApplied();
-  const files = readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-  const appliedSet = new Set(applied.map(m => m.version));
+  const files = readMigrationFiles(migrationsDir);
 
   if (applied.length === 0) {
     console.log('\nno migration tracking table found');
@@ -84,10 +88,7 @@ async function status() {
     }
   }
 
-  const pending = files.filter(f => {
-    const ver = f.match(/^(\d+)/)?.[1];
-    return ver && !appliedSet.has(ver);
-  });
+  const pending = files.filter(f => !isMigrationApplied(f, applied));
 
   if (pending.length > 0) {
     console.log('\npending:');
@@ -138,7 +139,7 @@ async function run(filename) {
           applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
-      const version = filename.match(/^(\d+)/)?.[1] ?? filename;
+      const version = migrationId(filename);
       await tx`
         INSERT INTO app.schema_migrations (version, name)
         VALUES (${version}, ${filename})
@@ -167,19 +168,14 @@ async function run(filename) {
 async function runAllPending() {
   let files;
   try {
-    files = readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-  } catch {
-    console.error('no migrations directory found at', migrationsDir);
+    files = readMigrationFiles(migrationsDir);
+  } catch (error) {
+    console.error('failed to read migration catalog:', error.message);
     process.exit(1);
   }
 
   const applied = await getApplied();
-  const appliedSet = new Set(applied.map(m => m.version));
-
-  const pending = files.filter(f => {
-    const ver = f.match(/^(\d+)/)?.[1];
-    return ver && !appliedSet.has(ver);
-  });
+  const pending = files.filter(f => !isMigrationApplied(f, applied));
 
   if (pending.length === 0) {
     console.log('all migrations already applied');

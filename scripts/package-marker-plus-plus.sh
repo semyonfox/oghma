@@ -19,7 +19,15 @@ if [[ "$resolved" != "$COMMIT" ]]; then
 fi
 
 tree=$(git -C "$REPO" show -s --format=%T "$COMMIT")
-lock_sha=$(git -C "$REPO" show "${COMMIT}:poetry.lock" | sha256sum | cut -d' ' -f1)
+if git -C "$REPO" cat-file -e "${COMMIT}:uv.lock" 2>/dev/null; then
+  lock_path=uv.lock
+elif git -C "$REPO" cat-file -e "${COMMIT}:poetry.lock" 2>/dev/null; then
+  lock_path=poetry.lock
+else
+  echo "selected Marker++ commit has no supported dependency lockfile" >&2
+  exit 4
+fi
+lock_sha=$(git -C "$REPO" show "${COMMIT}:${lock_path}" | sha256sum | cut -d' ' -f1)
 temporary_tar=$(mktemp)
 trap 'rm -f "$temporary_tar"' EXIT
 git -C "$REPO" archive --format=tar --prefix=marker-plus-plus/ -o "$temporary_tar" "$COMMIT"
@@ -30,18 +38,19 @@ gzip -n -c "$temporary_tar" > "$DESTINATION"
 archive_sha=$(sha256sum "$DESTINATION" | cut -d' ' -f1)
 integration_sha=$(sha256sum "$INTEGRATION_ROOT/oghma_marker/services.py" | cut -d' ' -f1)
 sha256sum "$DESTINATION" > "${DESTINATION}.sha256"
-python3 - "$MANIFEST" "$COMMIT" "$tree" "$lock_sha" "$archive_sha" "$integration_sha" <<'PY'
+python3 - "$MANIFEST" "$COMMIT" "$tree" "$lock_path" "$lock_sha" "$archive_sha" "$integration_sha" <<'PY'
 import json
 import pathlib
 import sys
 
-path, commit, tree, lock_sha, archive_sha, integration_sha = sys.argv[1:]
+path, commit, tree, lock_path, lock_sha, archive_sha, integration_sha = sys.argv[1:]
 pathlib.Path(path).write_text(
     json.dumps(
         {
             "schemaVersion": 1,
             "commit": commit,
             "tree": tree,
+            "dependencyLockPath": lock_path,
             "poetryLockSha256": lock_sha,
             "archiveSha256": archive_sha,
             "repositoryIntegrationSha256": integration_sha,

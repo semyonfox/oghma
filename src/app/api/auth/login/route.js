@@ -11,6 +11,7 @@
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
+import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
@@ -32,6 +33,7 @@ import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 export const POST = withErrorHandler(async (request) => {
   // 1. Parse and validate request body
@@ -106,7 +108,7 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
-  // Security check: ensure no duplicate emails exist (UNIQUE constraint should prevent this)
+  // Security check: verify that no duplicate emails exist. The UNIQUE constraint should prevent this.
   if (data.length > 1) {
     logger.error("multiple accounts with same email detected", {
       emailHash: require("crypto")
@@ -152,7 +154,7 @@ export const POST = withErrorHandler(async (request) => {
   const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
 
   // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
-  //    We don't await this — login speed is unaffected.
+  //    Do not await this call. It must not delay login.
   queueCanvasSync(user.user_id).catch((err) =>
     logger.warn("canvas auto-sync queue failed", { error: err.message }),
   );
@@ -185,31 +187,18 @@ async function queueCanvasSync(userId) {
   const client = new CanvasClient(credentials.domain, credentials.token);
   const { data: allCourses } = await client.getCourses();
 
-  const courses = (allCourses ?? [])
-    .filter((c) => prevCourseIds.has(String(c.id)))
-    .map((c) => ({
-      id: c.id,
-      name: c.name ?? String(c.id),
-      course_code: c.course_code ?? "",
-    }));
-
-  // include courses no longer visible in Canvas (bare ID fallback)
-  for (const id of prevCourseIds) {
-    if (!courses.some((c) => String(c.id) === id)) {
-      courses.push({ id: Number(id), name: String(id), course_code: "" });
-    }
-  }
+  const courses = buildCanvasSyncCourses(prevCourseIds, allCourses);
 
   if (courses.length === 0) return;
 
   // cancel any existing queued/processing job before inserting
-  const job = await sql.begin(async (sql) => {
-    await sql`
-      UPDATE app.canvas_import_jobs
-      SET status = 'cancelled', completed_at = NOW()
-      WHERE user_id = ${userId} AND status IN ('queued', 'discovering', 'processing')
-    `;
-    const [inserted] = await sql`
+  const job = await sql.begin(async (tx) => {
+    await cancelActiveCanvasImportJobs(
+      tx,
+      userId,
+      "Replaced by an automatic Canvas sync",
+    );
+    const [inserted] = await tx`
       INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status, job_type)
       VALUES (${generateUUID()}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
       RETURNING id

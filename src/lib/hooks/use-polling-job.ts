@@ -38,7 +38,7 @@ export function usePollingJob({
     onErrorRef.current = onError;
   }, [onData, onError]);
 
-  // track whether we've self-stopped so we don't keep firing
+  // Track self-stops so the poll does not continue.
   const stoppedRef = useRef(false);
 
   // reset stopped flag when enabled transitions back to true

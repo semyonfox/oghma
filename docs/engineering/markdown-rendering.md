@@ -2,7 +2,7 @@
 
 > **Status:** Active compatibility contract
 >
-> **Last reviewed:** 2026-07-15
+> **Last reviewed:** 2026-07-21
 >
 > **Source of truth:** Editor/renderer code and [`src/__tests__/fixtures/markdown-contract.md`](../../src/__tests__/fixtures/markdown-contract.md)
 
@@ -39,13 +39,18 @@ The note preview supports:
 - inline and display math through KaTeX;
 - fenced `mermaid` diagrams with lazy, strict, sanitized SVG rendering and source fallback;
 - lazy images and Marker-style note-asset rewriting when a note ID is available;
+- internal note references stored as portable Markdown links to stable
+  `/notes/<uuid>` routes, inserted through the editor toolbar or `[[` picker;
 - a small sanitized raw-HTML subset used by notes, including `mark`, `details`, `summary`, `kbd`, `sup`, and `sub`.
 
 Fenced code is rendered by [`CodeBlock`](../../src/lib/markdown/components/code-block.tsx) and highlighted lazily with **Shiki**, not `rehype-highlight`. Known aliases are normalized; unsupported languages fall back to plaintext; missing languages display a `CODE` label. Highlighting must never turn code content into executable HTML.
 
 Rendered notes, chat answers, and quiz content use the same semantic colours, spacing rhythm, code chrome, table treatment, task controls, and display-math surface. Compact contexts may reduce type and spacing through their renderer variant, but must not redefine Markdown elements component-by-component. Write-mode math uses the same surface tokens so switching between editing and rendered content does not introduce a new visual language.
 
-Wikilinks/backlinks, callouts, footnotes, frontmatter rendering, arbitrary local paths, and MDX components are not part of this contract unless added deliberately with tests.
+Backlinks are derived from canonical internal note references and displayed in
+the note inspector. Obsidian-style wikilink storage, transclusion, callouts,
+footnotes, frontmatter rendering, arbitrary local paths, and MDX components are
+not part of this contract unless added deliberately with tests.
 
 ## Security boundary
 

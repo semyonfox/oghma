@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -8,7 +9,7 @@ export const moduleTools: ToolDef[] = [
         description:
             "List modules for a course. Optionally include items and content_details via include[].",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
             search_term: z.string().optional(),
         }),
@@ -28,8 +29,8 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_get_module",
         description: "Get details for a single module by course and module ID.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -47,8 +48,8 @@ export const moduleTools: ToolDef[] = [
         description:
             "List items within a module. Optionally include content_details via include[].",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -66,9 +67,9 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_get_module_item",
         description: "Get a single module item by course, module, and item ID.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
-            item_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
+            item_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const item = await canvas.get(
@@ -83,9 +84,9 @@ export const moduleTools: ToolDef[] = [
         description:
             "Get the module item sequence (next/prev navigation) for a given asset in a course.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             asset_type: z.string(),
-            asset_id: z.number().int().positive(),
+            asset_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const sequence = await canvas.get(
@@ -103,9 +104,9 @@ export const moduleTools: ToolDef[] = [
         description:
             "Mark a module item as read for the authenticated student. Safe progress side-effect only.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
-            item_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
+            item_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.post(
@@ -119,9 +120,9 @@ export const moduleTools: ToolDef[] = [
         description:
             "Mark a module item as done for the authenticated student. Safe progress side-effect only.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
-            item_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
+            item_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.put(
@@ -140,7 +141,7 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_create_module",
         description: "Create a new module in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             name: z.string(),
             position: z.number().int().positive().optional(),
             unlock_at: z.string().optional(),
@@ -163,8 +164,8 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_update_module",
         description: "Update a module in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
             name: z.string().optional(),
             position: z.number().int().positive().optional(),
             published: z.boolean().optional(),
@@ -187,8 +188,8 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_delete_module",
         description: "Delete a module from a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -201,10 +202,10 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_add_module_item",
         description: "Add an item to a module. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
             type: z.string(),
-            content_id: z.number().int().positive().optional(),
+            content_id: canvasIdSchema.optional(),
             title: z.string().optional(),
             position: z.number().int().positive().optional(),
         }),
@@ -227,9 +228,9 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_update_module_item",
         description: "Update a module item. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
-            item_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
+            item_id: canvasIdSchema,
             title: z.string().optional(),
             position: z.number().int().positive().optional(),
             published: z.boolean().optional(),
@@ -252,9 +253,9 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_delete_module_item",
         description: "Delete an item from a module. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
-            item_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
+            item_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -267,8 +268,8 @@ export const moduleTools: ToolDef[] = [
         name: "canvas_toggle_module_publish",
         description: "Publish or unpublish a module. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            module_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            module_id: canvasIdSchema,
             published: z.boolean(),
         }),
         handler: async (args: any, { canvas }) => {

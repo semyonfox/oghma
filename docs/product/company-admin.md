@@ -29,7 +29,7 @@ Do not enable public paid subscriptions until the company-owned money path and o
 
 ## Verified Official Guidance
 
-The following narrow statements were checked on 2026-07-11. Recheck the source and obtain professional advice before acting.
+The following narrow statements were checked on 2026-07-11. Recheck the source and get professional advice before acting.
 
 ### Company registration
 

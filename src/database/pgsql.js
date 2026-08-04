@@ -2,7 +2,7 @@ import postgres from 'postgres';
 import { config } from '@/lib/config';
 
 // lazy connection - only created on first use, not at module load
-// this ensures runtime env vars are available (not build-time values)
+// This makes runtime environment variables available instead of build-time values.
 let sql;
 
 function getSQL() {

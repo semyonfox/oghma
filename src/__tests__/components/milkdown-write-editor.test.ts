@@ -1,13 +1,97 @@
 // @vitest-environment jsdom
 
 import { fireEvent } from "@testing-library/dom";
+import DOMPurify from "dompurify";
 import { describe, expect, it, vi } from "vitest";
 import {
+  collectMermaidPortals,
+  createMermaidPreviewHost,
   createSafeHtmlPreview,
   enhanceMilkdownCodeBlocks,
+  shouldApplyExternalMarkdown,
 } from "@/components/editor/milkdown-write-editor";
 
+describe("Milkdown value synchronization", () => {
+  it("does not replace the document when a normalized list value echoes through React", () => {
+    const emitted = "- first\n- second";
+
+    expect(shouldApplyExternalMarkdown(emitted, emitted)).toBe(false);
+    expect(
+      shouldApplyExternalMarkdown("- first\n- second\n- third", emitted),
+    ).toBe(true);
+  });
+});
+
 describe("Milkdown spike code controls", () => {
+  it("retains a Mermaid source while Milkdown delays inserting its preview host", () => {
+    const root = document.createElement("div");
+    const sources = new Map([
+      ["oghma-mermaid-preview-lazy", "graph TD\nA-->B"],
+    ]);
+
+    expect(collectMermaidPortals(root, sources)).toEqual([]);
+    expect(sources.has("oghma-mermaid-preview-lazy")).toBe(true);
+
+    const host = createMermaidPreviewHost("oghma-mermaid-preview-lazy");
+    root.append(host);
+    expect(collectMermaidPortals(root, sources)).toEqual([
+      {
+        id: "oghma-mermaid-preview-lazy",
+        host,
+        source: "graph TD\nA-->B",
+      },
+    ]);
+  });
+
+  it("retains the inert Mermaid host after Milkdown reserializes it", () => {
+    const host = createMermaidPreviewHost("oghma-mermaid-preview-test");
+
+    document.body.innerHTML = DOMPurify.sanitize(host, {
+      ADD_TAGS: ["foreignObject"],
+      ADD_ATTR: ["xmlns"],
+      HTML_INTEGRATION_POINTS: { foreignobject: true },
+    });
+    const restored = document.querySelector<HTMLElement>(
+      "[data-oghma-mermaid-host]",
+    );
+    expect(restored?.dataset.oghmaMermaidHost).toBe(
+      "oghma-mermaid-preview-test",
+    );
+  });
+
+  it("leaves diagram controls to the isolated preview viewer", () => {
+    document.body.innerHTML = `
+      <div id="root">
+        <div class="milkdown-code-block">
+          <div class="tools">
+            <button class="language-button">mermaid</button>
+            <div class="tools-button-group">
+              <button>Copy</button>
+              <button class="preview-toggle-button"><svg></svg>Edit</button>
+            </div>
+          </div>
+          <div class="codemirror-host"></div>
+          <div class="preview-panel">
+            <div class="preview">
+              <div data-oghma-mermaid-host="oghma-mermaid-preview-test"></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const root = document.querySelector<HTMLElement>("#root")!;
+
+    enhanceMilkdownCodeBlocks(root);
+    enhanceMilkdownCodeBlocks(root);
+
+    expect(root.querySelector("[data-oghma-mermaid-action]")).toBeNull();
+    expect(
+      root.querySelector(".preview-toggle-button")?.getAttribute("aria-label"),
+    ).toBe("Edit diagram source");
+    expect(
+      root.querySelector(".oghma-code-copy")?.getAttribute("aria-label"),
+    ).toBe("Copy Mermaid source");
+  });
+
   it("adds accessible wrap and copy controls without touching code text", () => {
     vi.useFakeTimers();
     document.body.innerHTML = `

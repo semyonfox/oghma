@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   enqueueCanvasJob,
   enqueueExtractRetryJob,
+  enqueueMarkerCompletionJob,
+  enqueueMarkerDispatchJob,
   parseCloudflareQueueBody,
 } from "@/lib/queue";
 
@@ -11,6 +13,7 @@ function setCloudflareQueueEnv() {
   process.env.CLOUDFLARE_QUEUES_API_TOKEN = "queue-token";
   process.env.CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID = "canvas-queue-id";
   process.env.CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID = "retry-queue-id";
+  process.env.CLOUDFLARE_MARKER_DISPATCH_QUEUE_ID = "marker-queue-id";
 }
 
 describe("Cloudflare queue adapter", () => {
@@ -21,6 +24,7 @@ describe("Cloudflare queue adapter", () => {
     delete process.env.CLOUDFLARE_QUEUES_API_TOKEN;
     delete process.env.CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID;
     delete process.env.CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID;
+    delete process.env.CLOUDFLARE_MARKER_DISPATCH_QUEUE_ID;
   });
 
   it("publishes canvas jobs with the existing message envelope", async () => {
@@ -62,6 +66,48 @@ describe("Cloudflare queue adapter", () => {
           body: { type: "extract-retry", noteId: "note-1" },
           content_type: "json",
           delay_seconds: 120,
+        }),
+      }),
+    );
+  });
+
+  it("publishes Marker dispatches to the isolated GPU dispatch queue", async () => {
+    setCloudflareQueueEnv();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await enqueueMarkerDispatchJob("callback-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.cloudflare.com/client/v4/accounts/account-1/queues/marker-queue-id/messages",
+      expect.objectContaining({
+        body: JSON.stringify({
+          body: { type: "marker-dispatch", callbackId: "callback-1" },
+          content_type: "json",
+        }),
+      }),
+    );
+  });
+
+  it("publishes Marker completion with only its durable job identifier", async () => {
+    setCloudflareQueueEnv();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await enqueueMarkerCompletionJob("callback-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.cloudflare.com/client/v4/accounts/account-1/queues/canvas-queue-id/messages",
+      expect.objectContaining({
+        body: JSON.stringify({
+          body: { type: "marker-complete", markerJobId: "callback-1" },
+          content_type: "json",
         }),
       }),
     );

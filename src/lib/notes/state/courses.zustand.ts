@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export interface CourseSetting {
   id: string;
-  canvasCourseId: number;
+  canvasCourseId: string;
   courseName: string;
   isActive: boolean;
   autoArchived: boolean;
@@ -16,10 +16,10 @@ interface CourseState {
   showArchived: boolean;
 
   fetchSettings: () => Promise<void>;
-  archiveCourse: (courseId: number, courseName: string) => Promise<void>;
-  unarchiveCourse: (courseId: number) => Promise<void>;
+  archiveCourse: (courseId: string, courseName: string) => Promise<void>;
+  unarchiveCourse: (courseId: string) => Promise<void>;
   toggleShowArchived: () => void;
-  isCourseActive: (courseId: number) => boolean;
+  isCourseActive: (courseId: string) => boolean;
 }
 
 const useCourseStore = create<CourseState>()(
@@ -42,7 +42,7 @@ const useCourseStore = create<CourseState>()(
         }
       },
 
-      archiveCourse: async (courseId: number, courseName: string) => {
+      archiveCourse: async (courseId: string, courseName: string) => {
         try {
           const res = await fetch("/api/courses/settings", {
             method: "POST",
@@ -66,7 +66,7 @@ const useCourseStore = create<CourseState>()(
         }
       },
 
-      unarchiveCourse: async (courseId: number) => {
+      unarchiveCourse: async (courseId: string) => {
         try {
           const res = await fetch(`/api/courses/settings/${courseId}`, {
             method: "PATCH",
@@ -88,7 +88,7 @@ const useCourseStore = create<CourseState>()(
 
       toggleShowArchived: () => set((s) => ({ showArchived: !s.showArchived })),
 
-      isCourseActive: (courseId: number) => {
+      isCourseActive: (courseId: string) => {
         const setting = get().settings.find(
           (s) => s.canvasCourseId === courseId
         );

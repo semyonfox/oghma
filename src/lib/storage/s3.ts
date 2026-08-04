@@ -48,6 +48,8 @@ export interface S3Config extends StoreProviderConfig {
   readonly secretKey?: string;
   /** Custom S3 endpoint (for MinIO or other S3-compatible services) */
   readonly endPoint?: string;
+  /** Public endpoint used only to sign URLs consumed outside the homelab. */
+  readonly publicEndPoint?: string;
   /** Force path-style URLs (required for MinIO) */
   readonly pathStyle?: boolean;
   /** AWS region or equivalent */
@@ -90,6 +92,7 @@ export function createS3ConfigFromEnv(): S3Config {
     secretKey: process.env.STORAGE_SECRET_KEY,
     region: process.env.STORAGE_REGION || 'us-east-1',
     endPoint: process.env.STORAGE_ENDPOINT,
+    publicEndPoint: process.env.STORAGE_PUBLIC_ENDPOINT,
     pathStyle: process.env.STORAGE_PATH_STYLE === 'true',
     prefix: process.env.STORAGE_PREFIX || 'oghma',
   };
@@ -105,6 +108,7 @@ export function createS3ClientFromEnv(): S3Client {
  */
 export class StoreS3 extends StoreProvider {
   private readonly client: S3Client;
+  private readonly publicClient: S3Client;
   private readonly config: Readonly<S3Config>;
   private readonly logger: Logger;
 
@@ -113,6 +117,9 @@ export class StoreS3 extends StoreProvider {
     this.config = config;
     this.logger = createLogger('store.s3');
     this.client = this.createS3Client(config);
+    this.publicClient = config.publicEndPoint
+      ? this.createS3Client({ ...config, endPoint: config.publicEndPoint })
+      : this.client;
 
     if (!config.accessKey || !config.secretKey) {
       this.logger.warn(
@@ -159,6 +166,36 @@ export class StoreS3 extends StoreProvider {
       new GetObjectCommand({
         Bucket: this.config.bucket,
         Key: this.getPath(path),
+      }),
+      { expiresIn }
+    );
+  }
+
+  /** Sign a GET URL with the public storage hostname for external workers. */
+  async getExternalSignUrl(path: string, expiresIn = 600): Promise<string> {
+    return getSignedUrl(
+      this.publicClient,
+      new GetObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(path),
+      }),
+      { expiresIn }
+    );
+  }
+
+  async getPutSignUrl(
+    path: string,
+    expiresIn = 600,
+    contentType = 'application/octet-stream',
+    ifNoneMatch = false,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.publicClient,
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: this.getPath(path),
+        ContentType: contentType,
+        ...(ifNoneMatch ? { IfNoneMatch: '*' } : {}),
       }),
       { expiresIn }
     );
@@ -211,7 +248,11 @@ export class StoreS3 extends StoreProvider {
   /**
    * Retrieve object metadata only
    */
-  async getObjectMeta(path: string): Promise<Record<string, string> | undefined> {
+  async getObjectMeta(
+    path: string,
+  ): Promise<
+    Pick<ObjectMetadata, "meta" | "contentType" | "contentLength"> | undefined
+  > {
     try {
       const result = await this.client.send(
         new HeadObjectCommand({
@@ -219,7 +260,17 @@ export class StoreS3 extends StoreProvider {
           Key: this.getPath(path),
         })
       );
-      return result.Metadata;
+      // A successful HEAD proves existence even when the object has no custom
+      // user metadata. Keep `undefined` exclusively for a confirmed 404 so
+      // callers can distinguish absence from both an empty metadata map and a
+      // real storage failure.
+      return {
+        ...(result.Metadata ? { meta: result.Metadata } : {}),
+        ...(result.ContentType ? { contentType: result.ContentType } : {}),
+        ...(typeof result.ContentLength === "number"
+          ? { contentLength: result.ContentLength }
+          : {}),
+      };
     } catch (error) {
       if (isNoSuchKeyError(error)) {
         return undefined;
@@ -250,6 +301,7 @@ export class StoreS3 extends StoreProvider {
          content: await toStr(buffer, isCompressed),
          meta: result.Metadata,
          contentType: result.ContentType,
+         contentLength: result.ContentLength,
          buffer,
        };
     } catch (error) {

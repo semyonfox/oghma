@@ -152,10 +152,10 @@ export const TypingDots: FC = () => (
   </div>
 );
 
-// chrome-less copy "icon" — placed inside a hover-revealed slot by the parent.
-// success: a sonner toast pops "Copied" for 1.2s; the icon itself doesn't change,
-// so the action feels like it dispatched somewhere rather than mutating the chrome.
-// disabled briefly so double-click doesn't fire two toasts.
+// The parent places this plain copy icon in a slot that appears on hover.
+// On success, a Sonner toast shows "Copied" for 1.2 seconds. The icon does not change.
+// This makes the action feel dispatched instead of changing the interface.
+// Disable it briefly so a double-click does not show two toasts.
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
   const { t = (key: string) => key } = useI18n();
   const [busy, setBusy] = useState(false);

@@ -14,7 +14,7 @@ import { usePathname } from "next/navigation";
  */
 
 // Mirrors PRESENCE_HEARTBEAT_MS in src/lib/chat/presence.ts (server-only
-// module — it pulls in the Redis client, so it can't be imported here).
+// module. It imports the Redis client, so this file cannot import it.
 const HEARTBEAT_MS = 10_000;
 const TAB_ID_STORAGE_KEY = "oghma-tab-id";
 
@@ -39,8 +39,8 @@ export default function ChatPresenceController() {
     const tabId = getTabId();
     if (!tabId) return;
 
-    // 401 pauses the loop so logged-out visitors don't spam the endpoint;
-    // any wake signal (visibility, pageshow, route change) retries once.
+    // A 401 pauses the loop so logged-out visitors do not repeatedly call the endpoint.
+    // Any wake signal (visibility, pageshow, or route change) retries once.
     let paused = false;
     let stopped = false;
 

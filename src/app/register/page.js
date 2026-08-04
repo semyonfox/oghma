@@ -6,7 +6,7 @@ import { getProviders, signIn } from "next-auth/react";
 import { register, getErrorMessage } from "@/lib/apiClient";
 import { Alert } from "@/components/alert";
 import Link from "next/link";
-import Image from "next/image";
+import BrandLogo from "@/components/brand-logo";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import {
   getMarketingContext,
@@ -221,7 +221,7 @@ export default function RegisterPage() {
           className="flex items-center justify-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >
-          <Image src="/oghmanotes.svg" alt="" width={34} height={34} priority />
+          <BrandLogo size={34} priority />
           <span className="font-serif text-xl font-semibold text-text">
             {t("OghmaNotes")}
           </span>

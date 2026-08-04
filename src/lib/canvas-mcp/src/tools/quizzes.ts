@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
 import { jsonResult } from "./types.ts";
 
@@ -7,7 +8,7 @@ export const quizTools: ToolDef[] = [
         name: "canvas_list_quizzes",
         description: "List quizzes for a course. Optionally filter by search_term.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             search_term: z.string().optional(),
         }),
         handler: async (args: any, { canvas }) => {
@@ -25,8 +26,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_get_quiz",
         description: "Get details for a single quiz by course and quiz ID.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const quiz = await canvas.get(
@@ -41,8 +42,8 @@ export const quizTools: ToolDef[] = [
         description:
             "List submissions for a quiz. Filtered to the authenticated student. Includes score and attempt data.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const submissions = await canvas.collectPaginated(
@@ -57,8 +58,8 @@ export const quizTools: ToolDef[] = [
         description:
             "Get the authenticated student's latest submission for a quiz, including score and attempts.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const submission = await canvas.get(
@@ -78,7 +79,7 @@ export const quizTools: ToolDef[] = [
         name: "canvas_create_quiz",
         description: "Create a quiz in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
             title: z.string(),
             quiz_type: z.enum(["practice_quiz", "assignment", "graded_survey", "survey"]).optional(),
             time_limit: z.number().int().positive().optional(),
@@ -103,8 +104,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_update_quiz",
         description: "Update a quiz in a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
             title: z.string().optional(),
             quiz_type: z.enum(["practice_quiz", "assignment", "graded_survey", "survey"]).optional(),
             time_limit: z.number().int().positive().optional(),
@@ -132,8 +133,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_delete_quiz",
         description: "Delete a quiz from a course. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -146,8 +147,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_list_quiz_questions",
         description: "List questions for a quiz. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const questions = await canvas.collectPaginated(
@@ -161,8 +162,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_create_quiz_question",
         description: "Create a question in a quiz. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
             question_name: z.string().optional(),
             question_text: z.string(),
             question_type: z.string(),
@@ -188,9 +189,9 @@ export const quizTools: ToolDef[] = [
         name: "canvas_update_quiz_question",
         description: "Update a question in a quiz. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
-            question_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
+            question_id: canvasIdSchema,
             question_name: z.string().optional(),
             question_text: z.string().optional(),
             points_possible: z.number().optional(),
@@ -214,9 +215,9 @@ export const quizTools: ToolDef[] = [
         name: "canvas_delete_quiz_question",
         description: "Delete a question from a quiz. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
-            question_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
+            question_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const result = await canvas.delete(
@@ -229,8 +230,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_list_quiz_question_groups",
         description: "List question groups for a quiz. Requires educator permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const groups = await canvas.collectPaginated(
@@ -244,8 +245,8 @@ export const quizTools: ToolDef[] = [
         name: "canvas_start_quiz_attempt",
         description: "Start a new submission attempt for a quiz. Requires admin permissions.",
         inputSchema: z.object({
-            course_id: z.number().int().positive(),
-            quiz_id: z.number().int().positive(),
+            course_id: canvasIdSchema,
+            quiz_id: canvasIdSchema,
         }),
         handler: async (args: any, { canvas }) => {
             const submission = await canvas.post(

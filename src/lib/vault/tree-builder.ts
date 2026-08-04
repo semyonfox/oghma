@@ -123,7 +123,7 @@ export async function findOrCreateVaultFolder(
 }
 
 /**
- * Ensure all folders in a path exist, returning the deepest folder's ID.
+ * Create missing folders in a path and return the deepest folder's ID.
  * e.g. "Folder/Subfolder/file.pdf" creates "Folder" and "Subfolder", returns Subfolder's ID.
  */
 export async function ensureFolderPath(
