@@ -13,8 +13,8 @@ obviously non-secret examples and templates.
 
 Jenkins loads the current app and worker environments from:
 
-- `/home/semyon/jenkins/env/oghma-dev.env`
-- `/home/semyon/jenkins/env/oghma-prod.env`
+- `/home/semyon/server-stacks/jenkins/env/oghma-dev.env`
+- `/home/semyon/server-stacks/jenkins/env/oghma-prod.env`
 
 Those files are deployment inputs, not files to copy into this repository.
 Persistent-stack secrets and recovery procedures belong to the private
