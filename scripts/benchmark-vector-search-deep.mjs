@@ -5,7 +5,7 @@
  *
  * Example:
  *   node scripts/benchmark-vector-search-deep.mjs \
- *     --env-file=/home/semyon/jenkins/env/oghma-prod.env \
+ *     --env-file=/home/semyon/server-stacks/jenkins/env/oghma-prod.env \
  *     --qdrant-url=http://127.0.0.1:6333 \
  *     --collection=oghma_prod_benchmark_deep \
  *     --queries=25 --top-k=10 --seed=42
