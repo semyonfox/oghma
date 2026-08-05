@@ -3,7 +3,7 @@
   "provider": "runpod",
   "purpose": "RunPod Marker++ endpoint; OghmaNotes dispatch remains separately fail-closed",
   "image": {
-    "reference": "REPLACE_WITH_IMMUTABLE_IMAGE_DIGEST",
+    "reference": "ghcr.io/semyonfox/oghma-marker@sha256:3763d18748c1bf2b3c7d97d9e4951bd85262d7248a53152e4b860cc98b5ee684",
     "markerPlusPlusCommit": "d31ecd2223588c8a2d014ece9d04fb99b0e45d57",
     "cudaRuntime": "12.9",
     "gpuFamilyBuildArg": "nonblackwell"
@@ -25,7 +25,7 @@
   "v2EndpointIntent": {
     "apiModel": "RunPod v2 image-based endpoint; resolve dynamic pool availability before creation",
     "name": "oghma-marker-serverless",
-    "imageName": "REPLACE_WITH_IMMUTABLE_IMAGE_DIGEST",
+    "imageName": "ghcr.io/semyonfox/oghma-marker@sha256:3763d18748c1bf2b3c7d97d9e4951bd85262d7248a53152e4b860cc98b5ee684",
     "gpuPoolIds": ["ADA_24"],
     "gpuCount": 1,
     "workersMin": 0,
