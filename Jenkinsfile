@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         REGISTRY     = 'oghma'
-        ENV_DIR      = '/home/semyon/jenkins/env'
+        ENV_DIR      = '/home/semyon/server-stacks/jenkins/env'
         NETWORK      = 'oghma'
         HEALTH_CMD   = 'node -e "require(\'http\').get(\'http://localhost:3000/api/health\', r => process.exit(r.statusCode===200?0:1))"'
         APP_MEM      = '512m'

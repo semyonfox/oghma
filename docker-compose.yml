@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     env_file:
-      - /home/semyon/jenkins/env/oghma-dev.env
+      - /home/semyon/server-stacks/jenkins/env/oghma-dev.env
     environment:
       QDRANT_URL: http://oghma-qdrant:6333
       QDRANT_COLLECTION: oghma_dev_chunks
@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     env_file:
-      - /home/semyon/jenkins/env/oghma-dev.env
+      - /home/semyon/server-stacks/jenkins/env/oghma-dev.env
     environment:
       QDRANT_URL: http://oghma-qdrant:6333
       QDRANT_COLLECTION: oghma_dev_chunks
