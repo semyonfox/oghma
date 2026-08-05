@@ -27,8 +27,8 @@ Persistent services:
 Jenkins runtime environments for both the app and worker:
 
 ```text
-/home/semyon/jenkins/env/oghma-dev.env
-/home/semyon/jenkins/env/oghma-prod.env
+/home/semyon/server-stacks/jenkins/env/oghma-dev.env
+/home/semyon/server-stacks/jenkins/env/oghma-prod.env
 ```
 
 The Jenkins env files are the deploy inputs. Do not copy their values into this

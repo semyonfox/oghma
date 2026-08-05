@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
-const DEFAULT_ENV_FILE = "/home/semyon/jenkins/env/oghma-prod.env";
+const DEFAULT_ENV_FILE = "/home/semyon/server-stacks/jenkins/env/oghma-prod.env";
 
 function usage() {
   console.error(`
