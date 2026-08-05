@@ -5,7 +5,7 @@ RunPod Serverless Marker++ endpoint. It is an endpoint setup only: it does not
 create an endpoint, change Jenkins configuration, enable Marker in OghmaNotes,
 or submit an import.
 
-The initial paired-provider configuration is intentionally narrow:
+The initial production profile is intentionally narrow:
 
 - primary GPU: `ADA_24` (the RTX 4090 class measured for Marker++);
 - `AMPERE_24` is documented as a possible future fallback but is **not** in the
@@ -13,11 +13,16 @@ The initial paired-provider configuration is intentionally narrow:
   so including it could silently select an unmeasured GPU;
 - one GPU, zero minimum workers, one maximum worker, and a five-second idle
   timeout; and
-- FlashBoot enabled with `RUNPOD_INIT_TIMEOUT=800` seconds.
+- `QUEUE_DELAY` scaling (four-second target), standard FlashBoot, a 20 GB
+  container disk, and `RUNPOD_INIT_TIMEOUT=800` seconds; and
+- a shared signed-object hostname, `objects.oghmanotes.ie`, with a 90 MiB
+  result cap for the current Cloudflare-proxied ingress.
 
 See [`serverless-plan.json`](serverless-plan.json) for the credential-free
-endpoint values. The plan is not an API request by itself: supply an immutable
-image digest and account-scoped settings through RunPod after reviewing them.
+endpoint values. The plan is not an API request by itself: attach the fresh
+account-scoped GHCR pull credential through RunPod after reviewing it. It pins
+the immutable image digest and intentionally leaves the data-center choice at
+RunPod's default.
 
 ## Reproducible image
 
@@ -114,9 +119,11 @@ that separately from the local metrics above.
 Before any private document or full import:
 
 1. Build one immutable image and record its digest.
-2. Create or update the endpoint using `serverless-plan.json`, then read back
-   the effective values: `ADA_24` only, zero minimum, one maximum worker, one
-   GPU, five-second idle timeout, FlashBoot, and 800 seconds init timeout.
+2. Create or update the endpoint using `serverless-plan.json`, then set and
+   read back the effective values: `ADA_24` only, one GPU, minimum CUDA 12.9,
+   zero minimum, one maximum worker, five-second idle timeout, `QUEUE_DELAY`
+   scaling with a four-second target, standard FlashBoot, 20 GB disk, and 800
+   seconds init timeout. Leave locations, ports, and network volumes unset.
 3. Run one non-private cold smoke request and one warm request. Capture the
    metrics boundary above plus RunPod’s endpoint state/timestamps. The image
    verifies its model cache offline during the build and warms its three Marker

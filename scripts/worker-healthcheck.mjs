@@ -10,9 +10,8 @@ import {
   getQueueProvider,
 } from "../src/lib/queue.ts";
 import {
-  markerQueueEnabled,
-  markerServerlessProvider,
-} from "../src/lib/marker-serverless.ts";
+  validateMarkerWorkerConfiguration,
+} from "../src/lib/marker-worker-config.ts";
 import { Queue } from "bullmq";
 
 function requireEnv(name) {
@@ -21,42 +20,15 @@ function requireEnv(name) {
   }
 }
 
-function markerOcrEnabled() {
-  return ["1", "true", "on", "yes"].includes(
-    process.env.MARKER_OCR_ENABLED?.trim().toLowerCase() ?? "",
-  );
-}
-
-function checkMarkerConfiguration() {
-  if (!markerOcrEnabled()) return false;
-
-  if (markerServerlessProvider() === "vast") {
-    if (!markerQueueEnabled()) {
-      throw new Error(
-        "MARKER_OCR_ENABLED=true requires an explicitly enabled Vast dispatch, endpoint-scoped key, and HTTPS STORAGE_PUBLIC_ENDPOINT",
-      );
-    }
-    return true;
-  }
-
-  if (!process.env.MARKER_API_URL?.trim()) {
-    throw new Error(
-      "MARKER_OCR_ENABLED=true requires MARKER_SERVERLESS_PROVIDER=vast or MARKER_API_URL",
-    );
-  }
-  return false;
-}
-
 async function checkDatabase() {
   await sql`SELECT 1`;
 }
 
-async function checkBullMq() {
+async function checkBullMq(markerDispatchConsumerEnabled) {
   const connection = getQueueConnection();
   const canvasQueue = new Queue(CANVAS_IMPORT_QUEUE, { connection });
   const retryQueue = new Queue(EXTRACT_RETRY_QUEUE, { connection });
-  const markerQueueEnabledForHealth = checkMarkerConfiguration();
-  const markerQueue = markerQueueEnabledForHealth
+  const markerQueue = markerDispatchConsumerEnabled
     ? getMarkerDispatchQueue()
     : null;
   try {
@@ -88,12 +60,12 @@ async function checkBullMq() {
   }
 }
 
-function checkCloudflareQueueConfig() {
+function checkCloudflareQueueConfig(markerDispatchConsumerEnabled) {
   requireEnv("CLOUDFLARE_ACCOUNT_ID");
   requireEnv("CLOUDFLARE_QUEUES_API_TOKEN");
   requireEnv("CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID");
   requireEnv("CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID");
-  if (checkMarkerConfiguration()) {
+  if (markerDispatchConsumerEnabled) {
     requireEnv("CLOUDFLARE_MARKER_DISPATCH_QUEUE_ID");
   }
   console.log("[worker-healthcheck] Cloudflare queue config present");
@@ -101,11 +73,12 @@ function checkCloudflareQueueConfig() {
 
 try {
   const provider = getQueueProvider();
+  const markerConfiguration = validateMarkerWorkerConfiguration();
   await checkDatabase();
   if (provider === "bullmq") {
-    await checkBullMq();
+    await checkBullMq(markerConfiguration.markerDispatchConsumerEnabled);
   } else {
-    checkCloudflareQueueConfig();
+    checkCloudflareQueueConfig(markerConfiguration.markerDispatchConsumerEnabled);
   }
   console.log(`[worker-healthcheck] ok (${provider})`);
 } catch (err) {
