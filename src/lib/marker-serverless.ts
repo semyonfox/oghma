@@ -155,13 +155,14 @@ function hasSafePublicStorageEndpoint(): boolean {
 }
 
 export function markerQueueEnabled(): boolean {
-  if (
-    !enabled(process.env.MARKER_OCR_ENABLED) ||
-    !dispatchEnabled() ||
-    !hasSafePublicStorageEndpoint()
-  ) {
+  if (!enabled(process.env.MARKER_OCR_ENABLED) || !dispatchEnabled()) {
     return false;
   }
+  return markerServerlessConfigured();
+}
+
+export function markerServerlessConfigured(): boolean {
+  if (!hasSafePublicStorageEndpoint()) return false;
   const provider = markerServerlessProvider();
   return (
     (provider === "vast" && vastConfigured()) ||
