@@ -15,8 +15,8 @@ The initial production profile is intentionally narrow:
   timeout; and
 - `QUEUE_DELAY` scaling (four-second target), standard FlashBoot, a 20 GB
   container disk, and `RUNPOD_INIT_TIMEOUT=800` seconds; and
-- a shared signed-object hostname, `objects.oghmanotes.ie`, with a 90 MiB
-  result cap for the current Cloudflare-proxied ingress.
+- the native HTTPS R2 S3 API hostname for signed source/result URLs, with a
+  conservative 90 MiB result cap.
 
 See [`serverless-plan.json`](serverless-plan.json) for the credential-free
 endpoint values. The plan is not an API request by itself: attach the fresh
@@ -42,6 +42,10 @@ Transformers 5.7 dependencies. Both use one shared CUDA 12.9 Torch layer, and
 the entrypoint invokes each process by its explicit interpreter path. The
 default image targets the 4090/24 GB non-Blackwell family and uses the portable
 CUDA 12.9 runtime that was measured on the RTX 4090.
+
+Triton compiles a small CUDA helper on a new worker's first vLLM startup. The
+image therefore retains its C compiler and headers rather than attempting an
+apt install during a paid cold start.
 
 From the repository root, validate the prepared Docker context without building
 an image:
@@ -128,7 +132,9 @@ Before any private document or full import:
    metrics boundary above plus RunPod’s endpoint state/timestamps. The image
    verifies its model cache offline during the build and warms its three Marker
    child processes before accepting a paid job, so neither step downloads
-   packages or models at cold start.
+   packages or models at cold start. For Cloudflare R2, sign against the
+   account S3 API hostname; R2 presigned URLs cannot use a custom domain or a
+   Tunnel hostname.
 4. Review output quality and import logic separately before enabling any
    application-side OCR or all-PDF routing.
 
