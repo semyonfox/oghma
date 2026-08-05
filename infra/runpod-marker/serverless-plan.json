@@ -3,7 +3,7 @@
   "provider": "runpod",
   "purpose": "RunPod Marker++ endpoint; OghmaNotes dispatch remains separately fail-closed",
   "image": {
-    "reference": "ghcr.io/semyonfox/oghma-marker@sha256:3763d18748c1bf2b3c7d97d9e4951bd85262d7248a53152e4b860cc98b5ee684",
+    "reference": "ghcr.io/semyonfox/oghma-marker@sha256:639272b19ecf0a5da2b91d33e4d08606028cba5d4e40006f0ca26d225c222d4d",
     "markerPlusPlusCommit": "d31ecd2223588c8a2d014ece9d04fb99b0e45d57",
     "cudaRuntime": "12.9",
     "gpuFamilyBuildArg": "nonblackwell"
@@ -25,7 +25,7 @@
   "v2EndpointIntent": {
     "apiModel": "RunPod v2 image-based endpoint; leave dataCenterIds unset to use RunPod defaults",
     "name": "oghma-marker-serverless",
-    "imageName": "ghcr.io/semyonfox/oghma-marker@sha256:3763d18748c1bf2b3c7d97d9e4951bd85262d7248a53152e4b860cc98b5ee684",
+    "imageName": "ghcr.io/semyonfox/oghma-marker@sha256:639272b19ecf0a5da2b91d33e4d08606028cba5d4e40006f0ca26d225c222d4d",
     "containerRegistryAuthId": "REPLACE_WITH_FRESH_GHCR_PULL_ONLY_AUTH_ID",
     "endpointType": "QUEUE",
     "gpuPoolIds": ["ADA_24"],
@@ -43,7 +43,7 @@
       "MARKER_HANDLER_CONCURRENCY": "3",
       "MARKER_CONVERT_CONCURRENCY": "1",
       "MARKER_PDFTEXT_WORKERS": "1",
-      "MARKER_ALLOWED_OBJECT_HOSTS": "objects.oghmanotes.ie",
+      "MARKER_ALLOWED_OBJECT_HOSTS": "17370d8c421910cc2b3ca5469265e37d.r2.cloudflarestorage.com",
       "MARKER_MAX_SOURCE_BYTES": "262144000",
       "MARKER_MAX_RESULT_BYTES": "94371840",
       "MARKER_TRANSFER_TIMEOUT_SECONDS": "600",
@@ -75,7 +75,7 @@
     "flashboot": "FLASHBOOT",
     "containerDiskInGb": 20,
     "gpu.minimumCudaVersion": "12.9",
-    "environment.MARKER_ALLOWED_OBJECT_HOSTS": "objects.oghmanotes.ie",
+    "environment.MARKER_ALLOWED_OBJECT_HOSTS": "17370d8c421910cc2b3ca5469265e37d.r2.cloudflarestorage.com",
     "environment.MARKER_MAX_RESULT_BYTES": "94371840",
     "environment.RUNPOD_INIT_TIMEOUT": "800",
     "environment.TORCH_DEVICE": "cpu",

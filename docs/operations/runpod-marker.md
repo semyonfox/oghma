@@ -1,13 +1,14 @@
 # RunPod Serverless Marker Runbook
 
-> Status: Image published; production wiring is staged. A fresh registry
-> credential, public Tunnel route, endpoint provisioning, and controlled smoke
-> test remain live steps. Paid application dispatch is off.
+> Status: The immutable compiler-capable image is deployed to the RunPod
+> endpoint and controlled synthetic cold and warm smoke passed on 2026-08-05.
+> Paid application dispatch is off pending separate import approval.
 >
 > Audience: OghmaNotes operators and import-pipeline maintainers
 >
 > Last verified: 2026-08-05 against the current dispatcher, worker image,
-> public-object-ingress design, and RunPod Serverless API documentation
+> Cloudflare R2 presigned-URL requirements, and RunPod Serverless API
+> documentation
 
 RunPod is an optional second provider for the same Oghma-owned Marker queue.
 It does not replace PostgreSQL job state, object storage, or the Canvas worker.
@@ -37,31 +38,24 @@ status reads may advance or diagnose that same row, but full document text,
 signed URLs, and provider payloads are never placed in PostgreSQL or a queue.
 The v1 result object is validated before it can complete a note.
 
-## Public signed-object ingress
+## Signed R2 object access
 
-RunPod workers use the shared public S3-compatible hostname only for their
-short-lived signed source and result URLs:
+RunPod workers use short-lived R2 Signature V4 URLs for source and immutable
+result objects. Cloudflare R2 only accepts presigned URLs on its native account
+S3 API hostname; custom domains and Cloudflare Tunnel hostnames cannot validate
+them. Configure the same native host in the app's public signer and the worker
+allow-list:
 
 ```text
-STORAGE_PUBLIC_ENDPOINT=https://objects.oghmanotes.ie
-MARKER_ALLOWED_OBJECT_HOSTS=objects.oghmanotes.ie
+STORAGE_PUBLIC_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+MARKER_ALLOWED_OBJECT_HOSTS=<account-id>.r2.cloudflarestorage.com
 ```
 
-The required production route is a Cloudflare Tunnel public hostname to the
-existing Oghma Nginx container, then to the private RustFS S3 API. Nginx must
-preserve the original `Host` header, path, query string, and `If-None-Match: *`
-header, disable request/response caching and buffering, and avoid logging the
-signed query string. Do not put Cloudflare Access or an interactive challenge
-on this hostname: the short-lived S3 Signature V4 URL is the authorization.
-
-The 250 MiB source limit is safe because a RunPod source download is a signed
-`GET` response, not a Cloudflare upload. The result is a signed `PUT`, so the
-worker defaults to a 90 MiB maximum result body (`94371840`) to remain below
-[Cloudflare's default 100 MB proxied upload limit](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-413/).
-A real smoke test must also measure result-upload throughput because
-[Cloudflare's proxied origin write timeout is 30 seconds](https://developers.cloudflare.com/fundamentals/reference/connection-limits/).
-Do not raise the result cap without first changing the public-ingress design or
-verifying the active Cloudflare plan.
+Do not place a Tunnel, Cloudflare Access, or an interactive challenge in the
+signed R2 path. The presigned URL is its authorization. The worker's 250 MiB
+source and 90 MiB result caps remain deliberate application safety bounds, not
+R2 platform limits. A real smoke test must measure the direct R2 result upload
+before raising either cap.
 
 ## GPU and image profile
 
@@ -109,7 +103,8 @@ the explicit `/opt/vllm-venv` command overlays vLLM's OpenCV 4.13 and
 Transformers 5.7 dependencies while sharing the one CUDA 12.9 Torch layer.
 Therefore a cold worker still pays RunPod scheduling, image distribution, GPU
 startup, and local model initialization, but it does not clone source, install
-packages, or download models.
+packages, or download models. It retains the small C build toolchain Triton
+needs during first vLLM initialization; no runtime installer is used.
 
 ## Metrics and observability
 
@@ -152,7 +147,7 @@ claim it.
    FlashBoot, disk, and environment back.
 3. Store a newly created restricted RunPod endpoint key and distinct dev/prod
    webhook tokens only in owner-readable Jenkins env files. Configure the
-   shared object hostname and environment-specific webhook base URLs, but keep
+   native R2 S3 API hostname and environment-specific webhook base URLs, but keep
    `MARKER_OCR_ENABLED=false`, `MARKER_SERVERLESS_DISPATCH_ENABLED=false`, and
    `MARKER_PROCESS_ALL_PDFS=false` in both deployments.
 4. With one non-private PDF, test one cold completion, one warm completion, a
