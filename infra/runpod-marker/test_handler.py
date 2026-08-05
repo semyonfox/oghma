@@ -85,6 +85,9 @@ class HandlerContractTest(unittest.TestCase):
     def setUp(self) -> None:
         self.handler = load_handler_module()
 
+    def test_default_result_cap_stays_below_the_public_proxy_limit(self) -> None:
+        self.assertEqual(self.handler.MAX_RESULT_BYTES, 90 * 1024 * 1024)
+
     def test_binds_result_key_to_canonical_callback_uuid(self) -> None:
         result_key = f"marker-results/{REQUEST_ID}.json"
         self.assertEqual(

@@ -33,7 +33,10 @@ from server import bool_option, convert_file, positive_int_env
 
 
 MAX_SOURCE_BYTES = positive_int_env("MARKER_MAX_SOURCE_BYTES", 250 * 1024 * 1024)
-MAX_RESULT_BYTES = positive_int_env("MARKER_MAX_RESULT_BYTES", 128 * 1024 * 1024)
+# The default public object ingress is a Cloudflare-proxied hostname. Leave a
+# margin below its 100 MB request ceiling for HTTP framing and provider drift.
+DEFAULT_MAX_RESULT_BYTES = 90 * 1024 * 1024
+MAX_RESULT_BYTES = positive_int_env("MARKER_MAX_RESULT_BYTES", DEFAULT_MAX_RESULT_BYTES)
 HANDLER_CONCURRENCY = positive_int_env("MARKER_HANDLER_CONCURRENCY", 3)
 WARM_TIMEOUT_SECONDS = positive_int_env("MARKER_PROCESS_WARM_TIMEOUT_SECONDS", 180)
 TELEMETRY_INTERVAL_SECONDS = max(

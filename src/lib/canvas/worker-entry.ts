@@ -25,6 +25,7 @@ import {
   dispatchMarkerJob,
   recoverMarkerDispatchJobs,
 } from "../marker-serverless";
+import { markerDispatchConsumerEnabled } from "../marker-worker-config";
 import { processChatGeneration } from "../chat/generate-background";
 import {
   processImportJob,
@@ -47,11 +48,9 @@ const DB_POLL_INTERVAL_MS = 30_000;
 const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
 const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
-// on unless explicitly disabled, so an existing worker keeps consuming Marker
-// dispatches after an upgrade
-const MARKER_DISPATCH_CONSUMER_ENABLED = !["0", "false", "no", "off"].includes(
-  process.env.MARKER_DISPATCH_CONSUMER_ENABLED?.trim().toLowerCase() ?? "",
-);
+// On unless explicitly disabled, so an existing worker keeps consuming Marker
+// dispatches after an upgrade. The healthcheck uses the same parser.
+const MARKER_DISPATCH_CONSUMER_ENABLED = markerDispatchConsumerEnabled();
 const MAX_CONCURRENT_MARKER_DISPATCHES = Math.max(
   1,
   parseInt(process.env.MARKER_DISPATCH_CONCURRENCY ?? "", 10) || 1,
