@@ -107,8 +107,11 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     find /opt/vllm-venv/lib/python3.12/site-packages/flashinfer_cubin -type d -name cubins -prune -exec rm -rf '{}' +; \
   fi && \
   find /opt/vllm-venv -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
-  apt-get purge -y --auto-remove gcc libc6-dev && \
   rm -rf /var/lib/apt/lists/*
+
+# Triton compiles a small CUDA helper during vLLM's first runtime startup. The
+# compiler and C headers above are deliberately retained so a cold Serverless
+# worker can initialize without downloading packages or crash-looping.
 
 ENV HF_HUB_OFFLINE=1 \
   TRANSFORMERS_OFFLINE=1
