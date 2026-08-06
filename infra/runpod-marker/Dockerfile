@@ -110,8 +110,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   rm -rf /var/lib/apt/lists/*
 
 # The initial Marker++ install omits optional document converters. Reinstall its
-# pinned `full` extra in a final layer so an urgent converter repair does not
-# invalidate the baked model/vLLM layers of the already verified worker image.
+# pinned `full` extra after the model and vLLM setup; changes limited to these
+# converter constraints can reuse those baked layers.
 COPY marker-plus-plus.tar.gz marker-plus-plus.tar.gz.sha256 constraints-marker-full.txt /tmp/
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
