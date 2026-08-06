@@ -88,6 +88,47 @@ describe("CanvasClient string-ID requests", () => {
     expect(fetchMock.mock.calls[1][0]).toBe(nextUrl);
   });
 
+  it("merges active, pending, and completed courses without duplicating IDs", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ id: "1", name: "Current" }]), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ id: "2", name: "Pending" }]), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { id: "1", name: "Current" },
+            { id: "3", name: "Completed" },
+          ]),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new CanvasClient(
+      "example.instructure.com",
+      "token",
+    ).getDiscoverableCourses();
+
+    expect(result.data.map((course: { id: string }) => course.id)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      expect.stringContaining("enrollment_state=active"),
+      expect.stringContaining("enrollment_state=invited_or_pending"),
+      expect.stringContaining("enrollment_state=completed"),
+    ]);
+  });
+
   it("uses the paginated Files inventory for standalone course documents", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify([{ id: "9007199254740995" }]), {
