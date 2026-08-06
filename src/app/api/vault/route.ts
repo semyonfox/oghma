@@ -6,12 +6,14 @@ import { withErrorHandler, tracedError } from '@/lib/api-error';
 import sql from '@/database/pgsql.js';
 import logger from '@/lib/logger';
 import { deleteChunkVectors } from '@/lib/qdrant';
+import { isSharedImportedFileKey } from '@/lib/canvas/import-cache';
 
 /**
  * DELETE /api/vault
  *
  * Wipes all user data from both Postgres and S3:
- *   - Deletes every S3 object referenced by the user's notes (s3_key column)
+ *   - Deletes each user-owned S3 object referenced by the user's notes
+ *     (while preserving globally shared imported-file cache blobs)
  *   - Deletes all rows from app.notes, app.tree_items, app.canvas_imports,
  *     app.canvas_import_jobs, and app.pdf_annotations for this user
  *
@@ -40,7 +42,12 @@ export const DELETE = withErrorHandler(async () => {
         AND s3_key IS NOT NULL
     `;
 
-    const s3Keys: string[] = s3Rows.map((r: { s3_key: string }) => r.s3_key);
+    // Imported PDFs live in a global, deduplicated cache. The current user's
+    // note row merely references those objects, so a vault wipe must not make
+    // another import (or later re-import) point at a deleted shared blob.
+    const s3Keys: string[] = s3Rows
+      .map((r: { s3_key: string }) => r.s3_key)
+      .filter((key: string) => !isSharedImportedFileKey(key));
     const chunkRows = await sql`
       SELECT c.id FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
