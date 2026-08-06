@@ -109,6 +109,33 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   find /opt/vllm-venv -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
   rm -rf /var/lib/apt/lists/*
 
+# The initial Marker++ install omits optional document converters. Reinstall its
+# pinned `full` extra in a final layer so an urgent converter repair does not
+# invalidate the baked model/vLLM layers of the already verified worker image.
+COPY marker-plus-plus.tar.gz marker-plus-plus.tar.gz.sha256 constraints-marker-full.txt /tmp/
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    libcairo2 \
+    libffi-dev \
+    libgdk-pixbuf2.0-0 \
+    libharfbuzz0b \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    shared-mime-info && \
+  cd /tmp && \
+  sha256sum -c marker-plus-plus.tar.gz.sha256 && \
+  python3 -m pip install \
+    --constraint /app/constraints-markerpp.txt \
+    --constraint /tmp/constraints-marker-full.txt \
+    'marker-pdf[full] @ file:///tmp/marker-plus-plus.tar.gz' && \
+  rm -f /tmp/marker-plus-plus.tar.gz /tmp/marker-plus-plus.tar.gz.sha256 && \
+  python3 -m pip check && \
+  python3 -c 'from pathlib import Path; from pptx import Presentation; from weasyprint import HTML; presentation = Presentation(); presentation.slides.add_slide(presentation.slide_layouts[6]); assert len(presentation.slides) == 1; output = Path("/tmp/weasyprint-smoke.pdf"); HTML(string="<p>OghmaNotes converter smoke</p>").write_pdf(output); assert output.is_file() and output.stat().st_size > 0' && \
+  rm -rf /var/lib/apt/lists/*
+
 # Triton compiles a small CUDA helper during vLLM's first runtime startup. The
 # compiler and C headers above are deliberately retained so a cold Serverless
 # worker can initialize without downloading packages or crash-looping.
