@@ -3,6 +3,7 @@
 !requirements.txt
 !constraints-vllm.txt
 !constraints-markerpp.txt
+!constraints-marker-full.txt
 !marker-plus-plus.tar.gz
 !marker-plus-plus.tar.gz.sha256
 !marker-plus-plus.manifest.json

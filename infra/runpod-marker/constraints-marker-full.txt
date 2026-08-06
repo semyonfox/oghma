@@ -1,0 +1,6 @@
+# Marker++ `full` document-conversion extra from the pinned d31ecd2 uv.lock.
+ebooklib==0.18
+mammoth==1.12.0
+openpyxl==3.1.5
+python-pptx==1.0.2
+weasyprint==63.1
