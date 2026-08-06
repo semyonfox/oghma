@@ -104,6 +104,7 @@ infra/runpod-marker/*
 !infra/runpod-marker/.dockerignore
 !infra/runpod-marker/Dockerfile
 !infra/runpod-marker/README.md
+!infra/runpod-marker/constraints-marker-full.txt
 !infra/runpod-marker/constraints-markerpp.txt
 !infra/runpod-marker/constraints-vllm.txt
 !infra/runpod-marker/handler.py

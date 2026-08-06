@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
-  getCourses: vi.fn(),
+  getDiscoverableCourses: vi.fn(),
   getModules: vi.fn(),
 }));
 
@@ -53,7 +53,7 @@ describe("GET /api/canvas/courses", () => {
   });
 
   it("returns 502 rather than retrying serialization for an invalid upstream ID", async () => {
-    canvas.getCourses.mockResolvedValue({
+    canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9223372036854775808", name: "Invalid" }],
     });
 

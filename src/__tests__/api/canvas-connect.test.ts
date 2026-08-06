@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
-  getCourses: vi.fn(),
+  getDiscoverableCourses: vi.fn(),
   getModules: vi.fn(),
 }));
 
@@ -72,7 +72,7 @@ describe("GET /api/canvas/connect", () => {
   });
 
   it("resolves modules and serializes Canvas and forbidden IDs as strings", async () => {
-    canvas.getCourses.mockResolvedValue({
+    canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9007199254740993", name: "Algorithms" }],
     });
     canvas.getModules.mockResolvedValue({
@@ -99,7 +99,7 @@ describe("GET /api/canvas/connect", () => {
   });
 
   it("returns 502 when Canvas sends an out-of-range course ID", async () => {
-    canvas.getCourses.mockResolvedValue({
+    canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9223372036854775808", name: "Invalid" }],
     });
 
@@ -124,7 +124,7 @@ describe("GET /api/canvas/connect", () => {
   });
 
   it("returns 502 before storing credentials when connect receives an invalid upstream ID", async () => {
-    canvas.getCourses.mockResolvedValue({
+    canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9223372036854775808", name: "Invalid" }],
     });
     const response = await POST(
