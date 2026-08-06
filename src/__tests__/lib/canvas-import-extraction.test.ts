@@ -31,6 +31,7 @@ vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
 
 vi.mock("@/lib/canvas/client.js", () => ({
   CanvasClient: vi.fn(),
+  MAX_CANVAS_FILE_BYTES: 50 * 1024 * 1024,
 }));
 
 vi.mock("@/lib/canvas/async-limiter.js", () => ({
@@ -73,6 +74,7 @@ import {
   fetchResource,
   processCanvasFile,
   processMarkerComplete,
+  downloadAndStoreFile,
 } from "@/lib/canvas/import-extraction.js";
 
 describe("fetchResource", () => {
@@ -470,5 +472,154 @@ describe("processExtractionRetry", () => {
         noteId: "note-123",
       }),
     );
+  });
+});
+
+describe("shared imported PDF cache integrity", () => {
+  const file = {
+    id: "42",
+    display_name: "lecture.pdf",
+    filename: "lecture.pdf",
+    content_type: "application/pdf",
+    size: 13,
+    updated_at: "2026-08-06T20:00:00Z",
+    url: "https://canvas.example/files/42/download",
+  };
+  const cache = {
+    id: "cache-123",
+    status: "ready",
+    replayable: true,
+    storage_key: "imports/shared/aabbcc.pdf",
+    mime_type: "application/pdf",
+    file_size: 13,
+  };
+  const rebuiltCache = {
+    ...cache,
+    status: "processing",
+    replayable: false,
+  };
+
+  function configureSql({
+    sourceCache = null,
+    shaCache = null,
+    existingNote = false,
+  }: {
+    sourceCache?: Record<string, unknown> | null;
+    shaCache?: Record<string, unknown> | null;
+    existingNote?: boolean;
+  }) {
+    const sqlMock = sql as unknown as ReturnType<typeof vi.fn> & {
+      begin: ReturnType<typeof vi.fn>;
+    };
+    sqlMock.mockReset();
+    sqlMock.begin = vi.fn(async (callback: (tx: typeof sqlMock) => unknown) =>
+      callback(sqlMock),
+    );
+    sqlMock.mockImplementation((parts: TemplateStringsArray) => {
+      const query = parts.join("");
+      if (query.includes("FROM app.imported_file_sources source")) {
+        return Promise.resolve(sourceCache ? [sourceCache] : []);
+      }
+      if (query.includes("SELECT * FROM app.imported_file_cache")) {
+        return Promise.resolve(shaCache ? [shaCache] : []);
+      }
+      if (query.includes("INSERT INTO app.imported_file_cache")) {
+        return Promise.resolve([rebuiltCache]);
+      }
+      if (query.includes("JOIN app.notes n")) {
+        return Promise.resolve(
+          existingNote ? [{ note_id: "note-123" }] : [],
+        );
+      }
+      return Promise.resolve([]);
+    });
+  }
+
+  async function importFile({
+    sourceCache = null,
+    shaCache = null,
+    existingNote = false,
+    hasObjectResults = [],
+  }: {
+    sourceCache?: Record<string, unknown> | null;
+    shaCache?: Record<string, unknown> | null;
+    existingNote?: boolean;
+    hasObjectResults?: boolean[];
+  }) {
+    configureSql({ sourceCache, shaCache, existingNote });
+    const storage = {
+      hasObject: vi.fn(),
+      putObject: vi.fn().mockResolvedValue(undefined),
+    };
+    for (const exists of hasObjectResults) {
+      storage.hasObject.mockResolvedValueOnce(exists);
+    }
+    const client = {
+      baseUrl: "https://canvas.example/api/v1",
+      downloadFile: vi.fn().mockResolvedValue({
+        buffer: Buffer.from("%PDF-1.4 fake"),
+        forbidden: false,
+      }),
+    };
+    vi.mocked(getStorageProvider).mockReturnValue(storage as never);
+    vi.mocked(processRagPipeline).mockResolvedValue({
+      noteId: "markdown-note",
+      pendingMarker: true,
+    } as never);
+
+    await downloadAndStoreFile(file, {
+      userId: "user-123",
+      courseId: "1",
+      moduleId: null,
+      parentFolderId: null,
+      client,
+      storage,
+      s3Prefix: "canvas/user-123",
+      alreadyClaimed: true,
+    });
+
+    return { client, storage };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reuses a source-matched cache only after verifying its shared object", async () => {
+    const { client, storage } = await importFile({
+      sourceCache: cache,
+      existingNote: true,
+      hasObjectResults: [true],
+    });
+
+    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
+    expect(client.downloadFile).not.toHaveBeenCalled();
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it("downloads and rebuilds when a source-matched cache row has no object", async () => {
+    const { client, storage } = await importFile({
+      sourceCache: cache,
+      hasObjectResults: [false],
+    });
+
+    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
+    expect(client.downloadFile).toHaveBeenCalledWith(file.url);
+    expect(storage.putObject).toHaveBeenCalledWith(
+      expect.stringMatching(/^imports\/shared\/[0-9a-f]{64}\.pdf$/),
+      expect.any(Buffer),
+      { contentType: "application/pdf" },
+    );
+  });
+
+  it("downloads and rebuilds when a matching SHA cache row has no object", async () => {
+    const { client, storage } = await importFile({
+      shaCache: cache,
+      hasObjectResults: [false],
+    });
+
+    expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
+    expect(client.downloadFile).toHaveBeenCalledWith(file.url);
+    expect(storage.putObject).toHaveBeenCalledTimes(1);
   });
 });

@@ -376,6 +376,18 @@ async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
   return { noteId: md.noteId, chunksStored };
 }
 
+async function hasReusableImportedPdfCacheObject(cache, storage, opts) {
+  const exists = await storage.hasObject(cache.storage_key);
+  if (!exists) {
+    logger.warn("canvas-import-shared-cache-object-missing", {
+      jobId: opts.jobId,
+      cacheId: cache.id,
+      storageKey: cache.storage_key,
+    });
+  }
+  return exists;
+}
+
 // ── File import ─────────────────────────────────────────────────────────────
 
 async function _runFileImport(importRecordId, file, opts) {
@@ -493,7 +505,10 @@ async function _runFileImport(importRecordId, file, opts) {
       : null;
   if (canvasSource) {
     const sourceCache = await getImportedFileCacheByCanvasSource(canvasSource);
-    if (sourceCache) {
+    if (
+      sourceCache &&
+      (await hasReusableImportedPdfCacheObject(sourceCache, storage, opts))
+    ) {
       logger.info("canvas-import-file-source-cache-hit", {
         jobId: opts.jobId,
         canvasFileId: file.id,
@@ -576,7 +591,11 @@ async function _runFileImport(importRecordId, file, opts) {
   if (isCacheablePdf) {
     const ragResult = await withImportedFileLock(sha256, async () => {
       const ready = await getImportedFileCacheBySha(sha256);
-      if (ready?.status === "ready" && ready.replayable) {
+      if (
+        ready?.status === "ready" &&
+        ready.replayable &&
+        (await hasReusableImportedPdfCacheObject(ready, storage, opts))
+      ) {
         await recordImportedFileCanvasSource(ready.id, canvasSource);
         return reuseImportedPdfCache(ready, file, opts, importRecordId);
       }
