@@ -32,6 +32,7 @@ function isNoSuchKeyError(error: unknown): error is Error {
     message.includes('nosuchkey') ||
     message.includes('not found') ||
     name.includes('nosuchkey') ||
+    name.includes('notfound') ||
     (error as any).type === 'NotFound'
   );
 }
