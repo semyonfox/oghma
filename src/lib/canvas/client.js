@@ -274,6 +274,35 @@ export class CanvasClient {
   }
 
   /**
+   * Returns every course that Canvas makes discoverable to the user, including
+   * concluded enrollments. Canvas accepts one enrollment_state per request, so
+   * fetch the supported states separately and de-duplicate course IDs.
+   *
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getDiscoverableCourses() {
+    const courseStates = ["active", "invited_or_pending", "completed"];
+    const coursesById = new Map();
+
+    for (const enrollmentState of courseStates) {
+      const result = await this.#getPaginated(
+        `/courses?enrollment_state=${enrollmentState}&include[]=term`,
+      );
+      if (result.forbidden || result.error) {
+        return result;
+      }
+
+      for (const course of result.data) {
+        if (course?.id !== undefined && course?.id !== null) {
+          coursesById.set(String(course.id), course);
+        }
+      }
+    }
+
+    return { data: [...coursesById.values()], forbidden: false };
+  }
+
+  /**
    * Returns full metadata for a single course.
    *
    * @param {string} courseId
