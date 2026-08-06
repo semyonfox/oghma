@@ -42,6 +42,16 @@ describe("StoreS3.getObjectMeta", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("treats R2 NotFound/UnknownError metadata responses as a missing object", async () => {
+    const missing = new Error("UnknownError");
+    missing.name = "NotFound";
+    send.mockRejectedValueOnce(missing);
+
+    await expect(
+      storage.getObjectMeta("missing.json"),
+    ).resolves.toBeUndefined();
+  });
+
   it("propagates storage failures instead of treating them as absence", async () => {
     send.mockRejectedValueOnce(new Error("storage unavailable"));
 
