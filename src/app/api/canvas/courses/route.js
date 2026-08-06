@@ -15,7 +15,7 @@ function upstreamCourseId(value) {
 /**
  * GET /api/canvas/courses
  *
- * Returns the user's active Canvas courses with the modules nested inside each course. Powers the course selection UI on the settings page so the
+ * Returns every Canvas course discoverable by the user with modules nested inside each course. Powers the course selection UI on the settings page so the
  * user can see what folder structure will be created before they import.
  *
  * Module fetches run concurrently across courses to keep the response fast.
@@ -31,8 +31,9 @@ export const GET = withErrorHandler(async () => {
 
   const client = new CanvasClient(credentials.domain, credentials.token);
 
-  // Fetch all active courses the user is enrolled in as a student
-  const { data: courses, error: coursesError } = await client.getCourses();
+  // Canvas exposes completed enrollments only through a separate state query.
+  const { data: courses, error: coursesError } =
+    await client.getDiscoverableCourses();
 
   if (coursesError) {
     throw new ApiError(400, coursesError);

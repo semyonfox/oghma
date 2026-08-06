@@ -43,7 +43,7 @@ export const GET = withErrorHandler(async () => {
   if (!credentials) return noStoreJson({ connected: false });
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: courses, error } = await client.getCourses();
+  const { data: courses, error } = await client.getDiscoverableCourses();
 
   if (error) return noStoreJson({ connected: false });
 
@@ -111,7 +111,7 @@ export const POST = withErrorHandler(async (request) => {
 
   // validate the token against Canvas before storing
   const client = new CanvasClient(normalizedDomain, normalizedToken);
-  const { data: courses, error } = await client.getCourses();
+  const { data: courses, error } = await client.getDiscoverableCourses();
   if (error) {
     throw new ApiError(400, `Canvas connection failed: ${error}`);
   }
