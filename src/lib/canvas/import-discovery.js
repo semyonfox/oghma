@@ -666,7 +666,10 @@ export async function processDiscoverJob(jobId, attempt = 0) {
       return false;
     }
 
-    if (total === 0) {
+    const pendingRecords =
+      await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'`;
+
+    if (pendingRecords.length === 0) {
       await sql`
         UPDATE app.canvas_import_jobs
         SET status = 'complete', completed_at = NOW(), updated_at = NOW()
@@ -679,8 +682,6 @@ export async function processDiscoverJob(jobId, attempt = 0) {
       return true;
     }
 
-    const pendingRecords =
-      await sql`SELECT id FROM app.canvas_imports WHERE job_id = ${jobId}::uuid AND status = 'pending'`;
     await dispatchFairCanvasFiles();
 
     const startTime = job.started_at ? new Date(job.started_at) : new Date();
