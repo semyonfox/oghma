@@ -4,11 +4,36 @@ import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
 import sql from '@/database/pgsql.js';
 const database = sql as any;
 
+const titleCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+interface TreeChildRow {
+  id: string;
+  title: string;
+  isFolder: boolean;
+  isExpanded: boolean;
+  s3Key: string | null;
+  mimeType: string | null;
+  pinned: number;
+}
+
+function sortTreeChildren<T extends Pick<TreeChildRow, 'id' | 'title'>>(
+  items: T[],
+): T[] {
+  return [...items].sort(
+    (left, right) =>
+      titleCollator.compare(left.title, right.title) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
 /**
  * GET /api/tree/children?parent_id=<uuid>
  *
  * Fetch children of a folder (or root if parent_id not provided).
- * Sorted A-Z by title.
+ * Sorted by title with numeric parts in natural order.
  *
  * @param parent_id - UUID of parent note, or null for root
  * @returns Array of children with title, is_folder, is_expanded
@@ -25,10 +50,19 @@ export const GET = withErrorHandler(async (request) => {
     }
 
     const key = cacheKeys.treeChildren(user.user_id, parentId);
-    const cached = await cacheGet(key);
-    if (cached) return NextResponse.json(cached);
+    const cached = await cacheGet<{
+      parentId: string;
+      items: TreeChildRow[];
+    }>(key);
+    if (cached) {
+      return NextResponse.json({
+        ...cached,
+        items: sortTreeChildren(cached.items),
+      });
+    }
 
-    // Fetch children, sorted A-Z by title.
+    // Fetch children, then apply natural title ordering so "Week 2" comes
+    // before "Week 10". PostgreSQL's default text ordering is lexical.
     // Uses app.tree_items for hierarchy and app.notes for metadata.
     // Split into two queries because postgres tagged templates always
     // parameterise interpolated values — you cannot embed raw SQL like
@@ -73,15 +107,17 @@ export const GET = withErrorHandler(async (request) => {
 
     const body = {
       parentId: parentId || 'root',
-      items: rows.map((row: { id: string; title: string; isFolder: boolean; isExpanded: boolean; s3Key: string | null; mimeType: string | null; pinned: number }) => ({
-        id: row.id,
-        title: row.title,
-        isFolder: row.isFolder,
-        isExpanded: row.isExpanded,
-        s3Key: row.s3Key || null,
-        mimeType: row.mimeType || null,
-        pinned: row.pinned ?? 0,
-      })),
+      items: sortTreeChildren(
+        (rows as TreeChildRow[]).map((row) => ({
+          id: row.id,
+          title: row.title,
+          isFolder: row.isFolder,
+          isExpanded: row.isExpanded,
+          s3Key: row.s3Key || null,
+          mimeType: row.mimeType || null,
+          pinned: row.pinned ?? 0,
+        })),
+      ),
     };
 
     await cacheSet(key, body, 300);
