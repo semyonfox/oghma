@@ -6,6 +6,7 @@ import logger from "@/lib/logger";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
+import { uniqueRowsInHitOrder } from "@/lib/search/unique-rows-in-hit-order";
 
 interface ResultItem {
   note_id: string;
@@ -14,6 +15,13 @@ interface ResultItem {
   source: "keyword" | "semantic";
   distance?: number;
 }
+
+type SemanticNoteRow = {
+  chunk_id: string;
+  note_id: string;
+  title: string | null;
+  snippet: string | null;
+};
 
 // keyword search via PG ILIKE on notes title + content
 async function keywordSearch(
@@ -75,23 +83,18 @@ async function semanticSearch(
       AND n.deleted_at IS NULL
       ${course ? sql`AND n.canvas_course_id = ${course}::bigint` : sql``}
   `;
-  const byChunkId = new Map<string, any>(
-    rows.map((row: any) => [row.chunk_id, row]),
-  );
-  const seenNotes = new Set<string>();
-
-  return hits.flatMap((hit) => {
-    const row = byChunkId.get(hit.chunkId);
-    if (!row || seenNotes.has(row.note_id)) return [];
-    seenNotes.add(row.note_id);
-    return [{
+  return uniqueRowsInHitOrder(
+    hits,
+    rows as SemanticNoteRow[],
+    limit,
+    (hit, row) => ({
       note_id: row.note_id,
       title: row.title || "Untitled",
       snippet: (row.snippet || "").slice(0, 200).trim(),
       distance: hit.distance,
-    source: "semantic" as const,
-    }];
-  }).slice(0, limit);
+      source: "semantic" as const,
+    }),
+  );
 }
 
 // GET /api/search?q=query&mode=keyword|semantic&exclude=id1,id2

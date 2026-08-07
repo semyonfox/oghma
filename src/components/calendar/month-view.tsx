@@ -5,89 +5,8 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/20/solid";
 import { CheckCircleIcon as CheckCircleOutline } from "@heroicons/react/24/outline";
 import useCalendarStore from "@/lib/notes/state/calendar.zustand";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
-import {
-  formatDateKey,
-  isoToDateKey,
-} from "@/lib/notes/utils/calendar-date";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-
-interface DayCell {
-  date: string; // YYYY-MM-DD
-  isCurrentMonth: boolean;
-  isToday: boolean;
-  isSelected: boolean;
-  assignments: {
-    id: string;
-    title: string;
-    courseColor: string | null;
-    status: string;
-  }[];
-  timeBlocks: {
-    id: string;
-    title: string | null;
-    courseColor: string | null;
-    completed: boolean;
-  }[];
-}
-
-function getMonthDays(anchorDate: Date): DayCell[] {
-  const year = anchorDate.getFullYear();
-  const month = anchorDate.getMonth();
-  const today = new Date();
-  const todayStr = formatDateKey(today);
-
-  const firstDay = new Date(year, month, 1);
-  // monday-based: 0=Mon, 6=Sun
-  const startDow = (firstDay.getDay() + 6) % 7;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const days: DayCell[] = [];
-
-  // previous month fill
-  for (let i = startDow - 1; i >= 0; i--) {
-    const d = new Date(year, month, -i);
-    days.push({
-      date: formatDateKey(d),
-      isCurrentMonth: false,
-      isToday: formatDateKey(d) === todayStr,
-      isSelected: false,
-      assignments: [],
-      timeBlocks: [],
-    });
-  }
-
-  // current month
-  for (let i = 1; i <= daysInMonth; i++) {
-    const d = new Date(year, month, i);
-    days.push({
-      date: formatDateKey(d),
-      isCurrentMonth: true,
-      isToday: formatDateKey(d) === todayStr,
-      isSelected: false,
-      assignments: [],
-      timeBlocks: [],
-    });
-  }
-
-  // fill to complete grid (6 rows of 7)
-  while (days.length < 42) {
-    const d = new Date(
-      year,
-      month + 1,
-      days.length - startDow - daysInMonth + 1,
-    );
-    days.push({
-      date: formatDateKey(d),
-      isCurrentMonth: false,
-      isToday: formatDateKey(d) === todayStr,
-      isSelected: false,
-      assignments: [],
-      timeBlocks: [],
-    });
-  }
-
-  return days;
-}
+import { buildMonthCells } from "@/components/calendar/month-view-utils";
 
 function dayOfMonth(dateStr: string): string {
   return String(Number(dateStr.split("-")[2]));
@@ -135,46 +54,17 @@ export default function MonthView({ onSelectDate }: MonthViewProps) {
     });
   }, [weekdayFormatter]);
 
-  const days = useMemo(() => {
-    const cells = getMonthDays(anchor);
-
-    // map assignments to their due dates
-    for (const a of assignments) {
-      if (!a.due_at) continue;
-      const dueDate = isoToDateKey(a.due_at);
-      const cell = cells.find((c) => c.date === dueDate);
-      if (cell) {
-        cell.assignments.push({
-          id: a.id,
-          title: a.title,
-          courseColor: a.course_color,
-          status: a.status,
-        });
-      }
-    }
-
-    // map time blocks to their start dates
-    for (const tb of timeBlocks) {
-      const blockDate = isoToDateKey(tb.starts_at);
-      const cell = cells.find((c) => c.date === blockDate);
-      if (cell) {
-        cell.timeBlocks.push({
-          id: tb.id,
-          title: tb.assignment_title || tb.title,
-          courseColor: tb.course_color || null,
-          completed: tb.completed ?? false,
-        });
-      }
-    }
-
-    // mark selected
-    if (selectedDate) {
-      const sel = cells.find((c) => c.date === selectedDate);
-      if (sel) sel.isSelected = true;
-    }
-
-    return cells;
-  }, [anchor, assignments, timeBlocks, selectedDate]);
+  const days = useMemo(
+    () =>
+      buildMonthCells({
+        anchorDate: anchor,
+        assignments,
+        timeBlocks,
+        selectedDate,
+        today: new Date(),
+      }),
+    [anchor, assignments, timeBlocks, selectedDate],
+  );
 
   return (
     <div
