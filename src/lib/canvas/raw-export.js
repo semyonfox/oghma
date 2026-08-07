@@ -1,4 +1,5 @@
 import { Zip, ZipDeflate } from "fflate";
+import { cleanCourseName, stripHtmlToText } from "./content-formatting.js";
 
 const SUBMISSION_INCLUDES = [
   "submission_comments",
@@ -7,68 +8,6 @@ const SUBMISSION_INCLUDES = [
   "attachments",
   "assignment",
 ];
-
-function cleanCourseName(courseCode, courseName, term) {
-  const codeMatch = courseCode?.match(/^(\d{4})-?(.*)/);
-  const cleanCode = codeMatch?.[2] || courseCode || "";
-  let academicYear = codeMatch?.[1] || null;
-
-  if (!academicYear && term?.name) {
-    const fullYears = term.name.match(/(\d{4})\D+(\d{4})/);
-    if (fullYears) {
-      academicYear = fullYears[1].slice(2) + fullYears[2].slice(2);
-    } else {
-      const shortYears = term.name.match(/(\d{4})\D+(\d{2})\b/);
-      if (shortYears) academicYear = shortYears[1].slice(2) + shortYears[2];
-    }
-  }
-
-  let cleanName = courseName ?? "";
-  if (courseCode && cleanName.startsWith(courseCode)) {
-    cleanName = cleanName.slice(courseCode.length).trim();
-  }
-  if (cleanCode && cleanName.startsWith(cleanCode)) {
-    cleanName = cleanName.slice(cleanCode.length).trim();
-  }
-  cleanName = cleanName.replace(/^[-—–:\s]+/, "").trim();
-
-  const slugged = cleanName
-    .replace(/\s+/g, "-")
-    .replace(/[^a-zA-Z0-9-]/g, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-|-$/g, "");
-
-  const title =
-    cleanCode && slugged
-      ? `${cleanCode}-${slugged}`
-      : cleanCode || slugged || "Untitled-Course";
-
-  return { title, academicYear };
-}
-
-function stripHtmlToText(html) {
-  if (!html) return "";
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<\/h[1-6]>/gi, "\n\n")
-    .replace(/<h[1-6][^>]*>/gi, "## ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (m) =>
-      ({
-        "&amp;": "&",
-        "&lt;": "<",
-        "&gt;": ">",
-        "&quot;": '"',
-        "&nbsp;": " ",
-        "&#39;": "'",
-      })[m],
-    )
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 
 function sanitizeZipPart(value, fallback) {
   const raw = String(value ?? "").trim() || fallback;

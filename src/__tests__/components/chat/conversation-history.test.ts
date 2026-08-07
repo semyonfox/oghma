@@ -3,7 +3,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ConversationHistory } from "@/app/chat/chat-page-client";
+import { ConversationHistory } from "@/components/chat/conversation-history";
 
 const conversations = [
   {
