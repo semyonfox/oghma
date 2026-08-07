@@ -36,6 +36,20 @@ interface CourseVisibilityDialogProps extends CourseVisibilityManagerProps {
   onClose: () => void;
 }
 
+interface CourseVisibilitySectionProps {
+  items: CourseVisibilityItem[];
+  sectionCardClass: string;
+  label: string;
+  emptyLabel: string;
+  actionLabel: string;
+  actionClassName: string;
+  nextActive: boolean;
+  busyCourseId: string | null;
+  bulkBusy: false | "archive" | "restore";
+  savingLabel: string;
+  onToggle: (item: CourseVisibilityItem, nextActive: boolean) => Promise<void>;
+}
+
 function sortItems(items: CourseVisibilityItem[]) {
   return [...items].sort((a, b) =>
     a.courseName.localeCompare(b.courseName, undefined, { sensitivity: "base" }),
@@ -83,6 +97,61 @@ export function groupCourseVisibilityItems(
     active: sortItems(filtered.filter((item) => item.isActive)),
     archived: sortItems(filtered.filter((item) => !item.isActive)),
   };
+}
+
+function CourseVisibilitySection({
+  items,
+  sectionCardClass,
+  label,
+  emptyLabel,
+  actionLabel,
+  actionClassName,
+  nextActive,
+  busyCourseId,
+  bulkBusy,
+  savingLabel,
+  onToggle,
+}: CourseVisibilitySectionProps) {
+  return (
+    <section className={sectionCardClass}>
+      <div className="border-b border-border-subtle px-4 py-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-text-tertiary">
+          {label}
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <div className="px-4 py-4 text-sm text-text-tertiary">{emptyLabel}</div>
+      ) : (
+        <div className="divide-y divide-border-subtle">
+          {items.map((item) => (
+            <div
+              key={item.courseId}
+              className="flex items-center justify-between gap-3 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-text-secondary">
+                  {item.courseName}
+                </div>
+                {item.contextText && (
+                  <div className="mt-1 text-xs text-text-tertiary">
+                    {item.contextText}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onToggle(item, nextActive)}
+                disabled={busyCourseId === item.courseId || bulkBusy !== false}
+                className={actionClassName}
+              >
+                {busyCourseId === item.courseId ? savingLabel : actionLabel}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function CourseVisibilityManager({
@@ -183,87 +252,33 @@ function CourseVisibilityManager({
         </div>
       )}
 
-      <section className={sectionCardClass}>
-        <div className="border-b border-border-subtle px-4 py-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-text-tertiary">
-            {t("Active")}
-          </div>
-        </div>
-        {grouped.active.length === 0 ? (
-          <div className="px-4 py-4 text-sm text-text-tertiary">
-            {t("No active courses match this search.")}
-          </div>
-        ) : (
-          <div className="divide-y divide-border-subtle">
-            {grouped.active.map((item) => (
-              <div
-                key={item.courseId}
-                className="flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-text-secondary">
-                    {item.courseName}
-                  </div>
-                  {item.contextText && (
-                    <div className="mt-1 text-xs text-text-tertiary">
-                      {item.contextText}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggle(item, false)}
-                  disabled={busyCourseId === item.courseId || bulkBusy !== false}
-                  className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busyCourseId === item.courseId ? t("Saving...") : t("Active")}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <CourseVisibilitySection
+        items={grouped.active}
+        sectionCardClass={sectionCardClass}
+        label={t("Active")}
+        emptyLabel={t("No active courses match this search.")}
+        actionLabel={t("Active")}
+        actionClassName="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+        nextActive={false}
+        busyCourseId={busyCourseId}
+        bulkBusy={bulkBusy}
+        savingLabel={t("Saving...")}
+        onToggle={handleToggle}
+      />
 
-      <section className={sectionCardClass}>
-        <div className="border-b border-border-subtle px-4 py-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-text-tertiary">
-            {t("Archived")}
-          </div>
-        </div>
-        {grouped.archived.length === 0 ? (
-          <div className="px-4 py-4 text-sm text-text-tertiary">
-            {t("No archived courses match this search.")}
-          </div>
-        ) : (
-          <div className="divide-y divide-border-subtle">
-            {grouped.archived.map((item) => (
-              <div
-                key={item.courseId}
-                className="flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-text-secondary">
-                    {item.courseName}
-                  </div>
-                  {item.contextText && (
-                    <div className="mt-1 text-xs text-text-tertiary">
-                      {item.contextText}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggle(item, true)}
-                  disabled={busyCourseId === item.courseId || bulkBusy !== false}
-                  className="shrink-0 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busyCourseId === item.courseId ? t("Saving...") : t("Archived")}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <CourseVisibilitySection
+        items={grouped.archived}
+        sectionCardClass={sectionCardClass}
+        label={t("Archived")}
+        emptyLabel={t("No archived courses match this search.")}
+        actionLabel={t("Archived")}
+        actionClassName="shrink-0 rounded-full border border-border-subtle bg-surface px-3 py-1 text-xs font-semibold text-text-secondary transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+        nextActive
+        busyCourseId={busyCourseId}
+        bulkBusy={bulkBusy}
+        savingLabel={t("Saving...")}
+        onToggle={handleToggle}
+      />
     </div>
   );
 }

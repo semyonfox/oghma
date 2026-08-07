@@ -5,6 +5,7 @@ import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { checkRateLimit } from "@/lib/rateLimiter";
+import { uniqueRowsInHitOrder } from "@/lib/search/unique-rows-in-hit-order";
 import sql from "@/database/pgsql.js";
 
 type SearchSource = "keyword" | "semantic" | "recent";
@@ -18,6 +19,13 @@ interface GlobalSearchResult {
   href: string;
   source: SearchSource;
 }
+
+type SemanticNoteRow = {
+  chunk_id: string;
+  note_id: string;
+  title: string | null;
+  snippet: string | null;
+};
 
 const LIKE_ESCAPE = "\\";
 type SemanticVector = Awaited<ReturnType<typeof embedText>>;
@@ -122,29 +130,20 @@ async function semanticNotes(
         AND n.deleted_at IS NULL
         AND COALESCE(n.is_folder, false) = false
     `;
-    const byChunkId = new Map<string, any>(
-      rows.map((row: any) => [row.chunk_id, row]),
+    return uniqueRowsInHitOrder(
+      hits,
+      rows as SemanticNoteRow[],
+      limit,
+      (_hit, row) => ({
+        id: row.note_id,
+        type: "note" as const,
+        title: row.title || "Untitled",
+        subtitle: "Semantic note match",
+        snippet: cleanSnippet(row.snippet).slice(0, 220),
+        href: `/notes/${row.note_id}`,
+        source: "semantic" as const,
+      }),
     );
-    const seen = new Set<string>();
-
-    return hits
-      .flatMap((hit) => {
-        const row = byChunkId.get(hit.chunkId);
-        if (!row || seen.has(row.note_id)) return [];
-        seen.add(row.note_id);
-        return [
-          {
-            id: row.note_id,
-            type: "note" as const,
-            title: row.title || "Untitled",
-            subtitle: "Semantic note match",
-            snippet: cleanSnippet(row.snippet).slice(0, 220),
-            href: `/notes/${row.note_id}`,
-            source: "semantic" as const,
-          },
-        ];
-      })
-      .slice(0, limit);
   } catch (error) {
     logger.warn("global semantic note search failed", { error });
     return [];
