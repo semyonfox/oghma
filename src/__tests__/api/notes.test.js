@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/database/pgsql.js", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
+  sqlMock.begin = vi.fn(async (callback) => callback(sqlMock));
   return { default: sqlMock };
 });
 
@@ -36,6 +37,10 @@ vi.mock("@/lib/notes/storage/pdf-annotations.js", () => ({
   deleteNoteAnnotations: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/notes/storage/note-lifecycle", () => ({
+  moveSubtreeToTrash: vi.fn(),
+}));
+
 vi.mock("@/lib/utils/uuid", () => ({
   isValidUUID: vi.fn().mockReturnValue(true),
   generateUUID: vi.fn().mockReturnValue("00000000-0000-0000-0000-000000000001"),
@@ -54,6 +59,7 @@ import {
 } from "@/app/api/notes/[id]/route";
 import { validateSession } from "@/lib/auth";
 import sql from "@/database/pgsql.js";
+import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
 
 const MOCK_USER = { user_id: "user-uuid-1", email: "test@example.com" };
 
@@ -82,6 +88,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   validateSession.mockResolvedValue(MOCK_USER);
   sql.mockResolvedValue([]);
+  moveSubtreeToTrash.mockResolvedValue({
+    rootId: "note-uuid-1",
+    noteIds: ["note-uuid-1"],
+    purgeAt: "2026-09-01T00:00:00.000Z",
+  });
 });
 
 // ─── GET /api/notes ────────────────────────────────────────────────────────
@@ -152,6 +163,23 @@ describe("POST /api/notes", () => {
     const body = await res.json();
     expect(body.isFolder).toBe(true);
   });
+
+  it("does not create a child below a parent that has entered Trash", async () => {
+    sql
+      .mockResolvedValueOnce([]) // advisory lock
+      .mockResolvedValueOnce([]); // no active parent
+    const req = makeRequest("POST", "http://localhost/api/notes", {
+      title: "Late child",
+      pid: "11111111-1111-4111-8111-111111111111",
+    });
+
+    const res = await notesPOST(req);
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "Parent folder not found",
+    });
+  });
 });
 
 // ─── GET /api/notes/[id] ──────────────────────────────────────────────────
@@ -167,7 +195,7 @@ describe("GET /api/notes/[id]", () => {
   });
 
   it("returns 404 when note does not exist", async () => {
-    sql.mockResolvedValue([]);
+    moveSubtreeToTrash.mockResolvedValue(null);
     const req = makeRequest("GET", "http://localhost/api/notes/note-uuid-1");
     const res = await noteGET(req, {
       params: Promise.resolve({ id: "note-uuid-1" }),
@@ -239,7 +267,7 @@ describe("PATCH /api/notes/[id]", () => {
 
 describe("DELETE /api/notes/[id]", () => {
   it("returns 404 when note does not exist", async () => {
-    sql.mockResolvedValue([]);
+    moveSubtreeToTrash.mockResolvedValue(null);
     const req = makeRequest("DELETE", "http://localhost/api/notes/note-uuid-1");
     const res = await noteDELETE(req, {
       params: Promise.resolve({ id: "note-uuid-1" }),
@@ -247,9 +275,7 @@ describe("DELETE /api/notes/[id]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("soft-deletes the note and returns success", async () => {
-    // first call = SELECT check, second = UPDATE soft-delete
-    sql.mockResolvedValueOnce([NOTE_ROW]).mockResolvedValueOnce([]);
+  it("moves the note into a reversible Trash bundle", async () => {
     const req = makeRequest("DELETE", "http://localhost/api/notes/note-uuid-1");
     const res = await noteDELETE(req, {
       params: Promise.resolve({ id: "note-uuid-1" }),
@@ -257,5 +283,10 @@ describe("DELETE /api/notes/[id]", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+    expect(body.itemsMoved).toBe(1);
+    expect(moveSubtreeToTrash).toHaveBeenCalledWith(
+      MOCK_USER.user_id,
+      "note-uuid-1",
+    );
   });
 });

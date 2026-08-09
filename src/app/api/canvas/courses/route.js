@@ -3,6 +3,8 @@ import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import { CanvasClient } from '@/lib/canvas/client.js';
 import { loadCanvasCredentials } from '@/lib/canvas/credentials';
 import { canvasIdForBigintColumn } from '@/lib/canvas/id.js';
+import { resolveAccessibleCanvasCourses } from '@/lib/canvas/sync-courses.js';
+import sql from '@/database/pgsql.js';
 
 function upstreamCourseId(value) {
   try {
@@ -32,11 +34,31 @@ export const GET = withErrorHandler(async () => {
   const client = new CanvasClient(credentials.domain, credentials.token);
 
   // Canvas exposes completed enrollments only through a separate state query.
-  const { data: courses, error: coursesError } =
-    await client.getDiscoverableCourses();
+  const [{ data: visibleCourses, error: coursesError }, previousCourseRows] =
+    await Promise.all([
+      client.getDiscoverableCourses(),
+      sql`
+        SELECT DISTINCT canvas_course_id
+        FROM app.canvas_imports
+        WHERE user_id = ${user.user_id}::uuid
+          AND canvas_course_id IS NOT NULL
+        LIMIT 200
+      `,
+    ]);
 
   if (coursesError) {
     throw new ApiError(400, coursesError);
+  }
+
+  let courses;
+  try {
+    courses = await resolveAccessibleCanvasCourses(
+      client,
+      visibleCourses,
+      (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
+    );
+  } catch {
+    throw new ApiError(502, 'Canvas returned an invalid course ID');
   }
 
   // For each course, fetch its modules concurrently so the UI can show

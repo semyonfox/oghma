@@ -6,6 +6,7 @@ interface QdrantPointPayload {
   chunk_id: string;
   document_id: string;
   user_id: string;
+  searchable: boolean;
 }
 
 interface QdrantSearchPoint {
@@ -112,17 +113,24 @@ async function qdrantFetch<T>(
   return (await res.json()) as T;
 }
 
-async function createPayloadIndex(fieldName: string): Promise<void> {
+async function createPayloadIndex(
+  fieldName: string,
+  fieldSchema: "keyword" | "bool" = "keyword",
+): Promise<void> {
   try {
     await qdrantFetch(`/collections/${qdrantCollection()}/index?wait=true`, {
       method: "PUT",
       body: JSON.stringify({
         field_name: fieldName,
-        field_schema: "keyword",
+        field_schema: fieldSchema,
       }),
     });
   } catch (error) {
-    logger.warn("qdrant payload index creation failed", { fieldName, error });
+    logger.warn("qdrant payload index creation failed", {
+      fieldName,
+      fieldSchema,
+      error,
+    });
   }
 }
 
@@ -141,6 +149,7 @@ export async function ensureQdrantCollection(vectorSize: number): Promise<void> 
     });
     await createPayloadIndex("user_id");
     await createPayloadIndex("document_id");
+    await createPayloadIndex("searchable", "bool");
     ensuredCollectionSize = vectorSize;
     return;
   }
@@ -174,6 +183,7 @@ export async function ensureQdrantCollection(vectorSize: number): Promise<void> 
   });
   await createPayloadIndex("user_id");
   await createPayloadIndex("document_id");
+  await createPayloadIndex("searchable", "bool");
 
   ensuredCollectionSize = vectorSize;
 }
@@ -194,6 +204,7 @@ export async function upsertChunkVectors(
           chunk_id: point.chunkId,
           document_id: point.documentId,
           user_id: point.userId,
+          searchable: true,
         },
       })),
     }),
@@ -208,6 +219,33 @@ export async function deleteChunkVectors(chunkIds: string[]): Promise<void> {
     method: "POST",
     body: JSON.stringify({ points: ids }),
   });
+}
+
+/**
+ * Toggle whether stored vectors participate in semantic search without
+ * discarding them. Newly indexed points are searchable by default; points
+ * written before this field existed remain searchable because the query filter
+ * only excludes an explicit `false` value.
+ */
+export async function setChunkVectorsSearchable(
+  chunkIds: string[],
+  searchable: boolean,
+): Promise<void> {
+  const ids = [...new Set(chunkIds)].filter(Boolean);
+  if (ids.length === 0) return;
+
+  await qdrantFetch(
+    `/collections/${qdrantCollection()}/points/payload?wait=true`,
+    {
+      // POST sets only this key; PUT would overwrite user_id/document_id and
+      // make the point unreachable after a Trash transition.
+      method: "POST",
+      body: JSON.stringify({
+        payload: { searchable },
+        points: ids,
+      }),
+    },
+  );
 }
 
 function buildFilter({
@@ -237,6 +275,9 @@ function buildFilter({
   if (excludeChunkIds && excludeChunkIds.length > 0) {
     mustNot.push({ has_id: excludeChunkIds });
   }
+  // Do not consume top-K recall with trashed notes. Missing values are kept
+  // visible so older points continue to work until they are reindexed.
+  mustNot.push({ key: "searchable", match: { value: false } });
   if (mustNot.length > 0) filter.must_not = mustNot;
 
   return filter;

@@ -91,6 +91,9 @@ vi.mock("@/components/editor/split-editor-pane", () => ({
 vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
 }));
+vi.mock("@/components/notes/trash-page", () => ({
+  default: () => React.createElement("div", null, "Trash page"),
+}));
 
 import NotesWorkspace from "@/components/notes/notes-workspace";
 
@@ -143,5 +146,15 @@ describe("NotesWorkspace note route synchronization", () => {
     expect(
       screen.getByRole("separator", { name: "Resize details panel" }),
     ).toBeTruthy();
+  });
+
+  it("renders Trash without treating its reserved route as a note id", () => {
+    mocks.pathname = "/notes/trash";
+
+    render(React.createElement(NotesWorkspace, { view: "trash" }));
+
+    expect(screen.getByText("Trash page")).toBeTruthy();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

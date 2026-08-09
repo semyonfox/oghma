@@ -21,11 +21,16 @@ vi.mock("@/lib/embeddings", () => ({
 
 vi.mock("@/lib/qdrant", () => ({
   deleteChunkVectors: vi.fn(),
+  setChunkVectorsSearchable: vi.fn(),
   upsertChunkVectors: vi.fn(),
 }));
 
 import { embedChunks } from "@/lib/embeddings";
-import { deleteChunkVectors, upsertChunkVectors } from "@/lib/qdrant";
+import {
+  deleteChunkVectors,
+  setChunkVectorsSearchable,
+  upsertChunkVectors,
+} from "@/lib/qdrant";
 import {
   normalizeChunksForIndexing,
   replaceNoteEmbeddings,
@@ -71,12 +76,18 @@ describe("replaceNoteEmbeddings", () => {
     txMock.mockReset();
     sqlMock.begin.mockClear();
     vi.mocked(deleteChunkVectors).mockResolvedValue(undefined);
+    vi.mocked(setChunkVectorsSearchable).mockResolvedValue(undefined);
     vi.mocked(upsertChunkVectors).mockResolvedValue(undefined);
   });
 
   it("stores chunk rows in Postgres and linked vectors in Qdrant", async () => {
     sqlMock.mockResolvedValueOnce([{ id: "old-chunk" }]);
-    txMock.mockResolvedValueOnce([{ id: "new-chunk-a" }, { id: "new-chunk-b" }]);
+    txMock
+      .mockResolvedValueOnce([{ note_id: "note-1" }])
+      .mockResolvedValueOnce([
+        { id: "new-chunk-a" },
+        { id: "new-chunk-b" },
+      ]);
     vi.mocked(embedChunks).mockResolvedValueOnce([
       { chunk: "alpha", vector: [0.1, 0.2] },
       { chunk: "beta", vector: [0.3, 0.4] },
@@ -89,7 +100,7 @@ describe("replaceNoteEmbeddings", () => {
     );
 
     expect(count).toBe(2);
-    expect(txMock).toHaveBeenCalledTimes(1);
+    expect(txMock).toHaveBeenCalledTimes(2);
     expect(upsertChunkVectors).toHaveBeenCalledWith([
       {
         chunkId: "new-chunk-a",
@@ -109,7 +120,9 @@ describe("replaceNoteEmbeddings", () => {
 
   it("removes newly inserted chunks if Qdrant upsert fails", async () => {
     sqlMock.mockResolvedValueOnce([]);
-    txMock.mockResolvedValueOnce([{ id: "new-chunk" }]);
+    txMock
+      .mockResolvedValueOnce([{ note_id: "note-1" }])
+      .mockResolvedValueOnce([{ id: "new-chunk" }]);
     vi.mocked(embedChunks).mockResolvedValueOnce([
       { chunk: "alpha", vector: [0.1, 0.2] },
     ]);
@@ -133,5 +146,20 @@ describe("replaceNoteEmbeddings", () => {
     expect(count).toBe(0);
     expect(embedChunks).not.toHaveBeenCalled();
     expect(deleteChunkVectors).toHaveBeenCalledWith(["old-chunk"]);
+  });
+
+  it("does not publish chunks after Trash has locked and hidden the note", async () => {
+    sqlMock.mockResolvedValueOnce([{ id: "old-chunk" }]);
+    txMock.mockResolvedValueOnce([]);
+    vi.mocked(embedChunks).mockResolvedValueOnce([
+      { chunk: "alpha", vector: [0.1, 0.2] },
+    ]);
+
+    await expect(
+      replaceNoteEmbeddings("note-1", "user-1", ["alpha"]),
+    ).resolves.toBe(0);
+
+    expect(upsertChunkVectors).not.toHaveBeenCalled();
+    expect(deleteChunkVectors).not.toHaveBeenCalled();
   });
 });

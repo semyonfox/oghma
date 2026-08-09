@@ -179,7 +179,7 @@ export default function NoteContextMenuPortal({
     >
       {isMultiSelectMenu ? (
         <MenuItem
-          label={t("Delete selected")}
+          label={t("Move to Trash")}
           icon={icons.trash}
           onClick={() => run(() => onDelete(selectionIds))}
           danger
@@ -256,7 +256,7 @@ export default function NoteContextMenuPortal({
           <Separator />
 
           <MenuItem
-            label={t("Delete")}
+            label={t("Move to Trash")}
             icon={icons.trash}
             onClick={() => run(() => onDelete([openMenuId]))}
             danger

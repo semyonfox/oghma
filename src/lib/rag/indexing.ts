@@ -1,6 +1,10 @@
 import sql from "@/database/pgsql.js";
 import { embedChunks } from "@/lib/embeddings";
-import { deleteChunkVectors, upsertChunkVectors } from "@/lib/qdrant";
+import {
+  deleteChunkVectors,
+  setChunkVectorsSearchable,
+  upsertChunkVectors,
+} from "@/lib/qdrant";
 import { sanitizePostgresText } from "@/lib/text-sanitize";
 import logger from "@/lib/logger";
 
@@ -80,6 +84,18 @@ export async function replaceNoteEmbeddings(
   }
 
   const chunkRows = await sql.begin(async (tx: any) => {
+    // Serialize the publish point with Trash. If deletion won while embeddings
+    // were being calculated, do not write a fresh chunk set to a hidden note.
+    const [activeNote] = await tx`
+      SELECT note_id
+      FROM app.notes
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `;
+    if (!activeNote) return [] as ChunkRow[];
+
     return await tx`
       INSERT INTO app.chunks (document_id, user_id, text)
       SELECT * FROM UNNEST(
@@ -90,6 +106,7 @@ export async function replaceNoteEmbeddings(
       RETURNING id
     `;
   });
+  if (chunkRows.length === 0) return 0;
 
   try {
     await upsertChunkVectors(
@@ -103,6 +120,28 @@ export async function replaceNoteEmbeddings(
   } catch (error) {
     await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkRows.map((row: ChunkRow) => row.id)}::uuid[])`;
     throw error;
+  }
+
+  // If Trash began just after the guarded insert committed, its first vector
+  // visibility pass may have raced this upsert. Reconcile the payload once
+  // more so retained vectors cannot consume search top-K results.
+  const noteStates = await sql`
+    SELECT deleted_at IS NULL AS active
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+  `;
+  const noteState = noteStates?.[0];
+  if (noteState && !noteState.active) {
+    await setChunkVectorsSearchable(
+      chunkRows.map((row: ChunkRow) => row.id),
+      false,
+    ).catch((error) => {
+      logger.warn("trashed note vector visibility reconciliation failed", {
+        noteId,
+        error,
+      });
+    });
   }
 
   if (oldChunkIds.length > 0) {

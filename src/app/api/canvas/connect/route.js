@@ -13,6 +13,7 @@ import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import logger from "@/lib/logger";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
+import { resolveAccessibleCanvasCourses } from "@/lib/canvas/sync-courses.js";
 
 const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
@@ -43,18 +44,18 @@ export const GET = withErrorHandler(async () => {
   if (!credentials) return noStoreJson({ connected: false });
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: courses, error } = await client.getDiscoverableCourses();
+  const { data: visibleCourses, error } = await client.getDiscoverableCourses();
 
   if (error) return noStoreJson({ connected: false });
 
-  const [coursesWithModules, forbiddenCourseRows] = await Promise.all([
-    Promise.all(
-      (courses ?? []).map(async (course) => {
-        const id = upstreamCourseId(course.id);
-        const { data: modules } = await client.getModules(id);
-        return { ...course, id, modules: modules ?? [] };
-      }),
-    ),
+  const [previousCourseRows, forbiddenCourseRows] = await Promise.all([
+    sql`
+      SELECT DISTINCT canvas_course_id
+      FROM app.canvas_imports
+      WHERE user_id = ${user.user_id}::uuid
+        AND canvas_course_id IS NOT NULL
+      LIMIT 200
+    `,
     sql`
       SELECT DISTINCT canvas_course_id
       FROM app.canvas_imports
@@ -63,6 +64,25 @@ export const GET = withErrorHandler(async () => {
         AND canvas_course_id IS NOT NULL
     `,
   ]);
+
+  let courses;
+  try {
+    courses = await resolveAccessibleCanvasCourses(
+      client,
+      visibleCourses,
+      (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
+    );
+  } catch {
+    throw new ApiError(502, "Canvas returned an invalid course ID");
+  }
+
+  const coursesWithModules = await Promise.all(
+    courses.map(async (course) => {
+      const id = upstreamCourseId(course.id);
+      const { data: modules } = await client.getModules(id);
+      return { ...course, id, modules: modules ?? [] };
+    }),
+  );
 
   return noStoreJson({
     connected: true,
@@ -115,10 +135,29 @@ export const POST = withErrorHandler(async (request) => {
   if (error) {
     throw new ApiError(400, `Canvas connection failed: ${error}`);
   }
-  const normalizedCourses = (courses ?? []).map((course) => ({
+  // Validate the course-list response before querying or storing anything.
+  const visibleCourses = (courses ?? []).map((course) => ({
     ...course,
     id: upstreamCourseId(course.id),
   }));
+
+  const previousCourseRows = await sql`
+    SELECT DISTINCT canvas_course_id
+    FROM app.canvas_imports
+    WHERE user_id = ${user.user_id}::uuid
+      AND canvas_course_id IS NOT NULL
+    LIMIT 200
+  `;
+  let normalizedCourses;
+  try {
+    normalizedCourses = await resolveAccessibleCanvasCourses(
+      client,
+      visibleCourses,
+      (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
+    );
+  } catch {
+    throw new ApiError(502, "Canvas returned an invalid course ID");
+  }
 
   // encrypt token before persisting
   const encryptedToken = encrypt(normalizedToken, user.user_id);

@@ -3,7 +3,9 @@ import {
   importedFileStorageKey,
   canvasFileSource,
   isReplayableImportedMarkdown,
+  isSharedImportedFileAssetKey,
   isSharedImportedFileKey,
+  isSharedImportedFileObjectKey,
   sha256Hex,
 } from "@/lib/canvas/import-cache";
 
@@ -22,7 +24,11 @@ describe("imported file cache identity", () => {
     expect(importedFileStorageKey(hash, "../Lecture One.PDF"))
       .toBe("imports/shared/abc123.pdf");
     expect(isSharedImportedFileKey("imports/shared/abc123.pdf")).toBe(true);
+    expect(isSharedImportedFileObjectKey("imports/shared/abc123.pdf")).toBe(true);
+    expect(isSharedImportedFileAssetKey("imports/shared-assets/cache-123/page.png", "cache-123")).toBe(true);
+    expect(isSharedImportedFileKey("imports/shared-assets/cache-123/page.png")).toBe(true);
     expect(isSharedImportedFileKey("canvas/user/course/file.pdf")).toBe(false);
+    expect(isSharedImportedFileAssetKey("imports/shared-assets/other/page.png", "cache-123")).toBe(false);
   });
 
   it("accepts Marker markdown because asset URLs are canonicalized on capture", () => {

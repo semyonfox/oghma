@@ -17,6 +17,12 @@ export type DeleteConfirmTarget =
   | { mode: "bulk"; ids: string[] }
   | null;
 
+function notifyTrashChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("notes:trash-changed"));
+  }
+}
+
 // sidebar CRUD operations and action callbacks
 export function useSidebarActions(deps: {
   setDeleteConfirmTarget: (target: DeleteConfirmTarget) => void;
@@ -201,13 +207,19 @@ export function useSidebarActions(deps: {
       const id = target.ids[0];
       try {
         await removeNote(id);
+        notifyTrashChanged();
         const nextSelected = new Set(useNoteTreeStore.getState().selectedIds);
         nextSelected.delete(id);
         setSelectedIds(nextSelected);
         onDeleteSelectionCleared();
-        if (activeId === id) router.push("/notes");
+        if (
+          activeId &&
+          (activeId === id || treeItemContainsId(tree, id, activeId))
+        ) {
+          router.push("/notes");
+        }
       } catch {
-        toast.error(t("Failed to delete"));
+        toast.error(t("Could not complete that action. Please try again."));
       }
       return;
     }
@@ -228,6 +240,7 @@ export function useSidebarActions(deps: {
     }
 
     if (failedCount === 0) {
+      if (deletedCount > 0) notifyTrashChanged();
       setSelectedIds(new Set());
       onDeleteSelectionCleared();
       if (
@@ -242,8 +255,9 @@ export function useSidebarActions(deps: {
     }
 
     if (deletedCount > 0) {
+      notifyTrashChanged();
       toast.error(
-        t("Deleted {deletedCount} items. Failed to delete {failedCount} items.", {
+        t("Moved {deletedCount} items to Trash. Failed to move {failedCount} items.", {
           deletedCount,
           failedCount,
         }),
@@ -262,7 +276,7 @@ export function useSidebarActions(deps: {
       return;
     }
 
-    toast.error(t("Failed to delete selected items."));
+    toast.error(t("Could not complete that action. Please try again."));
     setSelectedIds(new Set(target.ids));
     await refreshTree();
   }, [

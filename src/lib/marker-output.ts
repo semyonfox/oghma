@@ -3,6 +3,7 @@ import type { StoreS3 } from "@/lib/storage/s3";
 export type MarkerImages = Record<string, string>;
 
 const MARKER_SPAN_RE = /<span\s+id="page-[^"]+"\s*><\/span>/g;
+const MARKER_PAGE_LINE_RE = /^\s*\\?--\s*\d+\s+of\s+\d+\s*--\s*$/gim;
 const MARKER_IMAGE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -22,6 +23,7 @@ function inferImageMimeType(filename: string): string {
 export function normalizeMarkerMarkdown(markdown: string): string {
   return markdown
     .replace(MARKER_SPAN_RE, "")
+    .replace(MARKER_PAGE_LINE_RE, "")
     .replace(/^\s{0,3}\{\d+\}-+\s*$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -44,7 +46,12 @@ export function markerAssetKey(
   noteId: string,
   assetName: string,
 ): string {
-  return `marker/${userId}/${noteId}/${assetName}`;
+  return `${markerAssetPrefix(userId, noteId)}${assetName}`;
+}
+
+/** The complete private object namespace for one note's Marker output. */
+export function markerAssetPrefix(userId: string, noteId: string): string {
+  return `marker/${userId}/${noteId}/`;
 }
 
 export function markerMetadataKey(userId: string, noteId: string): string {
