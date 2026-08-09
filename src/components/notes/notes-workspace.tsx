@@ -181,7 +181,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
         {isDesktop === true && (
           <div
             key="navigation"
-            className="w-12 shrink-0 flex-col overflow-hidden border-r border-border-subtle bg-background md:flex"
+            className="w-14 shrink-0 flex-col overflow-hidden border-r border-border-subtle bg-background md:flex"
           >
             <PrimaryNavigation />
           </div>

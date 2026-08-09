@@ -221,7 +221,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
 
   return (
     <nav
-      className="flex h-full w-12 shrink-0 flex-col items-center gap-2 py-4"
+      className="flex h-full w-14 shrink-0 flex-col items-center gap-2 py-4"
       aria-label={t("Main navigation")}
     >
       <Link

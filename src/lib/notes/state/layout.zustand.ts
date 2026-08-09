@@ -75,7 +75,7 @@ const useLayoutStore = create<LayoutState>()(
       activePane: "A",
       rightPanelOpen: false,
       rightPanelTab: "meta" as RightPanelTab,
-      treeWidth: 220,
+      treeWidth: 240,
       rightPanelWidth: 280,
       splitPosition: 50,
       expandedNodes: new Set(["root"]),
