@@ -102,6 +102,12 @@ describe("Canvas discovery finalization", () => {
     ).resolves.toBe(true);
 
     expect(dispatchFairCanvasFiles).not.toHaveBeenCalled();
+    const pendingQuery = vi.mocked(sql).mock.calls[4]?.[0] as unknown as
+      | TemplateStringsArray
+      | undefined;
+    expect(Array.from(pendingQuery ?? []).join("")).toContain(
+      "status = 'pending'",
+    );
     const completionQuery = vi.mocked(sql).mock.calls.at(-1)?.[0] as unknown as
       | TemplateStringsArray
       | undefined;
