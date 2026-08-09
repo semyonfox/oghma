@@ -81,6 +81,37 @@ describe("qdrant vector store", () => {
     );
   });
 
+  it("batches large vector upserts below the Qdrant request limit", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: string) => {
+      if (input === "http://qdrant.test/collections/test_chunks") {
+        return jsonResponse({
+          result: { config: { params: { vectors: { size: 3 } } } },
+        });
+      }
+      return jsonResponse({ result: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { upsertChunkVectors } = await loadQdrant();
+    await upsertChunkVectors(
+      Array.from({ length: 129 }, (_, index) => ({
+        chunkId: `chunk-${index}`,
+        documentId: "22222222-2222-4222-8222-222222222222",
+        userId: "11111111-1111-4111-8111-111111111111",
+        vector: [0.1, 0.2, 0.3],
+      })),
+    );
+
+    const upserts = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith("/points?wait=true"),
+    );
+    expect(upserts).toHaveLength(2);
+    expect(upserts.map(([, init]) => JSON.parse(init.body).points.length)).toEqual([
+      128,
+      1,
+    ]);
+  });
+
   it("searches by user and scope, returning cosine distance from Qdrant scores", async () => {
     const fetchMock = vi
       .fn()
