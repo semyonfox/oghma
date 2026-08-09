@@ -75,6 +75,17 @@ describe("parseMarkerResult", () => {
     );
   });
 
+  it("accepts Marker image names with a leading underscore", () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00]).toString("base64");
+    const result = parse(
+      payload({ images: { "_page_16_Diagram_14.jpeg": jpeg } }),
+    );
+
+    expect(result.images).toEqual({
+      "_page_16_Diagram_14.jpeg": jpeg,
+    });
+  });
+
   it("rejects base64 that does not match its claimed image extension", () => {
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00]).toString("base64");
     expect(() => parse(payload({ images: { "image.png": jpeg } }))).toThrow(
