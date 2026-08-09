@@ -128,11 +128,22 @@ export default function CanvasIntegrationSettings() {
             localStorage.removeItem(LS_FORBIDDEN);
           }
 
-          const savedIds = JSON.parse(
-            localStorage.getItem(LS_SELECTED) ?? "[]",
-          );
+          const savedSelection = localStorage.getItem(LS_SELECTED);
+          const savedIds = JSON.parse(savedSelection ?? "[]");
           const validIds = (data.courses ?? []).map((c) => String(c.id));
-          setSelectedCourseIds(savedIds.map(String).filter((id) => validIds.includes(id)));
+          const historicalIds = (data.courses ?? [])
+            .filter((course) => course.historical)
+            .map((course) => String(course.id));
+          setSelectedCourseIds(
+            Array.from(
+              new Set(
+                (savedSelection === null
+                  ? validIds
+                  : savedIds.map(String).filter((id) => validIds.includes(id))
+                ).concat(historicalIds),
+              ),
+            ),
+          );
 
           fetch("/api/canvas/sync")
             .then((r) => r.json())
@@ -254,9 +265,22 @@ export default function CanvasIntegrationSettings() {
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);
 
-      const savedIds = JSON.parse(localStorage.getItem(LS_SELECTED) ?? "[]");
+      const savedSelection = localStorage.getItem(LS_SELECTED);
+      const savedIds = JSON.parse(savedSelection ?? "[]");
       const validIds = (data.courses ?? []).map((c) => String(c.id));
-      setSelectedCourseIds(savedIds.map(String).filter((id) => validIds.includes(id)));
+      const historicalIds = (data.courses ?? [])
+        .filter((course) => course.historical)
+        .map((course) => String(course.id));
+      setSelectedCourseIds(
+        Array.from(
+          new Set(
+            (savedSelection === null
+              ? validIds
+              : savedIds.map(String).filter((id) => validIds.includes(id))
+            ).concat(historicalIds),
+          ),
+        ),
+      );
     } catch {
       trackMarketingEvent("canvas_connect_error", {
         source: "settings_canvas",

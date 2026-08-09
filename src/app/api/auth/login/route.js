@@ -11,7 +11,10 @@
 import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
-import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
+import {
+  buildCanvasSyncCourses,
+  resolveAccessibleCanvasCourses,
+} from "@/lib/canvas/sync-courses.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
@@ -185,9 +188,14 @@ async function queueCanvasSync(userId) {
   );
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: allCourses } = await client.getCourses();
+  const { data: visibleCourses } = await client.getDiscoverableCourses();
 
-  const courses = buildCanvasSyncCourses(prevCourseIds, allCourses);
+  const accessibleCourses = await resolveAccessibleCanvasCourses(
+    client,
+    visibleCourses,
+    prevCourseIds,
+  );
+  const courses = buildCanvasSyncCourses(prevCourseIds, accessibleCourses);
 
   if (courses.length === 0) return;
 

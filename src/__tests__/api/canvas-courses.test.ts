@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
+  getCourse: vi.fn(),
   getModules: vi.fn(),
 }));
 
@@ -37,9 +38,11 @@ vi.mock("@/lib/canvas/client.js", () => ({
     return canvas;
   }),
 }));
+vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
 
 import { requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import sql from "@/database/pgsql.js";
 import { GET } from "@/app/api/canvas/courses/route";
 
 describe("GET /api/canvas/courses", () => {
@@ -64,5 +67,39 @@ describe("GET /api/canvas/courses", () => {
     expect(await response.json()).toEqual({
       error: "Canvas returned an invalid course ID",
     });
+  });
+
+  it("includes a previously imported course that Canvas hides from its course list", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [{ id: "42", name: "Current" }],
+    });
+    vi.mocked(sql).mockResolvedValue([
+      { canvas_course_id: "9007199254740993" },
+    ] as never);
+    canvas.getCourse.mockResolvedValue({
+      data: {
+        id: "9007199254740993",
+        name: "Historical",
+        course_code: "CT101",
+      },
+    });
+    canvas.getModules.mockResolvedValue({ data: [] });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/courses"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(canvas.getCourse).toHaveBeenCalledWith("9007199254740993");
+    expect((await response.json()).courses).toEqual([
+      { id: "42", name: "Current", modules: [] },
+      {
+        id: "9007199254740993",
+        name: "Historical",
+        course_code: "CT101",
+        historical: true,
+        modules: [],
+      },
+    ]);
   });
 });
