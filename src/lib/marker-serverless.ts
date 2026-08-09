@@ -183,6 +183,8 @@ export interface SubmitMarkerJobInput {
   filename: string;
   mimeType?: string | null;
   parentFolderId?: string | null;
+  /** A system-owned cache source; never an editable user projection. */
+  importedFileCacheId?: string | null;
 }
 
 export interface SubmittedMarkerJob {
@@ -208,6 +210,7 @@ export async function submitMarkerJob({
   filename,
   mimeType,
   parentFolderId,
+  importedFileCacheId,
 }: SubmitMarkerJobInput): Promise<SubmittedMarkerJob> {
   const provider = markerServerlessProvider();
   if (!provider || !markerQueueEnabled()) {
@@ -274,13 +277,15 @@ export async function submitMarkerJob({
     const [inserted] = await tx`
       INSERT INTO app.marker_jobs (
         callback_id, provider, note_id, user_id, canvas_job_id, filename,
-        mime_type, parent_folder_id, source_key, source_bytes, result_key, status
+        mime_type, parent_folder_id, source_key, source_bytes, result_key, status,
+        imported_file_cache_id
       ) VALUES (
         ${callbackId}::uuid, ${provider}, ${noteId}::uuid, ${userId}::uuid,
         ${jobId ?? null}::uuid, ${filename},
         ${mimeType ?? "application/octet-stream"},
         ${parentFolderId ?? null}::uuid, ${sourceKey},
-        ${sourceBytes ?? null}, ${resultKey}, 'dispatch_queued'
+        ${sourceBytes ?? null}, ${resultKey}, 'dispatch_queued',
+        ${importedFileCacheId ?? null}::uuid
       )
       ON CONFLICT (note_id)
         WHERE status NOT IN ('completed', 'failed', 'invalid_result', 'cancelled')
@@ -314,14 +319,16 @@ export async function submitMarkerJob({
 
     // The durable state must commit before a queue consumer can submit GPU
     // work. This prevents a fast result from being overwritten as pending.
-    await tx`
-      UPDATE app.canvas_imports
-      SET status = 'pending_marker', error_message = NULL, updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid
-        AND user_id = ${userId}::uuid
-        AND (${jobId ?? null}::uuid IS NULL OR job_id = ${jobId}::uuid)
-        AND status IN ('downloading', 'processing', 'indexing', 'pending_marker')
-    `;
+    if (!importedFileCacheId) {
+      await tx`
+        UPDATE app.canvas_imports
+        SET status = 'pending_marker', error_message = NULL, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND (${jobId ?? null}::uuid IS NULL OR job_id = ${jobId}::uuid)
+          AND status IN ('downloading', 'processing', 'indexing', 'pending_marker')
+      `;
+    }
     await tx`
       UPDATE app.ingestion_jobs
       SET status = 'pending', error = NULL, updated_at = NOW()

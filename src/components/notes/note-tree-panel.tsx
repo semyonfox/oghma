@@ -63,13 +63,13 @@ const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
       <div className="obsidian-scrollbar flex-1 overflow-y-auto overflow-x-hidden">
         <SidebarList onOpenNote={onOpenNote} />
       </div>
-      <div className="shrink-0 p-2">
+      <div className="shrink-0">
         <Link
           href="/notes/trash"
           onClick={() => onOpenNote?.()}
           aria-current={isTrash ? "page" : undefined}
           aria-label={trashCount > 0 ? `${t("Trash")} (${trashCount})` : undefined}
-          className={`flex min-h-10 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+          className={`flex h-12 items-center gap-2 px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 ${
             isTrash
               ? "bg-primary-500/10 text-primary-300"
               : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"

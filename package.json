@@ -48,6 +48,8 @@
     "marker:runpod:build": "bash scripts/build-runpod-marker-image.sh",
     "marker:runpod:validate": "RUNPOD_MARKER_VALIDATE_ONLY=1 bash scripts/build-runpod-marker-image.sh",
     "marker:serverless:status": "node scripts/marker-serverless-status.mjs",
+    "cache:reprocess": "node --import=tsx scripts/reprocess-import-cache-revisions.mjs",
+    "cache:apply-revisions": "node --import=tsx scripts/apply-import-cache-revisions.mjs",
     "prepare": "husky",
     "i18n:audit": "node scripts/i18n-audit.mjs",
     "i18n:extract": "node scripts/extract-i18n.js",
