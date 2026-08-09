@@ -17,6 +17,7 @@ interface UseCanvasImportParams {
     name: string;
     course_code: string;
     term?: string | { id?: string; name?: string } | null;
+    canvasStatus?: string;
   }[];
   courseErrors: Record<string, string>;
   setCourseErrors: (v: Record<string, string>) => void;
@@ -116,7 +117,15 @@ export default function useCanvasImport({
             });
             // mark selected courses as synced
             const newSynced = { ...syncedCourses };
-            for (const id of selectedCourseIds) newSynced[String(id)] = true;
+            for (const course of courses) {
+              if (
+                course.canvasStatus !== "inaccessible" &&
+                course.canvasStatus !== "unavailable" &&
+                selectedCourseIds.includes(String(course.id))
+              ) {
+                newSynced[String(course.id)] = true;
+              }
+            }
             setSyncedCourses(newSynced);
             localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
 
@@ -151,6 +160,7 @@ export default function useCanvasImport({
     syncedCourses,
     setSyncedCourses,
     selectedCourseIds,
+    courses,
     stopPolling,
   ]);
 
@@ -159,6 +169,23 @@ export default function useCanvasImport({
 
   const handleImport = useCallback(async () => {
     if (selectedCourseIds.length === 0) return;
+
+    // Treat Canvas availability as an upstream constraint, independent from
+    // local sync/error badges or stale browser selection state.
+    const selectedCourses = courses
+      .filter(
+        (course) =>
+          course.canvasStatus !== "inaccessible" &&
+          course.canvasStatus !== "unavailable" &&
+          selectedCourseIds.includes(String(course.id)),
+      )
+      .map((course) => ({
+        id: String(course.id),
+        name: course.name,
+        course_code: course.course_code,
+        term: course.term ?? null,
+      }));
+    if (selectedCourses.length === 0) return;
 
     setIsImporting(true);
     setIsDiscovering(true);
@@ -174,15 +201,6 @@ export default function useCanvasImport({
 
     try {
       // send full course objects so the worker can use name/course_code/term for folder titles
-      const selectedCourses = courses
-        .filter((c) => selectedCourseIds.includes(String(c.id)))
-        .map((c) => ({
-          id: String(c.id),
-          name: c.name,
-          course_code: c.course_code,
-          term: c.term ?? null,
-        }));
-
       const res = await fetch("/api/canvas/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

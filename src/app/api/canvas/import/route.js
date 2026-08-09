@@ -47,11 +47,31 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "No Canvas account connected");
   }
 
-  // Validate the token is still live before queuing
+  // Validate against the enrollment ledger rather than the active-course
+  // dashboard list. A valid token may have only older or pending courses.
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: courses, error: coursesError } = await client.getCourses();
-  if (!courses && coursesError) {
+  const enrollmentValidation = await client.getSelfEnrollments();
+  if (enrollmentValidation.unauthorized) {
     throw new ApiError(401, "Canvas token is invalid or expired");
+  }
+  if (enrollmentValidation.error || enrollmentValidation.forbidden) {
+    // Some institutional developer keys scope the self-enrollments endpoint.
+    // A regular course-list response still proves that the token is live.
+    const courseListValidation = await client.getDiscoverableCourses();
+    if (courseListValidation.unauthorized) {
+      throw new ApiError(401, "Canvas token is invalid or expired");
+    }
+    if (courseListValidation.error || courseListValidation.forbidden) {
+      throw new ApiError(
+        502,
+        `Canvas connection failed: ${
+          courseListValidation.error ??
+          enrollmentValidation.error ??
+          "access was denied"
+        }`,
+      );
+    }
+    // Continue: the worker validates the selected course's real resources.
   }
 
   // Cancel any existing queued/processing job and insert the new one atomically

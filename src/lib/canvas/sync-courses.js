@@ -8,61 +8,314 @@ import { pooled } from "./async-limiter.js";
 // enrolments.  Keep this low because Canvas applies per-user rate limits.
 const HISTORICAL_COURSE_LOOKUP_CONCURRENCY = 4;
 
+export const CANVAS_COURSE_STATUS = Object.freeze({
+  CURRENT: "current",
+  PAST: "past",
+  PENDING: "pending",
+  INACCESSIBLE: "inaccessible",
+  UNAVAILABLE: "unavailable",
+});
+
+const PENDING_ENROLLMENT_STATES = new Set([
+  "invited",
+  "creation_pending",
+  "pending_active",
+  "pending_invited",
+]);
+const INACCESSIBLE_ENROLLMENT_STATES = new Set([
+  "inactive",
+  "rejected",
+  "deleted",
+]);
+
+function enrollmentCourseId(enrollment) {
+  return enrollment?.course_id ?? enrollment?.course?.id;
+}
+
+function enrollmentState(enrollment) {
+  return String(
+    enrollment?.enrollment_state ??
+      enrollment?.state ??
+      enrollment?.workflow_state ??
+      "",
+  ).toLowerCase();
+}
+
+function isPastDate(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.getTime() < Date.now();
+}
+
+function isFutureDate(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.getTime() > Date.now();
+}
+
+function canvasStatusForCourse(course, states = new Set()) {
+  const hasUsableEnrollment =
+    states.has("active") || states.has("completed");
+  const hasPendingEnrollment = [...states].some((state) =>
+    PENDING_ENROLLMENT_STATES.has(state),
+  );
+  const hasOnlyInactiveEnrollment =
+    states.size > 0 &&
+    !hasUsableEnrollment &&
+    !hasPendingEnrollment &&
+    [...states].every((state) => INACCESSIBLE_ENROLLMENT_STATES.has(state));
+
+  const workflowState = String(course?.workflow_state ?? "").toLowerCase();
+
+  if (workflowState === "deleted" || hasOnlyInactiveEnrollment) {
+    return CANVAS_COURSE_STATUS.INACCESSIBLE;
+  }
+  if (
+    (!states.has("active") && states.has("completed")) ||
+    course?.concluded === true ||
+    workflowState === "completed" ||
+    isPastDate(course?.end_at) ||
+    isPastDate(course?.term?.end_at)
+  ) {
+    return CANVAS_COURSE_STATUS.PAST;
+  }
+  if (
+    (!hasUsableEnrollment && hasPendingEnrollment) ||
+    isFutureDate(course?.start_at) ||
+    isFutureDate(course?.term?.start_at)
+  ) {
+    return CANVAS_COURSE_STATUS.PENDING;
+  }
+  return CANVAS_COURSE_STATUS.CURRENT;
+}
+
+function inaccessibleCourse(id, states) {
+  const inactive = [...states].some((state) =>
+    INACCESSIBLE_ENROLLMENT_STATES.has(state),
+  );
+  return {
+    id,
+    name: "Canvas course unavailable",
+    course_code: "",
+    term: null,
+    historical: true,
+    canvasStatus: CANVAS_COURSE_STATUS.INACCESSIBLE,
+    canvasStatusReason: inactive ? "inactive_enrollment" : "access_denied",
+  };
+}
+
+function unavailableCourse(id) {
+  return {
+    id,
+    name: "Canvas course unavailable",
+    course_code: "",
+    term: null,
+    historical: true,
+    canvasStatus: CANVAS_COURSE_STATUS.UNAVAILABLE,
+    canvasStatusReason: "lookup_failed",
+  };
+}
+
+function canvasStatusReasonForCourse(course, states) {
+  if (String(course?.workflow_state ?? "").toLowerCase() === "deleted") {
+    return "deleted_course";
+  }
+  if (
+    [...states].some((state) => INACCESSIBLE_ENROLLMENT_STATES.has(state))
+  ) {
+    return "inactive_enrollment";
+  }
+  return "access_denied";
+}
+
 /**
- * Combine Canvas's current course list with courses this user has imported
- * before. Canvas can still allow a direct `/courses/:id` request even when it
- * no longer returns that course from `/courses`, so do not make the picker
- * depend solely on enrolment-list visibility.
+ * Whether Canvas currently permits this course to be sent to an import job.
+ * This is deliberately independent from local import/sync/file status.
+ */
+export function isCanvasCourseImportable(course) {
+  return (
+    course?.canvasStatus !== CANVAS_COURSE_STATUS.INACCESSIBLE &&
+    course?.canvasStatus !== CANVAS_COURSE_STATUS.UNAVAILABLE
+  );
+}
+
+export function isCanvasCourseAvailabilityUnresolved(course) {
+  return course?.canvasStatus === CANVAS_COURSE_STATUS.UNAVAILABLE;
+}
+
+function isInaccessibleCourseResult(result) {
+  return (
+    result?.forbidden ||
+    result?.error === "Canvas API error: 404" ||
+    result?.error === "Canvas API error: 410"
+  );
+}
+
+/**
+ * Load the authoritative enrollment source alongside Canvas's faster
+ * course-list endpoint. The enrollment endpoint supplies IDs that Canvas can
+ * omit from its normal course list, especially historical records.
+ */
+export async function discoverCanvasCourses(client, previousCourseIds = []) {
+  const [visibleResult, enrollmentResult] = await Promise.all([
+    client.getDiscoverableCourses(),
+    client.getSelfEnrollments(),
+  ]);
+
+  // Self-enrollments are the authoritative enumeration. If an institution
+  // scopes that endpoint, retain the normal course list as a clearly degraded
+  // fallback rather than turning a still-valid Canvas connection into a hard
+  // failure.
+  if (enrollmentResult?.error || enrollmentResult?.forbidden) {
+    const courseListAvailable =
+      Array.isArray(visibleResult?.data) &&
+      !visibleResult?.error &&
+      !visibleResult?.forbidden;
+    if (courseListAvailable) {
+      return {
+        data: await resolveAccessibleCanvasCourses(
+          client,
+          visibleResult.data,
+          [],
+          previousCourseIds,
+        ),
+        forbidden: false,
+        degraded: true,
+      };
+    }
+    return {
+      data: [],
+      forbidden: Boolean(enrollmentResult?.forbidden),
+      error:
+        enrollmentResult?.error ?? "Canvas could not list this user's enrollments",
+    };
+  }
+
+  return {
+    data: await resolveAccessibleCanvasCourses(
+      client,
+      visibleResult?.data ?? [],
+      enrollmentResult?.data ?? [],
+      previousCourseIds,
+    ),
+    forbidden: false,
+    degraded: false,
+  };
+}
+
+/**
+ * Combine Canvas's course list with all of the user's enrollment records and
+ * locally remembered course IDs. Every enrollment course ID missing from the
+ * list is resolved directly, so historical courses never need a prior local
+ * import merely to reach the picker.
  *
- * Only directly accessible historical courses are returned. This deliberately
- * does not make deleted or permission-revoked courses look importable.
+ * Inaccessible records remain visible with an explicit Canvas status. That
+ * separates Canvas availability from local import status and prevents a
+ * missing direct lookup from looking like a deleted local course.
  */
 export async function resolveAccessibleCanvasCourses(
   client,
   visibleCourses = [],
+  enrollments = [],
   previousCourseIds = [],
 ) {
-  const courses = [];
-  const seen = new Set();
+  const coursesById = new Map();
+  const candidateIds = [];
+  const candidateIdSet = new Set();
+  const enrollmentStatesByCourseId = new Map();
+
+  function addCandidate(id) {
+    if (candidateIdSet.has(id)) return;
+    candidateIdSet.add(id);
+    candidateIds.push(id);
+  }
 
   for (const course of visibleCourses ?? []) {
     const id = canvasIdForBigintColumn(course?.id, "Canvas course ID");
-    if (seen.has(id)) continue;
-    courses.push({ ...course, id });
-    seen.add(id);
+    if (coursesById.has(id)) continue;
+    coursesById.set(id, { ...course, id });
+    addCandidate(id);
   }
 
-  const missingIds = [];
+  for (const enrollment of enrollments ?? []) {
+    const rawId = enrollmentCourseId(enrollment);
+    if (rawId === undefined || rawId === null) continue;
+    const id = canvasIdForBigintColumn(rawId, "Canvas course ID");
+    const states = enrollmentStatesByCourseId.get(id) ?? new Set();
+    const state = enrollmentState(enrollment);
+    if (state) states.add(state);
+    enrollmentStatesByCourseId.set(id, states);
+    addCandidate(id);
+  }
+
   for (const rawId of previousCourseIds ?? []) {
     const id = canvasIdForBigintColumn(rawId, "Canvas course ID");
-    if (!seen.has(id) && !missingIds.includes(id)) missingIds.push(id);
+    addCandidate(id);
   }
 
+  const missingIds = candidateIds.filter((id) => !coursesById.has(id));
+
   const results = await pooled(
-    missingIds.map((id) => async () => ({ id, result: await client.getCourse(id) })),
+    missingIds.map((id) => async () => ({
+      id,
+      result: await client.getCourse(id),
+    })),
     HISTORICAL_COURSE_LOOKUP_CONCURRENCY,
   );
 
-  for (const outcome of results) {
-    if (outcome.status !== "fulfilled") continue;
-    const { id: requestedId, result } = outcome.value;
-    if (!result?.data) continue;
+  for (const [index, outcome] of results.entries()) {
+    const requestedId = missingIds[index];
+    if (outcome.status !== "fulfilled") {
+      coursesById.set(requestedId, unavailableCourse(requestedId));
+      continue;
+    }
+    const { result } = outcome.value;
+    const states = enrollmentStatesByCourseId.get(requestedId) ?? new Set();
+    if (!result?.data) {
+      if (isInaccessibleCourseResult(result)) {
+        coursesById.set(requestedId, inaccessibleCourse(requestedId, states));
+        continue;
+      }
+      coursesById.set(requestedId, unavailableCourse(requestedId));
+      continue;
+    }
 
     const id = canvasIdForBigintColumn(result.data.id, "Canvas course ID");
     // A response for a different course must never be attached to the
     // historical import record we asked Canvas to resolve.
-    if (id !== requestedId || seen.has(id)) continue;
-    courses.push({ ...result.data, id, historical: true });
-    seen.add(id);
+    if (id !== requestedId || coursesById.has(id)) {
+      coursesById.set(requestedId, unavailableCourse(requestedId));
+      continue;
+    }
+    coursesById.set(id, { ...result.data, id, historical: true });
   }
 
-  return courses;
+  return candidateIds.map((id) => {
+    const course = coursesById.get(id);
+    const states = enrollmentStatesByCourseId.get(id) ?? new Set();
+    if (!course) return unavailableCourse(id);
+    if (
+      course.canvasStatus === CANVAS_COURSE_STATUS.INACCESSIBLE ||
+      course.canvasStatus === CANVAS_COURSE_STATUS.UNAVAILABLE
+    ) {
+      return course;
+    }
+
+    const canvasStatus = canvasStatusForCourse(course, states);
+    return {
+      ...course,
+      canvasStatus,
+      ...(canvasStatus === CANVAS_COURSE_STATUS.INACCESSIBLE
+        ? { canvasStatusReason: canvasStatusReasonForCourse(course, states) }
+        : {}),
+    };
+  });
 }
 
 /**
- * Match visible Canvas courses to the IDs already imported by a user. Missing
- * courses remain in the sync as string-ID fallbacks so archived/restricted
- * courses are never rounded or silently dropped.
+ * Match previously imported course IDs to currently importable Canvas records.
+ * Explicitly inaccessible or temporarily unresolved courses are never guessed
+ * into a job payload; callers can report the latter and retry safely.
  */
 export function buildCanvasSyncCourses(previousCourseIds, visibleCourses = []) {
   const desiredIds = [...previousCourseIds].map((id) =>
@@ -74,13 +327,11 @@ export function buildCanvasSyncCourses(previousCourseIds, visibleCourses = []) {
 
   for (const course of visibleCourses ?? []) {
     const id = canvasIdForBigintColumn(course?.id, "Canvas course ID");
-    if (!desired.has(id) || matched.has(id)) continue;
+    if (!desired.has(id) || matched.has(id) || !isCanvasCourseImportable(course)) {
+      continue;
+    }
     courses.push(normalizeCanvasCourseSelection(course));
     matched.add(id);
-  }
-
-  for (const id of desiredIds) {
-    if (!matched.has(id)) courses.push(normalizeCanvasCourseSelection(id));
   }
 
   return courses;

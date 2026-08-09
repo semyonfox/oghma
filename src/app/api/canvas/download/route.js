@@ -12,6 +12,10 @@ import {
   discoverCanvasRawExportEntries,
 } from "@/lib/canvas/raw-export.js";
 import { normalizeCanvasCourseSelection } from "@/lib/canvas/id.js";
+import {
+  discoverCanvasCourses,
+  isCanvasCourseImportable,
+} from "@/lib/canvas/sync-courses.js";
 
 export const runtime = "nodejs";
 
@@ -20,75 +24,30 @@ function canvasArchiveFilename() {
   return `canvas-export-${stamp}.zip`;
 }
 
-function pathWithQuery(path, params = {}) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null) continue;
-    if (Array.isArray(value)) {
-      for (const item of value) query.append(`${key}[]`, String(item));
-    } else {
-      query.set(key, String(value));
-    }
-  }
-  const queryString = query.toString();
-  return queryString ? `${path}?${queryString}` : path;
-}
-
 async function discoverExportCourses(client) {
-  const enrollmentStates = ["active", "invited_or_pending", "completed"];
-  const coursesById = new Map();
-  const skipped = [];
-  const counts = {};
-
-  for (const enrollmentState of enrollmentStates) {
-    const { data, forbidden, error } = await client.getPaginatedPath(
-      pathWithQuery("/courses", {
-        enrollment_state: enrollmentState,
-        include: ["term"],
-      }),
-    );
-
-    if (forbidden || error) {
-      skipped.push(
-        `_course_discovery/${enrollmentState}: ${error ?? "restricted"}`,
-      );
-      counts[enrollmentState] = 0;
-      continue;
-    }
-
-    counts[enrollmentState] = data.length;
-    for (const course of data) {
-      if (course?.id) {
-        const normalized = normalizeCanvasCourseSelection(course);
-        coursesById.set(normalized.id, normalized);
-      }
-    }
+  const discovery = await discoverCanvasCourses(client);
+  if (discovery.error) {
+    throw new Error(discovery.error);
   }
 
-  if (coursesById.size === 0) {
-    const { data, forbidden, error } = await client.getPaginatedPath(
-      pathWithQuery("/courses", { include: ["term"] }),
-    );
-    if (forbidden || error) {
-      skipped.push(`_course_discovery/default: ${error ?? "restricted"}`);
-    }
-    for (const course of data ?? []) {
-      if (course?.id) {
-        const normalized = normalizeCanvasCourseSelection(course);
-        coursesById.set(normalized.id, normalized);
-      }
-    }
-    counts.default = data?.length ?? 0;
-  }
+  const importableCourses = discovery.data.filter(isCanvasCourseImportable);
+  const unavailableCourses = discovery.data.filter(
+    (course) => !isCanvasCourseImportable(course),
+  );
 
   return {
-    courses: [...coursesById.values()],
-    skipped,
+    courses: importableCourses.map(normalizeCanvasCourseSelection),
+    skipped: unavailableCourses.map(
+      (course) =>
+        `_course_discovery/${course.id}: ${
+          course.canvasStatusReason ?? course.canvasStatus
+        }`,
+    ),
     courseDiscovery: {
-      mode: "all_discoverable",
-      enrollment_states: enrollmentStates,
-      counts,
-      course_count: coursesById.size,
+      mode: "enrollment_ledger",
+      course_count: importableCourses.length,
+      unavailable_course_count: unavailableCourses.length,
+      degraded: Boolean(discovery.degraded),
     },
   };
 }
@@ -130,8 +89,13 @@ export const POST = withErrorHandler(async (request) => {
   } else {
     try {
       selectedCourses = await discoverExportCourses(client);
-    } catch {
-      throw new ApiError(502, "Canvas returned an invalid course ID");
+    } catch (error) {
+      throw new ApiError(
+        502,
+        `Canvas course discovery failed: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
     }
   }
 
