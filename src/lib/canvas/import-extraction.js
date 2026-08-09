@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
 import { getStorageProvider } from "../storage/init.ts";
+import { deleteChunkVectors } from "../qdrant.ts";
 import { CanvasClient, MAX_CANVAS_FILE_BYTES } from "./client.js";
 import {
   canvasIdForBigintColumn,
@@ -1664,22 +1665,34 @@ export async function processMarkerComplete(msg) {
       `,
     ]);
     const importRow = importRows[0] ?? null;
-    const [stillActive] = await sql`
-      SELECT marker.callback_id
-      FROM app.marker_jobs marker
-      JOIN app.canvas_imports imported
-        ON imported.note_id = marker.note_id
-      LEFT JOIN app.canvas_import_jobs canvas_job
-        ON canvas_job.id = marker.canvas_job_id
-      WHERE marker.callback_id = ${markerJob.callback_id}::uuid
-        AND marker.status = 'completing'
-        AND marker.completion_attempts = ${markerJob.completion_attempts}
-        AND imported.status = 'pending_marker'
-        AND (
-          marker.canvas_job_id IS NULL
-          OR (canvas_job.type = 'canvas' AND canvas_job.status = 'processing')
-        )
-    `;
+    const [stillActive] = markerJob.imported_file_cache_id
+      ? await sql`
+          SELECT marker.callback_id
+          FROM app.marker_jobs marker
+          JOIN app.notes source ON source.note_id = marker.note_id
+          WHERE marker.callback_id = ${markerJob.callback_id}::uuid
+            AND marker.status = 'completing'
+            AND marker.completion_attempts = ${markerJob.completion_attempts}
+            AND marker.imported_file_cache_id IS NOT NULL
+            AND source.is_import_cache_source = TRUE
+            AND source.deleted_at IS NULL
+        `
+      : await sql`
+          SELECT marker.callback_id
+          FROM app.marker_jobs marker
+          JOIN app.canvas_imports imported
+            ON imported.note_id = marker.note_id
+          LEFT JOIN app.canvas_import_jobs canvas_job
+            ON canvas_job.id = marker.canvas_job_id
+          WHERE marker.callback_id = ${markerJob.callback_id}::uuid
+            AND marker.status = 'completing'
+            AND marker.completion_attempts = ${markerJob.completion_attempts}
+            AND imported.status = 'pending_marker'
+            AND (
+              marker.canvas_job_id IS NULL
+              OR (canvas_job.type = 'canvas' AND canvas_job.status = 'processing')
+            )
+        `;
     if (!stillActive) return;
     heartbeat = startMarkerCompletionHeartbeat(markerJob);
     const result = await processRagPipeline(
@@ -1724,13 +1737,15 @@ export async function processMarkerComplete(msg) {
       `;
       if (!claimed) return;
       completed = true;
-      await tx`
-        UPDATE app.canvas_imports
-        SET status = 'complete', note_id = ${result.noteId}::uuid,
-            error_message = NULL, updated_at = NOW()
-        WHERE note_id = ${markerJob.note_id}::uuid
-          AND status = 'pending_marker'
-      `;
+      if (!markerJob.imported_file_cache_id) {
+        await tx`
+          UPDATE app.canvas_imports
+          SET status = 'complete', note_id = ${result.noteId}::uuid,
+              error_message = NULL, updated_at = NOW()
+          WHERE note_id = ${markerJob.note_id}::uuid
+            AND status = 'pending_marker'
+        `;
+      }
       await tx`
         UPDATE app.ingestion_jobs
         SET status = 'done', chunks_stored = ${result.chunksStored ?? 0}, error = NULL, updated_at = NOW()
@@ -1742,16 +1757,30 @@ export async function processMarkerComplete(msg) {
     if (completed && markerJob.canvas_job_id) {
       await checkAndCompleteJob(markerJob.canvas_job_id, markerJob.user_id);
     }
-    if (completed && importRow?.imported_file_cache_id) {
-      await captureImportedPdfCache({
-        cacheId: importRow.imported_file_cache_id,
-        sourceNoteId: result.noteId,
-      }).catch((cacheError) => {
+    const cacheId = markerJob.imported_file_cache_id ?? importRow?.imported_file_cache_id;
+    let cacheCaptured = false;
+    if (completed && cacheId) {
+      try {
+        await captureImportedPdfCache({ cacheId, sourceNoteId: result.noteId });
+        cacheCaptured = true;
+      } catch (cacheError) {
         console.warn(
           `Marker cache capture failed for ${markerJob.callback_id}:`,
           cacheError,
         );
-      });
+      }
+    }
+    // The canonical source note exists only to use the durable Marker state
+    // machine. Its output has been captured in the shared cache above, so it
+    // must not become a second user-scoped retrieval result.
+    if (completed && markerJob.imported_file_cache_id && cacheCaptured) {
+      const sourceChunks = await sql`
+        SELECT id FROM app.chunks WHERE document_id = ${markerJob.note_id}::uuid
+      `;
+      await deleteChunkVectors(sourceChunks.map((chunk) => chunk.id)).catch(() => undefined);
+      await sql`
+        DELETE FROM app.chunks WHERE document_id = ${markerJob.note_id}::uuid
+      `;
     }
   } catch (error) {
     const message = markerErrorMessage(error);
