@@ -15,7 +15,7 @@ interface DayAgendaDialogProps {
   open: boolean;
   onClose: () => void;
   dateKey: string;
-  onAddStudyBlock: () => void;
+  onAddTask: () => void;
   onRetry: () => void;
 }
 
@@ -23,7 +23,7 @@ export default function DayAgendaDialog({
   open,
   onClose,
   dateKey,
-  onAddStudyBlock,
+  onAddTask,
   onRetry,
 }: DayAgendaDialogProps) {
   const { t, activeLocale } = useI18n();
@@ -56,7 +56,7 @@ export default function DayAgendaDialog({
           </div>
           <DayAgenda
             dateKey={dateKey}
-            onAddStudyBlock={onAddStudyBlock}
+            onAddTask={onAddTask}
             onRetry={onRetry}
             showHeading={false}
           />

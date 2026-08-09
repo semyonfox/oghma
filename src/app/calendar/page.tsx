@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -26,7 +26,7 @@ import WeekView from "@/components/calendar/week-view";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
 import MobileDayAgenda from "@/components/calendar/mobile-day-agenda";
 import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
-import StudyBlockDialog from "@/components/calendar/study-block-dialog";
+import NewTaskModal from "@/components/assignments/new-task-modal";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
 import {
   addDaysToDateKey,
@@ -40,9 +40,8 @@ export default function CalendarPage() {
   const hasTaskSidebar = useMediaQuery("(min-width: 1024px)");
   const [tasksOpen, setTasksOpen] = useState(false);
   const [dayDetailsOpen, setDayDetailsOpen] = useState(false);
-  const [studyBlockOpen, setStudyBlockOpen] = useState(false);
-  const [studyBlockStart, setStudyBlockStart] = useState<string>();
-  const [studyBlockEnd, setStudyBlockEnd] = useState<string>();
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [newTaskDueAt, setNewTaskDueAt] = useState<string>();
   const {
     view,
     currentDate,
@@ -57,12 +56,24 @@ export default function CalendarPage() {
   const fetchAssignments = useAssignmentStore(
     (state) => state.fetchAssignments,
   );
+  const assignments = useAssignmentStore((state) => state.assignments);
   const treeWidth = useLayoutStore((state) => state.treeWidth);
   const rightPanelWidth = useLayoutStore((state) => state.rightPanelWidth);
   const splitPosition = useLayoutStore((state) => state.splitPosition);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
   const setSizes = useLayoutStore((state) => state.setSizes);
   const taskPanelWidthRef = useRef(rightPanelWidth);
+  const courses = useMemo(() => {
+    const names = new Set(
+      assignments.map((assignment) => assignment.course_name).filter(Boolean),
+    );
+    return Array.from(names) as string[];
+  }, [assignments]);
+
+  const openNewTask = (date: string, time = "09:00") => {
+    setNewTaskDueAt(`${date}T${time}`);
+    setNewTaskOpen(true);
+  };
 
   useEffect(() => {
     setActiveNav("calendar");
@@ -269,13 +280,11 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setStudyBlockStart(undefined);
-                      setStudyBlockEnd(undefined);
-                      setStudyBlockOpen(true);
+                      openNewTask(selectedDate);
                     }}
                     className="h-11 rounded-md bg-primary-600 px-3 text-xs font-medium text-text-on-primary"
                   >
-                    {t("Add study block")}
+                    {t("New Task")}
                   </button>
                 </div>
               )}
@@ -283,7 +292,7 @@ export default function CalendarPage() {
               <div className="min-h-0 flex-1 overflow-hidden">
                 {isDesktop === false ? (
                   <MobileDayAgenda
-                    onAddStudyBlock={() => setStudyBlockOpen(true)}
+                    onAddTask={() => openNewTask(selectedDate)}
                     onRetry={() => {
                       void fetchAssignments();
                       const range = localDateKeyRangeToIso(
@@ -299,11 +308,7 @@ export default function CalendarPage() {
                 ) : (
                   <WeekView
                     onSelectDate={() => setDayDetailsOpen(true)}
-                    onAddStudyBlock={(_date, start, end) => {
-                      setStudyBlockStart(start);
-                      setStudyBlockEnd(end);
-                      setStudyBlockOpen(true);
-                    }}
+                    onAddTask={openNewTask}
                   />
                 )}
               </div>
@@ -362,19 +367,18 @@ export default function CalendarPage() {
         open={dayDetailsOpen}
         onClose={() => setDayDetailsOpen(false)}
         dateKey={selectedDate}
-        onAddStudyBlock={() => setStudyBlockOpen(true)}
+        onAddTask={() => openNewTask(selectedDate)}
         onRetry={() => {
           const range = localDateKeyRangeToIso(selectedDate, selectedDate);
           void fetchTimeBlocks(range.start, range.end);
           void fetchReviewDates(selectedDate, selectedDate);
         }}
       />
-      <StudyBlockDialog
-        open={studyBlockOpen}
-        onClose={() => setStudyBlockOpen(false)}
-        initialDate={selectedDate}
-        initialStart={studyBlockStart}
-        initialEnd={studyBlockEnd}
+      <NewTaskModal
+        open={newTaskOpen}
+        onClose={() => setNewTaskOpen(false)}
+        courses={courses}
+        initialDueAt={newTaskDueAt}
       />
     </div>
   );

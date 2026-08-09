@@ -10,12 +10,12 @@ import useI18n from "@/lib/notes/hooks/use-i18n";
 import DayAgenda from "@/components/calendar/day-agenda";
 
 interface MobileDayAgendaProps {
-  onAddStudyBlock: () => void;
+  onAddTask: () => void;
   onRetry: () => void;
 }
 
 export default function MobileDayAgenda({
-  onAddStudyBlock,
+  onAddTask,
   onRetry,
 }: MobileDayAgendaProps) {
   const { activeLocale, t } = useI18n();
@@ -84,7 +84,7 @@ export default function MobileDayAgenda({
 
       <DayAgenda
         dateKey={selectedDate}
-        onAddStudyBlock={onAddStudyBlock}
+        onAddTask={onAddTask}
         onRetry={onRetry}
       />
     </div>

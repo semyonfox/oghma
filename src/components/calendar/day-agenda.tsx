@@ -18,14 +18,14 @@ import AssignmentTypeIcon from "@/components/assignments/assignment-type-icon";
 
 interface DayAgendaProps {
   dateKey: string;
-  onAddStudyBlock: () => void;
+  onAddTask: () => void;
   onRetry: () => void;
   showHeading?: boolean;
 }
 
 export default function DayAgenda({
   dateKey,
-  onAddStudyBlock,
+  onAddTask,
   onRetry,
   showHeading = true,
 }: DayAgendaProps) {
@@ -120,11 +120,11 @@ export default function DayAgenda({
           </div>
           <button
             type="button"
-            onClick={onAddStudyBlock}
+            onClick={onAddTask}
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-radius-md border border-border-subtle px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-subtle"
           >
             <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            {t("Add study block")}
+            {t("New Task")}
           </button>
         </div>
       )}
@@ -149,10 +149,10 @@ export default function DayAgenda({
           <p className="text-sm text-text-tertiary">{t("No plans for this day")}</p>
           <button
             type="button"
-            onClick={onAddStudyBlock}
+            onClick={onAddTask}
             className="min-h-11 rounded-radius-md border border-border-subtle px-4 text-sm font-medium text-text-secondary hover:bg-subtle"
           >
-            {t("Add study block")}
+            {t("New Task")}
           </button>
         </div>
       ) : (

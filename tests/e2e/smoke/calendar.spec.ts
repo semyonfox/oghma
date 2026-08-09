@@ -81,8 +81,12 @@ test.describe("calendar responsive smoke", () => {
       await expect(page.locator('input[type="date"]')).not.toHaveValue(dateKey);
       await page.getByRole("button", { name: "Today" }).click();
       await expect(page.locator('input[type="date"]')).toHaveValue(dateKey);
-      await page.getByRole("button", { name: "Add study block" }).first().click();
-      await expect(page.getByRole("dialog").getByRole("heading", { name: "Add study block" })).toBeVisible();
+      await page.getByRole("button", { name: "New Task" }).first().click();
+      const taskDialog = page.getByRole("dialog").last();
+      await expect(taskDialog.getByRole("heading", { name: "New Task" })).toBeVisible();
+      await expect(taskDialog.locator('input[type="datetime-local"]')).toHaveValue(
+        `${dateKey}T09:00`,
+      );
     } else {
       await page.setViewportSize({ width, height: 1400 });
       await expect(page.getByLabel("Month view")).toBeVisible();
