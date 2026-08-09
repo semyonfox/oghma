@@ -289,8 +289,6 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         </button>
       </div>
 
-      <div className="my-2 h-px w-8 bg-border" />
-
       <button
         type="button"
         onClick={() => handleNavClick(SETTINGS_ITEM)}

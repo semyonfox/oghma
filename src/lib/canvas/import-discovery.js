@@ -12,6 +12,7 @@ import { CanvasClient } from "./client.js";
 import { pooled } from "./async-limiter.js";
 import {
   findOrCreateFolder,
+  CanvasFolderTrashedError,
   cleanCourseName,
   ASSIGNMENTS_PARENT_MODULE_ID,
 } from "./canvas-folders.js";
@@ -50,6 +51,12 @@ function throwFirstRejected(results, context) {
       }`,
     );
   }
+}
+
+async function lockUserTree(tx, userId) {
+  await tx`
+    SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+  `;
 }
 
 // ── Job course parsing ──────────────────────────────────────────────────────
@@ -95,74 +102,85 @@ async function insertPendingFile(
     ? file.lock_explanation || "File is locked or hidden for this Canvas user"
     : null;
 
-  // The discovery job is the generation fence for this row. Once a job is
-  // cancelled or has moved to processing, a late Canvas page must not create
-  // or revive work for it.
-  await sql`
-    INSERT INTO app.canvas_imports (
-      id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
-      filename, mime_type, status, error_message, job_id, parent_folder_id, s3_prefix
-    )
-    SELECT
-      gen_random_uuid(), ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasModuleId}::bigint,
-      ${canvasFileId}::bigint, ${file.display_name}, ${resolvedMimeType},
-      ${status}, ${errorMessage}, ${jobId}::uuid, ${parentFolderId}::uuid, ${s3Prefix}
-    WHERE EXISTS (
-      SELECT 1
-      FROM app.canvas_import_jobs
-      WHERE id = ${jobId}::uuid
-        AND user_id = ${userId}::uuid
-        AND type = 'canvas'
-        AND status = 'discovering'
-    )
-    ON CONFLICT (user_id, canvas_file_id)
-    DO UPDATE SET
-      status           = EXCLUDED.status,
-      job_id           = EXCLUDED.job_id,
-      canvas_course_id = EXCLUDED.canvas_course_id,
-      canvas_module_id = CASE
-        WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
-                   WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END) >
-             (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
-                   WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END)
-          THEN EXCLUDED.canvas_module_id
-        ELSE app.canvas_imports.canvas_module_id
-      END,
-      filename         = EXCLUDED.filename,
-      mime_type        = EXCLUDED.mime_type,
-      parent_folder_id = CASE
-        WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
-                   WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END) >
-             (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
-                   WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END)
-          THEN EXCLUDED.parent_folder_id
-        ELSE app.canvas_imports.parent_folder_id
-      END,
-      s3_prefix = CASE
-        WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
-                   WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END) >
-             (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
-                   WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
-                   ELSE 0 END)
-          THEN EXCLUDED.s3_prefix
-        ELSE app.canvas_imports.s3_prefix
-      END,
-      error_message    = EXCLUDED.error_message,
-      dispatched_at    = CASE
-        WHEN EXCLUDED.status = 'pending' THEN NULL
-        ELSE app.canvas_imports.dispatched_at
-      END,
-      updated_at       = NOW()
-    -- Only a terminal record may begin a new import generation. In-flight
-    -- rows belong to the existing job and must never be reassigned by a
-    -- duplicate discovery or stale page response.
-    WHERE app.canvas_imports.status IN ('error', 'forbidden', 'cancelled')
-  `;
+  // The discovery job is the generation fence for this row. It shares the
+  // tree lifecycle lock with Trash, so either this row is committed before
+  // the enclosing folder is deleted (and gets cancelled with it), or the
+  // deleted parent prevents this late Canvas page from publishing any work.
+  await sql.begin(async (tx) => {
+    await lockUserTree(tx, userId);
+    await tx`
+      INSERT INTO app.canvas_imports (
+        id, user_id, canvas_course_id, canvas_module_id, canvas_file_id,
+        filename, mime_type, status, error_message, job_id, parent_folder_id, s3_prefix
+      )
+      SELECT
+        gen_random_uuid(), ${userId}::uuid, ${canvasCourseId}::bigint, ${canvasModuleId}::bigint,
+        ${canvasFileId}::bigint, ${file.display_name}, ${resolvedMimeType},
+        ${status}, ${errorMessage}, ${jobId}::uuid, ${parentFolderId}::uuid, ${s3Prefix}
+      WHERE EXISTS (
+        SELECT 1
+        FROM app.canvas_import_jobs
+        WHERE id = ${jobId}::uuid
+          AND user_id = ${userId}::uuid
+          AND type = 'canvas'
+          AND status = 'discovering'
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM app.notes parent
+        WHERE parent.note_id = ${parentFolderId}::uuid
+          AND parent.user_id = ${userId}::uuid
+          AND parent.deleted_at IS NULL
+      )
+      ON CONFLICT (user_id, canvas_file_id)
+      DO UPDATE SET
+        status           = EXCLUDED.status,
+        job_id           = EXCLUDED.job_id,
+        canvas_course_id = EXCLUDED.canvas_course_id,
+        canvas_module_id = CASE
+          WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
+                     WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END) >
+               (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
+                     WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END)
+            THEN EXCLUDED.canvas_module_id
+          ELSE app.canvas_imports.canvas_module_id
+        END,
+        filename         = EXCLUDED.filename,
+        mime_type        = EXCLUDED.mime_type,
+        parent_folder_id = CASE
+          WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
+                     WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END) >
+               (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
+                     WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END)
+            THEN EXCLUDED.parent_folder_id
+          ELSE app.canvas_imports.parent_folder_id
+        END,
+        s3_prefix = CASE
+          WHEN (CASE WHEN EXCLUDED.canvas_module_id <> -1 THEN 2
+                     WHEN EXCLUDED.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END) >
+               (CASE WHEN app.canvas_imports.canvas_module_id <> -1 THEN 2
+                     WHEN app.canvas_imports.s3_prefix LIKE '%/assignments/%' THEN 1
+                     ELSE 0 END)
+            THEN EXCLUDED.s3_prefix
+          ELSE app.canvas_imports.s3_prefix
+        END,
+        error_message    = EXCLUDED.error_message,
+        dispatched_at    = CASE
+          WHEN EXCLUDED.status = 'pending' THEN NULL
+          ELSE app.canvas_imports.dispatched_at
+        END,
+        updated_at       = NOW()
+      -- Only a terminal record may begin a new import generation. In-flight
+      -- rows belong to the existing job and must never be reassigned by a
+      -- duplicate discovery or stale page response.
+      WHERE app.canvas_imports.status IN ('error', 'forbidden', 'cancelled')
+    `;
+  });
 }
 
 // ── Two-phase discovery helpers ─────────────────────────────────────────────
@@ -397,31 +415,42 @@ async function discoverCourse(course, userId, ctx) {
   );
   console.log(`Discovering course: ${courseTitle}`);
 
-  const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
-    canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
-    canvasAcademicYear: academicYear,
-  });
+  try {
+    const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
+      canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
+      canvasAcademicYear: academicYear,
+    });
 
-  // Canvas dynamically charges request cost and penalizes parallel calls.
-  // Keep top-level resource discovery serial; its inner operations are also
-  // bounded by CANVAS_DISCOVERY_CONCURRENCY.
-  await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
-  await discoverAssignmentFiles(
-    courseId,
-    userId,
-    courseTitle,
-    courseFolderId,
-    ctx,
-  );
-  await discoverStandaloneCourseFiles(
-    courseId,
-    userId,
-    courseTitle,
-    courseFolderId,
-    ctx,
-  );
+    // Canvas dynamically charges request cost and penalizes parallel calls.
+    // Keep top-level resource discovery serial; its inner operations are also
+    // bounded by CANVAS_DISCOVERY_CONCURRENCY.
+    await discoverModuleFiles(courseId, userId, courseTitle, courseFolderId, ctx);
+    await discoverAssignmentFiles(
+      courseId,
+      userId,
+      courseTitle,
+      courseFolderId,
+      ctx,
+    );
+    await discoverStandaloneCourseFiles(
+      courseId,
+      userId,
+      courseTitle,
+      courseFolderId,
+      ctx,
+    );
 
-  await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+    await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+  } catch (error) {
+    if (error instanceof CanvasFolderTrashedError) {
+      // A user intentionally removed this course hierarchy while discovery
+      // was in flight. Skip this course rather than silently recreate it or
+      // fail unrelated courses in the same import job.
+      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      return;
+    }
+    throw error;
+  }
 }
 
 // metadata sync is best-effort: a course still imports if the tracker sync fails
@@ -564,15 +593,23 @@ export async function processCourse(course, userId, ctx) {
     course.term,
   );
   console.log(`Processing course: ${courseTitle}`);
-  const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
-    canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
-    canvasAcademicYear: academicYear,
-  });
-  await processModules(courseId, userId, courseTitle, courseFolderId, ctx);
-  await processAssignments(courseId, userId, courseTitle, courseFolderId, ctx);
+  try {
+    const courseFolderId = await findOrCreateFolder(userId, courseTitle, null, {
+      canvasCourseId: canvasIdForBigintColumn(course.id, "Canvas course ID"),
+      canvasAcademicYear: academicYear,
+    });
+    await processModules(courseId, userId, courseTitle, courseFolderId, ctx);
+    await processAssignments(courseId, userId, courseTitle, courseFolderId, ctx);
 
-  // sync assignment metadata (titles, due dates, scores) for the tracker
-  await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+    // sync assignment metadata (titles, due dates, scores) for the tracker
+    await syncAssignmentMetadataQuietly(courseId, userId, courseTitle, ctx.client);
+  } catch (error) {
+    if (error instanceof CanvasFolderTrashedError) {
+      console.log(`Skipping trashed Canvas course: ${courseTitle}`);
+      return;
+    }
+    throw error;
+  }
 }
 
 // ── Two-phase discovery entry point ─────────────────────────────────────────

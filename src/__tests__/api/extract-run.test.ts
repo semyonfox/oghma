@@ -66,6 +66,9 @@ type SqlCall = [TemplateStringsArray, ...unknown[]];
 describe("runExtraction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ note_id: "00000000-0000-0000-0000-000000000001" }] as never)
+      .mockResolvedValueOnce([{ note_id: "00000000-0000-0000-0000-000000000001" }] as never);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -107,5 +110,22 @@ describe("runExtraction", () => {
       "00000000-0000-0000-0000-000000000002",
       ["Marker text", "Diagram text"],
     );
+  });
+
+  it("does not fetch or publish an extraction for a note already in Trash", async () => {
+    vi.mocked(sql).mockReset();
+    vi.mocked(sql).mockResolvedValueOnce([] as never);
+
+    await expect(
+      runExtraction(
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        "uploads/doc.pdf",
+        "application/pdf",
+      ),
+    ).resolves.toEqual({ chunksStored: 0 });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(replaceNoteEmbeddings).not.toHaveBeenCalled();
   });
 });

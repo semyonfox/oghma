@@ -29,6 +29,7 @@ describe("qdrant vector store", () => {
       .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }))
+      .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -45,7 +46,7 @@ describe("qdrant vector store", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://qdrant.test/collections/test_chunks",
       expect.objectContaining({
-        method: "PUT",
+      method: "PUT",
         body: JSON.stringify({
           vectors: { size: 3, distance: "Cosine" },
           hnsw_config: {
@@ -71,6 +72,7 @@ describe("qdrant vector store", () => {
                 chunk_id: "33333333-3333-4333-8333-333333333333",
                 document_id: "22222222-2222-4222-8222-222222222222",
                 user_id: "11111111-1111-4111-8111-111111111111",
+                searchable: true,
               },
             },
           ],
@@ -87,6 +89,7 @@ describe("qdrant vector store", () => {
           result: { config: { params: { vectors: { size: 3 } } } },
         }),
       )
+      .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }))
       .mockResolvedValueOnce(jsonResponse({ result: true }))
@@ -127,7 +130,7 @@ describe("qdrant vector store", () => {
       limit: 10,
     });
 
-    const searchBody = JSON.parse(fetchMock.mock.calls[4][1].body);
+    const searchBody = JSON.parse(fetchMock.mock.calls[5][1].body);
     expect(searchBody.filter).toEqual({
       must: [
         {
@@ -145,6 +148,7 @@ describe("qdrant vector store", () => {
           match: { any: ["99999999-9999-4999-8999-999999999999"] },
         },
         { has_id: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"] },
+        { key: "searchable", match: { value: false } },
       ],
     });
     expect(hits).toEqual([
@@ -170,6 +174,28 @@ describe("qdrant vector store", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          points: ["33333333-3333-4333-8333-333333333333"],
+        }),
+      }),
+    );
+  });
+
+  it("hides or restores stored vectors without deleting them", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ result: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { setChunkVectorsSearchable } = await loadQdrant();
+    await setChunkVectorsSearchable(
+      ["33333333-3333-4333-8333-333333333333"],
+      false,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://qdrant.test/collections/test_chunks/points/payload?wait=true",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          payload: { searchable: false },
           points: ["33333333-3333-4333-8333-333333333333"],
         }),
       }),

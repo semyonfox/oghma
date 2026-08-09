@@ -30,6 +30,17 @@ export default function PrivacyPage() {
         </p>
       </InfoSection>
 
+      <InfoSection title="Retention and Deletion">
+        <p>
+          Moving a note or folder to Trash keeps it, its files, and its
+          processing data available for restoration for 30 days. Emptying
+          Trash or using Clear vault requests permanent deletion instead. If a
+          shared imported-file cache has no remaining note or active import
+          reference, its derived processing data may be retained for up to a
+          further 7 days while it is safely cleaned up.
+        </p>
+      </InfoSection>
+
       <InfoSection title="Privacy-First Analytics">
         <p>
           We use limited first-party, aggregate-oriented events to understand
@@ -66,7 +77,7 @@ export default function PrivacyPage() {
       </InfoSection>
 
       <InfoSection title="Last Updated">
-        <p>July 11, 2026.</p>
+        <p>August 8, 2026.</p>
       </InfoSection>
     </PublicInfoPage>
   );

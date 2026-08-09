@@ -53,6 +53,18 @@ async function queueExtractionRetry(retryOpts) {
   );
 }
 
+async function isActiveNote(noteId, userId) {
+  const [note] = await sql`
+    SELECT note_id
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
+    LIMIT 1
+  `;
+  return Boolean(note);
+}
+
 // ── RAG pipeline (extraction + embedding) ───────────────────────────────────
 
 /**
@@ -91,8 +103,20 @@ export async function processRagPipeline(
     retryOnFailure = true,
   } = ragOpts;
   try {
+    // Work can still be running on a GPU after the user moves a note to
+    // Trash. Do not begin a publishable pipeline for a note that is no longer
+    // active; the lifecycle service also fences jobs, but this protects a
+    // direct/retried worker that already has a queue message.
+    if (!(await isActiveNote(noteId, userId))) {
+      logger.info("canvas-import-file-skipped-trashed-note", { noteId, jobId });
+      return { noteId, chunksStored: 0, skipped: true };
+    }
+
     const canQueueMarker = markerQueueEnabled() && Boolean(s3Key);
     const queueMarker = async () => {
+      if (!(await isActiveNote(noteId, userId))) {
+        return { noteId, chunksStored: 0, skipped: true };
+      }
       const submitted = await submitMarkerJob({
         sourceKey: s3Key,
         sourceBytes: buffer?.length ?? null,
@@ -192,11 +216,17 @@ export async function processRagPipeline(
     if (isText) {
       const searchText = stripMarkdown(rawText);
       // text files: embed on the original note directly (no sibling needed)
-      await sql`
+      const updated = await sql`
         UPDATE app.notes
         SET extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        RETURNING note_id
       `;
+      if (updated.length === 0) {
+        return { noteId, chunksStored: 0, skipped: true };
+      }
       const embeddingStart = Date.now();
       const count = await replaceEmbeddings(noteId, userId, chunks);
       const embeddingElapsedMs = Date.now() - embeddingStart;
@@ -214,6 +244,9 @@ export async function processRagPipeline(
     }
 
     // binary files: create a sibling .md note for the extracted content
+    if (!(await isActiveNote(noteId, userId))) {
+      return { noteId, chunksStored: 0, skipped: true };
+    }
     const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
     const { noteId: mdNoteId } = await findOrCreateNote(
       userId,
@@ -234,11 +267,17 @@ export async function processRagPipeline(
     const searchText = stripMarkdown(finalMarkdown);
 
     // stripped text for full-text search (no ### --- ** etc.)
-    await sql`
+    const updated = await sql`
       UPDATE app.notes
       SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${mdNoteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND deleted_at IS NULL
+      RETURNING note_id
     `;
+    if (updated.length === 0) {
+      return { noteId, chunksStored: 0, skipped: true };
+    }
 
     const embeddingStart = Date.now();
     const count = await replaceEmbeddings(mdNoteId, userId, chunks);

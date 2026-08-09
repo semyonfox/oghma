@@ -45,6 +45,16 @@ export async function runExtraction(
   s3Key: string,
   mimeType: string,
 ): Promise<ExtractionResult> {
+  const [activeNote] = await sql`
+    SELECT note_id
+    FROM app.notes
+    WHERE note_id = ${documentId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
+    LIMIT 1
+  `;
+  if (!activeNote) return { chunksStored: 0 };
+
   const storage = getStorageProvider();
 
   // get a fresh signed URL (worker may have picked up the job after the
@@ -135,14 +145,18 @@ export async function runExtraction(
     partial: Boolean(pageRange),
     extracted_at: new Date().toISOString(),
   });
-  await sql`
+  const updated = await sql`
         UPDATE app.notes
         SET content = ${finalMarkdown},
             extracted_text = ${cleanedText},
             extraction_coverage = ${extractionCoverage}::jsonb,
             updated_at = NOW()
-        WHERE note_id = ${documentId}::uuid AND user_id = ${userId}::uuid
+        WHERE note_id = ${documentId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        RETURNING note_id
     `;
+  if (updated.length === 0) return { chunksStored: 0 };
 
   if (chunks.length === 0) {
     logger.warn("extraction produced no chunks", { documentId, s3Key });

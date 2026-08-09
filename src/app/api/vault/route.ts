@@ -1,142 +1,75 @@
-import { NextResponse } from 'next/server';
-import { validateSession } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rateLimiter';
-import { getStorageProvider } from '@/lib/storage/init';
-import { withErrorHandler, tracedError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
-import logger from '@/lib/logger';
-import { deleteChunkVectors } from '@/lib/qdrant';
-import { isSharedImportedFileKey } from '@/lib/canvas/import-cache';
+import { NextResponse } from "next/server";
+import { withErrorHandler, requireAuth } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rateLimiter";
+import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
+import {
+  permanentlyDeleteAllUserNotes,
+  queueVaultStorageCleanup,
+} from "@/lib/notes/storage/note-lifecycle";
+import sql from "@/database/pgsql.js";
 
 /**
  * DELETE /api/vault
  *
- * Wipes all user data from both Postgres and S3:
- *   - Deletes each user-owned S3 object referenced by the user's notes
- *     (while preserving globally shared imported-file cache blobs)
- *   - Deletes all rows from app.notes, app.tree_items, app.canvas_imports,
- *     app.canvas_import_jobs, and app.pdf_annotations for this user
- *
- * Intentionally does NOT delete the user's login row (credentials / Canvas token)
- * so they remain authenticated and can re-import immediately.
- *
- * Returns a summary of what was deleted.
+ * Clear Vault deliberately bypasses the 30-day Trash. It first fences all
+ * running imports, then uses the same durable permanent-delete path as Empty
+ * Trash. Private object/vector cleanup is retried by the worker if an external
+ * provider is temporarily unavailable; shared import-cache objects are only
+ * collected later by their reference-aware retention job.
  */
 export const DELETE = withErrorHandler(async () => {
-  try {
-    const user = await validateSession();
-    if (!user) {
-      return tracedError('Unauthorized', 401);
-    }
+  const user = await requireAuth();
+  const limited = await checkRateLimit("vault-delete", user.user_id);
+  if (limited) return limited;
 
-    const limited = await checkRateLimit('vault-delete', user.user_id);
-    if (limited) return limited;
-
-    const userId = user.user_id;
-    const storage = getStorageProvider();
-
-    // ── 1. Collect all S3 keys for this user ────────────────────────────────
-    const s3Rows = await sql`
-      SELECT s3_key FROM app.notes
-      WHERE user_id = ${userId}::uuid
-        AND s3_key IS NOT NULL
-    `;
-
-    // Imported PDFs live in a global, deduplicated cache. The current user's
-    // note row merely references those objects, so a vault wipe must not make
-    // another import (or later re-import) point at a deleted shared blob.
-    const s3Keys: string[] = s3Rows
-      .map((r: { s3_key: string }) => r.s3_key)
-      .filter((key: string) => !isSharedImportedFileKey(key));
-    const chunkRows = await sql`
-      SELECT c.id FROM app.chunks c
-      JOIN app.notes n ON c.document_id = n.note_id
-      WHERE n.user_id = ${userId}::uuid
-    `;
-    const chunkIds: string[] = chunkRows.map((r: { id: string }) => r.id);
-
-    // 2. Delete from S3. Log failures, but do not stop the request.
-    let s3Deleted = 0;
-    let s3Failed = 0;
-
-    await Promise.all(
-      s3Keys.map(async (key) => {
-        try {
-          await storage.deleteObject(key);
-          s3Deleted++;
-        } catch (err) {
-          logger.error('failed to delete S3 object', { key, error: err });
-          s3Failed++;
-        }
-      })
+  await sql.begin(async (tx: any) => {
+    await cancelActiveCanvasImportJobs(
+      tx,
+      user.user_id,
+      "Vault permanently cleared by user",
     );
-
-    // ── 3. Wipe Postgres rows ────────────────────────────────────────────────
-    // Order matters: delete children before parents to avoid FK violations
-
-    // Embeddings + chunks (RAG pipeline data)
-    await deleteChunkVectors(chunkIds).catch((error) => {
-      logger.warn('vault Qdrant delete failed', { userId, error });
-    });
-    await sql`
-      DELETE FROM app.chunks
-      WHERE document_id IN (
-        SELECT note_id FROM app.notes WHERE user_id = ${userId}::uuid
-      )
+    // Vault imports are not covered by the Canvas-only helper above. Fence
+    // every active job before any notes are removed so late workers cannot
+    // recreate data after a clear.
+    await tx`
+      UPDATE app.canvas_import_jobs
+      SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
+      WHERE user_id = ${user.user_id}::uuid
+        AND status IN ('queued', 'discovering', 'processing')
     `;
+  });
 
-    // PDF annotations reference notes
-    const annotationsResult = await sql`
-      DELETE FROM app.pdf_annotations
-      WHERE note_id IN (
-        SELECT note_id FROM app.notes WHERE user_id = ${userId}::uuid
-      )
-      RETURNING note_id
-    `;
+  const result = await permanentlyDeleteAllUserNotes(user.user_id);
+  const vaultStorageCleanupPending = await queueVaultStorageCleanup(
+    user.user_id,
+  );
 
-    // Tree items reference notes
-    const treeResult = await sql`
-      DELETE FROM app.tree_items
-      WHERE user_id = ${userId}::uuid
-      RETURNING note_id
-    `;
-
-    // Canvas import records
-    const importsResult = await sql`
+  // A cancelled job can have discovery rows without a note yet. They are not
+  // a Trash item, so Clear Vault removes them immediately too.
+  const [importsResult, jobsResult] = await Promise.all([
+    sql`
       DELETE FROM app.canvas_imports
-      WHERE user_id = ${userId}::uuid
+      WHERE user_id = ${user.user_id}::uuid
       RETURNING id
-    `;
-
-    // Canvas import jobs
-    const jobsResult = await sql`
+    `,
+    sql`
       DELETE FROM app.canvas_import_jobs
-      WHERE user_id = ${userId}::uuid
+      WHERE user_id = ${user.user_id}::uuid
       RETURNING id
-    `;
+    `,
+  ]);
 
-    // Notes themselves (including folders)
-    const notesResult = await sql`
-      DELETE FROM app.notes
-      WHERE user_id = ${userId}::uuid
-      RETURNING note_id
-    `;
-
-    return NextResponse.json({
-      success: true,
-      summary: {
-        s3FilesDeleted: s3Deleted,
-        s3FilesFailed: s3Failed,
-        notesDeleted: notesResult.length,
-        treeItemsDeleted: treeResult.length,
-        canvasImportsDeleted: importsResult.length,
-        canvasJobsDeleted: jobsResult.length,
-        annotationsDeleted: annotationsResult.length,
-      },
-    });
-
-  } catch (err) {
-    logger.error('vault delete error', { error: err });
-    return tracedError('Failed to delete vault', 500);
-  }
+  return NextResponse.json({
+    success: true,
+    summary: {
+      notesDeleted: result.noteIds.length,
+      // Kept for the settings UI's existing contract. A non-zero cleanup task
+      // means these keys were queued and may be retried rather than silently
+      // abandoned if S3/Qdrant was unavailable.
+      s3FilesDeleted: result.objectKeys,
+      cleanupPending: Boolean(result.cleanupTaskId) || vaultStorageCleanupPending,
+      canvasImportsDeleted: importsResult.length,
+      canvasJobsDeleted: jobsResult.length,
+    },
+  });
 });

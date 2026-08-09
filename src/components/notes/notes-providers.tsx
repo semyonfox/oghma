@@ -8,7 +8,6 @@ import { useLocaleLoader } from "@/lib/hooks/useLocaleLoader";
 import { Locale } from "@/locales";
 import dynamic from "next/dynamic";
 
-const TrashModal = dynamic(() => import("@/components/notes/trash-modal"), { ssr: false });
 const PreviewModal = dynamic(() => import("@/components/notes/preview-modal"), { ssr: false });
 const LinkToolbar = dynamic(() => import("@/components/notes/link-toolbar"), { ssr: false });
 
@@ -21,7 +20,6 @@ function NotesProvidersContent({ children }: NotesProvidersProps) {
 
   const sharedUI = (
     <>
-      <TrashModal />
       <PreviewModal />
       <LinkToolbar />
     </>

@@ -75,10 +75,11 @@ export async function getTreeFromPG(userId) {
       const noteId = String(row.note_id);
       const parentId = row.parent_id ? String(row.parent_id) : ROOT_ID;
       if (!items[parentId]) {
-        items[parentId] = {
-          id: parentId,
-          children: [],
-        };
+        // A child can be restored while its original parent is still in
+        // Trash. Render it at root for now, but leave the DB parent_id alone
+        // so restoring that parent later returns this item to its old place.
+        items[ROOT_ID].children.push(noteId);
+        continue;
       }
       items[parentId].children.push(noteId);
     }

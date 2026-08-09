@@ -5,9 +5,11 @@ import { ObjectOptions, ObjectMetadata, StoreProvider, StoreProviderConfig } fro
 import { toBuffer, toStr } from './str';
 import {
   CopyObjectCommand,
+  DeleteObjectsCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   S3ClientConfig,
@@ -364,6 +366,46 @@ export class StoreS3 extends StoreProvider {
       this.logger.error(error instanceof Error ? error : String(error), `Error deleting object: ${fullPath}`);
       throw error;
     }
+  }
+
+  /** Delete all objects under one narrow application-owned prefix. */
+  async deletePrefix(path: string): Promise<void> {
+    const normalized = path.replace(/^\/+/, "");
+    if (!normalized || normalized.includes("..")) {
+      throw new Error("Refusing to delete an unsafe storage prefix");
+    }
+    const fullPrefix = this.getPath(
+      normalized.endsWith("/") ? normalized : `${normalized}/`,
+    );
+    this.logger.debug(`Deleting storage prefix: ${fullPrefix}`);
+
+    let continuationToken: string | undefined;
+    do {
+      const listed = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.config.bucket,
+          Prefix: fullPrefix,
+          ContinuationToken: continuationToken,
+        }),
+      );
+      const objects = (listed.Contents ?? [])
+        .map((entry) => entry.Key)
+        .filter((key): key is string => Boolean(key));
+      if (objects.length > 0) {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.config.bucket,
+            Delete: {
+              Objects: objects.map((Key) => ({ Key })),
+              Quiet: true,
+            },
+          }),
+        );
+      }
+      continuationToken = listed.IsTruncated
+        ? listed.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
   }
 
   /**

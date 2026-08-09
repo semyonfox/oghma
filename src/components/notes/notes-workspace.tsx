@@ -20,10 +20,15 @@ import MobileDrawer from "@/components/navigation/mobile-drawer";
 import NoteTreePanel from "@/components/notes/note-tree-panel";
 import SplitEditorPane from "@/components/editor/split-editor-pane";
 import NoteInspectorPanel from "@/components/notes/note-inspector-panel";
+import TrashPage from "@/components/notes/trash-page";
 import { resolveNoteRoute } from "@/lib/notes/utils/note-route";
 import { buildFileSpec } from "@/lib/notes/utils/file-spec";
 
-export default function NotesWorkspace() {
+interface NotesWorkspaceProps {
+  view?: "notes" | "trash";
+}
+
+export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) {
   const { t } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
@@ -41,6 +46,7 @@ export default function NotesWorkspace() {
   const paneAFileId = useLayoutStore((s) => s.paneA.fileId);
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
+  const isTrashView = view === "trash";
 
   useEffect(() => {
     const route = resolveNoteRoute(pathname);
@@ -130,7 +136,7 @@ export default function NotesWorkspace() {
   return (
     <div className="relative flex h-dvh w-screen flex-col bg-background">
       <MobileAppHeader
-        title={t("Notes")}
+        title={isTrashView ? t("Trash") : t("Notes")}
         actions={
           <button
             type="button"
@@ -158,7 +164,7 @@ export default function NotesWorkspace() {
             <NoteTreePanel onOpenNote={() => setTreeDrawerOpen(false)} />
           </MobileDrawer>
 
-          <MobileDrawer
+          {!isTrashView && <MobileDrawer
             open={rightPanelOpen}
             onClose={() => setRightPanelOpen(false)}
             title={inspectorTitle}
@@ -167,7 +173,7 @@ export default function NotesWorkspace() {
             panelClassName="w-[94vw] max-w-md"
           >
             <NoteInspectorPanel presentation="drawer" />
-          </MobileDrawer>
+          </MobileDrawer>}
         </>
       )}
 
@@ -183,7 +189,7 @@ export default function NotesWorkspace() {
 
         {isDesktop === true && (
           <PanelGroup
-            key={rightPanelOpen ? "with-inspector" : "without-inspector"}
+            key={rightPanelOpen && !isTrashView ? "with-inspector" : "without-inspector"}
             orientation="horizontal"
             className="min-w-0 flex-1"
             onLayoutChanged={() => {
@@ -217,27 +223,29 @@ export default function NotesWorkspace() {
 
             <Panel id="note-editor" minSize="320px" className="flex min-w-0">
               <main
-                aria-label={t("Note editor")}
+                aria-label={isTrashView ? t("Trash") : t("Note editor")}
                 className="h-full min-h-0 w-full overflow-hidden bg-background"
               >
                 {!noteDependenciesReady ? (
                   <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
                     {t("Loading...")}
                   </div>
+                ) : isTrashView ? (
+                  <TrashPage />
                 ) : (
                   <SplitEditorPane />
                 )}
               </main>
             </Panel>
 
-            {rightPanelOpen && (
+            {rightPanelOpen && !isTrashView && (
               <PanelResizeHandle
                 aria-label={t("Resize details panel")}
                 className="w-px cursor-col-resize bg-border-subtle transition-colors hover:bg-primary-500/40 active:bg-primary-500/60"
               />
             )}
 
-            {rightPanelOpen && (
+            {rightPanelOpen && !isTrashView && (
               <Panel
                 id="note-inspector"
                 defaultSize={`${rightPanelWidth}px`}
@@ -259,13 +267,15 @@ export default function NotesWorkspace() {
 
         {isDesktop !== true && (
           <main
-            aria-label={t("Note editor")}
+            aria-label={isTrashView ? t("Trash") : t("Note editor")}
             className="h-full min-h-0 w-full overflow-hidden bg-background"
           >
             {isDesktop === null || !noteDependenciesReady ? (
               <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
                 {t("Loading...")}
               </div>
+            ) : isTrashView ? (
+              <TrashPage />
             ) : (
               <SplitEditorPane />
             )}

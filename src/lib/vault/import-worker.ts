@@ -15,13 +15,18 @@ import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
-import { addNoteToTree } from "../notes/storage/pg-tree.js";
 import { extractWithMarker } from "../ocr.ts";
-import { persistMarkerAssetsForNote } from "../marker-output.ts";
+import {
+  markerAssetPrefix,
+  persistMarkerAssetsForNote,
+} from "../marker-output.ts";
 import {
   shouldIgnore,
   sanitizePath,
   ensureFolderPath,
+  assertVaultImportJobActive,
+  VaultImportCancelledError,
+  VaultTreeParentUnavailableError,
 } from "./tree-builder";
 import { sendVaultImportCompleteEmail } from "../email.js";
 import { recordActivationMilestone } from "../marketing/events";
@@ -66,20 +71,58 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function isActiveNote(userId: string, noteId: string): Promise<boolean> {
+  const [note] = await sql`
+    SELECT note_id
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
+    LIMIT 1
+  `;
+  return Boolean(note);
+}
+
 async function createNote(
   userId: string,
   title: string,
   parentId: string | null,
   opts: { s3Key?: string | null; content?: string } = {},
+  jobId?: string,
 ): Promise<string> {
   const noteId = uuidv4();
   const s3Key = opts.s3Key ?? null;
   const content = opts.content ?? "";
-  await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, false, NOW(), NOW())
-  `;
-  await addNoteToTree(userId, noteId, parentId ?? null);
+  await sql.begin(async (tx: any) => {
+    // Coordinate with both Trash and Clear Vault. If Clear Vault wins, the
+    // job check fails while holding the same user-tree lock and no late note
+    // or tree row can be committed after its note snapshot was collected.
+    await tx`
+      SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+    `;
+    await assertVaultImportJobActive(tx, userId, jobId);
+    if (parentId) {
+      const [parent] = await tx`
+        SELECT note_id
+        FROM app.notes
+        WHERE note_id = ${parentId}::uuid
+          AND user_id = ${userId}::uuid
+          AND is_folder = TRUE
+          AND deleted_at IS NULL
+        FOR KEY SHARE
+      `;
+      if (!parent) throw new VaultTreeParentUnavailableError();
+    }
+    await tx`
+      INSERT INTO app.notes (note_id, user_id, title, content, s3_key, is_folder, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, false, NOW(), NOW())
+    `;
+    await tx`
+      INSERT INTO app.tree_items (user_id, note_id, parent_id)
+      VALUES (${userId}::uuid, ${noteId}::uuid, ${parentId}::uuid)
+      ON CONFLICT (user_id, note_id) DO NOTHING
+    `;
+  });
   return noteId;
 }
 
@@ -88,6 +131,7 @@ async function findOrCreateNote(
   title: string,
   parentId: string | null,
   opts: { s3Key?: string | null; content?: string } = {},
+  jobId?: string,
 ): Promise<{ noteId: string; created: boolean }> {
   const existing = await sql`
     SELECT n.note_id FROM app.notes n
@@ -103,7 +147,7 @@ async function findOrCreateNote(
     return { noteId: existing[0].note_id, created: false };
   }
 
-  const noteId = await createNote(userId, title, parentId, opts);
+  const noteId = await createNote(userId, title, parentId, opts, jobId);
   return { noteId, created: true };
 }
 
@@ -112,7 +156,7 @@ async function processRagPipeline(
   userId: string,
   parentFolderId: string | null,
   buffer: Buffer,
-  opts: { filename: string; mimeType: string | null },
+  opts: { filename: string; mimeType: string | null; jobId?: string },
 ): Promise<void> {
   const { filename, mimeType } = opts;
   const isText = mimeType?.startsWith("text/");
@@ -149,6 +193,8 @@ async function processRagPipeline(
       UPDATE app.notes
       SET content = ${rawText}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
       WHERE note_id = ${noteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND deleted_at IS NULL
     `;
     const count = await replaceNoteEmbeddings(noteId, userId, chunks);
     console.log(`[vault-import] RAG: ${count} chunks for text note ${noteId}`);
@@ -164,8 +210,10 @@ async function processRagPipeline(
     {
       content: rawText,
     },
+    opts.jobId,
   );
   const storage = getStorageProvider();
+  if (!(await isActiveNote(userId, mdNoteId))) return;
   const markerAssets = await persistMarkerAssetsForNote({
     storage,
     userId,
@@ -174,12 +222,28 @@ async function processRagPipeline(
     images: markerImages,
     metadata: markerMetadata,
   });
+  if (!(await isActiveNote(userId, mdNoteId))) {
+    // Clear Vault/Trash may win while Marker assets are being persisted. The
+    // permanent cleanup may have run before these late writes, so remove this
+    // known note namespace immediately instead of leaving untracked objects.
+    await storage.deletePrefix(markerAssetPrefix(userId, mdNoteId)).catch(
+      (cleanupError) => {
+        console.warn(
+          `[vault-import] failed to clean Marker assets for deleted note ${mdNoteId}:`,
+          errorMessage(cleanupError),
+        );
+      },
+    );
+    return;
+  }
   const finalMarkdown = markerAssets.markdown;
   const searchText = stripMarkdown(finalMarkdown);
   await sql`
     UPDATE app.notes
     SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
     WHERE note_id = ${mdNoteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
   `;
   const count = await replaceNoteEmbeddings(mdNoteId, userId, chunks);
   console.log(
@@ -390,7 +454,22 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
   let cancelled = false;
 
   try {
-    await sql`UPDATE app.canvas_import_jobs SET status = 'processing', started_at = NOW() WHERE id = ${jobId}::uuid`;
+    // Claim exactly once. In particular, a stale delivery must never change a
+    // Clear Vault-cancelled job back to processing and resume writing notes.
+    const [claimed] = await sql`
+      UPDATE app.canvas_import_jobs
+      SET status = 'processing', started_at = COALESCE(started_at, NOW()), updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+        AND user_id = ${userId}::uuid
+        AND type = 'vault-import'
+        AND input_s3_key = ${s3Key}
+        AND status = 'queued'
+      RETURNING id
+    `;
+    if (!claimed) {
+      console.log(`[${ts()}] Vault import ${jobId} is already claimed, cancelled, or missing`);
+      return;
+    }
 
     const storage = getStorageProvider();
     const folderCache = new Map();
@@ -412,16 +491,19 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
         const filename = cleanPath.split("/").pop();
         if (!filename) return;
 
+        let uploadedFileKey: string | null = null;
         try {
           const parentId = await ensureFolderPath(
             userId,
             cleanPath,
             folderCache,
+            jobId,
           );
           totalFolders = folderCache.size;
 
           const mimeType = getMimeType(filename);
           const s3FileKey = `vault/${userId}/${jobId}/${cleanPath}`;
+          uploadedFileKey = s3FileKey;
 
           await storage.putObject(s3FileKey, buffer, {
             contentType: mimeType || "application/octet-stream",
@@ -432,7 +514,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
             content: mimeType?.startsWith("text/")
               ? buffer.toString("utf-8")
               : "",
-          });
+          }, jobId);
 
           await sql`
             INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
@@ -445,6 +527,7 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
               await processRagPipeline(noteId, userId, parentId, buffer, {
                 filename,
                 mimeType,
+                jobId,
               });
             } catch (ragErr) {
               console.error(
@@ -482,6 +565,27 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
           }
           console.log(`[${ts()}] Imported: ${cleanPath}`);
         } catch (err) {
+          if (
+            err instanceof VaultImportCancelledError ||
+            err instanceof VaultTreeParentUnavailableError
+          ) {
+            // A cooperative cancellation can win after the bytes have been
+            // uploaded but before a note owns them. Remove that otherwise
+            // unreferenced object immediately; a future Clear Vault has no
+            // note row from which to discover it.
+            if (uploadedFileKey) {
+              await storage.deleteObject(uploadedFileKey).catch((cleanupError) => {
+                console.warn(
+                  `[${ts()}] Failed to remove cancelled vault object ${uploadedFileKey}:`,
+                  errorMessage(cleanupError),
+                );
+              });
+            }
+            if (err instanceof VaultImportCancelledError) {
+              cancelled = true;
+            }
+            return;
+          }
           failedFiles++;
           console.error(
             `[${ts()}] Failed to import ${cleanPath}:`,

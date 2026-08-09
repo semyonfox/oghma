@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
 import { generateUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
@@ -104,21 +103,42 @@ export const POST = withErrorHandler(async (request) => {
   // The notes UI creates an optimistic UUID before POSTing so its tree item and
   // route point at the same persisted note. API-only callers may omit it.
   const noteId = body.id || generateUUID();
-
-  // Create new note in PostgreSQL
-  const isFolder = body.isFolder === true || body.is_folder === true;
-  const result = await sql`
-    INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-    VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, NOW(), NOW())
-    RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
-  `;
-
-  const note = result[0];
-
-  // Add note to tree with optional parent_id from request body
-  // If pid is provided, use it; otherwise add to root (parent_id = null)
   const parentId = body.pid || null;
-  await addNoteToTree(user.user_id, note.note_id, parentId);
+
+  const isFolder = body.isFolder === true || body.is_folder === true;
+  const note = await sql.begin(async (tx) => {
+    // Serialize creation with a Trash transition. Otherwise a browser action
+    // already in flight could append a new active child just after its folder
+    // was moved to Trash, leaving that child unexpectedly visible at root.
+    await tx`
+      SELECT pg_advisory_xact_lock(hashtextextended(${user.user_id}::text, 0))
+    `;
+    if (parentId) {
+      const [parent] = await tx`
+        SELECT note_id
+        FROM app.notes
+        WHERE note_id = ${parentId}::uuid
+          AND user_id = ${user.user_id}::uuid
+          AND is_folder = TRUE
+          AND deleted_at IS NULL
+        FOR UPDATE
+      `;
+      if (!parent) throw new ApiError(404, "Parent folder not found");
+    }
+
+    const result = await tx`
+      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, NOW(), NOW())
+      RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
+    `;
+    const created = result[0];
+    await tx`
+      INSERT INTO app.tree_items (user_id, note_id, parent_id)
+      VALUES (${user.user_id}::uuid, ${created.note_id}::uuid, ${parentId}::uuid)
+      ON CONFLICT (user_id, note_id) DO NOTHING
+    `;
+    return created;
+  });
 
   if (body.content) {
     try {

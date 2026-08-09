@@ -5,7 +5,6 @@
 
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
-import { addNoteToTree } from "../notes/storage/pg-tree.js";
 
 // paths to skip during import
 const IGNORED_PATHS = [
@@ -33,6 +32,62 @@ interface FolderQueryRow {
 
 interface VaultFolder {
   note_id: string;
+}
+
+export class VaultImportCancelledError extends Error {
+  constructor() {
+    super("Vault import is no longer active");
+    this.name = "VaultImportCancelledError";
+  }
+}
+
+export class VaultTreeParentUnavailableError extends Error {
+  constructor() {
+    super("Vault import parent folder is no longer active");
+    this.name = "VaultTreeParentUnavailableError";
+  }
+}
+
+async function lockUserTree(tx: any, userId: string): Promise<void> {
+  await tx`
+    SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+  `;
+}
+
+export async function assertVaultImportJobActive(
+  tx: any,
+  userId: string,
+  jobId: string | undefined,
+): Promise<void> {
+  if (!jobId) return;
+  const [job] = await tx`
+    SELECT id
+    FROM app.canvas_import_jobs
+    WHERE id = ${jobId}::uuid
+      AND user_id = ${userId}::uuid
+      AND type = 'vault-import'
+      AND status = 'processing'
+    FOR KEY SHARE
+  `;
+  if (!job) throw new VaultImportCancelledError();
+}
+
+async function assertActiveParent(
+  tx: any,
+  userId: string,
+  parentId: string | null,
+): Promise<void> {
+  if (!parentId) return;
+  const [parent] = await tx`
+    SELECT note_id
+    FROM app.notes
+    WHERE note_id = ${parentId}::uuid
+      AND user_id = ${userId}::uuid
+      AND is_folder = TRUE
+      AND deleted_at IS NULL
+    FOR KEY SHARE
+  `;
+  if (!parent) throw new VaultTreeParentUnavailableError();
 }
 
 interface ExportPath {
@@ -76,46 +131,89 @@ export async function findOrCreateVaultFolder(
   userId: string,
   title: string,
   parentId: string | null,
+  jobId?: string,
 ): Promise<string | null> {
-  const existing = (await sql`
-    SELECT n.note_id FROM app.notes n
-    JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
-    WHERE n.user_id = ${userId}::uuid
-      AND n.title = ${title}
-      AND n.is_folder = true
-      AND n.deleted_at IS NULL
-      AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
-    LIMIT 1
-  `) as VaultFolder[];
-
-  if (existing.length > 0) {
-    return existing[0].note_id;
-  }
-
-  const noteId = uuidv4();
   try {
-    await sql`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, '', true, NOW(), NOW())
-    `;
-    await addNoteToTree(userId, noteId, parentId ?? null);
-    return noteId;
+    return await sql.begin(async (tx: any) => {
+      // Use the same lock as Trash/Clear Vault so a background zip entry is
+      // either visible to the destructive transaction or observes its job
+      // cancellation before it creates a tree row.
+      await lockUserTree(tx, userId);
+      await assertVaultImportJobActive(tx, userId, jobId);
+      await assertActiveParent(tx, userId, parentId);
+
+      const existing = (parentId
+        ? await tx`
+            SELECT n.note_id FROM app.notes n
+            JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+            WHERE n.user_id = ${userId}::uuid
+              AND n.title = ${title}
+              AND n.is_folder = true
+              AND n.deleted_at IS NULL
+              AND t.parent_id = ${parentId}::uuid
+            LIMIT 1
+          `
+        : await tx`
+            SELECT n.note_id FROM app.notes n
+            JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+            WHERE n.user_id = ${userId}::uuid
+              AND n.title = ${title}
+              AND n.is_folder = true
+              AND n.deleted_at IS NULL
+              AND t.parent_id IS NULL
+            LIMIT 1
+          `) as VaultFolder[];
+      if (existing.length > 0) return existing[0].note_id;
+
+      const noteId = uuidv4();
+      await tx`
+        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
+        VALUES (${noteId}::uuid, ${userId}::uuid, ${title}, '', true, NOW(), NOW())
+      `;
+      await tx`
+        INSERT INTO app.tree_items (user_id, note_id, parent_id)
+        VALUES (${userId}::uuid, ${noteId}::uuid, ${parentId}::uuid)
+        ON CONFLICT (user_id, note_id) DO NOTHING
+      `;
+      return noteId;
+    });
   } catch (err) {
     const error = err as { code?: string; message?: string };
+    if (
+      err instanceof VaultImportCancelledError ||
+      err instanceof VaultTreeParentUnavailableError
+    ) {
+      throw err;
+    }
     if (error.code === "23505") {
-      const [winner] = (await sql`
-        SELECT n.note_id FROM app.notes n
-        JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
-        WHERE n.user_id = ${userId}::uuid
-          AND n.title = ${title}
-          AND n.is_folder = true
-          AND n.deleted_at IS NULL
-          AND ${parentId ? sql`t.parent_id = ${parentId}::uuid` : sql`t.parent_id IS NULL`}
-        LIMIT 1
-      `) as VaultFolder[];
-      if (winner) {
-        return winner.note_id;
-      }
+      return sql.begin(async (tx: any) => {
+        await lockUserTree(tx, userId);
+        await assertVaultImportJobActive(tx, userId, jobId);
+        await assertActiveParent(tx, userId, parentId);
+        const [winner] = (parentId
+          ? await tx`
+              SELECT n.note_id FROM app.notes n
+              JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+              WHERE n.user_id = ${userId}::uuid
+                AND n.title = ${title}
+                AND n.is_folder = true
+                AND n.deleted_at IS NULL
+                AND t.parent_id = ${parentId}::uuid
+              LIMIT 1
+            `
+          : await tx`
+              SELECT n.note_id FROM app.notes n
+              JOIN app.tree_items t ON t.note_id = n.note_id AND t.user_id = n.user_id
+              WHERE n.user_id = ${userId}::uuid
+                AND n.title = ${title}
+                AND n.is_folder = true
+                AND n.deleted_at IS NULL
+                AND t.parent_id IS NULL
+              LIMIT 1
+            `) as VaultFolder[];
+        if (winner) return winner.note_id;
+        throw err;
+      });
     }
     console.warn(`Failed to create vault folder "${title}": ${error.message}`);
     return parentId;
@@ -130,6 +228,7 @@ export async function ensureFolderPath(
   userId: string,
   filePath: string,
   folderCache: Map<string, string>,
+  jobId?: string,
 ): Promise<string | null> {
   const parts = filePath.split("/");
   const folderParts = parts.slice(0, -1);
@@ -150,7 +249,12 @@ export async function ensureFolderPath(
       continue;
     }
 
-    parentId = await findOrCreateVaultFolder(userId, folderName, parentId);
+    parentId = await findOrCreateVaultFolder(
+      userId,
+      folderName,
+      parentId,
+      jobId,
+    );
     if (parentId) {
       folderCache.set(pathSoFar, parentId);
     }
