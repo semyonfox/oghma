@@ -1,6 +1,10 @@
 import logger from "@/lib/logger";
 
 const DEFAULT_COLLECTION = "oghma_chunks";
+// Keep high-dimensional JSON vector requests comfortably below Qdrant's
+// default 32 MiB HTTP payload limit. A single imported text file can produce
+// hundreds of chunks, so point count must not map to one unbounded request.
+const UPSERT_BATCH_SIZE = 128;
 
 interface QdrantPointPayload {
   chunk_id: string;
@@ -194,21 +198,24 @@ export async function upsertChunkVectors(
   if (points.length === 0) return;
   await ensureQdrantCollection(points[0].vector.length);
 
-  await qdrantFetch(`/collections/${qdrantCollection()}/points?wait=true`, {
-    method: "PUT",
-    body: JSON.stringify({
-      points: points.map((point) => ({
-        id: point.chunkId,
-        vector: point.vector,
-        payload: {
-          chunk_id: point.chunkId,
-          document_id: point.documentId,
-          user_id: point.userId,
-          searchable: true,
-        },
-      })),
-    }),
-  });
+  for (let offset = 0; offset < points.length; offset += UPSERT_BATCH_SIZE) {
+    const batch = points.slice(offset, offset + UPSERT_BATCH_SIZE);
+    await qdrantFetch(`/collections/${qdrantCollection()}/points?wait=true`, {
+      method: "PUT",
+      body: JSON.stringify({
+        points: batch.map((point) => ({
+          id: point.chunkId,
+          vector: point.vector,
+          payload: {
+            chunk_id: point.chunkId,
+            document_id: point.documentId,
+            user_id: point.userId,
+            searchable: true,
+          },
+        })),
+      }),
+    });
+  }
 }
 
 export async function deleteChunkVectors(chunkIds: string[]): Promise<void> {
