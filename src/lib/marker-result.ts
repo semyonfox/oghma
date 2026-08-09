@@ -9,7 +9,7 @@ export const DEFAULT_MARKER_MAX_METADATA_BYTES = 2 * 1024 * 1024;
 export const DEFAULT_MARKER_MAX_IMAGES = 256;
 
 const PAGE_RANGE_PATTERN = /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/;
-const IMAGE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const IMAGE_NAME_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 type JsonValue =
   | null
