@@ -15,12 +15,14 @@ interface NewTaskModalProps {
   open: boolean;
   onClose: () => void;
   courses: string[];
+  initialDueAt?: string;
 }
 
 export default function NewTaskModal({
   open,
   onClose,
   courses,
+  initialDueAt,
 }: NewTaskModalProps) {
   const { t } = useI18n();
   const createAssignment = useAssignmentStore((s) => s.createAssignment);
@@ -40,8 +42,14 @@ export default function NewTaskModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setError(null);
-  }, [open]);
+    if (!open) return;
+    setTitle("");
+    setCourseName("");
+    setDueAt(initialDueAt ?? "");
+    setEstimatedHours("");
+    setDescription("");
+    setError(null);
+  }, [initialDueAt, open]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
