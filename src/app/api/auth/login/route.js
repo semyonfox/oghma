@@ -13,7 +13,8 @@ import sql from "@/database/pgsql.js";
 import { CanvasClient } from "@/lib/canvas/client.js";
 import {
   buildCanvasSyncCourses,
-  resolveAccessibleCanvasCourses,
+  discoverCanvasCourses,
+  isCanvasCourseAvailabilityUnresolved,
 } from "@/lib/canvas/sync-courses.js";
 import { validateAuthCredentials } from "@/lib/validation.js";
 import { generateUUID } from "@/lib/utils/uuid";
@@ -179,7 +180,10 @@ async function queueCanvasSync(userId) {
   if (!credentials) return;
 
   const prevCourseRows = await sql`
-    SELECT DISTINCT canvas_course_id FROM app.canvas_imports WHERE user_id = ${userId} LIMIT 200
+    SELECT DISTINCT canvas_course_id
+    FROM app.canvas_imports
+    WHERE user_id = ${userId}
+      AND canvas_course_id IS NOT NULL
   `;
   if (prevCourseRows.length === 0) return;
 
@@ -188,14 +192,28 @@ async function queueCanvasSync(userId) {
   );
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: visibleCourses } = await client.getDiscoverableCourses();
-
-  const accessibleCourses = await resolveAccessibleCanvasCourses(
+  const discovery = await discoverCanvasCourses(
     client,
-    visibleCourses,
     prevCourseIds,
   );
-  const courses = buildCanvasSyncCourses(prevCourseIds, accessibleCourses);
+  if (discovery.error) {
+    logger.warn("canvas auto-sync course discovery failed", {
+      error: discovery.error,
+    });
+    return;
+  }
+  const unresolvedCourses = discovery.data.filter(
+    (course) =>
+      prevCourseIds.has(String(course.id)) &&
+      isCanvasCourseAvailabilityUnresolved(course),
+  );
+  if (unresolvedCourses.length > 0) {
+    logger.warn("canvas auto-sync deferred while course access is unresolved", {
+      courseCount: unresolvedCourses.length,
+    });
+    return;
+  }
+  const courses = buildCanvasSyncCourses(prevCourseIds, discovery.data);
 
   if (courses.length === 0) return;
 

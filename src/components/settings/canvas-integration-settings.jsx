@@ -47,6 +47,7 @@ export default function CanvasIntegrationSettings() {
   // Startup check
   const [isCheckingConnection, setIsCheckingConnection] = useState(true);
   const [connectionWarning, setConnectionWarning] = useState(null);
+  const [courseDiscoveryDegraded, setCourseDiscoveryDegraded] = useState(false);
   const [syncAvailable, setSyncAvailable] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
 
@@ -58,6 +59,10 @@ export default function CanvasIntegrationSettings() {
   const [courseListOpen, setCourseListOpen] = useState(true);
   const [isDownloadingCanvasFiles, setIsDownloadingCanvasFiles] =
     useState(false);
+
+  const isCourseImportable = (course) =>
+    course.canvasStatus !== "inaccessible" &&
+    course.canvasStatus !== "unavailable";
 
   // import/polling state (custom hook)
   const {
@@ -113,6 +118,7 @@ export default function CanvasIntegrationSettings() {
           setIsConnected(true);
           setConnectedDomain(data.domain);
           setCourses(data.courses ?? []);
+          setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
           // use server-side forbidden courses as source of truth
           const serverForbidden = {};
@@ -130,9 +136,11 @@ export default function CanvasIntegrationSettings() {
 
           const savedSelection = localStorage.getItem(LS_SELECTED);
           const savedIds = JSON.parse(savedSelection ?? "[]");
-          const validIds = (data.courses ?? []).map((c) => String(c.id));
+          const validIds = (data.courses ?? [])
+            .filter(isCourseImportable)
+            .map((c) => String(c.id));
           const historicalIds = (data.courses ?? [])
-            .filter((course) => course.historical)
+            .filter((course) => course.historical && isCourseImportable(course))
             .map((course) => String(course.id));
           setSelectedCourseIds(
             Array.from(
@@ -264,12 +272,15 @@ export default function CanvasIntegrationSettings() {
       setIsConnected(true);
       setConnectedDomain(domain);
       setCourses(data.courses ?? []);
+      setCourseDiscoveryDegraded(Boolean(data.courseDiscoveryDegraded));
 
       const savedSelection = localStorage.getItem(LS_SELECTED);
       const savedIds = JSON.parse(savedSelection ?? "[]");
-      const validIds = (data.courses ?? []).map((c) => String(c.id));
+      const validIds = (data.courses ?? [])
+        .filter(isCourseImportable)
+        .map((c) => String(c.id));
       const historicalIds = (data.courses ?? [])
-        .filter((course) => course.historical)
+        .filter((course) => course.historical && isCourseImportable(course))
         .map((course) => String(course.id));
       setSelectedCourseIds(
         Array.from(
@@ -303,6 +314,7 @@ export default function CanvasIntegrationSettings() {
       setIsConnected(false);
       setConnectedDomain("");
       setCourses([]);
+      setCourseDiscoveryDegraded(false);
       setSelectedCourseIds([]);
       setImportSummary(null);
       setProgress(null);
@@ -332,7 +344,11 @@ export default function CanvasIntegrationSettings() {
       const selectedCourses =
         selectedCourseIds.length > 0
           ? courses
-              .filter((c) => selectedCourseIds.includes(String(c.id)))
+              .filter(
+                (course) =>
+                  isCourseImportable(course) &&
+                  selectedCourseIds.includes(String(course.id)),
+              )
               .map((c) => ({
                 id: String(c.id),
                 name: c.name,
@@ -340,6 +356,10 @@ export default function CanvasIntegrationSettings() {
                 term: c.term ?? null,
               }))
           : null;
+
+      if (selectedCourseIds.length > 0 && selectedCourses?.length === 0) {
+        return;
+      }
 
       const res = await fetch("/api/canvas/download", {
         method: "POST",
@@ -380,6 +400,8 @@ export default function CanvasIntegrationSettings() {
 
   const toggleCourse = (courseId) => {
     const id = String(courseId);
+    const course = courses.find((item) => String(item.id) === id);
+    if (!course || !isCourseImportable(course)) return;
     setSelectedCourseIds((prev) =>
       prev.includes(id)
         ? prev.filter((selectedId) => selectedId !== id)
@@ -388,12 +410,16 @@ export default function CanvasIntegrationSettings() {
   };
 
   const toggleSelectAll = () => {
+    const importableIds = courses
+      .filter(isCourseImportable)
+      .map((course) => String(course.id));
     const allSelected =
-      courses.length > 0 && selectedCourseIds.length === courses.length;
+      importableIds.length > 0 &&
+      importableIds.every((id) => selectedCourseIds.includes(id));
     if (allSelected) {
       setSelectedCourseIds([]);
     } else {
-      setSelectedCourseIds(courses.map((c) => String(c.id)));
+      setSelectedCourseIds(importableIds);
     }
   };
 
@@ -417,7 +443,10 @@ export default function CanvasIntegrationSettings() {
       }
       // a course with no modules/files has nothing to sync — never "out of sync"
       const course = courses.find((c) => String(c.id) === id);
-      const hasContent = (course?.modules?.length ?? 0) > 0;
+      // Course previews deliberately omit eager module discovery for large
+      // enrollment histories. In that case, keep the normal resync affordance.
+      const hasContent =
+        course?.modules === undefined || course.modules.length > 0;
       return {
         status: syncAvailable && hasContent ? "outOfSync" : "synced",
         error: null,
@@ -437,6 +466,11 @@ export default function CanvasIntegrationSettings() {
   }
 
   const showProgress = (isImporting || importSummary) && progress;
+  const selectedImportableCourseCount = courses.filter(
+    (course) =>
+      isCourseImportable(course) &&
+      selectedCourseIds.includes(String(course.id)),
+  ).length;
 
   return (
     <div className="grid grid-cols-1 gap-y-8 sm:max-w-xl">
@@ -478,6 +512,14 @@ export default function CanvasIntegrationSettings() {
             t={t}
           />
 
+          {courseDiscoveryDegraded && (
+            <p className="text-xs text-yellow-400">
+              {t(
+                "Canvas could not list every historical course. Showing the courses it currently exposes.",
+              )}
+            </p>
+          )}
+
           {/* Import error */}
           {connectionError && (
             <div className="flex items-center gap-2 text-sm text-red-400">
@@ -513,11 +555,11 @@ export default function CanvasIntegrationSettings() {
             ) : (
               <button
                 type="button"
-                disabled={selectedCourseIds.length === 0 || isSyncing}
+                disabled={selectedImportableCourseCount === 0 || isSyncing}
                 onClick={handleImport}
                 className="rounded-radius-md bg-primary-600 px-3 py-2 text-sm font-semibold text-text-on-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {`${t("Import selected courses")}${selectedCourseIds.length > 0 ? ` (${selectedCourseIds.length})` : ""}`}
+                {`${t("Import selected courses")}${selectedImportableCourseCount > 0 ? ` (${selectedImportableCourseCount})` : ""}`}
               </button>
             )}
             <button
@@ -525,7 +567,9 @@ export default function CanvasIntegrationSettings() {
               disabled={
                 isImporting ||
                 isSyncing ||
-                isDownloadingCanvasFiles
+                isDownloadingCanvasFiles ||
+                (selectedCourseIds.length > 0 &&
+                  selectedImportableCourseCount === 0)
               }
               onClick={handleDownloadCanvasFiles}
               className="rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -533,8 +577,8 @@ export default function CanvasIntegrationSettings() {
               {isDownloadingCanvasFiles
                 ? t("Preparing archive...")
                 : `${t("Download full Canvas archive")}${
-                    selectedCourseIds.length > 0
-                      ? ` (${selectedCourseIds.length})`
+                    selectedImportableCourseCount > 0
+                      ? ` (${selectedImportableCourseCount})`
                       : ` (${t("all courses")})`
                   }`}
             </button>

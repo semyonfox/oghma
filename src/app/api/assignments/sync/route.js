@@ -4,6 +4,10 @@ import { CanvasClient } from "@/lib/canvas/client.js";
 import { syncAssignmentMetadata } from "@/lib/canvas/sync-assignments.js";
 import { cleanCourseName } from "@/lib/canvas/canvas-folders.js";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
+import {
+  discoverCanvasCourses,
+  isCanvasCourseImportable,
+} from "@/lib/canvas/sync-courses.js";
 
 /**
  * POST /api/assignments/sync
@@ -24,14 +28,14 @@ export const POST = withErrorHandler(async () => {
 
   const client = new CanvasClient(credentials.domain, credentials.token);
 
-  const { data: allCourses, error } = await client.getCourses();
-  if (error || !allCourses) {
+  const discovery = await discoverCanvasCourses(client);
+  if (discovery.error) {
     return NextResponse.json({
       synced: false,
-      reason: error || "Failed to fetch courses",
+      reason: discovery.error,
     });
   }
-  const courses = allCourses;
+  const courses = discovery.data.filter(isCanvasCourseImportable);
 
   let totalSynced = 0;
   let totalErrors = 0;

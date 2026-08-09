@@ -7,7 +7,8 @@ import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import {
   buildCanvasSyncCourses,
-  resolveAccessibleCanvasCourses,
+  discoverCanvasCourses,
+  isCanvasCourseAvailabilityUnresolved,
 } from "@/lib/canvas/sync-courses.js";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
@@ -37,7 +38,7 @@ export const POST = withErrorHandler(async () => {
     SELECT DISTINCT canvas_course_id
     FROM app.canvas_imports
     WHERE user_id = ${user.user_id}
-    LIMIT 200
+      AND canvas_course_id IS NOT NULL
   `;
 
   if (prevCourseRows.length === 0) {
@@ -51,20 +52,37 @@ export const POST = withErrorHandler(async () => {
     prevCourseRows.map((r) => String(r.canvas_course_id)),
   );
 
-  // Fetch current course list from Canvas to get up-to-date name / course_code
+  // Use the enrollment ledger, not Canvas's dashboard-oriented course list,
+  // so a resync retains older and otherwise hidden accessible courses.
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: visibleCourses } = await client.getDiscoverableCourses();
 
   let courses;
+  let unresolvedCourses;
   try {
-    const accessibleCourses = await resolveAccessibleCanvasCourses(
+    const discovery = await discoverCanvasCourses(
       client,
-      visibleCourses,
       prevCourseIds,
     );
-    courses = buildCanvasSyncCourses(prevCourseIds, accessibleCourses);
-  } catch {
+    if (discovery.error) {
+      throw new ApiError(502, `Canvas course discovery failed: ${discovery.error}`);
+    }
+    unresolvedCourses = discovery.data.filter(
+      (course) =>
+        prevCourseIds.has(String(course.id)) &&
+        isCanvasCourseAvailabilityUnresolved(course),
+    );
+    courses = buildCanvasSyncCourses(prevCourseIds, discovery.data);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned invalid course metadata");
+  }
+
+  if (unresolvedCourses.length > 0) {
+    return NextResponse.json({
+      queued: false,
+      reason:
+        "Canvas could not confirm access to all previously imported courses. Try again later.",
+    });
   }
 
   if (courses.length === 0) {

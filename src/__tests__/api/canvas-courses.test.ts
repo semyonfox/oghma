@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
+  getSelfEnrollments: vi.fn(),
   getCourse: vi.fn(),
   getModules: vi.fn(),
 }));
@@ -69,13 +70,19 @@ describe("GET /api/canvas/courses", () => {
     });
   });
 
-  it("includes a previously imported course that Canvas hides from its course list", async () => {
+  it("includes an importable course Canvas hides from its regular course list", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "42", name: "Current" }],
     });
-    vi.mocked(sql).mockResolvedValue([
-      { canvas_course_id: "9007199254740993" },
-    ] as never);
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [
+        {
+          course_id: "9007199254740993",
+          workflow_state: "completed",
+        },
+      ],
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
     canvas.getCourse.mockResolvedValue({
       data: {
         id: "9007199254740993",
@@ -83,22 +90,22 @@ describe("GET /api/canvas/courses", () => {
         course_code: "CT101",
       },
     });
-    canvas.getModules.mockResolvedValue({ data: [] });
 
     const response = await GET(
       new NextRequest("http://localhost/api/canvas/courses"),
     );
 
     expect(response.status).toBe(200);
+    expect(canvas.getSelfEnrollments).toHaveBeenCalledOnce();
     expect(canvas.getCourse).toHaveBeenCalledWith("9007199254740993");
-    expect((await response.json()).courses).toEqual([
-      { id: "42", name: "Current", modules: [] },
+    expect((await response.json()).courses).toMatchObject([
+      { id: "42", name: "Current" },
       {
         id: "9007199254740993",
         name: "Historical",
         course_code: "CT101",
         historical: true,
-        modules: [],
+        canvasStatus: "past",
       },
     ]);
   });

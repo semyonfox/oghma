@@ -87,6 +87,59 @@ export function CourseBadge({ status, errorMsg, t = (value) => value }) {
   );
 }
 
+/** Canvas enrolment availability, independent from local import state. */
+export function CanvasAvailabilityBadge({
+  status,
+  reasonCode,
+  describedBy,
+  t = (value) => value,
+}) {
+  const config = {
+    current: {
+      color: "fill-success-500",
+      ring: "ring-success-500/40",
+      label: t("Current"),
+    },
+    past: {
+      color: "fill-text-tertiary",
+      ring: "ring-border-subtle",
+      label: t("Past"),
+    },
+    pending: {
+      color: "fill-yellow-500",
+      ring: "ring-yellow-500/40",
+      label: t("Pending"),
+    },
+    inaccessible: {
+      color: "fill-text-tertiary",
+      ring: "ring-border-subtle",
+      label: t("Unavailable"),
+    },
+    unavailable: {
+      color: "fill-text-tertiary",
+      ring: "ring-border-subtle",
+      label: t("Unavailable"),
+    },
+  };
+
+  const value = config[status];
+  if (!value) return null;
+
+  return (
+    <span
+      aria-describedby={describedBy}
+      data-canvas-status={status}
+      data-canvas-status-reason={reasonCode ?? undefined}
+      className={`inline-flex items-center gap-x-1.5 rounded-full px-2 py-1 text-xs font-medium text-text-secondary ring-1 ${value.ring}`}
+    >
+      <svg viewBox="0 0 6 6" aria-hidden="true" className={`size-1.5 ${value.color}`}>
+        <circle r={3} cx={3} cy={3} />
+      </svg>
+      {value.label}
+    </span>
+  );
+}
+
 /** Status dot + label for a single log entry */
 export function LogStatusIcon({ status, t = (value) => value }) {
   const map = {

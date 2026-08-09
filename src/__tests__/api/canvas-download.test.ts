@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockGetPaginatedPath } = vi.hoisted(() => ({
-  mockGetPaginatedPath: vi.fn(),
+const {
+  mockGetDiscoverableCourses,
+  mockGetSelfEnrollments,
+  mockGetCourse,
+} = vi.hoisted(() => ({
+  mockGetDiscoverableCourses: vi.fn(),
+  mockGetSelfEnrollments: vi.fn(),
+  mockGetCourse: vi.fn(),
 }));
 
 vi.mock("@/lib/api-error", () => ({
@@ -60,7 +66,9 @@ vi.mock("@/lib/canvas/credentials", () => ({
 vi.mock("@/lib/canvas/client.js", () => ({
   CanvasClient: vi.fn(function CanvasClient(this: Record<string, unknown>) {
     this.client = true;
-    this.getPaginatedPath = mockGetPaginatedPath;
+    this.getDiscoverableCourses = mockGetDiscoverableCourses;
+    this.getSelfEnrollments = mockGetSelfEnrollments;
+    this.getCourse = mockGetCourse;
   }),
 }));
 
@@ -81,7 +89,9 @@ import { POST } from "@/app/api/canvas/download/route";
 describe("POST /api/canvas/download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetPaginatedPath.mockReset();
+    mockGetDiscoverableCourses.mockReset();
+    mockGetSelfEnrollments.mockReset();
+    mockGetCourse.mockReset();
     vi.mocked(requireAuth).mockResolvedValue({ user_id: "u1" } as never);
     vi.mocked(loadCanvasCredentials).mockResolvedValue({
       domain: "canvas.example.edu",
@@ -132,35 +142,33 @@ describe("POST /api/canvas/download", () => {
     expect(await response.text()).toBe("zip");
   });
 
-  it("discovers all accessible courses when no course list is posted", async () => {
-    mockGetPaginatedPath.mockImplementation(async (path: string) => {
-      if (path.includes("enrollment_state=active")) {
-        return {
-          data: [
-            {
-              id: 123,
-              name: "Active Course",
-              course_code: "AC101",
-              term: { name: "2026" },
-            },
-          ],
-          forbidden: false,
-        };
-      }
-      if (path.includes("enrollment_state=completed")) {
-        return {
-          data: [
-            {
-              id: 456,
-              name: "Completed Course",
-              course_code: "CC101",
-              term: { name: "2025" },
-            },
-          ],
-          forbidden: false,
-        };
-      }
-      return { data: [], forbidden: false };
+  it("discovers all accessible courses from the enrollment ledger when no course list is posted", async () => {
+    mockGetDiscoverableCourses.mockResolvedValue({
+      data: [
+        {
+          id: 123,
+          name: "Active Course",
+          course_code: "AC101",
+          term: { name: "2026" },
+        },
+      ],
+      forbidden: false,
+    });
+    mockGetSelfEnrollments.mockResolvedValue({
+      data: [
+        { course_id: 123, enrollment_state: "active" },
+        { course_id: 456, enrollment_state: "completed" },
+      ],
+      forbidden: false,
+    });
+    mockGetCourse.mockResolvedValue({
+      data: {
+        id: 456,
+        name: "Completed Course",
+        course_code: "CC101",
+        term: { name: "2025" },
+        concluded: true,
+      },
     });
 
     const response = await POST(
@@ -189,8 +197,38 @@ describe("POST /api/canvas/download", () => {
       ],
       expect.objectContaining({
         courseDiscovery: expect.objectContaining({
-          mode: "all_discoverable",
+          mode: "enrollment_ledger",
           course_count: 2,
+        }),
+      }),
+    );
+    expect(mockGetCourse).toHaveBeenCalledWith("456");
+  });
+
+  it("records unavailable courses in the archive diagnostics without exporting them", async () => {
+    mockGetDiscoverableCourses.mockResolvedValue({
+      data: [
+        { id: 123, name: "Available Course" },
+        { id: 456, name: "Deleted Course", workflow_state: "deleted" },
+      ],
+    });
+    mockGetSelfEnrollments.mockResolvedValue({ data: [] });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/canvas/download", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(discoverCanvasRawExportEntries).toHaveBeenCalledWith(
+      expect.any(Object),
+      [{ id: "123", name: "Available Course", course_code: "", term: null }],
+      expect.objectContaining({
+        skipped: ["_course_discovery/456: deleted_course"],
+        courseDiscovery: expect.objectContaining({
+          unavailable_course_count: 1,
         }),
       }),
     );
