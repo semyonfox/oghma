@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
+  getSelfEnrollments: vi.fn(),
   getCourse: vi.fn(),
   getModules: vi.fn(),
 }));
@@ -72,12 +73,9 @@ describe("GET /api/canvas/connect", () => {
     });
   });
 
-  it("resolves modules and serializes Canvas and forbidden IDs as strings", async () => {
+  it("serializes Canvas IDs without eagerly loading every course's modules", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "9007199254740993", name: "Algorithms" }],
-    });
-    canvas.getModules.mockResolvedValue({
-      data: [{ id: "9007199254740994", name: "Graphs" }],
     });
     vi.mocked(sql).mockResolvedValue([
       { canvas_course_id: "9007199254740993" },
@@ -88,12 +86,11 @@ describe("GET /api/canvas/connect", () => {
     );
     const body = await response.json();
 
-    expect(canvas.getModules).toHaveBeenCalledWith("9007199254740993");
-    expect(body.courses).toEqual([
+    expect(canvas.getModules).not.toHaveBeenCalled();
+    expect(body.courses).toMatchObject([
       {
         id: "9007199254740993",
         name: "Algorithms",
-        modules: [{ id: "9007199254740994", name: "Graphs" }],
       },
     ]);
     expect(body.forbiddenCourseIds).toEqual(["9007199254740993"]);
@@ -113,35 +110,61 @@ describe("GET /api/canvas/connect", () => {
     });
   });
 
-  it("returns a directly accessible historical course alongside listed courses", async () => {
+  it("returns a course found only through the self-enrollment ledger", async () => {
     canvas.getDiscoverableCourses.mockResolvedValue({
       data: [{ id: "42", name: "Current" }],
     });
-    vi.mocked(sql)
-      .mockResolvedValueOnce([
-        { canvas_course_id: "9007199254740993" },
-      ] as never)
-      .mockResolvedValueOnce([] as never);
+    canvas.getSelfEnrollments.mockResolvedValue({
+      data: [
+        {
+          course_id: "9007199254740993",
+          workflow_state: "completed",
+        },
+      ],
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
     canvas.getCourse.mockResolvedValue({
       data: { id: "9007199254740993", name: "Historical" },
     });
-    canvas.getModules.mockResolvedValue({ data: [] });
 
     const response = await GET(
       new NextRequest("http://localhost/api/canvas/connect"),
     );
 
     expect(response.status).toBe(200);
+    expect(canvas.getSelfEnrollments).toHaveBeenCalledOnce();
     expect(canvas.getCourse).toHaveBeenCalledWith("9007199254740993");
-    expect((await response.json()).courses).toEqual([
-      { id: "42", name: "Current", modules: [] },
+    expect((await response.json()).courses).toMatchObject([
+      { id: "42", name: "Current" },
       {
         id: "9007199254740993",
         name: "Historical",
         historical: true,
-        modules: [],
+        canvasStatus: "past",
       },
     ]);
+  });
+
+  it("keeps a valid connection usable when enrollment access is scoped", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [{ id: "42", name: "Current" }],
+    });
+    canvas.getSelfEnrollments.mockResolvedValue({
+      forbidden: true,
+      error: "Access restricted by lecturer",
+    });
+    vi.mocked(sql).mockResolvedValue([] as never);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      connected: true,
+      courseDiscoveryDegraded: true,
+      courses: [{ id: "42", name: "Current", canvasStatus: "current" }],
+    });
   });
 
   it.each(["{", "null"])("returns 400 for invalid object JSON %s", async (body) => {
@@ -171,6 +194,9 @@ describe("GET /api/canvas/connect", () => {
     );
 
     expect(response.status).toBe(502);
-    expect(sql).not.toHaveBeenCalled();
+    // Discovery looks up prior IDs before it validates the token, but an
+    // invalid upstream course response must still stop before the credential
+    // update query.
+    expect(sql).toHaveBeenCalledTimes(1);
   });
 });

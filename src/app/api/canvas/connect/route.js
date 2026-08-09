@@ -12,8 +12,7 @@ import { checkRateLimit } from "@/lib/rateLimiter";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import logger from "@/lib/logger";
 import { recordMarketingEvent } from "@/lib/marketing/events";
-import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
-import { resolveAccessibleCanvasCourses } from "@/lib/canvas/sync-courses.js";
+import { discoverCanvasCourses } from "@/lib/canvas/sync-courses.js";
 
 const INSTRUCTURE_DOMAIN = /^[\w-]+\.instructure\.com$/i;
 const CANVAS_TOKEN_MAX_LENGTH = 4096;
@@ -29,14 +28,6 @@ function noStoreJson(body, init) {
   return response;
 }
 
-function upstreamCourseId(value) {
-  try {
-    return canvasIdForBigintColumn(value, "Canvas course ID");
-  } catch {
-    throw new ApiError(502, "Canvas returned an invalid course ID");
-  }
-}
-
 export const GET = withErrorHandler(async () => {
   const user = await requireAuth();
 
@@ -44,9 +35,6 @@ export const GET = withErrorHandler(async () => {
   if (!credentials) return noStoreJson({ connected: false });
 
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: visibleCourses, error } = await client.getDiscoverableCourses();
-
-  if (error) return noStoreJson({ connected: false });
 
   const [previousCourseRows, forbiddenCourseRows] = await Promise.all([
     sql`
@@ -54,7 +42,6 @@ export const GET = withErrorHandler(async () => {
       FROM app.canvas_imports
       WHERE user_id = ${user.user_id}::uuid
         AND canvas_course_id IS NOT NULL
-      LIMIT 200
     `,
     sql`
       SELECT DISTINCT canvas_course_id
@@ -66,28 +53,27 @@ export const GET = withErrorHandler(async () => {
   ]);
 
   let courses;
+  let courseDiscoveryDegraded = false;
   try {
-    courses = await resolveAccessibleCanvasCourses(
+    const discovery = await discoverCanvasCourses(
       client,
-      visibleCourses,
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
-  } catch {
+    if (discovery.error) return noStoreJson({ connected: false });
+    courses = discovery.data;
+    courseDiscoveryDegraded = Boolean(discovery.degraded);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned an invalid course ID");
   }
-
-  const coursesWithModules = await Promise.all(
-    courses.map(async (course) => {
-      const id = upstreamCourseId(course.id);
-      const { data: modules } = await client.getModules(id);
-      return { ...course, id, modules: modules ?? [] };
-    }),
-  );
 
   return noStoreJson({
     connected: true,
     domain: credentials.domain,
-    courses: coursesWithModules,
+    // Module/file discovery happens only once the user starts an import. A
+    // settings-page refresh must not fan out one Canvas request per course.
+    courses,
+    courseDiscoveryDegraded,
     // This is the durable source of truth for the restricted course badge.
     // Keep IDs as decimal strings: Canvas IDs can exceed JavaScript's safe
     // integer range.
@@ -129,33 +115,30 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "Domain must be a valid *.instructure.com address");
   }
 
-  // validate the token against Canvas before storing
+  // Validate the token against Canvas before storing. The enrollment ledger is
+  // the authoritative source; Canvas's regular course list omits some past,
+  // pending, and inactive records.
   const client = new CanvasClient(normalizedDomain, normalizedToken);
-  const { data: courses, error } = await client.getDiscoverableCourses();
-  if (error) {
-    throw new ApiError(400, `Canvas connection failed: ${error}`);
-  }
-  // Validate the course-list response before querying or storing anything.
-  const visibleCourses = (courses ?? []).map((course) => ({
-    ...course,
-    id: upstreamCourseId(course.id),
-  }));
-
   const previousCourseRows = await sql`
     SELECT DISTINCT canvas_course_id
     FROM app.canvas_imports
     WHERE user_id = ${user.user_id}::uuid
       AND canvas_course_id IS NOT NULL
-    LIMIT 200
   `;
   let normalizedCourses;
+  let courseDiscoveryDegraded = false;
   try {
-    normalizedCourses = await resolveAccessibleCanvasCourses(
+    const discovery = await discoverCanvasCourses(
       client,
-      visibleCourses,
       (previousCourseRows ?? []).map((row) => String(row.canvas_course_id)),
     );
-  } catch {
+    if (discovery.error) {
+      throw new ApiError(400, `Canvas connection failed: ${discovery.error}`);
+    }
+    normalizedCourses = discovery.data;
+    courseDiscoveryDegraded = Boolean(discovery.degraded);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(502, "Canvas returned an invalid course ID");
   }
 
@@ -193,5 +176,6 @@ export const POST = withErrorHandler(async (request) => {
   return noStoreJson({
     success: true,
     courses: normalizedCourses,
+    courseDiscoveryDegraded,
   });
 });

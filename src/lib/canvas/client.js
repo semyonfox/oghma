@@ -53,6 +53,16 @@ function retryDelayMs(response, attempt) {
   return RETRY_BASE_MS * 2 ** attempt;
 }
 
+function isRateLimitedResponse(response) {
+  if (response?.status === 429) return true;
+  if (response?.status !== 403) return false;
+
+  const remaining = Number.parseFloat(
+    response.headers.get("x-rate-limit-remaining"),
+  );
+  return Number.isFinite(remaining) && remaining <= 0;
+}
+
 function nextPageUrl(linkHeader) {
   if (!linkHeader) return null;
   // Treat Canvas pagination URLs as opaque. Link relation parameters are not
@@ -64,6 +74,21 @@ function nextPageUrl(linkHeader) {
     }
   }
   return null;
+}
+
+function validatedNextPageUrl(linkHeader, baseUrl) {
+  const nextUrl = nextPageUrl(linkHeader);
+  if (!nextUrl) return { url: null };
+
+  try {
+    const parsedNextUrl = new URL(nextUrl);
+    if (parsedNextUrl.origin !== new URL(baseUrl).origin) {
+      return { error: "Canvas API returned an unsafe pagination URL" };
+    }
+    return { url: parsedNextUrl.href };
+  } catch {
+    return { error: "Canvas API returned an invalid pagination URL" };
+  }
 }
 
 export class CanvasClient {
@@ -93,6 +118,18 @@ export class CanvasClient {
           },
         });
 
+        if (isRateLimitedResponse(response)) {
+          if (attempt < MAX_RETRIES) {
+            await sleep(retryDelayMs(response, attempt));
+            continue;
+          }
+          return {
+            data: null,
+            forbidden: false,
+            error: "Canvas API rate limited — try again later",
+          };
+        }
+
         // respect Canvas rate limit headers — back off when close to limit
         await this.#respectRateLimit(response);
 
@@ -108,19 +145,8 @@ export class CanvasClient {
           return {
             data: null,
             forbidden: false,
+            unauthorized: true,
             error: "Invalid or expired Canvas token",
-          };
-        }
-
-        if (response.status === 429) {
-          if (attempt < MAX_RETRIES) {
-            await sleep(retryDelayMs(response, attempt));
-            continue;
-          }
-          return {
-            data: null,
-            forbidden: false,
-            error: "Canvas API rate limited — try again later",
           };
         }
 
@@ -186,6 +212,18 @@ export class CanvasClient {
             },
           });
 
+          if (isRateLimitedResponse(response)) {
+            if (attempt < MAX_RETRIES) {
+              await sleep(retryDelayMs(response, attempt));
+              continue;
+            }
+            return {
+              data: results,
+              forbidden: false,
+              error: "Canvas API rate limited — try again later",
+            };
+          }
+
           await this.#respectRateLimit(response);
 
           if (response.status === 403) {
@@ -200,19 +238,8 @@ export class CanvasClient {
             return {
               data: results,
               forbidden: false,
+              unauthorized: true,
               error: "Invalid or expired Canvas token",
-            };
-          }
-
-          if (response.status === 429) {
-            if (attempt < MAX_RETRIES) {
-              await sleep(retryDelayMs(response, attempt));
-              continue;
-            }
-            return {
-              data: results,
-              forbidden: false,
-              error: "Canvas API rate limited — try again later",
             };
           }
 
@@ -239,7 +266,18 @@ export class CanvasClient {
           }
           results.push(...page);
 
-          url = nextPageUrl(response.headers.get("Link"));
+          const nextPage = validatedNextPageUrl(
+            response.headers.get("Link"),
+            this.baseUrl,
+          );
+          if (nextPage.error) {
+            return {
+              data: results,
+              forbidden: false,
+              error: nextPage.error,
+            };
+          }
+          url = nextPage.url;
           pageSuccess = true;
         } catch (err) {
           if (attempt < MAX_RETRIES && isRetryable(err)) {
@@ -286,7 +324,7 @@ export class CanvasClient {
 
     for (const enrollmentState of courseStates) {
       const result = await this.#getPaginated(
-        `/courses?enrollment_state=${enrollmentState}&include[]=term`,
+        `/courses?enrollment_state=${enrollmentState}&include[]=term&include[]=concluded`,
       );
       if (result.forbidden || result.error) {
         return result;
@@ -303,13 +341,33 @@ export class CanvasClient {
   }
 
   /**
+   * Returns the current user's enrollment records across current, future,
+   * concluded, and restricted courses. Course-list visibility is not a
+   * complete source of truth for historical enrolments, so callers use these
+   * course IDs to resolve any missing course metadata directly.
+   *
+   * Canvas supports current_and_future only on a user's enrollments. Combining
+   * it with completed and inactive returns the non-deleted enrollment ledger,
+   * including effective future and soft-concluded records.
+   *
+   * @returns {Promise<{ data: any[], forbidden: boolean, error?: string }>}
+   */
+  async getSelfEnrollments() {
+    return this.#getPaginated(
+      "/users/self/enrollments?state[]=current_and_future&state[]=completed&state[]=inactive",
+    );
+  }
+
+  /**
    * Returns full metadata for a single course.
    *
    * @param {string} courseId
    * @returns {Promise<{ data: any|null, forbidden: boolean, error?: string }>}
    */
   async getCourse(courseId) {
-    return this.#get(`/courses/${courseId}`);
+    return this.#get(
+      `/courses/${courseId}?include[]=term&include[]=concluded`,
+    );
   }
 
   /**
@@ -442,15 +500,7 @@ export class CanvasClient {
           },
         });
 
-        if (response.status === 403) {
-          return {
-            buffer: null,
-            forbidden: true,
-            error: "File download restricted",
-          };
-        }
-
-        if (response.status === 429) {
+        if (isRateLimitedResponse(response)) {
           if (attempt < MAX_RETRIES) {
             await sleep(retryDelayMs(response, attempt));
             continue;
@@ -459,6 +509,14 @@ export class CanvasClient {
             buffer: null,
             forbidden: false,
             error: "Download rate limited",
+          };
+        }
+
+        if (response.status === 403) {
+          return {
+            buffer: null,
+            forbidden: true,
+            error: "File download restricted",
           };
         }
 

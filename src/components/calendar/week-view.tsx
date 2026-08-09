@@ -56,10 +56,10 @@ interface PositionedBlock {
 
 interface WeekViewProps {
   onSelectDate?: (date: string) => void;
-  onAddStudyBlock?: (date: string, start: string, end: string) => void;
+  onAddTask?: (date: string, start: string) => void;
 }
 
-export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProps) {
+export default function WeekView({ onSelectDate, onAddTask }: WeekViewProps) {
   const { activeLocale, t } = useI18n();
   const {
     currentDate,
@@ -180,7 +180,8 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
       ? (now.getHours() + now.getMinutes() / 60 - START_HOUR) * hourHeight
       : -1;
 
-  // click-to-create time block
+  // Clicking a time slot starts the same task flow used elsewhere, prefilled
+  // with the chosen deadline.
   const handleGridClick = (
     colIdx: number,
     e: React.MouseEvent<HTMLDivElement>,
@@ -205,21 +206,10 @@ export default function WeekView({ onSelectDate, onAddStudyBlock }: WeekViewProp
       0,
       0,
     );
-    const endHour = startHour + (startMin + 30 >= 60 ? 1 : 0);
-    const endMin = (startMin + 30) % 60;
-    const endDate = new Date(
-      Number.parseInt(date.slice(0, 4), 10),
-      Number.parseInt(date.slice(5, 7), 10) - 1,
-      Number.parseInt(date.slice(8, 10), 10),
-      endHour,
-      endMin,
-      0,
-      0,
-    );
     setSelectedDate(date);
     const formatTime = (value: Date) =>
       `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
-    onAddStudyBlock?.(date, formatTime(startDate), formatTime(endDate));
+    onAddTask?.(date, formatTime(startDate));
   };
 
   return (
