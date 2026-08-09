@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { isValidUUID } from "@/lib/utils/uuid";
-import { removeNoteFromTree } from "@/lib/notes/storage/pg-tree.js";
-import { deleteNoteAnnotations } from "@/lib/notes/storage/pdf-annotations.js";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql.js";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/chunking";
-import { deleteNoteRagIndex, replaceNoteEmbeddings } from "@/lib/rag/indexing";
+import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { processExtractedText } from "@/lib/canvas/text-processing";
 import { noteUpdateSchema, validateBody } from "@/lib/validations/schemas";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
+import { moveSubtreeToTrash } from "@/lib/notes/storage/note-lifecycle";
 
 interface NoteRouteParams {
   id: string;
@@ -155,9 +154,14 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
      SET title = ${body.title ?? existingNote.title},
          content = ${body.content ?? existingNote.content},
          updated_at = NOW()
-     WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
+     WHERE note_id = ${noteId}::uuid
+       AND user_id = ${user.user_id}::uuid
+       AND deleted_at IS NULL
      RETURNING note_id, title, content, is_folder, s3_key, shared, pinned, created_at, updated_at
    `) as NoteSummaryRow[];
+
+  const dbNote = updatedRows[0];
+  if (!dbNote) return tracedError("Note not found", 404);
 
   const keysToInvalidate = [cacheKeys.note(user.user_id, noteId)];
   if (body.title !== undefined && body.title !== existingNote.title) {
@@ -183,6 +187,8 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
           UPDATE app.notes
           SET extracted_text = ${cleanedText}
           WHERE note_id = ${noteId}::uuid
+            AND user_id = ${user.user_id}::uuid
+            AND deleted_at IS NULL
         `;
       } catch (embedErr) {
         logger.error("note embed error", { noteId, error: embedErr });
@@ -190,7 +196,6 @@ export const PUT = withErrorHandler(async (request: NextRequest, { params }: Not
     }
   }
 
-  const dbNote = updatedRows[0];
   return NextResponse.json(mapNoteFromDB(dbNote));
 });
 
@@ -209,48 +214,13 @@ export const DELETE = withErrorHandler(async (request: NextRequest, { params }: 
     return tracedError("Invalid note ID", 400);
   }
 
-  const result = (await sql`
-    SELECT note_id FROM app.notes
-    WHERE note_id = ${noteId}::uuid
-      AND user_id = ${user.user_id}::uuid
-      AND deleted_at IS NULL
-  `) as Array<{ note_id: string }>;
+  const result = await moveSubtreeToTrash(user.user_id, noteId);
+  if (!result) return tracedError("Note not found", 404);
 
-  if (result.length === 0) {
-    return tracedError("Note not found", 404);
-  }
-
-  const parentRow = (await sql`
-    SELECT parent_id
-    FROM app.tree_items
-    WHERE user_id = ${user.user_id}::uuid AND note_id = ${noteId}::uuid
-  `) as Array<{ parent_id: string | null }>;
-  const parentId = parentRow[0]?.parent_id || null;
-
-  await sql`
-    UPDATE app.notes
-    SET deleted_at = NOW()
-    WHERE note_id = ${noteId}::uuid AND user_id = ${user.user_id}::uuid
-  `;
-
-  await removeNoteFromTree(user.user_id, noteId);
-  await deleteNoteAnnotations(user.user_id, noteId);
-
-  try {
-    await deleteNoteRagIndex(noteId, user.user_id);
-  } catch (error) {
-    logger.warn("note RAG index cleanup failed during soft delete", {
-      noteId,
-      error,
-    });
-  }
-
-  await cacheInvalidate(
-    cacheKeys.note(user.user_id, noteId),
-    cacheKeys.treeChildren(user.user_id, parentId),
-    cacheKeys.treeFull(user.user_id),
-    cacheKeys.notesList(user.user_id, 0, undefined),
-  );
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    rootId: result.rootId,
+    itemsMoved: result.noteIds.length,
+    purgeAt: result.purgeAt,
+  });
 });

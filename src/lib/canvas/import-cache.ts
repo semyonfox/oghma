@@ -1,10 +1,18 @@
 import crypto from "node:crypto";
 import sql from "@/database/pgsql.js";
-import { deleteChunkVectors, getChunkVectors, upsertChunkVectors } from "@/lib/qdrant";
+import {
+  deleteChunkVectors,
+  getChunkVectors,
+  setChunkVectorsSearchable,
+  upsertChunkVectors,
+} from "@/lib/qdrant";
 import { getStorageProvider } from "@/lib/storage/init";
 import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
 
-const CACHE_QDRANT_USER = "__imported_file_cache__";
+// Cache vectors are canonical reusable representations, not user-searchable
+// note chunks. Export this identity so lifecycle code can distinguish them
+// without duplicating a magic payload value.
+export const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
 const NOTE_ASSET_CAPTURE_RE = /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
 
 // Bump this whenever extraction, chunking, Marker policy, or the embedding
@@ -25,9 +33,17 @@ export interface ImportedFileCacheRow {
   extracted_markdown: string | null;
   extracted_text: string | null;
   extraction_coverage: Record<string, unknown> | null;
+  orphaned_at?: string | null;
+  purge_after?: string | null;
 }
 
 interface CacheChunkRow { id: string; text: string; ordinal: number }
+
+interface PreparedCacheReplay {
+  oldChunkIds: string[];
+  cached: CacheChunkRow[];
+  inserted: Array<{ id: string }>;
+}
 
 export interface CanvasFileSource {
   tenant: string;
@@ -78,8 +94,28 @@ export function importedFileStorageKey(sha256: string, _filename?: string): stri
   return `imports/shared/${sha256}.pdf`;
 }
 
-export function isSharedImportedFileKey(key: string | null): boolean {
+export function isSharedImportedFileObjectKey(key: string | null): boolean {
   return Boolean(key?.startsWith("imports/shared/"));
+}
+
+export function isSharedImportedFileAssetKey(
+  key: string | null,
+  cacheId?: string,
+): boolean {
+  const prefix = cacheId
+    ? `imports/shared-assets/${cacheId}/`
+    : "imports/shared-assets/";
+  return Boolean(key?.startsWith(prefix));
+}
+
+// Both canonical PDFs and Marker assets are cache-owned immutable objects.
+// Callers deleting user-owned objects must leave either form to the retention
+// collector instead of treating only the PDF prefix as shared.
+export function isSharedImportedFileKey(key: string | null): boolean {
+  return (
+    isSharedImportedFileObjectKey(key) ||
+    isSharedImportedFileAssetKey(key)
+  );
 }
 
 export function isReplayableImportedMarkdown(markdown: string | null): boolean {
@@ -154,7 +190,8 @@ export async function ensureImportedFileCacheRow(params: {
       ${params.fileSize}, ${params.storageKey}, 'processing', FALSE, NOW(), NOW())
     ON CONFLICT (sha256, pipeline_version) DO UPDATE SET
       status = 'processing', replayable = FALSE, error_message = NULL,
-      processing_started_at = NOW(), updated_at = NOW()
+      processing_started_at = NOW(), orphaned_at = NULL, purge_after = NULL,
+      updated_at = NOW()
     RETURNING *
   `;
   return row as ImportedFileCacheRow;
@@ -235,7 +272,8 @@ export async function captureImportedPdfCache(params: {
       UPDATE app.imported_file_cache SET status = 'ready', replayable = ${replayable},
         extracted_markdown = ${markdown}, extracted_text = ${note.extracted_text ?? null},
         extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
-        error_message = NULL, updated_at = NOW()
+        error_message = NULL, orphaned_at = NULL, purge_after = NULL,
+        updated_at = NOW()
       WHERE id = ${params.cacheId}::uuid
     `;
     await tx`
@@ -250,7 +288,7 @@ export async function captureImportedPdfCache(params: {
     const source = sourceChunks.find((chunk) => Number(chunk.ordinal) === row.ordinal);
     const vector = source ? vectorById.get(source.id) : undefined;
     return vector ? [{ chunkId: row.id, documentId: params.cacheId,
-      userId: CACHE_QDRANT_USER, vector }] : [];
+      userId: IMPORTED_FILE_CACHE_QDRANT_USER, vector }] : [];
   });
   if (points.length) await upsertChunkVectors(points);
   return { replayable };
@@ -265,39 +303,80 @@ export async function cloneImportedPdfCacheToNote(params: {
       AND status = 'ready' AND replayable = TRUE LIMIT 1
   `;
   if (!cache) return 0;
-  if (params.onlyIfEmpty) {
-    const [note] = await sql`SELECT content FROM app.notes WHERE note_id = ${params.noteId}::uuid`;
-    if (note?.content?.trim()) return 0;
-  }
-
-  const cached = (await sql`
-    SELECT id, text, ordinal FROM app.imported_file_cache_chunks
-    WHERE cache_id = ${params.cacheId}::uuid ORDER BY ordinal
-  `) as CacheChunkRow[];
-  const old = (await sql`
-    SELECT id FROM app.chunks WHERE document_id = ${params.noteId}::uuid
-      AND user_id = ${params.userId}::uuid
-  `) as Array<{ id: string }>;
-  await deleteChunkVectors(old.map((row) => row.id)).catch(() => undefined);
-  await sql`DELETE FROM app.chunks WHERE document_id = ${params.noteId}::uuid AND user_id = ${params.userId}::uuid`;
   const replayMarkdown = String(cache.extracted_markdown ?? "").replace(
     /\/api\/notes\/[0-9a-f-]{36}\/assets\?name=/gi,
     `/api/notes/${params.noteId}/assets?name=`,
   );
-  await sql`
-    UPDATE app.notes SET content = ${replayMarkdown},
-      extracted_text = ${cache.extracted_text ?? null},
-      extraction_coverage = ${JSON.stringify(cache.extraction_coverage ?? null)}::jsonb,
-      imported_file_cache_id = ${params.cacheId}::uuid, updated_at = NOW()
-    WHERE note_id = ${params.noteId}::uuid AND user_id = ${params.userId}::uuid
-  `;
-  if (!cached.length) return 0;
-  const inserted = (await sql`
-    INSERT INTO app.chunks (document_id, user_id, text)
-    SELECT * FROM UNNEST(${cached.map(() => params.noteId)}::uuid[],
-      ${cached.map(() => params.userId)}::uuid[], ${cached.map((row) => row.text)}::text[])
-    RETURNING id
-  `) as Array<{ id: string }>;
+  const prepared = (await sql.begin(async (tx: any) => {
+    // Match the Trash lock across the active-note check, replacement of SQL
+    // chunks, and note update. Cache replay otherwise has the same late-GPU
+    // race as a fresh extraction: it could publish a new chunk set after the
+    // user moved the target note or its folder to Trash.
+    await tx`
+      SELECT pg_advisory_xact_lock(hashtextextended(${params.userId}::text, 0))
+    `;
+    const [note] = await tx`
+      SELECT content
+      FROM app.notes
+      WHERE note_id = ${params.noteId}::uuid
+        AND user_id = ${params.userId}::uuid
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `;
+    if (!note) return null;
+
+    // A cache replay creates a fresh user reference. Clear a pending retention
+    // schedule before cloning derived state so a daily collector cannot treat
+    // this cache as an orphan between the attachment steps.
+    await tx`
+      UPDATE app.imported_file_cache
+      SET orphaned_at = NULL, purge_after = NULL, updated_at = NOW()
+      WHERE id = ${params.cacheId}::uuid
+    `;
+    if (params.onlyIfEmpty && note.content?.trim()) {
+      return { oldChunkIds: [], cached: [] as CacheChunkRow[], inserted: [] as Array<{ id: string }> };
+    }
+
+    const cached = (await tx`
+      SELECT id, text, ordinal FROM app.imported_file_cache_chunks
+      WHERE cache_id = ${params.cacheId}::uuid ORDER BY ordinal
+    `) as CacheChunkRow[];
+    const old = (await tx`
+      SELECT id FROM app.chunks WHERE document_id = ${params.noteId}::uuid
+        AND user_id = ${params.userId}::uuid
+    `) as Array<{ id: string }>;
+    await tx`
+      DELETE FROM app.chunks
+      WHERE document_id = ${params.noteId}::uuid
+        AND user_id = ${params.userId}::uuid
+    `;
+    await tx`
+      UPDATE app.notes SET content = ${replayMarkdown},
+        extracted_text = ${cache.extracted_text ?? null},
+        extraction_coverage = ${JSON.stringify(cache.extraction_coverage ?? null)}::jsonb,
+        imported_file_cache_id = ${params.cacheId}::uuid, updated_at = NOW()
+      WHERE note_id = ${params.noteId}::uuid
+        AND user_id = ${params.userId}::uuid
+        AND deleted_at IS NULL
+    `;
+    const inserted = cached.length === 0 ? [] : await tx`
+      INSERT INTO app.chunks (document_id, user_id, text)
+      SELECT * FROM UNNEST(${cached.map(() => params.noteId)}::uuid[],
+        ${cached.map(() => params.userId)}::uuid[], ${cached.map((row) => row.text)}::text[])
+      RETURNING id
+    `;
+    return {
+      oldChunkIds: old.map((row) => row.id),
+      cached,
+      inserted: inserted as Array<{ id: string }>,
+    };
+  })) as PreparedCacheReplay | null;
+  if (!prepared) return 0;
+
+  await deleteChunkVectors(prepared.oldChunkIds).catch(() => undefined);
+  if (!prepared.cached.length) return 0;
+
+  const { cached, inserted } = prepared;
   const vectors = await getChunkVectors(cached.map((row) => row.id));
   const byId = new Map(vectors.map((item) => [item.chunkId, item.vector]));
   const points = inserted.flatMap((row, index) => {
@@ -306,5 +385,22 @@ export async function cloneImportedPdfCacheToNote(params: {
       userId: params.userId, vector }] : [];
   });
   if (points.length) await upsertChunkVectors(points);
+
+  // The guarded SQL work and the Qdrant upsert cannot be one transaction.
+  // If Trash wins immediately afterwards, retain the vectors for restore but
+  // take them out of semantic search right away; the daily reconciler is a
+  // second safety net if Qdrant is temporarily unavailable.
+  const [state] = await sql`
+    SELECT deleted_at IS NULL AS active
+    FROM app.notes
+    WHERE note_id = ${params.noteId}::uuid
+      AND user_id = ${params.userId}::uuid
+  `;
+  if (state && !state.active) {
+    await setChunkVectorsSearchable(
+      inserted.map((row) => row.id),
+      false,
+    ).catch(() => undefined);
+  }
   return inserted.length;
 }

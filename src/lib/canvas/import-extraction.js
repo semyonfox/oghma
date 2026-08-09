@@ -11,7 +11,6 @@ import { createHash } from "node:crypto";
 import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
 import { getStorageProvider } from "../storage/init.ts";
-import { addNoteToTree } from "../notes/storage/pg-tree.js";
 import { CanvasClient, MAX_CANVAS_FILE_BYTES } from "./client.js";
 import {
   canvasIdForBigintColumn,
@@ -92,6 +91,12 @@ export function resolveMimeType(filename, canvasMimeType) {
 
 // ── Note helpers ────────────────────────────────────────────────────────────
 
+async function lockUserTree(tx, userId) {
+  await tx`
+    SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+  `;
+}
+
 async function createNote(userId, title, parentId, opts = {}) {
   const noteId = uuidv4();
   const s3Key = opts.s3Key ?? null;
@@ -101,19 +106,40 @@ async function createNote(userId, title, parentId, opts = {}) {
   const canvasModuleId = opts.canvasModuleId ?? null;
   const canvasAssignmentId = opts.canvasAssignmentId ?? null;
   const canvasAcademicYear = opts.canvasAcademicYear ?? null;
-  await sql`
-    INSERT INTO app.notes (
-      note_id, user_id, title, content, s3_key, is_folder,
-      canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
-      created_at, updated_at
-    )
-    VALUES (
-      ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder},
-      ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear},
-      NOW(), NOW()
-    )
-  `;
-  await addNoteToTree(userId, noteId, parentId ?? null);
+  await sql.begin(async (tx) => {
+    // Match the lock held by a Trash transition. A file worker that loses the
+    // race cannot create a fresh binary/markdown pair inside a deleted folder.
+    await lockUserTree(tx, userId);
+    if (parentId) {
+      const [parent] = await tx`
+        SELECT note_id
+        FROM app.notes
+        WHERE note_id = ${parentId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        FOR KEY SHARE
+      `;
+      if (!parent) throw new Error("Parent folder is no longer active");
+    }
+
+    await tx`
+      INSERT INTO app.notes (
+        note_id, user_id, title, content, s3_key, is_folder,
+        canvas_course_id, canvas_module_id, canvas_assignment_id, canvas_academic_year,
+        created_at, updated_at
+      )
+      VALUES (
+        ${noteId}::uuid, ${userId}::uuid, ${title}, ${content}, ${s3Key}, ${isFolder},
+        ${canvasCourseId}, ${canvasModuleId}, ${canvasAssignmentId}, ${canvasAcademicYear},
+        NOW(), NOW()
+      )
+    `;
+    await tx`
+      INSERT INTO app.tree_items (user_id, note_id, parent_id)
+      VALUES (${userId}::uuid, ${noteId}::uuid, ${parentId ?? null}::uuid)
+      ON CONFLICT (user_id, note_id) DO NOTHING
+    `;
+  });
   return noteId;
 }
 
@@ -505,22 +531,35 @@ async function _runFileImport(importRecordId, file, opts) {
       : null;
   if (canvasSource) {
     const sourceCache = await getImportedFileCacheByCanvasSource(canvasSource);
-    if (
-      sourceCache &&
-      (await hasReusableImportedPdfCacheObject(sourceCache, storage, opts))
-    ) {
+    const reused = sourceCache
+      ? await withImportedFileLock(sourceCache.sha256, async () => {
+          // A source lookup happens before the file bytes are available. It
+          // must share the content-addressed lock with cache retention so an
+          // expired object cannot disappear between lookup and note creation.
+          const currentCache = await getImportedFileCacheBySha(sourceCache.sha256);
+          if (
+            !currentCache ||
+            currentCache.status !== "ready" ||
+            !currentCache.replayable ||
+            !(await hasReusableImportedPdfCacheObject(currentCache, storage, opts))
+          ) {
+            return null;
+          }
+          return reuseImportedPdfCache(
+            currentCache,
+            file,
+            opts,
+            importRecordId,
+          );
+        })
+      : null;
+    if (reused) {
       logger.info("canvas-import-file-source-cache-hit", {
         jobId: opts.jobId,
         canvasFileId: file.id,
         tenant: canvasSource.tenant,
         fileSizeBytes: canvasSource.fileSize,
       });
-      const reused = await reuseImportedPdfCache(
-        sourceCache,
-        file,
-        opts,
-        importRecordId,
-      );
       await setImportStatus(importRecordId, "complete", {
         noteId: reused.noteId,
       }, opts.jobId);
@@ -883,7 +922,7 @@ function canvasQueueAttemptLimit() {
 
 function isPermanentCanvasImportError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return /CANVAS_MAX_FILE_BYTES|unsupported|Canvas credentials not found|Job cancelled/i.test(
+  return /CANVAS_MAX_FILE_BYTES|unsupported|Canvas credentials not found|Job cancelled|Parent folder is no longer active/i.test(
     message,
   );
 }
@@ -1070,11 +1109,25 @@ export async function processDirectExtraction(msg) {
     return;
   }
 
-  await sql`
+  const claimed = await sql`
     UPDATE app.ingestion_jobs
     SET status = 'processing', updated_at = NOW()
-    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid AND status = 'pending'
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND status = 'pending'
+      AND EXISTS (
+        SELECT 1
+        FROM app.notes n
+        WHERE n.note_id = ${noteId}::uuid
+          AND n.user_id = ${userId}::uuid
+          AND n.deleted_at IS NULL
+      )
+    RETURNING id
   `;
+  if (claimed.length === 0) {
+    console.log(`[${ts()}] Direct extraction skipped for inactive note ${noteId}`);
+    return;
+  }
 
   const storage = getStorageProvider();
   const objectData = await storage.getObjectAndMeta(s3Key);
@@ -1083,7 +1136,9 @@ export async function processDirectExtraction(msg) {
     await sql`
       UPDATE app.ingestion_jobs
       SET status = 'failed', error = 'S3 object not found', updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND status = 'processing'
     `;
     console.error(`[${ts()}] S3 object not found for note ${noteId}: ${s3Key}`);
     return;
@@ -1113,7 +1168,9 @@ export async function processDirectExtraction(msg) {
       await sql`
         UPDATE app.ingestion_jobs
         SET status = 'pending', error = 'Queued for extraction retry', updated_at = NOW()
-        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND status = 'processing'
       `;
       console.log(
         `[${ts()}] Extraction deferred for note ${noteId}; retry queued`,
@@ -1129,7 +1186,9 @@ export async function processDirectExtraction(msg) {
     await sql`
       UPDATE app.ingestion_jobs
       SET status = 'done', chunks_stored = ${chunksStored}, error = NULL, updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND status = 'processing'
     `;
     console.log(
       `[${ts()}] Direct extraction complete for note ${noteId} (${chunksStored} chunks)`,
@@ -1139,7 +1198,9 @@ export async function processDirectExtraction(msg) {
     await sql`
       UPDATE app.ingestion_jobs
       SET status = 'failed', error = ${message}, updated_at = NOW()
-      WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+      WHERE note_id = ${noteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND status = 'processing'
     `;
     console.error(
       `[${ts()}] Direct extraction failed for note ${noteId}: ${message}`,

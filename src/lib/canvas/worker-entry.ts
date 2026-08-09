@@ -40,13 +40,21 @@ import {
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker.js";
 import { cleanupMarketingData } from "../marketing/retention";
+import {
+  processPendingNoteDeletionCleanup,
+  purgeExpiredTrash,
+  reconcileTrashedVectorVisibility,
+} from "../notes/storage/note-lifecycle";
 import { dispatchFairCanvasFiles } from "./import-scheduler";
+import { runImportedFileCacheRetention } from "./import-cache-retention";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const DB_POLL_INTERVAL_MS = 30_000;
 const ORPHAN_ENQUEUE_RETRY_INTERVAL = "1 minute";
 const MARKETING_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const IMPORT_CACHE_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const NOTE_LIFECYCLE_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_CONCURRENT_JOBS = 10;
 // On unless explicitly disabled, so an existing worker keeps consuming Marker
 // dispatches after an upgrade. The healthcheck uses the same parser.
@@ -140,6 +148,39 @@ async function runMarketingCleanup(): Promise<void> {
   } catch (err) {
     console.error(
       `[${new Date().toISOString()}] Marketing retention cleanup failed:`,
+      errorMessage(err),
+    );
+  }
+}
+
+async function runImportCacheRetention(): Promise<void> {
+  try {
+    const result = await runImportedFileCacheRetention();
+    console.log(
+      `[${new Date().toISOString()}] Imported-file cache retention: ${result.cachesMarkedFailed} abandoned, ${result.cachesMarkedOrphaned} marked orphaned, ${result.cachesRevived} revived, ${result.cachesPurged} purged, ${result.purgeFailures} failed`,
+    );
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] Imported-file cache retention failed:`,
+      errorMessage(err),
+    );
+  }
+}
+
+async function runNoteLifecycleRetention(): Promise<void> {
+  try {
+    // Purging expired Trash roots can create external-cleanup tasks, so run
+    // task processing second and let a single daily pass finish both when
+    // Qdrant and object storage are healthy.
+    const trashRootsPurged = await purgeExpiredTrash();
+    const cleanupTasksCompleted = await processPendingNoteDeletionCleanup();
+    const hiddenTrashVectors = await reconcileTrashedVectorVisibility();
+    console.log(
+      `[${new Date().toISOString()}] Note lifecycle retention: ${trashRootsPurged} Trash root(s) purged, ${cleanupTasksCompleted} cleanup task(s) completed, ${hiddenTrashVectors} vector(s) hidden`,
+    );
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] Note lifecycle retention failed:`,
       errorMessage(err),
     );
   }
@@ -269,8 +310,12 @@ console.log(
 
 await failStuckJobs();
 await runMarketingCleanup();
+await runImportCacheRetention();
+await runNoteLifecycleRetention();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
+setInterval(runImportCacheRetention, IMPORT_CACHE_RETENTION_INTERVAL_MS);
+setInterval(runNoteLifecycleRetention, NOTE_LIFECYCLE_RETENTION_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();

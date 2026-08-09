@@ -290,11 +290,11 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 handleBulkDeleteRequest(selectedItemIds);
               }}
               className="inline-flex h-6 items-center gap-1 rounded-radius-sm bg-error-500/15 px-2 font-medium text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 focus:outline-none focus:ring-1 focus:ring-error-500/50"
-              title={t("Delete selected")}
-              aria-label={t("Delete selected")}
+              title={t("Move to Trash")}
+              aria-label={t("Move to Trash")}
             >
               <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{t("Delete")}</span>
+              <span>{t("Move to Trash")}</span>
             </button>
             <button
               type="button"
@@ -470,17 +470,17 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               {deleteConfirmTarget.mode === "bulk" ? (
                 <>
                   <span className="font-medium text-text">
-                    {t("Delete")} {deleteIds.length} {t("selected items")}?
+                    {t("Move to Trash")} {deleteIds.length} {t("selected items")}?
                   </span>
                   <span className="block mt-1 text-text-tertiary text-xs">
                     {deleteHasFolder
-                      ? t("Selected folders and their contents will be deleted.")
-                      : t("The selected notes will be deleted.")}
+                      ? t("Selected folders and their contents will be moved to Trash.")
+                      : t("The selected notes will be moved to Trash.")}
                   </span>
                 </>
               ) : (
                 <>
-                  {t("Delete")}{" "}
+                  {t("Move to Trash")}{" "}
                   <span className="font-medium text-text">
                     {singleDeleteId
                       ? tree.items[singleDeleteId]?.data?.title ||
@@ -492,9 +492,12 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               )}
               {deleteConfirmTarget.mode === "single" && deleteHasFolder && (
                 <span className="block mt-1 text-text-tertiary text-xs">
-                  {t("This folder and all its contents will be deleted.")}
+                  {t("This folder and all its contents will be moved to Trash.")}
                 </span>
               )}
+              <span className="block mt-1 text-text-tertiary text-xs">
+                {t("Items in Trash are permanently deleted after 30 days.")}
+              </span>
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -507,7 +510,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 onClick={handleDeleteConfirm}
                 className="px-3 py-1.5 text-xs font-medium rounded-radius-sm bg-error-500/20 text-error-400 hover:bg-error-500/30 transition-colors"
               >
-                {t("Delete")}
+                {t("Move to Trash")}
               </button>
             </div>
           </div>

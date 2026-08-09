@@ -18,6 +18,12 @@ export function resolveNoteRoute(
     return { type: "ignore" };
   }
 
+  // Reserved workspace routes are rendered in the Notes shell, but are not
+  // note IDs and must never trigger a redirect or note fetch.
+  if (noteId === "trash") {
+    return { type: "ignore" };
+  }
+
   if (!UUID_RE.test(noteId)) {
     return { type: "redirect", noteId };
   }

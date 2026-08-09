@@ -58,6 +58,23 @@ Canvas messages carry the exact import-row and job IDs and are claimed before
 they can index. It cannot reconstruct arbitrary direct-extraction or vault
 payloads. That mechanism is recovery, not a substitute for queue health.
 
+The same worker runs shared imported-file cache retention at startup and then
+daily. A cache remains while any note references it, including a note retained
+in Trash, or while a Canvas import is still in flight. After the final
+reference is gone, `IMPORT_CACHE_RETENTION_DAYS` controls the additional
+cache-only window before canonical vectors, Marker assets, and the shared PDF
+are removed. This is application-managed, reference-aware cleanup; do not add
+an object-store age lifecycle rule for `imports/shared/`.
+An unreferenced cache that remains in `processing` for more than 24 hours is
+treated as an interrupted import and follows that same bounded cleanup path.
+
+It also finalizes expired Trash bundles and retries any Qdrant or private
+object-storage cleanup that could not complete during a permanent deletion.
+`TRASH_RETENTION_DAYS` defaults to 30 days; `RETENTION_CLEANUP_BATCH_SIZE`
+bounds each daily pass. A trashed note still counts as a cache reference, so
+its derived shared import data is eligible for cleanup only after Trash expiry
+and the separate cache-retention window.
+
 ## Configuration Truth
 
 There are three distinct values to discuss:
@@ -78,6 +95,9 @@ There are three distinct values to discuss:
 | `CANVAS_FILE_TIMEOUT_MS`                 |      `600000` supervision warning |            `600000` |
 | `CANVAS_MAX_FILE_BYTES`                  |                    `262144000` (250 MiB) |        `262144000` |
 | `CANVAS_POLL_INTERVAL_MS`                |                                 `3000` |              `3000` |
+| `TRASH_RETENTION_DAYS`                   |                                   `30` |                `30` |
+| `RETENTION_CLEANUP_BATCH_SIZE`           |                                   `50` |                `50` |
+| `IMPORT_CACHE_RETENTION_DAYS`            |                                    `7` |                 `7` |
 | `MARKER_OCR_ENABLED`                     |                                `false` |             `false` |
 | `MARKER_SERVERLESS_DISPATCH_ENABLED`     |                                `false` |             `false` |
 | `MARKER_DISPATCH_CONSUMER_ENABLED`       |                                 `true` |              `true` |

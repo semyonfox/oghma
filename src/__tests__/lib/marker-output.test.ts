@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  markerAssetPrefix,
   normalizeMarkerMarkdown,
   persistMarkerAssetsForNote,
   sanitizeMarkerAssetName,
@@ -24,6 +25,12 @@ describe("marker-output", () => {
     );
     expect(sanitizeMarkerAssetName("../../etc/passwd")).toBe("passwd");
     expect(sanitizeMarkerAssetName("   ")).toBeNull();
+  });
+
+  it("uses one narrow namespace per note for Marker assets", () => {
+    expect(markerAssetPrefix("user-1", "note-1")).toBe(
+      "marker/user-1/note-1/",
+    );
   });
 
   it("stores images and rewrites markdown links", async () => {

@@ -9,6 +9,7 @@ describe("resolveNoteRoute", () => {
     expect(resolveNoteRoute("/calendar")).toEqual({ type: "ignore" });
     expect(resolveNoteRoute("/notes")).toEqual({ type: "ignore" });
     expect(resolveNoteRoute("/notes/")).toEqual({ type: "ignore" });
+    expect(resolveNoteRoute("/notes/trash")).toEqual({ type: "ignore" });
   });
 
   it("loads valid UUID note ids", () => {

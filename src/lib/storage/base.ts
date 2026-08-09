@@ -117,6 +117,12 @@ export abstract class StoreProvider {
   abstract deleteObject(path: string): Promise<void>;
 
   /**
+   * Delete every object below a storage prefix. Callers must pass a narrowly
+   * scoped, user-owned prefix; this is used for untracked Marker assets.
+   */
+  abstract deletePrefix(path: string): Promise<void>;
+
+  /**
    * Copy an object and optionally update its metadata
    */
   abstract copyObject(

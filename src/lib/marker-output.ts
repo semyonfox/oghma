@@ -44,7 +44,12 @@ export function markerAssetKey(
   noteId: string,
   assetName: string,
 ): string {
-  return `marker/${userId}/${noteId}/${assetName}`;
+  return `${markerAssetPrefix(userId, noteId)}${assetName}`;
+}
+
+/** The complete private object namespace for one note's Marker output. */
+export function markerAssetPrefix(userId: string, noteId: string): string {
+  return `marker/${userId}/${noteId}/`;
 }
 
 export function markerMetadataKey(userId: string, noteId: string): string {

@@ -128,7 +128,7 @@ describe("processDirectExtraction", () => {
 
     vi.mocked(sql)
       .mockResolvedValueOnce([{ status: "pending" }] as never)
-      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ id: "ingestion-job-123" }] as never)
       .mockResolvedValueOnce([{ parent_id: null }] as never)
       .mockResolvedValueOnce([] as never);
     vi.mocked(getStorageProvider).mockReturnValue({ getObjectAndMeta } as never);
@@ -165,6 +165,23 @@ describe("processDirectExtraction", () => {
       .mock.calls.map((call: any[]) => call[0]?.join(""))
       .find((query: string | undefined) => query?.includes("SET status = 'done'"));
     expect(completionQuery).toContain("chunks_stored");
+  });
+
+  it("does not start a direct extraction once Trash has cancelled its claim", async () => {
+    vi.mocked(sql)
+      .mockResolvedValueOnce([{ status: "pending" }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await processDirectExtraction({
+      noteId: "note-123",
+      userId: "user-123",
+      s3Key: "notes/note-123/lecture.pdf",
+      filename: "lecture.pdf",
+      mimeType: "application/pdf",
+    });
+
+    expect(getStorageProvider).not.toHaveBeenCalled();
+    expect(processRagPipeline).not.toHaveBeenCalled();
   });
 });
 
@@ -487,6 +504,7 @@ describe("shared imported PDF cache integrity", () => {
   };
   const cache = {
     id: "cache-123",
+    sha256: "a".repeat(64),
     status: "ready",
     replayable: true,
     storage_key: "imports/shared/aabbcc.pdf",
@@ -588,6 +606,7 @@ describe("shared imported PDF cache integrity", () => {
   it("reuses a source-matched cache only after verifying its shared object", async () => {
     const { client, storage } = await importFile({
       sourceCache: cache,
+      shaCache: cache,
       existingNote: true,
       hasObjectResults: [true],
     });
@@ -595,11 +614,13 @@ describe("shared imported PDF cache integrity", () => {
     expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
+    expect((sql as any).begin).toHaveBeenCalled();
   });
 
   it("downloads and rebuilds when a source-matched cache row has no object", async () => {
     const { client, storage } = await importFile({
       sourceCache: cache,
+      shaCache: cache,
       hasObjectResults: [false],
     });
 

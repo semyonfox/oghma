@@ -14,6 +14,10 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 });
 
 import { StoreS3 } from "@/lib/storage/s3";
+import {
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 
 describe("StoreS3.getObjectMeta", () => {
   const storage = new StoreS3({
@@ -58,5 +62,43 @@ describe("StoreS3.getObjectMeta", () => {
     await expect(storage.getObjectMeta("result.json")).rejects.toThrow(
       "storage unavailable",
     );
+  });
+
+  it("deletes every object under a narrow prefix across list pages", async () => {
+    send
+      .mockResolvedValueOnce({
+        Contents: [
+          { Key: "marker/user/note/one.png" },
+          { Key: "marker/user/note/two.png" },
+        ],
+        IsTruncated: true,
+        NextContinuationToken: "next-page",
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({
+        Contents: [{ Key: "marker/user/note/three.png" }],
+        IsTruncated: false,
+      })
+      .mockResolvedValueOnce({});
+
+    await storage.deletePrefix("marker/user/note/");
+
+    expect(send).toHaveBeenCalledTimes(4);
+    expect(send.mock.calls[0][0]).toBeInstanceOf(ListObjectsV2Command);
+    expect((send.mock.calls[0][0] as ListObjectsV2Command).input).toMatchObject({
+      Prefix: "marker/user/note/",
+    });
+    expect(send.mock.calls[1][0]).toBeInstanceOf(DeleteObjectsCommand);
+    expect((send.mock.calls[1][0] as DeleteObjectsCommand).input).toMatchObject({
+      Delete: {
+        Objects: [
+          { Key: "marker/user/note/one.png" },
+          { Key: "marker/user/note/two.png" },
+        ],
+      },
+    });
+    expect((send.mock.calls[2][0] as ListObjectsV2Command).input).toMatchObject({
+      ContinuationToken: "next-page",
+    });
   });
 });
