@@ -5,7 +5,10 @@ import sql from "@/database/pgsql.js";
 import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { buildCanvasSyncCourses } from "@/lib/canvas/sync-courses.js";
+import {
+  buildCanvasSyncCourses,
+  resolveAccessibleCanvasCourses,
+} from "@/lib/canvas/sync-courses.js";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 /**
@@ -50,11 +53,16 @@ export const POST = withErrorHandler(async () => {
 
   // Fetch current course list from Canvas to get up-to-date name / course_code
   const client = new CanvasClient(credentials.domain, credentials.token);
-  const { data: allCourses } = await client.getCourses();
+  const { data: visibleCourses } = await client.getDiscoverableCourses();
 
   let courses;
   try {
-    courses = buildCanvasSyncCourses(prevCourseIds, allCourses);
+    const accessibleCourses = await resolveAccessibleCanvasCourses(
+      client,
+      visibleCourses,
+      prevCourseIds,
+    );
+    courses = buildCanvasSyncCourses(prevCourseIds, accessibleCourses);
   } catch {
     throw new ApiError(502, "Canvas returned invalid course metadata");
   }
@@ -62,7 +70,7 @@ export const POST = withErrorHandler(async () => {
   if (courses.length === 0) {
     return NextResponse.json({
       queued: false,
-      reason: "No matching active courses found",
+      reason: "No previously imported Canvas courses are accessible",
     });
   }
 

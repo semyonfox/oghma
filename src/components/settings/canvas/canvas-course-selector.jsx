@@ -70,6 +70,11 @@ export default function CanvasCourseSelector({
                       <p className="text-sm text-text-secondary">
                         {course.name}
                       </p>
+                      {course.historical && (
+                        <span className="text-xs text-text-tertiary">
+                          {t("Previous course")}
+                        </span>
+                      )}
                       <CourseBadge status={status} errorMsg={error} t={t} />
                     </div>
                     <p className="text-xs text-text-tertiary">

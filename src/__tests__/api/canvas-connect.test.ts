@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
+  getCourse: vi.fn(),
   getModules: vi.fn(),
 }));
 
@@ -110,6 +111,37 @@ describe("GET /api/canvas/connect", () => {
     expect(await response.json()).toEqual({
       error: "Canvas returned an invalid course ID",
     });
+  });
+
+  it("returns a directly accessible historical course alongside listed courses", async () => {
+    canvas.getDiscoverableCourses.mockResolvedValue({
+      data: [{ id: "42", name: "Current" }],
+    });
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        { canvas_course_id: "9007199254740993" },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+    canvas.getCourse.mockResolvedValue({
+      data: { id: "9007199254740993", name: "Historical" },
+    });
+    canvas.getModules.mockResolvedValue({ data: [] });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/canvas/connect"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(canvas.getCourse).toHaveBeenCalledWith("9007199254740993");
+    expect((await response.json()).courses).toEqual([
+      { id: "42", name: "Current", modules: [] },
+      {
+        id: "9007199254740993",
+        name: "Historical",
+        historical: true,
+        modules: [],
+      },
+    ]);
   });
 
   it.each(["{", "null"])("returns 400 for invalid object JSON %s", async (body) => {
