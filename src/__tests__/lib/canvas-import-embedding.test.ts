@@ -68,6 +68,7 @@ describe("processRagPipeline PDF bundles", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.sql.mockResolvedValue([{ note_id: "pdf-note" }]);
     mocks.moveNoteToExtractionBundle.mockResolvedValue("bundle-123");
     mocks.markerQueueEnabled.mockReturnValue(false);
     mocks.processAllPdfsWithMarker.mockReturnValue(false);
