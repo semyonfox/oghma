@@ -9,6 +9,7 @@
 import sql from "../../database/pgsql.js";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
+import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import {
   enqueueExtractionRetry,
@@ -102,6 +103,18 @@ export async function processRagPipeline(
     extractionOverride = null,
     retryOnFailure = true,
   } = ragOpts;
+  let extractedParentFolderId = parentFolderId;
+
+  const ensurePdfBundle = async () => {
+    if (mimeType !== "application/pdf") return extractedParentFolderId;
+    extractedParentFolderId = await moveNoteToExtractionBundle(
+      userId,
+      noteId,
+      filename ?? "document.pdf",
+    );
+    return extractedParentFolderId;
+  };
+
   const [sourceNote] = await sql`
     SELECT is_import_cache_source
     FROM app.notes
@@ -124,6 +137,7 @@ export async function processRagPipeline(
       if (!(await isActiveNote(noteId, userId))) {
         return { noteId, chunksStored: 0, skipped: true };
       }
+      const markerParentFolderId = await ensurePdfBundle();
       const submitted = await submitMarkerJob({
         sourceKey: s3Key,
         sourceBytes: buffer?.length ?? null,
@@ -132,7 +146,7 @@ export async function processRagPipeline(
         jobId,
         filename: filename ?? "document.pdf",
         mimeType,
-        parentFolderId,
+        parentFolderId: markerParentFolderId,
       });
       // submitMarkerJob atomically persists the Marker row and pending states
       // before it publishes work. Repeating those updates here could overwrite
@@ -250,6 +264,9 @@ export async function processRagPipeline(
       return { noteId, chunksStored: count };
     }
 
+    // Binary files create an extracted .md companion. PDFs share a named
+    // bundle folder with their source; other binary formats keep their
+    // existing sibling placement.
     // A hidden cache source is its own immutable extraction target. Do not
     // create a sibling Markdown note, which would leak a SHA-named file into
     // the user's tree and duplicate their retrieval vectors.
@@ -278,15 +295,15 @@ export async function processRagPipeline(
       return { noteId, chunksStored: count };
     }
 
-    // binary files: create a sibling .md note for the extracted content
     if (!(await isActiveNote(noteId, userId))) {
       return { noteId, chunksStored: 0, skipped: true };
     }
     const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
+    const markdownParentFolderId = await ensurePdfBundle();
     const { noteId: mdNoteId } = await findOrCreateNote(
       userId,
       mdTitle,
-      parentFolderId,
+      markdownParentFolderId,
       { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId },
     );
     const storage = getStorageProvider();
@@ -375,7 +392,7 @@ export async function processRagPipeline(
           s3Key,
           filename,
           mimeType,
-          parentFolderId,
+          parentFolderId: extractedParentFolderId,
           attempt,
           importRecordId,
           jobId,
