@@ -54,7 +54,10 @@ function resultGraceSeconds(): number {
   // upload its stable result after the caller has given up. Favor one paid
   // execution over automatic redispatch; an absent result becomes an explicit
   // terminal failure after this observation window.
-  return positiveInt("MARKER_RESULT_GRACE_SECONDS", 30 * 60);
+  // A zero-minimum single-worker endpoint can legitimately hold a sizeable
+  // batch in its provider queue. Its signed URLs and RunPod job TTL are both
+  // twelve hours, so keep observation aligned with those durable boundaries.
+  return positiveInt("MARKER_RESULT_GRACE_SECONDS", 12 * 60 * 60);
 }
 
 function maxCompletionAttempts(): number {
