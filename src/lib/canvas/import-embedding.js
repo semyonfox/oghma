@@ -115,6 +115,13 @@ export async function processRagPipeline(
     return extractedParentFolderId;
   };
 
+  const [sourceNote] = await sql`
+    SELECT is_import_cache_source
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    LIMIT 1
+  `;
+  const isImportCacheSource = sourceNote?.is_import_cache_source === true;
   try {
     // Work can still be running on a GPU after the user moves a note to
     // Trash. Do not begin a publishable pipeline for a note that is no longer
@@ -260,6 +267,34 @@ export async function processRagPipeline(
     // Binary files create an extracted .md companion. PDFs share a named
     // bundle folder with their source; other binary formats keep their
     // existing sibling placement.
+    // A hidden cache source is its own immutable extraction target. Do not
+    // create a sibling Markdown note, which would leak a SHA-named file into
+    // the user's tree and duplicate their retrieval vectors.
+    if (isImportCacheSource) {
+      const storage = getStorageProvider();
+      const markerAssets = await persistMarkerAssetsForNote({
+        storage,
+        userId,
+        noteId,
+        markdown: rawText,
+        images: markerImages,
+        metadata: markerMetadata,
+      });
+      const finalMarkdown = markerAssets.markdown;
+      const searchText = stripMarkdown(finalMarkdown);
+      const updated = await sql`
+        UPDATE app.notes
+        SET content = ${finalMarkdown}, extracted_text = ${searchText},
+            extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        RETURNING note_id
+      `;
+      if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
+      const count = await replaceEmbeddings(noteId, userId, chunks);
+      return { noteId, chunksStored: count };
+    }
+
     if (!(await isActiveNote(noteId, userId))) {
       return { noteId, chunksStored: 0, skipped: true };
     }
