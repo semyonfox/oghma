@@ -29,6 +29,10 @@ vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
   addNoteToTree: vi.fn(),
 }));
 
+vi.mock("@/lib/notes/extraction-bundle.ts", () => ({
+  findOrCreateExtractionBundle: vi.fn().mockResolvedValue("bundle-123"),
+}));
+
 vi.mock("@/lib/canvas/client.js", () => ({
   CanvasClient: vi.fn(),
   MAX_CANVAS_FILE_BYTES: 50 * 1024 * 1024,
@@ -67,6 +71,7 @@ import sql from "@/database/pgsql.js";
 import { getStorageProvider } from "@/lib/storage/init";
 import { processRagPipeline } from "@/lib/canvas/import-embedding.js";
 import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry.ts";
+import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
 import {
   processDirectExtraction,
   processExtractionRetry,
@@ -615,6 +620,11 @@ describe("shared imported PDF cache integrity", () => {
     expect(client.downloadFile).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
     expect((sql as any).begin).toHaveBeenCalled();
+    expect(findOrCreateExtractionBundle).toHaveBeenCalledWith(
+      "user-123",
+      null,
+      "lecture.pdf",
+    );
   });
 
   it("downloads and rebuilds when a source-matched cache row has no object", async () => {
@@ -630,6 +640,14 @@ describe("shared imported PDF cache integrity", () => {
       expect.stringMatching(/^imports\/shared\/[0-9a-f]{64}\.pdf$/),
       expect.any(Buffer),
       { contentType: "application/pdf" },
+    );
+    expect(processRagPipeline).toHaveBeenCalledWith(
+      expect.any(String),
+      "user-123",
+      "bundle-123",
+      expect.any(Buffer),
+      expect.objectContaining({ filename: "lecture.pdf" }),
+      expect.any(Function),
     );
   });
 
