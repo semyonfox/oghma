@@ -39,6 +39,21 @@ pipeline {
             }
         }
 
+        stage('validate runtime environment') {
+            steps {
+                sh '''
+                    set -eu
+                    test -r "$ENV_FILE"
+                    for required_key in IMPORT_PIPELINE_VERSION MARKER_RESULT_GRACE_SECONDS; do
+                      if ! grep -Eq "^[[:space:]]*${required_key}=.+" "$ENV_FILE"; then
+                        echo "[runtime env] missing required setting: ${required_key} in ${ENV_FILE}" >&2
+                        exit 1
+                      fi
+                    done
+                '''
+            }
+        }
+
         stage('build') {
             parallel {
                 stage('app image') {
