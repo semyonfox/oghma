@@ -12,6 +12,7 @@ import sql from "../../database/pgsql.js";
 import { v4 as uuidv4 } from "uuid";
 import { getStorageProvider } from "../storage/init.ts";
 import { deleteChunkVectors } from "../qdrant.ts";
+import { findOrCreateExtractionBundle } from "../notes/extraction-bundle.ts";
 import { CanvasClient, MAX_CANVAS_FILE_BYTES } from "./client.js";
 import {
   canvasIdForBigintColumn,
@@ -362,10 +363,15 @@ async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
             "Canvas assignment ID",
           );
   }
+  const bundleFolderId = await findOrCreateExtractionBundle(
+    opts.userId,
+    opts.parentFolderId,
+    file.display_name,
+  );
   const binary = await findOrCreateNote(
     opts.userId,
     file.display_name,
-    opts.parentFolderId,
+    bundleFolderId,
     {
       s3Key: cache.storage_key,
       canvasCourseId,
@@ -384,7 +390,7 @@ async function reuseImportedPdfCache(cache, file, opts, importRecordId) {
   const md = await findOrCreateNote(
     opts.userId,
     file.display_name.replace(/\.[^.]+$/, "") + ".md",
-    opts.parentFolderId,
+    bundleFolderId,
     { content: "", canvasCourseId, canvasModuleId, canvasAssignmentId },
   );
   const chunksStored = await cloneImportedPdfCacheToNote({
@@ -649,10 +655,15 @@ async function _runFileImport(importRecordId, file, opts) {
       if (await isJobCancelled(opts.jobId)) throw new Error("Job cancelled");
       await storage.putObject(s3Key, buffer, { contentType: resolvedMimeType });
       if (await isJobCancelled(opts.jobId)) throw new Error("Job cancelled");
+      const bundleFolderId = await findOrCreateExtractionBundle(
+        userId,
+        parentFolderId,
+        file.display_name,
+      );
       const { noteId } = await findOrCreateNote(
         userId,
         file.display_name,
-        parentFolderId,
+        bundleFolderId,
         { s3Key, canvasCourseId, canvasModuleId, canvasAssignmentId },
       );
       await createAttachment(
@@ -674,7 +685,7 @@ async function _runFileImport(importRecordId, file, opts) {
         const result = await runRagPipeline(
           noteId,
           userId,
-          parentFolderId,
+          bundleFolderId,
           buffer,
           {
             filename: file.display_name,

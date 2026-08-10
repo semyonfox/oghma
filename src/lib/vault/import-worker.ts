@@ -15,6 +15,7 @@ import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
+import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
 import { extractWithMarker } from "../ocr.ts";
 import {
   markerAssetPrefix,
@@ -201,12 +202,16 @@ async function processRagPipeline(
     return;
   }
 
-  // binary docs: create sibling .md note
+  // Binary docs create an extracted .md companion; PDFs share a named bundle.
   const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
+  const markdownParentFolderId =
+    mimeType === "application/pdf"
+      ? await moveNoteToExtractionBundle(userId, noteId, filename)
+      : parentFolderId;
   const { noteId: mdNoteId } = await findOrCreateNote(
     userId,
     mdTitle,
-    parentFolderId,
+    markdownParentFolderId,
     {
       content: rawText,
     },
