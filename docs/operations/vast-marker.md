@@ -245,7 +245,7 @@ These checks do not contact Vast:
 
 ```bash
 npm run marker:vast:plan
-npm run test:ci -- src/__tests__/lib/vast-serverless.test.ts
+npm run test -- --run src/__tests__/lib/vast-serverless.test.ts
 python3 -m py_compile \
   infra/vast-marker/backend.py \
   infra/vast-marker/worker.py \

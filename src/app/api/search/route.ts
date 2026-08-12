@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { searchChunkVectors } from "@/lib/qdrant";
-import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
-import { uniqueRowsInHitOrder } from "@/lib/search/unique-rows-in-hit-order";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id";
+import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
 
 interface ResultItem {
   note_id: string;
@@ -16,12 +16,11 @@ interface ResultItem {
   distance?: number;
 }
 
-type SemanticNoteRow = {
-  chunk_id: string;
+interface KeywordNoteRow {
   note_id: string;
   title: string | null;
   snippet: string | null;
-};
+}
 
 // keyword search via PG ILIKE on notes title + content
 async function keywordSearch(
@@ -31,7 +30,7 @@ async function keywordSearch(
   limit = 20,
 ): Promise<ResultItem[]> {
   const pattern = `%${query}%`;
-  const rows = await sql`
+  const rows = await sql<KeywordNoteRow[]>`
         SELECT note_id, title,
                CASE
                    WHEN content IS NOT NULL THEN LEFT(content, 200)
@@ -47,7 +46,7 @@ async function keywordSearch(
             updated_at DESC
         LIMIT ${limit}
     `;
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     note_id: r.note_id,
     title: r.title || "Untitled",
     snippet: (r.snippet || "").replace(/[#*_~`>\[\]]/g, "").trim(),
@@ -73,28 +72,19 @@ async function semanticSearch(
   });
   if (hits.length === 0) return [];
 
-  const chunkIds = hits.map((hit) => hit.chunkId);
-  const rows = await sql`
-    SELECT n.note_id, n.title, n.canvas_course_id, c.id AS chunk_id, c.text AS snippet
-    FROM app.chunks c
-    JOIN app.notes n ON n.note_id = c.document_id
-    WHERE c.user_id = ${userId}::uuid
-      AND c.id = ANY(${chunkIds}::uuid[])
-      AND n.deleted_at IS NULL
-      ${course ? sql`AND n.canvas_course_id = ${course}::bigint` : sql``}
-  `;
-  return uniqueRowsInHitOrder(
-    hits,
-    rows as SemanticNoteRow[],
-    limit,
-    (hit, row) => ({
-      note_id: row.note_id,
-      title: row.title || "Untitled",
-      snippet: (row.snippet || "").slice(0, 200).trim(),
-      distance: hit.distance,
+  const chunks = await hydrateOwnedNoteChunks(userId, hits, {
+    uniqueNotes: true,
+  });
+  return chunks
+    .filter((chunk) => !course || chunk.canvasCourseId === course)
+    .slice(0, limit)
+    .map((chunk) => ({
+      note_id: chunk.noteId,
+      title: chunk.title || "Untitled",
+      snippet: chunk.text.slice(0, 200).trim(),
+      distance: chunk.hit.distance,
       source: "semantic" as const,
-    }),
-  );
+    }));
 }
 
 // GET /api/search?q=query&mode=keyword|semantic&exclude=id1,id2

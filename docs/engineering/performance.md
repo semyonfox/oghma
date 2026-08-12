@@ -4,7 +4,7 @@
 >
 > **Last reviewed:** 2026-07-11
 >
-> **Source of truth:** [`scripts/perf/audit-pages.mjs`](../../scripts/perf/audit-pages.mjs)
+> **Source of truth:** [`scripts/perf/audit-pages.ts`](../../scripts/perf/audit-pages.ts)
 
 Use repeatable lab runs to compare code changes and field data to understand real-user experience. Do not treat a single local run as a production service-level result.
 
@@ -26,7 +26,7 @@ Use a production build on a separate port:
 ```bash
 npm run build
 PORT=3312 npm run start
-PERF_BASE_URL=http://127.0.0.1:3312 node scripts/perf/audit-pages.mjs
+PERF_BASE_URL=http://127.0.0.1:3312 node --experimental-strip-types scripts/perf/audit-pages.ts
 ```
 
 There is currently no `npm run perf:audit` package script. Invoke the file directly unless a package alias is added later.
@@ -35,19 +35,19 @@ Useful environment options:
 
 ```bash
 # Include protected routes; the seeded E2E user must exist.
-PERF_AUTH=1 PERF_BASE_URL=http://127.0.0.1:3312 node scripts/perf/audit-pages.mjs
+PERF_AUTH=1 PERF_BASE_URL=http://127.0.0.1:3312 node --experimental-strip-types scripts/perf/audit-pages.ts
 
 # Repeat routes or use a mobile device profile.
 PERF_ITERATIONS=3 PERF_DEVICE=mobile PERF_BASE_URL=http://127.0.0.1:3312 \
-  node scripts/perf/audit-pages.mjs
+  node --experimental-strip-types scripts/perf/audit-pages.ts
 
 # Audit an explicit comma-separated route set.
 PERF_ROUTES=/notes,/chat,/quiz PERF_AUTH=1 PERF_BASE_URL=http://127.0.0.1:3312 \
-  node scripts/perf/audit-pages.mjs
+  node --experimental-strip-types scripts/perf/audit-pages.ts
 
 # Add routes to the script's defaults or choose an output directory.
 PERF_EXTRA_ROUTES=/blog/example PERF_OUTPUT_DIR=logs/perf/manual \
-  PERF_BASE_URL=http://127.0.0.1:3312 node scripts/perf/audit-pages.mjs
+  PERF_BASE_URL=http://127.0.0.1:3312 node --experimental-strip-types scripts/perf/audit-pages.ts
 ```
 
 Other supported controls include `PERF_POST_LOAD_WAIT_MS` and `PERF_NAVIGATION_TIMEOUT_MS`.

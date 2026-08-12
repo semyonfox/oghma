@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
-  (sqlMock as any).begin = vi.fn(
+  Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
-  );
+  ) });
   return { default: sqlMock };
 });
 
@@ -13,7 +13,7 @@ vi.mock("@/lib/storage/init.ts", () => ({
   getStorageProvider: vi.fn(),
 }));
 
-vi.mock("@/lib/canvas/import-embedding.js", () => ({
+vi.mock("@/lib/canvas/import-embedding", () => ({
   processRagPipeline: vi.fn(),
 }));
 
@@ -25,26 +25,26 @@ vi.mock("@/lib/ocr.ts", () => ({
   splitMarkdownToChunks: vi.fn(() => ["chunk-1"]),
 }));
 
-vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
-  addNoteToTree: vi.fn(),
+vi.mock("@/lib/notes/storage/create-note.ts", () => ({
+  createNoteWithTree: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/notes/extraction-bundle.ts", () => ({
   findOrCreateExtractionBundle: vi.fn().mockResolvedValue("bundle-123"),
 }));
 
-vi.mock("@/lib/canvas/client.js", () => ({
+vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(),
   MAX_CANVAS_FILE_BYTES: 50 * 1024 * 1024,
 }));
 
-vi.mock("@/lib/canvas/async-limiter.js", () => ({
+vi.mock("@/lib/canvas/async-limiter", () => ({
   createAsyncLimiter: vi.fn(
     () => async (task: () => Promise<unknown>) => task(),
   ),
 }));
 
-vi.mock("@/lib/canvas/import-metrics.js", () => ({
+vi.mock("@/lib/canvas/import-metrics", () => ({
   parseEnvConcurrency: vi.fn(() => 1),
 }));
 
@@ -67,9 +67,9 @@ vi.mock("@/lib/logger.ts", () => ({
   },
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { getStorageProvider } from "@/lib/storage/init";
-import { processRagPipeline } from "@/lib/canvas/import-embedding.js";
+import { processRagPipeline } from "@/lib/canvas/import-embedding";
 import { enqueueExtractionRetry } from "@/lib/canvas/extraction-retry.ts";
 import { findOrCreateExtractionBundle } from "@/lib/notes/extraction-bundle";
 import {
@@ -80,7 +80,12 @@ import {
   processCanvasFile,
   processMarkerComplete,
   downloadAndStoreFile,
-} from "@/lib/canvas/import-extraction.js";
+} from "@/lib/canvas/import-extraction";
+
+function queryText(call: readonly unknown[]): string {
+  const template = call[0];
+  return Array.isArray(template) ? template.join("") : "";
+}
 
 describe("fetchResource", () => {
   beforeEach(() => {
@@ -167,7 +172,7 @@ describe("processDirectExtraction", () => {
 
     const completionQuery = vi
       .mocked(sql)
-      .mock.calls.map((call: any[]) => call[0]?.join(""))
+      .mock.calls.map((call) => queryText(call))
       .find((query: string | undefined) => query?.includes("SET status = 'done'"));
     expect(completionQuery).toContain("chunks_stored");
   });
@@ -316,17 +321,15 @@ describe("processMarkerComplete", () => {
     expect(
       vi
         .mocked(sql)
-        .mock.calls.some((call: any[]) =>
-          call[0]?.join("").includes("SET status = 'completed'"),
+        .mock.calls.some((call) =>
+          queryText(call).includes("SET status = 'completed'"),
         ),
     ).toBe(true);
     expect(
       vi
         .mocked(sql)
-        .mock.calls.some((call: any[]) =>
-          call[0]
-            ?.join("")
-            .includes("SET status = 'complete', note_id = "),
+        .mock.calls.some((call) =>
+          queryText(call).includes("SET status = 'complete', note_id = "),
         ),
     ).toBe(true);
   });
@@ -375,7 +378,9 @@ describe("processMarkerComplete", () => {
     await processMarkerComplete({ markerJobId: markerJob.callback_id });
 
     expect(processRagPipeline).not.toHaveBeenCalled();
-    expect((sql as any).begin).toHaveBeenCalled();
+    expect(
+      (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin,
+    ).toHaveBeenCalled();
   });
 });
 
@@ -431,7 +436,7 @@ describe("processExtractionRetry", () => {
 
     const updateQueries: string[] = vi
       .mocked(sql)
-      .mock.calls.map((call: any[]) => call[0]?.join(""))
+      .mock.calls.map((call) => queryText(call))
       .filter((query: string | undefined) =>
         query?.includes("UPDATE app.canvas_imports"),
       );
@@ -554,6 +559,9 @@ describe("shared imported PDF cache integrity", () => {
           existingNote ? [{ note_id: "note-123" }] : [],
         );
       }
+      if (query.includes("FOR KEY SHARE")) {
+        return Promise.resolve([{ note_id: "bundle-123" }]);
+      }
       return Promise.resolve([]);
     });
   }
@@ -619,7 +627,9 @@ describe("shared imported PDF cache integrity", () => {
     expect(storage.hasObject).toHaveBeenCalledWith(cache.storage_key);
     expect(client.downloadFile).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
-    expect((sql as any).begin).toHaveBeenCalled();
+    expect(
+      (sql as unknown as { begin: ReturnType<typeof vi.fn> }).begin,
+    ).toHaveBeenCalled();
     expect(findOrCreateExtractionBundle).toHaveBeenCalledWith(
       "user-123",
       null,

@@ -7,6 +7,11 @@ import {
 } from "@/lib/notes/storage/s3-storage";
 import { getLlmModel } from "@/lib/ai-config";
 import { normalizeEditorSize } from "@/lib/notes/editor-width";
+import { normalizeLocale } from "@/locales";
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export const GET = withErrorHandler(async () => {
     const user = await requireAuth();
@@ -44,7 +49,7 @@ export const GET = withErrorHandler(async () => {
 export const POST = withErrorHandler(async (request) => {
     const user = await requireAuth();
 
-    const body = await request.json();
+    const body: unknown = await request.json();
 
     // only allow known settings keys to prevent arbitrary data injection
     const ALLOWED_KEYS = new Set<string>([
@@ -60,8 +65,13 @@ export const POST = withErrorHandler(async (request) => {
       "ai_canvas_access",
     ]);
     const sanitized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(body)) {
+    for (const [key, value] of isJsonObject(body) ? Object.entries(body) : []) {
       if (!ALLOWED_KEYS.has(key)) continue;
+      if (key === "locale") {
+        const locale = normalizeLocale(value);
+        if (locale) sanitized.locale = locale;
+        continue;
+      }
       sanitized[key] =
         key === "editorsize" ? normalizeEditorSize(value) : value;
     }

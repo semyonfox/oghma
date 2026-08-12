@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
+import type postgres from 'postgres';
 import { withErrorHandler, requireAuth, ApiError, tracedError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
+import sql from '@/database/pgsql';
+
+interface PomodoroSessionRow {
+  assignment_id: string | null;
+  duration_mins: number | null;
+  type: string;
+}
 
 /**
  * POST /api/pomodoro
@@ -56,8 +63,8 @@ export const PATCH = withErrorHandler(async (request) => {
 
   if (!id) throw new ApiError(400, 'Session id required');
 
-  const result = await sql.begin(async (tx: any) => {
-    const [session] = await tx`
+  const result = await sql.begin(async (tx: postgres.TransactionSql) => {
+    const [session] = await tx<PomodoroSessionRow[]>`
       UPDATE app.pomodoro_sessions SET
         ended_at = NOW(),
         completed = ${completed ?? false}

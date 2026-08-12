@@ -32,6 +32,24 @@ describe('card selection', () => {
         expect(result.newChunks.length).toBeGreaterThanOrEqual(2);
     });
 
+    it('uses the configured split before filling spare capacity by due-card priority', () => {
+        const dueCards = Array.from({ length: 10 }, (_, i) => ({
+            id: `due-${i}`,
+            due: new Date(Date.now() - i * 1000).toISOString(),
+        }));
+        const newChunks = Array.from({ length: 10 }, (_, i) => `chunk-${i}`);
+        const masteredCards = Array.from({ length: 10 }, (_, i) => ({
+            id: `mastered-${i}`,
+            due: new Date(Date.now() + i * 1000).toISOString(),
+        }));
+
+        const result = selectCards(dueCards, newChunks, 7, masteredCards);
+
+        expect(result.due).toHaveLength(5);
+        expect(result.newChunks).toEqual(['chunk-0']);
+        expect(result.retention).toHaveLength(1);
+    });
+
     it('sorts due cards earliest-due first (most overdue first)', () => {
         const now = Date.now();
         const dueCards = [
@@ -43,6 +61,17 @@ describe('card selection', () => {
         expect(result.due[0].id).toBe('c3');
         expect(result.due[1].id).toBe('c2');
         expect(result.due[2].id).toBe('c1');
+    });
+
+    it('does not reorder the caller-owned due-card list', () => {
+        const dueCards = [
+            { id: 'later', due: '2025-01-02T00:00:00.000Z' },
+            { id: 'earlier', due: '2025-01-01T00:00:00.000Z' },
+        ];
+
+        selectCards(dueCards, [], 2);
+
+        expect(dueCards.map(({ id }) => id)).toEqual(['later', 'earlier']);
     });
 
     it('fills remaining slots with due cards when new/retention pools are empty', () => {

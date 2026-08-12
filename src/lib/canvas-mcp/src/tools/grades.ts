@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const gradeTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_get_my_grades",
         description:
             "Get the authenticated student's grades across courses. Returns enrollment objects that include current_score, final_score, current_grade, final_grade, and grading-period fields. Optional filters: course_id (single course), state (active|completed|invited — defaults to active+invited), limit (cap result count). Use this for any 'what are my grades' question.",
@@ -13,7 +13,7 @@ export const gradeTools: ToolDef[] = [
             state: z.array(z.enum(["active", "invited", "completed", "inactive"])).optional(),
             limit: z.number().int().positive().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const enrollments = await canvas.collectPaginated<Record<string, unknown>>(
                 "/api/v1/users/self/enrollments",
                 {
@@ -25,8 +25,8 @@ export const gradeTools: ToolDef[] = [
             const result = args.limit !== undefined ? enrollments.slice(0, args.limit) : enrollments;
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_assignment_feedback",
         description:
             "Get grading feedback for a specific assignment submission, including submission comments and rubric assessment.",
@@ -35,7 +35,7 @@ export const gradeTools: ToolDef[] = [
             assignment_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/self`,
                 {
@@ -44,29 +44,26 @@ export const gradeTools: ToolDef[] = [
             );
             return jsonResult(submission);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_grading_standards",
         description:
             "Get grading standards (letter-grade thresholds) for a course.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const standards = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/grading_standards`,
                 { per_page: 100 },
             );
             return jsonResult(standards);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable grade submission, bulk status views,
-    // and comprehensive grade + submission roll-ups.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_submit_grade",
         description: "Grade a student's submission for an assignment. Requires educator permissions.",
         inputSchema: z.object({
@@ -76,7 +73,7 @@ export const gradeTools: ToolDef[] = [
             posted_grade: z.string().optional(),
             excuse: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/${args.user_id}`,
                 {
@@ -88,8 +85,8 @@ export const gradeTools: ToolDef[] = [
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_all_students_status",
         description: "List all student submissions for a course across assignments. Requires educator permissions.",
         inputSchema: z.object({
@@ -97,7 +94,7 @@ export const gradeTools: ToolDef[] = [
             workflow_state: z.enum(["submitted", "unsubmitted", "graded", "pending_review"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const submissions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/students/submissions`,
                 {
@@ -109,14 +106,14 @@ export const gradeTools: ToolDef[] = [
             );
             return jsonResult(submissions);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_comprehensive_status",
         description: "Composite grade + submission roll-up for all students in a course. Requires educator permissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const [enrollments, submissions] = await Promise.all([
                 canvas.collectPaginated(`/api/v1/courses/${args.course_id}/enrollments`, {
                     per_page: 100,
@@ -130,5 +127,5 @@ export const gradeTools: ToolDef[] = [
             ]);
             return jsonResult({ enrollments, submissions });
         },
-    },
+    }),
 ];

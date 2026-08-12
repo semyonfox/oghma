@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering overview
 >
-> **Last reviewed:** 2026-08-04
+> **Last reviewed:** 2026-08-12
 >
 > **Source of truth:** [`src/lib/queue.ts`](../../src/lib/queue.ts), [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts), and the import workers
 
@@ -134,6 +134,10 @@ variable.
   a completion claim begins; a completion already holding its claim may finish
   its indexing work, but no cancelled state is later resurrected.
 - Qdrant updates go through [`src/lib/rag/indexing.ts`](../../src/lib/rag/indexing.ts), keeping vector-provider details out of the import stages.
+  The indexer locks the active note through the vector upsert. Permanent note
+  deletion takes the same lock, so it either fences the indexer before it writes
+  chunks or removes the exact new point IDs afterwards; a deleted note cannot
+  be resurrected in search by an in-flight import.
 
 ## Important implementation files
 
@@ -142,15 +146,15 @@ variable.
 | [`src/lib/queue.ts`](../../src/lib/queue.ts) | Queue-provider facade, naming, publish/pull/ack, and BullMQ defaults |
 | [`src/lib/canvas/worker-entry.ts`](../../src/lib/canvas/worker-entry.ts) | Worker lifecycle, provider consumers, dispatch, and DB safety net |
 | [`src/lib/canvas/import-worker.ts`](../../src/lib/canvas/import-worker.ts) | Canvas job orchestration and worker exports |
-| [`src/lib/canvas/import-discovery.js`](../../src/lib/canvas/import-discovery.js) | Canvas hierarchy discovery and per-file fan-out |
-| [`src/lib/canvas/import-extraction.js`](../../src/lib/canvas/import-extraction.js) | Download, dedupe/claim, note creation, timeouts, and retry handlers |
+| [`src/lib/canvas/import-discovery.ts`](../../src/lib/canvas/import-discovery.ts) | Canvas hierarchy discovery and per-file fan-out |
+| [`src/lib/canvas/import-extraction.ts`](../../src/lib/canvas/import-extraction.ts) | Download, dedupe/claim, note creation, timeouts, and retry handlers |
 | [`src/lib/canvas/import-cache.ts`](../../src/lib/canvas/import-cache.ts) | Content hashing, shared artifacts, cached vector reuse, and ownership guards |
-| [`src/lib/canvas/import-embedding.js`](../../src/lib/canvas/import-embedding.js) | Extraction, chunking, embedding, and Qdrant indexing handoff |
+| [`src/lib/canvas/import-embedding.ts`](../../src/lib/canvas/import-embedding.ts) | Extraction, chunking, embedding, and Qdrant indexing handoff |
 | [`src/lib/marker-serverless.ts`](../../src/lib/marker-serverless.ts) | Durable Marker submission, provider dispatch, result handoff, and recovery |
 | [`src/lib/vast-serverless.ts`](../../src/lib/vast-serverless.ts) | Bounded Vast REST routing/polling client |
 | [`src/lib/canvas/extraction-retry.ts`](../../src/lib/canvas/extraction-retry.ts) | Delayed retry schedule |
 | [`src/lib/vault/import-worker.ts`](../../src/lib/vault/import-worker.ts) | Streaming vault import, progress, and cancellation |
-| [`src/lib/vault/export-worker.js`](../../src/lib/vault/export-worker.js) | Streaming vault export, progress, and cancellation |
+| [`src/lib/vault/export-worker.ts`](../../src/lib/vault/export-worker.ts) | Streaming vault export, progress, and cancellation |
 | [`src/lib/qdrant.ts`](../../src/lib/qdrant.ts) | Vector collection and point operations |
 
 When changing job states, provider behaviour, retry safety, or concurrency defaults, update code, environment templates, the operations runbook, and this overview together.

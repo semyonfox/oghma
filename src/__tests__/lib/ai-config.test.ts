@@ -19,7 +19,7 @@ import {
 
 describe("ai-config", () => {
   it("uses sane defaults when env vars are missing", () => {
-    const env = {} as NodeJS.ProcessEnv;
+    const env = {};
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
@@ -38,7 +38,7 @@ describe("ai-config", () => {
       LLM_MAX_TOKENS: "-1",
       LLM_MAX_TOOL_STEPS: "0",
       COHERE_TIMEOUT_MS: "0",
-    } as unknown as NodeJS.ProcessEnv;
+    };
 
     expect(getLlmTimeoutMs(env)).toBe(300_000);
     expect(getLlmMaxTokens(env)).toBe(8_192);
@@ -62,7 +62,7 @@ describe("ai-config", () => {
       CHAT_MAX_DISTANCE: "2",
       EMBEDDING_BATCH_SIZE: "900",
       RAG_CHUNK_SIZE: "9999",
-    } as unknown as NodeJS.ProcessEnv;
+    };
 
     expect(getLlmTimeoutMs(env)).toBe(600_000);
     expect(getLlmMaxTokens(env)).toBe(32_768);
@@ -79,7 +79,7 @@ describe("ai-config", () => {
     expect(
       getLlmMaxToolSteps({
         LLM_MAX_TOOL_STEPS: "75",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(75);
   });
 
@@ -87,27 +87,27 @@ describe("ai-config", () => {
     expect(
       getRerankTopN({
         RERANK_TOP_N: "8",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(8);
     expect(
       getRerankMinRelevance({
         RERANK_MIN_RELEVANCE: "0.15",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(0.15);
     expect(
       getChatMaxDistance({
         CHAT_MAX_DISTANCE: "0.61",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(0.61);
     expect(
       getEmbeddingBatchSize({
         EMBEDDING_BATCH_SIZE: "12",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(12);
     expect(
       getRagChunkSize({
         RAG_CHUNK_SIZE: "333",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe(333);
   });
 
@@ -115,51 +115,51 @@ describe("ai-config", () => {
     expect(
       getLlmModel({
         LLM_MODEL: "deepseek/deepseek-v4-flash",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("deepseek/deepseek-v4-flash");
-    expect(getLlmModel({ LLM_MODEL: "" } as unknown as NodeJS.ProcessEnv)).toBe(
+    expect(getLlmModel({ LLM_MODEL: "" })).toBe(
       "deepseek/deepseek-v4-flash",
     );
-    expect(getLlmModel({} as unknown as NodeJS.ProcessEnv)).toBe(
+    expect(getLlmModel({})).toBe(
       "deepseek/deepseek-v4-flash",
     );
   });
 
   it("uses high reasoning by default and validates overrides", () => {
-    expect(getLlmReasoningEffort({} as NodeJS.ProcessEnv)).toBe("high");
+    expect(getLlmReasoningEffort({})).toBe("high");
     expect(
       getLlmReasoningEffort({
         LLM_REASONING_EFFORT: " high ",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("high");
     expect(
       getLlmReasoningEffort({
         LLM_REASONING_EFFORT: "xhigh",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("xhigh");
     expect(
       getLlmReasoningEffort({
         LLM_REASONING_EFFORT: "unsupported",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("high");
   });
 
   it("resolves thinking mode defaults and aliases", () => {
-    expect(getLlmThinkingMode({} as unknown as NodeJS.ProcessEnv)).toBe("auto");
+    expect(getLlmThinkingMode({})).toBe("auto");
     expect(
       getLlmThinkingMode({
         LLM_THINKING: "enabled",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("auto");
     expect(
       getLlmThinkingMode({
         LLM_THINKING: "disabled",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("off");
     expect(
       getLlmThinkingMode({
         LLM_THINKING: "off",
-      } as unknown as NodeJS.ProcessEnv),
+      }),
     ).toBe("off");
   });
 
@@ -184,19 +184,19 @@ describe("ai-config", () => {
   });
 
   it("returns null provider when no API key is set", () => {
-    expect(createLlmProvider({} as NodeJS.ProcessEnv)).toBeNull();
+    expect(createLlmProvider({})).toBeNull();
     expect(
-      createLlmProvider({ LLM_API_KEY: "" } as unknown as NodeJS.ProcessEnv),
+      createLlmProvider({ LLM_API_KEY: "" }),
     ).toBeNull();
     expect(
-      createLlmProvider({ LLM_API_KEY: "  " } as unknown as NodeJS.ProcessEnv),
+      createLlmProvider({ LLM_API_KEY: "  " }),
     ).toBeNull();
   });
 
   it("creates provider when LLM_API_KEY is set", () => {
     const p = createLlmProvider({
       LLM_API_KEY: "sk-test",
-    } as unknown as NodeJS.ProcessEnv);
+    });
     expect(p).not.toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import sql from "@/database/pgsql.js";
+import type postgres from "postgres";
+import sql from "@/database/pgsql";
 import {
   deleteChunkVectors,
   getChunkVectors,
@@ -13,13 +14,18 @@ import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
 // note chunks. Export this identity so lifecycle code can distinguish them
 // without duplicating a magic payload value.
 export const IMPORTED_FILE_CACHE_QDRANT_USER = "__imported_file_cache__";
-const NOTE_ASSET_CAPTURE_RE = /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
+const NOTE_ASSET_CAPTURE_RE =
+  /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
 
 // Bump this whenever extraction, chunking, Marker policy, or the embedding
 // model changes in a way that makes old derived artifacts incompatible.
 export const IMPORT_PIPELINE_VERSION =
   process.env.IMPORT_PIPELINE_VERSION?.trim() ||
-  `${process.env.EMBEDDING_MODEL?.trim() || "default"}:${process.env.QDRANT_VECTOR_SIZE?.trim() || process.env.EMBEDDING_DIMENSIONS?.trim() || "default"}:v1`;
+  `${process.env.EMBEDDING_MODEL?.trim() || "default"}:${
+    process.env.QDRANT_VECTOR_SIZE?.trim() ||
+    process.env.EMBEDDING_DIMENSIONS?.trim() ||
+    "default"
+  }:v1`;
 
 export interface ImportedFileCacheRow {
   id: string;
@@ -37,7 +43,11 @@ export interface ImportedFileCacheRow {
   purge_after?: string | null;
 }
 
-interface CacheChunkRow { id: string; text: string; ordinal: number }
+interface CacheChunkRow {
+  id: string;
+  text: string;
+  ordinal: number;
+}
 
 interface PreparedCacheReplay {
   oldChunkIds: string[];
@@ -61,16 +71,29 @@ export function canvasFileSource(params: {
   const file = params.file;
   if (!file || !params.baseUrl || !params.mimeType) return null;
   let tenant: string;
-  try { tenant = new URL(params.baseUrl).host.toLowerCase(); }
-  catch { return null; }
+  try {
+    tenant = new URL(params.baseUrl).host.toLowerCase();
+  } catch {
+    return null;
+  }
   const externalFileId = String(file.id ?? "").trim();
   const versionToken = String(file.updated_at ?? "").trim();
   const rawSize = typeof file.size === "number" ? file.size : Number(file.size);
-  if (!externalFileId || !versionToken || !Number.isSafeInteger(rawSize) || rawSize < 0) {
+  if (
+    !externalFileId ||
+    !versionToken ||
+    !Number.isSafeInteger(rawSize) ||
+    rawSize < 0
+  ) {
     return null;
   }
-  return { tenant, externalFileId, versionToken, fileSize: rawSize,
-    mimeType: params.mimeType };
+  return {
+    tenant,
+    externalFileId,
+    versionToken,
+    fileSize: rawSize,
+    mimeType: params.mimeType,
+  };
 }
 
 function signed32Bit(value: number): number {
@@ -88,7 +111,7 @@ export function sha256Hex(buffer: Buffer): string {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-export function importedFileStorageKey(sha256: string, _filename?: string): string {
+export function importedFileStorageKey(sha256: string): string {
   // This cache currently accepts PDFs only. Keeping the key independent of
   // user-controlled filenames makes renames and misleading extensions safe.
   return `imports/shared/${sha256}.pdf`;
@@ -122,17 +145,24 @@ export function isReplayableImportedMarkdown(markdown: string | null): boolean {
   return Boolean(markdown?.trim());
 }
 
-export async function withImportedFileLock<T>(sha256: string, fn: () => Promise<T>): Promise<T> {
+/** Serialize cache creation for identical bytes across users and jobs. */
+export async function withImportedFileLock<T>(
+  sha256: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   const [key1, key2] = advisoryLockKey(sha256);
   // Transaction-scoped locks cannot leak if work throws or a pooled connection
   // changes. Cache writes inside fn remain independently recoverable.
-  return sql.begin(async (tx: any) => {
+  const result = await sql.begin(async (tx: postgres.TransactionSql) => {
     await tx`SELECT pg_advisory_xact_lock(${key1}, ${key2})`;
-    return fn();
+    return { value: await fn() };
   });
+  return result.value;
 }
 
-export async function getImportedFileCacheBySha(sha256: string): Promise<ImportedFileCacheRow | null> {
+export async function getImportedFileCacheBySha(
+  sha256: string,
+): Promise<ImportedFileCacheRow | null> {
   const [row] = await sql`
     SELECT * FROM app.imported_file_cache
     WHERE sha256 = ${sha256} AND pipeline_version = ${IMPORT_PIPELINE_VERSION}
@@ -180,7 +210,10 @@ export async function recordImportedFileCanvasSource(
 }
 
 export async function ensureImportedFileCacheRow(params: {
-  sha256: string; mimeType: string; fileSize: number; storageKey: string;
+  sha256: string;
+  mimeType: string;
+  fileSize: number;
+  storageKey: string;
 }): Promise<ImportedFileCacheRow> {
   const [row] = await sql`
     INSERT INTO app.imported_file_cache
@@ -197,7 +230,10 @@ export async function ensureImportedFileCacheRow(params: {
   return row as ImportedFileCacheRow;
 }
 
-export async function markImportedFileCacheFailed(cacheId: string, message: string): Promise<void> {
+export async function markImportedFileCacheFailed(
+  cacheId: string,
+  message: string,
+): Promise<void> {
   await sql`
     UPDATE app.imported_file_cache SET status = 'failed', replayable = FALSE,
       error_message = ${message}, updated_at = NOW()
@@ -206,14 +242,18 @@ export async function markImportedFileCacheFailed(cacheId: string, message: stri
 }
 
 export async function captureImportedPdfCache(params: {
-  cacheId: string; sourceNoteId: string;
+  cacheId: string;
+  sourceNoteId: string;
 }): Promise<{ replayable: boolean }> {
   const [note] = await sql`
     SELECT content, extracted_text, extraction_coverage, user_id FROM app.notes
     WHERE note_id = ${params.sourceNoteId}::uuid LIMIT 1
   `;
   if (!note) {
-    await markImportedFileCacheFailed(params.cacheId, "Cache source note missing");
+    await markImportedFileCacheFailed(
+      params.cacheId,
+      "Cache source note missing",
+    );
     return { replayable: false };
   }
 
@@ -224,8 +264,15 @@ export async function captureImportedPdfCache(params: {
   const cachedAssetMap = new Map<string, string>();
   for (const match of assetMatches) {
     const name = sanitizeMarkerAssetName(decodeURIComponent(match[2]));
-    if (!name) { replayable = false; continue; }
-    const sourceKey = markerAssetKey(String(note.user_id), String(match[1]), name);
+    if (!name) {
+      replayable = false;
+      continue;
+    }
+    const sourceKey = markerAssetKey(
+      String(note.user_id),
+      String(match[1]),
+      name,
+    );
     const storageKey = `imports/shared-assets/${params.cacheId}/${name}`;
     if (cachedAssetMap.has(name)) continue;
     try {
@@ -235,69 +282,104 @@ export async function captureImportedPdfCache(params: {
       replayable = false;
     }
   }
-  const cachedAssets = [...cachedAssetMap].map(([name, storageKey]) => ({ name, storageKey }));
+  const cachedAssets = [...cachedAssetMap].map(([name, storageKey]) => ({
+    name,
+    storageKey,
+  }));
   const sourceChunks = (await sql`
     SELECT id, text, ROW_NUMBER() OVER (ORDER BY created_at, id) - 1 AS ordinal
     FROM app.chunks WHERE document_id = ${params.sourceNoteId}::uuid
     ORDER BY created_at, id
   `) as CacheChunkRow[];
   const vectors = await getChunkVectors(sourceChunks.map((chunk) => chunk.id));
-  const vectorById = new Map(vectors.map((item) => [item.chunkId, item.vector]));
+  const vectorById = new Map(
+    vectors.map((item) => [item.chunkId, item.vector]),
+  );
 
   const prior = (await sql`
     SELECT id FROM app.imported_file_cache_chunks WHERE cache_id = ${params.cacheId}::uuid
   `) as Array<{ id: string }>;
-  await deleteChunkVectors(prior.map((row: { id: string }) => row.id)).catch(() => undefined);
+  await deleteChunkVectors(prior.map((row) => row.id)).catch(() => undefined);
 
-  const cachedRows: Array<{ id: string; ordinal: number }> = await sql.begin(async (tx: any) => {
-    await tx`DELETE FROM app.imported_file_cache_chunks WHERE cache_id = ${params.cacheId}::uuid`;
-    await tx`DELETE FROM app.imported_file_cache_assets WHERE cache_id = ${params.cacheId}::uuid`;
-    if (cachedAssets.length) {
+  const cachedRows: Array<{ id: string; ordinal: number }> = await sql.begin(
+    async (tx: postgres.TransactionSql) => {
+      await tx`DELETE FROM app.imported_file_cache_chunks WHERE cache_id = ${params.cacheId}::uuid`;
+      await tx`DELETE FROM app.imported_file_cache_assets WHERE cache_id = ${params.cacheId}::uuid`;
+      if (cachedAssets.length) {
+        await tx`
+          INSERT INTO app.imported_file_cache_assets (cache_id, name, storage_key)
+          SELECT * FROM UNNEST(
+            ${cachedAssets.map(() => params.cacheId)}::uuid[],
+            ${cachedAssets.map((asset) => asset.name)}::text[],
+            ${cachedAssets.map((asset) => asset.storageKey)}::text[]
+          )
+        `;
+      }
+      const inserted = sourceChunks.length === 0
+        ? []
+        : await tx`
+            INSERT INTO app.imported_file_cache_chunks (cache_id, ordinal, text)
+            SELECT * FROM UNNEST(
+              ${sourceChunks.map(() => params.cacheId)}::uuid[],
+              ${sourceChunks.map((chunk) => Number(chunk.ordinal))}::int[],
+              ${sourceChunks.map((chunk) => chunk.text)}::text[]
+            )
+            RETURNING id, ordinal
+          `;
       await tx`
-        INSERT INTO app.imported_file_cache_assets (cache_id, name, storage_key)
-        SELECT * FROM UNNEST(${cachedAssets.map(() => params.cacheId)}::uuid[],
-          ${cachedAssets.map((asset) => asset.name)}::text[],
-          ${cachedAssets.map((asset) => asset.storageKey)}::text[])
+        UPDATE app.imported_file_cache
+        SET status = 'ready', replayable = ${replayable},
+          extracted_markdown = ${markdown},
+          extracted_text = ${note.extracted_text ?? null},
+          extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
+          error_message = NULL, orphaned_at = NULL, purge_after = NULL,
+          updated_at = NOW()
+        WHERE id = ${params.cacheId}::uuid
       `;
-    }
-    const inserted = sourceChunks.length === 0 ? [] : await tx`
-      INSERT INTO app.imported_file_cache_chunks (cache_id, ordinal, text)
-      SELECT * FROM UNNEST(
-        ${sourceChunks.map(() => params.cacheId)}::uuid[],
-        ${sourceChunks.map((chunk) => Number(chunk.ordinal))}::int[],
-        ${sourceChunks.map((chunk) => chunk.text)}::text[])
-      RETURNING id, ordinal
-    `;
-    await tx`
-      UPDATE app.imported_file_cache SET status = 'ready', replayable = ${replayable},
-        extracted_markdown = ${markdown}, extracted_text = ${note.extracted_text ?? null},
-        extraction_coverage = ${JSON.stringify(note.extraction_coverage ?? null)}::jsonb,
-        error_message = NULL, orphaned_at = NULL, purge_after = NULL,
-        updated_at = NOW()
-      WHERE id = ${params.cacheId}::uuid
-    `;
-    await tx`
-      UPDATE app.notes SET imported_file_cache_id = ${params.cacheId}::uuid,
-        updated_at = NOW()
-      WHERE note_id = ${params.sourceNoteId}::uuid
-    `;
-    return inserted as Array<{ id: string; ordinal: number }>;
-  });
+      await tx`
+        UPDATE app.notes
+        SET imported_file_cache_id = ${params.cacheId}::uuid,
+          updated_at = NOW()
+        WHERE note_id = ${params.sourceNoteId}::uuid
+      `;
+      return inserted as Array<{ id: string; ordinal: number }>;
+    },
+  );
 
   const points = cachedRows.flatMap((row) => {
-    const source = sourceChunks.find((chunk) => Number(chunk.ordinal) === row.ordinal);
+    const source = sourceChunks.find(
+      (chunk) => Number(chunk.ordinal) === row.ordinal,
+    );
     const vector = source ? vectorById.get(source.id) : undefined;
-    return vector ? [{ chunkId: row.id, documentId: params.cacheId,
-      userId: IMPORTED_FILE_CACHE_QDRANT_USER, vector }] : [];
+    return vector
+      ? [{
+          chunkId: row.id,
+          documentId: params.cacheId,
+          userId: IMPORTED_FILE_CACHE_QDRANT_USER,
+          vector,
+        }]
+      : [];
   });
   if (points.length) await upsertChunkVectors(points);
   return { replayable };
 }
 
+/**
+ * Replay one ready cache entry into an active owned note. Database state is
+ * atomic; Qdrant is reconciled after commit and fenced against permanent
+ * deletion because it cannot participate in the PostgreSQL transaction.
+ */
 export async function cloneImportedPdfCacheToNote(params: {
-  cacheId: string; noteId: string; userId: string; onlyIfEmpty?: boolean;
+  cacheId: string;
+  noteId: string;
+  userId: string;
+  onlyIfEmpty?: boolean;
 }): Promise<number> {
-  const [cache] = await sql`
+  const [cache] = await sql<{
+    extracted_markdown: string | null;
+    extracted_text: string | null;
+    extraction_coverage: Record<string, unknown> | null;
+  }[]>`
     SELECT extracted_markdown, extracted_text, extraction_coverage
     FROM app.imported_file_cache WHERE id = ${params.cacheId}::uuid
       AND status = 'ready' AND replayable = TRUE LIMIT 1
@@ -307,7 +389,8 @@ export async function cloneImportedPdfCacheToNote(params: {
     /\/api\/notes\/[0-9a-f-]{36}\/assets\?name=/gi,
     `/api/notes/${params.noteId}/assets?name=`,
   );
-  const prepared = (await sql.begin(async (tx: any) => {
+  const prepared = await sql.begin<PreparedCacheReplay | null>(
+    async (tx: postgres.TransactionSql) => {
     // Match the Trash lock across the active-note check, replacement of SQL
     // chunks, and note update. Cache replay otherwise has the same late-GPU
     // race as a fresh extraction: it could publish a new chunk set after the
@@ -370,7 +453,8 @@ export async function cloneImportedPdfCacheToNote(params: {
       cached,
       inserted: inserted as Array<{ id: string }>,
     };
-  })) as PreparedCacheReplay | null;
+    },
+  );
   if (!prepared) return 0;
 
   await deleteChunkVectors(prepared.oldChunkIds).catch(() => undefined);
@@ -381,8 +465,14 @@ export async function cloneImportedPdfCacheToNote(params: {
   const byId = new Map(vectors.map((item) => [item.chunkId, item.vector]));
   const points = inserted.flatMap((row, index) => {
     const vector = byId.get(cached[index].id);
-    return vector ? [{ chunkId: row.id, documentId: params.noteId,
-      userId: params.userId, vector }] : [];
+    return vector
+      ? [{
+          chunkId: row.id,
+          documentId: params.noteId,
+          userId: params.userId,
+          vector,
+        }]
+      : [];
   });
   if (points.length) await upsertChunkVectors(points);
 
@@ -390,15 +480,30 @@ export async function cloneImportedPdfCacheToNote(params: {
   // If Trash wins immediately afterwards, retain the vectors for restore but
   // take them out of semantic search right away; the daily reconciler is a
   // second safety net if Qdrant is temporarily unavailable.
-  const [state] = await sql`
+  const [state] = await sql<{ active: boolean }[]>`
     SELECT deleted_at IS NULL AS active
     FROM app.notes
     WHERE note_id = ${params.noteId}::uuid
       AND user_id = ${params.userId}::uuid
   `;
-  if (state && !state.active) {
+  const insertedIds = inserted.map((row) => row.id);
+  if (!state) {
+    // Permanent deletion can win after the database transaction commits but
+    // before Qdrant receives the cloned vectors. Remove those late vectors
+    // (and any surviving chunk rows) rather than resurrecting the note in
+    // semantic search.
+    await deleteChunkVectors(insertedIds).catch(() => undefined);
+    await sql`
+      DELETE FROM app.chunks
+      WHERE id = ANY(${insertedIds}::uuid[])
+        AND document_id = ${params.noteId}::uuid
+        AND user_id = ${params.userId}::uuid
+    `;
+    return 0;
+  }
+  if (!state.active) {
     await setChunkVectorsSearchable(
-      inserted.map((row) => row.id),
+      insertedIds,
       false,
     ).catch(() => undefined);
   }

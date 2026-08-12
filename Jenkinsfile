@@ -152,7 +152,7 @@ pipeline {
                         -e QDRANT_URL=http://oghma-qdrant:6333 \
                         -e QDRANT_COLLECTION=oghma_${DEPLOY_ENV}_chunks \
                         $IMAGE \
-                        node scripts/prebuild-migrate.mjs
+                        node --experimental-strip-types scripts/prebuild-migrate.ts
                 '''
             }
         }

@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { MutableRefObject } from "react";
 import {
   applyUpdate,
+  consumeChatStream,
   resolveResumeAssistantId,
-} from "@/lib/chat/hooks/use-chat-stream";
+} from "@/lib/chat/client-stream";
 import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
 import type { Message } from "@/lib/chat/types";
 
@@ -207,5 +208,57 @@ describe("background chat restore", () => {
         thinkingDuration: 4,
       }),
     ]);
+  });
+});
+
+describe("chat event stream consumption", () => {
+  function streamOf(value: string): ReadableStream<Uint8Array> {
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(value));
+        controller.close();
+      },
+    });
+  }
+
+  it("applies events, records the session, and reports calendar changes", async () => {
+    let messages = [baseMsg()];
+    const onSession = vi.fn();
+    const setMessages = (update: React.SetStateAction<Message[]>) => {
+      messages = typeof update === "function" ? update(messages) : update;
+    };
+
+    const result = await consumeChatStream({
+      body: streamOf(
+        'event: meta\ndata: {"sessionId":"session-1"}\n\n' +
+          'event: tool-call\ndata: {"toolName":"addTimeBlock"}\n\n' +
+          'event: token\ndata: {"text":"Scheduled"}\n\n' +
+          "event: done\ndata: {}\n\n",
+      ),
+      assistantId: "msg-1",
+      userText: "Plan study",
+      thinkingStartRef: ref(),
+      setMessages,
+      onSession,
+      translate: (key) => key,
+    });
+
+    expect(result.timeBlockChanged).toBe(true);
+    expect(onSession).toHaveBeenCalledWith("session-1", "Plan study");
+    expect(messages[0]?.content).toBe("Scheduled");
+  });
+
+  it("rejects a disconnected stream that never sends done", async () => {
+    await expect(
+      consumeChatStream({
+        body: streamOf('event: token\ndata: {"text":"partial"}\n\n'),
+        assistantId: "msg-1",
+        userText: "Question",
+        thinkingStartRef: ref(),
+        setMessages: () => undefined,
+        onSession: () => undefined,
+        translate: (key) => key,
+      }),
+    ).rejects.toThrow("before completion");
   });
 });

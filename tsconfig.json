@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2017",
+    "allowJs": false,
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -38,6 +38,7 @@
     "**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "src/lib/canvas-mcp"
   ]
 }

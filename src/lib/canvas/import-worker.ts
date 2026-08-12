@@ -1,7 +1,7 @@
 /**
  * Canvas Import Worker
- * Processes Canvas file imports in the background.
- * Run as a separate process: node -r ./instrumentation.ts src/lib/canvas/import-worker.js
+ * Handler-level orchestration for Canvas imports. worker-entry.ts owns process
+ * startup, queue clients, polling, logging, and shutdown.
  *
  * Folder hierarchy created per import:
  *   Course Name/
@@ -12,18 +12,18 @@
  *         attached-file.pdf
  *
  * This file is the top-level orchestrator. The heavy lifting lives in:
- *   - async-limiter.js     — concurrency primitives (createAsyncLimiter, pooled)
- *   - import-metrics.js    — timing, logging, env-parsing helpers
- *   - import-discovery.js  — two-phase discovery: courses -> modules -> pending files
- *   - import-extraction.js — file download, dedup, import record management
- *   - import-embedding.js  — RAG pipeline: content extraction + embedding storage
+ *   - async-limiter.ts     — concurrency primitives (createAsyncLimiter, pooled)
+ *   - import-metrics.ts    — timing, logging, env-parsing helpers
+ *   - import-discovery.ts  — two-phase discovery: courses -> modules -> pending files
+ *   - import-extraction.ts — file download, dedup, import record management
+ *   - import-embedding.ts  — RAG pipeline: content extraction + embedding storage
  */
 
-import sql from "../../database/pgsql.js";
-import { CanvasClient } from "./client.js";
-import { pooled } from "./async-limiter.js";
-import { parseJobCourses, processCourse } from "./import-discovery.js";
-import { checkAndCompleteJob } from "./import-extraction.js";
+import sql from "../../database/pgsql";
+import { CanvasClient } from "./client";
+import { pooled } from "./async-limiter";
+import { parseJobCourses, processCourse } from "./import-discovery";
+import { checkAndCompleteJob } from "./import-extraction";
 import { decrypt } from "../crypto.ts";
 import { getStorageProvider } from "../storage/init.ts";
 
@@ -102,9 +102,9 @@ export async function processImportJob(jobId: string): Promise<boolean> {
   }
 }
 
-// ── Re-exports for worker-entry.js ──────────────────────────────────────────
+// ── Public handlers consumed by worker-entry.ts ─────────────────────────────
 
-export { processDiscoverJob } from "./import-discovery.js";
+export { processDiscoverJob } from "./import-discovery";
 export {
   processCanvasFile,
   processDirectExtraction,
@@ -112,4 +112,4 @@ export {
   recoverPendingExtractionRetries,
   processMarkerComplete,
   processMarkerFailed,
-} from "./import-extraction.js";
+} from "./import-extraction";

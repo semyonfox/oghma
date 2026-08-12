@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { buildIcalEvent } from "@/lib/calendar/ical";
 
 export async function GET(

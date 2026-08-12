@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
+import { withErrorHandler, requireAuth, ApiError, parseJson } from '@/lib/api-error';
+import sql from '@/database/pgsql';
+import { pomodoroCountForRange } from '@/lib/time-blocks';
 import {
   timeBlockCreateSchema,
   timeBlockRangeSchema,
@@ -23,7 +24,9 @@ export const GET = withErrorHandler(async (request) => {
   const { start, end } = rangeValidation.data;
 
   const rows = await sql`
-    SELECT tb.*, a.title AS assignment_title, a.course_name, a.course_color,
+    SELECT tb.id, tb.user_id, tb.assignment_id, tb.title, tb.starts_at, tb.ends_at,
+           tb.pomodoro_count, tb.completed, tb.created_at, tb.updated_at,
+           a.title AS assignment_title, a.course_name, a.course_color,
            a.assignment_type
     FROM app.time_blocks tb
     LEFT JOIN app.assignments a ON a.id = tb.assignment_id AND a.user_id = ${user.user_id}::uuid
@@ -43,21 +46,13 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    throw new ApiError(400, 'Invalid JSON body');
-  }
-  const validation = validateBody(timeBlockCreateSchema, rawBody);
+  const validation = validateBody(timeBlockCreateSchema, await parseJson(request));
   if (!validation.success) return validation.response;
   const { assignment_id, title, starts_at, ends_at } = validation.data;
 
   const start = new Date(starts_at);
   const end = new Date(ends_at);
-  const durationMins = (end.getTime() - start.getTime()) / 60000;
-
-  // verify assignment_id belongs to the caller before linking (I3)
+  // Verify an optional assignment belongs to the caller before linking it.
   if (assignment_id) {
     const [owned] = await sql`
       SELECT 1 FROM app.assignments
@@ -66,8 +61,7 @@ export const POST = withErrorHandler(async (request) => {
     if (!owned) throw new ApiError(403, 'assignment_id does not belong to you');
   }
 
-  // 30-min blocks (25 focus + 5 break)
-  const pomodoroCount = Math.max(1, Math.ceil(durationMins / 30));
+  const pomodoroCount = pomodoroCountForRange(start, end);
 
   const [row] = await sql`
     INSERT INTO app.time_blocks (
@@ -76,7 +70,8 @@ export const POST = withErrorHandler(async (request) => {
       ${user.user_id}::uuid, ${assignment_id ?? null},
       ${title ?? null}, ${starts_at}, ${ends_at}, ${pomodoroCount}
     )
-    RETURNING *
+    RETURNING id, user_id, assignment_id, title, starts_at, ends_at,
+              pomodoro_count, completed, created_at, updated_at
   `;
 
   return NextResponse.json(row, { status: 201 });

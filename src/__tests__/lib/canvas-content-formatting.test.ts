@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleanCourseName,
   stripHtmlToText,
-} from "@/lib/canvas/content-formatting.js";
+} from "@/lib/canvas/content-formatting";
 
 describe("Canvas content formatting", () => {
   it.each([

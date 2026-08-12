@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
   return { sql, tx };
 });
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/cache", () => ({
   cacheInvalidate: vi.fn().mockResolvedValue(undefined),
   cacheKeys: {
@@ -34,6 +34,19 @@ function queryText(call: unknown[]): string {
   return (call[0] as TemplateStringsArray).join(" ");
 }
 
+function createdFolderRow(noteId = "bundle-1") {
+  return {
+    note_id: noteId,
+    user_id: "user-1",
+    title: "Lecture 03",
+    content: "",
+    is_folder: true,
+    s3_key: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+}
+
 describe("extractionBundleTitle", () => {
   it("uses the source basename while keeping child extensions intact", () => {
     expect(extractionBundleTitle("Lecture 03.pdf")).toBe("Lecture 03");
@@ -45,6 +58,7 @@ describe("extractionBundleTitle", () => {
 describe("extraction bundles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.tx.mockReset();
     mocks.sql.begin.mockImplementation(
       async (callback: (transaction: typeof mocks.tx) => unknown) =>
         callback(mocks.tx),
@@ -55,6 +69,9 @@ describe("extraction bundles", () => {
     mocks.tx
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ note_id: "module-1" }])
+      .mockResolvedValueOnce([createdFolderRow()])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
@@ -70,8 +87,12 @@ describe("extraction bundles", () => {
       "pg_advisory_xact_lock",
     );
     expect(queryText(mocks.tx.mock.calls[1])).toContain("n.is_folder = true");
-    expect(queryText(mocks.tx.mock.calls[2])).toContain("INSERT INTO app.notes");
-    expect(queryText(mocks.tx.mock.calls[3])).toContain(
+    expect(queryText(mocks.tx.mock.calls[2])).toContain(
+      "pg_advisory_xact_lock",
+    );
+    expect(queryText(mocks.tx.mock.calls[3])).toContain("FOR SHARE");
+    expect(queryText(mocks.tx.mock.calls[4])).toContain("INSERT INTO app.notes");
+    expect(queryText(mocks.tx.mock.calls[5])).toContain(
       "INSERT INTO app.tree_items",
     );
     expect(cacheInvalidate).toHaveBeenCalledWith(
@@ -121,6 +142,7 @@ describe("extraction bundles", () => {
       ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([createdFolderRow()])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
@@ -131,7 +153,7 @@ describe("extraction bundles", () => {
     );
 
     expect(bundleId).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(queryText(mocks.tx.mock.calls[5])).toContain(
+    expect(queryText(mocks.tx.mock.calls[6])).toContain(
       "UPDATE app.tree_items",
     );
     expect(cacheInvalidate).toHaveBeenCalledWith(

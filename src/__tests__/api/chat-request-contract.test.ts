@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  validateSession: vi.fn(),
+  requireAuth: vi.fn(),
   checkRateLimit: vi.fn(),
   normalizeScope: vi.fn(),
   runRagPipeline: vi.fn(),
@@ -10,10 +10,33 @@ const mocks = vi.hoisted(() => ({
   enqueueChatGeneration: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  validateSession: mocks.validateSession,
-  validateSessionLite: vi.fn(),
-}));
+vi.mock("@/lib/api-error", async () => {
+  const { NextResponse } = await import("next/server");
+  return {
+  requireAuth: mocks.requireAuth,
+  tracedError: (message: string, status: number) =>
+    NextResponse.json({ error: message, traceId: "trace-test" }, { status }),
+  parseJsonObject: async (request: Request) => {
+    const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new Error("invalid body");
+    }
+    return body as Record<string, unknown>;
+  },
+  withErrorHandler:
+    (handler: (request: NextRequest) => Promise<Response>) =>
+    async (request: NextRequest) => {
+      try {
+        return await handler(request);
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid JSON body", traceId: "trace-test" },
+          { status: 400 },
+        );
+      }
+    },
+  };
+});
 vi.mock("@/lib/rateLimiter", () => ({
   checkRateLimit: mocks.checkRateLimit,
 }));
@@ -55,7 +78,7 @@ function chatRequest(body: string) {
 describe("POST /api/chat request contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.validateSession.mockResolvedValue({
+    mocks.requireAuth.mockResolvedValue({
       user_id: "123e4567-e89b-42d3-a456-426614174000",
       email: "user@example.com",
     });

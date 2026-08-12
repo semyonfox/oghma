@@ -4,13 +4,14 @@ import {
   requireAuth,
   requireValidId,
   ApiError,
+  type RouteParamsContext,
 } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { generateUUID } from "@/lib/utils/uuid";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
+import { createNoteWithTree } from "@/lib/notes/storage/create-note";
 import { getStorageProvider } from "@/lib/storage/init";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
 
@@ -25,7 +26,10 @@ import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
  * @param targetParentId - Where to place clone (null = root)
  * @returns Cloned note ID
  */
-export const POST = withErrorHandler(async (request: Request, context: any) => {
+export const POST = withErrorHandler(async (
+  request: Request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const limited = await checkRateLimit("share", user.user_id);
@@ -122,41 +126,19 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
     }
   }
 
-  let clonedNoteId: string | null = null;
   try {
-    const cloned = await sql`
-      INSERT INTO app.notes (
-      note_id,
-      user_id,
-      title,
-      content,
-      s3_key,
-      is_folder,
-      cloned_from,
-      imported_file_cache_id,
-      created_at,
-      updated_at
-    ) VALUES (
-      ${cloneId}::uuid,
-      ${targetUserId}::uuid,
-      ${note.title + " (shared)"},
-      ${clonedContent},
-      ${clonedS3Key},
-      ${note.is_folder},
-      ${sourceNoteId}::uuid,
-      ${note.imported_file_cache_id ?? null}::uuid,
-      NOW(),
-      NOW()
-    )
-      RETURNING note_id
-    `;
-    clonedNoteId = cloned[0].note_id;
-
-    await addNoteToTree(targetUserId, clonedNoteId, targetParentId || null);
+    await createNoteWithTree({
+      noteId: cloneId,
+      userId: targetUserId,
+      title: note.title + " (shared)",
+      content: clonedContent,
+      s3Key: clonedS3Key,
+      isFolder: note.is_folder,
+      parentId: targetParentId || null,
+      clonedFrom: sourceNoteId,
+      importedFileCacheId: note.imported_file_cache_id ?? null,
+    });
   } catch (err) {
-    if (clonedNoteId) {
-      await sql`DELETE FROM app.notes WHERE note_id = ${clonedNoteId}::uuid`.catch(() => {});
-    }
     if (clonedS3Key && !isSharedImportedFileKey(clonedS3Key)) {
       await storage.deleteObject(clonedS3Key).catch((cleanupError) =>
         logger.error("failed to clean up shared storage object", { key: clonedS3Key, error: cleanupError }),
@@ -168,7 +150,7 @@ export const POST = withErrorHandler(async (request: Request, context: any) => {
   return NextResponse.json(
     {
       success: true,
-      clonedNoteId,
+      clonedNoteId: cloneId,
       message: "Note cloned to target user",
     },
     { status: 201 },

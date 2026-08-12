@@ -1,0 +1,459 @@
+/**
+ * Canvas Import — Embedding Phase
+ *
+ * Chunks extracted text and sends it through the embedding pipeline.
+ * Houses the full RAG pipeline: content extraction (OCR/text parse)
+ * followed by embedding storage.
+ */
+
+import sql from "../../database/pgsql";
+import { stripMarkdown } from "../strip-markdown.ts";
+import { getStorageProvider } from "../storage/init.ts";
+import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
+import { replaceNoteEmbeddings } from "../rag/indexing.ts";
+import {
+  enqueueExtractionRetry,
+  MAX_EXTRACTION_RETRIES,
+  type ExtractionRetryMessage,
+} from "./extraction-retry.ts";
+import {
+  extractContentFromBuffer,
+  type ExtractionResult,
+} from "../ingestion/extraction-core.ts";
+import { persistMarkerAssetsForNote } from "../marker-output.ts";
+import { createAsyncLimiter } from "./async-limiter";
+import { parseEnvConcurrency } from "./import-metrics";
+import logger from "../logger.ts";
+import { sanitizePostgresText } from "../text-sanitize.ts";
+import {
+  markerQueueEnabled,
+  MarkerSubmissionCancelledError,
+  processAllPdfsWithMarker,
+  submitMarkerJob,
+} from "../marker-serverless.ts";
+
+// ── Concurrency limiters ────────────────────────────────────────────────────
+
+const CANVAS_OCR_CONCURRENCY = parseEnvConcurrency("CANVAS_OCR_CONCURRENCY", 2);
+const CANVAS_EMBED_CONCURRENCY = parseEnvConcurrency(
+  "CANVAS_EMBED_CONCURRENCY",
+  3,
+);
+
+const ocrLimiter = createAsyncLimiter(CANVAS_OCR_CONCURRENCY);
+const embedLimiter = createAsyncLimiter(CANVAS_EMBED_CONCURRENCY);
+
+export interface RagPipelineOptions {
+  filename: string;
+  mimeType: string;
+  s3Key?: string | null;
+  attempt?: number;
+  jobId?: string | null;
+  importRecordId?: string | null;
+  canvasCourseId?: string | number | null;
+  canvasModuleId?: string | number | null;
+  canvasAssignmentId?: string | number | null;
+  extractionOverride?: ExtractionResult | null;
+  retryOnFailure?: boolean;
+}
+
+interface FindOrCreateNoteOptions {
+  content?: string;
+  canvasCourseId?: string | number | null;
+  canvasModuleId?: string | number | null;
+  canvasAssignmentId?: string | number | null;
+}
+
+export interface RagPipelineResult {
+  noteId: string;
+  chunksStored: number;
+  pendingMarker?: boolean;
+  skipped?: boolean;
+}
+
+export type FindOrCreateNote = (
+  userId: string,
+  title: string,
+  parentFolderId: string | null,
+  options?: FindOrCreateNoteOptions,
+) => Promise<{ noteId: string; created: boolean }>;
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+async function replaceEmbeddings(targetNoteId: string, userId: string, chunks: string[]) {
+  return embedLimiter(() =>
+    replaceNoteEmbeddings(targetNoteId, userId, chunks),
+  );
+}
+
+async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
+  const { delaySeconds } = await enqueueExtractionRetry(retryOpts);
+  console.log(
+    `Queuing extraction retry for note ${retryOpts.noteId} (attempt ${retryOpts.attempt + 1}, delay ${delaySeconds}s)`,
+  );
+}
+
+async function isActiveNote(noteId: string, userId: string): Promise<boolean> {
+  const [note] = await sql`
+    SELECT note_id
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid
+      AND user_id = ${userId}::uuid
+      AND deleted_at IS NULL
+    LIMIT 1
+  `;
+  return Boolean(note);
+}
+
+// ── RAG pipeline (extraction + embedding) ───────────────────────────────────
+
+export async function processRagPipeline(
+  noteId: string,
+  userId: string,
+  parentFolderId: string | null,
+  buffer: Buffer | null,
+  ragOpts: RagPipelineOptions,
+  findOrCreateNote: FindOrCreateNote,
+): Promise<RagPipelineResult | null> {
+  const {
+    filename,
+    mimeType,
+    s3Key = null,
+    attempt = 0,
+    jobId,
+    importRecordId = null,
+    canvasCourseId = null,
+    canvasModuleId = null,
+    canvasAssignmentId = null,
+    extractionOverride = null,
+    retryOnFailure = true,
+  } = ragOpts;
+  let extractedParentFolderId = parentFolderId;
+
+  const ensurePdfBundle = async () => {
+    if (mimeType !== "application/pdf") return extractedParentFolderId;
+    extractedParentFolderId = await moveNoteToExtractionBundle(
+      userId,
+      noteId,
+      filename ?? "document.pdf",
+    );
+    return extractedParentFolderId;
+  };
+
+  const [sourceNote] = await sql`
+    SELECT is_import_cache_source
+    FROM app.notes
+    WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+    LIMIT 1
+  `;
+  const isImportCacheSource = sourceNote?.is_import_cache_source === true;
+  try {
+    // Work can still be running on a GPU after the user moves a note to
+    // Trash. Do not begin a publishable pipeline for a note that is no longer
+    // active; the lifecycle service also fences jobs, but this protects a
+    // direct/retried worker that already has a queue message.
+    if (!(await isActiveNote(noteId, userId))) {
+      logger.info("canvas-import-file-skipped-trashed-note", { noteId, jobId });
+      return { noteId, chunksStored: 0, skipped: true };
+    }
+
+    const canQueueMarker = markerQueueEnabled() && Boolean(s3Key);
+    const queueMarker = async () => {
+      if (!(await isActiveNote(noteId, userId))) {
+        return { noteId, chunksStored: 0, skipped: true };
+      }
+      if (!s3Key) throw new Error("Marker submission requires a stored source file");
+      const markerParentFolderId = await ensurePdfBundle();
+      const submitted = await submitMarkerJob({
+        sourceKey: s3Key,
+        sourceBytes: buffer?.length ?? null,
+        noteId,
+        userId,
+        jobId,
+        filename: filename ?? "document.pdf",
+        mimeType,
+        parentFolderId: markerParentFolderId,
+      });
+      // submitMarkerJob atomically persists the Marker row and pending states
+      // before it publishes work. Repeating those updates here could overwrite
+      // a fast completion with pending_marker.
+      logger.info("marker-serverless-submitted", {
+        jobId,
+        markerJobId: submitted.markerJobId,
+        provider: submitted.provider,
+        noteId,
+        filename,
+      });
+      return { noteId, chunksStored: 0, pendingMarker: true };
+    };
+
+    if (
+      canQueueMarker &&
+      mimeType === "application/pdf" &&
+      processAllPdfsWithMarker()
+    ) {
+      return await queueMarker();
+    }
+
+    const extractionStart = Date.now();
+    let extraction: ExtractionResult;
+    if (extractionOverride) {
+      extraction = extractionOverride;
+    } else {
+      if (!buffer) throw new Error("Extraction requires source bytes");
+      extraction = await ocrLimiter(() =>
+        extractContentFromBuffer({
+          buffer,
+          filename: filename ?? "document.pdf",
+          mimeType,
+        }),
+      );
+    }
+    const extractionElapsedMs = Date.now() - extractionStart;
+
+    const {
+      rawText: extractedRawText,
+      chunks: extractedChunks,
+      source,
+      markerImages = {},
+      markerMetadata = null,
+      pageRange = null,
+    } = extraction;
+    if (source === "skipped" && canQueueMarker) {
+      return await queueMarker();
+    }
+    // coverage record so page-limited marker runs are never mistaken for
+    // full-document extraction (partial notes can be found and re-enriched)
+    const extractionCoverage = JSON.stringify({
+      source,
+      page_range: pageRange,
+      partial: Boolean(pageRange),
+      extracted_at: new Date().toISOString(),
+    });
+    const rawText = sanitizePostgresText(extractedRawText ?? "");
+    const chunks = (extractedChunks ?? []).map((chunk) =>
+      sanitizePostgresText(chunk),
+    );
+    const isText = source === "text";
+
+    // skipped: non-PDF binary with no Marker and no text fallback — stored as attachment only
+    if (source === "skipped") {
+      return { noteId, chunksStored: 0 };
+    }
+
+    logger.info("canvas-import-file-extracted", {
+      jobId,
+      filename,
+      source,
+      chunkCount: chunks.length,
+      elapsedMs: extractionElapsedMs,
+      elapsedSecs: (extractionElapsedMs / 1000).toFixed(2),
+    });
+
+    if (source === "text") {
+      console.log(
+        `Text extract (${mimeType}): ${chunks.length} chunks for note ${noteId}`,
+      );
+    } else if (source === "marker") {
+      console.log(
+        `Marker: extracted ${chunks.length} chunks for note ${noteId}`,
+      );
+    } else {
+      console.log(
+        `pdf-parse: extracted ${chunks.length} chunks for note ${noteId}`,
+      );
+    }
+
+    if (isText) {
+      const searchText = stripMarkdown(rawText);
+      // text files: embed on the original note directly (no sibling needed)
+      const updated = await sql`
+        UPDATE app.notes
+        SET extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        RETURNING note_id
+      `;
+      if (updated.length === 0) {
+        return { noteId, chunksStored: 0, skipped: true };
+      }
+      const embeddingStart = Date.now();
+      const count = await replaceEmbeddings(noteId, userId, chunks);
+      const embeddingElapsedMs = Date.now() - embeddingStart;
+
+      logger.info("canvas-import-file-embedded", {
+        jobId,
+        filename,
+        chunkCount: count,
+        elapsedMs: embeddingElapsedMs,
+        elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
+      });
+
+      console.log(`RAG: ${count} chunks embedded on text note ${noteId}`);
+      return { noteId, chunksStored: count };
+    }
+
+    // Binary files create an extracted .md companion. PDFs share a named
+    // bundle folder with their source; other binary formats keep their
+    // existing sibling placement.
+    // A hidden cache source is its own immutable extraction target. Do not
+    // create a sibling Markdown note, which would leak a SHA-named file into
+    // the user's tree and duplicate their retrieval vectors.
+    if (isImportCacheSource) {
+      const storage = getStorageProvider();
+      const markerAssets = await persistMarkerAssetsForNote({
+        storage,
+        userId,
+        noteId,
+        markdown: rawText,
+        images: markerImages,
+        metadata: markerMetadata,
+      });
+      const finalMarkdown = markerAssets.markdown;
+      const searchText = stripMarkdown(finalMarkdown);
+      const updated = await sql`
+        UPDATE app.notes
+        SET content = ${finalMarkdown}, extracted_text = ${searchText},
+            extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid AND user_id = ${userId}::uuid
+          AND deleted_at IS NULL
+        RETURNING note_id
+      `;
+      if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
+      const count = await replaceEmbeddings(noteId, userId, chunks);
+      return { noteId, chunksStored: count };
+    }
+
+    if (!(await isActiveNote(noteId, userId))) {
+      return { noteId, chunksStored: 0, skipped: true };
+    }
+    const mdTitle = filename.replace(/\.[^.]+$/, "") + ".md";
+    const markdownParentFolderId = await ensurePdfBundle();
+    const { noteId: mdNoteId } = await findOrCreateNote(
+      userId,
+      mdTitle,
+      markdownParentFolderId,
+      { content: rawText, canvasCourseId, canvasModuleId, canvasAssignmentId },
+    );
+    const storage = getStorageProvider();
+    const markerAssets = await persistMarkerAssetsForNote({
+      storage,
+      userId,
+      noteId: mdNoteId,
+      markdown: rawText,
+      images: markerImages,
+      metadata: markerMetadata,
+    });
+    const finalMarkdown = markerAssets.markdown;
+    const searchText = stripMarkdown(finalMarkdown);
+
+    // stripped text for full-text search (no ### --- ** etc.)
+    const updated = await sql`
+      UPDATE app.notes
+      SET content = ${finalMarkdown}, extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+      WHERE note_id = ${mdNoteId}::uuid
+        AND user_id = ${userId}::uuid
+        AND deleted_at IS NULL
+      RETURNING note_id
+    `;
+    if (updated.length === 0) {
+      return { noteId, chunksStored: 0, skipped: true };
+    }
+
+    const embeddingStart = Date.now();
+    const count = await replaceEmbeddings(mdNoteId, userId, chunks);
+    const embeddingElapsedMs = Date.now() - embeddingStart;
+
+    logger.info("canvas-import-file-embedded", {
+      jobId,
+      filename,
+      chunkCount: count,
+      elapsedMs: embeddingElapsedMs,
+      elapsedSecs: (embeddingElapsedMs / 1000).toFixed(2),
+    });
+
+    console.log(
+      `RAG: ${count} chunks embedded on MD note ${mdNoteId} (source: ${noteId}, marker images: ${markerAssets.imageCount})`,
+    );
+    return { noteId: mdNoteId, chunksStored: count };
+  } catch (error) {
+    if (error instanceof MarkerSubmissionCancelledError) {
+      // Cancellation won the durable submission fence. Do not turn that into
+      // a generic extraction retry, which could revive the cancelled import.
+      console.log(`Marker submission skipped for inactive import ${noteId}`);
+      return null;
+    }
+    if (retryOnFailure && attempt < MAX_EXTRACTION_RETRIES) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Persist the retry intent before publishing its message. A fast queue
+      // consumer must observe `pending_retry`, and a cancelled/replaced Canvas
+      // generation must not be revived by an enqueue that won the race.
+      const stagedImports = await sql`
+        UPDATE app.canvas_imports
+        SET status = 'pending_retry', error_message = ${message}, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND (${jobId ?? null}::uuid IS NULL OR job_id = ${jobId ?? null}::uuid)
+          AND (${importRecordId ?? null}::uuid IS NULL OR id = ${importRecordId ?? null}::uuid)
+          AND status IN ('downloading', 'processing', 'indexing', 'pending_retry')
+        RETURNING id
+      `;
+      const stagedIngestion = await sql`
+        UPDATE app.ingestion_jobs
+        SET status = 'pending', error = ${message}, updated_at = NOW()
+        WHERE note_id = ${noteId}::uuid
+          AND user_id = ${userId}::uuid
+          AND status NOT IN ('done', 'cancelled')
+        RETURNING id
+      `;
+      if (jobId && stagedImports.length === 0) {
+        console.log(`Extraction retry skipped for inactive Canvas import ${noteId}`);
+        return null;
+      }
+      if (!jobId && stagedImports.length === 0 && stagedIngestion.length === 0) {
+        console.log(`Extraction retry skipped for inactive note ${noteId}`);
+        return null;
+      }
+      try {
+        await queueExtractionRetry({
+          noteId,
+          userId,
+          s3Key,
+          filename,
+          mimeType,
+          parentFolderId: extractedParentFolderId,
+          attempt,
+          importRecordId,
+          jobId,
+        });
+      } catch (enqueueError) {
+        const enqueueMessage =
+          enqueueError instanceof Error ? enqueueError.message : String(enqueueError);
+        await sql`
+          UPDATE app.canvas_imports
+          SET status = 'error', error_message = ${enqueueMessage}, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid
+            AND user_id = ${userId}::uuid
+            AND (${jobId ?? null}::uuid IS NULL OR job_id = ${jobId ?? null}::uuid)
+            AND (${importRecordId ?? null}::uuid IS NULL OR id = ${importRecordId ?? null}::uuid)
+            AND status = 'pending_retry'
+        `;
+        await sql`
+          UPDATE app.ingestion_jobs
+          SET status = 'failed', error = ${enqueueMessage}, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid
+            AND user_id = ${userId}::uuid
+            AND status = 'pending'
+        `;
+        throw enqueueError;
+      }
+      console.log(
+        `Extraction failed for note ${noteId}, queued for retry (attempt ${attempt + 1})`,
+      );
+      return null;
+    }
+    console.error(`RAG pipeline error for note ${noteId}:`, error);
+    throw error;
+  }
+}

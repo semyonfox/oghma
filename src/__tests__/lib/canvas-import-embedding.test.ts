@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/strip-markdown", () => ({
   stripMarkdown: vi.fn((value: string) => value),
 }));
@@ -40,12 +40,12 @@ vi.mock("@/lib/ingestion/extraction-core.ts", () => ({
 vi.mock("@/lib/marker-output.ts", () => ({
   persistMarkerAssetsForNote: mocks.persistMarkerAssetsForNote,
 }));
-vi.mock("@/lib/canvas/async-limiter.js", () => ({
+vi.mock("@/lib/canvas/async-limiter", () => ({
   createAsyncLimiter: vi.fn(
     () => async (task: () => Promise<unknown>) => task(),
   ),
 }));
-vi.mock("@/lib/canvas/import-metrics.js", () => ({
+vi.mock("@/lib/canvas/import-metrics", () => ({
   parseEnvConcurrency: vi.fn(() => 1),
 }));
 vi.mock("@/lib/logger.ts", () => ({
@@ -61,13 +61,14 @@ vi.mock("@/lib/marker-serverless.ts", () => ({
   MarkerSubmissionCancelledError: mocks.MarkerSubmissionCancelledError,
 }));
 
-import { processRagPipeline } from "@/lib/canvas/import-embedding.js";
+import { processRagPipeline } from "@/lib/canvas/import-embedding";
 
 describe("processRagPipeline PDF bundles", () => {
   const findOrCreateNote = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.sql.mockResolvedValue([{ note_id: "pdf-note" }]);
     mocks.moveNoteToExtractionBundle.mockResolvedValue("bundle-123");
     mocks.markerQueueEnabled.mockReturnValue(false);
     mocks.processAllPdfsWithMarker.mockReturnValue(false);

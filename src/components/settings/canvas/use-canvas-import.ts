@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   LS_ACTIVE_JOB,
   LS_ERRORS,
@@ -20,13 +27,35 @@ interface UseCanvasImportParams {
     canvasStatus?: string;
   }[];
   courseErrors: Record<string, string>;
-  setCourseErrors: (v: Record<string, string>) => void;
+  setCourseErrors: Dispatch<SetStateAction<Record<string, string>>>;
   forbiddenCourses: Record<string, boolean>;
-  setForbiddenCourses: (v: Record<string, boolean>) => void;
+  setForbiddenCourses: Dispatch<SetStateAction<Record<string, boolean>>>;
   syncedCourses: Record<string, boolean>;
-  setSyncedCourses: (v: Record<string, boolean>) => void;
-  setConnectionError: (v: string | null) => void;
+  setSyncedCourses: Dispatch<SetStateAction<Record<string, boolean>>>;
+  setConnectionError: Dispatch<SetStateAction<string | null>>;
   t: (key: string) => string;
+}
+
+interface CanvasProgress {
+  percent: number;
+  completed: number;
+  total: number;
+  downloading: number;
+  processing: number;
+}
+
+interface CanvasLog {
+  status?: string;
+  courseId?: string | number;
+}
+
+interface CanvasStatusResponse {
+  activeJob?: { phase?: string } | null;
+  progress?: CanvasProgress | null;
+  markerColdStarting?: boolean;
+  estimatedSecsRemaining?: number | null;
+  recentLogs?: CanvasLog[];
+  issues?: { forbidden?: number; error?: number };
 }
 
 export default function useCanvasImport({
@@ -56,11 +85,26 @@ export default function useCanvasImport({
     downloading: number;
     processing: number;
   } | null>(null);
-  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [recentLogs, setRecentLogs] = useState<CanvasLog[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [markerColdStarting, setMarkerColdStarting] = useState(false);
   const [estimatedSecsRemaining, setEstimatedSecsRemaining] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const latestStateRef = useRef({
+    courses,
+    forbiddenCourses,
+    selectedCourseIds,
+    syncedCourses,
+  });
+
+  useEffect(() => {
+    latestStateRef.current = {
+      courses,
+      forbiddenCourses,
+      selectedCourseIds,
+      syncedCourses,
+    };
+  }, [courses, forbiddenCourses, selectedCourseIds, syncedCourses]);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -74,18 +118,18 @@ export default function useCanvasImport({
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch("/api/canvas/status");
-        const data = await res.json();
         if (!res.ok) return;
+        const data = (await res.json()) as CanvasStatusResponse;
 
         setIsDiscovering(data.activeJob?.phase === "discovering");
-        setProgress(data.progress);
+        setProgress(data.progress ?? null);
         setMarkerColdStarting(Boolean(data.markerColdStarting));
         setEstimatedSecsRemaining(data.estimatedSecsRemaining ?? null);
         const logs = data.recentLogs ?? [];
         setRecentLogs(logs);
 
         // track which courses have forbidden files — persist permanently
-        const newForbidden = { ...forbiddenCourses };
+        const newForbidden = { ...latestStateRef.current.forbiddenCourses };
         let forbiddenChanged = false;
         for (const log of logs) {
           if (log.status === "forbidden" && log.courseId) {
@@ -97,6 +141,7 @@ export default function useCanvasImport({
           }
         }
         if (forbiddenChanged) {
+          latestStateRef.current.forbiddenCourses = newForbidden;
           setForbiddenCourses(newForbidden);
           localStorage.setItem(LS_FORBIDDEN, JSON.stringify(newForbidden));
         }
@@ -116,16 +161,17 @@ export default function useCanvasImport({
               skipped: 0,
             });
             // mark selected courses as synced
-            const newSynced = { ...syncedCourses };
-            for (const course of courses) {
+            const newSynced = { ...latestStateRef.current.syncedCourses };
+            for (const course of latestStateRef.current.courses) {
               if (
                 course.canvasStatus !== "inaccessible" &&
                 course.canvasStatus !== "unavailable" &&
-                selectedCourseIds.includes(String(course.id))
+                latestStateRef.current.selectedCourseIds.includes(String(course.id))
               ) {
                 newSynced[String(course.id)] = true;
               }
             }
+            latestStateRef.current.syncedCourses = newSynced;
             setSyncedCourses(newSynced);
             localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
 
@@ -155,12 +201,8 @@ export default function useCanvasImport({
       }
     }, 2000);
   }, [
-    forbiddenCourses,
     setForbiddenCourses,
-    syncedCourses,
     setSyncedCourses,
-    selectedCourseIds,
-    courses,
     stopPolling,
   ]);
 

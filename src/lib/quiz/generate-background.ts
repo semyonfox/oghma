@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { generateQuestion } from "./generate";
 import { getCurrentBloomLevel, pickQuestionType } from "./bloom";
 import logger from "@/lib/logger";
@@ -9,10 +9,31 @@ const INTER_BATCH_DELAY_MS = 300;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Get chunk IDs that do not have quiz questions for a given user.
- * Optionally scoped to specific chunk IDs or a course.
- */
+interface IdRow {
+  id: string;
+}
+
+interface ChunkRow {
+  id: string;
+  text: string;
+  document_id: string;
+  title: string | null;
+  canvas_course_id: string | null;
+}
+
+interface ChunkTextRow {
+  text: string;
+}
+
+interface ReviewRow {
+  bloom_level: number;
+  was_correct: boolean;
+}
+
+function rowIds(rows: IdRow[]): string[] {
+  return rows.map(({ id }) => id);
+}
+
 export async function getUncoveredChunkIds(
   userId: string,
   opts?: { chunkIds?: string[]; courseId?: string; limit?: number },
@@ -20,7 +41,6 @@ export async function getUncoveredChunkIds(
   const limit = opts?.limit ?? BATCH_SIZE;
 
   if (opts?.chunkIds && opts.chunkIds.length > 0) {
-    // scoped to specific chunks (e.g. from an import job)
     const rows = await sql`
       SELECT c.id FROM app.chunks c
       JOIN app.notes n ON n.note_id = c.document_id
@@ -34,11 +54,10 @@ export async function getUncoveredChunkIds(
       ORDER BY c.created_at ASC
       LIMIT ${limit}
     `;
-    return rows.map((r: any) => r.id);
+    return rowIds(rows as IdRow[]);
   }
 
   if (opts?.courseId) {
-    // scoped to a course
     const rows = await sql`
       SELECT c.id FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
@@ -52,10 +71,9 @@ export async function getUncoveredChunkIds(
       ORDER BY c.created_at ASC
       LIMIT ${limit}
     `;
-    return rows.map((r: any) => r.id);
+    return rowIds(rows as IdRow[]);
   }
 
-  // all uncovered chunks for user
   const rows = await sql`
     SELECT c.id FROM app.chunks c
     JOIN app.notes n ON n.note_id = c.document_id
@@ -68,32 +86,27 @@ export async function getUncoveredChunkIds(
     ORDER BY c.created_at ASC
     LIMIT ${limit}
   `;
-  return rows.map((r: any) => r.id);
+  return rowIds(rows as IdRow[]);
 }
 
-/**
- * Generate questions for a batch of uncovered chunks.
- * Returns the number of questions successfully generated.
- */
 export async function generateBatch(
   userId: string,
   chunkIds: string[],
 ): Promise<number> {
   let generated = 0;
 
-  async function generateForChunk(chunkId: string): Promise<void> {
-    const [chunk] = await sql`
+  async function generateForChunk(chunkId: string): Promise<number> {
+    const [chunk] = (await sql`
       SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
       FROM app.chunks c
       JOIN app.notes n ON c.document_id = n.note_id
       WHERE c.id = ${chunkId}::uuid
         AND c.user_id = ${userId}::uuid
         AND n.deleted_at IS NULL
-    `;
-    if (!chunk) return;
+    `) as ChunkRow[];
+    if (!chunk) return 0;
 
-    // fetch neighboring chunks (1 before, 1 after) for broader topic context
-    const neighbors = await sql`
+    const neighbors = (await sql`
       WITH ordered AS (
         SELECT id, text,
           ROW_NUMBER() OVER (ORDER BY page_number ASC NULLS LAST, created_at ASC) AS rn
@@ -107,20 +120,19 @@ export async function generateBatch(
       CROSS JOIN target_rn t
       WHERE o.rn BETWEEN t.rn - 1 AND t.rn + 1
       ORDER BY o.rn
-    `;
+    `) as ChunkTextRow[];
     const contextText =
       neighbors.length > 1
-        ? neighbors.map((n: any) => n.text).join("\n\n")
+        ? neighbors.map(({ text }) => text).join("\n\n")
         : chunk.text;
 
-    // check review history for adaptive bloom level
-    const reviews = await sql`
+    const reviews = (await sql`
       SELECT qq.bloom_level, qr.was_correct
       FROM app.quiz_reviews qr
       JOIN app.quiz_questions qq ON qr.question_id = qq.id
       WHERE qq.chunk_id = ${chunkId}::uuid AND qr.user_id = ${userId}::uuid
       ORDER BY qr.created_at ASC
-    `;
+    `) as ReviewRow[];
     const bloomLevel = getCurrentBloomLevel(reviews);
     const questionType = pickQuestionType(bloomLevel);
 
@@ -132,20 +144,21 @@ export async function generateBatch(
       chunk.title || "Unknown Module",
       bloomLevel,
       questionType,
-      chunk.canvas_course_id,
+      chunk.canvas_course_id ?? undefined,
     );
 
-    if (question) generated++;
+    return question ? 1 : 0;
   }
 
-  // process in parallel batches to balance throughput vs LLM rate limits
   for (let i = 0; i < chunkIds.length; i += PARALLEL) {
     const batch = chunkIds.slice(i, i + PARALLEL);
     const results = await Promise.allSettled(
       batch.map((id) => generateForChunk(id)),
     );
     for (const r of results) {
-      if (r.status === "rejected") {
+      if (r.status === "fulfilled") {
+        generated += r.value;
+      } else {
         logger.error("background quiz generation failed for chunk", {
           error: r.reason instanceof Error ? r.reason.message : String(r.reason),
         });
@@ -159,11 +172,6 @@ export async function generateBatch(
   return generated;
 }
 
-/**
- * Seed initial questions after an import completes.
- * Generates up to `count` questions from the given chunk IDs.
- * Called from the import worker (Fargate).
- */
 export async function seedQuestionsAfterImport(
   userId: string,
   importedChunkIds: string[],

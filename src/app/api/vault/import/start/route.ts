@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import type postgres from "postgres";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";
+
+interface VaultJobIdRow {
+  id: string;
+}
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { code?: string }).code === "23505";
@@ -47,7 +52,7 @@ export const POST = withErrorHandler(async (request) => {
     throw new ApiError(400, "Uploaded zip size does not match the authorized upload");
   }
 
-  const [existing] = await sql`
+  const [existing] = await sql<VaultJobIdRow[]>`
     SELECT id FROM app.canvas_import_jobs
     WHERE user_id = ${user.user_id}
       AND type = 'vault-import'
@@ -64,7 +69,7 @@ export const POST = withErrorHandler(async (request) => {
 
   let jobId: string;
   try {
-    jobId = await sql.begin(async (tx: any) => {
+    jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
     if (existing) {
       // also set cancel_requested_at so any running worker stops cooperatively
       await tx`
@@ -75,7 +80,7 @@ export const POST = withErrorHandler(async (request) => {
           AND status IN ('queued', 'processing')
       `;
     }
-    const [row] = await tx`
+    const [row] = await tx<VaultJobIdRow[]>`
       INSERT INTO app.canvas_import_jobs (user_id, type, input_s3_key, status)
       VALUES (${user.user_id}::uuid, 'vault-import', ${s3Key}, 'queued')
       RETURNING id
@@ -84,7 +89,7 @@ export const POST = withErrorHandler(async (request) => {
     });
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
-    const [active] = await sql`
+    const [active] = await sql<VaultJobIdRow[]>`
       SELECT id FROM app.canvas_import_jobs
       WHERE user_id = ${user.user_id} AND type = 'vault-import'
         AND status IN ('queued', 'processing')

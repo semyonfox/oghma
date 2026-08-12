@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import type postgres from "postgres";
 import { withErrorHandler, requireAuth, ApiError } from '@/lib/api-error';
 import { cacheGet, cacheSet, cacheKeys } from '@/lib/cache';
-import sql from '@/database/pgsql.js';
-const database = sql as any;
+import sql from '@/database/pgsql';
+
+const database = sql as postgres.Sql;
 
 const titleCollator = new Intl.Collator(undefined, {
   numeric: true,
@@ -49,6 +51,24 @@ export const GET = withErrorHandler(async (request) => {
       throw new ApiError(400, 'Invalid parent_id format');
     }
 
+    // Check a non-root parent before serving cache: a stale child-list cache
+    // must not expose content underneath a trashed or otherwise unavailable
+    // folder.
+    if (parentId) {
+      const parents = await database<{ note_id: string }[]>`
+        SELECT note_id
+        FROM app.notes
+        WHERE note_id = ${parentId}::uuid
+          AND user_id = ${user.user_id}::uuid
+          AND is_folder = TRUE
+          AND deleted_at IS NULL
+        LIMIT 1
+      `;
+      if (parents.length === 0) {
+        throw new ApiError(404, "Parent folder not found");
+      }
+    }
+
     const key = cacheKeys.treeChildren(user.user_id, parentId);
     const cached = await cacheGet<{
       parentId: string;
@@ -68,7 +88,7 @@ export const GET = withErrorHandler(async (request) => {
     // parameterise interpolated values — you cannot embed raw SQL like
     // "IS NULL" or "= $2::uuid" in the same template branch.
     const rows = parentId
-      ? await database`
+      ? await database<TreeChildRow[]>`
           SELECT
             ti.note_id as id,
             n.title,
@@ -86,7 +106,7 @@ export const GET = withErrorHandler(async (request) => {
             AND n.deleted_at IS NULL
           ORDER BY n.title ASC
         `
-      : await database`
+      : await database<TreeChildRow[]>`
           SELECT
             ti.note_id as id,
             n.title,
@@ -108,7 +128,7 @@ export const GET = withErrorHandler(async (request) => {
     const body = {
       parentId: parentId || 'root',
       items: sortTreeChildren(
-        (rows as TreeChildRow[]).map((row) => ({
+        rows.map((row) => ({
           id: row.id,
           title: row.title,
           isFolder: row.isFolder,

@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 const { s3Send } = vi.hoisted(() => ({ s3Send: vi.fn() }));
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn() as unknown as { begin: ReturnType<typeof vi.fn> } & ReturnType<typeof vi.fn>;
   sqlMock.mockResolvedValue([]);
   sqlMock.begin = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(sqlMock));
@@ -26,7 +26,7 @@ vi.mock("@/lib/storage/s3", () => ({
   createS3ConfigFromEnv: vi.fn(() => ({ bucket: "test" })),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { POST } from "@/app/api/vault/import/start/route";
 

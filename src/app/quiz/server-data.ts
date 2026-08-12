@@ -1,6 +1,6 @@
 import "server-only";
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 export interface QuizDashboardSummary {
   dueCount: number;
@@ -27,8 +27,29 @@ export interface QuizDashboardInitialData {
   courses: QuizDashboardCourse[];
 }
 
+interface QuizDashboardCardRow {
+  total_cards: number;
+  due_count: number;
+  mastered_count: number;
+}
+
+interface QuizDashboardReviewRow {
+  reviewed_today: number;
+  week_total: number;
+  week_correct: number;
+}
+
+interface QuizStreakRow {
+  current_streak: number;
+  longest_streak: number;
+}
+
+interface QuizContentRow {
+  has_content: boolean;
+}
+
 interface QuizCourseRow {
-  canvas_course_id: string;
+  canvas_course_id: number;
   course_name: string;
   total_cards: number;
   due_count: number;
@@ -41,7 +62,7 @@ export async function getQuizDashboardData(
 ): Promise<QuizDashboardInitialData> {
   const [cardRows, reviewRows, streakRows, contentRows, courseRows] =
     await Promise.all([
-      sql`
+      sql<QuizDashboardCardRow[]>`
         SELECT
           COUNT(DISTINCT qc.id)::int as total_cards,
           COUNT(DISTINCT qc.id) FILTER (WHERE qc.due <= now())::int as due_count,
@@ -57,7 +78,7 @@ export async function getQuizDashboardData(
           AND n.deleted_at IS NULL
           AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
       `,
-      sql`
+      sql<QuizDashboardReviewRow[]>`
         SELECT
           COUNT(DISTINCT qr.id) FILTER (WHERE qr.created_at >= CURRENT_DATE)::int as reviewed_today,
           COUNT(DISTINCT qr.id) FILTER (WHERE qr.created_at >= now() - interval '7 days')::int as week_total,
@@ -74,9 +95,9 @@ export async function getQuizDashboardData(
           AND n.deleted_at IS NULL
           AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
       `,
-      sql`SELECT current_streak, longest_streak FROM app.user_streaks WHERE user_id = ${userId}::uuid`,
-      sql`SELECT EXISTS(SELECT 1 FROM app.chunks WHERE user_id = ${userId}::uuid LIMIT 1) as has_content`,
-      sql`
+      sql<QuizStreakRow[]>`SELECT current_streak, longest_streak FROM app.user_streaks WHERE user_id = ${userId}::uuid`,
+      sql<QuizContentRow[]>`SELECT EXISTS(SELECT 1 FROM app.chunks WHERE user_id = ${userId}::uuid LIMIT 1) as has_content`,
+      sql<QuizCourseRow[]>`
         SELECT
           n.canvas_course_id,
           COALESCE(
@@ -136,7 +157,7 @@ export async function getQuizDashboardData(
       longestStreak: streak.longest_streak,
       hasContent: contentRows[0].has_content,
     },
-    courses: (courseRows as unknown as QuizCourseRow[]).map((course) => ({
+    courses: courseRows.map((course) => ({
       courseId: String(course.canvas_course_id),
       courseName: course.course_name,
       totalCards: course.total_cards,

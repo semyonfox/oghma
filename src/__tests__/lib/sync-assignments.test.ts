@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   deriveAssignmentType,
   shouldSyncAssignment,
-} from "@/lib/canvas/sync-assignments.js";
+} from "@/lib/canvas/sync-assignments";
 
 describe("shouldSyncAssignment", () => {
   it("skips unpublished assignments", () => {

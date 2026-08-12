@@ -1,4 +1,5 @@
-import sql from "@/database/pgsql.js";
+import type postgres from "postgres";
+import sql from "@/database/pgsql";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { isSharedImportedFileKey } from "@/lib/canvas/import-cache";
 import logger from "@/lib/logger";
@@ -17,7 +18,33 @@ const DEFAULT_RETENTION_BATCH_SIZE = 50;
 const MAX_RETENTION_BATCH_SIZE = 250;
 const MARKER_ASSET_RE = /\/api\/notes\/([0-9a-f-]{36})\/assets\?name=([^\s)]+)/gi;
 
-type TransactionSql = any;
+type TransactionSql = postgres.TransactionSql;
+
+/** Compatibility result for callers that use the pre-bundle Trash API. */
+export interface NoteTreeLocation {
+  parentId: string | null;
+  previousParentId: string | null;
+  affectedFolderIds: string[];
+  affectedNoteIds: string[];
+}
+
+interface DeletedNoteRow {
+  note_id: string;
+  is_folder: boolean;
+}
+
+interface RootLocationRow {
+  note_id: string;
+  parent_id: string | null;
+}
+
+function folderIds(rows: readonly DeletedNoteRow[]): string[] {
+  return rows.filter((row) => row.is_folder).map((row) => row.note_id);
+}
+
+function noteIds(rows: readonly DeletedNoteRow[]): string[] {
+  return rows.map((row) => row.note_id);
+}
 
 interface NoteTreeRow {
   note_id: string;
@@ -422,19 +449,19 @@ async function removeNoteRowsPermanently(
   if (ownedIds.length === 0) return { cleanupTaskId: null, objectKeys: 0 };
 
   const [attachmentRows, markerRows, chunkRows] = await Promise.all([
-    tx`
+    tx<Array<{ s3_key: string | null }>>`
       SELECT s3_key
       FROM app.attachments
       WHERE user_id = ${userId}::uuid
         AND note_id = ANY(${ownedIds}::uuid[])
     `,
-    tx`
+    tx<Array<{ result_key: string | null }>>`
       SELECT result_key
       FROM app.marker_jobs
       WHERE user_id = ${userId}::uuid
         AND note_id = ANY(${ownedIds}::uuid[])
     `,
-    tx`
+    tx<Array<{ id: string }>>`
       SELECT id
       FROM app.chunks
       WHERE user_id = ${userId}::uuid
@@ -444,12 +471,12 @@ async function removeNoteRowsPermanently(
 
   const objectKeys = uniqueStrings([
     ...noteRows.map((row) => row.s3_key),
-    ...(attachmentRows as Array<{ s3_key: string | null }>).map((row) => row.s3_key),
-    ...(markerRows as Array<{ result_key: string | null }>).map((row) => row.result_key),
+    ...attachmentRows.map((row) => row.s3_key),
+    ...markerRows.map((row) => row.result_key),
     ...markerObjectKeys(userId, noteRows),
   ]).filter((key) => !isSharedImportedFileKey(key));
   const chunkIds = uniqueStrings(
-    (chunkRows as Array<{ id: string }>).map((row) => row.id),
+    chunkRows.map((row) => row.id),
   );
 
   await cancelNoteProcessing(
@@ -935,4 +962,132 @@ export async function processPendingNoteDeletionCleanup(): Promise<number> {
     if (await processNoteDeletionCleanupTask(String(row.id))) completed += 1;
   }
   return completed;
+}
+
+/**
+ * Legacy single-note Trash API retained for integrations that have not yet
+ * moved to the richer bundle endpoints. New UI routes use moveSubtreeToTrash.
+ */
+export async function softDeleteNote(
+  userId: string,
+  noteId: string,
+): Promise<NoteTreeLocation | null> {
+  const database = sql as postgres.Sql;
+  return database.begin(async (tx) => {
+    await tx`
+      SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+    `;
+    const deleted = await tx<DeletedNoteRow[]>`
+      WITH RECURSIVE subtree(note_id) AS (
+        SELECT ${noteId}::uuid
+        UNION
+        SELECT child.note_id
+        FROM app.tree_items child
+        JOIN subtree parent ON child.parent_id = parent.note_id
+        WHERE child.user_id = ${userId}::uuid
+      )
+      UPDATE app.notes note
+      SET deleted_at = NOW()
+      WHERE note.user_id = ${userId}::uuid
+        AND note.note_id IN (SELECT note_id FROM subtree)
+        AND note.deleted_at IS NULL
+      RETURNING note.note_id, note.is_folder
+    `;
+    if (!deleted.some((row) => row.note_id === noteId)) return null;
+
+    const locations = await tx<Array<{ parent_id: string | null }>>`
+      SELECT parent_id
+      FROM app.tree_items
+      WHERE user_id = ${userId}::uuid AND note_id = ${noteId}::uuid
+      LIMIT 1
+    `;
+    const parentId = locations[0]?.parent_id ?? null;
+    return {
+      parentId,
+      previousParentId: parentId,
+      affectedFolderIds: folderIds(deleted),
+      affectedNoteIds: noteIds(deleted),
+    };
+  });
+}
+
+/** See softDeleteNote; retained for older consumers during the bundle rollout. */
+export async function restoreNote(
+  userId: string,
+  noteId: string,
+): Promise<NoteTreeLocation | null> {
+  const database = sql as postgres.Sql;
+  return database.begin(async (tx) => {
+    await tx`
+      SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
+    `;
+    const roots = await tx<RootLocationRow[]>`
+      SELECT note.note_id, tree.parent_id
+      FROM app.notes note
+      LEFT JOIN app.tree_items tree
+        ON tree.note_id = note.note_id
+       AND tree.user_id = ${userId}::uuid
+      WHERE note.note_id = ${noteId}::uuid
+        AND note.user_id = ${userId}::uuid
+        AND note.deleted_at IS NOT NULL
+      FOR UPDATE OF note
+    `;
+    const root = roots[0];
+    if (!root) return null;
+
+    let parentId: string | null = null;
+    if (root.parent_id) {
+      const parents = await tx<Array<{ note_id: string }>>`
+        SELECT note_id
+        FROM app.notes
+        WHERE note_id = ${root.parent_id}::uuid
+          AND user_id = ${userId}::uuid
+          AND is_folder = TRUE
+          AND deleted_at IS NULL
+        FOR SHARE
+      `;
+      if (parents.length > 0) parentId = root.parent_id;
+    }
+
+    const restored = await tx<DeletedNoteRow[]>`
+      WITH RECURSIVE subtree(note_id) AS (
+        SELECT ${noteId}::uuid
+        UNION
+        SELECT child.note_id
+        FROM app.tree_items child
+        JOIN subtree parent ON child.parent_id = parent.note_id
+        WHERE child.user_id = ${userId}::uuid
+      ),
+      cohort AS MATERIALIZED (
+        SELECT root.deleted_at
+        FROM app.notes root
+        WHERE root.note_id = ${noteId}::uuid
+          AND root.user_id = ${userId}::uuid
+          AND root.deleted_at IS NOT NULL
+      )
+      UPDATE app.notes note
+      SET deleted_at = NULL, updated_at = NOW()
+      FROM cohort
+      WHERE note.user_id = ${userId}::uuid
+        AND note.note_id IN (SELECT note_id FROM subtree)
+        AND note.deleted_at = cohort.deleted_at
+      RETURNING note.note_id, note.is_folder
+    `;
+    if (!restored.some((row) => row.note_id === noteId)) return null;
+
+    await tx`
+      INSERT INTO app.tree_items (user_id, note_id, parent_id)
+      VALUES (${userId}::uuid, ${noteId}::uuid, ${parentId}::uuid)
+      ON CONFLICT (user_id, note_id) DO UPDATE
+      SET parent_id = EXCLUDED.parent_id,
+          updated_at = NOW()
+    `;
+
+    return {
+      parentId,
+      previousParentId: root.parent_id ?? null,
+      affectedFolderIds: folderIds(restored),
+      affectedNoteIds: noteIds(restored),
+    };
+  });
 }

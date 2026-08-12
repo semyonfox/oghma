@@ -1,9 +1,9 @@
-type QuizOption = { text: string; is_correct: boolean };
+import type { QuizOption } from "./types";
 
-// marker page-rank artifacts: lines like `{0}----` or ` {12}--------`
+// Marker page-rank artifacts are present in both stored questions and source chunks.
 const MARKER_ARTIFACT_RE = /^\s*\{\d+\}-+\s*$/gm;
 
-function stripArtifacts(text: string): string {
+export function stripQuizArtifacts(text: string): string {
   return text.replace(MARKER_ARTIFACT_RE, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -44,6 +44,12 @@ function parseOptionsJson(raw: string): unknown {
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 function isTrueFalse(options: QuizOption[]): boolean {
   return (
     options.length === 2 &&
@@ -53,7 +59,7 @@ function isTrueFalse(options: QuizOption[]): boolean {
 }
 
 function shuffleOptions(options: QuizOption[]): QuizOption[] {
-  if (isTrueFalse(options)) return options; // keep True/False in conventional order
+  if (isTrueFalse(options)) return options;
   const arr = [...options];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -70,14 +76,9 @@ export function normalizeQuizOptions(value: unknown): QuizOption[] | null {
     source = parseOptionsJson(source);
   }
 
-  if (
-    source &&
-    typeof source === "object" &&
-    !Array.isArray(source) &&
-    ("options" in source || "Options" in source)
-  ) {
-    const asRecord = source as { options?: unknown; Options?: unknown };
-    source = asRecord.options ?? asRecord.Options;
+  const wrappedOptions = asRecord(source);
+  if (wrappedOptions && ("options" in wrappedOptions || "Options" in wrappedOptions)) {
+    source = wrappedOptions.options ?? wrappedOptions.Options;
   }
 
   if (!Array.isArray(source)) return null;
@@ -86,23 +87,12 @@ export function normalizeQuizOptions(value: unknown): QuizOption[] | null {
     .map((option): QuizOption | null => {
       if (!option || typeof option !== "object") return null;
 
-      const text = (option as { text?: unknown }).text;
+      const optionFields = asRecord(option);
+      if (!optionFields) return null;
+
+      const text = optionFields.text;
       const isCorrect = parseBoolLike(
-        (option as {
-          is_correct?: unknown;
-          correct?: unknown;
-          isCorrect?: unknown;
-        }).is_correct ??
-          (option as {
-            is_correct?: unknown;
-            correct?: unknown;
-            isCorrect?: unknown;
-          }).correct ??
-          (option as {
-            is_correct?: unknown;
-            correct?: unknown;
-            isCorrect?: unknown;
-          }).isCorrect,
+        optionFields.is_correct ?? optionFields.correct ?? optionFields.isCorrect,
       );
 
       const parsedText = parseOptionText(text);
@@ -111,7 +101,7 @@ export function normalizeQuizOptions(value: unknown): QuizOption[] | null {
         return null;
       }
 
-      return { text: stripArtifacts(parsedText), is_correct: isCorrect };
+      return { text: stripQuizArtifacts(parsedText), is_correct: isCorrect };
     })
     .filter((option): option is QuizOption => option !== null);
 
@@ -127,15 +117,15 @@ export function normalizeQuizQuestion<T extends { options?: unknown; question_te
     ...question,
     question_text:
       typeof question.question_text === "string"
-        ? stripArtifacts(question.question_text)
+        ? stripQuizArtifacts(question.question_text)
         : parseOptionText(question.question_text) ?? "",
     correct_answer:
       typeof question.correct_answer === "string"
-        ? stripArtifacts(question.correct_answer)
+        ? stripQuizArtifacts(question.correct_answer)
         : parseOptionText(question.correct_answer) ?? "",
     explanation:
       typeof question.explanation === "string"
-        ? stripArtifacts(question.explanation)
+        ? stripQuizArtifacts(question.explanation)
         : parseOptionText(question.explanation) ?? "",
     options: normalizeQuizOptions(question.options),
   };

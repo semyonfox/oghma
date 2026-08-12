@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn() as ReturnType<typeof vi.fn> & {
     begin: ReturnType<typeof vi.fn>;
   };
@@ -25,7 +25,7 @@ vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 import {

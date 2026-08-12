@@ -1,5 +1,6 @@
 "use client";
 
+import { isValidElement, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -7,7 +8,7 @@ import remarkBreaks from "remark-breaks";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import type { Components } from "react-markdown";
+import type { Components, ExtraProps } from "react-markdown";
 import type { Pluggable, PluggableList } from "unified";
 import CodeBlock from "./components/code-block";
 import { markdownSanitizeSchema } from "./sanitize-schema";
@@ -60,6 +61,38 @@ function textFromHast(node: HastNode | undefined): string {
   return node.children?.map(textFromHast).join("") ?? "";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringProperty(
+  value: Record<string, unknown>,
+  property: string,
+): string | undefined {
+  const candidate = value[property];
+  return typeof candidate === "string" ? candidate : undefined;
+}
+
+function hastNodeFrom(value: unknown): HastNode | undefined {
+  if (!isRecord(value)) return undefined;
+  const children = Array.isArray(value.children)
+    ? value.children.map(hastNodeFrom).filter((child) => child !== undefined)
+    : undefined;
+  const properties = isRecord(value.properties) ? value.properties : undefined;
+  const data = isRecord(value.data)
+    ? { meta: stringProperty(value.data, "meta") }
+    : undefined;
+
+  return {
+    type: stringProperty(value, "type"),
+    tagName: stringProperty(value, "tagName"),
+    value: stringProperty(value, "value"),
+    children,
+    properties,
+    data,
+  };
+}
+
 export function parseCodeFenceTitle(meta?: string): string | undefined {
   if (!meta) return undefined;
 
@@ -76,14 +109,18 @@ export function parseCodeFenceTitle(meta?: string): string | undefined {
 }
 
 function remarkCodeFenceMeta() {
-  return (tree: any) => {
-    const visit = (node: any) => {
-      if (!node || typeof node !== "object") return;
+  return (tree: unknown) => {
+    const visit = (node: unknown) => {
+      if (!isRecord(node)) return;
       if (node.type === "code" && typeof node.meta === "string") {
-        node.data = node.data ?? {};
-        node.data.hProperties = {
-          ...node.data.hProperties,
-          dataMeta: node.meta,
+        const data = isRecord(node.data) ? node.data : {};
+        const hProperties = isRecord(data.hProperties) ? data.hProperties : {};
+        node.data = {
+          ...data,
+          hProperties: {
+            ...hProperties,
+            dataMeta: node.meta,
+          },
         };
       }
       if (Array.isArray(node.children)) node.children.forEach(visit);
@@ -105,8 +142,31 @@ export interface MarkdownRendererProps {
   components?: Partial<Components>;
 }
 
+type MarkdownCodeProps = ComponentPropsWithoutRef<"code"> &
+  ExtraProps & {
+    dataMeta?: string;
+  };
+
+function MarkdownCode({
+  children,
+  className,
+  node: _node,
+  dataMeta: _dataMeta,
+  ...props
+}: MarkdownCodeProps) {
+  const isInline = !className;
+  if (isInline) {
+    return <code {...props}>{children}</code>;
+  }
+  return (
+    <code className={className} {...props}>
+      {children}
+    </code>
+  );
+}
+
 const baseComponents: Partial<Components> = {
-  a: ({ href, children, ...props }: any) => {
+  a: ({ href, children, ...props }) => {
     const isInternalNote = Boolean(parseInternalNoteHref(href));
     return (
       <a
@@ -121,16 +181,19 @@ const baseComponents: Partial<Components> = {
     );
   },
   // pre extracts language and delegates to CodeBlock; CodeBlock owns async Shiki highlighting.
-  pre: ({ children }: any) => {
-    const codeEl = (children as any)?.props;
-    const cls: string = codeEl?.className ?? "";
+  pre: ({ children }) => {
+    const codeProps =
+      isValidElement(children) && isRecord(children.props)
+        ? children.props
+        : undefined;
+    const cls = codeProps ? stringProperty(codeProps, "className") ?? "" : "";
     const lang = /language-([a-z0-9_-]+)/i.exec(cls)?.[1];
-    const codeNode = codeEl?.node as HastNode | undefined;
+    const codeNode = hastNodeFrom(codeProps?.node);
     const rawContent = textFromHast(codeNode) || undefined;
     const meta =
-      codeEl?.dataMeta ??
-      codeEl?.["data-meta"] ??
-      codeEl?.meta ??
+      (codeProps ? stringProperty(codeProps, "dataMeta") : undefined) ??
+      (codeProps ? stringProperty(codeProps, "data-meta") : undefined) ??
+      (codeProps ? stringProperty(codeProps, "meta") : undefined) ??
       codeNode?.data?.meta ??
       (typeof codeNode?.properties?.dataMeta === "string"
         ? codeNode.properties.dataMeta
@@ -143,28 +206,12 @@ const baseComponents: Partial<Components> = {
       </CodeBlock>
     );
   },
-  code: ({ children, className, node: _node, dataMeta: _dataMeta, ...props }: any) => {
-    const isInline = !className;
-    if (isInline) {
-      return (
-        <code
-          {...props}
-        >
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
-  },
-  strong: ({ children }: any) => (
+  code: MarkdownCode,
+  strong: ({ children }) => (
     <strong className="font-semibold text-text">{children}</strong>
   ),
-  em: ({ children }: any) => <em className="italic">{children}</em>,
-  input: ({ type, node: _node, ...props }: any) => (
+  em: ({ children }) => <em className="italic">{children}</em>,
+  input: ({ type, node: _node, ...props }) => (
     <input type={type} {...props} tabIndex={type === "checkbox" ? -1 : undefined} />
   ),
 };
@@ -190,19 +237,16 @@ function buildRehypePlugins(
 ): PluggableList {
   const config = markdownRendererVariants[variant];
   const plugins: PluggableList = [];
-  const sanitizePlugin = [
-    rehypeSanitize,
-    markdownSanitizeSchema,
-  ] as unknown as Pluggable;
+  const sanitizePlugin: Pluggable = [rehypeSanitize, markdownSanitizeSchema];
 
   if (config.allowRawHtml) {
-    plugins.push(rehypeRaw as Pluggable);
+    plugins.push(rehypeRaw);
   }
   if (config.sanitize) {
     plugins.push(sanitizePlugin);
   }
 
-  plugins.push(...extraPlugins, rehypeKatex as Pluggable);
+  plugins.push(...extraPlugins, rehypeKatex);
   return plugins;
 }
 

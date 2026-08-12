@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "./logger";
 import { getTraceId, withTrace } from "./trace";
-import { validateSession, validateSessionLite } from "./auth";
+import {
+  validateSession,
+  validateSessionLite,
+  type SessionUser,
+} from "./auth";
 import { isValidUUID } from "./utils/uuid";
 
 // ── Error classes ────────────────────────────────────────────────────────────
@@ -119,6 +123,12 @@ type WrappedRouteHandler<Context = unknown> = (
   context?: Context,
 ) => Promise<NextResponse>;
 
+export type RouteParamsContext<
+  Params extends Record<string, string> = Record<string, string>,
+> = {
+  params: Promise<Params>;
+};
+
 export function withErrorHandler<Context = unknown>(
   handler: RouteHandler<Context>,
 ): WrappedRouteHandler<Context> {
@@ -135,19 +145,14 @@ export function withErrorHandler<Context = unknown>(
 
 // ── Auth + validation shortcuts ──────────────────────────────────────────────
 
-interface AuthUser {
-  user_id: string;
-  email: string;
-}
-
 /**
  * Validate the session and return the user, or throw an ApiError(401).
  * Use inside a `withErrorHandler` wrapper so the error is caught automatically.
  */
-export async function requireAuth(): Promise<AuthUser> {
+export async function requireAuth(): Promise<SessionUser> {
   const user = await validateSession();
   if (!user) throw new ApiError(401, "Unauthorized");
-  return user as AuthUser;
+  return user;
 }
 
 /**
@@ -172,16 +177,20 @@ export function requireValidId(value: unknown, fieldName = "ID"): string {
   return value;
 }
 
-/** Parse an object JSON request body, reporting client payload errors as 400s. */
-export async function parseJsonObject(request: Request): Promise<Record<string, unknown>> {
+/** Parse JSON while leaving payload-shape validation to the route schema. */
+export async function parseJson(request: Request): Promise<unknown> {
   try {
-    const body: unknown = await request.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      throw new ApiError(400, "JSON body must be an object");
-    }
-    return body as Record<string, unknown>;
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
+    return await request.json();
+  } catch {
     throw new ApiError(400, "Invalid JSON body");
   }
+}
+
+/** Parse an object JSON request body, reporting client payload errors as 400s. */
+export async function parseJsonObject(request: Request): Promise<Record<string, unknown>> {
+  const body = await parseJson(request);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new ApiError(400, "JSON body must be an object");
+  }
+  return body as Record<string, unknown>;
 }

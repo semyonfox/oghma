@@ -4,7 +4,7 @@ import {
   buildCanvasSyncCourses,
   discoverCanvasCourses,
   resolveAccessibleCanvasCourses,
-} from "@/lib/canvas/sync-courses.js";
+} from "@/lib/canvas/sync-courses";
 
 describe("Canvas course discovery contract", () => {
   it("adds an enrollment-only historical course that was never imported locally", async () => {

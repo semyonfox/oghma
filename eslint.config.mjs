@@ -74,12 +74,33 @@ export default [
       "react/jsx-uses-vars": "warn",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-explicit-any": "error",
       "no-console": "off",
       ...reactHooks.configs.recommended.rules,
       "react-hooks/immutability": "off",
       "react-hooks/preserve-manual-memoization": "off",
       "react-hooks/refs": "off",
       "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
+    // App and operational TypeScript use bundler-style, extensionless local imports.
+    // Canvas MCP is a separately compiled NodeNext package, where `.js` specifiers are
+    // required to describe emitted ESM files.
+    files: ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    ignores: ["src/lib/canvas-mcp/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?:@/|\\.{1,2}/).*\\.(?:js|jsx)$",
+              message: "Use an extensionless specifier for first-party TypeScript modules.",
+            },
+          ],
+        },
+      ],
     },
   },
 ];

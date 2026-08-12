@@ -1,9 +1,14 @@
 // extracted from Notea (MIT License)
 import { create } from "zustand";
-import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from "@/lib/notes/types/meta";
 import noteCache from "../cache/note";
 import { NoteModel } from "@/lib/notes/types/note";
 import useSyncStatusStore from "./sync-status";
+import type {
+  NoteApi,
+  NoteCreateRequest,
+  NoteUpdateRequest,
+} from "../api/note";
+import type { NoteTreeState } from "./tree";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,28 +17,37 @@ const UUID_RE =
 // response back into the singleton store or IndexedDB after that save.
 const noteWriteVersions = new Map<string, number>();
 
+type Toast = (message: string, type?: "error") => void;
+
+type NoteTreeStore = {
+  getState: () => Pick<
+    NoteTreeState,
+    "addItem" | "mutateItem" | "removeItem"
+  >;
+};
+
+function withDefaultContent(note: NoteModel): NoteModel {
+  return { ...note, content: note.content || "\n" };
+}
+
 export interface NoteStoreState {
   note: NoteModel | undefined;
   loading: boolean;
-  // API instances for dependency injection
-  // treeStore is the zustand store hook itself (use .getState() to access methods)
-  noteAPI: any;
-  treeStore: any;
-  toast: any;
-  // Methods
+  noteAPI: NoteApi | null;
+  treeStore: NoteTreeStore | null;
+  toast: Toast | null;
   fetchNote: (id: string) => Promise<NoteModel | undefined>;
   removeNote: (id: string) => Promise<void>;
-  mutateNote: (id: string, payload: Partial<NoteModel>) => Promise<void>;
-  createNote: (body: Partial<NoteModel>) => Promise<NoteModel | undefined>;
+  mutateNote: (id: string, payload: NoteUpdateRequest) => Promise<void>;
+  createNote: (
+    body: NoteCreateRequest,
+  ) => Promise<NoteModel | undefined>;
   createFolder: (parentId?: string) => Promise<NoteModel | undefined>;
-  createNoteWithTitle: (
-    title: NoteModel["title"],
-  ) => Promise<{ id: string } | undefined>;
-  updateNote: (data: Partial<NoteModel>) => Promise<void>;
-  initNote: (note: Partial<NoteModel>) => void;
-  findOrCreateNote: (id: string, note: Partial<NoteModel>) => Promise<void>;
-  abortFindNote: () => void;
-  setDependencies: (noteAPI: any, treeStore: any, toast: any) => void;
+  setDependencies: (
+    noteAPI: NoteApi,
+    treeStore: NoteTreeStore,
+    toast: Toast,
+  ) => void;
 }
 
 const useNoteStore = create<NoteStoreState>((set, get) => ({
@@ -43,7 +57,7 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
   treeStore: null,
   toast: null,
 
-  setDependencies: (noteAPI: any, treeStore: any, toast: any) => {
+  setDependencies: (noteAPI, treeStore, toast) => {
     set({ noteAPI, treeStore, toast });
   },
 
@@ -51,13 +65,11 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const state = get();
     const { noteAPI } = state;
 
-    // Guard: noteAPI must be initialized
     if (!noteAPI) {
       console.warn("noteAPI not initialized yet");
       return undefined;
     }
 
-    // Guard: reject stale nanoid IDs — server always returns 400 for them
     if (!UUID_RE.test(id)) {
       console.warn(
         `[noteStore] fetchNote: non-UUID id ${id} — evicting from cache`,
@@ -83,62 +95,52 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
       return (await noteCache.getItem(id)) ?? undefined;
     }
 
-    result.content = result.content || "\n";
-    set({ note: result });
-    await noteCache.setItem(id, result);
+    const note = withDefaultContent(result);
+    set({ note });
+    await noteCache.setItem(id, note);
 
-    return result;
+    return note;
   },
 
   removeNote: async (id: string) => {
     const state = get();
     const { noteAPI, treeStore } = state;
 
-    // Guard: noteAPI and treeStore must be initialized
     if (!noteAPI || !treeStore) {
       console.warn("noteAPI or treeStore not initialized yet");
       return;
     }
 
     try {
-      // Call DELETE endpoint (soft delete on server)
-      await noteAPI.remove(id);
+      const result = await noteAPI.remove(id);
+      if (!result?.success) throw new Error("Note deletion failed");
     } catch (error) {
       console.error("Error deleting note:", error);
       throw error;
     }
 
-    // Remove from cache
     await noteCache.removeItem(id);
-
-    // Remove from tree
     await treeStore.getState().removeItem(id);
-
-    // Clear current note if it's the one being deleted
     if (state.note?.id === id) {
       set({ note: undefined });
     }
   },
 
-  mutateNote: async (id: string, payload: Partial<NoteModel>) => {
+  mutateNote: async (id, payload) => {
     const state = get();
     const { noteAPI, treeStore } = state;
 
-    // Guard: noteAPI must be initialized
-    if (!noteAPI) {
-      console.warn("noteAPI not initialized yet");
+    if (!noteAPI || !treeStore) {
+      console.warn("noteAPI or treeStore not initialized yet");
       return;
     }
 
-    // try to get note from cache, fall back to store, fall back to fetching
     let note = await noteCache.getItem(id);
     if (!note && state.note?.id === id) {
       note = state.note;
-      // populate cache so future mutations work
       if (note) await noteCache.setItem(id, note);
     }
-    if (!note && noteAPI) {
-      // last resort: fetch from API and cache it
+    if (!note) {
       try {
         const fetched = await noteAPI.find(id);
         if (fetched) {
@@ -146,29 +148,22 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
           await noteCache.setItem(id, fetched);
         }
       } catch {
-        // ignore fetch errors, proceed with partial mutation
+        // The write is still authoritative when a stale cache entry cannot load.
       }
     }
 
-    // update local store state
     set((state) => ({
       note: state.note?.id === id ? { ...state.note, ...payload } : state.note,
     }));
 
     noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
 
-    // send mutation to API (this is the persistence sync)
     await noteAPI.mutate(id, payload);
 
     noteWriteVersions.set(id, (noteWriteVersions.get(id) ?? 0) + 1);
 
-    // mark as synced after successful API save
     useSyncStatusStore.getState().markSynced(id);
-
-    // update cache
     await noteCache.mutateItem(id, payload);
-
-    // update tree (title changes show in sidebar)
     if (note) {
       await treeStore.getState().mutateItem(id, {
         data: {
@@ -179,11 +174,10 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     }
   },
 
-  createNote: async (body: Partial<NoteModel>) => {
+  createNote: async (body) => {
     const state = get();
     const { noteAPI, treeStore, toast } = state;
 
-    // Guard: dependencies must be initialized
     if (!noteAPI || !treeStore) {
       console.warn("noteAPI or treeStore not initialized yet");
       return;
@@ -192,32 +186,30 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const result = await noteAPI.create(body);
 
     if (!result) {
-      toast(noteAPI.error || "Failed to create note", "error");
+      toast?.(noteAPI.error || "Failed to create note", "error");
       return;
     }
 
-    result.content = result.content || "\n";
-    await noteCache.setItem(result.id, result);
-    set({ note: result });
-    treeStore.getState().addItem(result);
+    const note = withDefaultContent(result);
+    await noteCache.setItem(note.id, note);
+    set({ note });
+    treeStore.getState().addItem(note);
 
-    // mark as new in sync status (green accent in tree)
-    useSyncStatusStore.getState().markNew(result.id);
+    useSyncStatusStore.getState().markNew(note.id);
 
-    return result;
+    return note;
   },
 
   createFolder: async (parentId?: string) => {
     const state = get();
     const { noteAPI, treeStore, toast } = state;
 
-    // Guard: dependencies must be initialized
     if (!noteAPI || !treeStore) {
       console.warn("noteAPI or treeStore not initialized yet");
       return;
     }
 
-    const body: Partial<NoteModel> = {
+    const body: NoteCreateRequest = {
       title: "New Folder",
       content: "",
       isFolder: true,
@@ -227,102 +219,16 @@ const useNoteStore = create<NoteStoreState>((set, get) => ({
     const result = await noteAPI.create(body);
 
     if (!result) {
-      toast(noteAPI.error || "Failed to create folder", "error");
+      toast?.(noteAPI.error || "Failed to create folder", "error");
       return;
     }
 
     await noteCache.setItem(result.id, result);
     treeStore.getState().addItem(result);
 
-    // mark as new in sync status
     useSyncStatusStore.getState().markNew(result.id);
 
     return result;
-  },
-
-  createNoteWithTitle: async (title: NoteModel["title"]) => {
-    const state = get();
-    const { noteAPI, treeStore, toast } = state;
-
-    // Guard: dependencies must be initialized
-    if (!noteAPI || !treeStore) {
-      console.warn("noteAPI or treeStore not initialized yet");
-      return;
-    }
-
-    const id = treeStore.getState().genNewId();
-    const result = await noteAPI.create({
-      id,
-      title,
-    });
-
-    if (!result) {
-      toast(noteAPI.error || "Failed to create note", "error");
-      return;
-    }
-
-    result.content = result.content || "\n";
-    await noteCache.setItem(result.id, result);
-    treeStore.getState().addItem(result);
-
-    return { id };
-  },
-
-  /**
-   * Convenience wrapper around mutateNote for updating the currently active note
-   * Prevents accidental content overwrites by filtering out content field
-   */
-  updateNote: async (data: Partial<NoteModel>) => {
-    const state = get();
-    const currentNote = state.note;
-
-    if (!currentNote?.id) {
-      console.warn("No active note to update");
-      return;
-    }
-
-    // Remove content field to prevent accidental overwrites (e.g., in share-modal)
-    const { content: _content, ...safeData } = data;
-
-    // Delegate to the main mutateNote function
-    await get().mutateNote(currentNote.id, safeData);
-  },
-
-  initNote: (note: Partial<NoteModel>) => {
-    set({
-      note: {
-        deleted: NOTE_DELETED.NORMAL,
-        shared: NOTE_SHARED.PRIVATE,
-        pinned: NOTE_PINNED.UNPINNED,
-        id: "-1",
-        title: "",
-        ...note,
-      } as NoteModel,
-    });
-  },
-
-  findOrCreateNote: async (id: string, note: Partial<NoteModel>) => {
-    const fetchNote = get().fetchNote;
-    const createNote = get().createNote;
-    try {
-      const data = await fetchNote(id);
-      if (!data) {
-        throw data;
-      }
-    } catch {
-      await createNote({
-        id,
-        ...note,
-      });
-    }
-  },
-
-  abortFindNote: () => {
-    const state = get();
-    const { noteAPI } = state;
-    // Guard: noteAPI must be initialized
-    if (!noteAPI) return;
-    noteAPI.abort();
   },
 }));
 

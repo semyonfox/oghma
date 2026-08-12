@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { TransformableInfo } from "logform";
 
 // mock transports to avoid filesystem side effects
 vi.mock("winston-daily-rotate-file", () => ({ default: vi.fn() }));
@@ -12,6 +13,17 @@ vi.mock("@/lib/trace", () => ({
     },
   },
 }));
+
+function transformInfo(
+  transform: (info: TransformableInfo) => TransformableInfo | boolean,
+  info: TransformableInfo,
+): TransformableInfo {
+  const transformed = transform(info);
+  if (typeof transformed === "boolean") {
+    throw new Error("The redaction format unexpectedly dropped a log entry");
+  }
+  return transformed;
+}
 
 describe("logger", () => {
   beforeEach(() => {
@@ -56,10 +68,7 @@ describe("redactSensitive", () => {
       authorization: "Bearer xyz",
     };
 
-    const result = redactSensitive.transform(info as any) as Record<
-      string,
-      unknown
-    >;
+    const result = transformInfo(redactSensitive.transform, info);
     expect(result.password).toBe("[REDACTED]");
     expect(result.token).toBe("[REDACTED]");
     expect(result.authorization).toBe("[REDACTED]");
@@ -76,10 +85,7 @@ describe("redactSensitive", () => {
       TOKEN: "abc",
     };
 
-    const result = redactSensitive.transform(info as any) as Record<
-      string,
-      unknown
-    >;
+    const result = transformInfo(redactSensitive.transform, info);
     expect(result.Password).toBe("[REDACTED]");
     expect(result.TOKEN).toBe("[REDACTED]");
   });
@@ -96,10 +102,7 @@ describe("redactSensitive", () => {
       },
     };
 
-    const result = redactSensitive.transform(info as any) as Record<
-      string,
-      unknown
-    >;
+    const result = transformInfo(redactSensitive.transform, info);
     const user = result.user as Record<string, unknown>;
     expect(user.name).toBe("Alice");
     expect(user.password).toBe("[REDACTED]");
@@ -115,10 +118,7 @@ describe("redactSensitive", () => {
       status: 200,
     };
 
-    const result = redactSensitive.transform(info as any) as Record<
-      string,
-      unknown
-    >;
+    const result = transformInfo(redactSensitive.transform, info);
     expect(result.email).toBe("user@example.com");
     expect(result.status).toBe(200);
   });
@@ -132,6 +132,6 @@ describe("redactSensitive", () => {
       extra: undefined,
     };
 
-    expect(() => redactSensitive.transform(info as any)).not.toThrow();
+    expect(() => transformInfo(redactSensitive.transform, info)).not.toThrow();
   });
 });

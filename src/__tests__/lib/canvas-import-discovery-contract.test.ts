@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => ({
+vi.mock("@/database/pgsql", () => ({
   default: vi.fn(),
 }));
 
-vi.mock("@/lib/canvas/client.js", () => ({
+vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(),
 }));
 
@@ -12,7 +12,7 @@ vi.mock("@/lib/canvas/import-scheduler.ts", () => ({
   dispatchFairCanvasFiles: vi.fn(),
 }));
 
-vi.mock("@/lib/canvas/import-extraction.js", () => ({
+vi.mock("@/lib/canvas/import-extraction", () => ({
   PROCESSABLE_TYPES: new Set(),
   FILE_CONCURRENCY: 1,
   resolveMimeType: vi.fn(),
@@ -32,12 +32,12 @@ vi.mock("@/lib/logger.ts", () => ({
   },
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { dispatchFairCanvasFiles } from "@/lib/canvas/import-scheduler.ts";
 import {
   parseJobCourses,
   processDiscoverJob,
-} from "@/lib/canvas/import-discovery.js";
+} from "@/lib/canvas/import-discovery";
 
 describe("Canvas import job course contract", () => {
   beforeEach(() => {

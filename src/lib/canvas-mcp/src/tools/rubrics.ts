@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const rubricTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_rubrics",
         description: "List rubrics for a course. Optionally include associations or assessments.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const rubrics = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/rubrics`,
                 {
@@ -21,8 +21,8 @@ export const rubricTools: ToolDef[] = [
             );
             return jsonResult(rubrics);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_rubric",
         description:
             "Get details for a single rubric by course and rubric ID. " +
@@ -34,7 +34,7 @@ export const rubricTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             style: z.enum(["full", "comments_only"]).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const rubric = await canvas.get(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
                 {
@@ -44,8 +44,8 @@ export const rubricTools: ToolDef[] = [
             );
             return jsonResult(rubric);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_rubric_statistics",
         description:
             "Fetch a rubric with all assessments included and return the raw data for " +
@@ -54,15 +54,15 @@ export const rubricTools: ToolDef[] = [
             course_id: canvasIdSchema,
             rubric_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const rubric = await canvas.get(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
                 { include: ["assessments"] },
             );
             return jsonResult(rubric);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_my_rubric_assessment",
         description:
             "Get the authenticated student's rubric assessment for an assignment submission.",
@@ -70,21 +70,18 @@ export const rubricTools: ToolDef[] = [
             course_id: canvasIdSchema,
             assignment_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const submission = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/submissions/self`,
                 { include: ["rubric_assessment"] },
             );
             return jsonResult(submission);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable rubric creation, updates, deletion,
-    // association management, and rubric-based grading.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_rubric",
         description: "Create a rubric in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -97,15 +94,15 @@ export const rubricTools: ToolDef[] = [
                 criterion_use_range: z.boolean().optional(),
             })).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const { course_id, ...fields } = args;
             const rubric = await canvas.post(`/api/v1/courses/${course_id}/rubrics`, {
                 rubric: fields,
             });
             return jsonResult(rubric);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_update_rubric",
         description: "Update a rubric in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -114,7 +111,7 @@ export const rubricTools: ToolDef[] = [
             title: z.string().optional(),
             free_form_criterion_comments: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const { course_id, rubric_id, ...fields } = args;
             const rubric = await canvas.put(
                 `/api/v1/courses/${course_id}/rubrics/${rubric_id}`,
@@ -122,22 +119,22 @@ export const rubricTools: ToolDef[] = [
             );
             return jsonResult(rubric);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_rubric",
         description: "Delete a rubric from a course. Requires educator permissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             rubric_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/rubrics/${args.rubric_id}`,
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_associate_rubric",
         description: "Associate a rubric with an assignment in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -147,7 +144,7 @@ export const rubricTools: ToolDef[] = [
             association_type: z.enum(["Assignment", "Course", "Account"]),
             purpose: z.enum(["grading", "bookmark"]).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const { course_id, ...fields } = args;
             const association = await canvas.post(
                 `/api/v1/courses/${course_id}/rubric_associations`,
@@ -155,8 +152,8 @@ export const rubricTools: ToolDef[] = [
             );
             return jsonResult(association);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_grade_with_rubric",
         description: "Grade a student submission using a rubric. Requires educator permissions.",
         inputSchema: z.object({
@@ -168,7 +165,7 @@ export const rubricTools: ToolDef[] = [
                 comments: z.string().optional(),
             })),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const { course_id, assignment_id, user_id, rubric_assessment } = args;
             const result = await canvas.put(
                 `/api/v1/courses/${course_id}/assignments/${assignment_id}/submissions/${user_id}`,
@@ -176,5 +173,5 @@ export const rubricTools: ToolDef[] = [
             );
             return jsonResult(result);
         },
-    },
+    }),
 ];

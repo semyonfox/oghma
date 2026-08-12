@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // mock the database module before importing the module under test
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const mockSql = vi.fn() as ReturnType<typeof vi.fn> & {
     begin: ReturnType<typeof vi.fn>;
   };
@@ -29,7 +29,7 @@ import {
   findOrCreateOAuthUser,
   resolveVerifiedOAuthEmail,
 } from "@/lib/auth-oauth";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 const mockSql = sql as unknown as ReturnType<typeof vi.fn>;
 

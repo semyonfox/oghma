@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
+
+interface ReviewDateRow {
+  review_date: string;
+}
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -15,7 +19,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     return tracedError("start and end query parameters are required", 400);
   }
 
-  const rows = await sql`
+  const rows = await sql<ReviewDateRow[]>`
     SELECT DISTINCT DATE(created_at) as review_date
     FROM app.quiz_reviews
     WHERE user_id = ${user.user_id}::uuid
@@ -25,6 +29,6 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   `;
 
   return NextResponse.json({
-    dates: rows.map((r: any) => r.review_date),
+    dates: rows.map((r) => r.review_date),
   });
 });

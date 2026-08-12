@@ -1,100 +1,118 @@
 // extracted from Notea (MIT License)
-import { create } from 'zustand';
-import noteCache from '../cache/note';
-import { NOTE_DELETED } from '@/lib/notes/types/meta';
-import { NoteCacheItem } from '../cache';
-import { searchNote } from '../utils/search';
-import { NoteModel } from '@/lib/notes/types/note';
-import { ROOT_ID } from '@/lib/notes/types/tree';
+import { create } from "zustand";
+import noteCache from "../cache/note";
+import {
+  NOTE_DELETED,
+  NOTE_PINNED,
+  NOTE_SHARED,
+} from "@/lib/notes/types/meta";
+import { NoteCacheItem } from "../cache";
+import { NoteModel } from "@/lib/notes/types/note";
+import type {
+  TrashListItem,
+  TrashMutationBody,
+  TrashMutationResponse,
+} from "@/lib/notes/api/trash";
+
+interface TrashAPI {
+  list: () => Promise<TrashListItem[] | undefined>;
+  mutate: (
+    body: TrashMutationBody,
+  ) => Promise<TrashMutationResponse | undefined>;
+}
+
+interface TrashTreeStore {
+  getState: () => {
+    refreshTree: () => Promise<void>;
+    deleteItem: (id: string) => Promise<void>;
+  };
+}
 
 export interface TrashStoreState {
-    keyword: string | undefined;
-    list: NoteCacheItem[] | undefined;
-    loading: boolean;
-    // API instances for dependency injection
-    trashAPI: any;
-    treeStore: any;
-    // Methods
-    filterNotes: (keyword?: string) => Promise<void>;
-    restoreNote: (note: NoteModel) => Promise<NoteModel>;
-    deleteNote: (id: string) => Promise<void>;
-    setDependencies: (trashAPI: any, treeStore: any) => void;
+  keyword: string | undefined;
+  list: NoteCacheItem[] | undefined;
+  trashAPI: TrashAPI | null;
+  treeStore: TrashTreeStore | null;
+  filterNotes: (keyword?: string) => Promise<void>;
+  restoreNote: (note: NoteModel) => Promise<NoteModel>;
+  deleteNote: (id: string) => Promise<void>;
+  setDependencies: (trashAPI: TrashAPI, treeStore: TrashTreeStore) => void;
 }
 
 const useTrashStore = create<TrashStoreState>((set, get) => ({
-    keyword: undefined,
-    list: undefined,
-    loading: false,
-    trashAPI: null,
-    treeStore: null,
+  keyword: undefined,
+  list: undefined,
+  trashAPI: null,
+  treeStore: null,
 
-    setDependencies: (trashAPI: any, treeStore: any) => {
-        set({ trashAPI, treeStore });
-    },
+  setDependencies: (trashAPI, treeStore) => {
+    set({ trashAPI, treeStore });
+  },
 
-    filterNotes: async (keyword = '') => {
-        const data = await searchNote(keyword, NOTE_DELETED.DELETED);
+  filterNotes: async (keyword = "") => {
+    const { trashAPI } = get();
+    if (!trashAPI) return;
 
-        set({
-            keyword,
-            list: data,
-        });
-    },
+    const normalizedKeyword = keyword.trim().toLocaleLowerCase();
+    const serverItems = await trashAPI.list();
+    if (!serverItems) return;
 
-    restoreNote: async (note: NoteModel) => {
-        const state = get();
-        const { trashAPI, treeStore } = state;
+    const items = serverItems
+      .filter(
+        (item) =>
+          !normalizedKeyword ||
+          item.title.toLocaleLowerCase().includes(normalizedKeyword),
+      )
+      .map<NoteCacheItem>((item) => ({
+        ...item,
+        deleted: NOTE_DELETED.DELETED,
+        pinned: NOTE_PINNED.UNPINNED,
+        shared: NOTE_SHARED.PRIVATE,
+      }));
+    set({ keyword, list: items });
+  },
 
-        // Guard: trashAPI and treeStore must be initialized
-        if (!trashAPI || !treeStore) {
-            console.warn('trashAPI or treeStore not initialized yet');
-            return note;
-        }
+  restoreNote: async (note) => {
+    const { trashAPI, treeStore } = get();
+    if (!trashAPI || !treeStore) {
+      console.warn("trashAPI or treeStore not initialized yet");
+      return note;
+    }
 
-        // 父页面被删除时，恢复页面的 parent 改成 root
-        const pNote = note.pid && (await noteCache.getItem(note.pid));
-        if (
-            !note.pid ||
-            !pNote ||
-            pNote?.deleted === NOTE_DELETED.DELETED
-        ) {
-            note.pid = ROOT_ID;
-        }
+    const result = await trashAPI.mutate({
+      action: "restore",
+      data: { id: note.id },
+    });
+    if (!result?.success) return note;
 
-        await trashAPI.mutate({
-            action: 'restore',
-            data: {
-                id: note.id,
-                parentId: note.pid,
-            },
-        });
-        await noteCache.mutateItem(note.id, {
-            deleted: NOTE_DELETED.NORMAL,
-        });
-        await treeStore.getState().restoreItem(note.id, note.pid);
+    const parentId = result.parentId ?? undefined;
+    const restoredNote = {
+      ...note,
+      pid: parentId,
+      deleted: NOTE_DELETED.NORMAL,
+    };
+    await noteCache.removeItem(note.id);
+    await treeStore.getState().refreshTree();
 
-        return note;
-    },
+    return restoredNote;
+  },
 
-    deleteNote: async (id: string) => {
-        const state = get();
-        const { trashAPI, treeStore } = state;
+  deleteNote: async (id) => {
+    const { trashAPI, treeStore } = get();
+    if (!trashAPI || !treeStore) {
+      console.warn("trashAPI or treeStore not initialized yet");
+      return;
+    }
 
-        // Guard: trashAPI and treeStore must be initialized
-        if (!trashAPI || !treeStore) {
-            console.warn('trashAPI or treeStore not initialized yet');
-            return;
-        }
+    const result = await trashAPI.mutate({
+      action: "delete",
+      data: { id },
+    });
+    if (!result?.success) return;
 
-        await trashAPI.mutate({
-            action: 'delete',
-            data: {
-                id,
-            },
-        });
-        await noteCache.removeItem(id);
-        await treeStore.getState().deleteItem(id);
-    },
+    await noteCache.removeItem(id);
+    await treeStore.getState().deleteItem(id);
+  },
 }));
 
 export default useTrashStore;

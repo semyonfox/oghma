@@ -63,7 +63,7 @@ vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
 }));
 
-vi.mock("@/lib/canvas/client.js", () => ({
+vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(function CanvasClient(this: Record<string, unknown>) {
     this.client = true;
     this.getDiscoverableCourses = mockGetDiscoverableCourses;
@@ -72,18 +72,18 @@ vi.mock("@/lib/canvas/client.js", () => ({
   }),
 }));
 
-vi.mock("@/lib/canvas/raw-export.js", () => ({
+vi.mock("@/lib/canvas/raw-export", () => ({
   discoverCanvasRawExportEntries: vi.fn(),
   createCanvasRawExportZipStream: vi.fn(),
 }));
 
 import { requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { CanvasClient } from "@/lib/canvas/client.js";
+import { CanvasClient } from "@/lib/canvas/client";
 import {
   createCanvasRawExportZipStream,
   discoverCanvasRawExportEntries,
-} from "@/lib/canvas/raw-export.js";
+} from "@/lib/canvas/raw-export";
 import { POST } from "@/app/api/canvas/download/route";
 
 describe("POST /api/canvas/download", () => {

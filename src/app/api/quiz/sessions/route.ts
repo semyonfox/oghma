@@ -15,8 +15,8 @@ import { generateBatch } from "@/lib/quiz/generate-background";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
 import { SESSION_DEFAULTS } from "@/lib/quiz/types";
-import type { FilterType } from "@/lib/quiz/types";
-import sql from "@/database/pgsql.js";
+import type { FilterType, QuizSessionQuestion } from "@/lib/quiz/types";
+import sql from "@/database/pgsql";
 import {
   quizSessionCreateSchema,
   validateBody,
@@ -25,6 +25,14 @@ import {
 // generation limits — all generation is background-only (never blocks the response)
 const AI_GENERATION_PER_MODULE = 5;  // max questions generated per module per trigger
 const AI_GENERATION_BATCH_SIZE = 25; // upper bound for total background pass
+
+type QuizCardRow = Parameters<typeof cardFromDB>[0] & {
+  options?: unknown;
+  question_text?: unknown;
+  correct_answer?: unknown;
+  explanation?: unknown;
+  [column: string]: unknown;
+};
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await validateSession();
@@ -129,19 +137,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     `;
 
   // get first question
-  let firstQuestion: any = null;
+  let firstQuestion: QuizSessionQuestion | null = null;
   if (allCardIds.length > 0) {
-    const rows = await sql`
+    const rows = await sql<QuizCardRow[]>`
             SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
                    qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
             FROM app.quiz_cards qc
             JOIN app.quiz_questions qq ON qc.question_id = qq.id
             WHERE qc.id = ${allCardIds[0]}::uuid
         `;
-    firstQuestion = normalizeQuizQuestion(rows[0] ?? null);
-    if (firstQuestion) {
-      const fsrsCard = cardFromDB(firstQuestion);
-      firstQuestion.intervals = getNextIntervals(fsrsCard);
+    const normalizedQuestion = normalizeQuizQuestion(rows[0] ?? null);
+    if (normalizedQuestion) {
+      firstQuestion = {
+        ...normalizedQuestion,
+        intervals: getNextIntervals(cardFromDB(rows[0])),
+      } as QuizSessionQuestion;
     }
   }
 

@@ -1,6 +1,4 @@
-// retrieval metadata: unique sources, semantic hits, available files, scope mode
-
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import type { SearchResult, RagResult } from "@/lib/chat/rag-pipeline";
 
 export interface SourceRef {
@@ -23,10 +21,14 @@ export interface RagContextResult {
 }
 
 function deduplicateSources(results: SearchResult[]): SourceRef[] {
-  return [...new Set(results.map((r) => r.note_id))].map((id) => {
-    const r = results.find((s) => s.note_id === id)!;
-    return { id: r.note_id, title: r.title };
-  });
+  return [
+    ...new Map(
+      results.map((result) => [
+        result.note_id,
+        { id: result.note_id, title: result.title || "Untitled" },
+      ]),
+    ).values(),
+  ];
 }
 
 export async function buildRetrievalInfo(

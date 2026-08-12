@@ -89,7 +89,7 @@ export function ensureRedisReady(timeoutMs = 750): Promise<boolean> {
 export const redis: Cluster | Redis = new Proxy({} as Cluster & Redis, {
   get(_, prop) {
     const instance = initRedis();
-    const val = (instance as any)[prop];
-    return typeof val === 'function' ? val.bind(instance) : val;
+    const value: unknown = Reflect.get(instance, prop);
+    return typeof value === 'function' ? value.bind(instance) : value;
   },
 });

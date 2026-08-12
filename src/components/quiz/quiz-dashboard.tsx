@@ -13,6 +13,7 @@ import {
 } from "@/components/course-visibility/course-visibility-manager";
 import StatsRow from "./stats-row";
 import CourseList from "./course-list";
+import type { QuizSessionStartResponse } from "@/lib/quiz/types";
 import type {
   QuizDashboardCourse,
   QuizDashboardSummary,
@@ -27,21 +28,16 @@ export default function QuizDashboard({
 }) {
   const router = useRouter();
   const { t } = useI18n();
-  const {
-    dashboardData,
-    courses,
-    setDashboard,
-    setCourses,
-    setDashboardLoading,
-    startSession,
-  } = useQuizStore();
+  const { startSession } = useQuizStore();
+  const [dashboard, setDashboard] = useState(initialDashboard);
+  const [courses, setCourses] = useState(initialCourses);
   const [searchQuery, setSearchQuery] = useState("");
   const [startingSession, setStartingSession] = useState<string | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const skippedInitialLoad = useRef(false);
 
-  const visibleDashboard = dashboardData ?? initialDashboard;
-  const visibleCourses = dashboardData ? courses : initialCourses;
+  const visibleDashboard = dashboard;
+  const visibleCourses = courses;
 
   const {
     settings,
@@ -56,15 +52,19 @@ export default function QuizDashboard({
     const courseQuery = showArchived ? "?includeArchived=1" : "";
     const [dashRes, coursesRes] = await Promise.all([
       fetch("/api/quiz/dashboard"),
-      fetch(`/api/quiz/dashboard/courses${courseQuery}`),
+      fetch("/api/quiz/dashboard/courses" + courseQuery),
     ]);
 
-    if (dashRes.ok) setDashboard(await dashRes.json());
+    if (dashRes.ok) {
+      setDashboard((await dashRes.json()) as QuizDashboardSummary);
+    }
     if (coursesRes.ok) {
-      const data = await coursesRes.json();
+      const data = (await coursesRes.json()) as {
+        courses: QuizDashboardCourse[];
+      };
       setCourses(data.courses);
     }
-  }, [showArchived, setCourses, setDashboard]);
+  }, [showArchived]);
 
   const refreshCourseData = async () => {
     await Promise.all([loadServerData(), fetchSettings()]);
@@ -77,44 +77,13 @@ export default function QuizDashboard({
   useEffect(() => {
     if (!skippedInitialLoad.current) {
       skippedInitialLoad.current = true;
-      setDashboard(initialDashboard);
-      setCourses(initialCourses);
-      setDashboardLoading(false);
       if (!showArchived) return;
     }
 
-    async function load() {
-      setDashboardLoading(true);
-      try {
-        await loadServerData();
-      } catch {
-        // network or parse error — fallback handled below
-      } finally {
-        if (!useQuizStore.getState().dashboardData) {
-          setDashboard({
-            dueCount: 0,
-            totalCards: 0,
-            mastery: 0,
-            reviewedToday: 0,
-            weekAccuracy: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            hasContent: false,
-          });
-        }
-        setDashboardLoading(false);
-      }
-    }
-    void load();
-  }, [
-    initialCourses,
-    initialDashboard,
-    loadServerData,
-    setCourses,
-    setDashboard,
-    setDashboardLoading,
-    showArchived,
-  ]);
+    void loadServerData().catch(() => {
+      // Keep the last known server data visible when refresh fails.
+    });
+  }, [initialCourses, initialDashboard, loadServerData, showArchived]);
 
   const visibilityItems = useMemo(
     () =>
@@ -206,7 +175,7 @@ export default function QuizDashboard({
           return;
         }
 
-        const data = await res.json();
+        const data = (await res.json()) as QuizSessionStartResponse;
         if (data.sessionId && Array.isArray(data.cardIds)) {
           startSession(data.sessionId, data.cardIds, data.question ?? null);
         }

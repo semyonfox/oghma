@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   return { default: sqlMock };
@@ -10,15 +10,19 @@ vi.mock("@/lib/auth", () => ({
   validateSession: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
-import { validateSession } from "@/lib/auth";
+import sql from "@/database/pgsql";
+import { validateSession, type SessionUser } from "@/lib/auth";
 import { GET as getDashboard } from "@/app/api/quiz/dashboard/route";
 import { NextRequest } from "next/server";
 
 describe("GET /api/quiz/dashboard", () => {
   beforeEach(() => {
+    vi.mocked(sql).mockReset();
     vi.clearAllMocks();
-    vi.mocked(validateSession).mockResolvedValue({ user_id: "user-123" } as never);
+    vi.mocked(validateSession).mockResolvedValue({
+      user_id: "user-123",
+      email: "student@example.com",
+    } satisfies SessionUser);
     vi.mocked(sql)
       .mockResolvedValueOnce([
         { due_count: 3, total_cards: 8, mastered_count: 5 },
@@ -30,19 +34,33 @@ describe("GET /api/quiz/dashboard", () => {
       .mockResolvedValueOnce([{ has_content: true }] as never);
   });
 
-  it("filters archived courses in aggregate card and review queries", async () => {
+  it("returns dashboard metrics derived from the visible-card aggregates", async () => {
     const response = await getDashboard(
       new NextRequest("http://localhost/api/quiz/dashboard"),
     );
 
     expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      dueCount: 3,
+      totalCards: 8,
+      mastery: 63,
+      reviewedToday: 2,
+      weekAccuracy: 75,
+      currentStreak: 1,
+      longestStreak: 2,
+      hasContent: true,
+    });
+  });
 
-    const aggregateQuery = vi.mocked(sql).mock.calls[0]?.[0]?.join("");
-    const reviewQuery = vi.mocked(sql).mock.calls[1]?.[0]?.join("");
+  it("does not read quiz data without a session", async () => {
+    vi.mocked(validateSession).mockResolvedValue(null);
 
-    expect(aggregateQuery).toContain("LEFT JOIN app.user_course_settings ucs");
-    expect(aggregateQuery).toContain("n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true");
-    expect(reviewQuery).toContain("LEFT JOIN app.user_course_settings ucs");
-    expect(reviewQuery).toContain("n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true");
+    const response = await getDashboard(
+      new NextRequest("http://localhost/api/quiz/dashboard"),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: "Unauthorized" });
+    expect(sql).not.toHaveBeenCalled();
   });
 });

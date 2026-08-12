@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const assignmentTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_assignments",
         description:
             "List assignments for a course, with optional bucket filter (upcoming, overdue, past, etc.) and search.",
@@ -16,7 +16,7 @@ export const assignmentTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             search_term: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const assignments = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/assignments`,
                 {
@@ -28,8 +28,8 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(assignments);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_assignment",
         description: "Get full details for a single assignment by course and assignment ID.",
         inputSchema: z.object({
@@ -37,7 +37,7 @@ export const assignmentTools: ToolDef[] = [
             assignment_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const assignment = await canvas.get(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
                 {
@@ -46,15 +46,15 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(assignment);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_assignment_groups",
         description: "List assignment groups for a course, optionally including assignments and submissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const groups = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/assignment_groups`,
                 {
@@ -64,8 +64,8 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(groups);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_missing_assignments",
         description:
             "List missing submissions for the authenticated student, with optional course and filter constraints.",
@@ -74,7 +74,7 @@ export const assignmentTools: ToolDef[] = [
             include: z.array(z.string()).optional(),
             filter: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const missing = await canvas.get("/api/v1/users/self/missing_submissions", {
                 ...(args.course_ids ? { course_ids: args.course_ids } : {}),
                 ...(args.include ? { include: args.include } : {}),
@@ -82,14 +82,11 @@ export const assignmentTools: ToolDef[] = [
             });
             return jsonResult(missing);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable assignment creation, updates, deletion,
-    // bulk date changes, and peer review assignment.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_assignment",
         description: "Create a new assignment in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -99,7 +96,7 @@ export const assignmentTools: ToolDef[] = [
             due_at: z.string().optional(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const assignment = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments`,
                 {
@@ -113,8 +110,8 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(assignment);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_update_assignment",
         description: "Update an existing assignment in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -124,7 +121,7 @@ export const assignmentTools: ToolDef[] = [
             due_at: z.string().optional(),
             points_possible: z.number().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const assignment = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
                 {
@@ -137,22 +134,22 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(assignment);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_assignment",
         description: "Delete an assignment from a course. Requires educator permissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             assignment_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}`,
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_create_assignment_group",
         description: "Create an assignment group in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -160,7 +157,7 @@ export const assignmentTools: ToolDef[] = [
             name: z.string(),
             group_weight: z.number().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const group = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignment_groups`,
                 {
@@ -170,8 +167,8 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(group);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_bulk_update_assignment_dates",
         description: "Bulk update due dates for multiple assignments in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -183,15 +180,15 @@ export const assignmentTools: ToolDef[] = [
                 unlock_at: z.string().optional(),
             })),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.put(
                 `/api/v1/courses/${args.course_id}/assignments/bulk_update`,
                 args.assignment_dates,
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_assign_peer_review",
         description: "Assign a peer review for an assignment to a specific reviewer. Requires educator permissions.",
         inputSchema: z.object({
@@ -200,7 +197,7 @@ export const assignmentTools: ToolDef[] = [
             reviewer_id: canvasIdSchema,
             reviewee_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const review = await canvas.post(
                 `/api/v1/courses/${args.course_id}/assignments/${args.assignment_id}/peer_reviews`,
                 {
@@ -210,5 +207,5 @@ export const assignmentTools: ToolDef[] = [
             );
             return jsonResult(review);
         },
-    },
+    }),
 ];

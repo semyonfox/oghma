@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx, parserCtx } from "@milkdown/kit/core";
 import { linkSchema } from "@milkdown/kit/preset/commonmark";
-import { Slice } from "@milkdown/kit/prose/model";
+import { Slice, type Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
 import { Plugin } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
@@ -32,6 +32,26 @@ interface NoteOption {
   id: string;
   title?: string;
   isFolder?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function noteOptionFrom(value: unknown): NoteOption | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  return {
+    id: value.id,
+    title: typeof value.title === "string" ? value.title : undefined,
+    isFolder: value.isFolder === true,
+  };
+}
+
+function noteOptionsFrom(value: unknown): NoteOption[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(noteOptionFrom)
+    .filter((note): note is NoteOption => note !== null);
 }
 
 export interface MermaidPortal {
@@ -160,14 +180,14 @@ export function createSafeHtmlPreview(value: string): HTMLElement | null {
   return preview;
 }
 
-function rawHtmlDecorations(doc: any) {
+function rawHtmlDecorations(doc: ProseMirrorNode) {
   const decorations: Decoration[] = [];
 
-  doc.descendants((parent: any, parentPos: number) => {
+  doc.descendants((parent, parentPos) => {
     if (!parent.isTextblock) return true;
 
     const openTags = new Map<string, number[]>();
-    parent.forEach((node: any, offset: number) => {
+    parent.forEach((node, offset) => {
       if (node.type.name !== "html") return;
       const value = String(node.attrs.value ?? "").trim();
       const match = /^<(\/)?([a-z][\w-]*)\s*>$/i.exec(value);
@@ -238,7 +258,8 @@ function removeControlText(button: HTMLButtonElement) {
   const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
   while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
+    const node = walker.currentNode;
+    if (!(node instanceof Text)) continue;
     if (!(node.parentElement?.closest("svg"))) textNodes.push(node);
   }
   textNodes.forEach((node) => node.remove());
@@ -408,15 +429,21 @@ export default function MilkdownWriteEditor({
         ? `q=${encodeURIComponent(query)}`
         : "limit=200";
       fetch(`/api/notes?${params}`, { signal: controller.signal })
-        .then((response) => {
+        .then(async (response) => {
           if (!response.ok) throw new Error("Unable to load notes");
-          return response.json();
+          const data: unknown = await response.json();
+          return data;
         })
-        .then((notes: NoteOption[]) => {
-          if (!cancelled) setNoteOptions(notes);
+        .then((notes) => {
+          if (!cancelled) setNoteOptions(noteOptionsFrom(notes));
         })
-        .catch((error) => {
-          if (!cancelled && error.name !== "AbortError") setNoteOptions([]);
+        .catch((error: unknown) => {
+          if (
+            !cancelled &&
+            (!isRecord(error) || error.name !== "AbortError")
+          ) {
+            setNoteOptions([]);
+          }
         })
         .finally(() => {
           if (!cancelled) setPickerLoading(false);
@@ -512,7 +539,7 @@ export default function MilkdownWriteEditor({
       view.dispatch(view.state.tr.delete(from - 1, from));
       openPickerRef.current(from - 1, from - 1);
     };
-    root.addEventListener("beforeinput", handleBeforeInput as EventListener, true);
+    root.addEventListener("beforeinput", handleBeforeInput, true);
     void crepe.create().then(() => {
       if (disposed || !root.isConnected) {
         void crepe.destroy();
@@ -536,7 +563,7 @@ export default function MilkdownWriteEditor({
     return () => {
       disposed = true;
       observer?.disconnect();
-      root.removeEventListener("beforeinput", handleBeforeInput as EventListener, true);
+      root.removeEventListener("beforeinput", handleBeforeInput, true);
       crepeRef.current = null;
       mermaidSources.clear();
       void crepe.destroy();
@@ -594,9 +621,10 @@ export default function MilkdownWriteEditor({
         }
       }}
       onClickCapture={(event) => {
-        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
-          "a[href]",
-        );
+        const anchor =
+          event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>("a[href]")
+            : null;
         const noteId = parseInternalNoteHref(anchor?.getAttribute("href"));
         if (!noteId) return;
         event.preventDefault();
@@ -607,9 +635,10 @@ export default function MilkdownWriteEditor({
         }
       }}
       onMouseOver={(event) => {
-        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
-          "a[href]",
-        );
+        const anchor =
+          event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>("a[href]")
+            : null;
         const noteId = parseInternalNoteHref(anchor?.getAttribute("href"));
         if (!anchor || !noteId) return;
         preview.cancelClose();
@@ -618,9 +647,10 @@ export default function MilkdownWriteEditor({
         preview.open();
       }}
       onMouseOut={(event) => {
-        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
-          "a[href]",
-        );
+        const anchor =
+          event.target instanceof Element
+            ? event.target.closest<HTMLAnchorElement>("a[href]")
+            : null;
         if (!parseInternalNoteHref(anchor?.getAttribute("href"))) return;
         preview.scheduleClose();
       }}

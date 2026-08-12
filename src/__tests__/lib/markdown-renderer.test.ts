@@ -1,6 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { withI18n } from "@/__tests__/test-utils/i18n";
 import ChatMarkdown from "@/components/chat/chat-markdown";
 import QuizMarkdown from "@/components/quiz/quiz-markdown";
 import MarkdownRenderer, {
@@ -12,7 +13,7 @@ function renderMarkdown(
   variant: "note" | "chat" | "quiz" = "note",
 ) {
   return renderToStaticMarkup(
-    React.createElement(MarkdownRenderer, { variant, children }),
+    withI18n(React.createElement(MarkdownRenderer, { variant, children })),
   );
 }
 
@@ -87,15 +88,26 @@ describe("MarkdownRenderer variants", () => {
     expect(html).not.toContain('class="rounded bg-surface');
   });
 
+  it("preserves validated code-fence titles", () => {
+    const html = renderMarkdown(
+      '```ts title="contract.ts"\nexport const value = 1\n```',
+    );
+
+    expect(html).toContain("contract.ts");
+    expect(html).toContain("oghma-codeblock-title");
+  });
+
   it("uses the shared document surface with explicit chat and quiz variants", () => {
     const chatHtml = renderToStaticMarkup(
-      React.createElement(ChatMarkdown, null, "line one\nline two"),
+      withI18n(React.createElement(ChatMarkdown, null, "line one\nline two")),
     );
     const quizHtml = renderToStaticMarkup(
-      React.createElement(QuizMarkdown, {
-        className: "quiz-copy",
-        children: "line one\nline two",
-      }),
+      withI18n(
+        React.createElement(QuizMarkdown, {
+          className: "quiz-copy",
+          children: "line one\nline two",
+        }),
+      ),
     );
 
     expect(chatHtml).toContain('data-markdown-variant="chat"');

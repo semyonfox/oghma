@@ -3,9 +3,11 @@ import { create } from "zustand";
 import { genId } from "@/lib/notes/utils/id";
 import TreeActions, {
   DEFAULT_TREE,
-  MovePosition,
   ROOT_ID,
-  TreeItemModel,
+  TreeItemSummary,
+  TreeItemUpdate,
+  TreeMoveRequest,
+  TreeMutationRequest,
   TreeModel,
 } from "@/lib/notes/types/tree";
 import noteCache from "../cache/note";
@@ -13,55 +15,49 @@ import { NOTE_DELETED } from "@/lib/notes/types/meta";
 import { NoteModel } from "@/lib/notes/types/note";
 import { uiCache } from "../cache";
 import {
-  findParentTreeItems,
-  checkAncestorsExpanded,
   buildTreeItemFromApi,
   buildPinnedTree,
 } from "./tree-utils";
 
 const TREE_CACHE_KEY = "tree";
 
+type Toast = (message: string, type?: "error") => void;
+
+interface TreeApi {
+  fetch: () => Promise<{ items: TreeItemSummary[] } | undefined>;
+  fetchChildren: (
+    parentId: string | null,
+  ) => Promise<{ items: TreeItemSummary[] } | undefined>;
+  mutate: (body: TreeMutationRequest) => Promise<{ success: true } | undefined>;
+}
+
+function treeState(tree: TreeModel) {
+  return { tree, pinnedTree: buildPinnedTree(tree) };
+}
+
 export interface NoteTreeState {
   tree: TreeModel;
   pinnedTree: TreeModel;
   initLoaded: boolean;
   loading: boolean;
-  loadingChildren: Set<string>; // Track which folders are currently loading children
-  // View state for react-complex-tree
+  loadingChildren: Set<string>;
   expandedIds: Set<string>;
   selectedIds: Set<string>;
   focusedId: string | null;
   renamingId: string | null;
-  // API instances for dependency injection
-  treeAPI: any;
-  noteAPI: any;
-  toast: any;
-  // Methods
+  treeAPI: TreeApi | null;
+  toast: Toast | null;
   initTree: () => Promise<void>;
-  loadChildren: (parentId: string | null) => Promise<void>; // Lazy-load children for a folder
-  fetchNotes: (tree: TreeModel) => Promise<TreeModel>;
+  loadChildren: (parentId: string | null) => Promise<void>;
   addItem: (item: NoteModel) => void;
   removeItem: (id: string) => Promise<void>;
   genNewId: () => string;
-  moveItem: (data: {
-    source: MovePosition;
-    destination: MovePosition;
-  }) => Promise<void>;
-  mutateItem: (id: string, data: Partial<TreeItemModel>) => Promise<void>;
-  restoreItem: (id: string, pid: string) => Promise<void>;
+  moveItem: (data: TreeMoveRequest) => Promise<void>;
+  mutateItem: (id: string, data: TreeItemUpdate) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
-  getPaths: (note: NoteModel) => NoteModel[];
-  setItemsExpandState: (
-    items: TreeItemModel[],
-    newValue: boolean,
-  ) => Promise<void>;
-  showItem: (note: NoteModel) => void;
-  checkItemIsShown: (note: NoteModel) => boolean;
   collapseAllItems: () => void;
   refreshTree: () => Promise<void>;
-  setLoading: (loading: boolean) => void;
-  setDependencies: (treeAPI: any, noteAPI: any, toast: any) => void;
-  // View state setters for react-complex-tree
+  setDependencies: (treeAPI: TreeApi, toast: Toast) => void;
   setExpandedIds: (ids: Set<string>) => void;
   setSelectedIds: (ids: Set<string>) => void;
   setFocusedId: (id: string | null) => void;
@@ -74,21 +70,15 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   initLoaded: false,
   loading: false,
   loadingChildren: new Set<string>(),
-  // View state for react-complex-tree
   expandedIds: new Set<string>(),
   selectedIds: new Set<string>(),
   focusedId: null,
   renamingId: null,
   treeAPI: null,
-  noteAPI: null,
   toast: null,
 
-  setDependencies: (treeAPI: any, noteAPI: any, toast: any) => {
-    set({ treeAPI, noteAPI, toast });
-  },
-
-  setLoading: (loading: boolean) => {
-    set({ loading });
+  setDependencies: (treeAPI, toast) => {
+    set({ treeAPI, toast });
   },
 
   setExpandedIds: (ids: Set<string>) => {
@@ -107,36 +97,12 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     set({ renamingId: id });
   },
 
-  fetchNotes: async (tree: TreeModel) => {
-    const state = get();
-    // Tree from API already includes note data in items
-    // Only fetch missing notes, but skip root node (it's virtual)
-    const missingNotes = Object.values(tree.items).filter(
-      (item) => !item.data && item.id !== ROOT_ID,
-    );
-    if (missingNotes.length > 0) {
-      await Promise.all(
-        missingNotes.map(async (item) => {
-          item.data = await state.noteAPI.fetch(item.id);
-        }),
-      );
-    }
-
-    return tree;
-  },
-
   initTree: async () => {
-    const state = get();
-    const { treeAPI, noteAPI, toast: _toast, initLoaded, loading } = state;
+    const { treeAPI, initLoaded, loading } = get();
 
-    // Skip if already initialized to prevent overwriting locally added notes
-    // with cached API responses
-    if (initLoaded || loading) {
-      return;
-    }
+    if (initLoaded || loading) return;
 
-    // guard: dependencies must be injected before initTree is called
-    if (!treeAPI || !noteAPI) {
+    if (!treeAPI) {
       console.warn("initTree called before dependencies were set — skipping");
       return;
     }
@@ -144,12 +110,9 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     set({ loading: true });
 
     try {
-      // Fetch only root items from API (lazy-loading)
       const apiResponse = await treeAPI.fetch();
-
-      // apiResponse may be null (network failure) or have items: [] (empty account)
-      // Both are handled gracefully — empty is NOT an error
-      const items = apiResponse?.items ?? [];
+      if (!apiResponse) throw new Error("Tree request did not return a response");
+      const items = apiResponse.items;
 
       const newTree = { ...DEFAULT_TREE, items: { ...DEFAULT_TREE.items } };
       const rootChildren: string[] = [];
@@ -161,9 +124,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
 
       newTree.items[ROOT_ID].children = rootChildren;
 
-      set({ tree: newTree, pinnedTree: buildPinnedTree(newTree), initLoaded: true });
-
-      // persist tree structure to IndexedDB for instant load on next visit
+      set({ ...treeState(newTree), initLoaded: true });
       await uiCache.setItem(TREE_CACHE_KEY, newTree);
     } catch (error) {
       console.error("Error initializing tree:", error);
@@ -176,39 +137,37 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
   },
 
   loadChildren: async (parentId: string | null) => {
-    const state = get();
-    const { treeAPI, noteAPI, toast: _toast } = state;
+    const { treeAPI } = get();
     const parentKey = parentId || ROOT_ID;
 
-    if (!treeAPI || !noteAPI) {
+    if (!treeAPI) {
       console.warn(
         "loadChildren called before dependencies were set — skipping",
       );
       return;
     }
 
-    // Skip if already loading
-    if (state.loadingChildren.has(parentKey)) {
-      return;
-    }
+    if (get().loadingChildren.has(parentKey)) return;
 
-    // Skip if children have already been loaded (even if empty)
     const currentTree = get().tree;
-    if (currentTree.items[parentKey]?.childrenLoaded) {
-      return;
-    }
+    if (currentTree.items[parentKey]?.childrenLoaded) return;
+
+    set((currentState) => {
+      const loadingChildren = new Set(currentState.loadingChildren);
+      loadingChildren.add(parentKey);
+      return { loadingChildren };
+    });
 
     try {
-      // Mark as loading
-      const newLoadingChildren = new Set(state.loadingChildren);
-      newLoadingChildren.add(parentKey);
-      set({ loadingChildren: newLoadingChildren });
-
-      // Fetch children from API
       const childrenResponse = await treeAPI.fetchChildren(parentId);
 
       if (childrenResponse && childrenResponse.items) {
-        const newTree = { ...currentTree, items: { ...currentTree.items } };
+        // Merge against the latest tree so simultaneous folder loads coexist.
+        const latestTree = get().tree;
+        const newTree = {
+          ...latestTree,
+          items: { ...latestTree.items },
+        };
         const childIds: string[] = [];
 
         for (const item of childrenResponse.items) {
@@ -216,7 +175,6 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
           childIds.push(item.id);
         }
 
-        // Update parent's children list and mark as loaded
         if (newTree.items[parentKey]) {
           newTree.items[parentKey] = {
             ...newTree.items[parentKey],
@@ -225,35 +183,31 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
           };
         }
 
-        set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
+        set(treeState(newTree));
         await uiCache.setItem(TREE_CACHE_KEY, newTree);
       }
-
-      // Mark as done loading
-      const finalLoadingChildren = new Set(state.loadingChildren);
-      finalLoadingChildren.delete(parentKey);
-      set({ loadingChildren: finalLoadingChildren });
     } catch (error) {
       console.error(`Error loading children for ${parentKey}:`, error);
       const { toast: toastFn } = get();
-      toastFn(`Failed to load folder contents`, "error");
-
-      // Mark as done loading even on error
-      const finalLoadingChildren = new Set(state.loadingChildren);
-      finalLoadingChildren.delete(parentKey);
-      set({ loadingChildren: finalLoadingChildren });
+      toastFn?.("Failed to load folder contents", "error");
+    } finally {
+      set((currentState) => {
+        const loadingChildren = new Set(currentState.loadingChildren);
+        loadingChildren.delete(parentKey);
+        return { loadingChildren };
+      });
     }
   },
 
   addItem: (item: NoteModel) => {
     const currentTree = get().tree;
-    const newTree = TreeActions.addItem(currentTree, item.id, item.pid);
+    const newTree = TreeActions.mutateItem(
+      TreeActions.addItem(currentTree, item.id, item.pid),
+      item.id,
+      { data: item, isFolder: item.isFolder ?? false },
+    );
+    set(treeState(newTree));
 
-    newTree.items[item.id].data = item;
-    newTree.items[item.id].isFolder = item.isFolder ?? false;
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-
-    // persist tree to IndexedDB cache
     uiCache
       .setItem(TREE_CACHE_KEY, newTree)
       .catch((e) => console.error("Failed to cache tree after addItem:", e));
@@ -263,9 +217,8 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     const currentTree = get().tree;
     const newTree = TreeActions.removeItem(currentTree, id);
 
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
+    set(treeState(newTree));
 
-    // persist tree to IndexedDB cache
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
 
     await Promise.all(
@@ -287,12 +240,10 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     return newId;
   },
 
-  moveItem: async (data: {
-    source: MovePosition;
-    destination: MovePosition;
-  }) => {
+  moveItem: async (data) => {
     const state = get();
     const { treeAPI } = state;
+    if (!treeAPI) return;
     const currentTree = get().tree;
     const newTree = TreeActions.moveItem(
       currentTree,
@@ -300,7 +251,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       data.destination,
     );
 
-    // update the moved item's pid so data stays consistent with tree structure
+    // Keep the loaded note's parent in sync with the optimistic tree move.
     const movedId =
       currentTree.items[data.source.parentId]?.children[data.source.index];
     if (movedId && newTree.items[movedId]?.data) {
@@ -314,9 +265,7 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
       };
     }
 
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-
-    // update cache with new tree state
+    set(treeState(newTree));
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
 
     try {
@@ -325,113 +274,41 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         data,
       });
     } catch {
-      // revert on failure
-      set({ tree: currentTree, pinnedTree: buildPinnedTree(currentTree) });
+      set(treeState(currentTree));
       await uiCache.setItem(TREE_CACHE_KEY, currentTree);
       const { toast: toastFn } = get();
       toastFn?.("Failed to move item", "error");
     }
   },
 
-  mutateItem: async (id: string, data: Partial<TreeItemModel>) => {
+  mutateItem: async (id, data) => {
     const state = get();
     const { treeAPI } = state;
     const currentTree = get().tree;
+    if (!currentTree.items[id]) return;
     const newTree = TreeActions.mutateItem(currentTree, id, data);
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-
-    // sync expanded state with react-complex-tree
+    set(treeState(newTree));
     if (data.isExpanded !== undefined) {
-      const newExpandedIds = new Set(state.expandedIds);
-      if (data.isExpanded) {
-        newExpandedIds.add(id);
-      } else {
-        newExpandedIds.delete(id);
-      }
-      set({ expandedIds: newExpandedIds });
+      const expandedIds = new Set(state.expandedIds);
+      if (data.isExpanded) expandedIds.add(id);
+      else expandedIds.delete(id);
+      set({ expandedIds });
     }
-
-    // update cache with new tree state
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
-
-    delete data.data;
-    // @todo diff 没有变化就不发送请求
-    if (Object.keys(data).length > 0) {
+    if (data.isExpanded !== undefined) {
+      if (!treeAPI) return;
       await treeAPI.mutate({
         action: "mutate",
-        data: {
-          ...data,
-          id,
-        },
+        data: { id, isExpanded: data.isExpanded },
       });
     }
-  },
-
-  restoreItem: async (id: string, pid: string) => {
-    const currentTree = get().tree;
-    const newTree = TreeActions.restoreItem(currentTree, id, pid);
-
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-    await Promise.all(
-      TreeActions.flattenTree(newTree, id).map(
-        async (item) =>
-          await noteCache.mutateItem(item.id, {
-            deleted: NOTE_DELETED.NORMAL,
-          }),
-      ),
-    );
   },
 
   deleteItem: async (id: string) => {
     const currentTree = get().tree;
     const newTree = TreeActions.deleteItem(currentTree, id);
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-
-    // persist tree to IndexedDB cache
+    set(treeState(newTree));
     await uiCache.setItem(TREE_CACHE_KEY, newTree);
-  },
-
-  getPaths: (note: NoteModel) => {
-    const currentTree = get().tree;
-    return findParentTreeItems(currentTree, note).map(
-      (listItem) => listItem.data!,
-    );
-  },
-
-  setItemsExpandState: async (items: TreeItemModel[], newValue: boolean) => {
-    const state = get();
-    const { treeAPI } = state;
-    const currentTree = get().tree;
-    const newTree = items.reduce(
-      (tempTree, item) =>
-        TreeActions.mutateItem(tempTree, item.id, {
-          isExpanded: newValue,
-        }),
-      currentTree,
-    );
-    set({ tree: newTree, pinnedTree: buildPinnedTree(newTree) });
-
-    for (const item of items) {
-      await treeAPI.mutate({
-        action: "mutate",
-        data: {
-          isExpanded: newValue,
-          id: item.id,
-        },
-      });
-    }
-  },
-
-  showItem: (note: NoteModel) => {
-    const currentTree = get().tree;
-    const parents = findParentTreeItems(currentTree, note);
-    get()
-      .setItemsExpandState(parents, true)
-      ?.catch((v) => console.error("Error whilst expanding item: %O", v));
-  },
-
-  checkItemIsShown: (note: NoteModel) => {
-    return checkAncestorsExpanded(get().tree, note);
   },
 
   collapseAllItems: () => {
@@ -439,9 +316,15 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
     const expandedItems = TreeActions.flattenTree(currentTree).filter(
       (item) => item.isExpanded,
     );
-    get()
-      .setItemsExpandState(expandedItems, false)
-      .catch((v) => console.error("Error whilst collapsing item: %O", v));
+    void (async () => {
+      // Each write updates the cached tree; serialize them so a later write never
+      // persists an older snapshot over an earlier collapse.
+      for (const item of expandedItems) {
+        await get().mutateItem(item.id, { isExpanded: false });
+      }
+    })().catch((error) =>
+      console.error("Failed to collapse tree items:", error),
+    );
   },
 
   refreshTree: async () => {

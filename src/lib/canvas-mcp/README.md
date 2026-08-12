@@ -242,7 +242,7 @@ npm run typecheck
 npm run build
 ```
 
-`scripts/verify-tools.mjs` is a representative, read-focused live smoke script,
+`npm run verify-tools` is a representative, read-focused live smoke script,
 not exhaustive verification of all 129 tools. It prints response previews and
 currently calls a tool that returns a pre-authenticated file URL. **Do not run
 the current script against a real Canvas account until URL and credential

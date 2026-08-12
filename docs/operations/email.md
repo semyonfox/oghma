@@ -4,7 +4,7 @@
 >
 > Audience: Application, DNS, and company-mail administrators
 >
-> Last verified: 2026-07-11 against `src/lib/email.js`, tracked env templates,
+> Last verified: 2026-07-11 against `src/lib/email.ts`, tracked env templates,
 > and official Cloudflare Email Service documentation
 
 OghmaNotes separates human mailboxes, inbound routing, and transactional app
@@ -39,7 +39,7 @@ from Google Workspace.
 
 ## Current Application Integration
 
-`src/lib/email.js` calls:
+`src/lib/email.ts` calls:
 
 ```text
 POST https://api.cloudflare.com/client/v4/accounts/{account_id}/email/sending/send

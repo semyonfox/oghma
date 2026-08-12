@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
+vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 
-import sql from "@/database/pgsql.js";
-import { syncCanvasPlannerItems } from "@/lib/canvas/sync-planner-items.js";
+import sql from "@/database/pgsql";
+import { syncCanvasPlannerItems } from "@/lib/canvas/sync-planner-items";
+import type { CanvasRecord } from "@/lib/canvas/client";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
-function makeClient(result: any) { return { getPlannerItems: vi.fn().mockResolvedValue(result) }; }
+function makeClient(result: { data: CanvasRecord[]; forbidden: boolean; error?: string }) {
+  return { getPlannerItems: vi.fn().mockResolvedValue(result) };
+}
 
 describe("syncCanvasPlannerItems", () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(sql).mockResolvedValue([] as never); });
@@ -17,8 +20,9 @@ describe("syncCanvasPlannerItems", () => {
     expect(result).toEqual({ synced: 1, tombstoned: 0, errors: 0, partial: false });
     expect(client.getPlannerItems).toHaveBeenCalledWith("2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z");
     expect(vi.mocked(sql).mock.calls.length).toBe(2);
-    expect(String.raw({ raw: vi.mocked(sql).mock.calls[1][0] as any })).toContain("UPDATE app.canvas_planner_items");
-    expect(String.raw({ raw: vi.mocked(sql).mock.calls[1][0] as any })).toContain("deleted_at = NOW()");
+    const query = vi.mocked(sql).mock.calls[1][0];
+    expect(String.raw({ raw: query })).toContain("UPDATE app.canvas_planner_items");
+    expect(String.raw({ raw: query })).toContain("deleted_at = NOW()");
   });
 
   it("does not tombstone rows when Canvas returns a partial failure", async () => {

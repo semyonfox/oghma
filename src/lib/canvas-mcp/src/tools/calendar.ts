@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const calendarTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_calendar_events",
         description:
             "List calendar events for the authenticated user. Filter by context_codes (e.g. course_123), date range, and type (event or assignment).",
@@ -14,7 +14,7 @@ export const calendarTools: ToolDef[] = [
             end_date: z.string().optional(),
             type: z.enum(["event", "assignment"]).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const events = await canvas.collectPaginated("/api/v1/calendar_events", {
                 per_page: 100,
                 ...(args.context_codes ? { context_codes: args.context_codes } : {}),
@@ -24,8 +24,8 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(events);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_upcoming_events",
         description:
             "List the authenticated user's upcoming items (next ~14 days). Canvas returns assignments with due dates AND calendar events in one merged list. Optional client-side filters: type (assignment|event), days (truncate to next N days), limit (cap result count). Use this for 'what's due', 'what's coming up', 'this week' questions.",
@@ -34,7 +34,7 @@ export const calendarTools: ToolDef[] = [
             days: z.number().int().positive().optional(),
             limit: z.number().int().positive().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const events = await canvas.get<Array<Record<string, unknown>>>(
                 "/api/v1/users/self/upcoming_events",
             );
@@ -56,8 +56,8 @@ export const calendarTools: ToolDef[] = [
             }
             return jsonResult(filtered);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_planner_items",
         description:
             "List planner items for the authenticated student. Optionally filter by date range or context_codes (e.g. course_123).",
@@ -66,7 +66,7 @@ export const calendarTools: ToolDef[] = [
             end_date: z.string().optional(),
             context_codes: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const items = await canvas.collectPaginated("/api/v1/planner/items", {
                 per_page: 100,
                 ...(args.start_date ? { start_date: args.start_date } : {}),
@@ -75,8 +75,8 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(items);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_todo_items",
         description:
             "List todo items for the authenticated user (assignments to submit, items to review, etc.).",
@@ -85,14 +85,11 @@ export const calendarTools: ToolDef[] = [
             const todos = await canvas.get("/api/v1/users/self/todo", {});
             return jsonResult(todos);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable calendar event creation, updates, deletion,
-    // planner note management, and planner override marking.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_calendar_event",
         description: "Create a calendar event. Requires educator permissions.",
         inputSchema: z.object({
@@ -103,7 +100,7 @@ export const calendarTools: ToolDef[] = [
             description: z.string().optional(),
             location_name: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const event = await canvas.post("/api/v1/calendar_events", {
                 calendar_event: {
                     context_code: args.context_code,
@@ -116,8 +113,8 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(event);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_update_calendar_event",
         description: "Update a calendar event. Requires educator permissions.",
         inputSchema: z.object({
@@ -127,7 +124,7 @@ export const calendarTools: ToolDef[] = [
             end_at: z.string().optional(),
             description: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const event = await canvas.put(`/api/v1/calendar_events/${args.event_id}`, {
                 calendar_event: {
                     ...(args.title ? { title: args.title } : {}),
@@ -138,20 +135,20 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(event);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_calendar_event",
         description: "Delete a calendar event. Requires educator permissions.",
         inputSchema: z.object({
             event_id: canvasIdSchema,
             cancel_reason: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(`/api/v1/calendar_events/${args.event_id}`);
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_create_planner_note",
         description: "Create a planner note. Requires educator permissions.",
         inputSchema: z.object({
@@ -160,7 +157,7 @@ export const calendarTools: ToolDef[] = [
             todo_date: z.string().optional(),
             course_id: canvasIdSchema.optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const note = await canvas.post("/api/v1/planner_notes", {
                 title: args.title,
                 ...(args.details ? { details: args.details } : {}),
@@ -169,8 +166,8 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(note);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_update_planner_note",
         description: "Update a planner note. Requires educator permissions.",
         inputSchema: z.object({
@@ -179,7 +176,7 @@ export const calendarTools: ToolDef[] = [
             details: z.string().optional(),
             todo_date: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const note = await canvas.put(`/api/v1/planner_notes/${args.note_id}`, {
                 ...(args.title ? { title: args.title } : {}),
                 ...(args.details ? { details: args.details } : {}),
@@ -187,30 +184,30 @@ export const calendarTools: ToolDef[] = [
             });
             return jsonResult(note);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_planner_note",
         description: "Delete a planner note. Requires educator permissions.",
         inputSchema: z.object({
             note_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(`/api/v1/planner_notes/${args.note_id}`);
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_mark_planner_item_complete",
         description: "Mark a planner override item as complete. Requires educator permissions.",
         inputSchema: z.object({
             override_id: canvasIdSchema,
             marked_complete: z.boolean(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.put(`/api/v1/planner/overrides/${args.override_id}`, {
                 marked_complete: args.marked_complete,
             });
             return jsonResult(result);
         },
-    },
+    }),
 ];

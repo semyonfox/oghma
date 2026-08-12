@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { cacheInvalidate, cacheKeys } from "@/lib/cache";
-
-type SqlClient = typeof sql;
+import {
+  insertNoteWithTree,
+  type NoteTransaction,
+} from "@/lib/notes/storage/create-note";
 
 interface BundleFolderRow {
   note_id: string;
@@ -24,7 +26,10 @@ export function extractionBundleTitle(filename: string): string {
   return withoutExtension || trimmed || "Extracted document";
 }
 
-async function lockUserTree(tx: SqlClient, userId: string): Promise<void> {
+async function lockUserTree(
+  tx: NoteTransaction,
+  userId: string,
+): Promise<void> {
   // Use the same user-scoped lock as tree moves. This prevents two extraction
   // workers from creating duplicate bundle folders for the same file.
   await tx`
@@ -33,7 +38,7 @@ async function lockUserTree(tx: SqlClient, userId: string): Promise<void> {
 }
 
 async function findBundleFolder(
-  tx: SqlClient,
+  tx: NoteTransaction,
   userId: string,
   parentId: string | null,
   title: string,
@@ -68,7 +73,7 @@ async function findBundleFolder(
 }
 
 async function findOrCreateBundleFolder(
-  tx: SqlClient,
+  tx: NoteTransaction,
   userId: string,
   parentId: string | null,
   title: string,
@@ -77,19 +82,14 @@ async function findOrCreateBundleFolder(
   if (existingId) return existingId;
 
   const bundleId = uuidv4();
-  await tx`
-    INSERT INTO app.notes (
-      note_id, user_id, title, content, is_folder, created_at, updated_at
-    ) VALUES (
-      ${bundleId}::uuid, ${userId}::uuid, ${title}, '', true, NOW(), NOW()
-    )
-  `;
-  await tx`
-    INSERT INTO app.tree_items (user_id, note_id, parent_id)
-    VALUES (
-      ${userId}::uuid, ${bundleId}::uuid, ${parentId ?? null}::uuid
-    )
-  `;
+  await insertNoteWithTree(tx, {
+    noteId: bundleId,
+    userId,
+    title,
+    content: "",
+    isFolder: true,
+    parentId,
+  });
   return bundleId;
 }
 
@@ -118,10 +118,7 @@ export async function findOrCreateExtractionBundle(
 ): Promise<string> {
   const normalizedParentId = parentId ?? null;
   const title = extractionBundleTitle(filename);
-  const database = sql as SqlClient & {
-    begin: <T>(callback: (tx: SqlClient) => Promise<T>) => Promise<T>;
-  };
-  const bundleId = await database.begin(async (tx: SqlClient) => {
+  const bundleId = await sql.begin(async (tx) => {
     await lockUserTree(tx, userId);
     return findOrCreateBundleFolder(tx, userId, normalizedParentId, title);
   });
@@ -141,11 +138,7 @@ export async function moveNoteToExtractionBundle(
   filename: string,
 ): Promise<string> {
   const title = extractionBundleTitle(filename);
-  const database = sql as SqlClient & {
-    begin: <T>(callback: (tx: SqlClient) => Promise<T>) => Promise<T>;
-  };
-
-  const { bundleId, previousParentId } = await database.begin(async (tx: SqlClient) => {
+  const { bundleId, previousParentId } = await sql.begin(async (tx) => {
     await lockUserTree(tx, userId);
     const rows = (await tx`
       SELECT

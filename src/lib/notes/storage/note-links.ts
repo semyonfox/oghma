@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { extractInternalNoteIds } from "@/lib/notes/internal-links";
 import type postgres from "postgres";
 

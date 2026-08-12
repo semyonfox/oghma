@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   validateSession: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/auth", () => ({
   validateSession: mocks.validateSession,
   validateSessionLite: vi.fn(),

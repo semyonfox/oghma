@@ -3,7 +3,16 @@ import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { cardFromDB, getNextIntervals } from "@/lib/quiz/fsrs";
 import { normalizeQuizQuestion } from "@/lib/quiz/normalize-question";
-import sql from "@/database/pgsql.js";
+import type { QuizSessionQuestion } from "@/lib/quiz/types";
+import sql from "@/database/pgsql";
+
+type QuizCardRow = Parameters<typeof cardFromDB>[0] & {
+  options?: unknown;
+  question_text?: unknown;
+  correct_answer?: unknown;
+  explanation?: unknown;
+  [column: string]: unknown;
+};
 
 export const GET = withErrorHandler(
   async (
@@ -32,9 +41,9 @@ export const GET = withErrorHandler(
     const currentIndex = answeredCount;
 
     // load the current question (first unanswered card)
-    let question = null;
+    let question: QuizSessionQuestion | null = null;
     if (currentIndex < cardIds.length) {
-      const rows = await sql`
+      const rows = await sql<QuizCardRow[]>`
             SELECT qc.id as card_id, qq.*, qc.state, qc.stability, qc.difficulty,
                    qc.elapsed_days, qc.scheduled_days, qc.reps, qc.lapses, qc.due, qc.last_review
             FROM app.quiz_cards qc
@@ -42,10 +51,12 @@ export const GET = withErrorHandler(
             WHERE qc.id = ${cardIds[currentIndex]}::uuid
         `;
       const rawRow = rows[0] ?? null;
-      question = normalizeQuizQuestion(rawRow);
-      if (question && rawRow) {
-        const fsrsCard = cardFromDB(rawRow);
-        question.intervals = getNextIntervals(fsrsCard);
+      const normalizedQuestion = normalizeQuizQuestion(rawRow);
+      if (normalizedQuestion && rawRow) {
+        question = {
+          ...normalizedQuestion,
+          intervals: getNextIntervals(cardFromDB(rawRow)),
+        } as QuizSessionQuestion;
       }
     }
 

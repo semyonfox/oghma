@@ -5,8 +5,8 @@ import { embedText } from "@/lib/embedText";
 import logger from "@/lib/logger";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { checkRateLimit } from "@/lib/rateLimiter";
-import { uniqueRowsInHitOrder } from "@/lib/search/unique-rows-in-hit-order";
-import sql from "@/database/pgsql.js";
+import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
+import sql from "@/database/pgsql";
 
 type SearchSource = "keyword" | "semantic" | "recent";
 
@@ -20,12 +20,32 @@ interface GlobalSearchResult {
   source: SearchSource;
 }
 
-type SemanticNoteRow = {
-  chunk_id: string;
+interface RecentNoteRow {
+  note_id: string;
+  title: string | null;
+  content: string | null;
+}
+
+interface KeywordNoteRow {
   note_id: string;
   title: string | null;
   snippet: string | null;
-};
+}
+
+interface ChatSearchRow {
+  id: string;
+  title: string | null;
+  message_count: number;
+  snippet?: string | null;
+}
+
+interface QuizCourseRow {
+  canvas_course_id: string | number;
+  course_name: string | null;
+  total_cards: number;
+  due_count: number;
+  mastered_count: number;
+}
 
 const LIKE_ESCAPE = "\\";
 type SemanticVector = Awaited<ReturnType<typeof embedText>>;
@@ -45,7 +65,7 @@ async function recentNotes(
   userId: string,
   limit = 5,
 ): Promise<GlobalSearchResult[]> {
-  const rows = await sql`
+  const rows = await sql<RecentNoteRow[]>`
     SELECT note_id, title, content, updated_at
     FROM app.notes
     WHERE user_id = ${userId}::uuid
@@ -55,7 +75,7 @@ async function recentNotes(
     LIMIT ${limit}
   `;
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: row.note_id,
     type: "note" as const,
     title: row.title || "Untitled",
@@ -72,7 +92,7 @@ async function keywordNotes(
   limit = 6,
 ): Promise<GlobalSearchResult[]> {
   const pattern = likePattern(query);
-  const rows = await sql`
+  const rows = await sql<KeywordNoteRow[]>`
     SELECT note_id, title,
            CASE WHEN content IS NOT NULL THEN LEFT(content, 220) ELSE '' END AS snippet
     FROM app.notes
@@ -89,7 +109,7 @@ async function keywordNotes(
     LIMIT ${limit}
   `;
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: row.note_id,
     type: "note" as const,
     title: row.title || "Untitled",
@@ -119,31 +139,18 @@ async function semanticNotes(
 
     if (hits.length === 0) return [];
 
-    const chunkIds = hits.map((hit) => hit.chunkId);
-    const rows = await sql`
-      SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS snippet
-      FROM app.chunks c
-      JOIN app.notes n ON n.note_id = c.document_id
-      WHERE c.user_id = ${userId}::uuid
-        AND n.user_id = ${userId}::uuid
-        AND c.id = ANY(${chunkIds}::uuid[])
-        AND n.deleted_at IS NULL
-        AND COALESCE(n.is_folder, false) = false
-    `;
-    return uniqueRowsInHitOrder(
-      hits,
-      rows as SemanticNoteRow[],
-      limit,
-      (_hit, row) => ({
-        id: row.note_id,
-        type: "note" as const,
-        title: row.title || "Untitled",
-        subtitle: "Semantic note match",
-        snippet: cleanSnippet(row.snippet).slice(0, 220),
-        href: `/notes/${row.note_id}`,
-        source: "semantic" as const,
-      }),
-    );
+    const chunks = await hydrateOwnedNoteChunks(userId, hits, {
+      uniqueNotes: true,
+    });
+    return chunks.slice(0, limit).map((chunk) => ({
+      id: chunk.noteId,
+      type: "note" as const,
+      title: chunk.title || "Untitled",
+      subtitle: "Semantic note match",
+      snippet: cleanSnippet(chunk.text).slice(0, 220),
+      href: `/notes/${chunk.noteId}`,
+      source: "semantic" as const,
+    }));
   } catch (error) {
     logger.warn("global semantic note search failed", { error });
     return [];
@@ -178,7 +185,7 @@ async function searchChats(
   limit = 5,
 ): Promise<GlobalSearchResult[]> {
   if (!query) {
-    const rows = await sql`
+    const rows = await sql<ChatSearchRow[]>`
       SELECT s.id, s.title, s.updated_at, COUNT(m.id)::int AS message_count
       FROM app.chat_sessions s
       LEFT JOIN app.chat_messages m ON m.session_id = s.id
@@ -188,7 +195,7 @@ async function searchChats(
       LIMIT ${limit}
     `;
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       type: "chat" as const,
       title: row.title || "New Chat",
@@ -199,7 +206,7 @@ async function searchChats(
   }
 
   const pattern = likePattern(query);
-  const rows = await sql`
+  const rows = await sql<ChatSearchRow[]>`
     SELECT s.id, s.title, s.updated_at, COUNT(m.id)::int AS message_count,
            COALESCE(
              MAX(CASE
@@ -228,7 +235,7 @@ async function searchChats(
     LIMIT ${limit}
   `;
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: row.id,
     type: "chat" as const,
     title: row.title || "New Chat",
@@ -249,7 +256,7 @@ async function searchQuizzes(
     ? sql`WHERE course_name ILIKE ${likePattern(query)} ESCAPE ${LIKE_ESCAPE}`
     : sql``;
 
-  const rows = await sql`
+  const rows = await sql<QuizCourseRow[]>`
     WITH course_stats AS (
       SELECT
         n.canvas_course_id,
@@ -291,7 +298,7 @@ async function searchQuizzes(
     LIMIT ${limit}
   `;
 
-  const keywordResults: GlobalSearchResult[] = rows.map((row: any) =>
+  const keywordResults: GlobalSearchResult[] = rows.map((row) =>
     formatQuizResult(row, query ? "keyword" : "recent"),
   );
 
@@ -308,7 +315,7 @@ async function searchQuizzes(
 }
 
 function formatQuizResult(
-  row: any,
+  row: QuizCourseRow,
   source: SearchSource,
 ): GlobalSearchResult {
   const totalCards = Number(row.total_cards || 0);
@@ -347,7 +354,7 @@ async function semanticQuizzes(
     if (hits.length === 0) return [];
 
     const chunkIds = hits.map((hit) => hit.chunkId);
-    const rows = await sql`
+    const rows = await sql<QuizCourseRow[]>`
       WITH hit_courses AS (
         SELECT DISTINCT n.canvas_course_id
         FROM app.chunks c
@@ -396,7 +403,7 @@ async function semanticQuizzes(
 
     const excluded = new Set(excludeCourseIds);
     return rows
-      .map((row: any) => formatQuizResult(row, "semantic"))
+      .map((row) => formatQuizResult(row, "semantic"))
       .filter((result: GlobalSearchResult) => !excluded.has(result.id))
       .slice(0, limit);
   } catch (error) {

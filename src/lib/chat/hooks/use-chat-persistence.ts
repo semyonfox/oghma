@@ -15,7 +15,12 @@ function logChatPersistence(
   message: string,
   details: Record<string, unknown> = {},
 ): void {
-  if (typeof console === "undefined") return;
+  if (
+    process.env.NODE_ENV !== "development" ||
+    typeof console === "undefined"
+  ) {
+    return;
+  }
   console.debug(`[chat-persistence] ${message}`, details);
 }
 
@@ -93,7 +98,7 @@ export function mapStoredChatMessages(messages: StoredMessage[]): Message[] {
 export function useChatPersistence(
   options: UseChatPersistenceOptions,
 ): UseChatPersistenceResult {
-  const { compact, controlledSessionId } = options;
+  const { controlledSessionId } = options;
 
   // thinking mode
   const [thinkingMode, setThinkingMode] = useState<LlmThinkingMode>("auto");
@@ -212,7 +217,7 @@ export function useChatPersistence(
       } catch {
         // fresh session is fine
       } finally {
-        setRestored(true);
+        if (!cancelled) setRestored(true);
       }
     };
     void restore();
@@ -220,7 +225,7 @@ export function useChatPersistence(
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [controlledSessionId, compact]);
+  }, [controlledSessionId]);
 
   // refs for unload handlers (kept in sync by the consumer)
   const messagesRef = useRef<Message[]>([]);

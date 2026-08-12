@@ -1,11 +1,11 @@
-// tool definitions, parent folder hints, and LLM call options assembly
-
 import { tool } from "ai";
 import type { ToolSet } from "ai";
 import { z } from "zod";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
+import type postgres from "postgres";
 import { generateUUID } from "@/lib/utils/uuid";
-import { addNoteToTree, moveNoteInTree } from "@/lib/notes/storage/pg-tree.js";
+import { moveNoteInTree } from "@/lib/notes/storage/pg-tree";
+import { insertNoteWithTree } from "@/lib/notes/storage/create-note";
 import { getStorageProvider } from "@/lib/storage/init";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
@@ -102,7 +102,7 @@ async function resolveParentFolderHint(
   sessionContext: ChatSessionContext,
 ): Promise<string> {
   if (scopedInputNoteIds.length > 0) {
-    const parentRows = await sql`
+    const parentRows = (await sql`
       SELECT DISTINCT ti.parent_id, n.note_id, n.title
       FROM app.tree_items ti
       JOIN app.notes n ON n.note_id = ti.parent_id::uuid
@@ -112,9 +112,9 @@ async function resolveParentFolderHint(
         AND n.deleted_at IS NULL
         AND n.user_id = ${userId}::uuid
       LIMIT 5
-    `;
-    if ((parentRows as any[]).length > 0) {
-      const hints = (parentRows as { note_id: string; title: string }[])
+    `) as { note_id: string; title: string }[];
+    if (parentRows.length > 0) {
+      const hints = parentRows
         .map((r) => `"${r.title}" (id: ${r.note_id})`)
         .join(", ");
       return (
@@ -228,29 +228,41 @@ export function createChatTools(
         contentType: "text/markdown",
       });
 
-      await sql`
-        INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-        VALUES (${newNoteId}::uuid, ${userId}::uuid, ${resolvedTitle}, ${markdown}, false, NOW(), NOW())
-      `;
-      await addNoteToTree(userId, newNoteId, parentID || null);
       const attachmentId = generateUUID();
-      await sql`
-        INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-        VALUES (
-          ${attachmentId}::uuid,
-          ${newNoteId}::uuid,
-          ${userId}::uuid,
-          ${fileName},
-          ${storagePath},
-          ${"text/markdown"},
-          ${markdownBuffer.length}
-        )
-      `;
-      await sql`
-        UPDATE app.notes
-        SET s3_key = ${storagePath}, extracted_text = ${extractedText}, updated_at = NOW()
-        WHERE note_id = ${newNoteId}::uuid AND user_id = ${userId}::uuid
-      `;
+      const database = sql as postgres.Sql;
+      try {
+        await database.begin(async (tx) => {
+          await insertNoteWithTree(tx, {
+            noteId: newNoteId,
+            userId,
+            title: resolvedTitle,
+            content: markdown,
+            isFolder: false,
+            parentId: parentID ?? null,
+            s3Key: storagePath,
+          });
+          await tx`
+            INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
+            VALUES (
+              ${attachmentId}::uuid,
+              ${newNoteId}::uuid,
+              ${userId}::uuid,
+              ${fileName},
+              ${storagePath},
+              ${"text/markdown"},
+              ${markdownBuffer.length}
+            )
+          `;
+          await tx`
+            UPDATE app.notes
+            SET extracted_text = ${extractedText}, updated_at = NOW()
+            WHERE note_id = ${newNoteId}::uuid AND user_id = ${userId}::uuid
+          `;
+        });
+      } catch (error) {
+        await storage.deleteObject(storagePath).catch(() => {});
+        throw error;
+      }
 
       await replaceNoteEmbeddings(newNoteId, userId, chunkText(markdown));
 
@@ -494,9 +506,11 @@ export function createChatTools(
       assignmentId: z.string().uuid().optional(),
     }),
     execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
-      console.log("[addTimeBlock] called", { blockTitle, startsAt, endsAt, assignmentId, userId });
       const start = new Date(startsAt);
       const end = new Date(endsAt);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+        throw new Error("Start and end must be valid ISO 8601 timestamps");
+      }
       const durationMins = (end.getTime() - start.getTime()) / 60000;
       if (durationMins <= 0) throw new Error("End must be after start");
 
@@ -520,7 +534,6 @@ export function createChatTools(
         RETURNING id, title, starts_at, ends_at, pomodoro_count
       `;
 
-      console.log("[addTimeBlock] inserted", { blockId: row.id, title: row.title });
       return {
         blockId: row.id,
         title: row.title,

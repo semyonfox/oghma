@@ -5,7 +5,7 @@ import {
   migrationId,
   migrationVersion,
   readMigrationFiles,
-} from "../../../scripts/migration-catalog.mjs";
+} from "../../../scripts/migration-catalog.ts";
 import { resolve } from "node:path";
 
 describe("migration catalog", () => {

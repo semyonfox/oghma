@@ -3,95 +3,95 @@
 // adapted from notea: https://github.com/QingWei-Li/notea
 // original file: libs/web/utils/i18n-provider.tsx
 
-import { createContext, useState, useRef, useEffect, ReactNode } from "react";
-import rosetta, { Rosetta } from "rosetta";
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import rosetta from "rosetta";
 import pupa from "pupa";
+import { Locale, supportedLocales } from "@/locales";
+import type { LocaleDictionary } from "@/lib/i18n/locale-data";
 
-const i18n = rosetta<Record<string, string>>();
+export const defaultLanguage = Locale.EN;
 
-// default to English locale
-export const defaultLanguage = "en";
+export const languages = supportedLocales;
 
-// supported locales - update this when adding new locale files
-export const languages = [
-  "en",
-  "ga",
-  "hi",
-  "zh-CN",
-  "fr-FR",
-  "es-ES",
-  "it-IT",
-  "de-DE",
-  "ru-RU",
-  "ar",
-  "nl-NL",
-  "sv-SE",
-];
+export type Translate = (
+  key: string | readonly (string | number)[],
+  params?: Record<string, unknown>,
+) => string;
 
 export interface ContextProps {
-  activeLocale: string;
-  t: Rosetta<Record<string, string>>["t"];
-  locale: (l: string, dict: Record<string, string>) => void;
+  activeLocale: Locale;
+  t: Translate;
+  locale: (locale: Locale, dictionary: LocaleDictionary) => void;
 }
 
-export const I18nContext = createContext<ContextProps>({} as ContextProps);
-
-// default language
-i18n.locale(defaultLanguage);
+export const I18nContext = createContext<ContextProps | null>(null);
 
 interface Props {
   children: ReactNode;
-  locale: string;
-  lngDict: Record<string, string>;
+  locale: Locale;
+  lngDict: LocaleDictionary;
+  onLocaleChange?: (locale: Locale, dictionary: LocaleDictionary) => void;
 }
 
-export default function I18nProvider({ children, locale, lngDict }: Props) {
-  const activeLocaleRef = useRef(locale || defaultLanguage);
-  const [, setTick] = useState(0);
-  const firstRender = useRef(true);
+export default function I18nProvider({
+  children,
+  locale,
+  lngDict,
+  onLocaleChange,
+}: Props) {
+  const i18n = useMemo(() => rosetta<LocaleDictionary>(), []);
+  const [localeData, setLocaleData] = useState({ locale, dict: lngDict });
 
-  const i18nWrapper: ContextProps = {
-    activeLocale: activeLocaleRef.current,
-    t: (key, ...args) => {
-      // always try rosetta lookup first (handles dotted keys like "chat.title")
-      const result = i18n.t(Array.isArray(key) ? key : [key], ...args);
-      const params = args[0] ?? {};
-      const hasParams =
-        typeof params === "object" && Object.keys(params).length > 0;
-      if (result) {
-        // rosetta uses {{var}} but our translations use {var} (pupa format),
-        // so always run pupa when params are provided to interpolate single-brace vars
-        return hasParams ? pupa(result, params) : result;
-      }
-      // fallback: treat the key itself as the English text (with pupa interpolation)
-      return pupa(Array.isArray(key) ? key.join("") : key, params);
-    },
-    locale: (l: Props["locale"], dict: Props["lngDict"]) => {
-      i18n.locale(l);
-      activeLocaleRef.current = l;
-      if (dict) {
-        i18n.set(l, dict);
-      }
-      // force rerender to update view
-      setTick((tick) => tick + 1);
-    },
-  };
-
-  // for initial SSR render
-  if (locale && firstRender.current === true) {
-    firstRender.current = false;
-    i18nWrapper.locale(locale, lngDict);
-  }
-
-  // when locale is updated
+  // Parent changes (initial cache/server reconciliation) remain authoritative.
+  // A selector change updates local state immediately, then persists separately.
   useEffect(() => {
-    if (locale) {
-      i18nWrapper.locale(locale, lngDict);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lngDict, locale]);
+    setLocaleData((current) =>
+      current.locale === locale && current.dict === lngDict
+        ? current
+        : { locale, dict: lngDict },
+    );
+  }, [locale, lngDict]);
+
+  // This instance belongs to this provider, so nested editor/public providers
+  // cannot overwrite one another's active locale.
+  i18n.set(localeData.locale, localeData.dict);
+  i18n.locale(localeData.locale);
+
+  const t = useCallback<Translate>(
+    (key, params = {}) => {
+      const keyParts = typeof key === "string" ? [key] : [...key];
+      const translated = i18n.t(keyParts, params);
+      if (translated) {
+        return Object.keys(params).length > 0
+          ? pupa(translated, params)
+          : translated;
+      }
+      return pupa(keyParts.join(""), params);
+    },
+    [i18n],
+  );
+
+  const setLocale = useCallback(
+    (nextLocale: Locale, dictionary: LocaleDictionary) => {
+      setLocaleData({ locale: nextLocale, dict: dictionary });
+      onLocaleChange?.(nextLocale, dictionary);
+    },
+    [onLocaleChange],
+  );
+
+  const contextValue = useMemo<ContextProps>(
+    () => ({ activeLocale: localeData.locale, t, locale: setLocale }),
+    [localeData.locale, setLocale, t],
+  );
 
   return (
-    <I18nContext.Provider value={i18nWrapper}>{children}</I18nContext.Provider>
+    <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
   );
 }

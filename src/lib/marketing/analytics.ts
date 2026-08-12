@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 export const ANALYTICS_WINDOWS = [7, 30, 90] as const;
 export const MINIMUM_DIMENSION_COUNT = 5;

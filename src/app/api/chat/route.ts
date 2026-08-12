@@ -1,50 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { Metrics } from "@/lib/metrics";
-import { withErrorHandler, tracedError, parseJsonObject } from "@/lib/api-error";
+import {
+  parseJsonObject,
+  requireAuth,
+  tracedError,
+  withErrorHandler,
+} from "@/lib/api-error";
 import { chatRequestSchema, validateBody } from "@/lib/validations/schemas";
 import { getLlmModel, getLlmThinkingMode, type LlmThinkingMode } from "@/lib/ai-config";
 import logger from "@/lib/logger";
-import {
-  streamText,
-  generateText,
-  type FinishReason,
-  type ModelMessage,
-} from "ai";
+import { streamText, generateText, type ModelMessage } from "ai";
 
-import {
-  runRagPipeline,
-  buildSystemPrompt,
-  buildPlainSystemPrompt,
-  runKeywordFallback,
-  type RagResult,
-} from "@/lib/chat/rag-pipeline";
 import {
   markChatGenerationFailed,
   persistMessage,
 } from "@/lib/chat/session";
-import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
-import { labelForTool } from "@/lib/chat/tool-labels";
-import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
-import { normalizeScope, buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
+import type { MessageMetadata } from "@/lib/chat/types";
+import { normalizeScope } from "@/lib/chat/normalize-scope";
 import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
-import {
-  buildRetrievalInfo,
-  buildFallbackReply,
-  type RetrievalInfo,
-} from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
-import {
-  shouldSynthesizeFinalAnswer,
-  streamFinalAnswer,
-} from "@/lib/chat/final-answer";
+import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
+import { streamFinalAnswer } from "@/lib/chat/final-answer";
 import { recordActivationMilestone } from "@/lib/marketing/events";
+import { TOOL_CALL_LIMIT_USER_MESSAGE } from "@/lib/chat/tool-budget";
 import {
-  TOOL_CALL_LIMIT_USER_MESSAGE,
-  appendToolCallLimitMessage,
-  isToolCallLimitFinish,
-} from "@/lib/chat/tool-budget";
+  appendChatGenerationText,
+  applyChatGenerationEvent,
+  buildChatGenerationFromSteps,
+  buildChatGenerationMetadata,
+  closeChatThinkingWindow,
+  createChatGenerationResult,
+  finalizeChatGenerationResult,
+  finishChatGenerationStep,
+  flushChatGenerationText,
+} from "@/lib/chat/generation-result";
 import {
   type SseWriter,
   sendConnected,
@@ -74,26 +64,8 @@ function resolveChatThinkingMode(
   return getLlmThinkingMode();
 }
 
-// neutral results used when note retrieval (RAG) is turned off for a message
-const EMPTY_RAG_RESULT: RagResult = {
-  searchResults: [],
-  semanticMatches: [],
-  embeddingAvailable: false,
-  ragFailed: false,
-};
-
-const EMPTY_RETRIEVAL: RetrievalInfo = {
-  scopeMode: "global",
-  availableCount: 0,
-  availableFiles: [],
-  semanticHits: [],
-  usedFiles: [],
-};
-
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const user = await validateSession();
-  if (!user) return tracedError("Unauthorized", 401);
-
+  const user = await requireAuth();
   const userId = user.user_id;
   const limited = await checkRateLimit("chat", userId);
   if (limited) return limited;
@@ -121,10 +93,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const thinkingMode = resolveChatThinkingMode(requestedThinkingMode);
   const clientDateTime = normalizeClientDateTime(rawClientDateTime);
-
-  if (!message?.trim()) return tracedError("message is required", 400);
-  if (message.length > 2000)
-    return tracedError("message too long (max 2000 characters)", 400);
 
   const scopeParams = {
     noteId,
@@ -261,23 +229,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               );
               activeSessionId = scope.sessionId;
 
-              const ragResult = useRag
-                ? await runRagPipeline(userId, message, scope.scopedNoteIds)
-                : EMPTY_RAG_RESULT;
-
-              const fallbackResults =
-                useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
-                  ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-                  : [];
-              const systemPrompt = useRag
-                ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
-                : buildPlainSystemPrompt();
-              const sessionMemoryPrompt = buildSessionMemoryPrompt(
-                scope.sessionContext,
-              );
-              const { uniqueSources, retrieval } = useRag
-                ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
-                : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
+              const prepared = await prepareChatGeneration({
+                userId,
+                message,
+                useRag,
+                scopedNoteIds: scope.scopedNoteIds,
+                sessionContext: scope.sessionContext,
+              });
+              const {
+                ragResult,
+                systemPrompt,
+                sessionMemoryPrompt,
+                uniqueSources,
+                retrieval,
+                initialParts,
+                fallbackReply,
+              } = prepared;
 
               const {
                 model,
@@ -315,19 +282,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               lastEvent = "search";
 
               if (!llmAvailable) {
-                const fallback = buildFallbackReply(
-                  ragResult.searchResults,
-                  ragResult.embeddingAvailable,
-                );
-                sendToken(writer, fallback);
+                sendToken(writer, fallbackReply);
                 await persistMessage(
                   scope.sessionId,
                   "assistant",
-                  fallback,
+                  fallbackReply,
                   {
                     parts: [
-                      ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))) }] : []),
-                      { type: "text", text: fallback },
+                      ...initialParts,
+                      { type: "text", text: fallbackReply },
                     ],
                     sources: uniqueSources,
                   },
@@ -345,59 +308,16 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 return;
               }
 
-              // stream LLM response, accumulating typed parts as we go.
-              // parts mirror what the client builds for live render — text
-              // segments interleaved with tool indicators — and persist as
-              // jsonb so reload reproduces the same shape.
               const t0 = Date.now();
-              let reply = "";
-              let thinking = "";
-              let thinkingStartedAt: number | null = null;
-              let thinkingDuration: number | undefined;
-              let finishReason: FinishReason | undefined;
-              let rawFinishReason: string | undefined;
-              let stepCount = 0;
-              let toolCallCount = 0;
+              let generation = createChatGenerationResult(initialParts);
               let assistantPersisted = false;
               let responseMessages: ModelMessage[] = [];
-              const parts: MessagePart[] = useRag ? [{
-                type: "tool",
-                name: "ragSearch",
-                label: "Searched notes",
-                detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))),
-              }] : [];
-              let pendingText = "";
-              const flushText = () => {
-                if (pendingText) {
-                  parts.push({ type: "text", text: pendingText });
-                  pendingText = "";
-                }
-              };
-              const closeThinkingWindow = () => {
-                if (thinkingStartedAt && thinkingDuration == null) {
-                  thinkingDuration = Math.max(
-                    1,
-                    Math.round((Date.now() - thinkingStartedAt) / 1000),
-                  );
-                }
-              };
-              const buildMetadata = (
-                overrides: Partial<MessageMetadata> = {},
-              ): MessageMetadata => ({
-                ...(thinking && { thinking }),
-                ...(thinkingDuration != null && { thinkingDuration }),
-                ...(finishReason && { finishReason }),
-                ...(rawFinishReason && { rawFinishReason }),
-                stepCount,
-                toolCallCount,
-                ...overrides,
-              });
               const persistAssistant = async (
                 content: string,
                 metadata?: MessageMetadata,
               ) => {
                 await persistMessage(scope.sessionId, "assistant", content, {
-                  parts,
+                  parts: generation.parts,
                   sources: uniqueSources,
                   metadata,
                 });
@@ -410,56 +330,41 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   ...llmCallOptions,
                 });
                 for await (const part of result.fullStream) {
-                  if (part.type === "reasoning-delta") {
-                    if (!thinkingStartedAt) thinkingStartedAt = Date.now();
-                    thinking += part.text;
-                    sendThinking(writer, part.text);
-                  } else if (part.type === "text-delta") {
-                    closeThinkingWindow();
-                    reply += part.text;
-                    pendingText += part.text;
-                    sendToken(writer, part.text);
+                  const update = applyChatGenerationEvent(generation, part);
+                  generation = update.result;
+                  if (update.effect.type === "thinking") {
+                    sendThinking(writer, update.effect.text);
+                  } else if (update.effect.type === "text") {
+                    sendToken(writer, update.effect.text);
                     lastEvent = "token";
-                  } else if (part.type === "tool-call") {
-                    toolCallCount += 1;
-                    flushText();
-                    const detail = toolCallDetail(part.toolName, part.input);
-                    parts.push({
-                      type: "tool",
-                      name: part.toolName,
-                      label: labelForTool(part.toolName),
-                      callId: part.toolCallId,
-                      detail,
-                    });
-                    sendToolCall(writer, part.toolName, part.toolCallId, detail);
-                    lastEvent = "tool-call";
-                  } else if (part.type === "tool-result") {
-                    const detail = toolResultDetail(part.toolName, part.output);
-                    const stored = parts.find(
-                      (item) => item.type === "tool" && item.callId === part.toolCallId,
+                  } else if (update.effect.type === "tool-call") {
+                    sendToolCall(
+                      writer,
+                      update.effect.toolName,
+                      update.effect.toolCallId,
+                      update.effect.detail,
                     );
-                    if (stored?.type === "tool" && detail) stored.detail = detail;
-                    sendToolResult(writer, part.toolCallId, detail);
-                  } else if (part.type === "finish-step") {
-                    stepCount += 1;
-                    finishReason = part.finishReason;
-                    rawFinishReason = part.rawFinishReason;
-                  } else if (part.type === "finish") {
-                    finishReason = part.finishReason;
-                    rawFinishReason = part.rawFinishReason;
-                  } else if (part.type === "abort") {
+                    lastEvent = "tool-call";
+                  } else if (update.effect.type === "tool-result") {
+                    sendToolResult(
+                      writer,
+                      update.effect.toolCallId,
+                      update.effect.detail,
+                    );
+                  } else if (update.effect.type === "abort") {
                     throw new Error("Generation aborted: client disconnected");
-                  } else if (part.type === "error") {
-                    throw part.error instanceof Error
-                      ? part.error
-                      : new Error(String(part.error));
+                  } else if (update.effect.type === "error") {
+                    throw update.effect.error instanceof Error
+                      ? update.effect.error
+                      : new Error(String(update.effect.error));
                   }
                 }
                 responseMessages = (await result.response).messages;
               } catch (error) {
                 void Metrics.llmError();
-                closeThinkingWindow();
-                flushText();
+                generation = flushChatGenerationText(
+                  closeChatThinkingWindow(generation),
+                );
                 const detail =
                   error instanceof Error ? error.message : String(error);
                 const interrupted =
@@ -469,19 +374,27 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   error: detail,
                   model: getLlmModel(),
                   thinkingMode,
-                  stepCount,
-                  toolCallCount,
-                  finishReason,
-                  rawFinishReason,
+                  stepCount: generation.stepCount,
+                  toolCallCount: generation.toolCallCount,
+                  finishReason: generation.finishReason,
+                  rawFinishReason: generation.rawFinishReason,
                 });
                 if (
                   !assistantPersisted &&
-                  (reply.trim() || thinking.trim() || parts.length > 0)
+                  (generation.reply.trim() ||
+                    generation.thinking.trim() ||
+                    generation.parts.length > 0)
                 ) {
-                  parts.push({ type: "error", text: interrupted });
+                  generation = {
+                    ...generation,
+                    parts: [
+                      ...generation.parts,
+                      { type: "error", text: interrupted },
+                    ],
+                  };
                   await persistAssistant(
-                    reply,
-                    buildMetadata({
+                    generation.reply,
+                    buildChatGenerationMetadata(generation, {
                       partial: true,
                       error: detail,
                     }),
@@ -501,32 +414,25 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               } finally {
                 await canvasMcpClient?.close().catch(() => {});
               }
-              closeThinkingWindow();
-              flushText();
 
-              if (
-                isToolCallLimitFinish(
-                  finishReason,
-                  toolCallCount,
-                  maxToolSteps,
-                )
-              ) {
+              let finalization = finalizeChatGenerationResult(
+                generation,
+                maxToolSteps,
+              );
+              generation = finalization.result;
+              if (finalization.kind === "tool-call-limit") {
                 logger.warn("LLM stream hit tool-call limit", {
                   model: getLlmModel(),
                   thinkingMode,
                   maxToolSteps,
-                  stepCount,
-                  toolCallCount,
+                  stepCount: generation.stepCount,
+                  toolCallCount: generation.toolCallCount,
                 });
-                const limitNotice = appendToolCallLimitMessage(reply);
-                reply = limitNotice.reply;
-                pendingText += limitNotice.delta;
-                sendToken(writer, limitNotice.delta);
+                sendToken(writer, finalization.delta);
                 lastEvent = "token";
-                flushText();
                 await persistAssistant(
-                  reply,
-                  buildMetadata({
+                  generation.reply,
+                  buildChatGenerationMetadata(generation, {
                     partial: true,
                     error: TOOL_CALL_LIMIT_USER_MESSAGE,
                     toolCallLimitHit: true,
@@ -546,20 +452,17 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 return;
               }
 
-              if (!reply.trim()) {
-                if (!shouldSynthesizeFinalAnswer(reply, finishReason)) {
-                  throw new Error(
-                    `Model ended without an answer (${finishReason})`,
-                  );
-                }
+              if (finalization.kind === "invalid") {
+                throw new Error(finalization.error);
+              }
+              if (finalization.kind === "synthesize-final-answer") {
                 logger.warn("LLM stream returned reasoning without an answer", {
                   chatStreamId,
                   model: getLlmModel(),
                   thinkingMode,
-                  stepCount,
-                  toolCallCount,
+                  stepCount: generation.stepCount,
+                  toolCallCount: generation.toolCallCount,
                 });
-                closeThinkingWindow();
                 const finalAnswer = await streamFinalAnswer({
                   model: model!,
                   abortSignal: inlineAbort.signal,
@@ -569,32 +472,40 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                   ],
                   maxOutputTokens: llmCallOptions.maxOutputTokens,
                   onTextDelta(text) {
-                    reply += text;
-                    pendingText += text;
+                    generation = appendChatGenerationText(generation, text);
                     sendToken(writer, text);
                     lastEvent = "token";
                   },
                 });
-                stepCount += 1;
-                finishReason = finalAnswer.finishReason;
-                rawFinishReason = finalAnswer.rawFinishReason;
-                if (!reply.trim()) {
+                generation = finishChatGenerationStep(
+                  generation,
+                  finalAnswer.finishReason,
+                  finalAnswer.rawFinishReason,
+                );
+                finalization = finalizeChatGenerationResult(
+                  generation,
+                  maxToolSteps,
+                );
+                generation = finalization.result;
+                if (finalization.kind !== "complete") {
                   throw new Error(
                     "Model returned no answer after final synthesis",
                   );
                 }
-                flushText();
                 logger.info("Recovered reasoning-only LLM response", {
                   chatStreamId,
                   model: getLlmModel(),
-                  finishReason,
-                  rawFinishReason,
-                  replyLength: reply.length,
+                  finishReason: generation.finishReason,
+                  rawFinishReason: generation.rawFinishReason,
+                  replyLength: generation.reply.length,
                 });
               }
 
               void Metrics.llmLatency(Date.now() - t0);
-              await persistAssistant(reply, buildMetadata());
+              await persistAssistant(
+                generation.reply,
+                buildChatGenerationMetadata(generation),
+              );
               if (uniqueSources.length > 0) {
                 void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
                   logger.warn("failed to record first cited answer milestone", { error: eventError.message }),
@@ -608,12 +519,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 elapsedMs: Date.now() - startedAt,
                 bytesSent,
                 clientDisconnected,
-                replyLength: reply.length,
-                thinkingLength: thinking.length,
-                stepCount,
-                toolCallCount,
-                finishReason,
-                rawFinishReason,
+                replyLength: generation.reply.length,
+                thinkingLength: generation.thinking.length,
+                stepCount: generation.stepCount,
+                toolCallCount: generation.toolCallCount,
+                finishReason: generation.finishReason,
+                rawFinishReason: generation.rawFinishReason,
               });
               writer.close();
             } catch (error) {
@@ -676,21 +587,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     requestHistory,
   );
 
-  const ragResult = useRag
-    ? await runRagPipeline(userId, message, scope.scopedNoteIds)
-    : EMPTY_RAG_RESULT;
-
-  const fallbackResults =
-    useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
-      ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-      : [];
-  const systemPrompt = useRag
-    ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
-    : buildPlainSystemPrompt();
-  const sessionMemoryPrompt = buildSessionMemoryPrompt(scope.sessionContext);
-  const { uniqueSources, retrieval } = useRag
-    ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
-    : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
+  const {
+    ragResult,
+    systemPrompt,
+    sessionMemoryPrompt,
+    uniqueSources,
+    retrieval,
+    initialParts,
+    fallbackReply,
+  } = await prepareChatGeneration({
+    userId,
+    message,
+    useRag,
+    scopedNoteIds: scope.scopedNoteIds,
+    sessionContext: scope.sessionContext,
+  });
 
   const { model, llmCallOptions, canvasMcpClient, maxToolSteps } =
     await buildLlmCall({
@@ -718,19 +629,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (!model) {
     await canvasMcpClient?.close().catch(() => {});
-    const fallback = buildFallbackReply(
-      ragResult.searchResults,
-      ragResult.embeddingAvailable,
-    );
-    await persistMessage(scope.sessionId, "assistant", fallback, {
-      parts: [
-        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
-        { type: "text", text: fallback },
-      ],
+    await persistMessage(scope.sessionId, "assistant", fallbackReply, {
+      parts: [...initialParts, { type: "text", text: fallbackReply }],
       sources: uniqueSources,
     });
     return NextResponse.json({
-      reply: fallback,
+      reply: fallbackReply,
       sources: uniqueSources,
       retrieval,
       llmAvailable: false,
@@ -748,40 +652,53 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         await canvasMcpClient?.close().catch(() => {});
       }
     })();
-    const { text: reply, reasoningText, finishReason, rawFinishReason, steps } =
-      result;
-    void Metrics.llmLatency(Date.now() - t0);
-    const stepCount = steps.length;
-    const toolCallCount = steps.reduce(
-      (sum, step) => sum + step.toolCalls.length,
-      0,
+    let generation = buildChatGenerationFromSteps(
+      initialParts,
+      result.steps,
     );
-    const metadata: MessageMetadata = {
-      ...(reasoningText && { thinking: reasoningText }),
-      finishReason,
-      ...(rawFinishReason && { rawFinishReason }),
-      stepCount,
-      toolCallCount,
-    };
+    let finalization = finalizeChatGenerationResult(
+      generation,
+      maxToolSteps,
+    );
 
-    if (isToolCallLimitFinish(finishReason, stepCount, maxToolSteps)) {
-      const limitNotice = appendToolCallLimitMessage(reply);
-      await persistMessage(scope.sessionId, "assistant", limitNotice.reply, {
-        parts: [
-          ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
-          ...(reply ? [{ type: "text" as const, text: reply }] : []),
-          { type: "text" as const, text: limitNotice.delta },
-        ],
+    if (finalization.kind === "synthesize-final-answer") {
+      const finalAnswer = await streamFinalAnswer({
+        model,
+        messages: [...llmCallOptions.messages, ...result.response.messages],
+        maxOutputTokens: llmCallOptions.maxOutputTokens,
+        onTextDelta(text) {
+          generation = appendChatGenerationText(generation, text);
+        },
+      });
+      generation = finishChatGenerationStep(
+        generation,
+        finalAnswer.finishReason,
+        finalAnswer.rawFinishReason,
+      );
+      finalization = finalizeChatGenerationResult(generation, maxToolSteps);
+      if (finalization.kind !== "complete") {
+        throw new Error("Model returned no answer after final synthesis");
+      }
+    }
+
+    generation = finalization.result;
+    void Metrics.llmLatency(Date.now() - t0);
+
+    if (finalization.kind === "invalid") {
+      throw new Error(finalization.error);
+    }
+    if (finalization.kind === "tool-call-limit") {
+      await persistMessage(scope.sessionId, "assistant", generation.reply, {
+        parts: generation.parts,
         sources: uniqueSources,
-        metadata: {
-          ...metadata,
+        metadata: buildChatGenerationMetadata(generation, {
           partial: true,
           error: TOOL_CALL_LIMIT_USER_MESSAGE,
           toolCallLimitHit: true,
-        },
+        }),
       });
       return NextResponse.json({
-        reply: limitNotice.reply,
+        reply: generation.reply,
         sources: uniqueSources,
         retrieval,
         llmAvailable: true,
@@ -794,13 +711,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
     }
 
-    await persistMessage(scope.sessionId, "assistant", reply, {
-      parts: [
-        ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, searchContext.results) }] : []),
-        ...(reply ? [{ type: "text" as const, text: reply }] : []),
-      ],
+    await persistMessage(scope.sessionId, "assistant", generation.reply, {
+      parts: generation.parts,
       sources: uniqueSources,
-      metadata,
+      metadata: buildChatGenerationMetadata(generation),
     });
     if (uniqueSources.length > 0) {
       void recordActivationMilestone("first_cited_answer", userId, request).catch((eventError) =>
@@ -808,8 +722,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       );
     }
     return NextResponse.json({
-      reply,
-      thinking: reasoningText || undefined,
+      reply: generation.reply,
+      thinking: generation.thinking || undefined,
       sources: uniqueSources,
       retrieval,
       llmAvailable: true,

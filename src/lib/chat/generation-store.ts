@@ -1,6 +1,7 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { redis } from "@/lib/redis";
 import { generateUUID } from "@/lib/utils/uuid";
+import type { ChatMessage, ChatSessionContext } from "@/lib/chat/session";
 
 const EVENT_TTL_SECONDS = 60 * 60;
 const EVENT_MAX_LENGTH = 4_000;
@@ -11,10 +12,10 @@ export interface ChatGenerationPayload {
   sessionId: string;
   message: string;
   scope: {
-    sessionContext: unknown;
+    sessionContext: ChatSessionContext;
     scopedNoteIds: string[] | null;
     scopedInputNoteIds: string[];
-    history: { role: "user" | "assistant" | "system"; content: string }[];
+    history: ChatMessage[];
   };
   useRag: boolean;
   thinkingMode: "auto" | "off";
@@ -64,7 +65,7 @@ export async function createChatGeneration(
       ${payload.sessionId}::uuid,
       ${payload.userId}::uuid,
       'queued',
-      ${sql.json(payload)}
+      ${JSON.stringify(payload)}::jsonb
     )
   `;
   return generationId;
@@ -97,28 +98,36 @@ export async function loadOwnedChatGeneration(
 
 export async function claimChatGeneration(generationId: string): Promise<boolean> {
   const rows = await sql`
-    UPDATE app.chat_generations
-    SET status = 'generating', started_at = COALESCE(started_at, NOW()),
-        error_message = NULL, updated_at = NOW()
-    WHERE id = ${generationId}::uuid
-      AND status IN ('queued', 'generating', 'failed')
-    RETURNING id
-  `;
-  if (rows.length === 0) return false;
-  await sql`
+    WITH claimed AS (
+      UPDATE app.chat_generations
+      SET status = 'generating', started_at = COALESCE(started_at, NOW()),
+          error_message = NULL, updated_at = NOW()
+      WHERE id = ${generationId}::uuid
+        AND status IN ('queued', 'failed')
+      RETURNING id, session_id
+    )
     UPDATE app.chat_sessions s
     SET generation_status = 'generating', updated_at = NOW()
-    FROM app.chat_generations g
-    WHERE g.id = ${generationId}::uuid AND s.id = g.session_id
+    FROM claimed
+    WHERE s.id = claimed.session_id
+    RETURNING claimed.id
   `;
-  return true;
+  return rows.length > 0;
 }
 
 export async function completeChatGeneration(generationId: string): Promise<void> {
   await sql`
-    UPDATE app.chat_generations
-    SET status = 'completed', completed_at = NOW(), updated_at = NOW()
-    WHERE id = ${generationId}::uuid
+    WITH completed AS (
+      UPDATE app.chat_generations
+      SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+      WHERE id = ${generationId}::uuid
+        AND status = 'generating'
+      RETURNING session_id
+    )
+    UPDATE app.chat_sessions s
+    SET generation_status = 'idle', updated_at = NOW()
+    FROM completed
+    WHERE s.id = completed.session_id
   `;
 }
 
@@ -127,15 +136,17 @@ export async function failChatGeneration(
   message: string,
 ): Promise<void> {
   await sql`
-    UPDATE app.chat_generations
-    SET status = 'failed', error_message = ${message.slice(0, 1000)}, updated_at = NOW()
-    WHERE id = ${generationId}::uuid AND status <> 'completed'
-  `;
-  await sql`
+    WITH failed AS (
+      UPDATE app.chat_generations
+      SET status = 'failed', error_message = ${message.slice(0, 1000)}, updated_at = NOW()
+      WHERE id = ${generationId}::uuid
+        AND status IN ('queued', 'generating')
+      RETURNING session_id
+    )
     UPDATE app.chat_sessions s
     SET generation_status = 'failed', updated_at = NOW()
-    FROM app.chat_generations g
-    WHERE g.id = ${generationId}::uuid AND s.id = g.session_id
+    FROM failed
+    WHERE s.id = failed.session_id
   `;
 }
 
@@ -146,15 +157,16 @@ export async function failChatGeneration(
  */
 export async function cancelChatGeneration(generationId: string): Promise<void> {
   await sql`
-    UPDATE app.chat_generations
-    SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
-    WHERE id = ${generationId}::uuid AND status <> 'completed'
-  `;
-  await sql`
+    WITH cancelled AS (
+      UPDATE app.chat_generations
+      SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
+      WHERE id = ${generationId}::uuid AND status <> 'completed'
+      RETURNING session_id
+    )
     UPDATE app.chat_sessions s
     SET generation_status = 'idle', updated_at = NOW()
-    FROM app.chat_generations g
-    WHERE g.id = ${generationId}::uuid AND s.id = g.session_id
+    FROM cancelled
+    WHERE s.id = cancelled.session_id
   `;
 }
 
@@ -178,7 +190,7 @@ export async function requeueChatGeneration(
   await sql`
     UPDATE app.chat_generations
     SET status = 'queued', error_message = ${message.slice(0, 1000)}, updated_at = NOW()
-    WHERE id = ${generationId}::uuid AND status <> 'completed'
+    WHERE id = ${generationId}::uuid AND status = 'generating'
   `;
 }
 

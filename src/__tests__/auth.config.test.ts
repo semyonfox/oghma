@@ -50,9 +50,12 @@ describe("authConfig providers", () => {
     vi.stubEnv("ENABLE_CREDENTIALS_AUTH", "false");
 
     const { authConfig } = await import("@/auth.config");
-    const providerIds = authConfig.providers.map(
-      (provider: any) => provider.id,
-    );
+    const providerIds = authConfig.providers.map((provider) => {
+      if (!provider || typeof provider !== "object" || !("id" in provider)) {
+        throw new Error("Expected an auth provider with an id");
+      }
+      return provider.id;
+    });
 
     expect(providerIds).toEqual(["google", "github"]);
   });

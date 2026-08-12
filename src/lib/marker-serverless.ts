@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type postgres from "postgres";
 
 import sql from "@/database/pgsql";
 import {
@@ -222,16 +223,17 @@ export async function submitMarkerJob({
     );
   }
 
-  const marker = await sql.begin(async (tx: any) => {
+  const importJobId = jobId ?? null;
+  const marker = await sql.begin(async (tx: postgres.TransactionSql) => {
     // Match the cancellation lock order: Canvas job -> Marker row -> Canvas
     // import. If cancellation commits first, this transaction observes it and
     // exits without creating paid work; if this commits first, cancellation
     // sees and cancels the newly durable Marker row.
-    if (jobId) {
+    if (importJobId) {
       const [activeJob] = await tx`
         SELECT id
         FROM app.canvas_import_jobs
-        WHERE id = ${jobId}::uuid
+        WHERE id = ${importJobId}::uuid
           AND user_id = ${userId}::uuid
           AND type = 'canvas'
           AND status = 'processing'
@@ -262,13 +264,13 @@ export async function submitMarkerJob({
       };
     }
 
-    if (jobId) {
+    if (importJobId) {
       const [activeImport] = await tx`
         SELECT id
         FROM app.canvas_imports
         WHERE note_id = ${noteId}::uuid
           AND user_id = ${userId}::uuid
-          AND job_id = ${jobId}::uuid
+          AND job_id = ${importJobId}::uuid
           AND status IN ('downloading', 'processing', 'indexing', 'pending_marker')
         FOR UPDATE
       `;
@@ -284,7 +286,7 @@ export async function submitMarkerJob({
         imported_file_cache_id
       ) VALUES (
         ${callbackId}::uuid, ${provider}, ${noteId}::uuid, ${userId}::uuid,
-        ${jobId ?? null}::uuid, ${filename},
+        ${importJobId}::uuid, ${filename},
         ${mimeType ?? "application/octet-stream"},
         ${parentFolderId ?? null}::uuid, ${sourceKey},
         ${sourceBytes ?? null}, ${resultKey}, 'dispatch_queued',
@@ -328,7 +330,7 @@ export async function submitMarkerJob({
         SET status = 'pending_marker', error_message = NULL, updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
           AND user_id = ${userId}::uuid
-          AND (${jobId ?? null}::uuid IS NULL OR job_id = ${jobId}::uuid)
+          AND (${importJobId}::uuid IS NULL OR job_id = ${importJobId}::uuid)
           AND status IN ('downloading', 'processing', 'indexing', 'pending_marker')
       `;
     }

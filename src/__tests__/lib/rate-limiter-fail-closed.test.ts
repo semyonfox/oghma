@@ -24,7 +24,7 @@ vi.mock("@/lib/logger", () => ({ default: logger }));
 vi.mock("@/lib/metrics", () => ({
   Metrics: { rateLimitViolation },
 }));
-vi.mock("@/database/pgsql.js", () => ({
+vi.mock("@/database/pgsql", () => ({
   default: vi.fn(),
 }));
 

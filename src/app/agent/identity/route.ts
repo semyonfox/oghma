@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { createErrorResponse, parseJsonBody } from "@/lib/auth";
 import { createAgentRegistrationClaim, findOpenAgentRegistrationByEmail } from "@/lib/agent-registration";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";

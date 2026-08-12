@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const discussionTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_discussion_topics",
         description:
             "List discussion topics for a course. Excludes announcements by default. Optionally filter by search_term or include extra fields.",
@@ -14,7 +14,7 @@ export const discussionTools: ToolDef[] = [
             search_term: z.string().optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const topics = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/discussion_topics`,
                 {
@@ -28,8 +28,8 @@ export const discussionTools: ToolDef[] = [
             );
             return jsonResult(topics);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_discussion_topic",
         description: "Get full details for a single discussion topic by ID within a course.",
         inputSchema: z.object({
@@ -37,7 +37,7 @@ export const discussionTools: ToolDef[] = [
             topic_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const topic = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}`,
                 {
@@ -46,8 +46,8 @@ export const discussionTools: ToolDef[] = [
             );
             return jsonResult(topic);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_discussion_view",
         description:
             "Get the full threaded view of a discussion topic including all replies and participants.",
@@ -55,30 +55,30 @@ export const discussionTools: ToolDef[] = [
             course_id: canvasIdSchema,
             topic_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const view = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/view`,
                 {},
             );
             return jsonResult(view);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_discussion_entries",
         description: "List top-level entries (posts) for a discussion topic. Paginated.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             topic_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const entries = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
                 { per_page: 100 },
             );
             return jsonResult(entries);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_discussion_entry",
         description: "Get a single discussion entry by ID within a topic.",
         inputSchema: z.object({
@@ -86,20 +86,18 @@ export const discussionTools: ToolDef[] = [
             topic_id: canvasIdSchema,
             entry_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const entry = await canvas.get(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}`,
                 {},
             );
             return jsonResult(entry);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable discussion topic creation, posting, and deletion.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_discussion_topic",
         description: "Create a new discussion topic in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -108,7 +106,7 @@ export const discussionTools: ToolDef[] = [
             message: z.string(),
             discussion_type: z.enum(["side_comment", "threaded"]).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const topic = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics`,
                 {
@@ -119,8 +117,8 @@ export const discussionTools: ToolDef[] = [
             );
             return jsonResult(topic);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_post_discussion_entry",
         description: "Post a top-level reply to a discussion topic. Requires educator permissions.",
         inputSchema: z.object({
@@ -128,15 +126,15 @@ export const discussionTools: ToolDef[] = [
             topic_id: canvasIdSchema,
             message: z.string(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const entry = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries`,
                 { message: args.message },
             );
             return jsonResult(entry);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_reply_to_discussion_entry",
         description: "Reply to an existing discussion entry. Requires educator permissions.",
         inputSchema: z.object({
@@ -145,26 +143,26 @@ export const discussionTools: ToolDef[] = [
             entry_id: canvasIdSchema,
             message: z.string(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const reply = await canvas.post(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}/entries/${args.entry_id}/replies`,
                 { message: args.message },
             );
             return jsonResult(reply);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_discussion_topic",
         description: "Delete a discussion topic from a course. Requires educator permissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             topic_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/discussion_topics/${args.topic_id}`,
             );
             return jsonResult(result);
         },
-    },
+    }),
 ];

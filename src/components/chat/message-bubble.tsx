@@ -71,7 +71,7 @@ const SourcesBlock: FC<{
   sources: { id: string; title: string }[];
   retrieval?: Message["retrieval"];
 }> = ({ sources, retrieval }) => {
-  const { t = (key: string) => key } = useI18n();
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   if (!sources || sources.length === 0) return null;
 
@@ -157,7 +157,7 @@ export const TypingDots: FC = () => (
 // This makes the action feel dispatched instead of changing the interface.
 // Disable it briefly so a double-click does not show two toasts.
 const CopyMessageButton: FC<{ content: string }> = ({ content }) => {
-  const { t = (key: string) => key } = useI18n();
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
 
   const handleCopy = async () => {

@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => { const sqlMock = vi.fn(); sqlMock.mockResolvedValue([]); return { default: sqlMock }; });
+type TestRouteHandler = (
+  request: NextRequest,
+  context: unknown,
+) => Promise<Response>;
+
+vi.mock("@/database/pgsql", () => { const sqlMock = vi.fn(); sqlMock.mockResolvedValue([]); return { default: sqlMock }; });
 vi.mock("@/lib/api-error", () => ({
   ApiError: class ApiError extends Error {
     statusCode: number;
@@ -13,10 +18,10 @@ vi.mock("@/lib/api-error", () => ({
     }
   },
   requireAuth: vi.fn(),
-  withErrorHandler: (handler: any) => handler,
+  withErrorHandler: (handler: TestRouteHandler) => handler,
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { GET } from "@/app/api/planner/items/route";
 
