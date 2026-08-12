@@ -192,7 +192,7 @@ class DownloadPrivacyTests(unittest.TestCase):
                 url = f"http://127.0.0.1:{server.server_port}/{secret}"
                 (root / "urls").write_text(url + "\n")
                 result = subprocess.run(
-                    ["node", str(ROOT / "scripts/marker-bench-download.mjs"), str(root / "urls"), str(root / "pdfs"), str(root / "downloads.jsonl")],
+                    ["node", "--experimental-strip-types", str(ROOT / "scripts/marker-bench-download.ts"), str(root / "urls"), str(root / "pdfs"), str(root / "downloads.jsonl")],
                     text=True, capture_output=True, check=False,
                 )
                 combined = result.stdout + result.stderr + (root / "downloads.jsonl").read_text()

@@ -24,6 +24,17 @@ export interface TreeItemModel extends TreeItem {
   children: string[];
 }
 
+/** The shallow, immutable shape returned by the tree-children endpoint. */
+export interface TreeItemSummary {
+  id: string;
+  title?: string;
+  isFolder?: boolean;
+  isExpanded?: boolean;
+  s3Key?: string | null;
+  mimeType?: string | null;
+  pinned?: number;
+}
+
 export interface TreeModel extends TreeData {
   rootId: string;
   items: Record<string, TreeItemModel>;
@@ -41,10 +52,30 @@ export const DEFAULT_TREE: TreeModel = {
   },
 };
 
-export interface MovePosition {
+export interface TreeMovePosition {
   parentId: string;
   index: number;
 }
+
+export interface TreeMoveRequest {
+  source: TreeMovePosition;
+  destination: TreeMovePosition;
+}
+
+export interface TreeExpansionRequest {
+  id: string;
+  isExpanded: boolean;
+}
+
+export type TreeMutationRequest =
+  | { action: "move"; data: TreeMoveRequest }
+  | { action: "mutate"; data: TreeExpansionRequest };
+
+/** Fields the client may update locally without widening the server contract. */
+export type TreeItemUpdate = Pick<
+  Partial<TreeItemModel>,
+  "data" | "isExpanded" | "isFolder"
+>;
 
 function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
   const newItems = { ...tree.items };
@@ -72,18 +103,16 @@ function addItem(tree: TreeModel, id: string, pid = ROOT_ID) {
 
 function mutateItem(tree: TreeModel, id: string, data: Partial<TreeItemModel>) {
   const existingItem = tree.items[id];
-
-  if (data.data && existingItem?.data) {
-    data.data = {
-      ...existingItem.data,
-      ...data.data,
-    };
-  }
+  const mergedData =
+    data.data && existingItem?.data
+      ? { ...existingItem.data, ...data.data }
+      : data.data;
 
   const newItems = { ...tree.items };
   newItems[id] = {
     ...existingItem,
     ...data,
+    ...(mergedData && { data: mergedData }),
     id,
     children: data.children ?? existingItem?.children ?? [],
   } as TreeItemModel;
@@ -109,8 +138,8 @@ function removeItem(tree: TreeModel, id: string) {
 
 function moveItem(
   tree: TreeModel,
-  source: MovePosition,
-  destination?: MovePosition,
+  source: TreeMovePosition,
+  destination?: TreeMovePosition,
 ) {
   if (!destination) {
     return tree;
@@ -158,16 +187,6 @@ function moveItem(
   };
 
   return newTree;
-}
-
-/**
- * remove from original parent node, add to new parent node
- */
-function restoreItem(tree: TreeModel, id: string, pid = ROOT_ID) {
-  tree = removeItem(tree, id);
-  tree = addItem(tree, id, pid);
-
-  return tree;
 }
 
 function deleteItem(tree: TreeModel, id: string) {
@@ -275,7 +294,6 @@ const TreeActions = {
   mutateItem,
   removeItem,
   moveItem,
-  restoreItem,
   deleteItem,
   flattenTree,
   makeHierarchy,

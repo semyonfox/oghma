@@ -3,7 +3,7 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { auth } from "@/auth";
 import { generateTraceId, getTraceId } from "@/lib/trace";
 
@@ -13,6 +13,7 @@ export interface SessionUser {
 }
 
 export type JWTPayload = Record<string, unknown>;
+type JsonObject = Record<string, unknown>;
 
 // jwt
 
@@ -138,6 +139,15 @@ export async function validateSession(
   return null;
 }
 
+/**
+ * Return the authenticated account identifier for routes that do not need the
+ * rest of the session record. The lookup still verifies that the account is
+ * active and has not been deleted.
+ */
+export async function getAuthenticatedUserId(): Promise<string | null> {
+  return (await validateSession())?.user_id ?? null;
+}
+
 // response formatting
 
 function responseTraceId(): string {
@@ -168,7 +178,7 @@ export function createErrorResponse(
   );
 }
 
-export function createValidationErrorResponse(errors: unknown[]): NextResponse {
+export function createValidationErrorResponse(errors: unknown): NextResponse {
   return NextResponse.json(
     {
       success: false,
@@ -206,7 +216,7 @@ export async function createAuthSession(
 
 export async function parseJsonBody(
   request: Request,
-): Promise<{ data: any; error: NextResponse | null }> {
+): Promise<{ data: JsonObject | null; error: NextResponse | null }> {
   const contentType = request.headers.get("content-type");
   if (!contentType || !contentType.includes("application/json")) {
     return {
@@ -216,8 +226,14 @@ export async function parseJsonBody(
   }
 
   try {
-    const data = await request.json();
-    return { data, error: null };
+    const value: unknown = await request.json();
+    return {
+      data:
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as JsonObject)
+          : null,
+      error: null,
+    };
   } catch (_parseError) {
     return {
       data: null,

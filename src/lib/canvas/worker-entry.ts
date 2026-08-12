@@ -1,19 +1,21 @@
 /**
  * Canvas Worker Entry Point
  *
- * Queue workers for canvas-import + extract-retry queues, plus a DB safety-net
- * that reclaims jobs whose enqueue dropped (atomic UPDATE claims queued orphans).
+ * Queue consumers plus DB recovery polls for lost publications and stale
+ * claims. New extraction retries share the Canvas import queue; the dedicated
+ * retry consumer remains active to drain compatible messages already there.
  *
  * Run: npx tsx src/lib/canvas/worker-entry.ts
  */
 
-import sql from "../../database/pgsql.js";
+import sql from "../../database/pgsql";
 import {
   CANVAS_IMPORT_QUEUE,
   CHAT_GENERATION_QUEUE,
   EXTRACT_RETRY_QUEUE,
   MARKER_DISPATCH_QUEUE,
   ackCloudflareQueueMessages,
+  cloudflareAttemptsMade,
   enqueueCanvasJob,
   getQueueProvider,
   getQueueConnection,
@@ -38,7 +40,7 @@ import {
   processMarkerFailed,
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
-import { processVaultExport } from "../vault/export-worker.js";
+import { processVaultExport } from "../vault/export-worker";
 import { cleanupMarketingData } from "../marketing/retention";
 import {
   processPendingNoteDeletionCleanup,
@@ -47,6 +49,13 @@ import {
 } from "../notes/storage/note-lifecycle";
 import { dispatchFairCanvasFiles } from "./import-scheduler";
 import { runImportedFileCacheRetention } from "./import-cache-retention";
+import {
+  canvasJobType,
+  dispatchCanvasJob,
+  requireJobString,
+  type CanvasJob,
+  type CanvasJobData,
+} from "./job-dispatch";
 
 const STUCK_JOB_THRESHOLD = "1 hour";
 const STUCK_JOB_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -77,37 +86,8 @@ const CF_QUEUE_EMPTY_POLL_INTERVAL_MS = parseInt(
   10,
 );
 
-type CanvasJobData = Record<string, unknown>;
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function requireJobData(job: { data?: CanvasJobData }): CanvasJobData {
-  if (!job.data) {
-    throw new Error("Job data is missing");
-  }
-  return job.data;
-}
-
-function requireString(data: CanvasJobData, field: string): string {
-  const value = data[field];
-  if (typeof value !== "string") {
-    throw new Error(`Job data field ${field} is missing or invalid`);
-  }
-  return value;
-}
-
-function requireCanvasFileData(data: CanvasJobData): {
-  importRecordId: string;
-  jobId: string;
-  userId: string;
-} {
-  return {
-    importRecordId: requireString(data, "importRecordId"),
-    jobId: requireString(data, "jobId"),
-    userId: requireString(data, "userId"),
-  };
 }
 
 async function failStuckJobs(): Promise<void> {
@@ -241,66 +221,28 @@ async function claimOrphanedJobs(): Promise<boolean> {
   return true;
 }
 
-export async function processCanvasJob(job: {
-  data?: Record<string, unknown>;
-  name?: string;
-  id?: string;
-  attemptsMade?: number;
-}): Promise<void> {
+export async function processCanvasJob(job: CanvasJob): Promise<void> {
   const ts = () => new Date().toISOString();
   const data = job.data ?? {};
-  const type = typeof data.type === "string" ? data.type : job.name;
+  const type = canvasJobType(job);
   console.log(
     `[${ts()}] Received ${type}: ${data.jobId ?? data.userId ?? job.id}`,
   );
 
-  switch (type) {
-    case "canvas-discover":
-      await processDiscoverJob(
-        requireString(requireJobData(job), "jobId"),
-        typeof job.attemptsMade === "number" && Number.isFinite(job.attemptsMade)
-          ? job.attemptsMade
-          : 0,
-      );
-      return;
-    case "canvas-file":
-      await processCanvasFile({
-        ...requireCanvasFileData(requireJobData(job)),
-        attempt:
-          typeof job.attemptsMade === "number" && Number.isFinite(job.attemptsMade)
-          ? job.attemptsMade
-          : 0,
-      });
-      return;
-    // legacy message type — kept for any in-flight messages during deploy
-    case "canvas-import":
-      await processImportJob(requireString(requireJobData(job), "jobId"));
-      return;
-    case "extract":
-      await processDirectExtraction(requireJobData(job));
-      return;
-    case "extract-retry":
-      await processExtractionRetry(requireJobData(job));
-      return;
-    case "marker-complete":
-      await processMarkerComplete(requireJobData(job));
-      return;
-    case "marker-failed":
-      await processMarkerFailed(requireJobData(job));
-      return;
-    case "marker-dispatch":
-      await dispatchMarkerJob(
-        requireString(requireJobData(job), "callbackId"),
-      );
-      return;
-    case "vault-export":
-      await processVaultExport(requireJobData(job));
-      return;
-    case "vault-import":
-      await processVaultImport(requireJobData(job));
-      return;
-    default:
-      console.warn(`[${ts()}] Unknown job type: ${type}`);
+  const handled = await dispatchCanvasJob(job, {
+    processDiscoverJob,
+    processCanvasFile,
+    processImportJob,
+    processDirectExtraction,
+    processExtractionRetry,
+    processMarkerComplete,
+    processMarkerFailed,
+    dispatchMarkerJob,
+    processVaultExport,
+    processVaultImport,
+  });
+  if (!handled) {
+    console.warn(`[${ts()}] Unknown job type: ${type}`);
   }
 }
 
@@ -361,7 +303,7 @@ function cloudflareJobFromMessage(message: CloudflarePulledMessage): {
     id: message.id,
     name: type,
     data,
-    attemptsMade: message.attempts,
+    attemptsMade: cloudflareAttemptsMade(message.attempts),
   };
 }
 
@@ -449,7 +391,7 @@ async function startBullMqWorkers(): Promise<void> {
   const chatWorker = new Worker(
     CHAT_GENERATION_QUEUE,
     async (job) => {
-      const generationId = requireString(job.data ?? {}, "generationId");
+      const generationId = requireJobString(job.data ?? {}, "generationId");
       await processChatGeneration(
         generationId,
         job.attemptsStarted,

@@ -4,7 +4,7 @@
 >
 > Audience: Maintainers and deployment operators
 >
-> Last verified: 2026-07-11 against `AGENTS.md` and `Jenkinsfile`
+> Last verified: 2026-08-12 against `Jenkinsfile` and current runtime paths
 
 This repository must not contain live credentials. It may contain only
 obviously non-secret examples and templates.

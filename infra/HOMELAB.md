@@ -4,7 +4,7 @@
 >
 > Audience: Deployment operators and application maintainers
 >
-> Last verified: 2026-07-11 against `AGENTS.md`, `Jenkinsfile`, and runtime paths
+> Last verified: 2026-08-12 against `Jenkinsfile` and runtime paths
 
 Production and development currently run as Docker containers on the homelab
 behind Cloudflare tunnels. This file describes what runs now. Future provider
@@ -83,7 +83,7 @@ environments:
 2. Build app and worker images in parallel.
 3. Run the disposable E2E smoke suite.
 4. Verify that `oghma-qdrant` and its persistent volume are available.
-5. Run `node scripts/prebuild-migrate.mjs` in the app image using
+5. Run `node --experimental-strip-types scripts/prebuild-migrate.ts` in the app image using
    `MIGRATION_DATABASE_URL`.
 6. Drain pending extraction retries with the worker image.
 7. Start an app candidate named with the Jenkins build number and verify its
@@ -186,4 +186,4 @@ Do not use retired AWS commands or edit migrations to imitate a rollback.
 - [Import worker runbook](../docs/operations/import-worker.md)
 - [Target hosting ADR](TARGET_HOSTING.md)
 - `Jenkinsfile`
-- `scripts/prebuild-migrate.mjs`
+- `scripts/prebuild-migrate.ts`

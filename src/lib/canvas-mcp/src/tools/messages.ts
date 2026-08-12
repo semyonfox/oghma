@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const messageTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_conversations",
         description:
             "List conversations (inbox) for the authenticated user. Optionally filter by scope (unread, starred, archived, sent) and filter[].",
@@ -13,7 +13,7 @@ export const messageTools: ToolDef[] = [
             filter: z.array(z.string()).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const conversations = await canvas.collectPaginated("/api/v1/conversations", {
                 per_page: 100,
                 ...(args.scope ? { scope: args.scope } : {}),
@@ -22,22 +22,22 @@ export const messageTools: ToolDef[] = [
             });
             return jsonResult(conversations);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_conversation",
         description: "Get full details for a single conversation by ID.",
         inputSchema: z.object({
             conversation_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const conversation = await canvas.get(`/api/v1/conversations/${args.conversation_id}`, {
                 ...(args.include ? { include: args.include } : {}),
             });
             return jsonResult(conversation);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_unread_count",
         description: "Get the number of unread conversations in the authenticated user's inbox.",
         inputSchema: z.object({}),
@@ -45,8 +45,8 @@ export const messageTools: ToolDef[] = [
             const result = await canvas.get("/api/v1/conversations/unread_count", {});
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_mark_conversation_read",
         description:
             "Mark a conversation as read (or set another workflow_state). Safe self-state toggle only.",
@@ -54,20 +54,18 @@ export const messageTools: ToolDef[] = [
             conversation_id: canvasIdSchema,
             workflow_state: z.enum(["read", "unread", "archived"]).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const state = args.workflow_state ?? "read";
             const result = await canvas.put(`/api/v1/conversations/${args.conversation_id}`, {
                 conversation: { workflow_state: state },
             });
             return jsonResult(result);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable sending, replying, bulk messaging, and deletion.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_send_conversation",
         description: "Send a new conversation (message) to one or more recipients. Requires educator permissions.",
         inputSchema: z.object({
@@ -76,7 +74,7 @@ export const messageTools: ToolDef[] = [
             body: z.string(),
             context_code: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.post("/api/v1/conversations", {
                 recipients: args.recipients,
                 body: args.body,
@@ -85,8 +83,8 @@ export const messageTools: ToolDef[] = [
             });
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_reply_to_conversation",
         description: "Add a reply message to an existing conversation. Requires educator permissions.",
         inputSchema: z.object({
@@ -94,7 +92,7 @@ export const messageTools: ToolDef[] = [
             body: z.string(),
             recipients: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.post(
                 `/api/v1/conversations/${args.conversation_id}/add_message`,
                 {
@@ -104,8 +102,8 @@ export const messageTools: ToolDef[] = [
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_send_bulk_messages",
         description: "Send a message to multiple recipients at once. Requires educator permissions.",
         inputSchema: z.object({
@@ -115,7 +113,7 @@ export const messageTools: ToolDef[] = [
             context_code: z.string().optional(),
             bulk_message: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.post("/api/v1/conversations", {
                 recipients: args.recipients,
                 body: args.body,
@@ -125,16 +123,16 @@ export const messageTools: ToolDef[] = [
             });
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_conversation",
         description: "Delete a conversation by ID. Requires educator permissions.",
         inputSchema: z.object({
             conversation_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(`/api/v1/conversations/${args.conversation_id}`);
             return jsonResult(result);
         },
-    },
+    }),
 ];

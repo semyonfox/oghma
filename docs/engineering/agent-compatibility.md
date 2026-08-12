@@ -5,7 +5,7 @@
 > Audience: Product, web, API, security, and growth maintainers
 >
 > Last verified: 2026-07-12 against `src/app`, `src/proxy.ts`, and
-> `src/lib/public/agent-content.js`
+> `src/lib/public/agent-content.ts`
 
 OghmaNotes should be inexpensive for assistants to understand and safe for
 user-delegated agents to operate. Those are separate goals:
@@ -43,7 +43,7 @@ All rows below describe current code, not desired future behavior.
 | `/agent-api.json`, `/openapi.json` | Public OpenAPI 3.1 JSON aliases for the documented agent surface. Operations include IDs, tags, security hints, and agent-safety metadata. This is not a promise that every app API is autonomous-agent safe. | Discovery |
 | `/agent-sitemap.xml` | Lists the agent-resource paths from `AGENT_RESOURCE_PATHS`. | Discovery |
 | `/sitemap.xml` | Includes public product pages, agent resources, blog posts, and the syntax guide. | Discovery |
-| `/robots.txt` | Generated from `src/app/robots.js`; points to both sitemaps and emits the user-agent list owned by current code. | Discovery policy |
+| `/robots.txt` | Generated from `src/app/robots.ts`; points to both sitemaps and emits the user-agent list owned by current code. | Discovery policy |
 
 The direct Markdown routes emit route-specific canonical/alternate HTTP `Link`
 headers. The root HTML layout advertises the compact Markdown profile,
@@ -101,7 +101,7 @@ without corresponding code and tests.
   moderation path before delivery.
 - Treat `robots.txt` as crawler guidance, not access control or secrecy.
 - Verify vendor crawler names and policies against current official sources
-  before changing `src/app/robots.js`; this document does not define them.
+before changing `src/app/robots.ts`; this document does not define them.
 
 ## Content Rules
 
@@ -142,10 +142,10 @@ Run these after changing public agent surfaces:
 
 The implementation sources of truth are:
 
-- `src/lib/public/agent-content.js` for the canonical profile, resource map,
+- `src/lib/public/agent-content.ts` for the canonical profile, resource map,
   OpenAPI-shaped guide, and agent sitemap;
 - `src/proxy.ts` for Markdown negotiation;
-- `src/app/robots.js` and `src/app/sitemap.js` for generated discovery policy;
+- `src/app/robots.ts` and `src/app/sitemap.ts` for generated discovery policy;
 - the actual API routes and their tests for action behavior.
 
 Update this reference in the same change when those boundaries change. Keep

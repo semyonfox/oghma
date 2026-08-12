@@ -1,7 +1,7 @@
 # Local setup
 
 > **Status:** Current developer guide
-> **Last reviewed:** 2026-07-11
+> **Last reviewed:** 2026-08-12
 > **Source of truth for:** Running OghmaNotes locally
 
 Use `npm` for every package and script command.
@@ -17,7 +17,7 @@ Use `npm` for every package and script command.
 This path starts PostgreSQL, Redis, Qdrant, MinIO, Mailpit, and a deterministic fake AI provider. It uses synthetic data and does not need production credentials.
 
 ```bash
-npm install
+npm ci
 cp .env.mock.example .env.mock
 npm run mock:up
 npm run mock:seed
@@ -60,9 +60,14 @@ At minimum, configure these groups for the features you exercise:
 | AI | LLM, embedding, rerank, and optional OCR/Marker provider settings |
 | Email | Cloudflare Email Sending account/token/from-address settings when testing real mail |
 
-Start the background worker in a second terminal when testing imports or vault jobs:
+Start the background worker in a second terminal when testing imports or vault jobs.
+The worker does not load `.env.local` itself, so load the same configuration as
+the app first:
 
 ```bash
+set -a
+. ./.env.local
+set +a
 npm run worker
 ```
 
@@ -76,7 +81,8 @@ npm run worker
 | `npm run build` | Create a production build |
 | `npm run start` | Run the production build |
 | `npm run lint` | Run ESLint |
-| `npm run test:ci` | Run the test suite once |
+| `npm run lint:all` | Run the fast repository-wide quality gate |
+| `npm run test:ci` | Run root and Canvas MCP Vitest suites once |
 | `npm run test:integration` | Run integration tests against configured test services |
 | `npm run e2e:smoke` | Run the Playwright smoke suite |
 | `npm run migrate` | Apply migrations using the migration connection |
@@ -90,3 +96,4 @@ npm run worker
 - **Schema errors appear:** apply migrations with the intended migration connection; never point a migration command at an unverified database.
 
 Deployment is intentionally out of scope here. See [infra/HOMELAB.md](infra/HOMELAB.md) for the running environment and [docs/operations/import-worker.md](docs/operations/import-worker.md) for workload-specific operations.
+For suite scope and disposable-service safety, use [the testing workflow](docs/engineering/testing.md).

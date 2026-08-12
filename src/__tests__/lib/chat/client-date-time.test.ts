@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeClientDateTime } from "@/lib/chat/client-date-time";
+import {
+  formatClientDateTime,
+  normalizeClientDateTime,
+} from "@/lib/chat/client-date-time";
 
 describe("normalizeClientDateTime", () => {
   it("accepts ISO timestamps with offset and optional zone annotation", () => {
@@ -16,5 +19,19 @@ describe("normalizeClientDateTime", () => {
     expect(normalizeClientDateTime("2026-07-08T12:34:56")).toBeUndefined();
     expect(normalizeClientDateTime("x".repeat(97))).toBeUndefined();
     expect(normalizeClientDateTime(null)).toBeUndefined();
+  });
+});
+
+describe("formatClientDateTime", () => {
+  it("emits the local timestamp contract without an inline request builder", () => {
+    const date = new Date(2026, 6, 8, 12, 34, 56);
+    const offsetMinutes = -date.getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const hours = String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, "0");
+    const minutes = String(Math.abs(offsetMinutes) % 60).padStart(2, "0");
+
+    expect(formatClientDateTime(date, "Europe/Dublin")).toBe(
+      `2026-07-08T12:34:56${sign}${hours}:${minutes}[Europe/Dublin]`,
+    );
   });
 });

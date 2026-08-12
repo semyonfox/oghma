@@ -109,7 +109,7 @@ const SidebarListItem: FC<{
       event.stopPropagation();
 
       // Get button position to show menu nearby
-      const button = event.currentTarget as HTMLElement;
+      const button = event.currentTarget;
       const rect = button.getBoundingClientRect();
 
       // Create synthetic right-click event with button position
@@ -118,7 +118,7 @@ const SidebarListItem: FC<{
         cancelable: true,
         clientX: rect.left,
         clientY: rect.bottom + 4, // Position menu below button
-      }) as any;
+      });
 
       // Dispatch on the wrapper element to trigger right-click menu
       if (itemElementRef.current) {
@@ -129,7 +129,7 @@ const SidebarListItem: FC<{
   );
 
   const handleClickIcon = useCallback(
-    (e: React.MouseEvent) => {
+    (e: Pick<React.SyntheticEvent, "preventDefault" | "stopPropagation">) => {
       e.preventDefault();
       e.stopPropagation();
       onToggle();
@@ -242,7 +242,7 @@ const SidebarListItem: FC<{
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    handleClickIcon(e as any);
+                    handleClickIcon(e);
                   }
                 }}
               >

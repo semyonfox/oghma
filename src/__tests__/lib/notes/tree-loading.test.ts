@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_TREE } from "@/lib/notes/types/tree";
+import { DEFAULT_TREE, ROOT_ID } from "@/lib/notes/types/tree";
 
 const mocks = vi.hoisted(() => ({
   setItem: vi.fn().mockResolvedValue(undefined),
@@ -29,8 +29,8 @@ describe("note tree loading state", () => {
       pinnedTree: structuredClone(DEFAULT_TREE),
       initLoaded: false,
       loading: false,
+      loadingChildren: new Set<string>(),
       treeAPI: null,
-      noteAPI: null,
       toast: null,
     });
   });
@@ -44,7 +44,10 @@ describe("note tree loading state", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
-    useNoteTreeStore.getState().setDependencies({ fetch }, {}, toast);
+    useNoteTreeStore.getState().setDependencies(
+      { fetch, fetchChildren: vi.fn(), mutate: vi.fn() },
+      toast,
+    );
 
     await useNoteTreeStore.getState().initTree();
 
@@ -60,6 +63,26 @@ describe("note tree loading state", () => {
     consoleError.mockRestore();
   });
 
+  it("does not cache an empty tree when the API returned no response", async () => {
+    const toast = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    useNoteTreeStore.getState().setDependencies(
+      {
+        fetch: vi.fn().mockResolvedValue(undefined),
+        fetchChildren: vi.fn(),
+        mutate: vi.fn(),
+      },
+      toast,
+    );
+
+    await useNoteTreeStore.getState().initTree();
+
+    expect(useNoteTreeStore.getState().initLoaded).toBe(false);
+    expect(mocks.setItem).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Error loading notes", "error");
+    consoleError.mockRestore();
+  });
+
   it("deduplicates refreshes while a tree request is in flight", async () => {
     let resolveFetch!: (value: { items: never[] }) => void;
     const fetch = vi.fn(
@@ -68,7 +91,10 @@ describe("note tree loading state", () => {
           resolveFetch = resolve;
         }),
     );
-    useNoteTreeStore.getState().setDependencies({ fetch }, {}, vi.fn());
+    useNoteTreeStore.getState().setDependencies(
+      { fetch, fetchChildren: vi.fn(), mutate: vi.fn() },
+      vi.fn(),
+    );
 
     const firstLoad = useNoteTreeStore.getState().initTree();
     const duplicateLoad = useNoteTreeStore.getState().initTree();
@@ -81,5 +107,67 @@ describe("note tree loading state", () => {
 
     expect(useNoteTreeStore.getState().loading).toBe(false);
     expect(useNoteTreeStore.getState().initLoaded).toBe(true);
+  });
+
+  it("keeps concurrent folder loads and their loading states independent", async () => {
+    const pending = new Map<
+      string,
+      (value: { items: Array<{ id: string; title: string }> }) => void
+    >();
+    const fetchChildren = vi.fn(
+      (parentId: string | null) =>
+        new Promise<{ items: Array<{ id: string; title: string }> }>(
+          (resolve) => {
+            pending.set(parentId ?? ROOT_ID, resolve);
+          },
+        ),
+    );
+    useNoteTreeStore.setState({
+      tree: {
+        rootId: ROOT_ID,
+        items: {
+          [ROOT_ID]: { id: ROOT_ID, children: ["folder-a", "folder-b"] },
+          "folder-a": { id: "folder-a", children: [] },
+          "folder-b": { id: "folder-b", children: [] },
+        },
+      },
+      pinnedTree: structuredClone(DEFAULT_TREE),
+    });
+    useNoteTreeStore
+      .getState()
+      .setDependencies(
+        { fetch: vi.fn(), fetchChildren, mutate: vi.fn() },
+        vi.fn(),
+      );
+
+    const loadA = useNoteTreeStore.getState().loadChildren("folder-a");
+    const loadB = useNoteTreeStore.getState().loadChildren("folder-b");
+
+    expect([...useNoteTreeStore.getState().loadingChildren]).toEqual([
+      "folder-a",
+      "folder-b",
+    ]);
+
+    pending.get("folder-a")!({
+      items: [{ id: "a-child", title: "A child" }],
+    });
+    await loadA;
+
+    expect([...useNoteTreeStore.getState().loadingChildren]).toEqual([
+      "folder-b",
+    ]);
+    expect(useNoteTreeStore.getState().tree.items["folder-a"].children).toEqual([
+      "a-child",
+    ]);
+
+    pending.get("folder-b")!({
+      items: [{ id: "b-child", title: "B child" }],
+    });
+    await loadB;
+
+    const { tree, loadingChildren } = useNoteTreeStore.getState();
+    expect([...loadingChildren]).toEqual([]);
+    expect(tree.items["folder-a"].children).toEqual(["a-child"]);
+    expect(tree.items["folder-b"].children).toEqual(["b-child"]);
   });
 });

@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 import { ensureRedisReady, redis, redisReady } from '@/lib/redis';
 import { RATE_LIMITS, type RateLimitRule } from '@/lib/rateLimitConfig';
 import { Metrics } from '@/lib/metrics';
-import sql from '@/database/pgsql.js';
+import sql from '@/database/pgsql';
 import logger from '@/lib/logger';
 
 // in-memory fallback for when redis is unavailable

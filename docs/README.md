@@ -1,7 +1,7 @@
 # Documentation
 
 > **Status:** Current navigation map
-> **Last reviewed:** 2026-08-04
+> **Last reviewed:** 2026-08-12
 > **Source of truth for:** Which document owns each kind of project information
 
 Use this page to find the owner of a fact. Link to that owner instead of copying its content into another checklist or handover.
@@ -43,6 +43,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
 | [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
 | [Performance](engineering/performance.md) | Repeatable performance-audit workflow and evidence rules |
+| [Testing](engineering/testing.md) | Suite scopes, fast checks, and disposable-service verification |
 | [Demo flow](engineering/demo-flow.md) | Product walkthrough without duplicating architecture |
 | [Agent compatibility](engineering/agent-compatibility.md) | Verified discovery/action surfaces and agent-safety gaps |
 | [Architecture history](engineering/architecture-history.md) | Short infrastructure evolution record; not current operations |

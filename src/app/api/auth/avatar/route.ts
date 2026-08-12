@@ -1,7 +1,6 @@
 // avatar API route - handles profile picture upload and retrieval
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { validateSession } from "@/lib/auth";
+import { getAuthenticatedUserId } from "@/lib/auth";
 import { getStorageProvider } from "@/lib/storage/init";
 import {
   getSettingsFromS3,
@@ -10,17 +9,6 @@ import {
 import logger from "@/lib/logger";
 import { assertTrustedOrigin } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
-
-/** resolve user_id from either Auth.js (OAuth) or custom JWT session */
-async function resolveUserId(): Promise<string | number | null> {
-  const authJsSession = await auth();
-  if (authJsSession?.user?.id) return authJsSession.user.id;
-
-  const jwtUser = await validateSession();
-  if (jwtUser?.user_id) return jwtUser.user_id;
-
-  return null;
-}
 
 const ALLOWED_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -79,13 +67,13 @@ function detectMimeFromBytes(bytes: Uint8Array): string | null {
 
 export async function GET() {
   try {
-    const userId = await resolveUserId();
+    const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const settings = await getSettingsFromS3(userId as number);
-    const avatarKey: string | undefined = settings.avatarKey;
+    const settings = await getSettingsFromS3(userId);
+    const { avatarKey } = settings;
 
     if (!avatarKey) {
       return NextResponse.json({ avatarUrl: null });
@@ -110,7 +98,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     assertTrustedOrigin(request);
-    const userId = await resolveUserId();
+    const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -150,9 +138,9 @@ export async function POST(request: NextRequest) {
     await storage.putObject(avatarKey, buffer, { contentType: detectedMime! });
 
     // persist key in settings JSON (merge with existing settings)
-    const currentSettings = await getSettingsFromS3(userId as number);
-    const previousAvatarKey: string | undefined = currentSettings.avatarKey;
-    await saveSettingsToS3(userId as number, { ...currentSettings, avatarKey });
+    const currentSettings = await getSettingsFromS3(userId);
+    const { avatarKey: previousAvatarKey } = currentSettings;
+    await saveSettingsToS3(userId, { ...currentSettings, avatarKey });
 
     if (previousAvatarKey && previousAvatarKey !== avatarKey) {
       try {

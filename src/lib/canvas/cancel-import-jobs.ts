@@ -4,7 +4,7 @@
  * durable result is prevented from being indexed after cancellation.
  */
 export async function cancelActiveCanvasImportJobs(
-  tx: any,
+  tx: postgres.TransactionSql,
   userId: string,
   reason: string,
 ): Promise<Array<{ id: string }>> {
@@ -14,7 +14,7 @@ export async function cancelActiveCanvasImportJobs(
   await tx`
     SELECT pg_advisory_xact_lock(hashtext(${`oghma-canvas-import:${userId}`}))
   `;
-  const cancelled = await tx`
+  const cancelled = await tx<{ id: string }[]>`
     UPDATE app.canvas_import_jobs
     SET status = 'cancelled', completed_at = NOW(), updated_at = NOW()
     WHERE user_id = ${userId}::uuid
@@ -22,7 +22,7 @@ export async function cancelActiveCanvasImportJobs(
       AND status IN ('queued', 'discovering', 'processing')
     RETURNING id
   `;
-  const jobIds = cancelled.map((job: { id: string }) => job.id);
+  const jobIds = cancelled.map((job) => job.id);
   if (jobIds.length === 0) return [];
 
   // Lock and cancel Marker work before its Canvas rows. Completion and
@@ -53,5 +53,6 @@ export async function cancelActiveCanvasImportJobs(
       AND imported.user_id = ingestion.user_id
       AND ingestion.status NOT IN ('done', 'failed', 'cancelled')
   `;
-  return cancelled as Array<{ id: string }>;
+  return cancelled;
 }
+import type postgres from "postgres";

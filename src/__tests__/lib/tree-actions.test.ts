@@ -6,6 +6,7 @@ import TreeActions, {
   makeHierarchy,
   ROOT_ID,
 } from "@/lib/notes/types/tree";
+import { NOTE_DELETED, NOTE_PINNED, NOTE_SHARED } from "@/lib/notes/types/meta";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,15 @@ describe("TreeActions.deleteItem", () => {
 // ─── mutateItem ─────────────────────────────────────────────────────────────
 
 describe("TreeActions.mutateItem", () => {
+  const noteData = {
+    id: "a",
+    title: "First",
+    deleted: NOTE_DELETED.NORMAL,
+    shared: NOTE_SHARED.PRIVATE,
+    pinned: NOTE_PINNED.UNPINNED,
+    isFolder: false,
+  };
+
   it("merges data onto an existing item", () => {
     let tree = treeWith(["a"]);
     tree = TreeActions.mutateItem(tree, "a", { isExpanded: true });
@@ -90,12 +100,28 @@ describe("TreeActions.mutateItem", () => {
   it("deep merges data field", () => {
     let tree = treeWith(["a"]);
     tree = TreeActions.mutateItem(tree, "a", {
-      data: { id: "a", title: "First", isFolder: false },
-    } as any);
+      data: noteData,
+    });
     tree = TreeActions.mutateItem(tree, "a", {
-      data: { id: "a", title: "Updated", isFolder: false },
-    } as any);
-    expect((tree.items["a"] as any).data.title).toBe("Updated");
+      data: { ...noteData, title: "Updated" },
+    });
+    expect(tree.items["a"].data?.title).toBe("Updated");
+  });
+
+  it("does not mutate the caller's update object", () => {
+    let tree = treeWith(["a"]);
+    tree = TreeActions.mutateItem(tree, "a", {
+      data: noteData,
+    });
+    const update = {
+      data: { ...noteData, title: "Updated" },
+    };
+
+    TreeActions.mutateItem(tree, "a", update);
+
+    expect(update).toEqual({
+      data: { ...noteData, title: "Updated" },
+    });
   });
 });
 
@@ -234,20 +260,5 @@ describe("cleanTreeModel", () => {
     });
     expect(tree.items.root.children).toEqual(["a"]);
     expect(tree.items.root.children).not.toContain("ghost");
-  });
-});
-
-// ─── restoreItem ────────────────────────────────────────────────────────────
-
-describe("TreeActions.restoreItem", () => {
-  it("moves an item from its current parent to a new one", () => {
-    let tree = DEFAULT_TREE;
-    tree = TreeActions.addItem(tree, "folder");
-    tree = TreeActions.addItem(tree, "item");
-
-    tree = TreeActions.restoreItem(tree, "item", "folder");
-
-    expect(tree.items.root.children).not.toContain("item");
-    expect(tree.items["folder"].children).toContain("item");
   });
 });

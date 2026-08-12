@@ -178,4 +178,36 @@ describe("DataExportSection vault import", () => {
     ).toBe(false);
     expect(FakeXMLHttpRequest.instances).toHaveLength(0);
   });
+
+  it("keeps a useful error when the upload service returns a non-JSON failure", async () => {
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = requestUrl(input);
+        if (url === "/api/calendar/token") return jsonResponse({ token: null });
+        if (url.startsWith("/api/vault/status")) {
+          return jsonResponse({ job: null, downloadUrl: null, progress: null });
+        }
+        if (url === "/api/vault/import" && init?.method === "POST") {
+          return new Response("upstream unavailable", { status: 502 });
+        }
+        throw new Error(`Unexpected fetch: ${init?.method || "GET"} ${url}`);
+      },
+    );
+
+    render(React.createElement(DataExportSection));
+    const input = document.querySelector(
+      "#vault-import-file",
+    ) as HTMLInputElement;
+    setSelectedFile(
+      input,
+      new File(["zip"], "Backup.zip", { type: "application/zip" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.toast.error).toHaveBeenCalledWith(
+        "Failed to get upload URL",
+      );
+    });
+    expect(input.value).toBe("");
+  });
 });

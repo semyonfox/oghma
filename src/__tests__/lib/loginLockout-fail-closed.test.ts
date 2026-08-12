@@ -54,7 +54,7 @@ describe("login lockout fail-closed mode", () => {
   });
 
   it("blocks login rate checks when the store is unavailable", async () => {
-    const { isRateLimited } = await import("@/lib/loginLockout.js");
+    const { isRateLimited } = await import("@/lib/loginLockout");
 
     await expect(isRateLimited("user@example.com")).resolves.toBe(true);
     expect(redisState.ensureReady).toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe("login lockout fail-closed mode", () => {
     const {
       AuthLockoutStoreUnavailableError,
       recordFailedAttempt,
-    } = await import("@/lib/loginLockout.js");
+    } = await import("@/lib/loginLockout");
 
     await expect(recordFailedAttempt("user@example.com")).rejects.toBeInstanceOf(
       AuthLockoutStoreUnavailableError,
@@ -93,7 +93,7 @@ describe("login lockout fail-closed mode", () => {
     const {
       AuthLockoutStoreUnavailableError,
       recordFailedAttempt,
-    } = await import("@/lib/loginLockout.js");
+    } = await import("@/lib/loginLockout");
 
     await expect(recordFailedAttempt("user@example.com")).rejects.toBeInstanceOf(
       AuthLockoutStoreUnavailableError,
@@ -110,7 +110,7 @@ describe("login lockout fail-closed mode", () => {
   it("uses Redis when lazy readiness succeeds", async () => {
     redisState.ensureReady.mockResolvedValueOnce(true);
 
-    const { isRateLimited } = await import("@/lib/loginLockout.js");
+    const { isRateLimited } = await import("@/lib/loginLockout");
 
     await expect(isRateLimited("user@example.com")).resolves.toBe(false);
     expect(redisState.ensureReady).toHaveBeenCalled();

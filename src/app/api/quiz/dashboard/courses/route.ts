@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 import { withErrorHandler, tracedError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
+import sql from '@/database/pgsql';
+
+interface CourseRow {
+    canvas_course_id: string | number;
+    course_name: string | null;
+    total_cards: number;
+    due_count: number;
+    mastered_count: number;
+    is_active: boolean;
+}
 
 export const GET = withErrorHandler(async (request) => {
     const user = await validateSession();
@@ -10,7 +19,7 @@ export const GET = withErrorHandler(async (request) => {
     const userId = user.user_id;
     const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "1";
 
-    const courses = await sql`
+    const courses = await sql<CourseRow[]>`
         SELECT
             n.canvas_course_id,
             COALESCE(
@@ -47,7 +56,7 @@ export const GET = withErrorHandler(async (request) => {
         ORDER BY due_count DESC, total_cards DESC
     `;
 
-    const result = courses.map((c: any) => ({
+    const result = courses.map((c) => ({
         courseId: String(c.canvas_course_id),
         courseName: c.course_name,
         totalCards: c.total_cards,

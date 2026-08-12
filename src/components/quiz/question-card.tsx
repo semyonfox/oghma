@@ -3,18 +3,19 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { BLOOM_NAMES } from "@/lib/quiz/types";
-import type { BloomLevel } from "@/lib/quiz/types";
+import type { QuizSessionQuestion } from "@/lib/quiz/types";
 import { isFillAnswerCorrect } from "@/lib/quiz/fill-answer";
 import QuizMarkdown from "./quiz-markdown";
 
 interface QuestionCardProps {
-  question: {
-    question_text: string;
-    question_type: string;
-    bloom_level: BloomLevel;
-    options: { text: string; is_correct: boolean }[] | null;
-    correct_answer: string;
-  };
+  question: Pick<
+    QuizSessionQuestion,
+    | "question_text"
+    | "question_type"
+    | "bloom_level"
+    | "options"
+    | "correct_answer"
+  >;
   moduleName?: string;
   onAnswer: (answer: string, wasCorrect: boolean) => void;
 }

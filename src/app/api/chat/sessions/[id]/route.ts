@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { isValidUUID } from "@/lib/utils/uuid";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
+import {
+  ApiError,
+  parseJsonObject,
+  requireAuth,
+  requireValidId,
+  tracedError,
+  withErrorHandler,
+} from "@/lib/api-error";
 import { normalizeChatSessionContext } from "@/lib/chat/session";
-import sql from "@/database/pgsql.js";
-import logger from "@/lib/logger";
+import sql from "@/database/pgsql";
 import {
   loadOwnedChatGeneration,
   requestChatGenerationCancel,
@@ -13,33 +17,29 @@ import {
 const GENERATION_STOP_TIMEOUT_MS = 6_000;
 const GENERATION_STOP_POLL_MS = 100;
 
-type AuthResult =
-  | { error: NextResponse }
-  | { user: { user_id: string }; id: string };
-
-async function authenticate(
+async function authenticateSessionRequest(
   params: Promise<{ id: string }>,
-): Promise<AuthResult> {
-  const user = await validateSession();
-  if (!user) return { error: tracedError("Unauthorized", 401) };
+): Promise<{ userId: string; sessionId: string }> {
+  const user = await requireAuth();
   const { id } = await params;
-  if (!isValidUUID(id))
-    return { error: tracedError("Invalid session id", 400) };
-  return { user: user as { user_id: string }, id };
+  return {
+    userId: user.user_id,
+    sessionId: requireValidId(id, "session id"),
+  };
 }
 
 async function stopActiveSessionGenerations(
   sessionId: string,
   userId: string,
 ): Promise<boolean> {
-  const active = await sql`
+  const active = await sql<Array<{ id: string }>>`
     SELECT id
     FROM app.chat_generations
     WHERE session_id = ${sessionId}::uuid
       AND user_id = ${userId}::uuid
       AND status IN ('queued', 'generating')
   `;
-  const generationIds = active.map((row: { id: string }) => row.id);
+  const generationIds = active.map((row) => row.id);
   if (generationIds.length === 0) return true;
 
   await Promise.all(
@@ -79,38 +79,36 @@ export const GET = withErrorHandler(
     { params }: { params: Promise<{ id: string }> },
   ) => {
     try {
-      const auth = await authenticate(params);
-      if ("error" in auth) return auth.error;
-      const { user, id } = auth;
+      const { userId, sessionId } = await authenticateSessionRequest(params);
 
       const sessions = await sql`
-            SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context,
-                   s.generation_status, s.created_at, s.updated_at,
-                   (
-                     SELECT g.id FROM app.chat_generations g
-                     WHERE g.session_id = s.id
-                       AND g.status IN ('queued', 'generating')
-                     ORDER BY g.created_at DESC LIMIT 1
-                   ) AS active_generation_id
-            FROM app.chat_sessions s
-            LEFT JOIN app.notes n
-              ON n.note_id = s.note_id
-             AND n.user_id = s.user_id
-             AND n.deleted_at IS NULL
-            WHERE s.id = ${id}::uuid AND s.user_id = ${user.user_id}::uuid
-        `;
+        SELECT s.id, s.title, s.note_id, n.title AS note_title, s.context,
+               s.generation_status, s.created_at, s.updated_at,
+               (
+                 SELECT g.id FROM app.chat_generations g
+                 WHERE g.session_id = s.id
+                   AND g.status IN ('queued', 'generating')
+                 ORDER BY g.created_at DESC LIMIT 1
+               ) AS active_generation_id
+        FROM app.chat_sessions s
+        LEFT JOIN app.notes n
+          ON n.note_id = s.note_id
+         AND n.user_id = s.user_id
+         AND n.deleted_at IS NULL
+        WHERE s.id = ${sessionId}::uuid AND s.user_id = ${userId}::uuid
+      `;
       if (sessions.length === 0) {
         return tracedError("Session not found", 404);
       }
 
       const messages = await sql`
-            SELECT m.id, m.role, m.content, m.parts, m.sources, m.metadata, m.created_at
-            FROM app.chat_messages m
-            JOIN app.chat_sessions s ON s.id = m.session_id
-            WHERE m.session_id = ${id}::uuid
-              AND s.user_id = ${user.user_id}::uuid
-            ORDER BY m.created_at
-        `;
+        SELECT m.id, m.role, m.content, m.parts, m.sources, m.metadata, m.created_at
+        FROM app.chat_messages m
+        JOIN app.chat_sessions s ON s.id = m.session_id
+        WHERE m.session_id = ${sessionId}::uuid
+          AND s.user_id = ${userId}::uuid
+        ORDER BY m.created_at
+      `;
 
       return NextResponse.json({
         session: {
@@ -120,8 +118,12 @@ export const GET = withErrorHandler(
         messages,
       });
     } catch (error) {
-      logger.error("chat session GET error", { error });
-      return tracedError("Failed to fetch session", 500);
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(
+        500,
+        "Failed to fetch session",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   },
 );
@@ -132,10 +134,8 @@ export const PATCH = withErrorHandler(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> },
   ) => {
-    const auth = await authenticate(params);
-    if ("error" in auth) return auth.error;
-    const { user, id } = auth;
-    const body = await req.json();
+    const { userId, sessionId } = await authenticateSessionRequest(params);
+    const body = await parseJsonObject(req);
     const title = typeof body.title === "string" ? body.title.trim() : undefined;
     const pinned = typeof body.pinned === "boolean" ? body.pinned : undefined;
 
@@ -150,20 +150,20 @@ export const PATCH = withErrorHandler(
       ? await sql`
           UPDATE app.chat_sessions
           SET title = ${title}, pinned = ${pinned}, updated_at = NOW()
-          WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+          WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
           RETURNING id, title, pinned, updated_at
         `
       : title !== undefined
         ? await sql`
             UPDATE app.chat_sessions
             SET title = ${title}, updated_at = NOW()
-            WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+            WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
             RETURNING id, title, pinned, updated_at
           `
         : await sql`
             UPDATE app.chat_sessions
             SET pinned = ${pinned!}, updated_at = NOW()
-            WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
+            WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
             RETURNING id, title, pinned, updated_at
           `;
 
@@ -179,19 +179,28 @@ export const DELETE = withErrorHandler(
     { params }: { params: Promise<{ id: string }> },
   ) => {
     try {
-      const auth = await authenticate(params);
-      if ("error" in auth) return auth.error;
-      const { user, id } = auth;
+      const { userId, sessionId } = await authenticateSessionRequest(params);
 
-      if (!(await stopActiveSessionGenerations(id, user.user_id))) {
+      if (!(await stopActiveSessionGenerations(sessionId, userId))) {
         return tracedError("Chat generation is still stopping", 409);
       }
 
       const deleted = await sql`
-            DELETE FROM app.chat_sessions
-            WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-            RETURNING id
-        `;
+        WITH owned_session AS MATERIALIZED (
+          SELECT id
+          FROM app.chat_sessions
+          WHERE id = ${sessionId}::uuid AND user_id = ${userId}::uuid
+        ),
+        deleted_messages AS (
+          DELETE FROM app.chat_messages m
+          USING owned_session s
+          WHERE m.session_id = s.id
+        )
+        DELETE FROM app.chat_sessions s
+        USING owned_session owned
+        WHERE s.id = owned.id
+        RETURNING s.id
+      `;
 
       if (deleted.length === 0) {
         return tracedError("Session not found", 404);
@@ -199,8 +208,12 @@ export const DELETE = withErrorHandler(
 
       return NextResponse.json({ success: true });
     } catch (error) {
-      logger.error("chat session DELETE error", { error });
-      return tracedError("Failed to delete session", 500);
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(
+        500,
+        "Failed to delete session",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   },
 );

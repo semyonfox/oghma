@@ -23,6 +23,7 @@ export type MessagePart =
   | { type: "error"; text: string };
 
 export interface MessageMetadata {
+  [key: string]: string | number | boolean | undefined;
   thinking?: string;
   thinkingDuration?: number;
   finishReason?: string;

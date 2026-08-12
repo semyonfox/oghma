@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+type TestRouteHandler = (
+  request: NextRequest,
+  context: unknown,
+) => Promise<Response>;
+
 const mocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
@@ -11,8 +16,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api-error", () => ({
   requireAuth: mocks.requireAuth,
   withErrorHandler:
-    (handler: (...args: any[]) => Promise<Response>) =>
-    async (...args: any[]) => handler(...args),
+    (handler: TestRouteHandler) =>
+    async (request: NextRequest, context?: unknown) => handler(request, context),
   ApiError: class extends Error {
     constructor(
       public statusCode: number,
@@ -31,7 +36,7 @@ vi.mock("@/lib/cache", () => ({
   },
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 
 import { GET } from "@/app/api/tree/children/route";
 
@@ -86,5 +91,22 @@ describe("GET /api/tree/children", () => {
       "Week 10",
     ]);
     expect(mocks.sql).not.toHaveBeenCalled();
+  });
+
+  it("does not serve a cached child list when its parent is trashed", async () => {
+    mocks.cacheGet.mockResolvedValue({
+      parentId: "folder-1",
+      items: [{ id: "child-1", title: "Should not leak" }],
+    });
+    mocks.sql.mockResolvedValue([]);
+
+    await expect(
+      GET(
+        new NextRequest(
+          "http://localhost/api/tree/children?parent_id=11111111-1111-1111-1111-111111111111",
+        ),
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(mocks.cacheGet).not.toHaveBeenCalled();
   });
 });

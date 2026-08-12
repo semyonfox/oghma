@@ -10,14 +10,18 @@ const mocks = vi.hoisted(() => {
   return { sql, tx };
 });
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/cache", () => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
   cacheKeys: { treeFull: vi.fn() },
 }));
 
-import { moveNoteInTree, TreeCycleError } from "@/lib/notes/storage/pg-tree.js";
+import {
+  moveNoteInTree,
+  TreeCycleError,
+  TreeParentError,
+} from "@/lib/notes/storage/pg-tree";
 
 function queryText(call: unknown[]): string {
   return (call[0] as TemplateStringsArray).join(" ");
@@ -32,42 +36,82 @@ describe("moveNoteInTree", () => {
     );
   });
 
-  it("locks, checks, and updates the tree in one transaction", async () => {
-    mocks.tx
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { note_id: "folder", parent_id: null },
-        { note_id: "child", parent_id: "folder" },
-      ])
-      .mockResolvedValueOnce([]);
+  it("moves an active note at root while serializing the user tree", async () => {
+    mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
+      const query = strings.join(" ");
+      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
+        return [{ note_id: "child" }];
+      }
+      if (query.includes("SELECT note_id, parent_id")) {
+        return [
+          { note_id: "folder", parent_id: null },
+          { note_id: "child", parent_id: "folder" },
+        ];
+      }
+      if (query.includes("UPDATE app.tree_items")) {
+        return [{ note_id: "child" }];
+      }
+      return [];
+    });
 
-    await moveNoteInTree("user-1", "child", null);
+    await expect(moveNoteInTree("user-1", "child", null)).resolves.toBeUndefined();
 
-    expect(mocks.sql.begin).toHaveBeenCalledOnce();
-    expect(mocks.tx).toHaveBeenCalledTimes(3);
-    expect(queryText(mocks.tx.mock.calls[0])).toContain(
-      "pg_advisory_xact_lock",
+    const queries = mocks.tx.mock.calls.map(queryText);
+    expect(queries.some((query) => query.includes("pg_advisory_xact_lock"))).toBe(
+      true,
     );
-    expect(queryText(mocks.tx.mock.calls[1])).toContain("FOR UPDATE");
-    expect(queryText(mocks.tx.mock.calls[2])).toContain(
-      "UPDATE app.tree_items",
+    expect(queries.some((query) => query.includes("deleted_at IS NULL"))).toBe(
+      true,
+    );
+    expect(queries.some((query) => query.includes("UPDATE app.tree_items"))).toBe(
+      true,
     );
   });
 
-  it("rejects moving a folder beneath its descendant before updating", async () => {
-    mocks.tx.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      { note_id: "folder", parent_id: null },
-      { note_id: "child", parent_id: "folder" },
-    ]);
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+  it("rejects a non-folder or unavailable destination before changing the tree", async () => {
+    mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
+      const query = strings.join(" ");
+      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
+        return [{ note_id: "child" }];
+      }
+      if (query.includes("is_folder = TRUE")) return [];
+      return [];
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      moveNoteInTree("user-1", "child", "not-a-folder"),
+    ).rejects.toBeInstanceOf(TreeParentError);
+
+    expect(
+      mocks.tx.mock.calls.some((call) =>
+        queryText(call).includes("UPDATE app.tree_items"),
+      ),
+    ).toBe(false);
+    consoleError.mockRestore();
+  });
+
+  it("rejects a cycle before changing the tree", async () => {
+    mocks.tx.mockImplementation((strings: TemplateStringsArray) => {
+      const query = strings.join(" ");
+      if (query.includes("FROM app.notes") && query.includes("FOR UPDATE")) {
+        return [{ note_id: "folder" }];
+      }
+      if (query.includes("is_folder = TRUE")) return [{ note_id: "child" }];
+      if (query.includes("SELECT note_id, parent_id")) {
+        return [
+          { note_id: "folder", parent_id: null },
+          { note_id: "child", parent_id: "folder" },
+        ];
+      }
+      return [];
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
       moveNoteInTree("user-1", "folder", "child"),
     ).rejects.toBeInstanceOf(TreeCycleError);
 
-    expect(mocks.tx).toHaveBeenCalledTimes(2);
     expect(
       mocks.tx.mock.calls.some((call) =>
         queryText(call).includes("UPDATE app.tree_items"),

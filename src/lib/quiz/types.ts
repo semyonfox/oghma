@@ -4,6 +4,11 @@ export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type FilterType = 'course' | 'module' | 'note' | 'search' | 'chat_session' | 'all';
 export type FSRSRating = 1 | 2 | 3 | 4; // again, hard, good, easy
 
+export interface QuizOption {
+    text: string;
+    is_correct: boolean;
+}
+
 export const BLOOM_NAMES: Record<BloomLevel, string> = {
     1: 'Remember',
     2: 'Understand',
@@ -34,9 +39,67 @@ export interface QuizQuestion {
     question_type: QuestionType;
     bloom_level: BloomLevel;
     question_text: string;
-    options: { text: string; is_correct: boolean }[] | null;
+    options: QuizOption[] | null;
     correct_answer: string;
     explanation: string;
+}
+
+/**
+ * The client-facing question shape for an active session. It intentionally
+ * excludes database ownership fields and includes the card used for reviews.
+ */
+export interface QuizSessionQuestion extends Pick<
+    QuizQuestion,
+    | 'id'
+    | 'question_type'
+    | 'bloom_level'
+    | 'question_text'
+    | 'options'
+    | 'correct_answer'
+    | 'explanation'
+> {
+    card_id: string;
+    intervals?: Record<FSRSRating, number>;
+}
+
+export interface QuizSessionProgress {
+    answered: number;
+    total: number;
+    correct: number;
+}
+
+export interface QuizStreakResult {
+    advanced: boolean;
+    current_streak: number;
+    newMilestone: number | null;
+}
+
+export interface QuizSessionStartResponse {
+    sessionId: string;
+    totalQuestions: number;
+    cardIds: string[];
+    currentIndex: number;
+    question: QuizSessionQuestion | null;
+}
+
+export interface QuizSessionResumeResponse {
+    cardIds: string[];
+    currentIndex: number;
+    correct_count: number;
+    question: QuizSessionQuestion | null;
+}
+
+export interface QuizCardResponse {
+    question: QuizSessionQuestion;
+}
+
+export interface QuizAnswerResponse {
+    success: boolean;
+    nextQuestion: QuizSessionQuestion | null;
+    fatigueWarning: boolean;
+    isLeech: boolean;
+    streakResult: QuizStreakResult | null;
+    sessionProgress: QuizSessionProgress;
 }
 
 export interface QuizCard {

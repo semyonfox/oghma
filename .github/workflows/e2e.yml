@@ -149,7 +149,7 @@ jobs:
           done
 
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
-          node scripts/e2e/create-storage-bucket.mjs
+          node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
         run: |
@@ -167,7 +167,7 @@ jobs:
 
       - name: Start fake AI provider
         run: |
-          PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
+          PORT=8787 node --experimental-strip-types scripts/e2e/fake-ai-provider.ts > fake-ai.log 2>&1 &
           echo $! > fake-ai.pid
           for attempt in {1..30}; do
             if curl -fsS "http://127.0.0.1:8787/health" >/dev/null; then
@@ -281,7 +281,7 @@ jobs:
           done
 
           curl -fsS "${STORAGE_ENDPOINT}/minio/health/ready" >/dev/null
-          node scripts/e2e/create-storage-bucket.mjs
+          node --experimental-strip-types scripts/e2e/create-storage-bucket.ts
 
       - name: Start Qdrant
         run: |
@@ -299,7 +299,7 @@ jobs:
 
       - name: Start fake AI provider
         run: |
-          PORT=8787 node scripts/e2e/fake-ai-provider.mjs > fake-ai.log 2>&1 &
+          PORT=8787 node --experimental-strip-types scripts/e2e/fake-ai-provider.ts > fake-ai.log 2>&1 &
           echo $! > fake-ai.pid
           for attempt in {1..30}; do
             if curl -fsS "http://127.0.0.1:8787/health" >/dev/null; then

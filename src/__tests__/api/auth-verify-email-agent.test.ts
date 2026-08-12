@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 const { tx, sql } = vi.hoisted(() => {
   const transaction = vi.fn();
@@ -8,7 +9,7 @@ const { tx, sql } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/database/pgsql.js", () => ({ default: sql }));
+vi.mock("@/database/pgsql", () => ({ default: sql }));
 vi.mock("@/lib/auth", () => ({
   createAuthSession: vi.fn().mockResolvedValue(Response.json({ success: true })),
   createErrorResponse: (error: string, status = 400) =>
@@ -32,10 +33,10 @@ vi.mock("@/lib/marketing/events", () => ({
 }));
 
 import { createAuthSession } from "@/lib/auth";
-import { POST } from "@/app/api/auth/verify-email/route.js";
+import { POST } from "@/app/api/auth/verify-email/route";
 
 function request() {
-  return new Request("https://oghmanotes.ie/api/auth/verify-email", {
+  return new NextRequest("https://oghmanotes.ie/api/auth/verify-email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token: "verification-token" }),

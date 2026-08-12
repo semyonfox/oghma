@@ -1,8 +1,7 @@
-// chat session management: create/resolve sessions, persist messages
-
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { Metrics } from "@/lib/metrics";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
+import type postgres from "postgres";
 import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -127,26 +126,32 @@ export async function loadSessionContext(
   return normalizeChatSessionContext(rows[0]?.context);
 }
 
-async function saveSessionContext(
-  sessionId: string,
-  context: ChatSessionContext,
-): Promise<void> {
-  await sql`
-    UPDATE app.chat_sessions
-    SET context = ${JSON.stringify(context)}::jsonb,
-        updated_at = NOW()
-    WHERE id = ${sessionId}::uuid
-  `;
-}
-
 export async function updateSessionContext(
   sessionId: string,
   updater: (context: ChatSessionContext) => ChatSessionContext,
 ): Promise<ChatSessionContext> {
-  const current = await loadSessionContext(sessionId);
-  const next = normalizeChatSessionContext(updater(current));
-  await saveSessionContext(sessionId, next);
-  return next;
+  // Context updates can be triggered by more than one tool during a single
+  // generation. Locking the session row keeps their read-modify-write cycle
+  // serializable instead of silently dropping one update.
+  const database = sql as postgres.Sql;
+  return database.begin(async (tx) => {
+    const rows = await tx`
+      SELECT context
+      FROM app.chat_sessions
+      WHERE id = ${sessionId}::uuid
+      LIMIT 1
+      FOR UPDATE
+    `;
+    const current = normalizeChatSessionContext(rows[0]?.context);
+    const next = normalizeChatSessionContext(updater(current));
+    await tx`
+      UPDATE app.chat_sessions
+      SET context = ${JSON.stringify(next)}::jsonb,
+          updated_at = NOW()
+      WHERE id = ${sessionId}::uuid
+    `;
+    return next;
+  });
 }
 
 export async function setSessionScope(
@@ -229,31 +234,34 @@ export async function persistMessage(
   },
 ): Promise<void> {
   const messageId = generateUUID();
-  // default to wrapping content in a single text part — keeps user messages
-  // and any non-streaming callers in the same shape as streamed assistant
-  // messages, so the UI never needs a fallback path.
   const parts: MessagePart[] =
     options?.parts ?? (content ? [{ type: "text", text: content }] : []);
   const sources = options?.sources;
   const metadata = options?.metadata;
-  await sql`
-    INSERT INTO app.chat_messages(id, session_id, role, content, parts, sources, metadata)
-    VALUES(
-      ${messageId}::uuid,
-      ${sessionId}::uuid,
-      ${role},
-      ${content},
-      ${sql.json(parts)},
-      ${sources ? sql.json(sources) : null},
-      ${sql.json(metadata ?? {})}
-    )
-  `;
-  await sql`
-    UPDATE app.chat_sessions
-    SET generation_status = ${role === "user" ? "generating" : "idle"},
-        updated_at = NOW()
-    WHERE id = ${sessionId}::uuid
-  `;
+  const database = sql as postgres.Sql;
+
+  // The message and its session status form one observable state transition:
+  // restore/poll clients must never see one without the other.
+  await database.begin(async (tx) => {
+    await tx`
+      INSERT INTO app.chat_messages(id, session_id, role, content, parts, sources, metadata)
+      VALUES(
+        ${messageId}::uuid,
+        ${sessionId}::uuid,
+        ${role},
+        ${content},
+        ${tx.json(parts)},
+        ${sources ? tx.json(sources) : null},
+        ${tx.json(metadata ?? {})}
+      )
+    `;
+    await tx`
+      UPDATE app.chat_sessions
+      SET generation_status = ${role === "user" ? "generating" : "idle"},
+          updated_at = NOW()
+      WHERE id = ${sessionId}::uuid
+    `;
+  });
 }
 
 export async function markChatGenerationFailed(sessionId: string): Promise<void> {
@@ -264,7 +272,7 @@ export async function markChatGenerationFailed(sessionId: string): Promise<void>
   `;
 }
 
-// create a new session or verify an existing one belongs to the user
+/** Reuse an owned session or create one for a new conversation. */
 export async function resolveSession(
   userId: string,
   requestedSessionId: string | undefined,
@@ -293,10 +301,7 @@ export async function resolveSession(
   return sessionId;
 }
 
-/**
- * Load conversation history from DB for an existing session,
- * or fall back to the history sent in the request body.
- */
+/** Load the latest conversation window, in chronological order. */
 export async function loadHistory(
   sessionId: string,
   requestedSessionId: string | undefined,
@@ -307,14 +312,19 @@ export async function loadHistory(
     .slice(-MAX_HISTORY_MESSAGES);
 
   if (requestedSessionId && isValidUUID(requestedSessionId)) {
-    const dbMessages = await sql`
-      SELECT role, content FROM app.chat_messages
-      WHERE session_id = ${sessionId}::uuid
-      ORDER BY created_at
-      LIMIT ${MAX_HISTORY_MESSAGES}
+    const dbMessages = await sql<Array<{ role: string; content: string }>>`
+      SELECT role, content
+      FROM (
+        SELECT role, content, created_at
+        FROM app.chat_messages
+        WHERE session_id = ${sessionId}::uuid
+        ORDER BY created_at DESC
+        LIMIT ${MAX_HISTORY_MESSAGES}
+      ) recent
+      ORDER BY created_at ASC
     `;
     history = dbMessages
-      .map((m: { role: string; content: string }) => ({
+      .map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       }))

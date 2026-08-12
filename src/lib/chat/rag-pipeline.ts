@@ -1,12 +1,11 @@
-// RAG pipeline: semantic search, scope resolution, system prompt building
-
 import { embedText } from "@/lib/embedText";
 import { rerankChunks } from "@/lib/rerank";
 import { isValidUUID } from "@/lib/utils/uuid";
 import { xraySubsegment } from "@/lib/xray";
 import logger from "@/lib/logger";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { searchChunkVectors } from "@/lib/qdrant";
+import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
 
 export interface SearchResult {
   note_id: string;
@@ -20,7 +19,7 @@ export interface SearchResult {
 // ~0 = identical, ~0.3 = very similar, ~0.7 = weakly related
 const MAX_DISTANCE = 0.55;
 
-// search chunks+embeddings tables, joining back to notes for metadata
+// Resolve vector hits against current note data before building RAG context.
 export async function semanticSearch(
   userId: string,
   queryVector: number[],
@@ -36,32 +35,14 @@ export async function semanticSearch(
   });
   if (hits.length === 0) return [];
 
-  const chunkIds = hits.map((hit) => hit.chunkId);
-  const rows = await sql`
-    SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-    FROM app.chunks c
-    JOIN app.notes n ON n.note_id = c.document_id
-    WHERE c.user_id = ${userId}::uuid
-      AND c.id = ANY(${chunkIds}::uuid[])
-      AND n.deleted_at IS NULL
-  `;
-  const byChunkId = new Map<string, any>(
-    rows.map((row: any) => [row.chunk_id, row]),
-  );
-
-  return hits.flatMap((hit) => {
-    const row = byChunkId.get(hit.chunkId);
-    if (!row) return [];
-    return [
-      {
-        note_id: row.note_id,
-        title: row.title,
-        chunk_id: row.chunk_id,
-        chunk_text: row.chunk_text,
-        distance: hit.distance,
-      },
-    ];
-  });
+  const chunks = await hydrateOwnedNoteChunks(userId, hits);
+  return chunks.map((chunk) => ({
+    note_id: chunk.noteId,
+    title: chunk.title || "Untitled",
+    chunk_id: chunk.chunkId,
+    chunk_text: chunk.text,
+    distance: chunk.hit.distance,
+  }));
 }
 
 export function normalizeUuidList(value: unknown): string[] {

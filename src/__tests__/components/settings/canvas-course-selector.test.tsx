@@ -34,7 +34,7 @@ function renderSelector(overrides = {}) {
     selectedCourseIds: [],
     onToggleCourse: vi.fn(),
     onToggleSelectAll: vi.fn(),
-    getCourseStatus: (id: string) =>
+    getCourseStatus: (id: string | number): { status: "forbidden" | "synced"; error: null } =>
       id === "current-restricted"
         ? { status: "forbidden", error: null }
         : { status: "synced", error: null },

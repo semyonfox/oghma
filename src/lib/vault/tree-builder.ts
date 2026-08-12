@@ -3,7 +3,8 @@
  * Shared by import-worker and export-worker.
  */
 
-import sql from "../../database/pgsql.js";
+import type postgres from "postgres";
+import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
 
 // paths to skip during import
@@ -48,14 +49,14 @@ export class VaultTreeParentUnavailableError extends Error {
   }
 }
 
-async function lockUserTree(tx: any, userId: string): Promise<void> {
+async function lockUserTree(tx: postgres.TransactionSql, userId: string): Promise<void> {
   await tx`
     SELECT pg_advisory_xact_lock(hashtextextended(${userId}::text, 0))
   `;
 }
 
 export async function assertVaultImportJobActive(
-  tx: any,
+  tx: postgres.TransactionSql,
   userId: string,
   jobId: string | undefined,
 ): Promise<void> {
@@ -73,7 +74,7 @@ export async function assertVaultImportJobActive(
 }
 
 async function assertActiveParent(
-  tx: any,
+  tx: postgres.TransactionSql,
   userId: string,
   parentId: string | null,
 ): Promise<void> {
@@ -134,7 +135,7 @@ export async function findOrCreateVaultFolder(
   jobId?: string,
 ): Promise<string | null> {
   try {
-    return await sql.begin(async (tx: any) => {
+    return await sql.begin(async (tx: postgres.TransactionSql) => {
       // Use the same lock as Trash/Clear Vault so a background zip entry is
       // either visible to the destructive transaction or observes its job
       // cancellation before it creates a tree row.
@@ -186,7 +187,7 @@ export async function findOrCreateVaultFolder(
       throw err;
     }
     if (error.code === "23505") {
-      return sql.begin(async (tx: any) => {
+      return sql.begin(async (tx: postgres.TransactionSql) => {
         await lockUserTree(tx, userId);
         await assertVaultImportJobActive(tx, userId, jobId);
         await assertActiveParent(tx, userId, parentId);

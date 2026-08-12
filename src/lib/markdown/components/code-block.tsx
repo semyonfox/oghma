@@ -146,7 +146,7 @@ export default function CodeBlock({
   children,
   rawContent,
 }: CodeBlockProps) {
-  const { t = (key: string) => key } = useI18n();
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [highlighted, setHighlighted] = useState<HighlightedCode | null>(null);
   const [highlightError, setHighlightError] = useState(false);

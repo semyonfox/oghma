@@ -14,7 +14,7 @@ import Image from "next/image";
  * Both variants render and CSS picks one through the `dark` class variant. That
  * keeps the swap free of client JS, so it survives the manual theme toggle and
  * paints correctly on the first frame — the theme class is applied before paint
- * by the init script in `src/app/layout.js`, so there is no flash. The variant
+ * by the init script in `src/app/layout.tsx`, so there is no flash. The variant
  * that loses is `display:none`, which also drops it from the accessibility tree.
  */
 export default function BrandLogo({

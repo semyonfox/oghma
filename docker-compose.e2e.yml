@@ -76,7 +76,7 @@ services:
   fake-ai:
     image: node:22-alpine
     working_dir: /work
-    command: ["node", "scripts/e2e/fake-ai-provider.mjs"]
+    command: ["node", "--experimental-strip-types", "scripts/e2e/fake-ai-provider.ts"]
     ports:
       - "58181:8081"
     volumes:

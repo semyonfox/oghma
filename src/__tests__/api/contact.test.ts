@@ -11,7 +11,7 @@ const { mockSql, mockRateLimit, mockRecordMarketingEvent } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/database/pgsql.js", () => ({ default: mockSql }));
+vi.mock("@/database/pgsql", () => ({ default: mockSql }));
 vi.mock("@/lib/api-error", () => ({
   withErrorHandler:
     (handler: (request: NextRequest) => Promise<Response>) =>

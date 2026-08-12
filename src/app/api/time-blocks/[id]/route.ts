@@ -1,44 +1,55 @@
 import { NextResponse } from 'next/server';
-import { withErrorHandler, requireAuth, requireValidId, tracedError, ApiError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
+import {
+  withErrorHandler,
+  requireAuth,
+  requireValidId,
+  tracedError,
+  ApiError,
+  parseJson,
+  type RouteParamsContext,
+} from '@/lib/api-error';
+import sql from '@/database/pgsql';
 import { timeBlockUpdateSchema, validateBody } from '@/lib/validations/schemas';
+import { pomodoroCountForRange } from '@/lib/time-blocks';
+
+interface StoredTimeRange {
+  starts_at: string | Date;
+  ends_at: string | Date;
+}
 
 /**
  * PATCH /api/time-blocks/:id
  * Move or resize a time block.
  */
-export const PATCH = withErrorHandler(async (request, context: any) => {
+export const PATCH = withErrorHandler(async (
+  request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const { id } = await context.params;
   requireValidId(id);
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    throw new ApiError(400, 'Invalid JSON body');
-  }
-  const validation = validateBody(timeBlockUpdateSchema, rawBody);
+  const validation = validateBody(timeBlockUpdateSchema, await parseJson(request));
   if (!validation.success) return validation.response;
   const { starts_at, ends_at, assignment_id, title, completed } = validation.data;
 
   let pomodoroCount: number | undefined;
   if (starts_at || ends_at) {
-    const [existing] = await sql`
+    const [existing] = (await sql`
       SELECT starts_at, ends_at FROM app.time_blocks
       WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-    `;
+    `) as StoredTimeRange[];
     if (!existing) return tracedError('Not found', 404);
     const start = new Date(starts_at ?? existing.starts_at);
     const end = new Date(ends_at ?? existing.ends_at);
     if (end.getTime() <= start.getTime()) {
       throw new ApiError(400, 'End must be after start');
     }
-    pomodoroCount = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 60000 / 30));
+    pomodoroCount = pomodoroCountForRange(start, end);
   }
 
-  // verify new assignment_id belongs to the caller before linking (I3)
+  // Verify a newly linked assignment belongs to the caller.
   if (assignment_id) {
     const [owned] = await sql`
       SELECT 1 FROM app.assignments
@@ -61,7 +72,8 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
   const result = await sql`
     UPDATE app.time_blocks SET ${sql(updates, ...Object.keys(updates))}
     WHERE id = ${id}::uuid AND user_id = ${user.user_id}::uuid
-    RETURNING *
+    RETURNING id, user_id, assignment_id, title, starts_at, ends_at,
+              pomodoro_count, completed, created_at, updated_at
   `;
 
   if (result.length === 0) return tracedError('Not found', 404);
@@ -71,7 +83,10 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
 /**
  * DELETE /api/time-blocks/:id
  */
-export const DELETE = withErrorHandler(async (_request, context: any) => {
+export const DELETE = withErrorHandler(async (
+  _request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const { id } = await context.params;

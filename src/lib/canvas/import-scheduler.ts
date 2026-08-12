@@ -1,4 +1,5 @@
-import sql from "../../database/pgsql.js";
+import sql from "../../database/pgsql";
+import type postgres from "postgres";
 import { enqueueCanvasJob } from "../queue.ts";
 
 export type ImportServiceClass = "free" | "semester" | "academic_year";
@@ -80,12 +81,12 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
   if (recovered > 0) {
     console.warn(`Released ${recovered} stale Canvas dispatch lease(s)`);
   }
-  const selected = await sql.begin(async (tx: any) => {
+  const selected = await sql.begin(async (tx: postgres.TransactionSql) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('oghma-import-fair-dispatch'))`;
     const records: DispatchRecord[] = [];
 
     for (let slot = 0; slot < Math.max(0, limit); slot += 1) {
-      const eligibleRows = await tx`
+      const eligibleRows = await tx<{ service_class: ImportServiceClass }[]>`
         SELECT DISTINCT COALESCE(l.import_service_class, 'free') AS service_class
         FROM app.canvas_imports ci
         JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
@@ -101,15 +102,15 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
               AND active.status IN ('pending', 'downloading', 'processing', 'indexing')
           )
       `;
-      const eligible = eligibleRows.map((row: { service_class: ImportServiceClass }) => row.service_class);
+      const eligible = eligibleRows.map((row) => row.service_class);
       if (eligible.length === 0) break;
 
-      const stateRows = await tx`
+      const stateRows = await tx<{ service_class: ImportServiceClass; current_weight: number }[]>`
         SELECT service_class, current_weight FROM app.import_scheduler_classes
         FOR UPDATE
       `;
       const state = Object.fromEntries(
-        stateRows.map((row: { service_class: ImportServiceClass; current_weight: number }) => [
+        stateRows.map((row) => [
           row.service_class,
           Number(row.current_weight),
         ]),
@@ -125,7 +126,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         `;
       }
 
-      const [record] = await tx`
+      const [record] = await tx<DispatchRecord[]>`
         SELECT ci.id, ci.job_id, ci.user_id
         FROM app.canvas_imports ci
         JOIN app.canvas_import_jobs cij ON cij.id = ci.job_id
@@ -154,7 +155,7 @@ export async function dispatchFairCanvasFiles(limit = 10): Promise<number> {
         VALUES (${record.user_id}::uuid, NOW())
         ON CONFLICT (user_id) DO UPDATE SET last_dispatched_at = EXCLUDED.last_dispatched_at
       `;
-      records.push(record as DispatchRecord);
+      records.push(record);
     }
     return records;
   });

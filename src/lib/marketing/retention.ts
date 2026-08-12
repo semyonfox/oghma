@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 const DEFAULT_EVENT_RETENTION_DAYS = 30;
 const DEFAULT_LEAD_RETENTION_DAYS = 365;
@@ -31,7 +31,7 @@ export async function cleanupMarketingData(): Promise<MarketingCleanupResult> {
     DEFAULT_LEAD_RETENTION_DAYS,
   );
 
-  const [events, leads] = await sql.begin(async (tx: typeof sql) => {
+  const [events, leads] = await sql.begin(async (tx) => {
     const deletedEvents = await tx`
       DELETE FROM app.marketing_events
       WHERE occurred_at < NOW() - (${eventRetentionDays} * INTERVAL '1 day')

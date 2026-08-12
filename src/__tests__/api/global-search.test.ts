@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   return { default: sqlMock };
 });
@@ -37,7 +37,7 @@ vi.mock("@/lib/rateLimiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { validateSession } from "@/lib/auth";
 import { embedText } from "@/lib/embedText";
 import { searchChunkVectors } from "@/lib/qdrant";
@@ -67,7 +67,7 @@ describe("GET /api/global-search", () => {
             title: "Algorithms Note",
             snippet: "# Sorting and graphs",
           },
-        ]) as any;
+        ]);
       }
 
       if (text.includes("WITH course_stats") || text.includes("WITH hit_courses")) {
@@ -79,7 +79,7 @@ describe("GET /api/global-search", () => {
             due_count: 3,
             mastered_count: 6,
           },
-        ]) as any;
+        ]);
       }
 
       if (text.includes("FROM app.chunks c")) {
@@ -88,9 +88,10 @@ describe("GET /api/global-search", () => {
             note_id: "note-semantic",
             title: "Complexity Notes",
             chunk_id: "chunk-semantic",
-            snippet: "Big O and runtime analysis",
+            chunk_text: "Big O and runtime analysis",
+            canvas_course_id: null,
           },
-        ]) as any;
+        ]);
       }
 
       if (text.includes("FROM app.chat_sessions s") && text.includes("MAX(CASE")) {
@@ -101,10 +102,10 @@ describe("GET /api/global-search", () => {
             message_count: 4,
             snippet: "We discussed algorithms and proofs",
           },
-        ]) as any;
+        ]);
       }
 
-      return Promise.resolve([]) as any;
+      return Promise.resolve([]);
     });
   });
 

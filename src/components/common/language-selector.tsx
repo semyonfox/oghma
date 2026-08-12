@@ -11,8 +11,9 @@ import {
 } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { Locale, configLocale } from "@/locales";
+import { Locale, configLocale, normalizeLocale, supportedLocales } from "@/locales";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
+import { loadLocaleData } from "@/lib/i18n/locale-data";
 
 interface LanguageSelectorProps {
   variant?: "default" | "compact";
@@ -46,14 +47,11 @@ export default function LanguageSelector({
   const { t, locale, activeLocale } = useI18n();
   const { updateSettings } = useSettingsStore();
   const [query, setQuery] = useState("");
-  const [selectedLocale, setSelectedLocale] = useState<Locale | null>(
-    activeLocale as Locale,
-  );
 
-  const languages = Object.entries(configLocale).map(([code, name]) => ({
-    code: code as Locale,
-    name,
-    flag: localeFlags[code as Locale],
+  const languages = supportedLocales.map((code) => ({
+    code,
+    name: configLocale[code],
+    flag: localeFlags[code],
   }));
 
   const filteredLanguages =
@@ -67,17 +65,14 @@ export default function LanguageSelector({
 
   const handleLanguageChange = async (lang: Locale) => {
     try {
-      // Load the new locale file
-      const module = await import(`@/locales/${lang}.json`);
-      locale(lang, module.default);
+      const { dict } = await loadLocaleData(lang);
+      locale(lang, dict);
       document.cookie = `ogma-locale=${lang}; path=/; max-age=31536000; samesite=lax`;
       localStorage.setItem("ogma-locale", lang);
 
       // Persist the language preference to user settings
       await updateSettings({ locale: lang });
 
-      // Update local state
-      setSelectedLocale(lang);
       setQuery("");
 
       // Call custom callback if provided
@@ -88,7 +83,7 @@ export default function LanguageSelector({
   };
 
   const currentLanguage = languages.find(
-    (lang) => lang.code === selectedLocale,
+    (lang) => lang.code === activeLocale,
   );
 
   if (variant === "compact") {
@@ -101,8 +96,11 @@ export default function LanguageSelector({
           </label>
         )}
         <select
-          value={selectedLocale || activeLocale}
-          onChange={(e) => handleLanguageChange(e.target.value as Locale)}
+          value={activeLocale}
+          onChange={(event) => {
+            const nextLocale = normalizeLocale(event.currentTarget.value);
+            if (nextLocale) void handleLanguageChange(nextLocale);
+          }}
           className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none"
         >
           {languages.map((lang) => (
@@ -125,7 +123,7 @@ export default function LanguageSelector({
       )}
       <Combobox
         as="div"
-        value={selectedLocale}
+        value={activeLocale}
         onChange={(nextLocale) => {
           if (nextLocale) {
             handleLanguageChange(nextLocale);

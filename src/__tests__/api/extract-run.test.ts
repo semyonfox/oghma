@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => ({
+vi.mock("@/database/pgsql", () => ({
   default: vi.fn(() => Promise.resolve([])),
 }));
 
@@ -57,7 +57,7 @@ vi.mock("@/lib/rateLimiter", () => ({
   checkRateLimit: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { runExtraction } from "@/app/api/extract/route";
 

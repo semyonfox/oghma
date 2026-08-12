@@ -1,5 +1,5 @@
 -- oauth support: add profile columns to app.login and create oauth_accounts table
--- run with: node scripts/run-migration.mjs 002_oauth_accounts.sql
+-- run with: node --experimental-strip-types scripts/run-migration.ts 002_oauth_accounts.sql
 
 -- add oauth profile columns to app.login (used by auth-oauth.ts syncProfileToLogin)
 ALTER TABLE app.login

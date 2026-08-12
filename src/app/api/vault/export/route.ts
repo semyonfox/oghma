@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
+import type postgres from "postgres";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { enqueueCanvasJob } from "@/lib/queue";
+
+interface VaultJobIdRow {
+  id: string;
+}
 
 /**
  * POST /api/vault/export
  *
- * Creates a vault-export job and dispatches to SQS.
+ * Creates a vault-export job and dispatches it to the configured queue.
  * Returns 409 if an active export already exists; pass ?force=true to cancel and replace.
  * Response: { jobId }
  */
@@ -15,7 +20,7 @@ export const POST = withErrorHandler(async (request) => {
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "true";
 
-  const [existing] = await sql`
+  const [existing] = await sql<VaultJobIdRow[]>`
     SELECT id FROM app.canvas_import_jobs
     WHERE user_id = ${user.user_id}
       AND type = 'vault-export'
@@ -32,7 +37,7 @@ export const POST = withErrorHandler(async (request) => {
 
   // note: TOCTOU between SELECT and INSERT — concurrent double-submits could both create jobs.
   // acceptable for now (requires fast double-click); proper fix needs a unique partial index on (user_id, type) where status in ('queued','processing').
-  const jobId = await sql.begin(async (tx: any) => {
+  const jobId = await sql.begin(async (tx: postgres.TransactionSql) => {
     if (existing) {
       // also set cancel_requested_at so any running worker stops cooperatively
       await tx`
@@ -43,7 +48,7 @@ export const POST = withErrorHandler(async (request) => {
           AND status IN ('queued', 'processing')
       `;
     }
-    const [row] = await tx`
+    const [row] = await tx<VaultJobIdRow[]>`
       INSERT INTO app.canvas_import_jobs (user_id, type, status)
       VALUES (${user.user_id}::uuid, 'vault-export', 'queued')
       RETURNING id

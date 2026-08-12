@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   sendVaultExportCompleteEmail: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/storage/init.ts", () => ({
   getStorageProvider: mocks.getStorageProvider,
 }));
@@ -19,7 +19,7 @@ vi.mock("@/lib/storage/s3.ts", () => ({
 vi.mock("@/lib/vault/tree-builder", () => ({
   buildExportPathMap: mocks.buildExportPathMap,
 }));
-vi.mock("@/lib/email.js", () => ({
+vi.mock("@/lib/email", () => ({
   sendVaultExportCompleteEmail: mocks.sendVaultExportCompleteEmail,
 }));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
@@ -40,7 +40,7 @@ vi.mock("@aws-sdk/client-s3", () => {
 });
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { processVaultExport } from "@/lib/vault/export-worker.js";
+import { processVaultExport } from "@/lib/vault/export-worker";
 
 describe("processVaultExport", () => {
   beforeEach(() => {

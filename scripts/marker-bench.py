@@ -44,7 +44,7 @@ HARNESS_FILES = [
     "scripts/marker-aws-session.py",
     "scripts/marker-bench-artifacts.py",
     "scripts/marker-bench-collect.sh",
-    "scripts/marker-bench-download.mjs",
+    "scripts/marker-bench-download.ts",
     "scripts/marker-bench-finalize.sh",
     "scripts/marker-bench-prepare-instance.sh",
     "scripts/marker-bench-python.sh",

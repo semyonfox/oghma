@@ -1,5 +1,3 @@
-// scope normalization: resolves request params into a unified scope
-
 import { isValidUUID } from "@/lib/utils/uuid";
 import { normalizeUuidList, resolveScopedNoteIds } from "@/lib/chat/rag-pipeline";
 import type { ChatSessionContextItem, ChatSessionContext } from "@/lib/chat/session";
@@ -121,18 +119,16 @@ export async function normalizeScope(
     message,
   );
 
-  const persistedSessionContext = await loadSessionContext(sessionId);
-  const effectiveScope = hasExplicitScope
-    ? { notes: explicitScopedNotes, folders: explicitScopedFolders }
-    : persistedSessionContext.scope;
-
   const sessionContext = hasExplicitScope
     ? await setSessionScope(
         sessionId,
-        effectiveScope.notes,
-        effectiveScope.folders,
+        explicitScopedNotes,
+        explicitScopedFolders,
       )
-    : persistedSessionContext;
+    : await loadSessionContext(sessionId);
+  const effectiveScope = hasExplicitScope
+    ? { notes: explicitScopedNotes, folders: explicitScopedFolders }
+    : sessionContext.scope;
 
   const scopedInputNoteIds = effectiveScope.notes.map((item) => item.id);
   const scopedInputFolderIds = effectiveScope.folders.map((item) => item.id);

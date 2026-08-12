@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 export const DELETE = withErrorHandler(
   async (_request, { params }: { params: Promise<{ jobId: string }> }) => {

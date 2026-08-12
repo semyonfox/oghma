@@ -3,16 +3,31 @@
 // NOTE: Legacy note/tree storage migrated to PostgreSQL
 import { getStorageProvider } from "@/lib/storage/init";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
+import type { StoredSettings } from "@/lib/notes/types/settings";
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseStoredSettings(settingsJson: string): StoredSettings {
+  const parsed: unknown = JSON.parse(settingsJson);
+  if (!isObject(parsed)) return {};
+
+  const { avatarKey, ...settings } = parsed;
+  return typeof avatarKey === "string"
+    ? { ...settings, avatarKey }
+    : settings;
+}
 
 /**
  * Get user settings from S3 (cached in Redis for 5 minutes)
  */
 export async function getSettingsFromS3(
-  userId: string | number,
-): Promise<Record<string, any>> {
+  userId: string,
+): Promise<StoredSettings> {
   try {
     const key = cacheKeys.settings(userId);
-    const cached = await cacheGet<Record<string, any>>(key);
+    const cached = await cacheGet<StoredSettings>(key);
     if (cached) return cached;
 
     const storage = getStorageProvider();
@@ -21,7 +36,7 @@ export async function getSettingsFromS3(
     if (!settingsJson) {
       return {};
     }
-    const settings = JSON.parse(settingsJson) as Record<string, any>;
+    const settings = parseStoredSettings(settingsJson);
     await cacheSet(key, settings, 300);
     return settings;
   } catch (error) {
@@ -34,8 +49,8 @@ export async function getSettingsFromS3(
  * Save user settings to S3 (invalidates cache)
  */
 export async function saveSettingsToS3(
-  userId: string | number,
-  settings: Record<string, any>,
+  userId: string,
+  settings: StoredSettings,
 ): Promise<void> {
   try {
     const storage = getStorageProvider();

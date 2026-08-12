@@ -26,16 +26,20 @@ import { createLogger, Logger } from './logger';
 function isNoSuchKeyError(error: unknown): error is Error {
   if (!(error instanceof Error)) return false;
 
+  const { code, type } = error as Error & {
+    code?: unknown;
+    type?: unknown;
+  };
   const message = error.message.toLowerCase();
   const name = error.name.toLowerCase();
 
   return (
-    (error as any).code === 'NoSuchKey' ||
+    code === 'NoSuchKey' ||
     message.includes('nosuchkey') ||
     message.includes('not found') ||
     name.includes('nosuchkey') ||
     name.includes('notfound') ||
-    (error as any).type === 'NotFound'
+    type === 'NotFound'
   );
 }
 

@@ -11,7 +11,7 @@ export type MessageUpdate =
   | { type: "meta"; sessionId?: string; sources?: { id: string; title: string }[]; retrieval?: Message["retrieval"] }
   | { type: "search"; searchContext: SearchContextData }
   | { type: "thinking"; text: string }
-  | { type: "token"; text: string; thinkingDuration?: number }
+  | { type: "token"; text: string }
   | { type: "tool-call"; label: string; toolName: string; toolCallId?: string; detail?: string }
   | { type: "tool-result"; toolCallId: string; detail: string }
   | { type: "done" }

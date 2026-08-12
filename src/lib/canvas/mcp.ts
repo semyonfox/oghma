@@ -1,8 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodTypeAny } from "zod";
 import { CanvasClient } from "@/lib/canvas-mcp/src/canvas/client";
 import { allTools } from "@/lib/canvas-mcp/src/tools";
-import type { ToolDef } from "@/lib/canvas-mcp/src/tools/types";
+import {
+  executeTool,
+  type ToolDef,
+} from "@/lib/canvas-mcp/src/tools/types";
 
 export const disabledCanvasMcpToolNames = [
   // course / assignment authoring and grading
@@ -95,9 +99,17 @@ function tryParseJson(text: string): unknown | undefined {
   }
 }
 
+function asStructuredContent(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
 function normalizeToolOutput(
   toolResult: Awaited<ReturnType<ToolDef["handler"]>>,
-) {
+): CallToolResult {
   const content = toolResult.content.map((entry) => ({
     type: "text" as const,
     text: entry.text,
@@ -109,7 +121,9 @@ function normalizeToolOutput(
   }
 
   const firstText = content[0]?.text;
-  const structuredContent = firstText ? tryParseJson(firstText) : undefined;
+  const structuredContent = asStructuredContent(
+    firstText ? tryParseJson(firstText) : undefined,
+  );
   if (structuredContent !== undefined) {
     return { content, structuredContent };
   }
@@ -129,8 +143,8 @@ function registerCanvasTool(
       inputSchema: tool.inputSchema,
     },
     async (args: unknown) => {
-      const result = await tool.handler(args as never, { canvas: client });
-      return normalizeToolOutput(result) as any;
+      const result = await executeTool(tool, args, { canvas: client });
+      return normalizeToolOutput(result);
     },
   );
 }

@@ -1,5 +1,3 @@
-// SSE event helpers: send metadata, search results, tokens, and errors over the stream
-
 import { toSseEvent } from "@/lib/chat/sse";
 import { getTraceId } from "@/lib/trace";
 import type { SearchResult } from "@/lib/chat/rag-pipeline";
@@ -43,16 +41,7 @@ export function sendSearch(
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
 ): void {
-  send(writer, "search", {
-    query,
-    scopeSize: scopedNoteIds?.length ?? null,
-    resultsFound: searchResults.length,
-    results: searchResults.map((r) => ({
-      noteId: r.note_id,
-      title: r.title || "Untitled",
-      distance: r.distance,
-    })),
-  });
+  send(writer, "search", buildSearchContext(query, scopedNoteIds, searchResults));
 }
 
 export function sendToken(writer: SseWriter, text: string): void {
@@ -87,12 +76,7 @@ export function buildSearchContext(
   query: string | undefined,
   scopedNoteIds: string[] | null,
   searchResults: SearchResult[],
-): {
-  query?: string;
-  scopeSize: number | null;
-  resultsFound: number;
-  results: { noteId: string; title: string; distance: number }[];
-} {
+) {
   return {
     query,
     scopeSize: scopedNoteIds?.length ?? null,

@@ -6,7 +6,7 @@
  * from the AWS → homelab/RustFS migration) must return a clean 404 — never
  * an unhandled 500. Storage-backend failures must return 502.
  *
- * Strategy mirrors notes.test.js: mock DB/auth/storage at module level,
+ * Strategy mirrors notes.test.ts: mock DB/auth/storage at module level,
  * import the real route handler, call it with synthetic NextRequests.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -42,7 +42,7 @@ vi.mock("@/lib/config", () => ({
   config: { upload: { maxFileSizeBytes: 50 * 1024 * 1024 } },
 }));
 
-vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
+vi.mock("@/lib/notes/storage/pg-tree", () => ({
   addNoteToTree: vi.fn().mockResolvedValue(undefined),
 }));
 

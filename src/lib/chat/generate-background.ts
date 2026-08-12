@@ -1,41 +1,24 @@
-import {
-  streamText,
-  type FinishReason,
-  type ModelMessage,
-} from "ai";
+import { streamText, type ModelMessage } from "ai";
 import logger from "@/lib/logger";
 import { Metrics } from "@/lib/metrics";
 import {
-  runRagPipeline,
-  buildSystemPrompt,
-  buildPlainSystemPrompt,
-  runKeywordFallback,
-  type RagResult,
-} from "@/lib/chat/rag-pipeline";
-import {
   persistMessage,
-  type ChatSessionContext,
 } from "@/lib/chat/session";
-import type { MessageMetadata, MessagePart } from "@/lib/chat/types";
-import { labelForTool } from "@/lib/chat/tool-labels";
-import { noteSearchDetail, toolCallDetail, toolResultDetail } from "@/lib/chat/tool-display";
-import { buildSessionMemoryPrompt } from "@/lib/chat/normalize-scope";
-import {
-  buildRetrievalInfo,
-  buildFallbackReply,
-  type RetrievalInfo,
-} from "@/lib/chat/rag-context";
 import { buildLlmCall } from "@/lib/chat/build-stream";
-import {
-  shouldSynthesizeFinalAnswer,
-  streamFinalAnswer,
-} from "@/lib/chat/final-answer";
+import { prepareChatGeneration } from "@/lib/chat/prepare-generation";
+import { streamFinalAnswer } from "@/lib/chat/final-answer";
 import { recordActivationMilestone } from "@/lib/marketing/events";
+import { TOOL_CALL_LIMIT_USER_MESSAGE } from "@/lib/chat/tool-budget";
 import {
-  TOOL_CALL_LIMIT_USER_MESSAGE,
-  appendToolCallLimitMessage,
-  isToolCallLimitFinish,
-} from "@/lib/chat/tool-budget";
+  appendChatGenerationText,
+  applyChatGenerationEvent,
+  buildChatGenerationMetadata,
+  closeChatThinkingWindow,
+  createChatGenerationResult,
+  finalizeChatGenerationResult,
+  finishChatGenerationStep,
+  flushChatGenerationText,
+} from "@/lib/chat/generation-result";
 import {
   sendConnected,
   sendMeta,
@@ -67,21 +50,6 @@ import {
 import { toSseEvent } from "@/lib/chat/sse";
 
 const WATCHDOG_INTERVAL_MS = 5_000;
-
-const EMPTY_RAG_RESULT: RagResult = {
-  searchResults: [],
-  semanticMatches: [],
-  embeddingAvailable: false,
-  ragFailed: false,
-};
-
-const EMPTY_RETRIEVAL: RetrievalInfo = {
-  scopeMode: "global",
-  availableCount: 0,
-  availableFiles: [],
-  semanticHits: [],
-  usedFiles: [],
-};
 
 function redisWriter(generationId: string): SseWriter & { flush(): Promise<void> } {
   const decoder = new TextDecoder();
@@ -190,20 +158,22 @@ export async function processChatGeneration(
       await appendChatGenerationEvent(generationId, toSseEvent("reset", {}));
     }
     sendConnected(writer);
-    const ragResult = useRag
-      ? await runRagPipeline(userId, message, scope.scopedNoteIds)
-      : EMPTY_RAG_RESULT;
-    const fallbackResults =
-      useRag && scope.scopedNoteIds && ragResult.searchResults.length === 0
-        ? await runKeywordFallback(userId, message, scope.scopedNoteIds)
-        : [];
-    const systemPrompt = useRag
-      ? buildSystemPrompt([...ragResult.searchResults, ...fallbackResults])
-      : buildPlainSystemPrompt();
-    const sessionContext = scope.sessionContext as ChatSessionContext;
-    const { uniqueSources, retrieval } = useRag
-      ? await buildRetrievalInfo(userId, scope.scopedNoteIds, ragResult)
-      : { uniqueSources: [], retrieval: EMPTY_RETRIEVAL };
+    const sessionContext = scope.sessionContext;
+    const {
+      ragResult,
+      systemPrompt,
+      sessionMemoryPrompt,
+      uniqueSources,
+      retrieval,
+      initialParts,
+      fallbackReply,
+    } = await prepareChatGeneration({
+      userId,
+      message,
+      useRag,
+      scopedNoteIds: scope.scopedNoteIds,
+      sessionContext,
+    });
 
     const llm = await buildLlmCall({
       userId,
@@ -214,7 +184,7 @@ export async function processChatGeneration(
       history: scope.history,
       message,
       systemPrompt,
-      sessionMemoryPrompt: buildSessionMemoryPrompt(sessionContext),
+      sessionMemoryPrompt,
       thinkingMode,
       retrievalEnabled: useRag,
       clientDateTime: payload.clientDateTime,
@@ -227,13 +197,9 @@ export async function processChatGeneration(
     sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
 
     if (!llm.model) {
-      const fallback = buildFallbackReply(ragResult.searchResults, ragResult.embeddingAvailable);
-      sendToken(writer, fallback);
-      await persistMessage(sessionId, "assistant", fallback, {
-        parts: [
-          ...(useRag ? [{ type: "tool" as const, name: "ragSearch", label: "Searched notes", detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))) }] : []),
-          { type: "text", text: fallback },
-        ],
+      sendToken(writer, fallbackReply);
+      await persistMessage(sessionId, "assistant", fallbackReply, {
+        parts: [...initialParts, { type: "text", text: fallbackReply }],
         sources: uniqueSources,
       });
       sendDone(writer);
@@ -243,51 +209,18 @@ export async function processChatGeneration(
     }
 
     const t0 = Date.now();
-    let reply = "";
-    let thinking = "";
-    let thinkingStartedAt: number | null = null;
-    let thinkingDuration: number | undefined;
-    let finishReason: FinishReason | undefined;
-    let rawFinishReason: string | undefined;
-    let stepCount = 0;
-    let toolCallCount = 0;
+    let generation = createChatGenerationResult(initialParts);
     let responseMessages: ModelMessage[] = [];
-    const parts: MessagePart[] = useRag ? [{
-      type: "tool",
-      name: "ragSearch",
-      label: "Searched notes",
-      detail: noteSearchDetail(message, ragResult.searchResults.map((result) => ({ title: result.title || "Untitled" }))),
-    }] : [];
-    let pendingText = "";
-    const flushText = () => {
-      if (pendingText) {
-        parts.push({ type: "text", text: pendingText });
-        pendingText = "";
-      }
-    };
-    const closeThinkingWindow = () => {
-      if (thinkingStartedAt && thinkingDuration == null) {
-        thinkingDuration = Math.max(1, Math.round((Date.now() - thinkingStartedAt) / 1000));
-      }
-    };
-    const metadata = (overrides: Partial<MessageMetadata> = {}): MessageMetadata => ({
-      ...(thinking && { thinking }),
-      ...(thinkingDuration != null && { thinkingDuration }),
-      ...(finishReason && { finishReason }),
-      ...(rawFinishReason && { rawFinishReason }),
-      stepCount,
-      toolCallCount,
-      ...overrides,
-    });
 
     finalizeCancelled = async () => {
-      closeThinkingWindow();
-      flushText();
-      if (reply.trim() || parts.length > 0) {
-        await persistMessage(sessionId, "assistant", reply, {
-          parts,
+      generation = flushChatGenerationText(
+        closeChatThinkingWindow(generation),
+      );
+      if (generation.reply.trim() || generation.parts.length > 0) {
+        await persistMessage(sessionId, "assistant", generation.reply, {
+          parts: generation.parts,
           sources: uniqueSources,
-          metadata: metadata({
+          metadata: buildChatGenerationMetadata(generation, {
             partial: true,
             cancelled: true,
             error:
@@ -305,7 +238,7 @@ export async function processChatGeneration(
         sessionId,
         reason: abortReason ?? "stopped",
         elapsedMs: Date.now() - startedAt,
-        replyLength: reply.length,
+        replyLength: generation.reply.length,
       });
     };
 
@@ -320,39 +253,31 @@ export async function processChatGeneration(
       ...llm.llmCallOptions,
     });
     for await (const part of result.fullStream) {
-      if (part.type === "reasoning-delta") {
-        if (!thinkingStartedAt) thinkingStartedAt = Date.now();
-        thinking += part.text;
-        sendThinking(writer, part.text);
-      } else if (part.type === "text-delta") {
-        closeThinkingWindow();
-        reply += part.text;
-        pendingText += part.text;
-        sendToken(writer, part.text);
-      } else if (part.type === "tool-call") {
-        toolCallCount += 1;
-        flushText();
-        const detail = toolCallDetail(part.toolName, part.input);
-        parts.push({ type: "tool", name: part.toolName, label: labelForTool(part.toolName), callId: part.toolCallId, detail });
-        sendToolCall(writer, part.toolName, part.toolCallId, detail);
-      } else if (part.type === "tool-result") {
-        const detail = toolResultDetail(part.toolName, part.output);
-        const stored = parts.find(
-          (item) => item.type === "tool" && item.callId === part.toolCallId,
+      const update = applyChatGenerationEvent(generation, part);
+      generation = update.result;
+      if (update.effect.type === "thinking") {
+        sendThinking(writer, update.effect.text);
+      } else if (update.effect.type === "text") {
+        sendToken(writer, update.effect.text);
+      } else if (update.effect.type === "tool-call") {
+        sendToolCall(
+          writer,
+          update.effect.toolName,
+          update.effect.toolCallId,
+          update.effect.detail,
         );
-        if (stored?.type === "tool" && detail) stored.detail = detail;
-        sendToolResult(writer, part.toolCallId, detail);
-      } else if (part.type === "finish-step") {
-        stepCount += 1;
-        finishReason = part.finishReason;
-        rawFinishReason = part.rawFinishReason;
-      } else if (part.type === "finish") {
-        finishReason = part.finishReason;
-        rawFinishReason = part.rawFinishReason;
-      } else if (part.type === "abort") {
+      } else if (update.effect.type === "tool-result") {
+        sendToolResult(
+          writer,
+          update.effect.toolCallId,
+          update.effect.detail,
+        );
+      } else if (update.effect.type === "abort") {
         break;
-      } else if (part.type === "error") {
-        throw part.error instanceof Error ? part.error : new Error(String(part.error));
+      } else if (update.effect.type === "error") {
+        throw update.effect.error instanceof Error
+          ? update.effect.error
+          : new Error(String(update.effect.error));
       }
     }
     if (abortReason || abortController.signal.aborted) {
@@ -360,50 +285,65 @@ export async function processChatGeneration(
       return;
     }
     responseMessages = (await result.response).messages;
-    closeThinkingWindow();
-    flushText();
+    let finalization = finalizeChatGenerationResult(
+      generation,
+      llm.maxToolSteps,
+    );
+    generation = finalization.result;
 
-    if (isToolCallLimitFinish(finishReason, toolCallCount, llm.maxToolSteps)) {
-      const notice = appendToolCallLimitMessage(reply);
-      reply = notice.reply;
-      parts.push({ type: "text", text: notice.delta });
-      sendToken(writer, notice.delta);
-      await persistMessage(sessionId, "assistant", reply, {
-        parts,
+    if (finalization.kind === "tool-call-limit") {
+      sendToken(writer, finalization.delta);
+      await persistMessage(sessionId, "assistant", generation.reply, {
+        parts: generation.parts,
         sources: uniqueSources,
-        metadata: metadata({ partial: true, error: TOOL_CALL_LIMIT_USER_MESSAGE, toolCallLimitHit: true }),
+        metadata: buildChatGenerationMetadata(generation, {
+          partial: true,
+          error: TOOL_CALL_LIMIT_USER_MESSAGE,
+          toolCallLimitHit: true,
+        }),
       });
     } else {
-      if (!reply.trim()) {
-        if (!shouldSynthesizeFinalAnswer(reply, finishReason)) {
-          throw new Error(`Model ended without an answer (${finishReason})`);
-        }
+      if (finalization.kind === "invalid") {
+        throw new Error(finalization.error);
+      }
+      if (finalization.kind === "synthesize-final-answer") {
         const finalAnswer = await streamFinalAnswer({
           model: llm.model,
           abortSignal: abortController.signal,
           messages: [...llm.llmCallOptions.messages, ...responseMessages],
           maxOutputTokens: llm.llmCallOptions.maxOutputTokens,
           onTextDelta(text) {
-            reply += text;
-            pendingText += text;
+            generation = appendChatGenerationText(generation, text);
             sendToken(writer, text);
           },
         });
-        stepCount += 1;
-        finishReason = finalAnswer.finishReason;
-        rawFinishReason = finalAnswer.rawFinishReason;
-        if (!reply.trim()) throw new Error("Model returned no answer after final synthesis");
-        flushText();
+        generation = finishChatGenerationStep(
+          generation,
+          finalAnswer.finishReason,
+          finalAnswer.rawFinishReason,
+        );
+        finalization = finalizeChatGenerationResult(
+          generation,
+          llm.maxToolSteps,
+        );
+        generation = finalization.result;
+        if (finalization.kind !== "complete") {
+          throw new Error("Model returned no answer after final synthesis");
+        }
       }
-      await persistMessage(sessionId, "assistant", reply, {
-        parts,
+      await persistMessage(sessionId, "assistant", generation.reply, {
+        parts: generation.parts,
         sources: uniqueSources,
-        metadata: metadata(),
+        metadata: buildChatGenerationMetadata(generation),
       });
     }
 
     void Metrics.llmLatency(Date.now() - t0);
-    if (uniqueSources.length > 0 && !payload.respectPrivacySignal) {
+    if (
+      finalization.kind === "complete" &&
+      uniqueSources.length > 0 &&
+      !payload.respectPrivacySignal
+    ) {
       void recordActivationMilestone("first_cited_answer", userId).catch(() => {});
     }
     sendDone(writer);
@@ -413,7 +353,7 @@ export async function processChatGeneration(
       generationId,
       sessionId,
       elapsedMs: Date.now() - startedAt,
-      replyLength: reply.length,
+      replyLength: generation.reply.length,
     });
   } catch (error) {
     // A watchdog abort surfaces as an AbortError (or an SDK error part) —

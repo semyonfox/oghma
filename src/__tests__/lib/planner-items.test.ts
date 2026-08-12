@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAssignmentDedupeKey, choosePlannerDates, normalizePlannerItem, normalizePlannableType } from "@/lib/canvas/planner-items.js";
+import { buildAssignmentDedupeKey, choosePlannerDates, normalizePlannerItem, normalizePlannableType } from "@/lib/canvas/planner-items";
 
 describe("Canvas planner-item normalization", () => {
   it("normalizes explicit Canvas plannable types without title heuristics", () => {

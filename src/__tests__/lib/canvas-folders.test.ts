@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/database/pgsql.js", () => {
   const sqlMock = vi.fn();
-  (sqlMock as any).begin = vi.fn(
+  Object.assign(sqlMock, { begin: vi.fn(
     async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
-  );
+  ) });
   return { default: sqlMock };
 });
 
@@ -12,11 +12,11 @@ vi.mock("uuid", () => ({
   v4: vi.fn(() => "11111111-1111-4111-8111-111111111111"),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import {
   CanvasFolderTrashedError,
   findOrCreateFolder,
-} from "@/lib/canvas/canvas-folders.js";
+} from "@/lib/canvas/canvas-folders";
 
 const userId = "22222222-2222-4222-8222-222222222222";
 const folderId = "33333333-3333-4333-8333-333333333333";

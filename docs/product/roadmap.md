@@ -8,7 +8,7 @@ OghmaNotes is a functional Canvas-connected study workspace preparing for a cont
 
 ## Where The Product Stands (July 2026)
 
-Working today: Canvas import with direct extraction and an OCR fallback, Qdrant-backed cited search and chat with persisted tool activity, flashcards with FSRS review, assignment/time-block/Pomodoro planning with a persistent focus timer, vault import and export, complete locale coverage, and the public agent discovery surfaces described in [agent-compatibility.md](../engineering/agent-compatibility.md).
+Working today: Canvas import with direct extraction and an OCR fallback, Qdrant-backed cited search and chat with persisted tool activity, flashcards with FSRS review, assignment/time-block/Pomodoro planning with a persistent focus timer, vault import and export, locale catalogs with complete key and interpolation-contract coverage, and the public agent discovery surfaces described in [agent-compatibility.md](../engineering/agent-compatibility.md).
 
 Not yet done: the hard beta blockers in the [launch checklist](launch-checklist.md) — end-to-end verification of a production Canvas import ([#304](https://github.com/semyonfox/oghma/issues/304)), transactional email ([#305](https://github.com/semyonfox/oghma/issues/305)), secret rotation ([#306](https://github.com/semyonfox/oghma/issues/306)), and backup/monitoring coverage ([#328](https://github.com/semyonfox/oghma/issues/328)). No beta invitation goes out before those close.
 

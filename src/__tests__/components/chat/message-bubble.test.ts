@@ -5,6 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Root } from "react-dom/client";
+import { withI18n } from "@/__tests__/test-utils/i18n";
 import {
   CompactMessageBubble,
   FullMessageBubble,
@@ -63,7 +64,7 @@ describe("message bubble copy actions", () => {
     const root = createRoot(container);
     roots.push(root);
     act(() => {
-      root.render(node);
+      root.render(withI18n(node));
     });
     return container;
   }
@@ -221,19 +222,19 @@ describe("message bubble copy actions", () => {
     roots.push(root);
 
     act(() => {
-      root.render(
+      root.render(withI18n(
         React.createElement(
           React.Fragment,
           undefined,
           React.createElement(FullMessageBubble, { message: historical }),
           React.createElement(FullMessageBubble, { message: streaming }),
         ),
-      );
+      ));
     });
 
     const updatedStreaming = { ...streaming, content: "partial response" };
     act(() => {
-      root.render(
+      root.render(withI18n(
         React.createElement(
           React.Fragment,
           undefined,
@@ -242,7 +243,7 @@ describe("message bubble copy actions", () => {
             message: updatedStreaming,
           }),
         ),
-      );
+      ));
     });
 
     expect(markdownRender.mock.calls).toEqual([

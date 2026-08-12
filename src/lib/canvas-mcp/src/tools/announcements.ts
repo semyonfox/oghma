@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 const listAnnouncementsSchema = z.object({
   context_codes: z.array(z.string()),
@@ -11,12 +11,12 @@ const listAnnouncementsSchema = z.object({
 });
 
 export const announcementTools: ToolDef[] = [
-  {
+  defineTool({
     name: "canvas_list_announcements",
     description:
       "List announcements across one or more courses. context_codes is required (e.g. ['course_123']). Optionally filter by date range or active_only.",
     inputSchema: listAnnouncementsSchema,
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const announcements = await canvas.collectPaginated(
         "/api/v1/announcements",
         {
@@ -31,15 +31,15 @@ export const announcementTools: ToolDef[] = [
       );
       return jsonResult(announcements);
     },
-  },
-  {
+  }),
+  defineTool({
     name: "canvas_list_course_announcements",
     description:
       "List announcements for a specific course (backed by discussion_topics?only_announcements=true). Paginated.",
     inputSchema: z.object({
       course_id: canvasIdSchema,
     }),
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const announcements = await canvas.collectPaginated(
         `/api/v1/courses/${args.course_id}/discussion_topics`,
         {
@@ -49,8 +49,8 @@ export const announcementTools: ToolDef[] = [
       );
       return jsonResult(announcements);
     },
-  },
-  {
+  }),
+  defineTool({
     name: "canvas_get_announcement",
     description:
       "Get a single announcement by its discussion topic ID within a course. Announcements are discussion topics with is_announcement=true.",
@@ -58,15 +58,15 @@ export const announcementTools: ToolDef[] = [
       course_id: canvasIdSchema,
       announcement_id: canvasIdSchema,
     }),
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const announcement = await canvas.get(
         `/api/v1/courses/${args.course_id}/discussion_topics/${args.announcement_id}`,
         {},
       );
       return jsonResult(announcement);
     },
-  },
-  {
+  }),
+  defineTool({
     name: "canvas_list_account_notifications",
     description:
       "List institution-wide account notifications (global banners) for the authenticated user.",
@@ -78,12 +78,11 @@ export const announcementTools: ToolDef[] = [
       );
       return jsonResult(notifications);
     },
-  },
+  }),
 
-  // ============================================================
-  // ADMIN / EDUCATOR TOOLS — uncommented to enable announcement creation and deletion.
-  // ============================================================
-  {
+  // Privileged tools remain in the standalone adapter. The hosted profile
+  // filters them in src/lib/canvas/mcp.ts.
+  defineTool({
     name: "canvas_create_announcement",
     description:
       "Create an announcement in a course. Requires educator permissions.",
@@ -93,7 +92,7 @@ export const announcementTools: ToolDef[] = [
       message: z.string(),
       delayed_post_at: z.string().optional(),
     }),
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const announcement = await canvas.post(
         `/api/v1/courses/${args.course_id}/discussion_topics`,
         {
@@ -107,8 +106,8 @@ export const announcementTools: ToolDef[] = [
       );
       return jsonResult(announcement);
     },
-  },
-  {
+  }),
+  defineTool({
     name: "canvas_delete_announcement",
     description:
       "Delete an announcement from a course. Requires educator permissions.",
@@ -116,14 +115,14 @@ export const announcementTools: ToolDef[] = [
       course_id: canvasIdSchema,
       announcement_id: canvasIdSchema,
     }),
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const result = await canvas.delete(
         `/api/v1/courses/${args.course_id}/discussion_topics/${args.announcement_id}`,
       );
       return jsonResult(result);
     },
-  },
-  {
+  }),
+  defineTool({
     name: "canvas_bulk_delete_announcements",
     description:
       "Delete multiple announcements from a course. Requires educator permissions.",
@@ -131,9 +130,9 @@ export const announcementTools: ToolDef[] = [
       course_id: canvasIdSchema,
       announcement_ids: z.array(canvasIdSchema),
     }),
-    handler: async (args: any, { canvas }) => {
+    handler: async (args, { canvas }) => {
       const results = await Promise.all(
-        args.announcement_ids.map((id: string) =>
+        args.announcement_ids.map((id) =>
           canvas.delete(
             `/api/v1/courses/${args.course_id}/discussion_topics/${id}`,
           ),
@@ -141,5 +140,5 @@ export const announcementTools: ToolDef[] = [
       );
       return jsonResult(results);
     },
-  },
+  }),
 ];

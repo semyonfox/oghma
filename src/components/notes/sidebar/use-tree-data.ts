@@ -1,13 +1,20 @@
 import { useMemo } from "react";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import { getCycleSafeChildren } from "@/lib/notes/state/tree-cycle";
+import type { NoteModel } from "@/lib/notes/types/note";
+import type {
+  TreeItem as ComplexTreeItem,
+  TreeItemIndex,
+} from "react-complex-tree";
+
+export type SidebarTreeItem = ComplexTreeItem<NoteModel | undefined>;
 
 // converts the flat note tree to react-complex-tree format
 export function useTreeData() {
   const tree = useNoteTreeStore((s) => s.tree);
 
   return useMemo(() => {
-    const result: Record<string, any> = {};
+    const result: Record<TreeItemIndex, SidebarTreeItem> = {};
     const safeChildren = getCycleSafeChildren(tree);
 
     const root = tree.items["root"];
@@ -18,7 +25,7 @@ export function useTreeData() {
         canRename: false,
         children: safeChildren.root ?? [],
         isFolder: true,
-        data: { title: "Root", isFolder: true },
+        data: undefined,
       };
     }
 
@@ -30,7 +37,7 @@ export function useTreeData() {
       const isFolder =
         item.data?.isFolder === true ||
         item.isFolder === true ||
-        (item.children && item.children.length > 0);
+        item.children.length > 0;
 
       result[id] = {
         index: id,
@@ -39,7 +46,6 @@ export function useTreeData() {
         children: safeChildren[id] ?? [],
         data: item.data,
         isFolder,
-        canDropOn: isFolder,
       };
     }
 

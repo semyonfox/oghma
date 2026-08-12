@@ -68,7 +68,7 @@ function TogglePill({
       <div
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
         <span className="text-xs font-semibold text-text">{tooltipTitle}</span>
         <span className="text-[11px] leading-snug text-text-tertiary">
@@ -428,6 +428,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                     <button
                       onClick={() => onRemoveNote(note.id)}
                       className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      aria-label={t("Remove {title}", { title: note.title })}
                       title={t("Remove {title}", { title: note.title })}
                     >
                       ×
@@ -443,6 +444,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                     <button
                       onClick={() => onRemoveFolder(folder.id)}
                       className="-mr-0.5 ml-0.5 rounded-full px-0.5 leading-4 opacity-60 transition-opacity hover:opacity-100"
+                      aria-label={t("Remove {title}", { title: folder.title })}
                       title={t("Remove {title}", { title: folder.title })}
                     >
                       ×
@@ -497,6 +499,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 type="button"
                 onClick={stopGenerating}
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-error-500/15 text-error-400 transition-colors hover:bg-error-500/25 hover:text-error-300 md:h-8 md:w-8"
+                aria-label={t("Stop generating")}
                 title={t("Stop generating")}
               >
                 <StopCircleIcon
@@ -508,6 +511,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 type="submit"
                 disabled={!input.trim()}
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
+                aria-label={t("Send message")}
               >
                 <PaperAirplaneIcon className="h-4 w-4" />
               </button>

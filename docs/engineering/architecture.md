@@ -2,7 +2,7 @@
 
 > **Status:** Active reference
 >
-> **Last reviewed:** 2026-07-25
+> **Last reviewed:** 2026-08-12
 >
 > **Source of truth:** Current application code, [`Jenkinsfile`](../../Jenkinsfile), [`database/migrations/`](../../database/migrations/), and [`infra/HOMELAB.md`](../../infra/HOMELAB.md)
 
@@ -47,6 +47,26 @@ The homelab currently runs separate prod/dev app and worker containers behind Cl
 
 Qdrant is the current vector store. Migration `030_qdrant_embeddings.sql` removed the old PostgreSQL `app.embeddings` table and pgvector extension after vector data moved behind [`src/lib/qdrant.ts`](../../src/lib/qdrant.ts). PostgreSQL remains the relational source of truth for chunks and their ownership.
 
+## Note lifecycle
+
+`app.notes` and `app.tree_items` are one relational ownership boundary. Creating
+a note creates its tree row in the same transaction, and a child can only be
+placed beneath an active folder owned by that user. A soft delete marks the
+active tree subtree as one cohort but retains its tree rows, attachments,
+annotations, chunks, and vectors. Restore can therefore reverse that operation
+without recreating derived state; it restores only the matching cohort and
+falls back to the root when the original parent is no longer an active folder.
+
+Permanent trash deletion is intentionally different: it removes relational
+dependents atomically, then makes best-effort Qdrant and private-object cleanup.
+Independently trashed descendants are retained and reparented before their
+ancestor is removed. Index replacement locks the active note through its vector
+write, so deletion either prevents new chunks/vectors or removes the exact set
+written by the in-flight indexer. See
+[`note-lifecycle.ts`](../../src/lib/notes/storage/note-lifecycle.ts),
+[`note-cleanup.ts`](../../src/lib/notes/storage/note-cleanup.ts), and
+[`indexing.ts`](../../src/lib/rag/indexing.ts) for the executable contract.
+
 ## Background work and queues
 
 [`src/lib/queue.ts`](../../src/lib/queue.ts) is the queue-provider boundary for
@@ -72,7 +92,14 @@ and tuning boundaries.
 
 Indexing stores chunk text and ownership in PostgreSQL, computes embeddings through the configured provider, and upserts vectors to Qdrant. Semantic search and chat embed the query, retrieve scoped Qdrant results, hydrate relational chunk data, optionally rerank it, and pass grounded context to the configured LLM.
 
-Chat supports streaming and non-streaming responses. Streaming prompts are durable BullMQ jobs: the worker writes ordered SSE events to an expiring Redis Stream while PostgreSQL owns generation state and the final assistant message. A browser reconnect supplies the last Redis event ID, replays missed events, and then continues live delivery. Sessions and messages are relational data. Assistant messages retain canonical plain `content` and optional structured `parts` for durable tool and error UI.
+Chat supports streaming and non-streaming responses. All delivery modes share
+one generation preparation/finalization model; only their transport differs.
+Streaming prompts are durable BullMQ jobs: the worker writes ordered SSE events
+to an expiring Redis Stream while PostgreSQL owns generation state and the final
+assistant message. A browser reconnect supplies the last Redis event ID,
+replays missed events, and then continues live delivery. Sessions and messages
+are relational data. Assistant messages retain canonical plain `content` and
+optional structured `parts` for durable tool and error UI.
 
 Generations are cancellable. Every open browser tab heartbeats a per-user,
 per-tab presence hash in Redis through [`src/lib/chat/presence.ts`](../../src/lib/chat/presence.ts)
@@ -92,6 +119,22 @@ The chat also has an always-available, read-only `getAppGuide` tool backed by
 workflow, navigation, capability, and troubleshooting questions without using
 the user's note index. The same guide renders the starter note created during
 registration so those instructions have one source of truth.
+
+## Localisation
+
+The application accepts only the explicit [`Locale`](../../src/locales/index.ts)
+allowlist. Server rendering resolves a valid locale from the `ogma-locale`
+cookie, then `Accept-Language`, and sets the document `lang` (and Arabic
+`dir="rtl"`) before content is rendered. Browser settings, cookies, and API
+payloads use the same normaliser, so an invalid or stale value cannot select an
+arbitrary translation module.
+
+[`locale-data.ts`](../../src/lib/i18n/locale-data.ts) is the one dictionary
+loader. It imports one allowlisted locale at a time, while the provider keeps
+each rendered tree's translator isolated. The English dictionary is the
+fallback for missing translations; catalog parity and interpolation variables
+are checked by `npm run i18n:audit`. That structural check does not substitute
+for native-language review of translated copy.
 
 ## Canvas MCP boundary
 
@@ -113,7 +156,7 @@ The Jenkins pipeline is the deploy authority. In outline it:
 1. builds app and worker images;
 2. runs the isolated integration/Playwright smoke gate;
 3. keeps Qdrant available;
-4. applies pending migrations through `scripts/prebuild-migrate.mjs`;
+4. applies pending migrations through `scripts/prebuild-migrate.ts`;
 5. swaps the app and worker with health checks and rollback handling;
 6. runs live smoke tests before cleaning retained rollback containers and images.
 

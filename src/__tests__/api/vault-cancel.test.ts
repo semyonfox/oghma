@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   return { default: sqlMock };
@@ -16,7 +16,7 @@ vi.mock("@/lib/api-error", () => ({
   },
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { DELETE } from "@/app/api/vault/jobs/[jobId]/cancel/route";
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import sql from "@/database/pgsql.js";
+import type postgres from "postgres";
+import sql from "@/database/pgsql";
 import { cleanAttribution } from "./attribution";
 
 const MAX_TEXT_LENGTH = 512;
@@ -119,10 +120,12 @@ function cleanReferrer(value: unknown): string | null {
  * Properties are a closed aggregate schema. Never retain free-form browser or
  * form values merely because their key does not look sensitive.
  */
-export function cleanProperties(value: unknown): Record<string, unknown> {
+export function cleanProperties(
+  value: unknown,
+): Record<string, postgres.JSONValue> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const input = value as Record<string, unknown>;
-  const output: Record<string, unknown> = {};
+  const output: Record<string, postgres.JSONValue> = {};
 
   if (typeof input.notification_delivered === "boolean") output.notification_delivered = input.notification_delivered;
   if (input.form === "contact") output.form = "contact";

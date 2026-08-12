@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth";
-import { withErrorHandler, tracedError } from "@/lib/api-error";
-import { isValidUUID } from "@/lib/utils/uuid";
+import {
+  requireAuth,
+  requireValidId,
+  tracedError,
+  withErrorHandler,
+} from "@/lib/api-error";
 import {
   loadOwnedChatGeneration,
   readChatGenerationEvents,
@@ -16,10 +19,9 @@ export const GET = withErrorHandler(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
   ) => {
-    const user = await validateSession();
-    if (!user) return tracedError("Unauthorized", 401);
-    const { id } = await params;
-    if (!isValidUUID(id)) return tracedError("Invalid generation id", 400);
+    const user = await requireAuth();
+    const { id: rawId } = await params;
+    const id = requireValidId(rawId, "generation id");
 
     const generation = await loadOwnedChatGeneration(id, user.user_id);
     if (!generation) return tracedError("Generation not found", 404);

@@ -38,7 +38,10 @@ jobs:
           SERVER_ENCRYPTION_SECRET: ${{ secrets.SERVER_ENCRYPTION_SECRET || 'ci-build-placeholder' }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-build-placeholder' }}
           NEXTAUTH_URL: http://localhost:3000
-          SQS_QUEUE_URL: https://sqs.eu-west-1.amazonaws.com/000000000000/ci-placeholder
-          SQS_EXTRACT_RETRY_QUEUE_URL: https://sqs.eu-west-1.amazonaws.com/000000000000/ci-placeholder-retry
-          REDIS_URL: redis://localhost:6379
+          # The running queue facade defaults to BullMQ; no AWS SQS build
+          # placeholders are consumed by the application anymore.
+          QUEUE_PROVIDER: bullmq
+          QUEUE_PREFIX: ci
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
           DATABASE_URL: postgresql://localhost:5432/ci

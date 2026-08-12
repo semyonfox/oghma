@@ -1,32 +1,21 @@
 import { useCallback } from "react";
 import useFetcher from "./fetcher";
+import type {
+  TreeItemSummary,
+  TreeMutationRequest,
+} from "@/lib/notes/types/tree";
 
-interface MutateBody {
-  action: "move" | "mutate";
-  data: any;
-}
-
-interface TreeItem {
-  id: string;
-  title: string;
-  isFolder: boolean;
-  isExpanded: boolean;
-  s3Key: string | null;
-  mimeType: string | null;
-  pinned: number;
-}
-
-interface FetchChildrenResponse {
+export interface TreeChildrenResponse {
   parentId: string;
-  items: TreeItem[];
+  items: TreeItemSummary[];
 }
 
 export default function useTreeAPI() {
   const { loading, request, abort } = useFetcher();
 
   const mutate = useCallback(
-    async (body: MutateBody) => {
-      return request<MutateBody, undefined>(
+    async (body: TreeMutationRequest) => {
+      return request<TreeMutationRequest, { success: true }>(
         {
           method: "POST",
           url: `/api/tree`,
@@ -39,7 +28,7 @@ export default function useTreeAPI() {
 
   // Fetch root items only (lazy-loading)
   const fetch = useCallback(async () => {
-    return request<undefined, FetchChildrenResponse>({
+    return request<undefined, TreeChildrenResponse>({
       method: "GET",
       url: "/api/tree/children",
     });
@@ -51,7 +40,7 @@ export default function useTreeAPI() {
       const url = parentId
         ? `/api/tree/children?parent_id=${encodeURIComponent(parentId)}`
         : "/api/tree/children";
-      return request<undefined, FetchChildrenResponse>({ method: "GET", url });
+      return request<undefined, TreeChildrenResponse>({ method: "GET", url });
     },
     [request],
   );

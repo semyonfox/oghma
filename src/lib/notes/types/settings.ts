@@ -19,6 +19,15 @@ export interface Settings {
   ai_model?: string;
 }
 
+/**
+ * Settings persisted by the storage provider. Unknown legacy keys are kept
+ * when settings are updated; known keys remain typed at the application edge.
+ */
+export interface StoredSettings extends Settings {
+  avatarKey?: string;
+  [key: string]: unknown;
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   sidebar_is_fold: false,
   split_sizes: [200, 800],

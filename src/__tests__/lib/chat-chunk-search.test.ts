@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   return { default: sqlMock };
@@ -10,8 +10,21 @@ vi.mock("@/lib/embedText", () => ({
   embedText: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
+vi.mock("@/lib/qdrant", () => ({
+  searchChunkVectors: vi.fn(),
+}));
+
+vi.mock("@/lib/ai-config", () => ({
+  getChatMaxDistance: vi.fn(() => 0.55),
+}));
+
+vi.mock("@/lib/metrics", () => ({
+  Metrics: { searchLatency: vi.fn() },
+}));
+
+import sql from "@/database/pgsql";
 import { embedText } from "@/lib/embedText";
+import { searchChunkVectors } from "@/lib/qdrant";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
 
 describe("searchChatChunks", () => {
@@ -19,6 +32,7 @@ describe("searchChatChunks", () => {
     vi.clearAllMocks();
     vi.mocked(sql).mockResolvedValue([]);
     vi.mocked(embedText).mockResolvedValue([0.1, 0.2, 0.3]);
+    vi.mocked(searchChunkVectors).mockResolvedValue([]);
   });
 
   it("falls back to note text when exact chunk search finds nothing", async () => {
@@ -128,6 +142,85 @@ describe("searchChatChunks", () => {
         chunkId: "88888888-8888-8888-8888-888888888888",
         text: "Routers operate at layer 3.",
         source: "exact",
+      },
+    ]);
+  });
+
+  it("hydrates semantic hits in rank order, including context chunks from one note", async () => {
+    vi.mocked(searchChunkVectors).mockResolvedValue([
+      {
+        chunkId: "chunk-a-best",
+        documentId: "note-a",
+        userId: "user-1",
+        score: 0.9,
+        distance: 0.1,
+      },
+      {
+        chunkId: "chunk-a-second",
+        documentId: "note-a",
+        userId: "user-1",
+        score: 0.8,
+        distance: 0.2,
+      },
+      {
+        chunkId: "chunk-b",
+        documentId: "note-b",
+        userId: "user-1",
+        score: 0.7,
+        distance: 0.3,
+      },
+    ]);
+    vi.mocked(sql).mockResolvedValue([
+      {
+        note_id: "note-b",
+        title: "B",
+        chunk_id: "chunk-b",
+        chunk_text: "Second note",
+        canvas_course_id: null,
+      },
+      {
+        note_id: "note-a",
+        title: "A",
+        chunk_id: "chunk-a-second",
+        chunk_text: "Lower-ranked duplicate",
+        canvas_course_id: null,
+      },
+      {
+        note_id: "note-a",
+        title: "A",
+        chunk_id: "chunk-a-best",
+        chunk_text: "Best note chunk",
+        canvas_course_id: null,
+      },
+    ]);
+
+    const results = await searchChatChunks({
+      userId: "user-1",
+      query: "search",
+      mode: "semantic",
+    });
+
+    expect(results).toEqual([
+      {
+        noteId: "note-a",
+        title: "A",
+        chunkId: "chunk-a-best",
+        text: "Best note chunk",
+        source: "semantic",
+      },
+      {
+        noteId: "note-a",
+        title: "A",
+        chunkId: "chunk-a-second",
+        text: "Lower-ranked duplicate",
+        source: "semantic",
+      },
+      {
+        noteId: "note-b",
+        title: "B",
+        chunkId: "chunk-b",
+        text: "Second note",
+        source: "semantic",
       },
     ]);
   });

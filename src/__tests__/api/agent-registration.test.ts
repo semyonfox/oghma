@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import type { Session } from "next-auth";
 
-vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
+vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 vi.mock("@/lib/rateLimiter", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(null),
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
@@ -27,7 +28,7 @@ vi.mock("@/lib/api-error", () => ({
   assertTrustedOrigin: vi.fn(),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import {
   completeOAuthAgentRegistration,
   createAgentRegistrationClaim,
@@ -40,6 +41,7 @@ import { POST as readClaim } from "@/app/agent/identity/claim/route";
 import { POST as completeClaim } from "@/app/agent/identity/claim/complete/route";
 
 const CLAIM_TOKEN = "a".repeat(64);
+const mockedAuth = vi.mocked(auth as () => Promise<Session | null>);
 
 function request(url: string, body: unknown) {
   return new NextRequest(url, {
@@ -52,8 +54,8 @@ function request(url: string, body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(sql).mockResolvedValue([]);
-  vi.mocked(findOpenAgentRegistrationByEmail).mockResolvedValue(null);
-  vi.mocked(auth).mockResolvedValue(null as any);
+  vi.mocked(findOpenAgentRegistrationByEmail).mockReset();
+  mockedAuth.mockReset();
 });
 
 describe("auth.md new-user registration", () => {
@@ -131,10 +133,10 @@ describe("auth.md new-user registration", () => {
   });
 
   it("completes a claim only from an authenticated matching OAuth account", async () => {
-    vi.mocked(auth).mockResolvedValue({
+    mockedAuth.mockResolvedValue({
       user: { id: "user-1", email: "student@example.com" },
       expires: "2099-07-14T12:15:00.000Z",
-    } as any);
+    } satisfies Session);
     vi.mocked(completeOAuthAgentRegistration).mockResolvedValue({
       id: "claim-1",
       email: "student@example.com",

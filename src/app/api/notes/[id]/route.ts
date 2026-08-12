@@ -4,7 +4,7 @@ import { isValidUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import { mapNoteFromDB } from "@/lib/notes/utils/map-note";
 import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { chunkText } from "@/lib/chunking";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
