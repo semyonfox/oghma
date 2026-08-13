@@ -19,6 +19,7 @@ import { getStorageProvider } from "../storage/init.ts";
 import { deleteChunkVectors } from "../qdrant.ts";
 import type { StoreS3 } from "../storage/s3.ts";
 import { findOrCreateExtractionBundle } from "../notes/extraction-bundle.ts";
+import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import {
   CanvasClient,
   MAX_CANVAS_FILE_BYTES,
@@ -288,6 +289,7 @@ async function createNote(
       ON CONFLICT (user_id, note_id) DO NOTHING
     `;
   });
+  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
 }
 

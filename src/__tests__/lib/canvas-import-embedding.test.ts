@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => {
     processAllPdfsWithMarker: vi.fn(),
     submitMarkerJob: vi.fn(),
     enqueueExtractionRetry: vi.fn(),
+    cacheInvalidate: vi.fn().mockResolvedValue(undefined),
+    cacheKeys: {
+      note: vi.fn((userId: string, noteId: string) => `note:${userId}:${noteId}`),
+    },
     MarkerSubmissionCancelledError,
   };
 });
@@ -29,6 +33,10 @@ vi.mock("@/lib/notes/extraction-bundle.ts", () => ({
 }));
 vi.mock("@/lib/rag/indexing.ts", () => ({
   replaceNoteEmbeddings: mocks.replaceNoteEmbeddings,
+}));
+vi.mock("@/lib/cache", () => ({
+  cacheInvalidate: mocks.cacheInvalidate,
+  cacheKeys: mocks.cacheKeys,
 }));
 vi.mock("@/lib/canvas/extraction-retry.ts", () => ({
   enqueueExtractionRetry: mocks.enqueueExtractionRetry,
@@ -152,5 +160,37 @@ describe("processRagPipeline PDF bundles", () => {
       }),
     );
     expect(mocks.extractContentFromBuffer).not.toHaveBeenCalled();
+  });
+
+  it("publishes text content before the embedding write finishes", async () => {
+    mocks.extractContentFromBuffer.mockResolvedValue({
+      rawText: "Readable text before vectors finish",
+      chunks: ["Readable text before vectors finish"],
+      source: "text",
+    });
+    mocks.sql
+      .mockResolvedValueOnce([{ is_import_cache_source: false }])
+      .mockResolvedValueOnce([{ note_id: "text-note" }])
+      .mockResolvedValueOnce([{ note_id: "text-note" }]);
+
+    await expect(
+      processRagPipeline(
+        "text-note",
+        "user-1",
+        null,
+        Buffer.from("Readable text before vectors finish"),
+        { filename: "lecture.md", mimeType: "text/markdown" },
+        findOrCreateNote,
+      ),
+    ).resolves.toEqual({ noteId: "text-note", chunksStored: 1 });
+
+    const publishQuery = mocks.sql.mock.calls
+      .map((call: unknown[]) => (call[0] as TemplateStringsArray)?.join(""))
+      .find((query: string | undefined) => query?.includes("SET content = CASE"));
+    expect(publishQuery).toContain("WHEN COALESCE(content, '') = ''");
+    expect(mocks.cacheInvalidate).toHaveBeenCalledWith("note:user-1:text-note");
+    expect(
+      mocks.cacheInvalidate.mock.invocationCallOrder[0],
+    ).toBeLessThan(mocks.replaceNoteEmbeddings.mock.invocationCallOrder[0]);
   });
 });

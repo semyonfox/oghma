@@ -11,6 +11,7 @@ import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
+import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import {
   enqueueExtractionRetry,
   MAX_EXTRACTION_RETRIES,
@@ -84,6 +85,10 @@ async function replaceEmbeddings(targetNoteId: string, userId: string, chunks: s
   return embedLimiter(() =>
     replaceNoteEmbeddings(targetNoteId, userId, chunks),
   );
+}
+
+async function invalidateExtractedNote(userId: string, noteId: string) {
+  await cacheInvalidate(cacheKeys.note(userId, noteId));
 }
 
 async function queueExtractionRetry(retryOpts: ExtractionRetryMessage) {
@@ -269,7 +274,13 @@ export async function processRagPipeline(
       // text files: embed on the original note directly (no sibling needed)
       const updated = await sql`
         UPDATE app.notes
-        SET extracted_text = ${searchText}, extraction_coverage = ${extractionCoverage}::jsonb, updated_at = NOW()
+        SET content = CASE
+              WHEN COALESCE(content, '') = '' THEN ${rawText}
+              ELSE content
+            END,
+            extracted_text = ${searchText},
+            extraction_coverage = ${extractionCoverage}::jsonb,
+            updated_at = NOW()
         WHERE note_id = ${noteId}::uuid
           AND user_id = ${userId}::uuid
           AND deleted_at IS NULL
@@ -278,6 +289,7 @@ export async function processRagPipeline(
       if (updated.length === 0) {
         return { noteId, chunksStored: 0, skipped: true };
       }
+      await invalidateExtractedNote(userId, noteId);
       const embeddingStart = Date.now();
       const count = await replaceEmbeddings(noteId, userId, chunks);
       const embeddingElapsedMs = Date.now() - embeddingStart;
@@ -321,6 +333,7 @@ export async function processRagPipeline(
         RETURNING note_id
       `;
       if (updated.length === 0) return { noteId, chunksStored: 0, skipped: true };
+      await invalidateExtractedNote(userId, noteId);
       const count = await replaceEmbeddings(noteId, userId, chunks);
       return { noteId, chunksStored: count };
     }
@@ -360,6 +373,7 @@ export async function processRagPipeline(
     if (updated.length === 0) {
       return { noteId, chunksStored: 0, skipped: true };
     }
+    await invalidateExtractedNote(userId, mdNoteId);
 
     const embeddingStart = Date.now();
     const count = await replaceEmbeddings(mdNoteId, userId, chunks);

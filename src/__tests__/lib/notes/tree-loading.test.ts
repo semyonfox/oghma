@@ -30,6 +30,7 @@ describe("note tree loading state", () => {
       initLoaded: false,
       loading: false,
       loadingChildren: new Set<string>(),
+      expandedIds: new Set<string>(),
       treeAPI: null,
       toast: null,
     });
@@ -169,5 +170,83 @@ describe("note tree loading state", () => {
     expect([...loadingChildren]).toEqual([]);
     expect(tree.items["folder-a"].children).toEqual(["a-child"]);
     expect(tree.items["folder-b"].children).toEqual(["b-child"]);
+  });
+
+  it("refreshes published paths without discarding loaded descendants", async () => {
+    const fetchChildren = vi.fn(async (parentId: string | null) => {
+      if (parentId === null) {
+        return {
+          items: [
+            {
+              id: "course",
+              title: "Course",
+              isFolder: true,
+              isExpanded: true,
+            },
+          ],
+        };
+      }
+      if (parentId === "course") {
+        return {
+          items: [
+            {
+              id: "module",
+              title: "Module",
+              isFolder: true,
+              isExpanded: true,
+            },
+          ],
+        };
+      }
+      return {
+        items: [
+          { id: "existing", title: "Existing note", isFolder: false },
+          { id: "new-note", title: "New note", isFolder: false },
+        ],
+      };
+    });
+    const tree = {
+      rootId: ROOT_ID,
+      items: {
+        [ROOT_ID]: { id: ROOT_ID, children: ["course"], childrenLoaded: true },
+        course: {
+          id: "course",
+          children: ["module"],
+          childrenLoaded: true,
+          isFolder: true,
+        },
+        module: {
+          id: "module",
+          children: ["existing"],
+          childrenLoaded: true,
+          isFolder: true,
+        },
+        existing: { id: "existing", children: [] },
+      },
+    };
+    useNoteTreeStore.setState({
+      tree,
+      pinnedTree: tree,
+      expandedIds: new Set(["course", "module"]),
+    });
+    useNoteTreeStore.getState().setDependencies(
+      { fetch: vi.fn(), fetchChildren, mutate: vi.fn() },
+      vi.fn(),
+    );
+
+    await useNoteTreeStore
+      .getState()
+      .refreshTreePaths([["course", "module", "new-note"]]);
+
+    expect(fetchChildren).toHaveBeenNthCalledWith(1, null);
+    expect(fetchChildren).toHaveBeenNthCalledWith(2, "course");
+    expect(fetchChildren).toHaveBeenNthCalledWith(3, "module");
+    expect(useNoteTreeStore.getState().tree.items.module.children).toEqual([
+      "existing",
+      "new-note",
+    ]);
+    expect(useNoteTreeStore.getState().expandedIds).toEqual(
+      new Set(["course", "module"]),
+    );
   });
 });

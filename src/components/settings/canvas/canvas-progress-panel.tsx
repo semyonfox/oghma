@@ -75,7 +75,12 @@ export default function CanvasProgressPanel({
     (l) => l.status === "error" || l.status === "forbidden",
   );
   const activeLogs = recentLogs.filter(
-    (l) => l.status === "downloading" || l.status === "processing",
+    (l) =>
+      l.status === "downloading" ||
+      l.status === "processing" ||
+      l.status === "indexing" ||
+      l.status === "pending_marker" ||
+      l.status === "pending_retry",
   );
 
   return (

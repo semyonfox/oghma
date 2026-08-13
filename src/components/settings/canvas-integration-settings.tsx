@@ -199,7 +199,10 @@ export default function CanvasIntegrationSettings() {
                 setEstimatedSecsRemaining(null);
                 // job already finished while away
                 localStorage.removeItem(LS_ACTIVE_JOB);
-                if (statusData.progress) {
+                if (
+                  statusData.latestJob?.status === "complete" &&
+                  statusData.progress
+                ) {
                   setImportSummary({
                     imported: statusData.progress.completed,
                     forbidden: statusData.issues?.forbidden ?? 0,
@@ -220,6 +223,12 @@ export default function CanvasIntegrationSettings() {
                     LS_FORBIDDEN,
                     JSON.stringify(newForbidden),
                   );
+                } else if (statusData.latestJob?.status === "failed") {
+                  setConnectionError(
+                    statusData.latestJob.errorMessage ?? t("Import failed"),
+                  );
+                } else if (statusData.latestJob?.status === "cancelled") {
+                  setConnectionError(t("Import cancelled."));
                 }
               }
             }
