@@ -6,6 +6,7 @@
 import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
+import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 // paths to skip during import
 const IGNORED_PATHS = [
@@ -135,7 +136,7 @@ export async function findOrCreateVaultFolder(
   jobId?: string,
 ): Promise<string | null> {
   try {
-    return await sql.begin(async (tx: postgres.TransactionSql) => {
+    const folderId = await sql.begin(async (tx: postgres.TransactionSql) => {
       // Use the same lock as Trash/Clear Vault so a background zip entry is
       // either visible to the destructive transaction or observes its job
       // cancellation before it creates a tree row.
@@ -178,6 +179,8 @@ export async function findOrCreateVaultFolder(
       `;
       return noteId;
     });
+    await invalidateTreeAfterPublish(userId, parentId);
+    return folderId;
   } catch (err) {
     const error = err as { code?: string; message?: string };
     if (
@@ -187,7 +190,7 @@ export async function findOrCreateVaultFolder(
       throw err;
     }
     if (error.code === "23505") {
-      return sql.begin(async (tx: postgres.TransactionSql) => {
+      const folderId = await sql.begin(async (tx: postgres.TransactionSql) => {
         await lockUserTree(tx, userId);
         await assertVaultImportJobActive(tx, userId, jobId);
         await assertActiveParent(tx, userId, parentId);
@@ -215,6 +218,8 @@ export async function findOrCreateVaultFolder(
         if (winner) return winner.note_id;
         throw err;
       });
+      await invalidateTreeAfterPublish(userId, parentId);
+      return folderId;
     }
     console.warn(`Failed to create vault folder "${title}": ${error.message}`);
     return parentId;

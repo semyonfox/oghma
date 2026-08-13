@@ -16,6 +16,7 @@ import logger from "@/lib/logger";
 import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { detectMimeType } from "@/lib/uploads/detect-mime";
+import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 function sanitizeFileName(raw: string): string {
   return raw
@@ -156,6 +157,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       await removeNewNoteWithTree(session.user_id, noteId).catch(() => {});
     }
     return tracedError("Failed to save file metadata", 500);
+  }
+
+  if (createdNewNote) {
+    // The source note/tree row is now durable even though extraction happens
+    // in the background. Clear the root branch cache before returning it.
+    await invalidateTreeAfterPublish(session.user_id, null);
   }
 
   // Queue extraction through the provider-neutral queue facade.

@@ -63,6 +63,7 @@ export function useSidebarActions(deps: {
     setSelectedIds,
     setRenamingId,
     refreshTree,
+    refreshChildren,
   } = useNoteTreeStore();
   const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
 
@@ -159,10 +160,14 @@ export function useSidebarActions(deps: {
       }
 
       if (firstNoteId) {
+        // The upload endpoint publishes the source note before its background
+        // extraction begins. Merge the root branch once for the whole batch so
+        // the sidebar reflects that immediately without a full-tree reset.
+        await refreshChildren(null);
         router.push(`/notes/${firstNoteId}`);
       }
     },
-    [router, uploadFile, t],
+    [refreshChildren, router, uploadFile, t],
   );
 
   // collapse all tree items

@@ -47,10 +47,22 @@ interface CanvasProgress {
 interface CanvasLog {
   status?: string;
   courseId?: string | number;
+  treePath?: string[];
 }
 
 interface CanvasStatusResponse {
-  activeJob?: { phase?: string } | null;
+  activeJob?: {
+    jobId?: string;
+    phase?: string;
+    status?: string;
+    jobType?: string;
+  } | null;
+  latestJob?: {
+    jobId?: string;
+    status?: string;
+    jobType?: string;
+    errorMessage?: string | null;
+  } | null;
   progress?: CanvasProgress | null;
   markerColdStarting?: boolean;
   estimatedSecsRemaining?: number | null;
@@ -89,7 +101,9 @@ export default function useCanvasImport({
   const [isSyncing, setIsSyncing] = useState(false);
   const [markerColdStarting, setMarkerColdStarting] = useState(false);
   const [estimatedSecsRemaining, setEstimatedSecsRemaining] = useState<number | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollRequestRef = useRef<AbortController | null>(null);
+  const pollingRef = useRef(false);
   const latestStateRef = useRef({
     courses,
     forbiddenCourses,
@@ -108,18 +122,29 @@ export default function useCanvasImport({
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current);
+      clearTimeout(pollRef.current);
       pollRef.current = null;
     }
+    pollingRef.current = false;
+    pollRequestRef.current?.abort();
+    pollRequestRef.current = null;
   }, []);
 
   const startPolling = useCallback(() => {
-    if (pollRef.current) return;
-    pollRef.current = setInterval(async () => {
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+
+    const poll = async (): Promise<void> => {
+      if (!pollingRef.current) return;
+      const controller = new AbortController();
+      pollRequestRef.current = controller;
       try {
-        const res = await fetch("/api/canvas/status");
-        if (!res.ok) return;
+        const res = await fetch("/api/canvas/status", {
+          signal: controller.signal,
+        });
+        if (!res.ok || controller.signal.aborted) return;
         const data = (await res.json()) as CanvasStatusResponse;
+        if (controller.signal.aborted || !pollingRef.current) return;
 
         setIsDiscovering(data.activeJob?.phase === "discovering");
         setProgress(data.progress ?? null);
@@ -153,7 +178,7 @@ export default function useCanvasImport({
           setMarkerColdStarting(false);
           setEstimatedSecsRemaining(null);
           localStorage.removeItem(LS_ACTIVE_JOB);
-          if (data.progress) {
+          if (data.latestJob?.status === "complete" && data.progress) {
             setImportSummary({
               imported: data.progress.completed,
               forbidden: data.issues?.forbidden ?? 0,
@@ -175,13 +200,15 @@ export default function useCanvasImport({
             setSyncedCourses(newSynced);
             localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
 
-            // auto-refresh filetree and open notes after sync completes
+            // Merge only published branches. A full tree rebuild discards
+            // lazy-loaded descendants while imports are still visible.
             const treeStore = useNoteTreeStore.getState();
             const noteStore = useNoteStore.getState();
             const layoutStore = useLayoutStore.getState();
 
-            // refresh filetree to show new imported notes
-            await treeStore.refreshTree();
+            await treeStore.refreshTreePaths(
+              logs.map((log) => log.treePath ?? []),
+            );
 
             // refresh any open notes in editor panes
             const paneA = layoutStore.paneA;
@@ -194,15 +221,41 @@ export default function useCanvasImport({
               refreshPromises.push(noteStore.fetchNote(paneB.fileId));
             }
             await Promise.allSettled(refreshPromises);
+          } else {
+            setProgress(null);
+            setImportSummary(null);
+            if (data.latestJob?.status === "failed") {
+              setConnectionError(
+                data.latestJob.errorMessage ?? t("Import failed"),
+              );
+            } else if (data.latestJob?.status === "cancelled") {
+              setConnectionError(t("Import cancelled."));
+            }
           }
         }
       } catch {
-        // keep polling on transient errors
+        // Keep polling after transient errors. A cancellation is expected
+        // when changing jobs or leaving settings.
+      } finally {
+        if (pollRequestRef.current === controller) {
+          pollRequestRef.current = null;
+        }
+        // Poll only after this snapshot has settled: a slow Marker/OCR status
+        // response must never overtake a later request.
+        if (pollingRef.current && !controller.signal.aborted) {
+          pollRef.current = setTimeout(() => {
+            void poll();
+          }, 2_000);
+        }
       }
-    }, 2000);
+    };
+
+    void poll();
   }, [
     setForbiddenCourses,
     setSyncedCourses,
+    setConnectionError,
+    t,
     stopPolling,
   ]);
 

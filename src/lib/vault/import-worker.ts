@@ -19,6 +19,7 @@ import type { StoreProvider } from "../storage/base";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
 import { insertNoteWithTree } from "../notes/storage/create-note";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
+import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import { extractWithMarker } from "../ocr.ts";
 import {
   markerAssetPrefix,
@@ -127,6 +128,7 @@ async function createNote(
       ON CONFLICT (user_id, note_id) DO NOTHING
     `;
   });
+  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
 }
 
@@ -183,7 +185,6 @@ export async function persistVaultSourceFile({
         )
       `;
     });
-    return noteId;
   } catch (relationalError) {
     try {
       await storage.deleteObject(s3Key);
@@ -195,6 +196,12 @@ export async function persistVaultSourceFile({
     }
     throw relationalError;
   }
+
+  // The source note is now durable even though OCR/embeddings may still be
+  // running. Publish its branch only after the transaction succeeds so the
+  // sidebar can show meaningful import progress without exposing rollbacks.
+  await invalidateTreeAfterPublish(userId, parentId);
+  return noteId;
 }
 
 async function findOrCreateNote(

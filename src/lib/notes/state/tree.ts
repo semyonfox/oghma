@@ -5,6 +5,7 @@ import TreeActions, {
   DEFAULT_TREE,
   ROOT_ID,
   TreeItemSummary,
+  TreeItemModel,
   TreeItemUpdate,
   TreeMoveRequest,
   TreeMutationRequest,
@@ -20,6 +21,7 @@ import {
 } from "./tree-utils";
 
 const TREE_CACHE_KEY = "tree";
+const refreshChildrenInFlight = new Map<string, Promise<void>>();
 
 type Toast = (message: string, type?: "error") => void;
 
@@ -49,6 +51,8 @@ export interface NoteTreeState {
   toast: Toast | null;
   initTree: () => Promise<void>;
   loadChildren: (parentId: string | null) => Promise<void>;
+  refreshChildren: (parentId: string | null) => Promise<void>;
+  refreshTreePaths: (paths: string[][]) => Promise<void>;
   addItem: (item: NoteModel) => void;
   removeItem: (id: string) => Promise<void>;
   genNewId: () => string;
@@ -196,6 +200,114 @@ const useNoteTreeStore = create<NoteTreeState>((set, get) => ({
         loadingChildren.delete(parentKey);
         return { loadingChildren };
       });
+    }
+  },
+
+  refreshChildren: async (parentId: string | null) => {
+    const parentKey = parentId ?? ROOT_ID;
+    const existingRefresh = refreshChildrenInFlight.get(parentKey);
+    if (existingRefresh) return existingRefresh;
+
+    // Let the normal lazy loader finish rather than letting a status update
+    // replace its children with an older snapshot. A later status tick will
+    // retry this branch if the published item was not included yet.
+    if (get().loadingChildren.has(parentKey)) return;
+
+    const refreshPromise = (async () => {
+      const { treeAPI } = get();
+      if (!treeAPI) {
+        console.warn(
+          "refreshChildren called before dependencies were set — skipping",
+        );
+        return;
+      }
+
+      try {
+        const response = await treeAPI.fetchChildren(parentId);
+        const items = response?.items;
+        if (!Array.isArray(items)) return;
+
+        // Merge against the latest state: status updates must not reset loaded
+        // descendants or make the sidebar collapse back to the root.
+        const currentTree = get().tree;
+        const parent = currentTree.items[parentKey];
+        if (!parent) return;
+
+        const nextItems = { ...currentTree.items };
+        const childIds: string[] = [];
+        for (const item of items) {
+          const incoming = buildTreeItemFromApi(item);
+          const currentItem = nextItems[item.id];
+          const mergedItem: TreeItemModel = currentItem
+            ? {
+                ...currentItem,
+                ...incoming,
+                data: incoming.data
+                  ? { ...currentItem.data, ...incoming.data }
+                  : currentItem.data,
+                children: currentItem.children,
+                childrenLoaded: currentItem.childrenLoaded,
+              }
+            : incoming;
+          nextItems[item.id] = mergedItem;
+          childIds.push(item.id);
+        }
+
+        nextItems[parentKey] = {
+          ...parent,
+          children: childIds,
+          childrenLoaded: true,
+        };
+
+        const nextTree = { ...currentTree, items: nextItems };
+        set(treeState(nextTree));
+        await uiCache.setItem(TREE_CACHE_KEY, nextTree);
+      } catch (error) {
+        // Incremental availability is best-effort. Keep the current branch
+        // visible and let the next status snapshot retry it.
+        console.error(`Error refreshing children for ${parentKey}:`, error);
+      }
+    })();
+
+    refreshChildrenInFlight.set(parentKey, refreshPromise);
+    try {
+      await refreshPromise;
+    } finally {
+      if (refreshChildrenInFlight.get(parentKey) === refreshPromise) {
+        refreshChildrenInFlight.delete(parentKey);
+      }
+    }
+  },
+
+  refreshTreePaths: async (paths: string[][]) => {
+    // A path is root-to-leaf. Refresh parents from root down so a newly
+    // created course/module is in the local tree before its child is fetched.
+    const parentsByDepth = new Map<number, Set<string>>();
+    const addParent = (depth: number, parentId: string) => {
+      const parents = parentsByDepth.get(depth) ?? new Set<string>();
+      parents.add(parentId);
+      parentsByDepth.set(depth, parents);
+    };
+
+    addParent(0, ROOT_ID);
+    for (const path of paths) {
+      const ids = Array.isArray(path)
+        ? path.filter((id) => typeof id === "string" && id.length > 0)
+        : [];
+      for (let index = 0; index < ids.length - 1; index += 1) {
+        addParent(index + 1, ids[index]);
+      }
+    }
+
+    for (const [, parentIds] of [...parentsByDepth.entries()].sort(
+      ([leftDepth], [rightDepth]) => leftDepth - rightDepth,
+    )) {
+      await Promise.all(
+        [...parentIds].map((parentId) => {
+          if (!get().tree.items[parentId]) return Promise.resolve();
+          return get().refreshChildren(parentId === ROOT_ID ? null : parentId);
+        }),
+      );
     }
   },
 

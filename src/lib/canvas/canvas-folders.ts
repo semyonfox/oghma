@@ -6,6 +6,7 @@
 import type postgres from "postgres";
 import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
+import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 export { cleanCourseName, stripHtmlToText } from "./content-formatting";
 
 interface CanvasFolderIdentity {
@@ -110,7 +111,7 @@ export async function findOrCreateFolder(
   const { canvasCourseId, canvasAcademicYear } = canvas;
 
   try {
-    return await sql.begin(async (tx) => {
+    const folderId = await sql.begin(async (tx) => {
       // Trash takes this exact lock before marking a subtree deleted. Holding
       // it across the active-parent check and tree insert prevents a late
       // Canvas worker from creating children below a deleted course.
@@ -143,11 +144,13 @@ export async function findOrCreateFolder(
       await reuseExisting(tx, noteId, userId, parentId);
       return noteId;
     });
+    await invalidateTreeAfterPublish(userId, parentId);
+    return folderId;
   } catch (error) {
     if (error instanceof CanvasFolderTrashedError) throw error;
     // Unique index conflict: a concurrent worker won the creation race.
     if (isUniqueViolation(error) && canvasCourseId != null) {
-      return sql.begin(async (tx) => {
+      const folderId = await sql.begin(async (tx) => {
         await lockUserTree(tx, userId);
         await ensureActiveParent(tx, userId, parentId);
         const winner = await findCanvasFolder(tx, userId, canvas);
@@ -159,6 +162,8 @@ export async function findOrCreateFolder(
         }
         throw error;
       });
+      await invalidateTreeAfterPublish(userId, parentId);
+      return folderId;
     }
     console.warn(`Failed to create folder "${title}": ${errorMessage(error)}`);
     return parentId;
