@@ -1,61 +1,43 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import {
-  inputClass,
-  readResponseError,
-  saveBtnClass,
-} from "./settings-utils";
+import { readResponseError, saveBtnClass } from "./settings-utils";
 
-type FormState = { firstName: string; lastName: string; email: string; timezone: string; theme: string; editorWidth: string | number; currentPassword: string; newPassword: string; confirmPassword: string };
-type Props = { formState: FormState; setFormState: Dispatch<SetStateAction<FormState>>; savingSection: string | null; setSavingSection: Dispatch<SetStateAction<string | null>> };
+type Props = {
+  savingSection: string | null;
+  setSavingSection: Dispatch<SetStateAction<string | null>>;
+};
 
 export default function PasswordSection({
-  formState,
-  setFormState,
   savingSection,
   setSavingSection,
 }: Props) {
   const { t } = useI18n();
 
-  const handlePasswordChange = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (formState.newPassword !== formState.confirmPassword) {
-      toast.error(t("Passwords do not match"));
-      return;
-    }
-    if (formState.newPassword.length < 8) {
-      toast.error(t("Password must be at least 8 characters"));
-      return;
-    }
+  const handlePasswordChange = async (): Promise<void> => {
     setSavingSection("password");
     try {
       const response = await fetch("/api/auth/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: formState.currentPassword,
-          newPassword: formState.newPassword,
-        }),
       });
       if (response.ok) {
-        toast.success(t("Password changed successfully"));
-        setFormState((prev) => ({
-          ...prev,
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        }));
+        const data = await response.json().catch(() => ({}));
+        toast.success(
+          data.message ||
+            t(
+              "We sent a verification link to your email. Click the link to verify your account.",
+            ),
+        );
       } else {
         toast.error(
-          await readResponseError(response, t("Failed to change password")),
+          await readResponseError(response, t("An error occurred. Please try again.")),
         );
       }
     } catch (error) {
-      console.error("Failed to change password:", error);
-      toast.error(t("Failed to change password"));
+      console.error("Failed to request a password change:", error);
+      toast.error(t("An error occurred. Please try again."));
     } finally {
       setSavingSection(null);
     }
@@ -75,96 +57,20 @@ export default function PasswordSection({
         </p>
       </div>
 
-      <form className="md:col-span-2" onSubmit={handlePasswordChange}>
-        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:max-w-xl sm:grid-cols-6">
-          <div className="col-span-full">
-            <label
-              htmlFor="current-password"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("Current password")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="current-password"
-                name="current_password"
-                type="password"
-                autoComplete="current-password"
-                value={formState.currentPassword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    currentPassword: e.target.value,
-                  }))
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div className="col-span-full">
-            <label
-              htmlFor="new-password"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("New password")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="new-password"
-                name="new_password"
-                type="password"
-                autoComplete="new-password"
-                value={formState.newPassword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    newPassword: e.target.value,
-                  }))
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div className="col-span-full">
-            <label
-              htmlFor="confirm-password"
-              className="block text-sm/6 font-medium text-text"
-            >
-              {t("Confirm password")}
-            </label>
-            <div className="mt-2">
-              <input
-                id="confirm-password"
-                name="confirm_password"
-                type="password"
-                autoComplete="new-password"
-                value={formState.confirmPassword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    confirmPassword: e.target.value,
-                  }))
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 flex">
+      <div className="md:col-span-2 sm:max-w-xl">
+        <div className="flex">
           <button
-            type="submit"
-            disabled={savingSection === "password"}
+            type="button"
+            onClick={() => void handlePasswordChange()}
+            disabled={savingSection !== null}
             className={saveBtnClass}
           >
             {savingSection === "password"
-              ? t("Updating...")
-              : t("Change password")}
+              ? t("Sending...")
+              : t("Send Reset Link")}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeClientLocale,
   readCachedSettings,
   shouldRevalidateSettings,
 } from "@/components/providers/i18n-root-provider";
@@ -27,6 +28,12 @@ describe("shouldRevalidateSettings", () => {
     "/notes-public",
   ])("does not fetch authenticated settings on public path %s", (pathname) => {
     expect(shouldRevalidateSettings(pathname)).toBe(false);
+  });
+
+  it("falls back safely when an old browser cache contains an unsupported locale", () => {
+    expect(normalizeClientLocale("fr-FR")).toBe(Locale.FR_FR);
+    expect(normalizeClientLocale("removed-locale")).toBe(Locale.EN);
+    expect(normalizeClientLocale(null)).toBe(Locale.EN);
   });
 });
 

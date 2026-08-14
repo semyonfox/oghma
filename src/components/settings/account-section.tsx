@@ -1,11 +1,20 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, type Dispatch, type SetStateAction, useState, useRef, useEffect } from "react";
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { ArrowPathIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import LanguageSelector from "@/components/common/language-selector";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import {
   inputClass,
   cn,
@@ -13,16 +22,39 @@ import {
   saveBtnClass,
 } from "./settings-utils";
 
-export type FormState = { firstName: string; lastName: string; email: string; timezone: string; theme: string; editorWidth: string | number; currentPassword: string; newPassword: string; confirmPassword: string };
-type Props = { formState: FormState; setFormState: Dispatch<SetStateAction<FormState>>; savingSection: string | null; setSavingSection: Dispatch<SetStateAction<string | null>> };
+export type FormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  timezone: string;
+  theme: "dark" | "light" | "system";
+  editorWidth: string | number;
+};
+
+type ProfileSettings = Pick<
+  FormState,
+  "firstName" | "lastName" | "timezone"
+>;
+
+type Props = {
+  formState: FormState;
+  setFormState: Dispatch<SetStateAction<FormState>>;
+  savingSection: string | null;
+  setSavingSection: Dispatch<SetStateAction<string | null>>;
+  hasChanges: boolean;
+  onSaved?: (savedProfile: ProfileSettings) => void;
+};
 
 export default function AccountSection({
   formState,
   setFormState,
   savingSection,
   setSavingSection,
+  hasChanges,
+  onSaved,
 }: Props) {
   const { t } = useI18n();
+  const updateSettings = useSettingsStore((state) => state.updateSettings);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -62,22 +94,17 @@ export default function AccountSection({
     e.preventDefault();
     setSavingSection("profile");
     try {
-      const response = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timezone: formState.timezone,
-          firstName: formState.firstName,
-          lastName: formState.lastName,
-        }),
+      const savedSettings = await updateSettings({
+        timezone: formState.timezone,
+        firstName: formState.firstName,
+        lastName: formState.lastName,
       });
-      if (response.ok) {
-        toast.success(t("Profile updated successfully"));
-      } else {
-        toast.error(
-          await readResponseError(response, t("Failed to save profile")),
-        );
-      }
+      onSaved?.({
+        firstName: savedSettings.firstName ?? formState.firstName,
+        lastName: savedSettings.lastName ?? formState.lastName,
+        timezone: savedSettings.timezone ?? formState.timezone,
+      });
+      toast.success(t("Profile updated successfully"));
     } catch (error) {
       console.error("Failed to save profile:", error);
       toast.error(t("Failed to save profile"));
@@ -299,14 +326,19 @@ export default function AccountSection({
           </div>
         </div>
 
-        <div className="mt-8 flex">
+        <div className="mt-8 flex items-center gap-3">
           <button
             type="submit"
-            disabled={savingSection === "profile"}
+            disabled={savingSection !== null || !hasChanges}
             className={saveBtnClass}
           >
             {savingSection === "profile" ? t("Saving...") : t("Save changes")}
           </button>
+          {hasChanges && (
+            <span className="text-xs text-text-tertiary" role="status">
+              {t("Unsaved")}
+            </span>
+          )}
         </div>
       </form>
     </div>

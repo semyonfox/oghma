@@ -109,6 +109,7 @@ export async function sendEmail({
 export async function sendPasswordResetEmail(
   email: string,
   resetToken: string,
+  resetPath: string = "/reset-password",
 ): Promise<void> {
   const fromEmail = getFromEmail();
   if (!fromEmail) {
@@ -116,26 +117,39 @@ export async function sendPasswordResetEmail(
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+  const safeResetPath =
+    resetPath === "/change-password" ? "/change-password" : "/reset-password";
+  const resetUrl = `${baseUrl}${safeResetPath}?token=${encodeURIComponent(resetToken)}`;
+  const isPasswordChange = safeResetPath === "/change-password";
+  const subject = isPasswordChange
+    ? "Confirm your password change"
+    : "Password Reset Request";
+  const heading = isPasswordChange
+    ? "Change Your Password"
+    : "Reset Your Password";
+  const prompt = isPasswordChange
+    ? "Click the button below to confirm your password change:"
+    : "Click the button below to reset your password:";
+  const action = isPasswordChange ? "Change Password" : "Reset Password";
 
   const mailOptions = {
     from: fromEmail,
     to: email,
-    subject: "Password Reset Request",
+    subject,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Reset Your Password</h2>
-        <p>Click the button below to reset your password:</p>
+        <h2>${heading}</h2>
+        <p>${prompt}</p>
         <a href="${resetUrl}"
            style="background-color: #4299e1; color: white; padding: 12px 24px;
                   text-decoration: none; border-radius: 5px; display: inline-block;">
-          Reset Password
+          ${action}
         </a>
         <p style="margin-top: 20px; color: #666;">This link expires in 1 hour.</p>
         <p style="color: #999; font-size: 12px;">If you didn't request this, ignore this email.</p>
       </div>
     `,
-    text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour.`,
+    text: `${action}: ${resetUrl}\n\nThis link expires in 1 hour.`,
   };
 
   try {

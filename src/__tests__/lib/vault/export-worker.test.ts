@@ -83,4 +83,32 @@ describe("processVaultExport", () => {
       { expiresIn: 86400 },
     );
   });
+
+  it("fails the job rather than publishing an archive with unreadable files", async () => {
+    mocks.buildExportPathMap.mockResolvedValueOnce(
+      new Map([
+        [
+          "note-1",
+          {
+            path: "Lecture 1.pdf",
+            s3Key: "files/lecture-1.pdf",
+            content: null,
+          },
+        ],
+      ]),
+    );
+    mocks.s3Send.mockReset();
+    mocks.s3Send
+      .mockResolvedValueOnce({ UploadId: "upload-1" })
+      .mockRejectedValueOnce(new Error("object is unavailable"))
+      .mockResolvedValueOnce({});
+
+    await expect(
+      processVaultExport({ jobId: "job-1", userId: "user-1" }),
+    ).rejects.toThrow("Could not export 1 file: Lecture 1.pdf");
+
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+    expect(mocks.sendVaultExportCompleteEmail).not.toHaveBeenCalled();
+    expect(mocks.s3Send).toHaveBeenCalledTimes(3);
+  });
 });

@@ -449,7 +449,7 @@ export default function ChatPageClient() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="w-12 shrink-0 overflow-hidden border-r border-border-subtle bg-background">
+          <div className="w-14 shrink-0 overflow-hidden border-r border-border-subtle bg-background">
             <PrimaryNavigation />
           </div>
         )}

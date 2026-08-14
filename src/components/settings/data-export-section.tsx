@@ -20,6 +20,7 @@ export default function DataExportSection() {
 
   const [importStatus, setImportStatus] = useState<ExportStatus | null>(null);
   const [importProgress, setImportProgress] = useState<Progress | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [importJobId, setImportJobId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [importCancelRequested, setImportCancelRequested] = useState(false);
@@ -27,6 +28,7 @@ export default function DataExportSection() {
   const [exportJobId, setExportJobId] = useState<string | null>(null);
   const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
   const [exportProgress, setExportProgress] = useState<Progress | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exportCancelRequested, setExportCancelRequested] = useState(false);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export default function DataExportSection() {
 
       setImportStatus("uploading");
       setUploadProgress(0);
+      setImportError(null);
 
       const presignRes = await fetch("/api/vault/import", {
         method: "POST",
@@ -143,7 +146,9 @@ export default function DataExportSection() {
     } catch (err: unknown) {
       console.error("Vault import failed:", err);
       setImportStatus("failed");
-      toast.error(err instanceof Error ? err.message : t("Import failed"));
+      const message = err instanceof Error ? err.message : t("Import failed");
+      setImportError(message);
+      toast.error(message);
     } finally {
       input.value = "";
     }
@@ -153,6 +158,7 @@ export default function DataExportSection() {
     try {
       setExportStatus("processing");
       setExportDownloadUrl(null);
+      setExportError(null);
 
       const url = force ? "/api/vault/export?force=true" : "/api/vault/export";
       const res = await fetch(url, { method: "POST" });
@@ -179,7 +185,9 @@ export default function DataExportSection() {
     } catch (err: unknown) {
       console.error("Vault export failed:", err);
       setExportStatus("failed");
-      toast.error(err instanceof Error ? err.message : t("Export failed"));
+      const message = err instanceof Error ? err.message : t("Export failed");
+      setExportError(message);
+      toast.error(message);
     }
   }
 
@@ -245,7 +253,9 @@ export default function DataExportSection() {
       if (job.status === "failed") {
         setImportStatus("failed");
         setImportCancelRequested(false);
-        toast.error(job.error || t("Import failed"));
+        const message = job.error || t("Import failed");
+        setImportError(message);
+        toast.error(message);
         return true;
       }
       if (progress) {
@@ -291,7 +301,9 @@ export default function DataExportSection() {
       if (job.status === "failed") {
         setExportStatus("failed");
         setExportCancelRequested(false);
-        toast.error(job.error || t("Export failed"));
+        const message = job.error || t("Export failed");
+        setExportError(message);
+        toast.error(message);
         return true;
       }
       if (progress) {
@@ -325,6 +337,9 @@ export default function DataExportSection() {
           } else if (job?.status === "complete") {
             setImportStatus("complete");
             setImportProgress(progress);
+          } else if (job?.status === "failed") {
+            setImportStatus("failed");
+            setImportError(job.error || null);
           }
         }
         if (exportRes.ok) {
@@ -337,6 +352,9 @@ export default function DataExportSection() {
             setExportStatus("complete");
             setExportDownloadUrl(downloadUrl);
             setExportProgress(progress);
+          } else if (job?.status === "failed") {
+            setExportStatus("failed");
+            setExportError(job.error || null);
           }
         }
       } catch {}
@@ -418,7 +436,7 @@ export default function DataExportSection() {
 
             {importStatus === "failed" && (
               <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
-                {t("Import failed. Please try again.")}
+                {importError || t("Import failed. Please try again.")}
               </div>
             )}
 
@@ -515,7 +533,7 @@ export default function DataExportSection() {
 
             {exportStatus === "failed" && (
               <div className="mb-4 rounded-radius-md bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-inset ring-red-500/20">
-                {t("Export failed. Please try again.")}
+                {exportError || t("Export failed. Please try again.")}
               </div>
             )}
 

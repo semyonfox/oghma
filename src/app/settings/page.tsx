@@ -82,6 +82,22 @@ const NAVIGATION_ITEMS = [
   { label: "Danger Zone", id: "danger", icon: ExclamationTriangleIcon },
 ];
 
+type SavedProfile = Pick<
+  FormState,
+  "firstName" | "lastName" | "email" | "timezone"
+>;
+type SavedEditorSettings = Pick<FormState, "theme" | "editorWidth">;
+
+function applyThemePreview(theme: FormState["theme"]) {
+  const root = document.documentElement;
+  const isDark =
+    theme === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : theme === "dark";
+  root.classList.toggle("light", !isDark);
+  root.classList.toggle("dark", isDark);
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { t } = useI18n();
@@ -99,10 +115,10 @@ export default function SettingsPage() {
     timezone: "UTC",
     theme: "system",
     editorWidth: DEFAULT_EDITOR_SIZE,
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
   });
+  const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(null);
+  const [savedEditorSettings, setSavedEditorSettings] =
+    useState<SavedEditorSettings | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState("account");
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -152,17 +168,28 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadUserData = async () => {
       try {
+        let profile: SavedProfile = {
+          firstName: "",
+          lastName: "",
+          email: "",
+          timezone: "UTC",
+        };
+        let editorSettings: SavedEditorSettings = {
+          theme: "system",
+          editorWidth: DEFAULT_EDITOR_SIZE,
+        };
+
         const profileResponse = await fetch("/api/auth/me");
         if (profileResponse.ok) {
           const { user } = await profileResponse.json();
           if (user) {
             const nameParts = (user.name || "").split(" ");
-            setFormState((prev) => ({
-              ...prev,
+            profile = {
               firstName: nameParts[0] || "",
               lastName: nameParts.slice(1).join(" ") || "",
               email: user.email || "",
-            }));
+              timezone: "UTC",
+            };
           }
         }
 
@@ -170,19 +197,29 @@ export default function SettingsPage() {
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json();
           setSettings(settingsData);
-          setFormState((prev) => ({
-            ...prev,
+          profile = {
+            ...profile,
+            timezone: settingsData.timezone || "UTC",
+            ...(Object.hasOwn(settingsData, "firstName")
+              ? { firstName: settingsData.firstName || "" }
+              : {}),
+            ...(Object.hasOwn(settingsData, "lastName")
+              ? { lastName: settingsData.lastName || "" }
+              : {}),
+          };
+          editorSettings = {
             theme: settingsData.theme || "system",
             editorWidth: normalizeEditorSize(settingsData.editorsize),
-            timezone: settingsData.timezone || "UTC",
-            ...(settingsData.firstName
-              ? { firstName: settingsData.firstName }
-              : {}),
-            ...(settingsData.lastName
-              ? { lastName: settingsData.lastName }
-              : {}),
-          }));
+          };
         }
+
+        setFormState((previous) => ({
+          ...previous,
+          ...profile,
+          ...editorSettings,
+        }));
+        setSavedProfile(profile);
+        setSavedEditorSettings(editorSettings);
       } catch (error) {
         console.error("Failed to load user data:", error);
       }
@@ -224,16 +261,12 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    let isDark;
-    if (formState.theme === "system") {
-      isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    } else {
-      isDark = formState.theme === "dark";
-    }
-    root.classList.toggle("light", !isDark);
-    root.classList.toggle("dark", isDark);
-  }, [formState.theme]);
+    applyThemePreview(formState.theme);
+
+    return () => {
+      applyThemePreview(savedEditorSettings?.theme || "system");
+    };
+  }, [formState.theme, savedEditorSettings?.theme]);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -267,6 +300,30 @@ export default function SettingsPage() {
     await Promise.all(items.map((item: { courseId: string }) => unarchiveCourse(item.courseId)));
     await loadCourseVisibility();
   };
+
+  const profileHasChanges =
+    savedProfile !== null &&
+    (formState.firstName !== savedProfile.firstName ||
+      formState.lastName !== savedProfile.lastName ||
+      formState.timezone !== savedProfile.timezone);
+  const editorHasChanges =
+    savedEditorSettings !== null &&
+    (formState.theme !== savedEditorSettings.theme ||
+      normalizeEditorSize(formState.editorWidth) !==
+        savedEditorSettings.editorWidth);
+  const hasUnsavedSettings = profileHasChanges || editorHasChanges;
+
+  useEffect(() => {
+    if (!hasUnsavedSettings) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [hasUnsavedSettings]);
 
   return (
     <div className="bg-app-page min-h-screen">
@@ -353,16 +410,25 @@ export default function SettingsPage() {
             setFormState={setFormState}
             savingSection={savingSection}
             setSavingSection={setSavingSection}
+            hasChanges={profileHasChanges}
+            onSaved={(savedProfileData) => {
+              setSavedProfile({
+                ...savedProfileData,
+                email: formState.email,
+              });
+            }}
           />
           <EditorThemeSection
             formState={formState}
             setFormState={setFormState}
             savingSection={savingSection}
             setSavingSection={setSavingSection}
+            hasChanges={editorHasChanges}
+            onSaved={(savedEditorSettingsData) =>
+              setSavedEditorSettings(savedEditorSettingsData)
+            }
           />
           <PasswordSection
-            formState={formState}
-            setFormState={setFormState}
             savingSection={savingSection}
             setSavingSection={setSavingSection}
           />

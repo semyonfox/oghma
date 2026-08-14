@@ -1,14 +1,16 @@
-import bcrypt from "bcryptjs";
 import sql from "@/database/pgsql";
-import {
-  validateSession,
-  createErrorResponse,
-  parseJsonBody,
-} from "@/lib/auth";
-import { validatePassword } from "@/lib/validation";
+import { createErrorResponse, validateSession } from "@/lib/auth";
+import { sendPasswordResetEmail } from "@/lib/email";
+import { ApiError, assertTrustedOrigin } from "@/lib/api-error";
 import logger from "@/lib/logger";
-import { assertTrustedOrigin } from "@/lib/api-error";
+import { checkRateLimit } from "@/lib/rateLimiter";
+import { generateSecureToken, hashToken } from "@/lib/tokens";
 import type { NextRequest } from "next/server";
+
+type PasswordAccount = {
+  email: string;
+  hashed_password: string | null;
+};
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
@@ -18,34 +20,11 @@ export async function POST(request: NextRequest): Promise<Response> {
       return createErrorResponse("Unauthorized", 401);
     }
 
-    const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return parseError;
+    const limited = await checkRateLimit("change-password", user.user_id);
+    if (limited) return limited;
 
-    const currentPassword =
-      typeof body?.currentPassword === "string" ? body.currentPassword : "";
-    const newPassword =
-      typeof body?.newPassword === "string" ? body.newPassword : "";
-    if (!currentPassword || !newPassword) {
-      return createErrorResponse(
-        "Current password and new password are required",
-        400,
-      );
-    }
-
-    if (currentPassword === newPassword) {
-      return createErrorResponse(
-        "New password must be different from current password",
-        400,
-      );
-    }
-
-    const passwordValidation = validatePassword(newPassword);
-    if (!passwordValidation.isValid) {
-      return createErrorResponse(passwordValidation.errors.join("; "), 400);
-    }
-
-    const [account] = await sql<{ hashed_password: string | null }[]>`
-      SELECT hashed_password
+    const [account] = await sql<PasswordAccount[]>`
+      SELECT email, hashed_password
       FROM app.login
       WHERE user_id = ${user.user_id}::uuid
         AND is_active = true
@@ -54,32 +33,34 @@ export async function POST(request: NextRequest): Promise<Response> {
     `;
 
     if (!account?.hashed_password) {
-      return createErrorResponse("Unauthorized", 401);
+      return createErrorResponse(
+        "Password sign-in is not enabled for this account",
+        400,
+      );
     }
 
-    const passwordMatches = await bcrypt.compare(
-      currentPassword,
-      account.hashed_password,
-    );
-    if (!passwordMatches) {
-      return createErrorResponse("Current password is incorrect", 400);
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const resetToken = generateSecureToken();
+    const tokenHash = hashToken(resetToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
     await sql`
       UPDATE app.login
-      SET hashed_password = ${hashedPassword},
-          reset_token = NULL,
-          reset_token_expires = NULL
+      SET reset_token = ${tokenHash},
+          reset_token_expires = ${expiresAt}
       WHERE user_id = ${user.user_id}::uuid
     `;
 
+    await sendPasswordResetEmail(account.email, resetToken, "/change-password");
+
     return Response.json({
       success: true,
-      message: "Password changed successfully",
+      message:
+        "We sent a verification link to your email. Click the link to verify your account.",
     });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return createErrorResponse(error.userMessage, error.statusCode);
+    }
     logger.error("change password error", { error });
     return createErrorResponse("Failed to change password", 500);
   }

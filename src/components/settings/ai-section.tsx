@@ -14,6 +14,8 @@ export default function AISection() {
   const settings = useSettingsStore((state) => state.settings);
   const updateSettings = useSettingsStore((state) => state.updateSettings);
   const [canvasAccessEnabled, setCanvasAccessEnabled] = useState(false);
+  const [savedCanvasAccessEnabled, setSavedCanvasAccessEnabled] =
+    useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const activeModel =
     typeof settings?.ai_model === "string" && settings.ai_model.trim()
@@ -21,14 +23,28 @@ export default function AISection() {
       : FALLBACK_ACTIVE_MODEL;
 
   useEffect(() => {
-    setCanvasAccessEnabled(Boolean(settings?.ai_canvas_access));
+    if (typeof settings?.ai_canvas_access !== "boolean") return;
+    setCanvasAccessEnabled(settings.ai_canvas_access);
+    setSavedCanvasAccessEnabled(settings.ai_canvas_access);
   }, [settings?.ai_canvas_access]);
+
+  const hasChanges =
+    savedCanvasAccessEnabled !== null &&
+    canvasAccessEnabled !== savedCanvasAccessEnabled;
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!hasChanges) return;
     setSaving(true);
     try {
-      await updateSettings({ ai_canvas_access: canvasAccessEnabled });
+      const savedSettings = await updateSettings({
+        ai_canvas_access: canvasAccessEnabled,
+      });
+      setSavedCanvasAccessEnabled(
+        typeof savedSettings?.ai_canvas_access === "boolean"
+          ? savedSettings.ai_canvas_access
+          : canvasAccessEnabled,
+      );
       toast.success(t("AI settings saved"));
     } catch (error) {
       console.error("Failed to save AI settings:", error);
@@ -125,10 +141,19 @@ export default function AISection() {
           </div>
         </div>
 
-        <div className="flex">
-          <button type="submit" disabled={saving} className={saveBtnClass}>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving || !hasChanges}
+            className={saveBtnClass}
+          >
             {saving ? t("Saving...") : t("Save changes")}
           </button>
+          {hasChanges && (
+            <span className="text-xs text-text-tertiary" role="status">
+              {t("Unsaved")}
+            </span>
+          )}
         </div>
       </form>
     </div>

@@ -5,7 +5,7 @@ import { Settings } from "@/lib/notes/types/settings";
 interface SettingsStore {
   settings: Settings;
   setSettings: (settings: Settings) => void;
-  updateSettings: (body: Partial<Settings>) => Promise<void>;
+  updateSettings: (body: Partial<Settings>) => Promise<Settings>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -24,6 +24,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
 
     const savedSettings = await response.json();
     set({ settings: savedSettings });
+    return savedSettings;
   },
 }));
 
