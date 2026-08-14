@@ -209,5 +209,31 @@ describe("DataExportSection vault import", () => {
       );
     });
     expect(input.value).toBe("");
+
+  });
+
+  it("keeps a persisted vault failure visible after returning to settings", async () => {
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = requestUrl(input);
+        if (url === "/api/calendar/token") return jsonResponse({ token: null });
+        if (url === "/api/vault/status?type=vault-import") {
+          return jsonResponse({
+            job: { status: "failed", error: "Storage object was unavailable" },
+            progress: null,
+          });
+        }
+        if (url === "/api/vault/status?type=vault-export") {
+          return jsonResponse({ job: null, downloadUrl: null, progress: null });
+        }
+        throw new Error(`Unexpected fetch: ${init?.method || "GET"} ${url}`);
+      },
+    );
+
+    render(React.createElement(DataExportSection));
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Storage object was unavailable");
+    });
   });
 });

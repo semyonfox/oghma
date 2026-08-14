@@ -437,21 +437,52 @@ async function streamAndProcessZip(
 
   const entryQueue = new EntryQueue(FILE_CONCURRENCY);
   let entryCount = 0;
+  let archiveEntryCount = 0;
   let totalSize = 0;
   let header = Buffer.alloc(0);
   let zipSignatureChecked = false;
 
   return new Promise((resolve, reject) => {
     const unzip = new Unzip((stream) => {
-      if (stream.name.endsWith("/")) return;
-
-      entryCount++;
-      if (entryCount > MAX_ENTRIES) {
+      archiveEntryCount++;
+      if (archiveEntryCount > MAX_ENTRIES) {
         reject(
           new Error(`Zip bomb protection: more than ${MAX_ENTRIES} entries`),
         );
+        stream.terminate();
         return;
       }
+
+      // Keep progress meaningful: Finder/Git metadata and unsafe paths are
+      // intentionally ignored and should not make a successful import appear
+      // incomplete. Still consume and count their contents so they cannot
+      // accumulate in fflate's stream buffer or bypass zip-bomb limits.
+      if (
+        stream.name.endsWith("/") ||
+        !sanitizePath(stream.name) ||
+        shouldIgnore(stream.name)
+      ) {
+        stream.ondata = (err, data) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          if (!data) return;
+          totalSize += data.length;
+          if (totalSize > MAX_DECOMPRESSED_SIZE) {
+            reject(
+              new Error(
+                `Zip bomb protection: decompressed size exceeds ${MAX_DECOMPRESSED_SIZE / (1024 * 1024 * 1024)}GB`,
+              ),
+            );
+            stream.terminate();
+          }
+        };
+        stream.start();
+        return;
+      }
+
+      entryCount++;
 
       const chunks: Uint8Array[] = [];
       stream.ondata = (err, data, final) => {
@@ -467,6 +498,7 @@ async function streamAndProcessZip(
                 `Zip bomb protection: decompressed size exceeds ${MAX_DECOMPRESSED_SIZE / (1024 * 1024 * 1024)}GB`,
               ),
             );
+            stream.terminate();
             return;
           }
           chunks.push(data);
@@ -677,6 +709,15 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
     if (cancelled) {
       console.log(`[${ts()}] Import cancelled for ${jobId}; skipping completion`);
       return;
+    }
+
+    // A vault archive is a backup/import contract. Keep successfully created
+    // notes, but never report a partial import as complete. Vault jobs are
+    // deliberately single-attempt until import replay is idempotent.
+    if (failedFiles > 0) {
+      throw new Error(
+        `Could not import ${failedFiles} file${failedFiles === 1 ? "" : "s"}. Files processed before the error remain in your vault.`,
+      );
     }
 
     // seed initial quiz questions from newly imported chunks (non-fatal)

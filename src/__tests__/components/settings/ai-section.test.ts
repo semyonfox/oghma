@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -55,6 +55,10 @@ describe("AISection server-managed model", () => {
     expect(input.value).toBe("deepseek/deepseek-v4-flash");
     expect(input.readOnly).toBe(true);
     expect(screen.getByText("Server-managed during beta.")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   it("renders an unknown server-configured model without inventing choices", () => {
@@ -70,5 +74,19 @@ describe("AISection server-managed model", () => {
     expect(input.value).toBe("provider/current-model");
     expect(input.readOnly).toBe(true);
     expect(screen.queryByRole("option")).toBeNull();
+  });
+
+  it("enables saving only after the Canvas access preference changes", () => {
+    render(React.createElement(AISection));
+
+    const saveButton = screen.getByRole("button", {
+      name: "Save changes",
+    }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(saveButton.disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toBe("Unsaved");
   });
 });

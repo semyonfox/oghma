@@ -1,6 +1,7 @@
 "use client";
 
 import BrandLogo from "@/components/brand-logo";
+import { useRouter } from "next/navigation";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
 import { configLocale, normalizeLocale } from "@/locales";
@@ -8,6 +9,7 @@ import type { ChangeEvent, SVGProps } from "react";
 
 export default function Footer() {
   const { t, locale, activeLocale } = useI18n();
+  const router = useRouter();
 
   const navigation = {
     features: [
@@ -60,8 +62,6 @@ export default function Footer() {
     try {
       const { dict } = await loadLocaleData(nextLocale);
       locale(nextLocale, dict);
-      document.cookie = `ogma-locale=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
-      localStorage.setItem("ogma-locale", nextLocale);
 
       // Persist the language preference to user settings
       await fetch("/api/settings", {
@@ -69,6 +69,7 @@ export default function Footer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: nextLocale }),
       });
+      router.refresh();
     } catch (error) {
       console.error("Failed to change language:", error);
     }

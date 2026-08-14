@@ -6,7 +6,13 @@ import Link from "next/link";
 import { Alert } from "@/components/alert";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
-function ResetPasswordForm() {
+type PasswordResetPurpose = "reset" | "change";
+
+function ResetPasswordForm({
+  purpose = "reset",
+}: {
+  purpose?: PasswordResetPurpose;
+}) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
@@ -39,7 +45,11 @@ function ResetPasswordForm() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage(t("Password reset successful! Redirecting to login..."));
+        setMessage(
+          purpose === "change"
+            ? t("Password changed successfully")
+            : t("Password reset successful! Redirecting to login..."),
+        );
         setTimeout(() => {
           window.location.href = "/login";
         }, 2000);
@@ -83,7 +93,7 @@ function ResetPasswordForm() {
     <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center font-serif text-2xl font-semibold tracking-tight text-text">
-          {t("Reset Password")}
+          {purpose === "change" ? t("Change password") : t("Reset Password")}
         </h2>
       </div>
 
@@ -143,7 +153,11 @@ function ResetPasswordForm() {
                 disabled={loading}
                 className="flex w-full justify-center rounded-radius-md bg-primary-600 px-3 py-1.5 text-sm/6 font-semibold text-text-on-primary hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? t("Resetting...") : t("Reset Password")}
+                {loading
+                  ? t("Resetting...")
+                  : purpose === "change"
+                    ? t("Change password")
+                    : t("Reset Password")}
               </button>
             </div>
           </form>
@@ -162,7 +176,11 @@ function ResetPasswordForm() {
   );
 }
 
-export default function ResetPasswordPage() {
+export function PasswordResetPage({
+  purpose = "reset",
+}: {
+  purpose?: PasswordResetPurpose;
+}) {
   const { t } = useI18n();
   return (
     <Suspense
@@ -172,7 +190,11 @@ export default function ResetPasswordPage() {
         </div>
       }
     >
-      <ResetPasswordForm />
+      <ResetPasswordForm purpose={purpose} />
     </Suspense>
   );
+}
+
+export default function ResetPasswordPage() {
+  return <PasswordResetPage />;
 }

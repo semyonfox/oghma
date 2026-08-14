@@ -1,6 +1,11 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, type Dispatch, type SetStateAction } from "react";
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import { toast } from "sonner";
 import {
   ComputerDesktopIcon,
@@ -9,6 +14,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
+import type { FormState } from "./account-section";
 import { saveBtnClass, cn } from "./settings-utils";
 import {
   EDITOR_WIDTH_OPTIONS,
@@ -17,14 +23,24 @@ import {
   normalizeEditorSize,
 } from "@/lib/notes/editor-width";
 
-type FormState = { firstName: string; lastName: string; email: string; timezone: string; theme: string; editorWidth: string | number; currentPassword: string; newPassword: string; confirmPassword: string };
-type Props = { formState: FormState; setFormState: Dispatch<SetStateAction<FormState>>; savingSection: string | null; setSavingSection: Dispatch<SetStateAction<string | null>> };
+type EditorSettings = Pick<FormState, "theme" | "editorWidth">;
+
+type Props = {
+  formState: FormState;
+  setFormState: Dispatch<SetStateAction<FormState>>;
+  savingSection: string | null;
+  setSavingSection: Dispatch<SetStateAction<string | null>>;
+  hasChanges: boolean;
+  onSaved?: (savedSettings: EditorSettings) => void;
+};
 
 export default function EditorThemeSection({
   formState,
   setFormState,
   savingSection,
   setSavingSection,
+  hasChanges,
+  onSaved,
 }: Props) {
   const { t } = useI18n();
   const { updateSettings } = useSettingsStore();
@@ -32,27 +48,26 @@ export default function EditorThemeSection({
   const editorWidthIndex = getEditorWidthIndex(editorWidth);
   const editorWidthOption = EDITOR_WIDTH_OPTIONS[editorWidthIndex];
 
-  // theme persists immediately on change — no Save needed
-  const handleThemeChange = (value: string) => {
+  // Preview theme changes immediately, but persist them with the rest of this
+  // section so the Save button has one clear meaning.
+  const handleThemeChange = (value: FormState["theme"]) => {
     setFormState((prev) => ({ ...prev, theme: value }));
-    try {
-      localStorage.setItem("ogma-theme", value);
-      document.cookie = `ogma-theme=${value}; path=/; max-age=31536000; samesite=lax`;
-    } catch {
-      /* ignore storage errors */
-    }
-    updateSettings({ theme: value as "dark" | "light" | "system" }).catch(() => {});
   };
 
   const handleEditorSettingsSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSavingSection("editor");
     try {
-      await updateSettings({
-        theme: formState.theme as "dark" | "light" | "system",
+      const savedSettings = await updateSettings({
+        theme: formState.theme,
         editorsize: normalizeEditorSize(formState.editorWidth),
       });
-      localStorage.setItem("ogma-theme", formState.theme);
+      onSaved?.({
+        theme: savedSettings.theme ?? formState.theme,
+        editorWidth: normalizeEditorSize(
+          savedSettings.editorsize ?? formState.editorWidth,
+        ),
+      });
       toast.success(t("Editor settings saved"));
     } catch (error) {
       console.error("Failed to save editor settings:", error);
@@ -103,7 +118,9 @@ export default function EditorThemeSection({
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => handleThemeChange(opt.value)}
+                    onClick={() =>
+                      handleThemeChange(opt.value as FormState["theme"])
+                    }
                     aria-pressed={active}
                     className={cn(
                       "flex items-center gap-2 rounded-radius-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -158,18 +175,17 @@ export default function EditorThemeSection({
                 }
                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-border-subtle accent-primary-500 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary-500"
               />
-              <div className="mt-2 grid grid-cols-4 text-[11px] font-medium text-text-tertiary">
+              <div className="relative mx-2 mt-2 h-4 text-[11px] font-medium text-text-tertiary">
                 {EDITOR_WIDTH_OPTIONS.map((size, index) => (
                   <span
                     key={size.value}
                     className={cn(
-                      index === 0 && "text-left",
-                      index > 0 &&
-                        index < EDITOR_WIDTH_OPTIONS.length - 1 &&
-                        "text-center",
-                      index === EDITOR_WIDTH_OPTIONS.length - 1 && "text-right",
+                      "absolute top-0 -translate-x-1/2 whitespace-nowrap",
                       editorWidth === size.value && "text-text-secondary",
                     )}
+                    style={{
+                      left: `${(index / (EDITOR_WIDTH_OPTIONS.length - 1)) * 100}%`,
+                    }}
                   >
                     {t(size.label)}
                   </span>
@@ -179,14 +195,19 @@ export default function EditorThemeSection({
           </div>
         </div>
 
-        <div className="mt-8 flex">
+        <div className="mt-8 flex items-center gap-3">
           <button
             type="submit"
-            disabled={savingSection === "editor"}
+            disabled={savingSection !== null || !hasChanges}
             className={saveBtnClass}
           >
             {savingSection === "editor" ? t("Saving...") : t("Save changes")}
           </button>
+          {hasChanges && (
+            <span className="text-xs text-text-tertiary" role="status">
+              {t("Unsaved")}
+            </span>
+          )}
         </div>
       </form>
     </div>

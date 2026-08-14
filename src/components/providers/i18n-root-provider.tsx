@@ -5,19 +5,22 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
 import I18nProvider from "@/lib/i18n/provider";
 import { Locale, normalizeLocale } from "@/locales";
 import enDict from "@/locales/en.json";
+import {
+  LOCALE_STORAGE_KEY,
+  SETTINGS_CACHE_KEY,
+  type CachedLocalePreference,
+  persistClientLocale,
+} from "@/lib/i18n/locale-preference";
 import { uiCache } from "@/lib/notes/cache";
 import { loadLocaleData, type LocaleData } from "@/lib/i18n/locale-data";
 
-const SETTINGS_CACHE_KEY = "settings-cache";
-const LOCALE_STORAGE_KEY = "ogma-locale";
-// revalidate from network after 10 min, but always serve cache instantly
-const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
 const defaultLocaleData: LocaleData = { locale: Locale.EN, dict: enDict };
 
 const PRIVATE_APP_PATHS = [
@@ -55,11 +58,19 @@ function localeFromSettingsResponse(value: unknown): Locale {
   return normalizeLocale((value as { locale?: unknown }).locale) ?? Locale.EN;
 }
 
-export function resolveStoredLocale(value: unknown): Locale {
-  return normalizeLocale(value) ?? Locale.EN;
+export function normalizeClientLocale(
+  locale: string | null | undefined,
+): Locale {
+  return normalizeLocale(locale) ?? Locale.EN;
 }
 
-/** Read only a complete, current cache record; stale/corrupt data revalidates. */
+function supportedClientLocale(
+  locale: string | null | undefined,
+): Locale | null {
+  return normalizeLocale(locale);
+}
+
+/** Read only a complete cache record; corrupt values cannot select a locale. */
 export function readCachedSettings(value: unknown): CachedSettings | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 
@@ -73,15 +84,25 @@ export function readCachedSettings(value: unknown): CachedSettings | null {
   return { locale, cachedAt };
 }
 
-function cookieLocale(): Locale | null {
-  const encoded = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${LOCALE_STORAGE_KEY}=`))
-    ?.split("=")[1];
-  if (!encoded) return null;
+function readCookieLocale(): string | null {
+  try {
+    const rawLocale = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${LOCALE_STORAGE_KEY}=`))
+      ?.split("=")[1];
+
+    return rawLocale ? decodeURIComponent(rawLocale) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readBrowserLocale(): string | null {
+  const cookieLocale = readCookieLocale();
+  if (cookieLocale) return cookieLocale;
 
   try {
-    return normalizeLocale(decodeURIComponent(encoded));
+    return localStorage.getItem(LOCALE_STORAGE_KEY);
   } catch {
     return null;
   }
@@ -93,75 +114,90 @@ function I18nRootProviderContent({
 }: Props) {
   const pathname = usePathname();
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
+  const validatedPrivateLocaleRef = useRef(false);
+  const localeVersionRef = useRef(0);
 
-  // A server navigation may supply a newer cookie-derived locale. Keep that
-  // authoritative input in sync with the provider's immediate local updates.
+  // A server navigation supplies the request's cookie-derived locale before
+  // hydration. Keep that source in sync with the client provider.
   useEffect(() => {
     setLocaleData(initialLocaleData);
   }, [initialLocaleData]);
 
-  const setActiveLocale = useCallback(
+  const handleLocaleChange = useCallback(
     (locale: Locale, dict: LocaleData["dict"]) => {
+      localeVersionRef.current += 1;
       setLocaleData({ locale, dict });
+      void persistClientLocale(locale);
     },
     [],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    let disposed = false;
+    let cancelled = false;
+    const localeVersion = localeVersionRef.current;
+    const isCurrent = () =>
+      !cancelled && localeVersionRef.current === localeVersion;
+
+    const applyLocale = async (nextLocale: Locale) => {
+      const nextLocaleData = await loadLocaleData(nextLocale);
+      if (!isCurrent()) return false;
+      setLocaleData(nextLocaleData);
+      return true;
+    };
 
     const loadLocale = async () => {
       try {
-        const browserLocale =
-          cookieLocale() ?? localStorage.getItem(LOCALE_STORAGE_KEY);
+        const browserLocale = supportedClientLocale(readBrowserLocale());
+        let instantLocale = browserLocale ?? initialLocaleData.locale;
 
-        // Cached settings only avoid an unnecessary private-route fetch. The
-        // server-rendered locale and an explicit browser preference win.
-        const cached = readCachedSettings(
-          await uiCache.getItem<unknown>(SETTINGS_CACHE_KEY),
-        );
-        const instantLocale =
-          normalizeLocale(browserLocale) ?? initialLocaleData.locale;
-        if (instantLocale !== initialLocaleData.locale) {
-          const data = await loadLocaleData(instantLocale);
-          if (disposed) return;
-          setLocaleData(data);
+        // Cookie/localStorage is the most recent explicit browser choice. It
+        // must win over the slower IndexedDB cache to avoid language flashes.
+        if (browserLocale && !(await applyLocale(browserLocale))) return;
+
+        // IndexedDB is only a fallback when the browser has no direct locale
+        // preference. It never overrides a cookie or localStorage selection.
+        if (!browserLocale) {
+          let cached: CachedLocalePreference | undefined;
+          try {
+            cached = await uiCache.getItem<CachedLocalePreference>(
+              SETTINGS_CACHE_KEY,
+            );
+          } catch {
+            // IndexedDB is an optimization only.
+          }
+
+          const cachedLocale = readCachedSettings(cached)?.locale;
+          if (cachedLocale) {
+            instantLocale = cachedLocale;
+            if (!(await applyLocale(cachedLocale))) return;
+          }
         }
+        if (!isCurrent()) return;
 
-        // Public pages use the locale cookie/cache and do not need authenticated
-        // settings. Private app pages periodically reconcile with the server.
-        if (!shouldRevalidateSettings(pathname)) return;
-
-        // skip revalidation if cache is still fresh
+        // On authenticated app pages, reconcile once per visit with the saved
+        // account setting. This prevents stale browser cache from persisting
+        // across pages or devices while avoiding repeated API requests.
         if (
-          cached &&
-          Date.now() - cached.cachedAt >= 0 &&
-          Date.now() - cached.cachedAt <= SETTINGS_CACHE_TTL_MS
+          !shouldRevalidateSettings(pathname) ||
+          validatedPrivateLocaleRef.current
         ) {
           return;
         }
+        validatedPrivateLocaleRef.current = true;
 
-        const response = await fetch("/api/settings", { signal: controller.signal });
+        const response = await fetch("/api/settings", {
+          signal: controller.signal,
+        });
         if (!response.ok) return;
 
-        const settings: unknown = await response.json();
-        const userLocale = localeFromSettingsResponse(settings);
+        const userLocale = localeFromSettingsResponse(await response.json());
+        if (!isCurrent()) return;
+        await persistClientLocale(userLocale);
+        if (!isCurrent()) return;
 
-        if (disposed) return;
-
-        await uiCache.setItem<CachedSettings>(SETTINGS_CACHE_KEY, {
-          locale: userLocale,
-          cachedAt: Date.now(),
-        });
-        if (disposed) return;
-        localStorage.setItem(LOCALE_STORAGE_KEY, userLocale);
-        document.cookie = `${LOCALE_STORAGE_KEY}=${userLocale}; path=/; max-age=31536000; samesite=lax`;
-
-        // only re-render if locale actually changed
-        if (userLocale !== (instantLocale ?? Locale.EN)) {
-          const data = await loadLocaleData(userLocale);
-          if (!disposed) setLocaleData(data);
+        if (userLocale !== instantLocale) {
+          await applyLocale(userLocale);
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -171,7 +207,7 @@ function I18nRootProviderContent({
 
     void loadLocale();
     return () => {
-      disposed = true;
+      cancelled = true;
       controller.abort();
     };
   }, [initialLocaleData.locale, pathname]);
@@ -186,7 +222,7 @@ function I18nRootProviderContent({
     <I18nProvider
       locale={localeData.locale}
       lngDict={localeData.dict}
-      onLocaleChange={setActiveLocale}
+      onLocaleChange={handleLocaleChange}
     >
       {children}
     </I18nProvider>

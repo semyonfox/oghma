@@ -171,6 +171,7 @@ export async function processVaultExport(
     };
 
     let processed = 0;
+    const failedPaths: string[] = [];
 
     for (const [noteId, entry] of exportMap) {
       try {
@@ -245,8 +246,17 @@ export async function processVaultExport(
           `[${ts()}] Failed to export ${entry.path}:`,
           errorMessage(err),
         );
-        // continue with other files
+        failedPaths.push(entry.path);
       }
+    }
+
+    // A vault archive is a backup contract. Do not present a partial archive as
+    // complete: abort it and keep the failed job visible for a deliberate retry.
+    if (failedPaths.length > 0) {
+      const examples = failedPaths.slice(0, 3).join(", ");
+      throw new Error(
+        `Could not export ${failedPaths.length} file${failedPaths.length === 1 ? "" : "s"}${examples ? `: ${examples}` : ""}`,
+      );
     }
 
     // final progress flush

@@ -116,7 +116,10 @@ variable.
   `CANVAS_FILE_TIMEOUT_MS` as a supervision warning rather than racing a
   non-abortable parser/indexer against a false timeout. It periodically
   re-enqueues orphaned Canvas discovery jobs.
-- Vault jobs persist progress and support cooperative cancellation between files.
+- Vault jobs persist progress and support cooperative cancellation between files. A
+  vault import that encounters a per-file failure retains files created before
+  the failure but ends in `failed` rather than claiming a complete archive;
+  retrying it is still non-idempotent until replay identity is implemented.
 - Marker page ranges produce explicit extraction-coverage metadata, but there is no automatic full-document enrichment pass after a successful partial preview.
 - `MARKER_OCR_ENABLED=false` bypasses Marker even when `MARKER_API_URL` is configured. `pdf-parse` remains a text-layer fallback, not OCR, so scanned PDFs will not become searchable while OCR is disabled.
 - Serverless Marker creates `app.marker_jobs` before provider work, uses a

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Combobox,
   ComboboxButton,
@@ -45,6 +46,7 @@ export default function LanguageSelector({
   className = "",
 }: LanguageSelectorProps) {
   const { t, locale, activeLocale } = useI18n();
+  const router = useRouter();
   const { updateSettings } = useSettingsStore();
   const [query, setQuery] = useState("");
 
@@ -66,17 +68,15 @@ export default function LanguageSelector({
   const handleLanguageChange = async (lang: Locale) => {
     try {
       const { dict } = await loadLocaleData(lang);
-      locale(lang, dict);
-      document.cookie = `ogma-locale=${lang}; path=/; max-age=31536000; samesite=lax`;
-      localStorage.setItem("ogma-locale", lang);
-
-      // Persist the language preference to user settings
+      // Persist before applying the new dictionary so an unsuccessful request
+      // cannot leave a locally translated but unsaved application state.
       await updateSettings({ locale: lang });
-
+      locale(lang, dict);
       setQuery("");
 
       // Call custom callback if provided
       onLanguageChange?.(lang);
+      router.refresh();
     } catch (error) {
       console.error("Failed to change language:", error);
     }
