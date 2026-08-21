@@ -7,7 +7,7 @@ import {
 } from "@/lib/notes/storage/s3-storage";
 import { getLlmModel } from "@/lib/ai-config";
 import { normalizeEditorSize } from "@/lib/notes/editor-width";
-import { normalizeLocale } from "@/locales";
+import { LOCALE_COOKIE_NAME, normalizeLocale } from "@/locales";
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,7 +37,7 @@ export const GET = withErrorHandler(async () => {
       });
     }
     if (mergedSettings.locale) {
-      response.cookies.set("ogma-locale", String(mergedSettings.locale), {
+      response.cookies.set(LOCALE_COOKIE_NAME, String(mergedSettings.locale), {
         path: "/",
         maxAge: 60 * 60 * 24 * 365,
         sameSite: "lax",
@@ -89,7 +89,7 @@ export const POST = withErrorHandler(async (request) => {
       ai_model: getLlmModel(),
     });
     if (updatedSettings.locale) {
-      response.cookies.set("ogma-locale", String(updatedSettings.locale), {
+      response.cookies.set(LOCALE_COOKIE_NAME, String(updatedSettings.locale), {
         path: "/",
         maxAge: 60 * 60 * 24 * 365,
         sameSite: "lax",

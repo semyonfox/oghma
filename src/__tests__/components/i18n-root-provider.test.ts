@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  normalizeClientLocale,
-  readCachedSettings,
+  localeFromSettingsResponse,
   shouldRevalidateSettings,
 } from "@/components/providers/i18n-root-provider";
 import { Locale } from "@/locales";
@@ -29,21 +28,13 @@ describe("shouldRevalidateSettings", () => {
   ])("does not fetch authenticated settings on public path %s", (pathname) => {
     expect(shouldRevalidateSettings(pathname)).toBe(false);
   });
-
-  it("falls back safely when an old browser cache contains an unsupported locale", () => {
-    expect(normalizeClientLocale("fr-FR")).toBe(Locale.FR_FR);
-    expect(normalizeClientLocale("removed-locale")).toBe(Locale.EN);
-    expect(normalizeClientLocale(null)).toBe(Locale.EN);
-  });
 });
 
-describe("readCachedSettings", () => {
-  it("normalizes a complete cache record and discards malformed cache data", () => {
-    expect(readCachedSettings({ locale: "fr_FR", cachedAt: 1 })).toEqual({
-      locale: Locale.FR_FR,
-      cachedAt: 1,
-    });
-    expect(readCachedSettings({ locale: "not-real", cachedAt: 1 })).toBeNull();
-    expect(readCachedSettings({ locale: "ga", cachedAt: "yesterday" })).toBeNull();
+describe("localeFromSettingsResponse", () => {
+  it("separates a stored language from an account that never chose one", () => {
+    expect(localeFromSettingsResponse({ locale: "fr_FR" })).toBe(Locale.FR_FR);
+    expect(localeFromSettingsResponse({ theme: "dark" })).toBeNull();
+    expect(localeFromSettingsResponse({ locale: "removed-locale" })).toBeNull();
+    expect(localeFromSettingsResponse(null)).toBeNull();
   });
 });

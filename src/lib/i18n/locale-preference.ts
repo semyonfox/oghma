@@ -1,32 +1,36 @@
 "use client";
 
-import { uiCache } from "@/lib/notes/cache";
+import { LOCALE_COOKIE_NAME, normalizeLocale, type Locale } from "@/locales";
 
-export const LOCALE_STORAGE_KEY = "ogma-locale";
-export const SETTINGS_CACHE_KEY = "settings-cache";
+const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
 
-export interface CachedLocalePreference {
-  locale: string;
-  cachedAt: number;
+/**
+ * The cookie is the only browser-side copy of the language. The server renders
+ * from the same value, so any second client-side store could only ever
+ * disagree with the markup the page was built from.
+ */
+export function persistClientLocale(locale: string): void {
+  if (typeof document === "undefined") return;
+
+  try {
+    document.cookie = `${LOCALE_COOKIE_NAME}=${encodeURIComponent(locale)}; path=/; max-age=${ONE_YEAR_IN_SECONDS}; samesite=lax`;
+  } catch {
+    // Browsers can deny storage in private or constrained contexts. The
+    // in-memory provider state still keeps this visit consistent.
+  }
 }
 
-export async function persistClientLocale(locale: string): Promise<void> {
-  if (typeof window === "undefined") return;
+export function readClientLocale(): Locale | null {
+  if (typeof document === "undefined") return null;
 
   try {
-    localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-    document.cookie = `${LOCALE_STORAGE_KEY}=${encodeURIComponent(locale)}; path=/; max-age=31536000; samesite=lax`;
-  } catch {
-    // Browsers can deny storage in private or constrained contexts. The in-memory
-    // provider state still keeps this visit consistent.
-  }
+    const rawLocale = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${LOCALE_COOKIE_NAME}=`))
+      ?.split("=")[1];
 
-  try {
-    await uiCache.setItem<CachedLocalePreference>(SETTINGS_CACHE_KEY, {
-      locale,
-      cachedAt: Date.now(),
-    });
+    return rawLocale ? normalizeLocale(decodeURIComponent(rawLocale)) : null;
   } catch {
-    // IndexedDB is an optimization only; do not fail a locale change for it.
+    return null;
   }
 }

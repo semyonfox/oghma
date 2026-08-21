@@ -4,9 +4,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/about" }));
-vi.mock("@/lib/notes/cache", () => ({
-  uiCache: { getItem: vi.fn().mockResolvedValue(undefined), setItem: vi.fn() },
-}));
 
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import useI18n from "@/lib/notes/hooks/use-i18n";
