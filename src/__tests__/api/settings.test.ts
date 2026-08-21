@@ -55,6 +55,26 @@ describe("GET /api/settings", () => {
       ai_model: "deepseek/deepseek-v4-flash",
     });
   });
+
+  it("omits the locale for an account that never chose a language", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ theme: "dark" });
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+    const body = await response.json();
+
+    // Defaulting this to English would look like a deliberate choice and would
+    // overwrite a language the visitor picked before signing in.
+    expect(Object.hasOwn(body, "locale")).toBe(false);
+    expect(response.cookies.get("ogma-locale")).toBeUndefined();
+  });
+
+  it("mirrors a stored locale into the request cookie", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ locale: Locale.GA });
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+
+    expect(response.cookies.get("ogma-locale")?.value).toBe(Locale.GA);
+  });
 });
 
 describe("POST /api/settings", () => {

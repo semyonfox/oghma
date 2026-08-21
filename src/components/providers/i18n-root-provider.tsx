@@ -51,11 +51,16 @@ interface Props {
   initialLocaleData?: LocaleData;
 }
 
-function localeFromSettingsResponse(value: unknown): Locale {
+/**
+ * Null means the account has never stored a language, which is different from
+ * an account that chose English. The API omits the key rather than defaulting
+ * it so this distinction survives the request.
+ */
+export function localeFromSettingsResponse(value: unknown): Locale | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return Locale.EN;
+    return null;
   }
-  return normalizeLocale((value as { locale?: unknown }).locale) ?? Locale.EN;
+  return normalizeLocale((value as { locale?: unknown }).locale);
 }
 
 export function normalizeClientLocale(
@@ -82,6 +87,21 @@ export function readCachedSettings(value: unknown): CachedSettings | null {
   }
 
   return { locale, cachedAt };
+}
+
+/** Best effort: the visible language already holds without this succeeding. */
+async function adoptAccountLocale(locale: Locale, signal: AbortSignal) {
+  try {
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+      signal,
+    });
+  } catch (error) {
+    if (signal.aborted) return;
+    console.warn("Failed to adopt the browser language preference:", error);
+  }
 }
 
 function readCookieLocale(): string | null {
@@ -202,13 +222,24 @@ function I18nRootProviderContent({
         });
         if (!response.ok) return;
 
-        const userLocale = localeFromSettingsResponse(await response.json());
-        if (!isCurrent()) return;
-        await persistClientLocale(userLocale);
+        const accountLocale = localeFromSettingsResponse(await response.json());
         if (!isCurrent()) return;
 
-        if (userLocale !== instantLocale) {
-          await applyLocale(userLocale);
+        // An account with no stored language adopts the visitor's own choice
+        // instead of resetting it. Picking a language before signing in is
+        // still a choice, and it should follow them to their other devices.
+        if (!accountLocale) {
+          if (browserLocale) {
+            await adoptAccountLocale(browserLocale, controller.signal);
+          }
+          return;
+        }
+
+        await persistClientLocale(accountLocale);
+        if (!isCurrent()) return;
+
+        if (accountLocale !== instantLocale) {
+          await applyLocale(accountLocale);
         }
       } catch (error) {
         if (controller.signal.aborted) return;
