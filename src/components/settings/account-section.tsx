@@ -9,11 +9,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowPathIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import LanguageSelector from "@/components/common/language-selector";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { loadLocaleData } from "@/lib/i18n/locale-data";
+import { Locale } from "@/locales";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import {
   inputClass,
@@ -29,11 +32,12 @@ export type FormState = {
   timezone: string;
   theme: "dark" | "light" | "system";
   editorWidth: string | number;
+  locale: Locale;
 };
 
 type ProfileSettings = Pick<
   FormState,
-  "firstName" | "lastName" | "timezone"
+  "firstName" | "lastName" | "timezone" | "locale"
 >;
 
 type Props = {
@@ -53,7 +57,8 @@ export default function AccountSection({
   hasChanges,
   onSaved,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale: applyLocale, activeLocale } = useI18n();
+  const router = useRouter();
   const updateSettings = useSettingsStore((state) => state.updateSettings);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -94,16 +99,34 @@ export default function AccountSection({
     e.preventDefault();
     setSavingSection("profile");
     try {
+      // Load the dictionary before saving so a missing translation bundle
+      // fails the save instead of leaving a stored locale the UI cannot show.
+      const nextLocale = formState.locale;
+      const dictionary =
+        nextLocale === activeLocale
+          ? null
+          : (await loadLocaleData(nextLocale)).dict;
+
       const savedSettings = await updateSettings({
         timezone: formState.timezone,
         firstName: formState.firstName,
         lastName: formState.lastName,
+        locale: nextLocale,
       });
+      const savedLocale = savedSettings.locale ?? nextLocale;
       onSaved?.({
         firstName: savedSettings.firstName ?? formState.firstName,
         lastName: savedSettings.lastName ?? formState.lastName,
         timezone: savedSettings.timezone ?? formState.timezone,
+        locale: savedLocale,
       });
+
+      // Switch the UI only once the account has the new language, so the page
+      // never shows a language that a failed request did not store.
+      if (dictionary && savedLocale === nextLocale) {
+        applyLocale(nextLocale, dictionary);
+        router.refresh();
+      }
       toast.success(t("Profile updated successfully"));
     } catch (error) {
       console.error("Failed to save profile:", error);
@@ -320,9 +343,16 @@ export default function AccountSection({
             </div>
           </div>
 
-          {/* language */}
+          {/* language - saved with the rest of this section */}
           <div className="col-span-full">
-            <LanguageSelector variant="compact" showLabel={true} />
+            <LanguageSelector
+              variant="compact"
+              showLabel={true}
+              value={formState.locale}
+              onSelect={(nextLocale) =>
+                setFormState((prev) => ({ ...prev, locale: nextLocale }))
+              }
+            />
           </div>
         </div>
 

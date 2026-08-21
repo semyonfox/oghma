@@ -1091,5 +1091,7 @@
   "Trash": "سلة المهملات",
   "Contains {count} items": "يحتوي على {count} عنصرًا",
   "Expires today": "تنتهي اليوم",
-  "Expires tomorrow": "تنتهي غدًا"
+  "Expires tomorrow": "تنتهي غدًا",
+  "Failed to change language": "تعذر تغيير اللغة",
+  "Failed to save language preference": "تعذر حفظ تفضيل اللغة"
 }

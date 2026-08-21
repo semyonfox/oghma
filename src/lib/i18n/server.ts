@@ -3,6 +3,7 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import pupa from "pupa";
 import {
+  LOCALE_COOKIE_NAME,
   Locale,
   localeFromAcceptLanguage,
   normalizeLocale,
@@ -12,7 +13,7 @@ import { baseLocaleDictionary, loadLocaleData } from "./locale-data";
 /** Resolve the request locale once for server-rendered content and document metadata. */
 export async function getRequestLocale(): Promise<Locale> {
   const cookieStore = await cookies();
-  const cookieLocale = normalizeLocale(cookieStore.get("ogma-locale")?.value);
+  const cookieLocale = normalizeLocale(cookieStore.get(LOCALE_COOKIE_NAME)?.value);
   if (cookieLocale) return cookieLocale;
 
   const headerStore = await headers();

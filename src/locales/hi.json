@@ -1091,5 +1091,7 @@
   "Trash": "ट्रैश",
   "Contains {count} items": "इसमें {count} आइटम हैं",
   "Expires today": "आज समाप्त होता है",
-  "Expires tomorrow": "कल समाप्त होता है"
+  "Expires tomorrow": "कल समाप्त होता है",
+  "Failed to change language": "भाषा बदलने में विफल",
+  "Failed to save language preference": "भाषा प्राथमिकता सहेजने में विफल"
 }

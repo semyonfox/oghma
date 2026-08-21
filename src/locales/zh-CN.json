@@ -1091,5 +1091,7 @@
   "Trash": "垃圾箱",
   "Contains {count} items": "包含 {count} 个项目",
   "Expires today": "今天到期",
-  "Expires tomorrow": "明天到期"
+  "Expires tomorrow": "明天到期",
+  "Failed to change language": "无法切换语言",
+  "Failed to save language preference": "无法保存语言偏好设置"
 }

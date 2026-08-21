@@ -1,5 +1,5 @@
 // extracted from Notea (MIT License)
-import { Locale } from "@/locales";
+import type { Locale } from "@/locales";
 import {
   DEFAULT_EDITOR_SIZE,
   type EditorSize,
@@ -28,10 +28,14 @@ export interface StoredSettings extends Settings {
   [key: string]: unknown;
 }
 
+/**
+ * `locale` is deliberately absent. Defaulting it would make an account that
+ * never chose a language indistinguishable from one that chose English, and
+ * the client uses that difference to keep a language picked before signing in.
+ */
 export const DEFAULT_SETTINGS: Settings = {
   sidebar_is_fold: false,
   split_sizes: [200, 800],
-  locale: Locale.EN,
   theme: "system",
   editorsize: DEFAULT_EDITOR_SIZE,
   ai_canvas_access: false,

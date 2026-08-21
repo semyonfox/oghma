@@ -1091,5 +1091,7 @@
   "Trash": "Корзина",
   "Contains {count} items": "Содержит {count} элементов",
   "Expires today": "Истекает сегодня",
-  "Expires tomorrow": "Истекает завтра"
+  "Expires tomorrow": "Истекает завтра",
+  "Failed to change language": "Не удалось изменить язык",
+  "Failed to save language preference": "Не удалось сохранить языковые настройки"
 }

@@ -1091,5 +1091,7 @@
   "Trash": "Papperskorgen",
   "Contains {count} items": "Innehåller {count} objekt",
   "Expires today": "Upphör i dag",
-  "Expires tomorrow": "Upphör i morgon"
+  "Expires tomorrow": "Upphör i morgon",
+  "Failed to change language": "Det gick inte att byta språk",
+  "Failed to save language preference": "Det gick inte att spara språkinställningen"
 }

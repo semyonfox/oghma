@@ -20,6 +20,9 @@ export enum Locale {
 
 export const supportedLocales = Object.values(Locale) as Locale[];
 
+/** The browser-side copy of the language preference, read by server renders. */
+export const LOCALE_COOKIE_NAME = 'ogma-locale';
+
 /**
  * Match a persisted/browser locale to a supported application locale. Exact
  * matches are preferred; language-only browser preferences fall back to the

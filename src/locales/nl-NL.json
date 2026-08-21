@@ -1091,5 +1091,7 @@
   "Trash": "Prullenbak",
   "Contains {count} items": "Bevat {count} items",
   "Expires today": "Verloopt vandaag",
-  "Expires tomorrow": "Verloopt morgen"
+  "Expires tomorrow": "Verloopt morgen",
+  "Failed to change language": "Taal kon niet worden gewijzigd",
+  "Failed to save language preference": "Taalvoorkeur kon niet worden opgeslagen"
 }

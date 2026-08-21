@@ -1,15 +1,12 @@
 "use client";
 
 import BrandLogo from "@/components/brand-logo";
-import { useRouter } from "next/navigation";
+import LanguageSelector from "@/components/common/language-selector";
 import useI18n from "@/lib/notes/hooks/use-i18n";
-import { loadLocaleData } from "@/lib/i18n/locale-data";
-import { configLocale, normalizeLocale } from "@/locales";
-import type { ChangeEvent, SVGProps } from "react";
+import type { SVGProps } from "react";
 
 export default function Footer() {
-  const { t, locale, activeLocale } = useI18n();
-  const router = useRouter();
+  const { t } = useI18n();
 
   const navigation = {
     features: [
@@ -55,26 +52,6 @@ export default function Footer() {
     ],
   };
 
-  const handleLanguageChange = async (e: ChangeEvent<HTMLSelectElement>) => {
-    const nextLocale = normalizeLocale(e.target.value);
-    if (!nextLocale) return;
-
-    try {
-      const { dict } = await loadLocaleData(nextLocale);
-      locale(nextLocale, dict);
-
-      // Persist the language preference to user settings
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locale: nextLocale }),
-      });
-      router.refresh();
-    } catch (error) {
-      console.error("Failed to change language:", error);
-    }
-  };
-
   return (
     <footer className="bg-background border-t border-border-subtle">
       <div className="mx-auto max-w-7xl px-6 pt-12 pb-6 sm:pt-16 lg:px-8 lg:pt-20">
@@ -103,27 +80,8 @@ export default function Footer() {
                 </a>
               ))}
             </div>
-            {/* Language Switcher */}
-            <div className="pt-1">
-              <label
-                htmlFor="language-select"
-                className="text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-1.5"
-              >
-                {t("Language")}
-              </label>
-              <select
-                id="language-select"
-                value={activeLocale}
-                onChange={handleLanguageChange}
-                className="bg-input border border-border-subtle text-text-secondary text-sm rounded-radius-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none"
-              >
-                {Object.entries(configLocale).map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Language Switcher - applies and saves on selection */}
+            <LanguageSelector variant="footer" className="pt-1" />
           </div>
           <div className="mt-10 grid grid-cols-2 gap-6 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-6">
