@@ -1091,5 +1091,7 @@
   "Trash": "Papelera",
   "Contains {count} items": "Contiene {count} elementos",
   "Expires today": "Caduca hoy",
-  "Expires tomorrow": "Caduca mañana"
+  "Expires tomorrow": "Caduca mañana",
+  "Failed to change language": "No se pudo cambiar el idioma",
+  "Failed to save language preference": "No se pudo guardar la preferencia de idioma"
 }

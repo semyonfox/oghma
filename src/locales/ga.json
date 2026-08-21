@@ -1091,5 +1091,7 @@
   "Trash": "Bruscar",
   "Contains {count} items": "Tá {count} mír ann",
   "Expires today": "Rachaidh sé in éag inniu",
-  "Expires tomorrow": "Rachaidh sé in éag amárach"
+  "Expires tomorrow": "Rachaidh sé in éag amárach",
+  "Failed to change language": "Theip ar athrú teanga",
+  "Failed to save language preference": "Theip ar shábháil rogha teanga"
 }

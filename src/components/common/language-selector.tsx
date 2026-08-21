@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Combobox,
   ComboboxButton,
@@ -13,13 +14,21 @@ import {
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { Locale, configLocale, normalizeLocale, supportedLocales } from "@/locales";
-import { useSettingsStore } from "@/lib/notes/state/ui/settings";
+import {
+  SettingsRequestError,
+  useSettingsStore,
+} from "@/lib/notes/state/ui/settings";
 import { loadLocaleData } from "@/lib/i18n/locale-data";
 
 interface LanguageSelectorProps {
-  variant?: "default" | "compact";
+  variant?: "default" | "compact" | "footer";
   showLabel?: boolean;
-  onLanguageChange?: (locale: Locale) => void;
+  /**
+   * Controlled value. Pass it with `onSelect` when a section's own Save button
+   * owns the change; leave both unset to apply and persist on selection.
+   */
+  value?: Locale;
+  onSelect?: (locale: Locale) => void;
   className?: string;
 }
 
@@ -39,16 +48,36 @@ const localeFlags: Record<Locale, string> = {
   [Locale.sv_SE]: "🇸🇪",
 };
 
+const selectClass: Record<"compact" | "footer", string> = {
+  compact:
+    "block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none disabled:opacity-50",
+  footer:
+    "bg-input border border-border-subtle text-text-secondary text-sm rounded-radius-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 appearance-none disabled:opacity-50",
+};
+
+const labelClass: Record<"compact" | "footer", string> = {
+  compact: "block text-sm/6 font-medium text-text mb-2",
+  footer:
+    "text-xs font-semibold text-text-tertiary uppercase tracking-tighter block mb-1.5",
+};
+
 export default function LanguageSelector({
   variant = "default",
   showLabel = true,
-  onLanguageChange,
+  value,
+  onSelect,
   className = "",
 }: LanguageSelectorProps) {
   const { t, locale, activeLocale } = useI18n();
   const router = useRouter();
   const { updateSettings } = useSettingsStore();
   const [query, setQuery] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+  const selectId = useId();
+
+  // Deferred mode only reports the selection; the parent form persists it.
+  const isDeferred = typeof onSelect === "function";
+  const selectedLocale = value ?? activeLocale;
 
   const languages = supportedLocales.map((code) => ({
     code,
@@ -65,43 +94,69 @@ export default function LanguageSelector({
             lang.code.toLowerCase().includes(query.toLowerCase()),
         );
 
-  const handleLanguageChange = async (lang: Locale) => {
+  const applyImmediately = async (lang: Locale) => {
+    setIsApplying(true);
     try {
       const { dict } = await loadLocaleData(lang);
-      // Persist before applying the new dictionary so an unsuccessful request
-      // cannot leave a locally translated but unsaved application state.
-      await updateSettings({ locale: lang });
+      // Apply first so the provider mirrors the choice into the cookie and
+      // local storage. The language then holds even when the account save is
+      // unavailable, which is the normal case for signed-out visitors.
       locale(lang, dict);
-      setQuery("");
 
-      // Call custom callback if provided
-      onLanguageChange?.(lang);
+      try {
+        await updateSettings({ locale: lang });
+      } catch (error) {
+        // A signed-out visitor has no account to save to; the local
+        // preference is the whole story and nothing has gone wrong.
+        if (
+          !(error instanceof SettingsRequestError) ||
+          error.status !== 401
+        ) {
+          console.error("Failed to save language preference:", error);
+          toast.error(t("Failed to save language preference"));
+        }
+      }
+
       router.refresh();
     } catch (error) {
       console.error("Failed to change language:", error);
+      toast.error(t("Failed to change language"));
+    } finally {
+      setIsApplying(false);
     }
   };
 
+  const handleLanguageChange = (lang: Locale) => {
+    setQuery("");
+    if (isDeferred) {
+      onSelect?.(lang);
+      return;
+    }
+    if (isApplying) return;
+    void applyImmediately(lang);
+  };
+
   const currentLanguage = languages.find(
-    (lang) => lang.code === activeLocale,
+    (lang) => lang.code === selectedLocale,
   );
 
-  if (variant === "compact") {
-    // For compact variant, use a regular select (backward compatible)
+  if (variant === "compact" || variant === "footer") {
     return (
       <div className={className}>
         {showLabel && (
-          <label className="block text-sm/6 font-medium text-text mb-2">
+          <label htmlFor={selectId} className={labelClass[variant]}>
             {t("Language")}
           </label>
         )}
         <select
-          value={activeLocale}
+          id={selectId}
+          value={selectedLocale}
+          disabled={isApplying}
           onChange={(event) => {
             const nextLocale = normalizeLocale(event.currentTarget.value);
-            if (nextLocale) void handleLanguageChange(nextLocale);
+            if (nextLocale) handleLanguageChange(nextLocale);
           }}
-          className="block w-full rounded-radius-md bg-surface border border-border-subtle py-1.5 px-3 text-sm text-text placeholder:text-text-tertiary focus:ring-1 focus:ring-primary-500/50 focus:border-primary-500/50 focus:outline-none appearance-none"
+          className={selectClass[variant]}
         >
           {languages.map((lang) => (
             <option key={lang.code} value={lang.code}>
@@ -123,7 +178,7 @@ export default function LanguageSelector({
       )}
       <Combobox
         as="div"
-        value={activeLocale}
+        value={selectedLocale}
         onChange={(nextLocale) => {
           if (nextLocale) {
             handleLanguageChange(nextLocale);

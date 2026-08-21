@@ -1091,5 +1091,7 @@
   "Trash": "Cestino",
   "Contains {count} items": "Contiene {count} elementi",
   "Expires today": "Scade oggi",
-  "Expires tomorrow": "Scade domani"
+  "Expires tomorrow": "Scade domani",
+  "Failed to change language": "Impossibile cambiare lingua",
+  "Failed to save language preference": "Impossibile salvare la preferenza della lingua"
 }

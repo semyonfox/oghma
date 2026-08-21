@@ -1091,5 +1091,7 @@
   "Trash": "Corbeille",
   "Contains {count} items": "Contient {count} éléments",
   "Expires today": "Expire aujourd’hui",
-  "Expires tomorrow": "Expire demain"
+  "Expires tomorrow": "Expire demain",
+  "Failed to change language": "Impossible de changer de langue",
+  "Failed to save language preference": "Impossible d'enregistrer la préférence de langue"
 }

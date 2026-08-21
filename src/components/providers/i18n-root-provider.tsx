@@ -116,16 +116,27 @@ function I18nRootProviderContent({
   const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
   const validatedPrivateLocaleRef = useRef(false);
   const localeVersionRef = useRef(0);
+  const chosenLocaleRef = useRef<Locale | null>(null);
 
   // A server navigation supplies the request's cookie-derived locale before
-  // hydration. Keep that source in sync with the client provider.
+  // hydration. It stays authoritative only until the visitor picks a language:
+  // `router.refresh()` and prefetched route payloads can replay a render made
+  // before that choice reached the cookie, and replaying it would silently
+  // revert the language the visitor just selected.
   useEffect(() => {
+    if (
+      chosenLocaleRef.current &&
+      chosenLocaleRef.current !== initialLocaleData.locale
+    ) {
+      return;
+    }
     setLocaleData(initialLocaleData);
   }, [initialLocaleData]);
 
   const handleLocaleChange = useCallback(
     (locale: Locale, dict: LocaleData["dict"]) => {
       localeVersionRef.current += 1;
+      chosenLocaleRef.current = locale;
       setLocaleData({ locale, dict });
       void persistClientLocale(locale);
     },

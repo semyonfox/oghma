@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,7 @@ import {
   ArrowRightStartOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
+import { Locale, normalizeLocale } from "@/locales";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import { cn } from "@/components/settings/settings-utils";
 import {
@@ -84,7 +85,7 @@ const NAVIGATION_ITEMS = [
 
 type SavedProfile = Pick<
   FormState,
-  "firstName" | "lastName" | "email" | "timezone"
+  "firstName" | "lastName" | "email" | "timezone" | "locale"
 >;
 type SavedEditorSettings = Pick<FormState, "theme" | "editorWidth">;
 
@@ -100,7 +101,7 @@ function applyThemePreview(theme: FormState["theme"]) {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, activeLocale } = useI18n();
   const { setSettings } = useSettingsStore();
   const {
     settings: courseSettings,
@@ -115,6 +116,7 @@ export default function SettingsPage() {
     timezone: "UTC",
     theme: "system",
     editorWidth: DEFAULT_EDITOR_SIZE,
+    locale: Locale.EN,
   });
   const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(null);
   const [savedEditorSettings, setSavedEditorSettings] =
@@ -125,6 +127,11 @@ export default function SettingsPage() {
   const [quizCourses, setQuizCourses] = useState<ReturnType<typeof mapQuizCourses>>([]);
   const [courseVisibilityLoading, setCourseVisibilityLoading] = useState(true);
   const [courseVisibilityError, setCourseVisibilityError] = useState(false);
+
+  // Read the displayed language without making the settings fetch depend on
+  // it; saving a language changes it and would otherwise refetch the form.
+  const activeLocaleRef = useRef(activeLocale);
+  activeLocaleRef.current = activeLocale;
 
   const navigation = NAVIGATION_ITEMS.map(({ label, ...item }) => ({
     ...item,
@@ -173,6 +180,7 @@ export default function SettingsPage() {
           lastName: "",
           email: "",
           timezone: "UTC",
+          locale: activeLocaleRef.current ?? Locale.EN,
         };
         let editorSettings: SavedEditorSettings = {
           theme: "system",
@@ -185,6 +193,7 @@ export default function SettingsPage() {
           if (user) {
             const nameParts = (user.name || "").split(" ");
             profile = {
+              ...profile,
               firstName: nameParts[0] || "",
               lastName: nameParts.slice(1).join(" ") || "",
               email: user.email || "",
@@ -200,6 +209,10 @@ export default function SettingsPage() {
           profile = {
             ...profile,
             timezone: settingsData.timezone || "UTC",
+            locale:
+              normalizeLocale(settingsData.locale) ??
+              activeLocaleRef.current ??
+              Locale.EN,
             ...(Object.hasOwn(settingsData, "firstName")
               ? { firstName: settingsData.firstName || "" }
               : {}),
@@ -305,7 +318,8 @@ export default function SettingsPage() {
     savedProfile !== null &&
     (formState.firstName !== savedProfile.firstName ||
       formState.lastName !== savedProfile.lastName ||
-      formState.timezone !== savedProfile.timezone);
+      formState.timezone !== savedProfile.timezone ||
+      formState.locale !== savedProfile.locale);
   const editorHasChanges =
     savedEditorSettings !== null &&
     (formState.theme !== savedEditorSettings.theme ||

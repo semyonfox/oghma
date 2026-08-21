@@ -1091,5 +1091,7 @@
   "Trash": "Trash",
   "Contains {count} items": "Contains {count} items",
   "Expires today": "Expires today",
-  "Expires tomorrow": "Expires tomorrow"
+  "Expires tomorrow": "Expires tomorrow",
+  "Failed to change language": "Failed to change language",
+  "Failed to save language preference": "Failed to save language preference"
 }

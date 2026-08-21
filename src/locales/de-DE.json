@@ -1091,5 +1091,7 @@
   "Trash": "Papierkorb",
   "Contains {count} items": "Enthält {count} Elemente",
   "Expires today": "Läuft heute ab",
-  "Expires tomorrow": "Läuft morgen ab"
+  "Expires tomorrow": "Läuft morgen ab",
+  "Failed to change language": "Sprache konnte nicht geändert werden",
+  "Failed to save language preference": "Spracheinstellung konnte nicht gespeichert werden"
 }
