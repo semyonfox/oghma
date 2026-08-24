@@ -56,17 +56,25 @@ export function localeFromSettingsResponse(value: unknown): Locale | null {
 }
 
 /** Best effort: the visible language already holds without this succeeding. */
-async function adoptAccountLocale(locale: Locale, signal: AbortSignal) {
+async function adoptAccountLocale(
+  locale: Locale,
+  signal: AbortSignal,
+): Promise<boolean> {
   try {
-    await fetch("/api/settings", {
+    const response = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ locale }),
       signal,
     });
+    if (!response.ok) {
+      throw new Error(`settings API returned ${response.status}`);
+    }
+    return true;
   } catch (error) {
-    if (signal.aborted) return;
+    if (signal.aborted) return false;
     console.warn("Failed to adopt the browser language preference:", error);
+    return false;
   }
 }
 
@@ -154,7 +162,11 @@ function I18nRootProviderContent({
         // still a choice, and it should follow them to their other devices.
         if (!accountLocale) {
           if (browserLocale) {
-            await adoptAccountLocale(browserLocale, controller.signal);
+            const adopted = await adoptAccountLocale(
+              browserLocale,
+              controller.signal,
+            );
+            if (!adopted) validatedPrivateLocaleRef.current = false;
           }
           return;
         }

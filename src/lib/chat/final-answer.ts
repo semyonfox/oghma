@@ -29,23 +29,22 @@ export async function streamFinalAnswer(options: {
   onTextDelta: (text: string) => void;
   abortSignal?: AbortSignal;
 }): Promise<FinalAnswerResult> {
+  // ai sdk v7: system content must be passed via the instructions option,
+  // so pull the leading system message out of the list
   const [firstMessage, ...remainingMessages] = options.messages;
-  const messages: ModelMessage[] =
-    firstMessage?.role === "system"
-      ? [
-          {
-            ...firstMessage,
-            content: `${firstMessage.content}\n\n${FINAL_ANSWER_INSTRUCTION}`,
-          },
-          ...remainingMessages,
-        ]
-      : [
-          { role: "system", content: FINAL_ANSWER_INSTRUCTION },
-          ...options.messages,
-        ];
+  let instructions: string;
+  let messages: ModelMessage[];
+  if (firstMessage?.role === "system") {
+    instructions = `${firstMessage.content}\n\n${FINAL_ANSWER_INSTRUCTION}`;
+    messages = remainingMessages;
+  } else {
+    instructions = FINAL_ANSWER_INSTRUCTION;
+    messages = options.messages;
+  }
 
   const result = streamText({
     model: options.model,
+    instructions,
     messages,
     maxOutputTokens: options.maxOutputTokens,
     abortSignal: options.abortSignal,

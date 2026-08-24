@@ -2,13 +2,13 @@
 // uses sorted sets for true sliding window — no burst-at-boundary problem
 // violations are logged to PostgreSQL for audit (fire-and-forget)
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'crypto';
-import { ensureRedisReady, redis, redisReady } from '@/lib/redis';
-import { RATE_LIMITS, type RateLimitRule } from '@/lib/rateLimitConfig';
-import { Metrics } from '@/lib/metrics';
-import sql from '@/database/pgsql';
-import logger from '@/lib/logger';
+import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
+import { ensureRedisReady, redis, redisReady } from "@/lib/redis";
+import { RATE_LIMITS, type RateLimitRule } from "@/lib/rateLimitConfig";
+import { Metrics } from "@/lib/metrics";
+import sql from "@/database/pgsql";
+import logger from "@/lib/logger";
 
 // in-memory fallback for when redis is unavailable
 const memWindows = new Map<string, number[]>();
@@ -19,18 +19,22 @@ interface RateLimitResult {
   retryAfter: number; // seconds until window slides enough to allow next request
 }
 
-async function redisCheck(key: string, rule: RateLimitRule, now: number): Promise<RateLimitResult> {
+async function redisCheck(
+  key: string,
+  rule: RateLimitRule,
+  now: number,
+): Promise<RateLimitResult> {
   const windowStart = now - rule.windowSeconds * 1000;
 
   // pipeline: remove expired + count + add current + set TTL
   const pipeline = redis.pipeline();
-  pipeline.zremrangebyscore(key, '-inf', windowStart);
+  pipeline.zremrangebyscore(key, "-inf", windowStart);
   pipeline.zcard(key);
   pipeline.zadd(key, now, `${now}:${Math.random().toString(36).slice(2, 8)}`);
   pipeline.expire(key, rule.windowSeconds);
 
   const results = await pipeline.exec();
-  if (!results) throw new Error('pipeline returned null');
+  if (!results) throw new Error("pipeline returned null");
   const commandError = results.find(([error]) => error)?.[0];
   if (commandError) throw commandError;
 
@@ -39,9 +43,11 @@ async function redisCheck(key: string, rule: RateLimitRule, now: number): Promis
   if (count >= rule.limit) {
     // The request is over the limit. Remove the new entry because it must not count.
     // get the oldest entry to calculate retryAfter
-    const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
+    const oldest = await redis.zrange(key, "0", "0", "WITHSCORES");
     const oldestTs = oldest.length >= 2 ? parseInt(oldest[1], 10) : now;
-    const retryAfter = Math.ceil((oldestTs + rule.windowSeconds * 1000 - now) / 1000);
+    const retryAfter = Math.ceil(
+      (oldestTs + rule.windowSeconds * 1000 - now) / 1000,
+    );
 
     // remove the request we just added since it was over limit
     const members = await redis.zrangebyscore(key, now, now);
@@ -49,69 +55,98 @@ async function redisCheck(key: string, rule: RateLimitRule, now: number): Promis
       await redis.zrem(key, members[members.length - 1]);
     }
 
-    return { allowed: false, remaining: 0, retryAfter: Math.max(1, retryAfter) };
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfter: Math.max(1, retryAfter),
+    };
   }
 
   return { allowed: true, remaining: rule.limit - count - 1, retryAfter: 0 };
 }
 
-function memCheck(key: string, rule: RateLimitRule, now: number): RateLimitResult {
+function memCheck(
+  key: string,
+  rule: RateLimitRule,
+  now: number,
+): RateLimitResult {
   const windowStart = now - rule.windowSeconds * 1000;
   let timestamps = memWindows.get(key) ?? [];
 
   // slide window: remove expired
-  timestamps = timestamps.filter(t => t > windowStart);
+  timestamps = timestamps.filter((t) => t > windowStart);
 
   if (timestamps.length >= rule.limit) {
     const oldest = timestamps[0] ?? now;
-    const retryAfter = Math.ceil((oldest + rule.windowSeconds * 1000 - now) / 1000);
+    const retryAfter = Math.ceil(
+      (oldest + rule.windowSeconds * 1000 - now) / 1000,
+    );
     memWindows.set(key, timestamps);
-    return { allowed: false, remaining: 0, retryAfter: Math.max(1, retryAfter) };
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfter: Math.max(1, retryAfter),
+    };
   }
 
   timestamps.push(now);
   memWindows.set(key, timestamps);
-  return { allowed: true, remaining: rule.limit - timestamps.length, retryAfter: 0 };
+  return {
+    allowed: true,
+    remaining: rule.limit - timestamps.length,
+    retryAfter: 0,
+  };
 }
 
 // periodic cleanup for in-memory fallback (prevent unbounded growth)
 setInterval(() => {
   const now = Date.now();
   for (const [key, timestamps] of memWindows) {
-    const filtered = timestamps.filter(t => t > now - 3600_000);
+    const filtered = timestamps.filter((t) => t > now - 3600_000);
     if (filtered.length === 0) memWindows.delete(key);
     else memWindows.set(key, filtered);
   }
 }, 60_000).unref();
 
 function hashPii(value: string): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-function logViolation(category: string, identifier: string, count: number, limitMax: number) {
+function logViolation(
+  category: string,
+  identifier: string,
+  count: number,
+  limitMax: number,
+) {
   const hashed = hashPii(identifier);
   sql`
     INSERT INTO app.rate_limit_log (category, identifier, blocked, count, limit_max)
     VALUES (${category}, ${hashed}, true, ${count}, ${limitMax})
   `.catch((err: unknown) => {
-    logger.warn('rate limit audit log failed', { category, error: (err as Error).message });
+    logger.warn("rate limit audit log failed", {
+      category,
+      error: (err as Error).message,
+    });
   });
 }
 
 function rateLimitStoreUnavailableResponse(): NextResponse {
   return NextResponse.json(
-    { error: 'Service temporarily unavailable. Please try again shortly.' },
+    { error: "Service temporarily unavailable. Please try again shortly." },
     {
       status: 503,
       headers: {
-        'Retry-After': '30',
+        "Retry-After": "30",
       },
     },
   );
 }
 
-function failClosedStoreUnavailable(category: string, error: string): NextResponse {
-  logger.error('redis rate limit failed for fail-closed category', {
+function failClosedStoreUnavailable(
+  category: string,
+  error: string,
+): NextResponse {
+  logger.error("redis rate limit failed for fail-closed category", {
     category,
     error,
     publicStatus: 503,
@@ -127,7 +162,7 @@ export async function checkRateLimit(
 ): Promise<NextResponse | null> {
   const rule = RATE_LIMITS[category];
   if (!rule) {
-    logger.warn('unknown rate limit category', { category });
+    logger.warn("unknown rate limit category", { category });
     return null; // fail open for unknown categories
   }
 
@@ -137,7 +172,7 @@ export async function checkRateLimit(
 
   let result: RateLimitResult;
 
-  const canUseRedis = redisReady || await ensureRedisReady();
+  const canUseRedis = redisReady || (await ensureRedisReady());
   if (canUseRedis) {
     try {
       result = await redisCheck(key, rule, now);
@@ -147,30 +182,42 @@ export async function checkRateLimit(
         return failClosedStoreUnavailable(category, error);
       }
 
-      logger.warn('redis rate limit failed, falling back to memory', { category, error });
+      logger.warn("redis rate limit failed, falling back to memory", {
+        category,
+        error,
+      });
       result = memCheck(key, rule, now);
     }
   } else {
     if (rule.failClosedOnStoreError) {
-      return failClosedStoreUnavailable(category, 'redis not ready after initialization');
+      return failClosedStoreUnavailable(
+        category,
+        "redis not ready after initialization",
+      );
     }
 
     result = memCheck(key, rule, now);
   }
 
   if (!result.allowed) {
-    logger.info('rate limit exceeded', { category, identifier: hashPii(identifier) });
+    logger.info("rate limit exceeded", {
+      category,
+      identifier: hashPii(identifier),
+    });
     logViolation(category, identifier, rule.limit, rule.limit);
     void Metrics.rateLimitViolation(category);
 
     return NextResponse.json(
-      { error: 'Too many requests. Please try again later.', retryAfter: result.retryAfter },
+      {
+        error: "Too many requests. Please try again later.",
+        retryAfter: result.retryAfter,
+      },
       {
         status: 429,
         headers: {
-          'Retry-After': String(result.retryAfter),
-          'X-RateLimit-Limit': String(rule.limit),
-          'X-RateLimit-Remaining': '0',
+          "Retry-After": String(result.retryAfter),
+          "X-RateLimit-Limit": String(rule.limit),
+          "X-RateLimit-Remaining": "0",
         },
       },
     );
@@ -182,8 +229,8 @@ export async function checkRateLimit(
 // helper to extract client IP from request headers (CloudFront/Amplify)
 export function getClientIp(request: NextRequest): string {
   return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    '0.0.0.0'
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "0.0.0.0"
   );
 }

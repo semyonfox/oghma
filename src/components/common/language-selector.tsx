@@ -98,9 +98,9 @@ export default function LanguageSelector({
     setIsApplying(true);
     try {
       const { dict } = await loadLocaleData(lang);
-      // Apply first so the provider mirrors the choice into the cookie and
-      // local storage. The language then holds even when the account save is
-      // unavailable, which is the normal case for signed-out visitors.
+      // Apply first so the provider mirrors the choice into the cookie. The
+      // language then holds when account saving is unavailable, which is the
+      // normal case for signed-out visitors.
       locale(lang, dict);
 
       try {

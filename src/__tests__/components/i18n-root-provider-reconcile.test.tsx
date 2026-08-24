@@ -51,9 +51,36 @@ describe("I18nRootProvider account reconciliation", () => {
       expect(settingsPosts()).toEqual([
         [
           "/api/settings",
-          expect.objectContaining({ body: JSON.stringify({ locale: Locale.GA }) }),
+          expect.objectContaining({
+            body: JSON.stringify({ locale: Locale.GA }),
+          }),
         ],
       ]),
+    );
+    await waitFor(() => expect(screen.getByText(Locale.GA)).toBeTruthy());
+  });
+
+  it("reports a failed account adoption instead of treating it as saved", async () => {
+    document.cookie = "ogma-locale=ga; path=/";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ theme: "system" }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 503 }),
+    );
+
+    renderWithServerLocale(Locale.EN);
+
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith(
+        "Failed to adopt the browser language preference:",
+        expect.objectContaining({ message: "settings API returned 503" }),
+      ),
     );
     expect(screen.getByText(Locale.GA)).toBeTruthy();
   });

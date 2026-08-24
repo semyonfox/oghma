@@ -1,5 +1,5 @@
-// simplified flat config for ESLint 9.x compatibility
-// using basic rules until eslint-config-next fully supports flat config
+// Flat config kept explicit because eslint-config-next 16.3 is not compatible
+// with ESLint 10 yet.
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";

@@ -14,10 +14,7 @@ import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { resolveAppOrigin } from "@/lib/chat/canvas-mcp-client";
 import { getOptionalCanvasTooling } from "@/lib/chat/canvas-tooling";
 import { searchChatChunks } from "@/lib/chat/chunk-search";
-import {
-  APP_GUIDE_TOPIC_IDS,
-  getAppGuide,
-} from "@/lib/chat/app-guide";
+import { APP_GUIDE_TOPIC_IDS, getAppGuide } from "@/lib/chat/app-guide";
 import {
   buildToolBudgetInstruction,
   buildToolBudgetControls,
@@ -40,7 +37,7 @@ import {
   type LlmReasoningOptions,
   type LlmThinkingMode,
 } from "@/lib/ai-config";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { MCPClient } from "@ai-sdk/mcp";
 
 function inferNoteTitle(content: string): string {
@@ -81,7 +78,7 @@ export interface BuildLlmCallParams {
 }
 
 export interface LlmCallResult {
-  model: LanguageModelV3 | null;
+  model: LanguageModelV4 | null;
   llmAvailable: boolean;
   llmCallOptions: {
     messages: ChatMessage[];
@@ -508,7 +505,10 @@ export function createChatTools(
     execute: async ({ title: blockTitle, startsAt, endsAt, assignmentId }) => {
       const start = new Date(startsAt);
       const end = new Date(endsAt);
-      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+      if (
+        !Number.isFinite(start.getTime()) ||
+        !Number.isFinite(end.getTime())
+      ) {
         throw new Error("Start and end must be valid ISO 8601 timestamps");
       }
       const durationMins = (end.getTime() - start.getTime()) / 60000;
