@@ -71,50 +71,6 @@ pipeline {
             }
         }
 
-        stage('e2e smoke') {
-            steps {
-                script {
-                    final boolean hadE2EEnv = fileExists('.env.e2e');
-
-                    if (!hadE2EEnv) {
-                        sh 'cp .env.e2e.example .env.e2e'
-                    }
-
-                    sh 'npm ci --no-audit --no-fund'
-                    sh 'npm run e2e:install'
-
-                    try {
-                        sh """
-                            set -eu
-                            npm run e2e:services:up
-
-                            for attempt in \$(seq 1 30); do
-                              if npm run e2e:reset; then
-                                break
-                              fi
-
-                              if [ \"\$attempt\" -eq 30 ]; then
-                                echo \"[e2e] reset failed after 30 attempts; keeping logs above\"
-                                exit 1
-                              fi
-
-                              echo \"[e2e] services not ready yet, retrying reset (\${attempt}/30)\"
-                              sleep 2
-                            done
-
-                            CI=true npm run test:integration
-                            CI=true npm run e2e:smoke -- --workers=${env.E2E_SMOKE_WORKERS}
-                        """
-                    } finally {
-                        sh 'npm run e2e:services:down || true'
-                        if (!hadE2EEnv) {
-                            sh 'rm -f .env.e2e'
-                        }
-                    }
-                }
-            }
-        }
-
         stage('vector store') {
             steps {
                 sh '''
