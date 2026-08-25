@@ -77,7 +77,7 @@ describe("PrimaryNavigation AI chat entry", () => {
   it("opens global search from the navigation rail", async () => {
     render(React.createElement(PrimaryNavigation));
 
-    fireEvent.click(screen.getByTitle("Search"));
+    fireEvent.click(screen.getByTitle("Search OghmaNotes"));
 
     expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
     expect(mocks.push).not.toHaveBeenCalled();
@@ -101,7 +101,9 @@ describe("PrimaryNavigation AI chat entry", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Search OghmaNotes" }),
+    );
 
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(mocks.globalSearchOpen).toHaveBeenCalledTimes(1);
