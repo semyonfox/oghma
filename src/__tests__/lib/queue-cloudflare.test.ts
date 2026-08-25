@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  cloudflareAttemptsMade,
   enqueueCanvasJob,
   enqueueExtractRetryJob,
   enqueueMarkerCompletionJob,
@@ -137,5 +138,25 @@ describe("Cloudflare queue adapter", () => {
         metadata: { "CF-Content-Type": "json" },
       }),
     ).toEqual({ type: "extract", noteId: "note-1" });
+  });
+
+  it("rejects decoded JSON values that are not job objects", () => {
+    expect(() =>
+      parseCloudflareQueueBody({
+        id: "msg-1",
+        lease_id: "lease-1",
+        attempts: 1,
+        body: Buffer.from(JSON.stringify(["not", "a", "job"])).toString(
+          "base64",
+        ),
+        metadata: { "CF-Content-Type": "json" },
+      }),
+    ).toThrow("must be a JSON object");
+  });
+
+  it("normalizes Cloudflare's one-based delivery count for shared handlers", () => {
+    expect(cloudflareAttemptsMade(1)).toBe(0);
+    expect(cloudflareAttemptsMade(3)).toBe(2);
+    expect(cloudflareAttemptsMade(undefined)).toBe(0);
   });
 });

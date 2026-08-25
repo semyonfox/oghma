@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { decrypt } from "@/lib/crypto";
 
 export interface CanvasCredentials {

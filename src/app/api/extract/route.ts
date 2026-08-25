@@ -6,7 +6,7 @@ import { validateSession } from "@/lib/auth";
 import { replaceNoteEmbeddings } from "@/lib/rag/indexing";
 import { stripMarkdown } from "@/lib/strip-markdown";
 import { extractContentFromBuffer } from "@/lib/ingestion/extraction-core";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import { ApiError } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";

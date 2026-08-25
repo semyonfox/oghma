@@ -4,7 +4,7 @@ const {
   sqlMock,
   requireAuthMock,
   checkRateLimitMock,
-  addNoteToTreeMock,
+  createNoteWithTreeMock,
   getStorageProviderMock,
   storageMock,
   generateUUIDMock,
@@ -13,7 +13,7 @@ const {
   sqlMock: vi.fn(),
   requireAuthMock: vi.fn(),
   checkRateLimitMock: vi.fn(),
-  addNoteToTreeMock: vi.fn(),
+  createNoteWithTreeMock: vi.fn(),
   getStorageProviderMock: vi.fn(),
   storageMock: {
     copyObject: vi.fn(),
@@ -25,7 +25,7 @@ const {
   isValidUUIDMock: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql.js", () => ({
+vi.mock("@/database/pgsql", () => ({
   default: sqlMock,
 }));
 
@@ -56,8 +56,8 @@ vi.mock("@/lib/utils/uuid", () => ({
   generateUUID: generateUUIDMock,
 }));
 
-vi.mock("@/lib/notes/storage/pg-tree.js", () => ({
-  addNoteToTree: addNoteToTreeMock,
+vi.mock("@/lib/notes/storage/create-note", () => ({
+  createNoteWithTree: createNoteWithTreeMock,
 }));
 
 vi.mock("@/lib/storage/init", () => ({
@@ -84,7 +84,9 @@ describe("POST /api/notes/[id]/share", () => {
     checkRateLimitMock.mockResolvedValue(null);
     isValidUUIDMock.mockReturnValue(true);
     generateUUIDMock.mockReturnValue("99999999-9999-9999-9999-999999999999");
-    addNoteToTreeMock.mockResolvedValue(undefined);
+    createNoteWithTreeMock.mockResolvedValue({
+      noteId: "99999999-9999-9999-9999-999999999999",
+    });
 
     storageMock.copyObject.mockResolvedValue(undefined);
     storageMock.deleteObject.mockResolvedValue(undefined);
@@ -104,9 +106,6 @@ describe("POST /api/notes/[id]/share", () => {
           s3_key: "notes/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/file.pdf",
           is_folder: false,
         },
-      ])
-      .mockResolvedValueOnce([
-        { note_id: "99999999-9999-9999-9999-999999999999" },
       ]);
   });
 
@@ -122,7 +121,7 @@ describe("POST /api/notes/[id]/share", () => {
       body: JSON.stringify({ targetUserId: "22222222-2222-2222-2222-222222222222", targetParentId: "33333333-3333-3333-3333-333333333333" }),
     }) as never, { params: Promise.resolve({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }) })).rejects.toMatchObject({ statusCode: 400 });
     expect(storageMock.copyObject).not.toHaveBeenCalled();
-    expect(sqlMock).toHaveBeenCalledTimes(3);
+    expect(createNoteWithTreeMock).not.toHaveBeenCalled();
   });
 
   it("does not insert a clone when storage copying fails", async () => {
@@ -131,7 +130,7 @@ describe("POST /api/notes/[id]/share", () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetUserId: "22222222-2222-2222-2222-222222222222" }),
     }) as never, { params: Promise.resolve({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }) })).rejects.toMatchObject({ statusCode: 502 });
-    expect(sqlMock).toHaveBeenCalledTimes(2);
+    expect(createNoteWithTreeMock).not.toHaveBeenCalled();
   });
 
   it("copies S3 object using copyObject for binary-safe cloning", async () => {

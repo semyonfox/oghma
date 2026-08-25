@@ -20,7 +20,6 @@ import {
 import {
   ControlledTreeEnvironment,
   Tree,
-  TreeItemIndex,
 } from "react-complex-tree";
 import "react-complex-tree/lib/style.css";
 import { NOTE_PINNED } from "@/lib/notes/types/meta";
@@ -33,7 +32,6 @@ import {
   toggleSelectedId,
 } from "./selection-utils";
 import { ROOT_ID } from "@/lib/notes/types/tree";
-import { clearPostDedupCache } from "@/lib/notes/api/request-deduplicator";
 
 interface SidebarListProps {
   onOpenNote?: () => void;
@@ -187,9 +185,9 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
   const viewState = useMemo(
     () => ({
       "notes-tree": {
-        expandedItems: Array.from(expandedIds) as TreeItemIndex[],
-        selectedItems: Array.from(selectedIds) as TreeItemIndex[],
-        focusedItem: focusedId as TreeItemIndex | undefined,
+        expandedItems: Array.from(expandedIds),
+        selectedItems: Array.from(selectedIds),
+        focusedItem: focusedId ?? undefined,
       },
     }),
     [expandedIds, selectedIds, focusedId],
@@ -218,7 +216,6 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={() => {
-                clearPostDedupCache();
                 void refreshTree();
               }}
               disabled={loading}
@@ -322,9 +319,17 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             onExpandItem={handleExpandItem}
             onCollapseItem={handleCollapseItem}
             onSelectItems={(items) =>
-              setSelectedIds(new Set(items as string[]))
+              setSelectedIds(
+                new Set(
+                  items.filter((item): item is string => typeof item === "string"),
+                ),
+              )
             }
-            onFocusItem={(item) => setFocusedId(item?.index as string | null)}
+            onFocusItem={(item) =>
+              setFocusedId(
+                typeof item?.index === "string" ? item.index : null,
+              )
+            }
             onDrop={handleDrop}
             onMissingItems={onMissingItems}
             onStartRenamingItem={() => {}}
@@ -337,19 +342,21 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
               rootItem="root"
               treeLabel={t("Notes")}
               renderItem={({ item, depth, children, context }) => {
-                const nodeData = item.data as NoteModel | undefined;
+                const nodeData = item.data;
                 const hasChildren = !!(
                   item.children && item.children.length > 0
                 );
                 const isFolder =
                   item.isFolder || nodeData?.isFolder || hasChildren;
                 const _isPinned = nodeData?.pinned === NOTE_PINNED.PINNED;
-                const isDragging = (context as any)?.isDragging === true;
+                // react-complex-tree exposes drop-target state, but not a
+                // per-item dragging flag in its render context.
+                const isDragging = false;
                 const isDraggingOver = context.isDraggingOver === true;
-                const isExpanded = expandedIds.has(item.index as string);
+                const itemId = String(item.index);
+                const isExpanded = expandedIds.has(itemId);
                 const isActive = activeId === item.index;
                 const isItemRenaming = renamingId === item.index;
-                const itemId = item.index as string;
                 const isSelected = selectedIds.has(itemId);
 
                 return (
@@ -403,9 +410,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                     onDotsClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const rect = (
-                        e.currentTarget as HTMLElement
-                      ).getBoundingClientRect();
+                      const rect = e.currentTarget.getBoundingClientRect();
                       useContextMenuStore
                         .getState()
                         .setOpenMenu(

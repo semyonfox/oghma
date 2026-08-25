@@ -2,6 +2,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withI18n } from "@/__tests__/test-utils/i18n";
 import CodeBlock from "@/lib/markdown/components/code-block";
 
 describe("CodeBlock", () => {
@@ -14,7 +15,7 @@ describe("CodeBlock", () => {
   });
 
   it("normalizes language aliases and copies raw code", async () => {
-    render(
+    render(withI18n(
       React.createElement(
         CodeBlock,
         { language: "js", rawContent: "const answer = 42\n" },
@@ -23,7 +24,7 @@ describe("CodeBlock", () => {
           " answer = 42\n",
         ]),
       ),
-    );
+    ));
 
     expect(screen.getByText("JavaScript")).toBeTruthy();
 
@@ -38,13 +39,13 @@ describe("CodeBlock", () => {
   });
 
   it("falls back to CODE for unknown languages without exposing word-wrap chrome", () => {
-    const { container } = render(
+    const { container } = render(withI18n(
       React.createElement(
         CodeBlock,
         { language: "mysterylang", rawContent: "aaaaaaaa" },
         React.createElement("code", null, "aaaaaaaa"),
       ),
-    );
+    ));
 
     expect(screen.getByText("CODE")).toBeTruthy();
     expect(screen.queryByText("Wrap")).toBeNull();

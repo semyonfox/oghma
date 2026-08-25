@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   queryResults: [] as unknown[][],
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/auth", () => ({
   validateSession: mocks.validateSession,
   validateSessionLite: vi.fn(),
@@ -190,5 +190,26 @@ describe("time-block API contracts", () => {
       first && typeof first === "object" && !isTemplateStrings(first) && "assignment_id" in first,
     )?.[0] as Record<string, unknown>;
     expect(updateFragment).toMatchObject({ assignment_id: null });
+  });
+
+  it("keeps time-block write responses limited to the documented row fields", async () => {
+    mocks.queryResults.push([{ id: ITEM_ID, title: "Focus", pomodoro_count: 1 }]);
+    const response = await postTimeBlock(
+      request(
+        "/api/time-blocks",
+        "POST",
+        JSON.stringify({
+          starts_at: "2026-08-02T10:00:00Z",
+          ends_at: "2026-08-02T10:25:00Z",
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    const insertQuery = mocks.sql.mock.calls.find(([first]) =>
+      isTemplateStrings(first) && first.join(" ").includes("INSERT INTO app.time_blocks"),
+    )?.[0] as TemplateStringsArray;
+    expect(insertQuery.join(" ")).toContain("RETURNING id, user_id, assignment_id");
+    expect(insertQuery.join(" ")).not.toContain("RETURNING *");
   });
 });

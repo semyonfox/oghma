@@ -60,10 +60,10 @@ The mock stack does not automatically start the background worker. Start it only
 
 ```bash
 # Second terminal
-node scripts/dev/run-mock.mjs npm run worker
+node --experimental-strip-types scripts/dev/run-mock.ts npm run worker
 
 # Verify its queue dependencies
-node scripts/dev/run-mock.mjs npm run worker:healthcheck
+node --experimental-strip-types scripts/dev/run-mock.ts npm run worker:healthcheck
 ```
 
 Stop and remove the disposable stack when finished:
@@ -95,8 +95,7 @@ App and worker must use matching database, Redis/queue, Qdrant, storage and prov
 ## Validate
 
 ```bash
-npm run lint
-npm run test:ci
+npm run lint:all
 npm run build
 ```
 
@@ -135,7 +134,7 @@ The root Compose file is a homelab/Jenkins convenience configuration, not a fres
 | Area | Technology |
 | --- | --- |
 | Application | Next.js, React, TypeScript |
-| Data and retrieval | PostgreSQL, Qdrant, pgvector-compatible workflows |
+| Data and retrieval | PostgreSQL and Qdrant |
 | Async processing | Redis, BullMQ, Node worker |
 | Files | S3-compatible object storage |
 | AI pipeline | Configurable LLM, embedding, rerank and optional OCR providers |

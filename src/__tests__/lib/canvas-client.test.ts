@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CanvasClient } from "@/lib/canvas/client.js";
+import { CanvasClient } from "@/lib/canvas/client";
 
 const STRING_IDS_ACCEPT = "application/json+canvas-string-ids";
 
@@ -22,7 +22,7 @@ describe("CanvasClient string-ID requests", () => {
       "token",
     ).getCourse("9007199254740993");
 
-    expect(result.data.id).toBe("9007199254740993");
+    expect(result.data?.id).toBe("9007199254740993");
     expect(fetchMock.mock.calls[0][1].headers.Accept).toBe(STRING_IDS_ACCEPT);
   });
 
@@ -48,7 +48,7 @@ describe("CanvasClient string-ID requests", () => {
       "token",
     ).getCourses();
 
-    expect(result.data.map((course: { id: string }) => course.id)).toEqual([
+    expect(result.data.map((course) => course.id)).toEqual([
       "9007199254740993",
       "9007199254740994",
     ]);
@@ -81,7 +81,7 @@ describe("CanvasClient string-ID requests", () => {
       "token",
     ).getCourses();
 
-    expect(result.data.map((course: { id: string }) => course.id)).toEqual([
+    expect(result.data.map((course) => course.id)).toEqual([
       "9007199254740993",
       "9007199254740994",
     ]);
@@ -124,7 +124,7 @@ describe("CanvasClient string-ID requests", () => {
     ]);
     expect(initialUrl.searchParams.get("per_page")).toBe("100");
     expect(initialUrl.href).not.toContain("current_future_and_restricted");
-    expect(result.data.map((enrollment: { course_id: string }) => enrollment.course_id)).toEqual([
+    expect(result.data.map((enrollment) => String(enrollment.course_id))).toEqual([
       "9007199254740993",
       "9007199254740994",
     ]);
@@ -236,7 +236,7 @@ describe("CanvasClient string-ID requests", () => {
       "token",
     ).getDiscoverableCourses();
 
-    expect(result.data.map((course: { id: string }) => course.id)).toEqual([
+    expect(result.data.map((course) => course.id)).toEqual([
       "1",
       "2",
       "3",
@@ -271,7 +271,7 @@ describe("CanvasClient string-ID requests", () => {
     process.env.CANVAS_MAX_FILE_BYTES = "4";
     vi.resetModules();
     const { CanvasClient: BoundedCanvasClient } = await import(
-      "@/lib/canvas/client.js"
+      "@/lib/canvas/client"
     );
     const body = new ReadableStream<Uint8Array>({
       start(controller) {

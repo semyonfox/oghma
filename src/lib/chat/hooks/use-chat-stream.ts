@@ -1,26 +1,20 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { parseSseBlocks } from "@/lib/chat/sse";
-import { parseSseFrame } from "@/lib/chat/parse-sse-frame";
-import type { MessageUpdate } from "@/lib/chat/parse-sse-frame";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
-import type { Message, MessagePart, ChatContextItem } from "@/lib/chat/types";
+import type { Message, ChatContextItem } from "@/lib/chat/types";
 import { noteSearchDetail } from "@/lib/chat/tool-display";
+import { formatClientDateTime } from "@/lib/chat/client-date-time";
+import {
+  consumeBackgroundGeneration,
+  consumeChatStream,
+  logChatStream,
+  resolveResumeAssistantId,
+} from "@/lib/chat/client-stream";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function logChatStream(
-  level: "debug" | "info" | "warn" | "error",
-  message: string,
-  details: Record<string, unknown> = {},
-): void {
-  if (typeof console === "undefined") return;
-  const logger = console[level] ?? console.log;
-  logger(`[chat-stream] ${message}`, details);
 }
 
 interface UseChatStreamOptions {
@@ -54,128 +48,6 @@ interface UseChatStreamResult {
   resume: (generationId: string) => Promise<void>;
 }
 
-/**
- * Append a token to the trailing text part, or open a new one if the last
- * part is a tool indicator. Returns a new array (immutable update).
- */
-function appendTokenPart(parts: MessagePart[], text: string): MessagePart[] {
-  const last = parts[parts.length - 1];
-  if (last && last.type === "text") {
-    return [
-      ...parts.slice(0, -1),
-      { type: "text", text: last.text + text },
-    ];
-  }
-  return [...parts, { type: "text", text }];
-}
-
-/** apply a parsed SSE update to the assistant message being streamed */
-export function applyUpdate(
-  msg: Message,
-  update: MessageUpdate,
-  thinkingStartRef: React.MutableRefObject<number | null>,
-): Message {
-  switch (update.type) {
-    case "reset":
-      thinkingStartRef.current = null;
-      return {
-        ...msg,
-        content: "",
-        parts: [],
-        thinking: undefined,
-        thinkingDuration: undefined,
-        partial: undefined,
-        error: undefined,
-      };
-
-    case "meta": {
-      const changes: Partial<Message> = {};
-      if (update.sources) changes.sources = update.sources;
-      if (update.retrieval) changes.retrieval = update.retrieval;
-      return { ...msg, ...changes };
-    }
-
-    case "search": {
-      const query = update.searchContext.query;
-      return {
-        ...msg,
-        searchContext: update.searchContext,
-        parts: query
-          ? [
-              ...(msg.parts ?? []),
-              {
-                type: "tool" as const,
-                name: "ragSearch",
-                label: "Searched notes",
-                detail: noteSearchDetail(query, update.searchContext.results),
-              },
-            ]
-          : msg.parts,
-      };
-    }
-
-    case "thinking": {
-      if (!thinkingStartRef.current) {
-        thinkingStartRef.current = Date.now();
-      }
-      return { ...msg, thinking: `${msg.thinking ?? ""}${update.text}` };
-    }
-
-    case "token": {
-      const duration = thinkingStartRef.current
-        ? Math.round((Date.now() - thinkingStartRef.current) / 1000)
-        : undefined;
-      if (thinkingStartRef.current) thinkingStartRef.current = null;
-      return {
-        ...msg,
-        content: `${msg.content}${update.text}`,
-        parts: appendTokenPart(msg.parts ?? [], update.text),
-        thinkingDuration: msg.thinkingDuration ?? duration,
-      };
-    }
-
-    case "tool-call": {
-      // tool calls land as their own part — message-bubble renders these via
-      // ToolCallPill rather than baking markdown into content. content stays
-      // the plain prose concat (drives copy button + LLM history).
-      return {
-        ...msg,
-        parts: [
-          ...(msg.parts ?? []),
-          { type: "tool", name: update.toolName, label: update.label, callId: update.toolCallId, detail: update.detail },
-        ],
-      };
-    }
-
-    case "tool-result":
-      return {
-        ...msg,
-        parts: (msg.parts ?? []).map((part) =>
-          part.type === "tool" && part.callId === update.toolCallId
-            ? { ...part, detail: update.detail }
-            : part,
-        ),
-      };
-
-    case "error":
-      return {
-        ...msg,
-        partial: true,
-        error: update.message,
-        parts: [
-          ...(msg.parts ?? []),
-          {
-            type: "error",
-            text: update.message || "Response interrupted.",
-          },
-        ],
-      };
-
-    default:
-      return msg;
-  }
-}
-
 function clearDraft(sid: string | null): void {
   if (!sid) return;
   try {
@@ -183,19 +55,6 @@ function clearDraft(sid: string | null): void {
   } catch {
     // ignore
   }
-}
-
-/**
- * A reopened generation may already have a partial assistant message restored
- * from PostgreSQL/session storage. Continue streaming into that message rather
- * than creating an ID that is never inserted into state.
- */
-export function resolveResumeAssistantId(
-  messages: Message[],
-  proposedId: string,
-): string {
-  const last = messages[messages.length - 1];
-  return last?.role === "assistant" ? last.id : proposedId;
 }
 
 export function useChatStream(
@@ -250,6 +109,54 @@ export function useChatStream(
   const sessionIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
 
+  const handleNewSession = useCallback(
+    (newSessionId: string | undefined, userText: string): void => {
+      if (newSessionId && newSessionId !== sessionIdRef.current) {
+        setSessionId(newSessionId);
+        onSessionCreated?.(newSessionId, userText.slice(0, 60));
+      }
+    },
+    [onSessionCreated],
+  );
+
+  const consumeStream = useCallback(
+    (
+      body: ReadableStream<Uint8Array>,
+      assistantId: string,
+      userText: string,
+      onEventId?: (id: string) => void,
+    ) =>
+      consumeChatStream({
+        body,
+        assistantId,
+        userText,
+        thinkingStartRef,
+        setMessages,
+        onSession: handleNewSession,
+        onEventId,
+        translate: t,
+      }),
+    [handleNewSession, t],
+  );
+
+  const consumeGeneration = useCallback(
+    (
+      generationId: string,
+      assistantId: string,
+      userText: string,
+      signal: AbortSignal,
+    ) =>
+      consumeBackgroundGeneration({
+        generationId,
+        assistantId,
+        userText,
+        signal,
+        activeGenerationRef,
+        consumeStream,
+      }),
+    [consumeStream],
+  );
+
   const send = useCallback(
     async (text: string, history: { role: string; content: string }[]) => {
       if (!text || loading) return;
@@ -278,12 +185,10 @@ export function useChatStream(
       setLoading(true);
 
       try {
-        const { endpoint, headers } = await resolveEndpoint();
-
         const controller = new AbortController();
         abortControllerRef.current = controller;
         logChatStream("info", "starting request", {
-          endpoint,
+          endpoint: "/api/chat",
           assistantId,
           hasSessionId: Boolean(sessionId),
           noteCount: selectedNotes.length,
@@ -291,9 +196,9 @@ export function useChatStream(
           thinkingMode,
         });
 
-        const res = await fetch(endpoint, {
+        const res = await fetch("/api/chat", {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
             message: text,
@@ -309,15 +214,7 @@ export function useChatStream(
             background: true,
             thinkingMode,
             useRag,
-            clientDateTime: (() => {
-              const d = new Date();
-              const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-              const off = -d.getTimezoneOffset();
-              const s = off >= 0 ? "+" : "-";
-              const h = String(Math.floor(Math.abs(off) / 60)).padStart(2, "0");
-              const m = String(Math.abs(off) % 60).padStart(2, "0");
-              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}${s}${h}:${m}[${tz}]`;
-            })(),
+            clientDateTime: formatClientDateTime(),
           }),
         });
 
@@ -419,167 +316,22 @@ export function useChatStream(
         setLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
+      consumeGeneration,
+      consumeStream,
+      handleNewSession,
+      loading,
       noteId,
       noteTitle,
+      onStreamComplete,
       selectedNotes,
       selectedFolders,
       sessionId,
+      t,
       thinkingMode,
       useRag,
-      loading,
     ],
   );
-
-  /** resolve the chat endpoint — homelab streams via /api/chat (no Lambda) */
-  async function resolveEndpoint(): Promise<{
-    endpoint: string;
-    headers: Record<string, string>;
-  }> {
-    return {
-      endpoint: "/api/chat",
-      headers: { "Content-Type": "application/json" },
-    };
-  }
-
-  /** handle session ID from server responses */
-  function handleNewSession(
-    newSessionId: string | undefined,
-    userText: string,
-  ): void {
-    if (newSessionId && newSessionId !== sessionIdRef.current) {
-      setSessionId(newSessionId);
-      onSessionCreated?.(newSessionId, userText.slice(0, 60));
-    }
-  }
-
-  /** read the SSE stream and apply updates to the assistant message */
-  async function consumeStream(
-    body: ReadableStream<Uint8Array>,
-    assistantId: string,
-    userText: string,
-    onEventId?: (id: string) => void,
-  ): Promise<{ timeBlockChanged: boolean }> {
-    let timeBlockChanged = false;
-    let sawDone = false;
-    let frameCount = 0;
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    const parseState = { buffer: "" };
-
-    while (true) {
-      const { value, done } = await reader.read();
-      const chunk = done
-        ? decoder.decode()
-        : decoder.decode(value, { stream: true });
-
-      if (chunk) {
-        for (const frame of parseSseBlocks(chunk, parseState)) {
-          if (frame.id) onEventId?.(frame.id);
-          frameCount += 1;
-          const update = parseSseFrame(frame);
-          if (!update) continue;
-
-          if (update.type === "done") {
-            sawDone = true;
-            logChatStream("debug", "received done event", {
-              assistantId,
-              frameCount,
-            });
-            continue;
-          }
-
-          if (update.type === "error") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? applyUpdate(m, update, thinkingStartRef)
-                  : m,
-              ),
-            );
-            throw new Error(update.message || t("error.something_went_wrong"));
-          }
-
-          if (update.type === "meta") {
-            handleNewSession(update.sessionId, userText);
-            logChatStream("debug", "received metadata", {
-              assistantId,
-              sessionId: update.sessionId,
-              sources: update.sources?.length ?? 0,
-            });
-          }
-
-          if (
-            update.type === "tool-call" &&
-            (update.toolName === "addTimeBlock" ||
-              update.toolName === "completeTimeBlock")
-          ) {
-            timeBlockChanged = true;
-          }
-
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? applyUpdate(m, update, thinkingStartRef)
-                : m,
-            ),
-          );
-        }
-      }
-
-      if (done) break;
-
-      // yield to the macrotask queue so React can flush pending renders
-      await new Promise<void>((r) => setTimeout(r, 0));
-    }
-    if (!sawDone) {
-      logChatStream("warn", "stream ended without done event", {
-        assistantId,
-        frameCount,
-        bufferedBytes: parseState.buffer.length,
-      });
-      throw new Error("Response stream ended before completion");
-    }
-    return { timeBlockChanged };
-  }
-
-  async function consumeGeneration(
-    generationId: string,
-    assistantId: string,
-    userText: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    activeGenerationRef.current = generationId;
-    let afterId = "0-0";
-    let attempts = 0;
-    try {
-      while (!signal.aborted) {
-        try {
-          const response = await fetch(
-            `/api/chat/generations/${generationId}/stream?after=${encodeURIComponent(afterId)}`,
-            { headers: { Accept: "text/event-stream" }, signal },
-          );
-          if (!response.ok || !response.body) {
-            throw new Error(`Unable to resume response (${response.status})`);
-          }
-          await consumeStream(response.body, assistantId, userText, (id) => {
-            afterId = id;
-          });
-          return;
-        } catch (error) {
-          if (signal.aborted) throw error;
-          attempts += 1;
-          if (attempts >= 4) throw error;
-          await new Promise<void>((resolve) => setTimeout(resolve, attempts * 500));
-        }
-      }
-    } finally {
-      if (activeGenerationRef.current === generationId) {
-        activeGenerationRef.current = null;
-      }
-    }
-  }
 
   const resume = useCallback(
     async (generationId: string) => {
@@ -617,9 +369,7 @@ export function useChatStream(
         setLoading(false);
       }
     },
-    // consumeGeneration intentionally reads current hook callbacks/state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [loading],
+    [consumeGeneration, loading, onStreamComplete, t],
   );
 
   return {

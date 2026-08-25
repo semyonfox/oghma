@@ -29,7 +29,7 @@ interface PortalState {
   menu: AnchorInstance<NoteModel>;
   share: AnchorInstance<NoteModel>;
   preview: PreviewAnchorInstance;
-  linkToolbar: AnchorInstance<{ href: string; view?: any }>;
+  linkToolbar: AnchorInstance<{ href: string; view?: unknown }>;
 }
 
 let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const courseTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_courses",
         description:
             "List the authenticated user's courses. Canonical endpoint for 'my courses' / 'my classes'. Filter by enrollment_state (active|invited_or_pending|completed). Use include to pull extras like term, teachers, total_students, or current_grading_period_scores.",
@@ -12,7 +12,7 @@ export const courseTools: ToolDef[] = [
             enrollment_state: z.enum(["active", "invited_or_pending", "completed"]).optional(),
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const courses = await canvas.collectPaginated("/api/v1/courses", {
                 per_page: 100,
                 ...(args.enrollment_state ? { enrollment_state: args.enrollment_state } : {}),
@@ -20,40 +20,38 @@ export const courseTools: ToolDef[] = [
             });
             return jsonResult(courses);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_course",
         description: "Get full details for a single course by ID.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             include: z.array(z.string()).optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const course = await canvas.get(`/api/v1/courses/${args.course_id}`, {
                 ...(args.include ? { include: args.include } : {}),
             });
             return jsonResult(course);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_sections",
         description: "List sections for a course.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const sections = await canvas.collectPaginated(`/api/v1/courses/${args.course_id}/sections`, {
                 per_page: 100,
             });
             return jsonResult(sections);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable course creation, updates, and deletion.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_course",
         description: "Create a new course in an account. Requires admin permissions.",
         inputSchema: z.object({
@@ -61,7 +59,7 @@ export const courseTools: ToolDef[] = [
             name: z.string(),
             course_code: z.string().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const course = await canvas.post(`/api/v1/accounts/${args.account_id}/courses`, {
                 course: {
                     name: args.name,
@@ -70,5 +68,5 @@ export const courseTools: ToolDef[] = [
             });
             return jsonResult(course);
         },
-    },
+    }),
 ];

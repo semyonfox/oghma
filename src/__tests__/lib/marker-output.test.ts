@@ -5,6 +5,7 @@ import {
   persistMarkerAssetsForNote,
   sanitizeMarkerAssetName,
 } from "@/lib/marker-output";
+import { StoreS3 } from "@/lib/storage/s3";
 
 describe("marker-output", () => {
   it("normalizes marker page anchors and separators", () => {
@@ -53,7 +54,9 @@ describe("marker-output", () => {
 
   it("stores images and rewrites markdown links", async () => {
     const putObject = vi.fn().mockResolvedValue(undefined);
-    const storage = { putObject } as any;
+    const storage = Object.assign(Object.create(StoreS3.prototype) as StoreS3, {
+      putObject,
+    });
 
     const result = await persistMarkerAssetsForNote({
       storage,

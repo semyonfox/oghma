@@ -1,0 +1,41 @@
+// clears all auth cookies (custom JWT + Auth.js OAuth) to fully terminate the session
+import { assertTrustedOrigin } from "@/lib/api-error";
+import type { NextRequest } from "next/server";
+
+export async function POST(request: NextRequest): Promise<Response> {
+  try {
+    assertTrustedOrigin(request);
+    const expired = "Thu, 01 Jan 1970 00:00:00 UTC";
+
+    // every cookie name that could hold session state
+    const cookieNames = [
+      "session", // custom JWT (email/password)
+      "authjs.session-token", // Auth.js v5 session (dev)
+      "authjs.csrf-token", // Auth.js v5 CSRF (dev)
+      "authjs.callback-url", // Auth.js v5 callback (dev)
+      "__Secure-authjs.session-token", // Auth.js v5 session (prod/HTTPS)
+      "__Secure-authjs.csrf-token", // Auth.js v5 CSRF (prod/HTTPS)
+      "__Secure-authjs.callback-url", // Auth.js v5 callback (prod/HTTPS)
+    ];
+
+    const headers = new Headers({ "Content-Type": "application/json" });
+    for (const name of cookieNames) {
+      // clear with both secure and non-secure variants to cover all environments
+      headers.append(
+        "Set-Cookie",
+        `${name}=; Path=/; Expires=${expired}; HttpOnly; SameSite=Lax`,
+      );
+      headers.append(
+        "Set-Cookie",
+        `${name}=; Path=/; Expires=${expired}; HttpOnly; Secure; SameSite=Lax`,
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: "Logged out successfully" }),
+      { status: 200, headers },
+    );
+  } catch (_error) {
+    return Response.json({ error: "Logout failed" }, { status: 500 });
+  }
+}

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+type TestRouteHandler = (
+  request: NextRequest,
+  context: unknown,
+) => Promise<Response>;
+
 const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
   getSelfEnrollments: vi.fn(),
@@ -11,10 +16,10 @@ const canvas = vi.hoisted(() => ({
 vi.mock("@/lib/api-error", () => ({
   requireAuth: vi.fn(),
   withErrorHandler:
-    (handler: (...args: any[]) => Promise<Response>) =>
-    async (...args: any[]) => {
+    (handler: TestRouteHandler) =>
+    async (request: NextRequest, context?: unknown) => {
       try {
-        return await handler(...args);
+        return await handler(request, context);
       } catch (error) {
         const apiError = error as { statusCode?: number; userMessage?: string };
         return new Response(JSON.stringify({ error: apiError.userMessage }), {
@@ -34,16 +39,16 @@ vi.mock("@/lib/api-error", () => ({
 vi.mock("@/lib/canvas/credentials", () => ({
   loadCanvasCredentials: vi.fn(),
 }));
-vi.mock("@/lib/canvas/client.js", () => ({
+vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(function CanvasClient() {
     return canvas;
   }),
 }));
-vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
+vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 
 import { requireAuth } from "@/lib/api-error";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { GET } from "@/app/api/canvas/courses/route";
 
 describe("GET /api/canvas/courses", () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Readable } from "stream";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import {
   requireAuth,
   requireValidId,

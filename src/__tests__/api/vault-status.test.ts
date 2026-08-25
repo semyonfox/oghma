@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   return { default: sqlMock };
@@ -30,7 +30,7 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/file.zip"),
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";

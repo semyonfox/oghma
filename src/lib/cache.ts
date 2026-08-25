@@ -62,6 +62,6 @@ export const cacheKeys = {
     `cache:{${userId}}:note:${noteId}`,
   notesList: (userId: string, skip: number, limit: number | undefined) =>
     `cache:{${userId}}:notes:list:${skip}:${limit ?? 'all'}`,
-  settings: (userId: string | number) =>
+  settings: (userId: string) =>
     `cache:{${userId}}:settings`,
 };

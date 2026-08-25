@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { deleteChunkVectors } from "@/lib/qdrant";
 import { getStorageProvider } from "@/lib/storage/init";

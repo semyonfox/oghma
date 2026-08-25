@@ -3,12 +3,13 @@ import path from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { withI18n } from "@/__tests__/test-utils/i18n";
 import PreviewRenderer from "@/components/editor/preview-renderer";
 import { highlightCode } from "@/lib/markdown/shiki-highlighter";
 
 function renderPreview(content: string, noteId?: string) {
   return renderToStaticMarkup(
-    React.createElement(PreviewRenderer, { content, noteId }),
+    withI18n(React.createElement(PreviewRenderer, { content, noteId })),
   );
 }
 

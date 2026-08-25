@@ -5,18 +5,17 @@ const sqlMock = vi.hoisted(() => vi.fn());
 const loadGenerationMock = vi.hoisted(() => vi.fn());
 const requestCancelMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/database/pgsql.js", () => ({ default: sqlMock }));
-vi.mock("@/lib/auth", () => ({
-  validateSession: vi.fn().mockResolvedValue({
+vi.mock("@/database/pgsql", () => ({ default: sqlMock }));
+vi.mock("@/lib/api-error", () => ({
+  ApiError: class ApiError extends Error {},
+  withErrorHandler: (handler: unknown) => handler,
+  requireAuth: vi.fn().mockResolvedValue({
     user_id: "22222222-2222-2222-2222-222222222222",
   }),
-}));
-vi.mock("@/lib/api-error", () => ({
-  withErrorHandler: (handler: unknown) => handler,
+  requireValidId: (value: unknown) => value,
   tracedError: (message: string, status: number) =>
     Response.json({ error: message }, { status }),
 }));
-vi.mock("@/lib/utils/uuid", () => ({ isValidUUID: () => true }));
 vi.mock("@/lib/chat/generation-store", () => ({
   loadOwnedChatGeneration: loadGenerationMock,
   requestChatGenerationCancel: requestCancelMock,
@@ -46,6 +45,11 @@ describe("DELETE /api/chat/sessions/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(requestCancelMock).not.toHaveBeenCalled();
+    const deleteQuery = (sqlMock.mock.calls[1]?.[0] as readonly string[]).join(
+      "?",
+    );
+    expect(deleteQuery).toContain("DELETE FROM app.chat_messages");
+    expect(deleteQuery).toContain("DELETE FROM app.chat_sessions");
   });
 
   it("waits for an active generation to cancel before deleting", async () => {

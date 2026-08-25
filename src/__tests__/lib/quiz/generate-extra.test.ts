@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGenerationPrompt,
+  isSkipSignal,
   parseGeneratedQuestion,
 } from "@/lib/quiz/generate";
 
@@ -150,6 +151,26 @@ describe("parseGeneratedQuestion", () => {
     expect(parseGeneratedQuestion("")).toBeNull();
   });
 
+  it("rejects malformed option objects instead of persisting an unusable question", () => {
+    expect(
+      parseGeneratedQuestion(
+        JSON.stringify({
+          question_text: "What is a stack?",
+          options: [{ text: "LIFO", is_correct: "true" }],
+          correct_answer: "LIFO",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("does not throw when fields have the wrong JSON type", () => {
+    expect(
+      parseGeneratedQuestion(
+        JSON.stringify({ question_text: 42, correct_answer: [] }),
+      ),
+    ).toBeNull();
+  });
+
   it("handles LLM response with surrounding whitespace/newlines", () => {
     const raw = `  \n  ${JSON.stringify({
       question_text: "Q?",
@@ -158,5 +179,10 @@ describe("parseGeneratedQuestion", () => {
       explanation: "E",
     })}  \n  `;
     expect(parseGeneratedQuestion(raw)).not.toBeNull();
+  });
+
+  it("recognizes a skip response inside a markdown fence", () => {
+    expect(isSkipSignal("```json\n{\"skip\": true}\n```")).toBe(true);
+    expect(isSkipSignal('{"skip": "true"}')).toBe(false);
   });
 });

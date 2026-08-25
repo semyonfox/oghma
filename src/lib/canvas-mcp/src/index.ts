@@ -4,6 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types";
+import type { Tool } from "@modelcontextprotocol/sdk/types";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import {
   createServer,
@@ -15,7 +16,7 @@ import { toJSONSchema } from "zod";
 import { loadConfig } from "./config.ts";
 import { CanvasClient } from "./canvas/client.ts";
 import { allTools } from "./tools/index.ts";
-import type { ToolContext } from "./tools/types.ts";
+import { executeTool, type ToolContext } from "./tools/types.ts";
 
 const cfg = loadConfig();
 
@@ -34,9 +35,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: allTools.map((t) => ({
     name: t.name,
     description: t.description,
-    inputSchema: toJSONSchema(t.inputSchema) as any,
+    inputSchema: toMcpInputSchema(t.inputSchema),
   })),
 }));
+
+function toMcpInputSchema(
+  schema: (typeof allTools)[number]["inputSchema"],
+): Tool["inputSchema"] {
+  const jsonSchema = toJSONSchema(schema);
+  if (jsonSchema.type !== "object") {
+    throw new TypeError("Canvas MCP tool input schemas must be objects");
+  }
+
+  const { properties, required, ...metadata } = jsonSchema;
+  const inputSchema: Tool["inputSchema"] = { ...metadata, type: "object" };
+
+  if (properties !== undefined) {
+    const entries: Array<[string, unknown]> = Object.entries(properties);
+    if (!entries.every((entry): entry is [string, object] => isObject(entry[1]))) {
+      throw new TypeError("Canvas MCP tool properties must be JSON Schema objects");
+    }
+    inputSchema.properties = Object.fromEntries(entries);
+  }
+
+  if (required !== undefined) {
+    if (!Array.isArray(required) || !required.every((value) => typeof value === "string")) {
+      throw new TypeError("Canvas MCP required properties must be strings");
+    }
+    inputSchema.required = required;
+  }
+
+  return inputSchema;
+}
+
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const store = requestStore.getStore();
@@ -75,7 +109,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     };
   }
   try {
-    const result = await tool.handler(parsed.data, ctx);
+    const result = await executeTool(tool, parsed.data, ctx);
     return {
       content: result.content.map((c) => ({
         type: "text" as const,

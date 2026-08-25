@@ -1,9 +1,7 @@
-/**
- * Filter an object to only include requested fields
- */
-export function filterNoteFields<T extends Record<string, any>>(
+/** Return the requested public fields without changing the original object. */
+export function filterNoteFields<T extends object>(
   note: T,
-  fields?: string[]
+  fields?: readonly string[],
 ): Partial<T> {
   if (!fields || fields.length === 0) {
     return note;
@@ -11,8 +9,9 @@ export function filterNoteFields<T extends Record<string, any>>(
 
   const filtered: Partial<T> = {};
   for (const field of fields) {
-    if (field in note) {
-      filtered[field as keyof T] = note[field];
+    if (Object.prototype.hasOwnProperty.call(note, field)) {
+      const key = field as keyof T;
+      filtered[key] = note[key];
     }
   }
   return filtered;

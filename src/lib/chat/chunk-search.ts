@@ -1,8 +1,9 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { embedText } from "@/lib/embedText";
 import { searchChunkVectors } from "@/lib/qdrant";
 import { getChatMaxDistance } from "@/lib/ai-config";
 import { Metrics } from "@/lib/metrics";
+import { hydrateOwnedNoteChunks } from "@/lib/search/owned-note-chunks";
 
 const MAX_RESULTS = 12;
 const QUERY_LIMIT = 10;
@@ -22,6 +23,19 @@ interface SearchChatChunksParams {
   query: string;
   mode: ChatChunkSearchMode;
   scopedNoteIds?: string[] | null;
+}
+
+interface ChunkSearchRow {
+  note_id: string;
+  title: string | null;
+  chunk_id: string;
+  chunk_text: string;
+}
+
+interface NoteSearchRow {
+  note_id: string;
+  title: string | null;
+  snippet: string;
 }
 
 function normalizeSnippet(text: string): string {
@@ -68,24 +82,16 @@ export async function searchChatChunks({
         limit: QUERY_LIMIT,
       });
       void Metrics.searchLatency("semantic", Date.now() - searchStartedAt);
-      const chunkIds = hits.map((hit) => hit.chunkId);
-      const rows: any[] =
-        chunkIds.length === 0
-          ? []
-          : await sql`
-              SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
-              FROM app.chunks c
-              JOIN app.notes n ON n.note_id = c.document_id
-              WHERE c.user_id = ${userId}::uuid
-                AND c.id = ANY(${chunkIds}::uuid[])
-                AND n.deleted_at IS NULL
-            `;
-      const byChunkId = new Map(rows.map((row: any) => [row.chunk_id, row]));
+      const chunks = await hydrateOwnedNoteChunks(userId, hits);
 
-      for (const hit of hits) {
-        const row = byChunkId.get(hit.chunkId);
-        if (!row) continue;
-        add(row.note_id, row.title, row.chunk_id, row.chunk_text, "semantic");
+      for (const chunk of chunks) {
+        add(
+          chunk.noteId,
+          chunk.title || "Untitled",
+          chunk.chunkId,
+          chunk.text,
+          "semantic",
+        );
       }
     } catch {
       // embedding unavailable
@@ -98,7 +104,7 @@ export async function searchChatChunks({
     const safe = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
     const pattern = `%${safe}%`;
 
-    const chunkRows: any[] = scoped
+    const chunkRows = (scoped
       ? await sql`
           SELECT n.note_id, n.title, c.id AS chunk_id, c.text AS chunk_text
           FROM app.chunks c
@@ -119,13 +125,19 @@ export async function searchChatChunks({
             AND n.deleted_at IS NULL
             AND c.text ILIKE ${pattern}
           LIMIT ${QUERY_LIMIT}
-        `;
+        `) as ChunkSearchRow[];
 
     for (const row of chunkRows) {
-      add(row.note_id, row.title, row.chunk_id, row.chunk_text, "exact");
+      add(
+        row.note_id,
+        row.title || "Untitled",
+        row.chunk_id,
+        row.chunk_text,
+        "exact",
+      );
     }
 
-    const noteRows: any[] = scoped
+    const noteRows = (scoped
       ? await sql`
           WITH matches AS (
             SELECT
@@ -172,7 +184,7 @@ export async function searchChatChunks({
           FROM matches
           WHERE search_text ILIKE ${pattern}
           LIMIT ${QUERY_LIMIT}
-        `;
+        `) as NoteSearchRow[];
 
     const noteIdsWithChunkHits = new Set(
       results.map((result) => result.noteId),
@@ -181,7 +193,7 @@ export async function searchChatChunks({
       if (noteIdsWithChunkHits.has(row.note_id)) continue;
       add(
         row.note_id,
-        row.title,
+        row.title || "Untitled",
         `note:${row.note_id}`,
         row.snippet,
         "exact-note",

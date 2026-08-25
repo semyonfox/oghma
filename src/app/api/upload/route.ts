@@ -1,9 +1,13 @@
 // upload API route - handles file uploads for note attachments
 import { NextRequest, NextResponse } from "next/server";
 import { Readable } from "stream";
+import type postgres from "postgres";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { getStorageProvider } from "@/lib/storage/init";
-import { addNoteToTree } from "@/lib/notes/storage/pg-tree.js";
+import {
+  createNoteWithTree,
+  removeNewNoteWithTree,
+} from "@/lib/notes/storage/create-note";
 import { generateUUID, isValidUUID } from "@/lib/utils/uuid";
 import { withErrorHandler, tracedError, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
@@ -12,6 +16,7 @@ import logger from "@/lib/logger";
 import { config } from "@/lib/config";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { detectMimeType } from "@/lib/uploads/detect-mime";
+import { invalidateTreeAfterPublish } from "@/lib/notes/tree-cache";
 
 function sanitizeFileName(raw: string): string {
   return raw
@@ -78,11 +83,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     createdNewNote = true;
 
     const title = sanitizeFileName(file.name || "unnamed");
-    await sql`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${session.user_id}::uuid, ${title}, '', false, NOW(), NOW())
-    `;
-    await addNoteToTree(session.user_id, noteId, null);
+    await createNoteWithTree({
+      noteId,
+      userId: session.user_id,
+      title,
+      content: "",
+      isFolder: false,
+    });
   } else if (!isValidUUID(noteId)) {
     return tracedError("Invalid noteId format", 400);
   } else {
@@ -108,9 +115,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   } catch (s3Error) {
     if (createdNewNote) {
-      await sql`DELETE FROM app.notes WHERE note_id = ${noteId}::uuid`.catch(
-        () => {},
-      );
+      await removeNewNoteWithTree(session.user_id, noteId).catch(() => {});
     }
     logger.error("s3 upload failed", { error: s3Error });
     return tracedError("Failed to upload file", 500);
@@ -120,11 +125,21 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const attachmentId = generateUUID();
   try {
-    await sql`
-      INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-      VALUES (${attachmentId}::uuid, ${noteId}::uuid, ${session.user_id}::uuid,
-              ${fileName}, ${storagePath}, ${mimeType}, ${file.size})
-    `;
+    const database = sql as postgres.Sql;
+    await database.begin(async (tx) => {
+      await tx`
+        INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
+        VALUES (${attachmentId}::uuid, ${noteId}::uuid, ${session.user_id}::uuid,
+                ${fileName}, ${storagePath}, ${mimeType}, ${file.size})
+      `;
+      if (createdNewNote) {
+        await tx`
+          UPDATE app.notes
+          SET s3_key = ${storagePath}, updated_at = NOW()
+          WHERE note_id = ${noteId}::uuid AND user_id = ${session.user_id}::uuid
+        `;
+      }
+    });
   } catch (dbError) {
     logger.warn(
       "failed to record attachment in database, cleaning up S3 object",
@@ -139,22 +154,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       });
     }
     if (createdNewNote) {
-      await sql`DELETE FROM app.notes WHERE note_id = ${noteId}::uuid`.catch(
-        () => {},
-      );
+      await removeNewNoteWithTree(session.user_id, noteId).catch(() => {});
     }
     return tracedError("Failed to save file metadata", 500);
   }
 
   if (createdNewNote) {
-    try {
-      await sql`UPDATE app.notes SET s3_key = ${storagePath}, updated_at = NOW() WHERE note_id = ${noteId}::uuid AND user_id = ${session.user_id}::uuid`;
-    } catch (updateError) {
-      logger.warn("failed to update note with s3_key", { error: updateError });
-    }
+    // The source note/tree row is now durable even though extraction happens
+    // in the background. Clear the root branch cache before returning it.
+    await invalidateTreeAfterPublish(session.user_id, null);
   }
 
-  // queue extraction for extractable file types via SQS → ECS worker
+  // Queue extraction through the provider-neutral queue facade.
   // keeps upload response fast regardless of file size or Marker cold-start time
   const extractableTypes = new Set([
     "application/pdf",
@@ -217,8 +228,14 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   if (!path) return tracedError("path query parameter required", 400);
 
   const owned = await sql`
-    SELECT 1 FROM app.attachments
-    WHERE s3_key = ${path} AND user_id = ${session.user_id}::uuid
+    SELECT 1
+    FROM app.attachments attachment
+    JOIN app.notes note
+      ON note.note_id = attachment.note_id
+     AND note.user_id = attachment.user_id
+    WHERE attachment.s3_key = ${path}
+      AND attachment.user_id = ${session.user_id}::uuid
+      AND note.deleted_at IS NULL
     LIMIT 1
   `;
   if (!owned.length) return tracedError("File not found", 404);

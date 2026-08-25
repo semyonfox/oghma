@@ -4,13 +4,13 @@
  * Delays function execution by the specified wait time
  * If called again before the delay expires, the previous call is cancelled
  */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
+export function debounce<Args extends unknown[]>(
+  func: (...args: Args) => unknown,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let timeoutId: NodeJS.Timeout | null = null;
 
-  return function debounced(...args: Parameters<T>) {
+  return function debounced(...args: Args) {
     // Clear previous timeout if it exists
     if (timeoutId !== null) {
       clearTimeout(timeoutId);
@@ -27,14 +27,14 @@ export function debounce<T extends (...args: any[]) => any>(
 /**
  * Debounce with optional flush capability
  */
-export function createDebouncedFunction<T extends (...args: any[]) => any>(
-  func: T,
+export function createDebouncedFunction<Args extends unknown[]>(
+  func: (...args: Args) => unknown,
   wait: number
 ) {
   let timeoutId: NodeJS.Timeout | null = null;
-  let lastArgs: Parameters<T> | null = null;
+  let lastArgs: Args | null = null;
 
-  const debounced = (...args: Parameters<T>) => {
+  const debounced = (...args: Args) => {
     lastArgs = args;
     
     if (timeoutId !== null) {
@@ -71,8 +71,5 @@ export function createDebouncedFunction<T extends (...args: any[]) => any>(
     }
   };
 
-  return debounced as typeof func & {
-    flush: () => void;
-    cancel: () => void;
-  };
+  return debounced;
 }

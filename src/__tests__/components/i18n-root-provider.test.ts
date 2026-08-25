@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { shouldRevalidateSettings } from "@/components/providers/i18n-root-provider";
+import {
+  localeFromSettingsResponse,
+  shouldRevalidateSettings,
+} from "@/components/providers/i18n-root-provider";
+import { Locale } from "@/locales";
 
 describe("shouldRevalidateSettings", () => {
   it.each([
@@ -23,5 +27,14 @@ describe("shouldRevalidateSettings", () => {
     "/notes-public",
   ])("does not fetch authenticated settings on public path %s", (pathname) => {
     expect(shouldRevalidateSettings(pathname)).toBe(false);
+  });
+});
+
+describe("localeFromSettingsResponse", () => {
+  it("separates a stored language from an account that never chose one", () => {
+    expect(localeFromSettingsResponse({ locale: "fr_FR" })).toBe(Locale.FR_FR);
+    expect(localeFromSettingsResponse({ theme: "dark" })).toBeNull();
+    expect(localeFromSettingsResponse({ locale: "removed-locale" })).toBeNull();
+    expect(localeFromSettingsResponse(null)).toBeNull();
   });
 });

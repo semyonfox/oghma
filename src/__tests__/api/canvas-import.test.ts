@@ -6,6 +6,10 @@ const canvas = vi.hoisted(() => ({
   getDiscoverableCourses: vi.fn(),
   getCourses: vi.fn(),
 }));
+type TestRouteHandler = (
+  request: NextRequest,
+  context: unknown,
+) => Promise<Response>;
 
 vi.mock("@/lib/api-error", () => {
   class TestApiError extends Error {
@@ -32,10 +36,10 @@ vi.mock("@/lib/api-error", () => {
       }
     },
     withErrorHandler:
-      (handler: (...args: any[]) => Promise<Response>) =>
-      async (...args: any[]) => {
+      (handler: TestRouteHandler) =>
+      async (request: NextRequest, context?: unknown) => {
         try {
-          return await handler(...args);
+          return await handler(request, context);
         } catch (error) {
           const apiError = error as TestApiError;
           return new Response(JSON.stringify({ error: apiError.userMessage }), {
@@ -46,8 +50,8 @@ vi.mock("@/lib/api-error", () => {
       },
   };
 });
-vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
-vi.mock("@/lib/canvas/client.js", () => ({
+vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
+vi.mock("@/lib/canvas/client", () => ({
   CanvasClient: vi.fn(function CanvasClient() {
     return canvas;
   }),
@@ -64,7 +68,7 @@ vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
 }));
 
 import { requireAuth } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { enqueueCanvasJob } from "@/lib/queue";
 import { recordActivationMilestone } from "@/lib/marketing/events";

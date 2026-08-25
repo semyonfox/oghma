@@ -46,7 +46,7 @@ vi.mock("@/lib/canvas/cancel-import-jobs", () => ({
 vi.mock("@/lib/logger", () => ({ default: { warn: vi.fn() } }));
 
 import { requireAuth } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { loadCanvasCredentials } from "@/lib/canvas/credentials";
 import { POST } from "@/app/api/canvas/sync/route";
 

@@ -17,8 +17,7 @@ export const TOOL_CALL_LIMIT_TOOL_RESULT_MESSAGE =
 const TOOL_CALL_LIMIT_RESULT_TYPE = "tool-call-limit";
 
 type BudgetToolResultOutput =
-  | { type: "text"; value: string }
-  | { type: "json"; value: JSONValue };
+  { type: "text"; value: string } | { type: "json"; value: JSONValue };
 
 const TOOL_CALL_LIMIT_MODEL_INSTRUCTION =
   "The last tool result means tool access is exhausted for this turn. Do not attempt another tool call. " +
@@ -122,7 +121,7 @@ function wrapToolWithBudget(
 
   return {
     ...originalTool,
-    execute: (input: unknown, options: ToolExecutionOptions) => {
+    execute: (input: unknown, options: ToolExecutionOptions<unknown>) => {
       if (budget.remainingToolCalls <= 0) {
         budget.exhausted = true;
         return makeToolCallLimitResult(toolName);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createS3ClientConfig, createS3ConfigFromEnv } from "@/lib/storage/s3";

@@ -53,6 +53,23 @@ describe("BullMQ queue prefixing", () => {
     );
   });
 
+  it("uses the same configured attempt limit exposed to consumers", async () => {
+    vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
+    vi.stubEnv("CANVAS_FILE_QUEUE_MAX_ATTEMPTS", "5");
+
+    const { enqueueCanvasJob, getCanvasQueueAttemptLimit } = await import(
+      "@/lib/queue"
+    );
+    await enqueueCanvasJob("canvas-discover", { jobId: "job-1" });
+
+    expect(getCanvasQueueAttemptLimit()).toBe(5);
+    expect(queueAdd).toHaveBeenCalledWith(
+      "canvas-discover",
+      { type: "canvas-discover", jobId: "job-1" },
+      expect.objectContaining({ attempts: 5 }),
+    );
+  });
+
   it("uses QUEUE_PREFIX in the queue names shared by producers and workers", async () => {
     vi.stubEnv("QUEUE_PREFIX", "oghma-dev");
 
@@ -77,26 +94,14 @@ describe("BullMQ queue prefixing", () => {
     getChatGenerationQueue();
     getMarkerDispatchQueue();
 
-    expect(queueConstructor).toHaveBeenNthCalledWith(
-      1,
+    expect(
+      queueConstructor.mock.calls.map(([name]) => name).sort(),
+    ).toEqual([
       "oghma-dev-canvas-import",
-      expect.objectContaining({ connection: expect.anything() }),
-    );
-    expect(queueConstructor).toHaveBeenNthCalledWith(
-      3,
       "oghma-dev-chat-generation",
-      expect.objectContaining({ connection: expect.anything() }),
-    );
-    expect(queueConstructor).toHaveBeenNthCalledWith(
-      2,
       "oghma-dev-extract-retry",
-      expect.objectContaining({ connection: expect.anything() }),
-    );
-    expect(queueConstructor).toHaveBeenNthCalledWith(
-      4,
       "oghma-dev-marker-dispatch",
-      expect.objectContaining({ connection: expect.anything() }),
-    );
+    ]);
   });
 
   it("queues one application-originated Marker dispatch and leaves recovery to the DB", async () => {

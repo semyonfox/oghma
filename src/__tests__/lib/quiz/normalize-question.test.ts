@@ -2,7 +2,16 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeQuizOptions,
   normalizeQuizQuestion,
+  stripQuizArtifacts,
 } from "@/lib/quiz/normalize-question";
+
+describe("stripQuizArtifacts", () => {
+  it("removes standalone marker page ranks without changing surrounding content", () => {
+    expect(stripQuizArtifacts("First\n{12}-----\n\n\nSecond")).toBe(
+      "First\n\nSecond",
+    );
+  });
+});
 
 describe("normalizeQuizOptions", () => {
   it("returns null for null input", () => {

@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { canvasIdSchema } from "./canvas-id.ts";
 import type { ToolDef } from "./types.ts";
-import { jsonResult } from "./types.ts";
+import { defineTool, jsonResult } from "./types.ts";
 
 export const pageTools: ToolDef[] = [
-    {
+    defineTool({
         name: "canvas_list_pages",
         description:
             "List pages for a course. Optionally sort by title/created_at/updated_at, filter by search_term, or filter by published state.",
@@ -14,7 +14,7 @@ export const pageTools: ToolDef[] = [
             search_term: z.string().optional(),
             published: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const pages = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/pages`,
                 {
@@ -26,8 +26,8 @@ export const pageTools: ToolDef[] = [
             );
             return jsonResult(pages);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_page",
         description:
             "Get a single page by its URL slug. Returns the full page including HTML body content.",
@@ -35,44 +35,44 @@ export const pageTools: ToolDef[] = [
             course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const page = await canvas.get(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
                 {},
             );
             return jsonResult(page);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_front_page",
         description: "Get the front page for a course.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const page = await canvas.get(
                 `/api/v1/courses/${args.course_id}/front_page`,
                 {},
             );
             return jsonResult(page);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_list_page_revisions",
         description: "List revision history for a page identified by its URL slug.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const revisions = await canvas.collectPaginated(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions`,
                 { per_page: 100 },
             );
             return jsonResult(revisions);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_get_page_revision",
         description:
             "Get a specific revision of a page by revision ID. Pass summary=true to get a lightweight response without body HTML.",
@@ -82,7 +82,7 @@ export const pageTools: ToolDef[] = [
             revision_id: canvasIdSchema,
             summary: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const revision = await canvas.get(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
                 {
@@ -91,14 +91,11 @@ export const pageTools: ToolDef[] = [
             );
             return jsonResult(revision);
         },
-    },
+    }),
 
-    // ============================================================
-    // ADMIN / EDUCATOR TOOLS — commented out for student-only build.
-    // Uncomment to enable page creation, updates, deletion,
-    // and revision reversion.
-    // ============================================================
-    {
+    // Privileged tools remain in the standalone adapter. The hosted profile
+    // filters them in src/lib/canvas/mcp.ts.
+    defineTool({
         name: "canvas_create_page",
         description: "Create a new page in a course. Requires educator permissions.",
         inputSchema: z.object({
@@ -108,7 +105,7 @@ export const pageTools: ToolDef[] = [
             published: z.boolean().optional(),
             front_page: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const page = await canvas.post(
                 `/api/v1/courses/${args.course_id}/pages`,
                 {
@@ -122,8 +119,8 @@ export const pageTools: ToolDef[] = [
             );
             return jsonResult(page);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_update_page",
         description: "Update an existing page. Requires educator permissions.",
         inputSchema: z.object({
@@ -134,7 +131,7 @@ export const pageTools: ToolDef[] = [
             published: z.boolean().optional(),
             front_page: z.boolean().optional(),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const page = await canvas.put(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
                 {
@@ -148,22 +145,22 @@ export const pageTools: ToolDef[] = [
             );
             return jsonResult(page);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_delete_page",
         description: "Delete a page from a course. Requires educator permissions.",
         inputSchema: z.object({
             course_id: canvasIdSchema,
             page_url: z.string().min(1),
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const result = await canvas.delete(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}`,
             );
             return jsonResult(result);
         },
-    },
-    {
+    }),
+    defineTool({
         name: "canvas_revert_page_revision",
         description: "Revert a page to a specific revision. Requires educator permissions.",
         inputSchema: z.object({
@@ -171,11 +168,11 @@ export const pageTools: ToolDef[] = [
             page_url: z.string().min(1),
             revision_id: canvasIdSchema,
         }),
-        handler: async (args: any, { canvas }) => {
+        handler: async (args, { canvas }) => {
             const revision = await canvas.post(
                 `/api/v1/courses/${args.course_id}/pages/${args.page_url}/revisions/${args.revision_id}`,
             );
             return jsonResult(revision);
         },
-    },
+    }),
 ];

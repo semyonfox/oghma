@@ -1,3 +1,4 @@
+import type postgres from "postgres";
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
@@ -6,7 +7,7 @@ import {
   permanentlyDeleteAllUserNotes,
   queueVaultStorageCleanup,
 } from "@/lib/notes/storage/note-lifecycle";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 /**
  * DELETE /api/vault
@@ -22,7 +23,7 @@ export const DELETE = withErrorHandler(async () => {
   const limited = await checkRateLimit("vault-delete", user.user_id);
   if (limited) return limited;
 
-  await sql.begin(async (tx: any) => {
+  await sql.begin(async (tx: postgres.TransactionSql) => {
     await cancelActiveCanvasImportJobs(
       tx,
       user.user_id,

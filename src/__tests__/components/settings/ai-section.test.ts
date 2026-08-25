@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -38,7 +38,7 @@ vi.mock("sonner", () => ({
 
 import AISection from "@/components/settings/ai-section";
 
-describe("AISection model selector", () => {
+describe("AISection server-managed model", () => {
   beforeEach(() => {
     mocks.settings = {
       ai_canvas_access: false,
@@ -47,29 +47,21 @@ describe("AISection model selector", () => {
     vi.clearAllMocks();
   });
 
-  it("selects the server-managed DeepSeek model and disables future options", () => {
+  it("shows the configured model as read-only", () => {
     render(React.createElement(AISection));
 
-    const select = screen.getByLabelText("Model") as HTMLSelectElement;
-    const options = Array.from(select.options);
+    const input = screen.getByLabelText("Model") as HTMLInputElement;
 
-    expect(select.disabled).toBe(false);
-    expect(select.value).toBe("deepseek/deepseek-v4-flash");
+    expect(input.value).toBe("deepseek/deepseek-v4-flash");
+    expect(input.readOnly).toBe(true);
+    expect(screen.getByText("Server-managed during beta.")).toBeTruthy();
     expect(
-      options.find((option) => option.value === "deepseek/deepseek-v4-flash")
-        ?.disabled,
-    ).toBe(false);
-    expect(options.find((option) => option.value === "kimi-k2.5")?.disabled).toBe(
-      true,
-    );
-    expect(
-      options.find((option) => option.value === "custom-openrouter")?.disabled,
+      (screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
-    expect(select.textContent).toContain("DeepSeek V4 Flash (Max)");
-    expect(select.textContent).toContain("Custom OpenRouter model");
   });
 
-  it("shows an unknown configured model as the active option", () => {
+  it("renders an unknown server-configured model without inventing choices", () => {
     mocks.settings = {
       ai_canvas_access: false,
       ai_model: "provider/current-model",
@@ -77,13 +69,24 @@ describe("AISection model selector", () => {
 
     render(React.createElement(AISection));
 
-    const select = screen.getByLabelText("Model") as HTMLSelectElement;
-    const activeOption = Array.from(select.options).find(
-      (option) => option.value === "provider/current-model",
-    );
+    const input = screen.getByLabelText("Model") as HTMLInputElement;
 
-    expect(select.value).toBe("provider/current-model");
-    expect(activeOption?.disabled).toBe(false);
-    expect(activeOption?.textContent).toContain("server configured");
+    expect(input.value).toBe("provider/current-model");
+    expect(input.readOnly).toBe(true);
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
+  it("enables saving only after the Canvas access preference changes", () => {
+    render(React.createElement(AISection));
+
+    const saveButton = screen.getByRole("button", {
+      name: "Save changes",
+    }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(saveButton.disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toBe("Unsaved");
   });
 });

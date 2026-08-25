@@ -9,6 +9,13 @@ const nextConfig = {
     // standalone output keeps Docker/Node deployments small and portable
     output: 'standalone',
 
+    // next 16 defaults to the tsc-cli type checker, which needs typescript/bin/tsc;
+    // our `typescript` alias (@typescript/typescript6) only ships bin/tsc6,
+    // so keep the in-process TypeScript API path
+    experimental: {
+        useTypeScriptCli: false,
+    },
+
     images: {
         formats: ['image/avif', 'image/webp'],
         remotePatterns: [

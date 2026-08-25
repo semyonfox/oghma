@@ -37,6 +37,68 @@ interface ContextItem {
   title: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function contextItemFrom(value: unknown): ContextItem | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.title !== "string"
+  ) {
+    return null;
+  }
+  return { id: value.id, title: value.title };
+}
+
+function contextItemsFrom(value: unknown): ContextItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(contextItemFrom)
+    .filter((item): item is ContextItem => item !== null);
+}
+
+function conversationContextFrom(value: unknown): Conversation["context"] {
+  if (!isRecord(value) || !isRecord(value.scope)) return undefined;
+  return {
+    scope: {
+      notes: contextItemsFrom(value.scope.notes),
+      folders: contextItemsFrom(value.scope.folders),
+    },
+  };
+}
+
+function conversationFrom(value: unknown): Conversation | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.title !== "string"
+  ) {
+    return null;
+  }
+
+  const createdAt =
+    typeof value.created_at === "string" ||
+    typeof value.created_at === "number"
+      ? new Date(value.created_at).getTime()
+      : Number.NaN;
+  if (!Number.isFinite(createdAt)) return null;
+
+  return {
+    id: value.id,
+    title: value.title,
+    noteId: typeof value.note_id === "string" ? value.note_id : undefined,
+    noteTitle:
+      typeof value.note_title === "string" ? value.note_title : undefined,
+    context: conversationContextFrom(value.context),
+    messageCount:
+      typeof value.message_count === "number" ? value.message_count : 0,
+    createdAt,
+    pinned: value.pinned === true,
+  };
+}
+
 function sortConversations(conversations: Conversation[]): Conversation[] {
   return [...conversations].sort(
     (a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt,
@@ -183,18 +245,14 @@ export default function ChatPageClient() {
     try {
       const res = await fetch("/api/chat/sessions");
       if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.sessions)) {
-        const mapped: Conversation[] = data.sessions.map((s: any) => ({
-          id: s.id,
-          title: s.title,
-          noteId: s.note_id ?? undefined,
-          noteTitle: s.note_title ?? undefined,
-          context: s.context ?? undefined,
-          messageCount: s.message_count ?? 0,
-          createdAt: new Date(s.created_at).getTime(),
-          pinned: Boolean(s.pinned),
-        }));
+      const data: unknown = await res.json();
+      if (isRecord(data) && Array.isArray(data.sessions)) {
+        const mapped = data.sessions
+          .map(conversationFrom)
+          .filter(
+            (conversation): conversation is Conversation =>
+              conversation !== null,
+          );
         setConversations(mapped);
       }
     } catch {
@@ -296,15 +354,21 @@ export default function ChatPageClient() {
       body: JSON.stringify(changes),
     });
     if (!res.ok) return false;
-    const updated = await res.json();
+    const updated: unknown = await res.json();
     setConversations((prev) =>
       sortConversations(
         prev.map((conversation) =>
           conversation.id === id
             ? {
                 ...conversation,
-                title: updated.title ?? conversation.title,
-                pinned: updated.pinned ?? conversation.pinned,
+                title:
+                  isRecord(updated) && typeof updated.title === "string"
+                    ? updated.title
+                    : conversation.title,
+                pinned:
+                  isRecord(updated) && typeof updated.pinned === "boolean"
+                    ? updated.pinned
+                    : conversation.pinned,
               }
             : conversation,
         ),
@@ -385,7 +449,7 @@ export default function ChatPageClient() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {isDesktop === true && (
-          <div className="w-12 shrink-0 overflow-hidden border-r border-border-subtle bg-background">
+          <div className="w-14 shrink-0 overflow-hidden border-r border-border-subtle bg-background">
             <PrimaryNavigation />
           </div>
         )}

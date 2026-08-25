@@ -156,7 +156,7 @@ transport lifecycle.
 
 ## Live Smoke Verification
 
-After `npm run build`, `scripts/verify-tools.mjs` runs a representative,
+After `npm run build`, `npm run verify-tools` runs a representative,
 read-focused smoke pass against a real Canvas account. It does not enumerate or
 validate all registered tools.
 

@@ -27,7 +27,7 @@ vi.mock("@/lib/logger", () => ({
   default: { warn: vi.fn() },
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { deleteChunkVectors } from "@/lib/qdrant";
 import {
   parseImportedFileCacheRetentionDays,

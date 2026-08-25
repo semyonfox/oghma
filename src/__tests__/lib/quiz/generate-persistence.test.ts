@@ -8,7 +8,7 @@ const { mockSql, mockGenerateText, mockRecordActivationMilestone } = vi.hoisted(
   }),
 );
 
-vi.mock("@/database/pgsql.js", () => ({ default: mockSql }));
+vi.mock("@/database/pgsql", () => ({ default: mockSql }));
 vi.mock("ai", () => ({ generateText: mockGenerateText }));
 vi.mock("@/lib/ai-config", () => ({
   buildReasoningOptions: vi.fn(() => ({})),

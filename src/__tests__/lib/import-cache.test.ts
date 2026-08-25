@@ -21,8 +21,7 @@ describe("imported file cache identity", () => {
 
   it("creates a stable shared object key across renamed files", () => {
     const hash = "abc123";
-    expect(importedFileStorageKey(hash, "../Lecture One.PDF"))
-      .toBe("imports/shared/abc123.pdf");
+    expect(importedFileStorageKey(hash)).toBe("imports/shared/abc123.pdf");
     expect(isSharedImportedFileKey("imports/shared/abc123.pdf")).toBe(true);
     expect(isSharedImportedFileObjectKey("imports/shared/abc123.pdf")).toBe(true);
     expect(isSharedImportedFileAssetKey("imports/shared-assets/cache-123/page.png", "cache-123")).toBe(true);

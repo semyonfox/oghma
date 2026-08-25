@@ -1,4 +1,4 @@
--- Move vector storage out of Postgres. scripts/migrate-pgvector-to-qdrant.mjs
+-- Move vector storage out of Postgres. scripts/migrate-pgvector-to-qdrant.ts
 -- copies app.embeddings into Qdrant before this migration is applied.
 
 DROP TABLE IF EXISTS app.embeddings;

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/database/pgsql.js", () => {
+vi.mock("@/database/pgsql", () => {
   const sqlMock = vi.fn();
   sqlMock.mockResolvedValue([]);
   return { default: sqlMock };
@@ -12,7 +12,7 @@ vi.mock("@/lib/api-error", () => ({
   withErrorHandler: (handler: () => Promise<Response>) => handler,
 }));
 
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { GET } from "@/app/api/canvas/status/route";
 
@@ -57,6 +57,12 @@ describe("GET /api/canvas/status", () => {
           canvas_course_id: 42,
           note_id: "note-123",
         },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          leaf_note_id: "note-123",
+          tree_path: ["course-123", "module-123", "note-123"],
+        },
       ] as never);
 
     const response = await GET(
@@ -69,6 +75,11 @@ describe("GET /api/canvas/status", () => {
       jobId: "job-123",
       status: "processing",
       phase: "processing",
+    });
+    expect(body.latestJob).toMatchObject({
+      jobId: "job-123",
+      status: "processing",
+      jobType: "import",
     });
     expect(body.progress).toMatchObject({
       total: 5,
@@ -83,6 +94,7 @@ describe("GET /api/canvas/status", () => {
       status: "pending_marker",
       courseId: "42",
       noteId: "note-123",
+      treePath: ["course-123", "module-123", "note-123"],
     });
   });
 

@@ -1,53 +1,33 @@
 import { create } from "zustand";
+import type {
+  QuizSessionProgress,
+  QuizSessionQuestion,
+} from "@/lib/quiz/types";
 
 interface QuizState {
-  // dashboard
-  dashboardLoading: boolean;
-  dashboardData: {
-    dueCount: number;
-    totalCards: number;
-    mastery: number;
-    reviewedToday: number;
-    weekAccuracy: number;
-    currentStreak: number;
-    longestStreak: number;
-    hasContent: boolean;
-  } | null;
-  courses: {
-    courseId: string;
-    courseName: string;
-    totalCards: number;
-    dueCount: number;
-    mastery: number;
-    isActive?: boolean;
-  }[];
-
   // active session
   sessionId: string | null;
   cardIds: string[];
   currentIndex: number;
-  currentQuestion: any | null;
-  sessionProgress: { answered: number; total: number; correct: number };
+  currentQuestion: QuizSessionQuestion | null;
+  sessionProgress: QuizSessionProgress;
   fatigueWarning: boolean;
   sessionStartTime: number;
   sessionEndTime: number;
   sessionCompleted: boolean;
 
   // actions
-  setDashboard: (data: QuizState["dashboardData"]) => void;
-  setCourses: (courses: QuizState["courses"]) => void;
-  setDashboardLoading: (loading: boolean) => void;
   startSession: (
     sessionId: string,
     cardIds: string[],
-    question: any,
+    question: QuizSessionQuestion | null,
     currentIndex?: number,
     correctCount?: number,
   ) => void;
-  setCurrentQuestion: (question: any) => void;
+  setCurrentQuestion: (question: QuizSessionQuestion) => void;
   advanceQuestion: (
-    nextQuestion: any,
-    progress: QuizState["sessionProgress"],
+    nextQuestion: QuizSessionQuestion,
+    progress: QuizSessionProgress,
   ) => void;
   setFatigueWarning: (warning: boolean) => void;
   completeSession: () => void;
@@ -55,9 +35,6 @@ interface QuizState {
 }
 
 const useQuizStore = create<QuizState>((set) => ({
-  dashboardLoading: false,
-  dashboardData: null,
-  courses: [],
   sessionId: null,
   cardIds: [],
   currentIndex: 0,
@@ -68,9 +45,6 @@ const useQuizStore = create<QuizState>((set) => ({
   sessionEndTime: 0,
   sessionCompleted: false,
 
-  setDashboard: (data) => set({ dashboardData: data }),
-  setCourses: (courses) => set({ courses }),
-  setDashboardLoading: (loading) => set({ dashboardLoading: loading }),
   startSession: (sessionId, cardIds, question, currentIndex = 0, correctCount = 0) =>
     set({
       sessionId,

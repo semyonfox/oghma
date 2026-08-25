@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { withErrorHandler } from "@/lib/api-error";
 import logger from "@/lib/logger";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimiter";
 import { recordMarketingEvent } from "@/lib/marketing/events";
 import { cleanAttribution } from "@/lib/marketing/attribution";
-import { sendEmail } from "@/lib/email.js";
+import { sendEmail } from "@/lib/email";
 
 const contactSchema = z.object({
   first_name: z.string().trim().min(1).max(120),

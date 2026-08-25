@@ -19,12 +19,12 @@ export default function useNoteTreeInitialization() {
     if (initStarted.current) return;
     initStarted.current = true;
 
-    const toastFn = (message: string, type?: string) => {
+    const toastFn = (message: string, type?: "error") => {
       if (type === "error") toast.error(message);
       else toast(message);
     };
 
-    useNoteTreeStore.getState().setDependencies(treeAPI, noteAPI, toastFn);
+    useNoteTreeStore.getState().setDependencies(treeAPI, toastFn);
     useNoteStore.getState().setDependencies(noteAPI, useNoteTreeStore, toastFn);
     clearDeduplicationCache();
     setDependenciesReady(true);

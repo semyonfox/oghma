@@ -1,7 +1,8 @@
 import { z, ZodType } from "zod";
 import { NextResponse } from "next/server";
 import { generateTraceId, getTraceId } from "@/lib/trace";
-import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id";
+import { NOTE_PINNED } from "@/lib/notes/types/meta";
 
 // ── shared schemas ──────────────────────────────────────────────────────────
 
@@ -20,10 +21,19 @@ export const noteUpdateSchema = z
   .object({
     title: z.string().max(500).optional(),
     content: z.string().optional(),
+    pinned: z
+      .union([z.literal(NOTE_PINNED.UNPINNED), z.literal(NOTE_PINNED.PINNED)])
+      .optional(),
   })
-  .refine((data) => data.title !== undefined || data.content !== undefined, {
-    message: "At least one of title or content is required",
-  });
+  .refine(
+    (data) =>
+      data.title !== undefined ||
+      data.content !== undefined ||
+      data.pinned !== undefined,
+    {
+      message: "At least one supported note field is required",
+    },
+  );
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

@@ -11,6 +11,14 @@ import { NoteModel } from "@/lib/notes/types/note";
 import { getTopLevelSelectedIds, treeItemContainsId } from "./selection-utils";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { wouldCreateTreeCycle } from "@/lib/notes/state/tree-cycle";
+import type {
+  DraggingPosition,
+  TreeItem as ComplexTreeItem,
+} from "react-complex-tree";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export type DeleteConfirmTarget =
   | { mode: "single"; ids: [string] }
@@ -55,6 +63,7 @@ export function useSidebarActions(deps: {
     setSelectedIds,
     setRenamingId,
     refreshTree,
+    refreshChildren,
   } = useNoteTreeStore();
   const { createNote, createFolder, mutateNote, removeNote } = useNoteStore();
 
@@ -127,7 +136,11 @@ export function useSidebarActions(deps: {
         throw new Error("upload failed");
       }
 
-      return uploadRes.json();
+      const data: unknown = await uploadRes.json();
+      if (!isRecord(data) || typeof data.noteId !== "string") {
+        throw new Error("upload response did not include a note ID");
+      }
+      return data.noteId;
     },
     [],
   );
@@ -139,18 +152,22 @@ export function useSidebarActions(deps: {
 
       for (const file of files) {
         try {
-          const uploadData = await uploadFile(file);
-          if (!firstNoteId) firstNoteId = uploadData.noteId;
+          const noteId = await uploadFile(file);
+          if (!firstNoteId) firstNoteId = noteId;
         } catch {
           toast.error(t("Failed to upload {filename}", { filename: file.name }));
         }
       }
 
       if (firstNoteId) {
+        // The upload endpoint publishes the source note before its background
+        // extraction begins. Merge the root branch once for the whole batch so
+        // the sidebar reflects that immediately without a full-tree reset.
+        await refreshChildren(null);
         router.push(`/notes/${firstNoteId}`);
       }
     },
-    [router, uploadFile, t],
+    [refreshChildren, router, uploadFile, t],
   );
 
   // collapse all tree items
@@ -400,7 +417,10 @@ export function useSidebarActions(deps: {
 
   // drag and drop handler
   const handleDrop = useCallback(
-    (draggedItems: any[], target: any) => {
+    (
+      draggedItems: ComplexTreeItem<NoteModel | undefined>[],
+      target: DraggingPosition,
+    ) => {
       if (draggedItems.length === 0) return;
 
       const currentItems = useNoteTreeStore.getState().tree.items;
@@ -423,9 +443,11 @@ export function useSidebarActions(deps: {
       let destIndex: number;
 
       if (target.targetType === "item") {
+        if (typeof target.targetItem !== "string") return;
         destParentId = target.targetItem;
         destIndex = currentItems[destParentId]?.children?.length ?? 0;
       } else if (target.targetType === "between-items") {
+        if (typeof target.parentItem !== "string") return;
         destParentId = target.parentItem;
         destIndex = target.childIndex ?? 0;
       } else {
@@ -463,7 +485,7 @@ export function useSidebarActions(deps: {
     mutateNote,
     // view state helpers
     handleExpandItem: useCallback(
-      (item: any) => {
+      (item: ComplexTreeItem<NoteModel | undefined>) => {
         const itemId = item.index;
         if (typeof itemId === "string") {
           mutateItem(itemId, { isExpanded: true });
@@ -476,7 +498,7 @@ export function useSidebarActions(deps: {
       [mutateItem, loadChildren],
     ),
     handleCollapseItem: useCallback(
-      (item: any) => {
+      (item: ComplexTreeItem<NoteModel | undefined>) => {
         const itemId = item.index;
         if (typeof itemId === "string") {
           mutateItem(itemId, { isExpanded: false });

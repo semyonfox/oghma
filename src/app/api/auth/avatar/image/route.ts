@@ -2,23 +2,14 @@ import { NextResponse } from "next/server";
 import { Readable } from "stream";
 import { getStorageProvider } from "@/lib/storage/init";
 import { getSettingsFromS3 } from "@/lib/notes/storage/s3-storage";
-import { auth } from "@/auth";
-import { validateSession } from "@/lib/auth";
-
-async function resolveUserId(): Promise<string | number | null> {
-  const authJsSession = await auth();
-  if (authJsSession?.user?.id) return authJsSession.user.id;
-  const jwtUser = await validateSession();
-  if (jwtUser?.user_id) return jwtUser.user_id;
-  return null;
-}
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 export async function GET() {
-  const userId = await resolveUserId();
+  const userId = await getAuthenticatedUserId();
   if (!userId) return new NextResponse(null, { status: 401 });
 
-  const settings = await getSettingsFromS3(userId as number);
-  const avatarKey: string | undefined = settings.avatarKey;
+  const settings = await getSettingsFromS3(userId);
+  const { avatarKey } = settings;
   if (!avatarKey) return new NextResponse(null, { status: 404 });
 
   const storage = getStorageProvider();

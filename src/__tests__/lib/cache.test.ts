@@ -160,7 +160,9 @@ describe("cacheKeys", () => {
     expect(cacheKeys.settings("u1")).toBe("cache:{u1}:settings");
   });
 
-  it("settings accepts numeric userId", () => {
-    expect(cacheKeys.settings(123)).toBe("cache:{123}:settings");
+  it("settings keeps UUID-like user IDs unchanged", () => {
+    expect(cacheKeys.settings("11111111-1111-4111-8111-111111111111")).toBe(
+      "cache:{11111111-1111-4111-8111-111111111111}:settings",
+    );
   });
 });

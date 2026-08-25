@@ -19,7 +19,7 @@ export const WorkLog: FC<{
   active = false,
   hasAnswer = false,
 }) => {
-  const { t = (key: string) => key } = useI18n();
+  const { t } = useI18n();
   const panelId = useId();
   const [expanded, setExpanded] = useState(active && !hasAnswer);
   const manuallyToggledRef = useRef(false);

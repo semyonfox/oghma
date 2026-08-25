@@ -6,6 +6,13 @@ import useQuizStore from "@/lib/notes/state/quiz";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { triggerCelebration } from "@/lib/celebration";
 import type { CelebrationType } from "@/lib/celebration";
+import type {
+  QuizAnswerResponse,
+  QuizCardResponse,
+  QuizSessionProgress,
+  QuizSessionQuestion,
+  QuizSessionResumeResponse,
+} from "@/lib/quiz/types";
 import ProgressBar from "@/components/quiz/progress-bar";
 import QuestionCard from "@/components/quiz/question-card";
 import Feedback from "@/components/quiz/feedback";
@@ -15,7 +22,7 @@ function SessionComplete({
   elapsed,
   onBack,
 }: {
-  progress: { answered: number; total: number; correct: number };
+  progress: QuizSessionProgress;
   elapsed: number;
   onBack: () => void;
 }) {
@@ -93,12 +100,15 @@ function QuestionView({
   setFatigueWarning,
   onComplete,
 }: {
-  question: any;
+  question: QuizSessionQuestion;
   sessionId: string;
   currentIndex: number;
   cardIds: string[];
   fatigueWarning: boolean;
-  advanceQuestion: (q: any, p: any) => void;
+  advanceQuestion: (
+    question: QuizSessionQuestion,
+    progress: QuizSessionProgress,
+  ) => void;
   setFatigueWarning: (w: boolean) => void;
   onComplete: () => void;
 }) {
@@ -141,7 +151,7 @@ function QuestionView({
     });
 
     if (!res.ok) return;
-    const data = await res.json();
+    const data = (await res.json()) as QuizAnswerResponse;
 
     if (data.fatigueWarning) setFatigueWarning(true);
     if (data.isLeech) setIsLeech(true);
@@ -251,7 +261,7 @@ export default function QuizSessionPage() {
     if (!cardIds.length) {
       fetch(`/api/quiz/sessions/${sessionId}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then((data) => {
+        .then((data: QuizSessionResumeResponse) => {
           if (Array.isArray(data.cardIds) && data.cardIds.length > 0) {
             startSession(
               sessionId,
@@ -275,7 +285,7 @@ export default function QuizSessionPage() {
       const cardId = cardIds[currentIndex] ?? cardIds[0];
       fetch(`/api/quiz/cards/${cardId}`)
         .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
+        .then((data: QuizCardResponse | null) => {
           if (data?.question) setCurrentQuestion(data.question);
           else completeSession();
         })
@@ -287,7 +297,9 @@ export default function QuizSessionPage() {
   useEffect(() => {
     fetch("/api/quiz/streak")
       .then((r) => r.json())
-      .then((d) => setStreak(d.current_streak || 0));
+      .then((data: { current_streak?: number }) =>
+        setStreak(data.current_streak || 0),
+      );
   }, []);
 
   const handleSkip = useCallback(async () => {
@@ -305,7 +317,7 @@ export default function QuizSessionPage() {
         completeSession();
         return;
       }
-      const data = await res.json();
+      const data = (await res.json()) as QuizCardResponse;
       advanceQuestion(data.question, {
         ...sessionProgress,
         answered: sessionProgress.answered + 1,

@@ -47,6 +47,39 @@ const LLM_URL = process.env.LLM_API_URL;
 const LLM_KEY = process.env.LLM_API_KEY;
 const BATCH_SIZE = 5;
 
+type QuestionType = "mcq" | "true_false" | "fill_in";
+
+interface UserRow {
+  user_id: string;
+}
+
+interface QuizChunkRow {
+  id: string;
+  text: string;
+  document_id: string;
+  title: string | null;
+  canvas_course_id: string | null;
+}
+
+interface GeneratedQuestion {
+  question_text: string;
+  options: string | null;
+  correct_answer: string;
+  explanation: string;
+}
+
+interface LlmQuestion {
+  question_text?: unknown;
+  options?: unknown;
+  correct_answer?: unknown;
+  explanation?: unknown;
+}
+
+interface ValidLlmQuestion extends LlmQuestion {
+  question_text: string;
+  correct_answer: string;
+}
+
 if (!DB_URL) {
   console.error("DATABASE_URL not set");
   process.exit(1);
@@ -72,8 +105,8 @@ function bloomDesc(level: number): string {
   return descs[level] ?? descs[1];
 }
 
-function pickType(level: number): string {
-  const types: Record<number, string[]> = {
+function pickType(level: number): QuestionType {
+  const types: Record<number, QuestionType[]> = {
     1: ["mcq", "true_false"],
     2: ["mcq", "true_false", "fill_in"],
     3: ["mcq", "fill_in"],
@@ -83,7 +116,11 @@ function pickType(level: number): string {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
-function buildFallback(chunkText: string, moduleName: string, qtype: string) {
+function buildFallback(
+  chunkText: string,
+  moduleName: string,
+  qtype: QuestionType,
+): GeneratedQuestion {
   const sentence =
     chunkText
       .replace(/\s+/g, " ")
@@ -145,13 +182,25 @@ async function callLLM(prompt: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-function parseJson(raw: string) {
+function parseJson(raw: string): LlmQuestion | null {
   try {
     const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw];
-    return JSON.parse(match[1]!.trim());
+    const value: unknown = JSON.parse(match[1]!.trim());
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as LlmQuestion)
+      : null;
   } catch {
     return null;
   }
+}
+
+function validLlmQuestion(value: LlmQuestion | null): value is ValidLlmQuestion {
+  return (
+    typeof value?.question_text === "string" &&
+    value.question_text.trim().length > 0 &&
+    typeof value.correct_answer === "string" &&
+    value.correct_answer.trim().length > 0
+  );
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -160,7 +209,7 @@ async function main() {
   let userId = process.argv[2];
 
   if (!userId) {
-    const [first] = await sql`SELECT user_id FROM app.login LIMIT 1`;
+    const [first] = await sql<UserRow[]>`SELECT user_id FROM app.login LIMIT 1`;
     if (!first) {
       console.error("no users in database");
       await sql.end();
@@ -171,7 +220,7 @@ async function main() {
   }
 
   // get up to BATCH_SIZE uncovered chunks
-  const chunks = await sql`
+  const chunks = await sql<QuizChunkRow[]>`
     SELECT c.id, c.text, c.document_id, n.title, n.canvas_course_id
     FROM app.chunks c
     JOIN app.notes n ON c.document_id = n.note_id
@@ -196,13 +245,7 @@ async function main() {
 
   let generated = 0;
 
-  for (const chunk of chunks as unknown as Array<{
-    id: string;
-    text: string;
-    document_id: string;
-    title: string;
-    canvas_course_id: string | null;
-  }>) {
+  for (const chunk of chunks) {
     const bloomLevel = 1; // always start new chunks at Remember
     const qtype = pickType(bloomLevel);
     const moduleName = chunk.title || "Unknown Module";
@@ -211,12 +254,7 @@ async function main() {
       `  chunk ${chunk.id.slice(0, 8)}…  module="${moduleName}"  type=${qtype}`,
     );
 
-    let questionData: {
-      question_text: string;
-      options: string | null;
-      correct_answer: string;
-      explanation: string;
-    };
+    let questionData: GeneratedQuestion;
 
     try {
       const prompt = `You are generating a study question from university lecture notes.
@@ -237,12 +275,13 @@ Return ONLY valid JSON: {"question_text":"...","options":[...],"correct_answer":
 
       const raw = await callLLM(prompt);
       const parsed = parseJson(raw);
-      if (parsed?.question_text?.trim() && parsed?.correct_answer?.trim()) {
+      if (validLlmQuestion(parsed)) {
         questionData = {
           question_text: parsed.question_text,
           options: parsed.options ? JSON.stringify(parsed.options) : null,
           correct_answer: parsed.correct_answer,
-          explanation: parsed.explanation ?? "",
+          explanation:
+            typeof parsed.explanation === "string" ? parsed.explanation : "",
         };
         console.log(
           `    ✓ LLM generated: "${questionData.question_text.slice(0, 70)}…"`,

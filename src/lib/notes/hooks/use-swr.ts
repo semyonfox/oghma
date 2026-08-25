@@ -16,18 +16,18 @@ interface SWROptions {
   revalidateOnFocus?: boolean;
 }
 
-interface CacheEntry<T> {
-  data: T;
+interface CacheEntry {
+  data: unknown;
   timestamp: number;
   // drives LRU eviction once the cache passes CACHE_CONFIG.maxSize
   lastAccessedAt?: number;
 }
 
 // Global cache store
-const globalCache = new Map<string, CacheEntry<any>>();
+const globalCache = new Map<string, CacheEntry>();
 
 // Track ongoing requests to dedupe
-const ongoingRequests = new Map<string, Promise<any>>();
+const ongoingRequests = new Map<string, Promise<unknown>>();
 
 // Configuration for cache memory management
 const CACHE_CONFIG = {
@@ -122,7 +122,7 @@ export function useSWR<T>(
     const cached = globalCache.get(key);
     // reading counts as an access, which is what LRU eviction sorts on
     if (cached) cached.lastAccessedAt = Date.now();
-    return cached?.data;
+    return cached?.data as T | undefined;
   }, [key]);
 
   const fetchData = useCallback(
@@ -136,7 +136,7 @@ export function useSWR<T>(
         // Check for ongoing request (deduplication)
         if (ongoingRequests.has(key)) {
           console.debug(`[SWR] Deduping request: ${key}`);
-          const result = await ongoingRequests.get(key)!;
+          const result = (await ongoingRequests.get(key)!) as T;
           setData(result);
           setError(undefined);
           return result;
@@ -260,4 +260,3 @@ export function useSWR<T>(
     mutate,
   };
 }
-

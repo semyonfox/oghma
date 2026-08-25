@@ -26,6 +26,7 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   'register':       { limit: 5,   windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'password-reset': { limit: 3,   windowSeconds: 3600,  keyType: 'email', failClosedOnStoreError: true },
   'password-verify':{ limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
+  'change-password': { limit: 3, windowSeconds: 3600, keyType: 'userId', failClosedOnStoreError: true },
   'resend-verification': { limit: 3,  windowSeconds: 3600, keyType: 'email', failClosedOnStoreError: true },
   'verify-email':   { limit: 10,  windowSeconds: 3600,  keyType: 'ip',    failClosedOnStoreError: true },
   'agent-registration': { limit: 3, windowSeconds: 3600, keyType: 'ip', failClosedOnStoreError: true },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import { withErrorHandler, requireAuth, parseJson } from "@/lib/api-error";
+import sql from "@/database/pgsql";
 import { assignmentCreateSchema, validateBody } from "@/lib/validations/schemas";
 
 /**
@@ -72,13 +72,7 @@ export const GET = withErrorHandler(async (request) => {
 export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    throw new ApiError(400, "Invalid JSON body");
-  }
-  const validation = validateBody(assignmentCreateSchema, rawBody);
+  const validation = validateBody(assignmentCreateSchema, await parseJson(request));
   if (!validation.success) return validation.response;
   const { title, course_name, course_color, due_at, estimated_hours, description } = validation.data;
 

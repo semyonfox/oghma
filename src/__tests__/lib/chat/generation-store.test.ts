@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const sqlMock = vi.hoisted(() =>
-  Object.assign(vi.fn(), { json: vi.fn((value: unknown) => value) }),
-);
+const sqlMock = vi.hoisted(() => vi.fn());
 const redisMock = vi.hoisted(() => ({
   call: vi.fn(),
   del: vi.fn(),
@@ -12,7 +10,7 @@ const redisMock = vi.hoisted(() => ({
   xadd: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: sqlMock }));
+vi.mock("@/database/pgsql", () => ({ default: sqlMock }));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
 vi.mock("@/lib/utils/uuid", () => ({
   generateUUID: () => "11111111-1111-1111-1111-111111111111",
@@ -21,11 +19,15 @@ vi.mock("@/lib/utils/uuid", () => ({
 import {
   appendChatGenerationEvent,
   cancelChatGeneration,
+  claimChatGeneration,
+  completeChatGeneration,
   createChatGeneration,
+  failChatGeneration,
   isChatGenerationCancelRequested,
   loadChatGeneration,
   loadOwnedChatGeneration,
   readChatGenerationEvents,
+  requeueChatGeneration,
   requestChatGenerationCancel,
 } from "@/lib/chat/generation-store";
 
@@ -42,7 +44,11 @@ describe("resumable chat generation store", () => {
       sessionId: "33333333-3333-3333-3333-333333333333",
       message: "Explain streams",
       scope: {
-        sessionContext: {},
+        sessionContext: {
+          scope: { notes: [], folders: [] },
+          recentAccesses: [],
+          lastFolder: null,
+        },
         scopedNoteIds: null,
         scopedInputNoteIds: [],
         history: [],
@@ -55,8 +61,10 @@ describe("resumable chat generation store", () => {
 
     expect(id).toBe("11111111-1111-1111-1111-111111111111");
     expect(sqlMock).toHaveBeenCalledOnce();
-    expect(sqlMock.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Explain streams" }),
+    expect(sqlMock.mock.calls[0]?.slice(1)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"message":"Explain streams"'),
+      ]),
     );
   });
 
@@ -65,7 +73,16 @@ describe("resumable chat generation store", () => {
       userId: "22222222-2222-2222-2222-222222222222",
       sessionId: "33333333-3333-3333-3333-333333333333",
       message: "Explain streams",
-      scope: { sessionContext: {}, scopedNoteIds: null, scopedInputNoteIds: [], history: [] },
+      scope: {
+        sessionContext: {
+          scope: { notes: [], folders: [] },
+          recentAccesses: [],
+          lastFolder: null,
+        },
+        scopedNoteIds: null,
+        scopedInputNoteIds: [],
+        history: [],
+      },
       useRag: true,
       thinkingMode: "auto",
       requestOrigin: "https://oghmanotes.ie",
@@ -183,13 +200,62 @@ describe("resumable chat generation store", () => {
     ).resolves.toBe(false);
   });
 
-  it("cancels the generation and returns the session to idle", async () => {
+  it("claims queued work atomically and never reclaims an active worker", async () => {
+    sqlMock.mockResolvedValueOnce([{ id: "11111111-1111-1111-1111-111111111111" }]);
+
+    await expect(
+      claimChatGeneration("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toBe(true);
+
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    const text = query.join("?");
+    expect(text).toContain("WITH claimed AS");
+    expect(text).toContain("status IN ('queued', 'failed')");
+    expect(text).not.toContain("'generating', 'failed'");
+
+    sqlMock.mockResolvedValueOnce([]);
+    await expect(
+      claimChatGeneration("11111111-1111-1111-1111-111111111111"),
+    ).resolves.toBe(false);
+  });
+
+  it("cancels the generation and returns the session to idle atomically", async () => {
     await cancelChatGeneration("11111111-1111-1111-1111-111111111111");
 
-    expect(sqlMock).toHaveBeenCalledTimes(2);
-    const [generationUpdate] = sqlMock.mock.calls[0] as [readonly string[]];
-    const [sessionUpdate] = sqlMock.mock.calls[1] as [readonly string[]];
-    expect(generationUpdate.join("?")).toContain("status = 'cancelled'");
-    expect(sessionUpdate.join("?")).toContain("generation_status = 'idle'");
+    expect(sqlMock).toHaveBeenCalledOnce();
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    expect(query.join("?")).toContain("status = 'cancelled'");
+    expect(query.join("?")).toContain("generation_status = 'idle'");
+  });
+
+  it("completes the generation and session status together", async () => {
+    await completeChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    expect(sqlMock).toHaveBeenCalledOnce();
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    expect(query.join("?")).toContain("status = 'completed'");
+    expect(query.join("?")).toContain("generation_status = 'idle'");
+  });
+
+  it("does not revive a cancelled generation during retry or failure handling", async () => {
+    await requeueChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+      "provider error",
+    );
+    await failChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+      "provider error",
+    );
+
+    const requeueQuery = (sqlMock.mock.calls[0]?.[0] as readonly string[]).join(
+      "?",
+    );
+    const failureQuery = (sqlMock.mock.calls[1]?.[0] as readonly string[]).join(
+      "?",
+    );
+    expect(requeueQuery).toContain("status = 'generating'");
+    expect(failureQuery).toContain("status IN ('queued', 'generating')");
+    expect(requeueQuery).not.toContain("status <> 'completed'");
+    expect(failureQuery).not.toContain("status <> 'completed'");
   });
 });

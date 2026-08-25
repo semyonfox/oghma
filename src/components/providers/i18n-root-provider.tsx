@@ -1,16 +1,24 @@
 "use client";
 
-import { ReactNode, Suspense, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 import I18nProvider from "@/lib/i18n/provider";
-import { Locale } from "@/locales";
+import { Locale, normalizeLocale } from "@/locales";
 import enDict from "@/locales/en.json";
-import { uiCache } from "@/lib/notes/cache";
+import {
+  persistClientLocale,
+  readClientLocale,
+} from "@/lib/i18n/locale-preference";
+import { loadLocaleData, type LocaleData } from "@/lib/i18n/locale-data";
 
-const SETTINGS_CACHE_KEY = "settings-cache";
-const LOCALE_STORAGE_KEY = "ogma-locale";
-// revalidate from network after 10 min, but always serve cache instantly
-const SETTINGS_CACHE_TTL_MS = 10 * 60 * 1000;
+const defaultLocaleData: LocaleData = { locale: Locale.EN, dict: enDict };
 
 const PRIVATE_APP_PATHS = [
   "/analytics",
@@ -30,83 +38,156 @@ export function shouldRevalidateSettings(pathname: string) {
   );
 }
 
-interface CachedSettings {
-  locale: string;
-  cachedAt: number;
-}
-
 interface Props {
   children: ReactNode;
+  initialLocaleData?: LocaleData;
 }
 
-async function loadLocaleDict(locale: string) {
-  if (locale === Locale.EN)
-    return { locale, dict: enDict as Record<string, string> };
-  const module = await import(`@/locales/${locale}.json`);
-  return { locale, dict: module.default as Record<string, string> };
+/**
+ * Null means the account has never stored a language, which is different from
+ * an account that chose English. The API omits the key rather than defaulting
+ * it so this distinction survives the request.
+ */
+export function localeFromSettingsResponse(value: unknown): Locale | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return normalizeLocale((value as { locale?: unknown }).locale);
 }
 
-function I18nRootProviderContent({ children }: Props) {
+/** Best effort: the visible language already holds without this succeeding. */
+async function adoptAccountLocale(
+  locale: Locale,
+  signal: AbortSignal,
+): Promise<boolean> {
+  try {
+    const response = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`settings API returned ${response.status}`);
+    }
+    return true;
+  } catch (error) {
+    if (signal.aborted) return false;
+    console.warn("Failed to adopt the browser language preference:", error);
+    return false;
+  }
+}
+
+function I18nRootProviderContent({
+  children,
+  initialLocaleData = defaultLocaleData,
+}: Props) {
   const pathname = usePathname();
-  const [localeData, setLocaleData] = useState<{
-    locale: string;
-    dict: Record<string, string>;
-  }>({
-    locale: Locale.EN,
-    dict: enDict,
-  });
+  const [localeData, setLocaleData] = useState<LocaleData>(initialLocaleData);
+  const validatedPrivateLocaleRef = useRef(false);
+  const localeVersionRef = useRef(0);
+  const chosenLocaleRef = useRef<Locale | null>(null);
+
+  // A server navigation supplies the request's cookie-derived locale before
+  // hydration. It stays authoritative only until the visitor picks a language:
+  // `router.refresh()` and prefetched route payloads can replay a render made
+  // before that choice reached the cookie, and replaying it would silently
+  // revert the language the visitor just selected.
+  useEffect(() => {
+    if (
+      chosenLocaleRef.current &&
+      chosenLocaleRef.current !== initialLocaleData.locale
+    ) {
+      return;
+    }
+    setLocaleData(initialLocaleData);
+  }, [initialLocaleData]);
+
+  const handleLocaleChange = useCallback(
+    (locale: Locale, dict: LocaleData["dict"]) => {
+      localeVersionRef.current += 1;
+      chosenLocaleRef.current = locale;
+      setLocaleData({ locale, dict });
+      persistClientLocale(locale);
+    },
+    [],
+  );
 
   useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    const localeVersion = localeVersionRef.current;
+    const isCurrent = () =>
+      !cancelled && localeVersionRef.current === localeVersion;
+
+    const applyLocale = async (nextLocale: Locale) => {
+      const nextLocaleData = await loadLocaleData(nextLocale);
+      if (!isCurrent()) return false;
+      setLocaleData(nextLocaleData);
+      return true;
+    };
+
     const loadLocale = async () => {
       try {
-        const cookieLocale = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith(`${LOCALE_STORAGE_KEY}=`))
-          ?.split("=")[1];
-        const browserLocale =
-          (cookieLocale ? decodeURIComponent(cookieLocale) : null) ||
-          localStorage.getItem(LOCALE_STORAGE_KEY);
+        const browserLocale = readClientLocale();
+        const instantLocale = browserLocale ?? initialLocaleData.locale;
 
-        // serve cached locale immediately — no waiting for network
-        const cached = await uiCache.getItem<CachedSettings>(SETTINGS_CACHE_KEY);
-        const instantLocale = cached?.locale || browserLocale;
-        if (instantLocale && instantLocale !== Locale.EN) {
-          setLocaleData(await loadLocaleDict(instantLocale));
+        // The server rendered from this same cookie, so this only changes
+        // anything when the markup came from a cache or another tab picked a
+        // different language since this page was built.
+        if (browserLocale && !(await applyLocale(browserLocale))) return;
+        if (!isCurrent()) return;
+
+        // On authenticated app pages, reconcile once per visit with the saved
+        // account setting. This prevents stale browser cache from persisting
+        // across pages or devices while avoiding repeated API requests.
+        if (
+          !shouldRevalidateSettings(pathname) ||
+          validatedPrivateLocaleRef.current
+        ) {
+          return;
         }
+        validatedPrivateLocaleRef.current = true;
 
-        // Public pages use the locale cookie/cache and do not need authenticated
-        // settings. Private app pages periodically reconcile with the server.
-        if (!shouldRevalidateSettings(pathname)) return;
-
-        // skip revalidation if cache is still fresh
-        const isStale =
-          !cached || Date.now() - cached.cachedAt > SETTINGS_CACHE_TTL_MS;
-        if (!isStale) return;
-
-        const response = await fetch("/api/settings");
+        const response = await fetch("/api/settings", {
+          signal: controller.signal,
+        });
         if (!response.ok) return;
 
-        const settings = await response.json();
-        const userLocale = settings.locale || Locale.EN;
+        const accountLocale = localeFromSettingsResponse(await response.json());
+        if (!isCurrent()) return;
 
-        await uiCache.setItem<CachedSettings>(SETTINGS_CACHE_KEY, {
-          locale: userLocale,
-          cachedAt: Date.now(),
-        });
-        localStorage.setItem(LOCALE_STORAGE_KEY, userLocale);
-        document.cookie = `${LOCALE_STORAGE_KEY}=${userLocale}; path=/; max-age=31536000; samesite=lax`;
+        // An account with no stored language adopts the visitor's own choice
+        // instead of resetting it. Picking a language before signing in is
+        // still a choice, and it should follow them to their other devices.
+        if (!accountLocale) {
+          if (browserLocale) {
+            const adopted = await adoptAccountLocale(
+              browserLocale,
+              controller.signal,
+            );
+            if (!adopted) validatedPrivateLocaleRef.current = false;
+          }
+          return;
+        }
 
-        // only re-render if locale actually changed
-        if (userLocale !== (instantLocale ?? Locale.EN)) {
-          setLocaleData(await loadLocaleDict(userLocale));
+        persistClientLocale(accountLocale);
+
+        if (accountLocale !== instantLocale) {
+          await applyLocale(accountLocale);
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.warn("Failed to fetch user settings:", error);
       }
     };
 
-    loadLocale();
-  }, [pathname]);
+    void loadLocale();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [initialLocaleData.locale, pathname]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -115,22 +196,34 @@ function I18nRootProviderContent({ children }: Props) {
   }, [localeData.locale]);
 
   return (
-    <I18nProvider locale={localeData.locale} lngDict={localeData.dict}>
+    <I18nProvider
+      locale={localeData.locale}
+      lngDict={localeData.dict}
+      onLocaleChange={handleLocaleChange}
+    >
       {children}
     </I18nProvider>
   );
 }
 
-export default function I18nRootProvider({ children }: Props) {
+export default function I18nRootProvider({
+  children,
+  initialLocaleData = defaultLocaleData,
+}: Props) {
   return (
     <Suspense
       fallback={
-        <I18nProvider locale={Locale.EN} lngDict={enDict}>
+        <I18nProvider
+          locale={initialLocaleData.locale}
+          lngDict={initialLocaleData.dict}
+        >
           {children}
         </I18nProvider>
       }
     >
-      <I18nRootProviderContent>{children}</I18nRootProviderContent>
+      <I18nRootProviderContent initialLocaleData={initialLocaleData}>
+        {children}
+      </I18nRootProviderContent>
     </Suspense>
   );
 }

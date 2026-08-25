@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const storage = { putObject: vi.fn(), deleteObject: vi.fn() };
-vi.mock("@/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ validateSession: vi.fn() }));
+const storage = { putObject: vi.fn(), deleteObject: vi.fn(), hasObject: vi.fn() };
+vi.mock("@/lib/auth", () => ({ getAuthenticatedUserId: vi.fn() }));
 vi.mock("@/lib/rateLimiter", () => ({ checkRateLimit: vi.fn() }));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: () => storage }));
 vi.mock("@/lib/notes/storage/s3-storage", () => ({
@@ -12,10 +11,10 @@ vi.mock("@/lib/notes/storage/s3-storage", () => ({
 vi.mock("@/lib/logger", () => ({ default: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/api-error", () => ({ assertTrustedOrigin: vi.fn() }));
 
-import { auth } from "@/auth";
+import { getAuthenticatedUserId } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimiter";
 import { getSettingsFromS3, saveSettingsToS3 } from "@/lib/notes/storage/s3-storage";
-import { POST } from "@/app/api/auth/avatar/route";
+import { GET, POST } from "@/app/api/auth/avatar/route";
 
 function avatarRequest() {
   const form = new FormData();
@@ -26,12 +25,13 @@ function avatarRequest() {
 describe("POST /api/auth/avatar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
+    vi.mocked(getAuthenticatedUserId).mockResolvedValue("user-1");
     vi.mocked(checkRateLimit).mockResolvedValue(null);
     vi.mocked(getSettingsFromS3).mockResolvedValue({ avatarKey: "avatars/user-1/old.png" } as never);
     vi.mocked(saveSettingsToS3).mockResolvedValue(undefined as never);
     storage.putObject.mockResolvedValue(undefined);
     storage.deleteObject.mockResolvedValue(undefined);
+    storage.hasObject.mockResolvedValue(true);
   });
 
   it("throttles before accepting avatar data", async () => {
@@ -47,5 +47,15 @@ describe("POST /api/auth/avatar", () => {
     expect(response.status).toBe(200);
     expect(checkRateLimit).toHaveBeenCalledWith("avatar-upload", "user-1");
     expect(storage.deleteObject).toHaveBeenCalledWith("avatars/user-1/old.png");
+  });
+
+  it("uses the canonical string user ID when reading the current avatar", async () => {
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(getSettingsFromS3).toHaveBeenCalledWith("user-1");
+    await expect(response.json()).resolves.toEqual({
+      avatarUrl: "/api/auth/avatar/image",
+    });
   });
 });

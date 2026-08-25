@@ -3,9 +3,13 @@
 // watchdog observes within one tick (~5s), aborting the LLM stream and
 // persisting whatever partial answer already streamed.
 import { NextRequest, NextResponse } from "next/server";
-import { withErrorHandler, requireAuth, tracedError } from "@/lib/api-error";
+import {
+  requireAuth,
+  requireValidId,
+  tracedError,
+  withErrorHandler,
+} from "@/lib/api-error";
 import { checkRateLimit } from "@/lib/rateLimiter";
-import { isValidUUID } from "@/lib/utils/uuid";
 import {
   cancelChatGeneration,
   loadOwnedChatGeneration,
@@ -22,8 +26,8 @@ export const POST = withErrorHandler(
     const limited = await checkRateLimit("chat-cancel", session.user_id);
     if (limited) return limited;
 
-    const { id } = await params;
-    if (!isValidUUID(id)) return tracedError("Invalid generation id", 400);
+    const { id: rawId } = await params;
+    const id = requireValidId(rawId, "generation id");
 
     const generation = await loadOwnedChatGeneration(id, session.user_id);
     if (!generation) return tracedError("Generation not found", 404);

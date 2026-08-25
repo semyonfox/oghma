@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   sendVaultExportCompleteEmail: vi.fn(),
 }));
 
-vi.mock("@/database/pgsql.js", () => ({ default: mocks.sql }));
+vi.mock("@/database/pgsql", () => ({ default: mocks.sql }));
 vi.mock("@/lib/storage/init.ts", () => ({
   getStorageProvider: mocks.getStorageProvider,
 }));
@@ -19,7 +19,7 @@ vi.mock("@/lib/storage/s3.ts", () => ({
 vi.mock("@/lib/vault/tree-builder", () => ({
   buildExportPathMap: mocks.buildExportPathMap,
 }));
-vi.mock("@/lib/email.js", () => ({
+vi.mock("@/lib/email", () => ({
   sendVaultExportCompleteEmail: mocks.sendVaultExportCompleteEmail,
 }));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
@@ -40,7 +40,7 @@ vi.mock("@aws-sdk/client-s3", () => {
 });
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { processVaultExport } from "@/lib/vault/export-worker.js";
+import { processVaultExport } from "@/lib/vault/export-worker";
 
 describe("processVaultExport", () => {
   beforeEach(() => {
@@ -82,5 +82,33 @@ describe("processVaultExport", () => {
       expect.anything(),
       { expiresIn: 86400 },
     );
+  });
+
+  it("fails the job rather than publishing an archive with unreadable files", async () => {
+    mocks.buildExportPathMap.mockResolvedValueOnce(
+      new Map([
+        [
+          "note-1",
+          {
+            path: "Lecture 1.pdf",
+            s3Key: "files/lecture-1.pdf",
+            content: null,
+          },
+        ],
+      ]),
+    );
+    mocks.s3Send.mockReset();
+    mocks.s3Send
+      .mockResolvedValueOnce({ UploadId: "upload-1" })
+      .mockRejectedValueOnce(new Error("object is unavailable"))
+      .mockResolvedValueOnce({});
+
+    await expect(
+      processVaultExport({ jobId: "job-1", userId: "user-1" }),
+    ).rejects.toThrow("Could not export 1 file: Lecture 1.pdf");
+
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled();
+    expect(mocks.sendVaultExportCompleteEmail).not.toHaveBeenCalled();
+    expect(mocks.s3Send).toHaveBeenCalledTimes(3);
   });
 });

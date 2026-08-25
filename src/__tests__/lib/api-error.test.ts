@@ -2,9 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
-vi.mock("@/database/pgsql.js", () => ({ default: vi.fn() }));
+vi.mock("@/database/pgsql", () => ({ default: vi.fn() }));
 
-import { ApiError, assertTrustedOrigin, parseJsonObject } from "@/lib/api-error";
+import {
+  ApiError,
+  assertTrustedOrigin,
+  parseJson,
+  parseJsonObject,
+} from "@/lib/api-error";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -25,6 +30,16 @@ describe("parseJsonObject", () => {
         method: "POST", body, headers: { "content-type": "application/json" },
       }))).rejects.toMatchObject({ statusCode: 400, userMessage: "JSON body must be an object" });
     }
+  });
+});
+
+describe("parseJson", () => {
+  it("keeps JSON shape validation with the caller's schema", async () => {
+    await expect(
+      parseJson(new Request("https://app.example.com/api/assignments", {
+        method: "POST", body: "[]", headers: { "content-type": "application/json" },
+      })),
+    ).resolves.toEqual([]);
   });
 });
 

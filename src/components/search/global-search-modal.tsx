@@ -21,6 +21,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import useGlobalSearchStore from "@/lib/global-search/state";
+import { isGlobalSearchRoute } from "@/lib/global-search/routes";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 
 type ResultType = "destination" | "note" | "chat" | "quiz";
@@ -43,8 +44,6 @@ interface ResultsBySection {
   chats: SearchResult[];
   quizzes: SearchResult[];
 }
-
-const APP_PATH_PREFIXES = ["/notes", "/chat", "/calendar", "/quiz", "/settings"];
 
 const DESTINATIONS: SearchResult[] = [
   {
@@ -186,11 +185,48 @@ function flattenResults(results: ResultsBySection) {
   return SECTION_ORDER.flatMap((section) => results[section]);
 }
 
-function normalizeApiResults(value: any): Omit<ResultsBySection, "destinations"> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRemoteSearchResult(
+  value: unknown,
+  type: Exclude<ResultType, "destination">,
+): value is SearchResult {
+  if (!isRecord(value)) return false;
+  return (
+    value.type === type &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.href === "string" &&
+    (value.source === "keyword" ||
+      value.source === "semantic" ||
+      value.source === "recent") &&
+    (value.subtitle === undefined || typeof value.subtitle === "string") &&
+    (value.snippet === undefined || typeof value.snippet === "string") &&
+    (value.keywords === undefined ||
+      (Array.isArray(value.keywords) &&
+        value.keywords.every((keyword) => typeof keyword === "string")))
+  );
+}
+
+function resultsOfType(
+  value: unknown,
+  type: Exclude<ResultType, "destination">,
+): SearchResult[] {
+  return Array.isArray(value)
+    ? value.filter((result) => isRemoteSearchResult(result, type))
+    : [];
+}
+
+export function normalizeApiResults(
+  value: unknown,
+): Omit<ResultsBySection, "destinations"> {
+  if (!isRecord(value)) return { notes: [], chats: [], quizzes: [] };
   return {
-    notes: Array.isArray(value?.notes) ? value.notes : [],
-    chats: Array.isArray(value?.chats) ? value.chats : [],
-    quizzes: Array.isArray(value?.quizzes) ? value.quizzes : [],
+    notes: resultsOfType(value.notes, "note"),
+    chats: resultsOfType(value.chats, "chat"),
+    quizzes: resultsOfType(value.quizzes, "quiz"),
   };
 }
 
@@ -207,9 +243,7 @@ export default function GlobalSearchModal() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
-  const enabled = APP_PATH_PREFIXES.some((prefix) =>
-    pathname?.startsWith(prefix),
-  );
+  const enabled = isGlobalSearchRoute(pathname);
   const trimmedQuery = query.trim();
 
   const results: ResultsBySection = useMemo(
@@ -284,11 +318,13 @@ export default function GlobalSearchModal() {
           return;
         }
 
-        const data = await response.json();
+        const data: unknown = await response.json();
         if (requestSeqRef.current !== seq) return;
-        setRemoteResults(normalizeApiResults(data?.results));
-      } catch (error: any) {
-        if (error?.name === "AbortError") return;
+        setRemoteResults(
+          normalizeApiResults(isRecord(data) ? data.results : undefined),
+        );
+      } catch (error: unknown) {
+        if (isRecord(error) && error.name === "AbortError") return;
         if (requestSeqRef.current === seq) {
           setRemoteResults({ notes: [], chats: [], quizzes: [] });
         }

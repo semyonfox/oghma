@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { generateSecureToken, hashToken } from "@/lib/tokens";
 
 export const AGENT_REGISTRATION_CLAIM_TTL_MS = 15 * 60 * 1000;

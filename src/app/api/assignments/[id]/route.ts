@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
-import { withErrorHandler, requireAuth, requireValidId, ApiError, tracedError } from '@/lib/api-error';
-import sql from '@/database/pgsql.js';
+import {
+  withErrorHandler,
+  requireAuth,
+  requireValidId,
+  parseJson,
+  tracedError,
+  type RouteParamsContext,
+} from '@/lib/api-error';
+import sql from '@/database/pgsql';
 import { assignmentUpdateSchema, validateBody } from '@/lib/validations/schemas';
 
 /**
  * GET /api/assignments/:id
  */
-export const GET = withErrorHandler(async (_request, context: any) => {
+export const GET = withErrorHandler(async (
+  _request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const { id } = await context.params;
@@ -37,19 +47,16 @@ export const GET = withErrorHandler(async (_request, context: any) => {
  * PATCH /api/assignments/:id
  * Update fields: status, estimated_hours, course_color, title, description, due_at
  */
-export const PATCH = withErrorHandler(async (request, context: any) => {
+export const PATCH = withErrorHandler(async (
+  request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const { id } = await context.params;
   requireValidId(id);
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    throw new ApiError(400, 'Invalid JSON body');
-  }
-  const validation = validateBody(assignmentUpdateSchema, rawBody);
+  const validation = validateBody(assignmentUpdateSchema, await parseJson(request));
   if (!validation.success) return validation.response;
   const updates: Record<string, unknown> = { ...validation.data };
 
@@ -85,7 +92,10 @@ export const PATCH = withErrorHandler(async (request, context: any) => {
  * DELETE /api/assignments/:id
  * Only manual assignments can be deleted. Canvas assignments are hidden instead.
  */
-export const DELETE = withErrorHandler(async (_request, context: any) => {
+export const DELETE = withErrorHandler(async (
+  _request,
+  context: RouteParamsContext<{ id: string }>,
+) => {
   const user = await requireAuth();
 
   const { id } = await context.params;

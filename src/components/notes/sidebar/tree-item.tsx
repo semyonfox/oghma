@@ -10,6 +10,7 @@ import {
   DocumentTextIcon,
   EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
+import type { TreeItemRenderContext } from "react-complex-tree";
 
 const INDENT_PX = 14;
 
@@ -26,7 +27,7 @@ export interface TreeItemProps {
   hasChildren: boolean;
   depth: number;
   isRenaming: boolean;
-  context: any;
+  context: TreeItemRenderContext;
   children: React.ReactNode;
   initLoaded: boolean;
   onContextMenu: (e: React.MouseEvent) => void;

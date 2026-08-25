@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
 import { isValidUUID } from "@/lib/utils/uuid";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const session = await validateSession();

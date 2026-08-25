@@ -6,7 +6,8 @@
  * Uses fflate's streaming Unzip for flat ~200MB memory regardless of zip size.
  */
 
-import sql from "../../database/pgsql.js";
+import type postgres from "postgres";
+import sql from "../../database/pgsql";
 import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
 import { AsyncUnzipInflate, Unzip } from "fflate";
@@ -14,8 +15,11 @@ import { chunkText } from "../chunking.ts";
 import { replaceNoteEmbeddings } from "../rag/indexing.ts";
 import { stripMarkdown } from "../strip-markdown.ts";
 import { getStorageProvider } from "../storage/init.ts";
+import type { StoreProvider } from "../storage/base";
 import { createS3ClientFromEnv } from "../storage/s3.ts";
+import { insertNoteWithTree } from "../notes/storage/create-note";
 import { moveNoteToExtractionBundle } from "../notes/extraction-bundle";
+import { invalidateTreeAfterPublish } from "../notes/tree-cache";
 import { extractWithMarker } from "../ocr.ts";
 import {
   markerAssetPrefix,
@@ -29,7 +33,7 @@ import {
   VaultImportCancelledError,
   VaultTreeParentUnavailableError,
 } from "./tree-builder";
-import { sendVaultImportCompleteEmail } from "../email.js";
+import { sendVaultImportCompleteEmail } from "../email";
 import { recordActivationMilestone } from "../marketing/events";
 
 const PROCESSABLE_EXTS = new Set([
@@ -94,7 +98,7 @@ async function createNote(
   const noteId = uuidv4();
   const s3Key = opts.s3Key ?? null;
   const content = opts.content ?? "";
-  await sql.begin(async (tx: any) => {
+  await sql.begin(async (tx: postgres.TransactionSql) => {
     // Coordinate with both Trash and Clear Vault. If Clear Vault wins, the
     // job check fails while holding the same user-tree lock and no late note
     // or tree row can be committed after its note snapshot was collected.
@@ -124,6 +128,79 @@ async function createNote(
       ON CONFLICT (user_id, note_id) DO NOTHING
     `;
   });
+  await invalidateTreeAfterPublish(userId, parentId);
+  return noteId;
+}
+
+interface PersistVaultSourceFileInput {
+  storage: Pick<StoreProvider, "putObject" | "deleteObject">;
+  userId: string;
+  title: string;
+  parentId: string | null;
+  s3Key: string;
+  content: string;
+  mimeType: string;
+  buffer: Buffer;
+  jobId?: string;
+}
+
+/** Write bytes first, then atomically attach their note/tree ownership. */
+export async function persistVaultSourceFile({
+  storage,
+  userId,
+  title,
+  parentId,
+  s3Key,
+  content,
+  mimeType,
+  buffer,
+  jobId,
+}: PersistVaultSourceFileInput): Promise<string> {
+  await storage.putObject(s3Key, buffer, { contentType: mimeType });
+
+  const noteId = uuidv4();
+  try {
+    await sql.begin(async (tx: postgres.TransactionSql) => {
+      await assertVaultImportJobActive(tx, userId, jobId);
+      await insertNoteWithTree(tx, {
+        noteId,
+        userId,
+        title,
+        content,
+        isFolder: false,
+        parentId,
+        s3Key,
+      });
+      await tx`
+        INSERT INTO app.attachments (
+          id, note_id, user_id, filename, s3_key, mime_type, file_size
+        ) VALUES (
+          ${uuidv4()}::uuid,
+          ${noteId}::uuid,
+          ${userId}::uuid,
+          ${title},
+          ${s3Key},
+          ${mimeType},
+          ${buffer.length}
+        )
+      `;
+    });
+  } catch (relationalError) {
+    try {
+      await storage.deleteObject(s3Key);
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [relationalError, cleanupError],
+        `Failed to persist ${s3Key} and remove its uploaded object`,
+      );
+    }
+    throw relationalError;
+  }
+
+  // The source note is now durable even though OCR/embeddings may still be
+  // running. Publish its branch only after the transaction succeeds so the
+  // sidebar can show meaningful import progress without exposing rollbacks.
+  await invalidateTreeAfterPublish(userId, parentId);
   return noteId;
 }
 
@@ -360,21 +437,52 @@ async function streamAndProcessZip(
 
   const entryQueue = new EntryQueue(FILE_CONCURRENCY);
   let entryCount = 0;
+  let archiveEntryCount = 0;
   let totalSize = 0;
   let header = Buffer.alloc(0);
   let zipSignatureChecked = false;
 
   return new Promise((resolve, reject) => {
     const unzip = new Unzip((stream) => {
-      if (stream.name.endsWith("/")) return;
-
-      entryCount++;
-      if (entryCount > MAX_ENTRIES) {
+      archiveEntryCount++;
+      if (archiveEntryCount > MAX_ENTRIES) {
         reject(
           new Error(`Zip bomb protection: more than ${MAX_ENTRIES} entries`),
         );
+        stream.terminate();
         return;
       }
+
+      // Keep progress meaningful: Finder/Git metadata and unsafe paths are
+      // intentionally ignored and should not make a successful import appear
+      // incomplete. Still consume and count their contents so they cannot
+      // accumulate in fflate's stream buffer or bypass zip-bomb limits.
+      if (
+        stream.name.endsWith("/") ||
+        !sanitizePath(stream.name) ||
+        shouldIgnore(stream.name)
+      ) {
+        stream.ondata = (err, data) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          if (!data) return;
+          totalSize += data.length;
+          if (totalSize > MAX_DECOMPRESSED_SIZE) {
+            reject(
+              new Error(
+                `Zip bomb protection: decompressed size exceeds ${MAX_DECOMPRESSED_SIZE / (1024 * 1024 * 1024)}GB`,
+              ),
+            );
+            stream.terminate();
+          }
+        };
+        stream.start();
+        return;
+      }
+
+      entryCount++;
 
       const chunks: Uint8Array[] = [];
       stream.ondata = (err, data, final) => {
@@ -390,6 +498,7 @@ async function streamAndProcessZip(
                 `Zip bomb protection: decompressed size exceeds ${MAX_DECOMPRESSED_SIZE / (1024 * 1024 * 1024)}GB`,
               ),
             );
+            stream.terminate();
             return;
           }
           chunks.push(data);
@@ -510,22 +619,19 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
           const s3FileKey = `vault/${userId}/${jobId}/${cleanPath}`;
           uploadedFileKey = s3FileKey;
 
-          await storage.putObject(s3FileKey, buffer, {
-            contentType: mimeType || "application/octet-stream",
-          });
-
-          const noteId = await createNote(userId, filename, parentId, {
+          const noteId = await persistVaultSourceFile({
+            storage,
+            userId,
+            title: filename,
+            parentId,
             s3Key: s3FileKey,
             content: mimeType?.startsWith("text/")
               ? buffer.toString("utf-8")
               : "",
-          }, jobId);
-
-          await sql`
-            INSERT INTO app.attachments (id, note_id, user_id, filename, s3_key, mime_type, file_size)
-            VALUES (${uuidv4()}::uuid, ${noteId}::uuid, ${userId}::uuid,
-                    ${filename}, ${s3FileKey}, ${mimeType || "application/octet-stream"}, ${buffer.length})
-          `;
+            mimeType: mimeType || "application/octet-stream",
+            buffer,
+            jobId,
+          });
 
           if (isProcessable(filename)) {
             try {
@@ -605,9 +711,18 @@ export async function processVaultImport(msg: Record<string, unknown>): Promise<
       return;
     }
 
+    // A vault archive is a backup/import contract. Keep successfully created
+    // notes, but never report a partial import as complete. Vault jobs are
+    // deliberately single-attempt until import replay is idempotent.
+    if (failedFiles > 0) {
+      throw new Error(
+        `Could not import ${failedFiles} file${failedFiles === 1 ? "" : "s"}. Files processed before the error remain in your vault.`,
+      );
+    }
+
     // seed initial quiz questions from newly imported chunks (non-fatal)
     try {
-      const chunks = await sql`
+      const chunks = await sql<Array<{ id: string }>>`
         SELECT c.id FROM app.chunks c
         WHERE c.user_id = ${userId}::uuid
           AND c.created_at >= (SELECT started_at FROM app.canvas_import_jobs WHERE id = ${jobId}::uuid)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 
 const CONFIRM_PHRASE = "delete my account";
 

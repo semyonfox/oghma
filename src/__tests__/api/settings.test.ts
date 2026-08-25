@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { Locale } from "@/locales";
 
 vi.mock("@/lib/auth", () => ({
   validateSession: vi.fn(),
@@ -30,7 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.LLM_MODEL = "deepseek/deepseek-v4-flash";
   vi.mocked(validateSession).mockResolvedValue(MOCK_USER as never);
-  vi.mocked(getSettingsFromS3).mockResolvedValue({ locale: "en" });
+  vi.mocked(getSettingsFromS3).mockResolvedValue({ locale: Locale.EN });
 });
 
 afterEach(() => {
@@ -50,9 +51,29 @@ describe("GET /api/settings", () => {
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
-      locale: "en",
+      locale: Locale.EN,
       ai_model: "deepseek/deepseek-v4-flash",
     });
+  });
+
+  it("omits the locale for an account that never chose a language", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ theme: "dark" });
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+    const body = await response.json();
+
+    // Defaulting this to English would look like a deliberate choice and would
+    // overwrite a language the visitor picked before signing in.
+    expect(Object.hasOwn(body, "locale")).toBe(false);
+    expect(response.cookies.get("ogma-locale")).toBeUndefined();
+  });
+
+  it("mirrors a stored locale into the request cookie", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ locale: Locale.GA });
+
+    const response = await GET(new NextRequest("http://localhost/api/settings"));
+
+    expect(response.cookies.get("ogma-locale")?.value).toBe(Locale.GA);
   });
 });
 
@@ -112,9 +133,40 @@ describe("POST /api/settings", () => {
     });
   });
 
+  it("normalizes supported locale input and leaves an invalid stored locale unchanged", async () => {
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ locale: Locale.GA });
+
+    const normalizedResponse = await POST(
+      new NextRequest("http://localhost/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: "fr" }),
+      }),
+    );
+
+    expect(normalizedResponse.status).toBe(200);
+    expect(saveSettingsToS3).toHaveBeenLastCalledWith("user-123", {
+      locale: Locale.FR_FR,
+    });
+
+    vi.mocked(getSettingsFromS3).mockResolvedValueOnce({ locale: Locale.GA });
+    const invalidResponse = await POST(
+      new NextRequest("http://localhost/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: "not-a-locale" }),
+      }),
+    );
+
+    expect(invalidResponse.status).toBe(200);
+    expect(saveSettingsToS3).toHaveBeenLastCalledWith("user-123", {
+      locale: Locale.GA,
+    });
+  });
+
   it("does not persist client-submitted AI model changes", async () => {
     vi.mocked(getSettingsFromS3).mockResolvedValueOnce({
-      locale: "en",
+      locale: Locale.EN,
       ai_model: "stored-model",
     });
 

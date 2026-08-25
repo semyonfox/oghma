@@ -6,7 +6,10 @@ describe("Vast Marker offline plan", () => {
   it("passes the tracked fail-closed guardrails", () => {
     const result = spawnSync(
       process.execPath,
-      [resolve(process.cwd(), "scripts/vast-marker-plan.mjs")],
+      [
+        "--experimental-strip-types",
+        resolve(process.cwd(), "scripts/vast-marker-plan.ts"),
+      ],
       { encoding: "utf8" },
     );
 

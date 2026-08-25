@@ -14,7 +14,7 @@ vi.mock("@/lib/cache", () => ({
   cacheKeys: { treeFull: mocks.treeFull },
 }));
 
-import { getTreeFromPG } from "@/lib/notes/storage/pg-tree.js";
+import { getTreeFromPG } from "@/lib/notes/storage/pg-tree";
 
 describe("getTreeFromPG with a restored child", () => {
   beforeEach(() => {

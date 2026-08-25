@@ -28,7 +28,7 @@ export default defineConfig({
   },
   webServer: shouldStartWebServer
     ? {
-        command: `node scripts/e2e/run-with-env.mjs npm run dev -- --hostname ${base.hostname} --port ${base.port || 3310}`,
+        command: `node --experimental-strip-types scripts/e2e/run-with-env.ts npm run dev -- --hostname ${base.hostname} --port ${base.port || 3310}`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

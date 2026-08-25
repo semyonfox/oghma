@@ -1,6 +1,6 @@
 import { embedText } from "@/lib/embedText";
-import sql from "@/database/pgsql.js";
-import type { FilterType } from "./types";
+import sql from "@/database/pgsql";
+import type { CardState, FilterType } from "./types";
 import { SESSION_DEFAULTS } from "./types";
 import { searchChunkVectors } from "@/lib/qdrant";
 
@@ -9,13 +9,30 @@ interface DueCard {
   due: string;
 }
 
+interface IdRow {
+  id: string;
+}
+
+interface CardIdRow {
+  card_id: string;
+}
+
+interface ExistingCardRow extends DueCard {
+  state: CardState;
+  question_id: string;
+  chunk_id: string;
+}
+
+interface ChatMessageRow {
+  sources: unknown;
+}
+
 interface SelectionResult {
   due: DueCard[];
   newChunks: string[];
   retention: DueCard[];
 }
 
-// pure selection logic — testable without DB
 export function selectCards(
   dueCards: DueCard[],
   uncoveredChunkIds: string[],
@@ -74,12 +91,10 @@ export function selectCards(
     remaining -= 1;
   }
 
-  // sort due cards by urgency (most overdue first)
   const sortedDue = [...dueCards].sort(
     (a, b) => new Date(a.due).getTime() - new Date(b.due).getTime(),
   );
 
-  // shuffle mastered for random retention checks
   const shuffledMastered = [...masteredCards].sort(() => Math.random() - 0.5);
 
   return {
@@ -89,7 +104,23 @@ export function selectCards(
   };
 }
 
-// resolve filter to chunk IDs from the database
+function rowIds(rows: IdRow[]): string[] {
+  return rows.map(({ id }) => id);
+}
+
+function sourceNoteIds(sources: unknown): string[] {
+  if (!Array.isArray(sources)) return [];
+
+  return sources.flatMap((source) => {
+    if (source === null || typeof source !== "object" || Array.isArray(source)) {
+      return [];
+    }
+
+    const id = (source as Record<string, unknown>).id;
+    return typeof id === "string" ? [id] : [];
+  });
+}
+
 export async function resolveChunkIds(
   userId: string,
   filterType: FilterType,
@@ -104,7 +135,7 @@ export async function resolveChunkIds(
                   AND n.canvas_course_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
-      return rows.map((r: any) => r.id);
+      return rowIds(rows as IdRow[]);
     }
     case "module": {
       const rows = await sql`
@@ -114,7 +145,7 @@ export async function resolveChunkIds(
                   AND n.canvas_module_id = ${String(filterValue)}::bigint
                   AND n.deleted_at IS NULL
             `;
-      return rows.map((r: any) => r.id);
+      return rowIds(rows as IdRow[]);
     }
     case "note": {
       const noteIds = filterValue as string[];
@@ -126,7 +157,7 @@ export async function resolveChunkIds(
                   AND c.document_id = ANY(${noteIds}::uuid[])
                   AND n.deleted_at IS NULL
             `;
-      return rows.map((r: any) => r.id);
+      return rowIds(rows as IdRow[]);
     }
     case "search": {
       const query = filterValue as string;
@@ -147,12 +178,11 @@ export async function resolveChunkIds(
           AND c.id = ANY(${chunkIds}::uuid[])
           AND n.deleted_at IS NULL
       `;
-      const available = new Set(rows.map((row: any) => row.id));
+      const available = new Set(rowIds(rows as IdRow[]));
       return chunkIds.filter((id) => available.has(id));
     }
     case "chat_session": {
       const sessionId = filterValue as string;
-      // join through chat_sessions to enforce ownership (C3)
       const messages = await sql`
                 SELECT cm.sources FROM app.chat_messages cm
                 JOIN app.chat_sessions cs ON cs.id = cm.session_id
@@ -160,11 +190,9 @@ export async function resolveChunkIds(
                   AND cm.sources IS NOT NULL
                   AND cs.user_id = ${userId}::uuid
             `;
-      const noteIds = new Set<string>();
-      for (const msg of messages) {
-        const sources = msg.sources as { id: string }[];
-        sources?.forEach((s) => noteIds.add(s.id));
-      }
+      const noteIds = new Set(
+        (messages as ChatMessageRow[]).flatMap(({ sources }) => sourceNoteIds(sources)),
+      );
       if (noteIds.size === 0) return [];
       const rows = await sql`
                 SELECT c.id
@@ -174,7 +202,7 @@ export async function resolveChunkIds(
                   AND c.document_id = ANY(${[...noteIds]}::uuid[])
                   AND n.deleted_at IS NULL
             `;
-      return rows.map((r: any) => r.id);
+      return rowIds(rows as IdRow[]);
     }
     case "all": {
       const rows = await sql`
@@ -183,28 +211,26 @@ export async function resolveChunkIds(
                 WHERE c.user_id = ${userId}::uuid
                   AND n.deleted_at IS NULL
             `;
-      return rows.map((r: any) => r.id);
+      return rowIds(rows as IdRow[]);
     }
     default:
       return [];
   }
 }
 
-// get due cards, uncovered chunks, and mastered cards for a session
 export async function getSessionCandidates(
   userId: string,
   chunkIds: string[],
 ): Promise<{
-  dueCards: any[];
+  dueCards: ExistingCardRow[];
   uncoveredChunkIds: string[];
-  masteredCards: any[];
+  masteredCards: ExistingCardRow[];
 }> {
   if (chunkIds.length === 0) {
     return { dueCards: [], uncoveredChunkIds: [], masteredCards: [] };
   }
 
-  // get all existing cards for these chunks
-  const existingCards = await sql`
+  const existingCards = (await sql`
         SELECT qc.id, qc.due, qc.state, qc.question_id, qq.chunk_id
         FROM app.quiz_cards qc
         JOIN app.quiz_questions qq ON qc.question_id = qq.id
@@ -216,18 +242,19 @@ export async function getSessionCandidates(
         WHERE qc.user_id = ${userId}::uuid
           AND qq.chunk_id = ANY(${chunkIds}::uuid[])
           AND (ucs.is_active IS NULL OR ucs.is_active = true)
-    `;
+    `) as ExistingCardRow[];
 
-  // Exclude cards answered correctly today so they do not appear in a new session.
   const correctTodayRows = await sql`
     SELECT DISTINCT card_id FROM app.quiz_reviews
     WHERE user_id = ${userId}::uuid
       AND created_at >= CURRENT_DATE::timestamptz
       AND was_correct = true
   `;
-  const correctTodayIds = new Set(correctTodayRows.map((r: any) => r.card_id));
+  const correctTodayIds = new Set(
+    (correctTodayRows as CardIdRow[]).map(({ card_id }) => card_id),
+  );
 
-  const activeChunks = await sql`
+  const activeChunks = (await sql`
         SELECT c.id
         FROM app.chunks c
         JOIN app.notes n ON n.note_id = c.document_id
@@ -238,33 +265,28 @@ export async function getSessionCandidates(
           AND c.id = ANY(${chunkIds}::uuid[])
           AND n.deleted_at IS NULL
           AND (n.canvas_course_id IS NULL OR ucs.is_active IS NULL OR ucs.is_active = true)
-    `;
+    `) as IdRow[];
 
   const now = new Date();
   const dueCards = existingCards.filter(
-    (c: any) =>
-      new Date(c.due) <= now &&
-      c.state !== "new" &&
-      !correctTodayIds.has(c.id),
+    (card) =>
+      new Date(card.due) <= now &&
+      card.state !== "new" &&
+      !correctTodayIds.has(card.id),
   );
   const masteredCards = existingCards.filter(
-    (c: any) =>
-      new Date(c.due) > now &&
-      c.state === "review" &&
-      !correctTodayIds.has(c.id),
+    (card) =>
+      new Date(card.due) > now &&
+      card.state === "review" &&
+      !correctTodayIds.has(card.id),
   );
-  const newCards = existingCards.filter((c: any) => c.state === "new");
+  const newCards = existingCards.filter((card) => card.state === "new");
 
-  // only active chunks should seed or regenerate quiz questions
-  const activeChunkIds = activeChunks.map((chunk: any) => chunk.id);
+  const activeChunkIds = rowIds(activeChunks);
 
-  // chunks that have no questions yet
-  const coveredChunkIds = new Set(existingCards.map((c: any) => c.chunk_id));
-  const uncoveredChunkIds = activeChunkIds.filter(
-    (id: string) => !coveredChunkIds.has(id),
-  );
+  const coveredChunkIds = new Set(existingCards.map(({ chunk_id }) => chunk_id));
+  const uncoveredChunkIds = activeChunkIds.filter((id) => !coveredChunkIds.has(id));
 
-  // include new (unreviewed) cards as due
   const allDue = [...dueCards, ...newCards];
 
   return { dueCards: allDue, uncoveredChunkIds, masteredCards };

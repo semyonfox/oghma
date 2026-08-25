@@ -1,5 +1,11 @@
 import { BLOOM_NAMES, BLOOM_DESCRIPTIONS } from "./types";
-import type { BloomLevel, QuestionType, QuizQuestion } from "./types";
+import type {
+  BloomLevel,
+  QuestionType,
+  QuizOption,
+  QuizQuestion,
+} from "./types";
+import { stripQuizArtifacts } from "./normalize-question";
 import { generateUUID } from "@/lib/utils/uuid";
 import {
   buildReasoningOptions,
@@ -10,7 +16,7 @@ import {
   getLlmThinkingMode,
 } from "@/lib/ai-config";
 import { generateText } from "ai";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { recordActivationMilestone } from "@/lib/marketing/events";
 
@@ -105,40 +111,75 @@ Ask about a DIFFERENT concept or aspect of the material.`
 
 interface ParsedQuestion {
   question_text: string;
-  options: { text: string; is_correct: boolean }[] | null;
+  options: QuizOption[] | null;
   correct_answer: string;
   explanation: string;
 }
 
-// extract and parse JSON from a raw LLM response (handles markdown code fences)
-function extractJSON(raw: string): unknown {
+interface ExistingQuestionRow {
+  id: string;
+  question_text: string;
+  options: QuizOption[] | null;
+  correct_answer: string;
+  explanation: string | null;
+}
+
+function parseJsonObject(raw: string): Record<string, unknown> | null {
   try {
     const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, raw];
-    return JSON.parse(jsonMatch[1]!.trim());
+    const parsed: unknown = JSON.parse(jsonMatch[1]!.trim());
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
 }
 
+function parseOptions(value: unknown): QuizOption[] | null {
+  if (value == null) return null;
+  if (!Array.isArray(value)) return null;
+
+  const options = value.map((option) => {
+    if (option === null || typeof option !== "object" || Array.isArray(option)) {
+      return null;
+    }
+
+    const { text, is_correct } = option as Record<string, unknown>;
+    return typeof text === "string" && typeof is_correct === "boolean"
+      ? { text, is_correct }
+      : null;
+  });
+
+  return options.every((option): option is QuizOption => option !== null)
+    ? options
+    : null;
+}
+
 export function isSkipSignal(raw: string): boolean {
-  const parsed = extractJSON(raw);
-  return (parsed as any)?.skip === true;
+  return parseJsonObject(raw)?.skip === true;
 }
 
 export function parseGeneratedQuestion(raw: string): ParsedQuestion | null {
-  const parsed = extractJSON(raw) as any;
+  const parsed = parseJsonObject(raw);
   if (
     !parsed ||
-    !parsed.question_text?.trim() ||
-    !parsed.correct_answer?.trim()
+    typeof parsed.question_text !== "string" ||
+    !parsed.question_text.trim() ||
+    typeof parsed.correct_answer !== "string" ||
+    !parsed.correct_answer.trim()
   ) {
     return null;
   }
+
+  const options = parseOptions(parsed.options);
+  if (parsed.options != null && options === null) return null;
+
   return {
     question_text: parsed.question_text,
-    options: parsed.options ?? null,
+    options,
     correct_answer: parsed.correct_answer,
-    explanation: parsed.explanation ?? "",
+    explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
   };
 }
 
@@ -175,10 +216,7 @@ export async function generateQuestion(
   questionType: QuestionType,
   courseId?: string,
 ): Promise<QuizQuestion | null> {
-  const cleanedChunkText = chunkText
-    .replace(/^\s*\{\d+\}-+\s*$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const cleanedChunkText = stripQuizArtifacts(chunkText);
   const limitedChunkText =
     cleanedChunkText.length > MAX_CHUNK_CHARS
       ? `${cleanedChunkText.slice(0, MAX_CHUNK_CHARS)}\n\n[truncated for question generation]`
@@ -196,7 +234,8 @@ export async function generateQuestion(
       ORDER BY qq.created_at DESC
       LIMIT 5
     `;
-    existingQuestions = existing.map((r: any) => r.question_text);
+    existingQuestions = (existing as Array<Pick<ExistingQuestionRow, "question_text">>)
+      .map(({ question_text }) => question_text);
   }
 
   const prompt = buildGenerationPrompt(
@@ -233,7 +272,7 @@ export async function generateQuestion(
 
   let id = generateUUID();
   try {
-    const existingQuestion = await sql`
+    const existingQuestion = (await sql`
       SELECT id, question_text, options, correct_answer, explanation
       FROM app.quiz_questions
       WHERE user_id = ${userId}::uuid
@@ -241,7 +280,7 @@ export async function generateQuestion(
         AND bloom_level = ${bloomLevel}
       ORDER BY created_at ASC
       LIMIT 1
-    `;
+    `) as ExistingQuestionRow[];
 
     if (existingQuestion.length > 0) {
       const q = existingQuestion[0];

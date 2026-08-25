@@ -1,4 +1,4 @@
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import logger from "@/lib/logger";
@@ -23,6 +23,10 @@ export interface OAuthAccountRow {
   avatar_url: string | null;
   locale: string | null;
 }
+
+type UserIdRow = { user_id: string };
+
+type LinkedProviderRow = { provider: string; email: string | null };
 
 /**
  * check whether the provider guarantees the email is verified.
@@ -84,12 +88,12 @@ export async function findOAuthAccount(
   provider: string,
   providerId: string,
 ): Promise<OAuthAccountRow | null> {
-  const rows = await (sql as any)`
+  const rows = await sql<OAuthAccountRow[]>`
         SELECT id, user_id, provider, provider_id, email, name, avatar_url, locale
         FROM app.oauth_accounts
         WHERE provider = ${provider} AND provider_id = ${providerId}
     `;
-  return rows.length > 0 ? rows[0] : null;
+  return rows[0] ?? null;
 }
 
 /**
@@ -100,7 +104,7 @@ export async function linkOAuthAccount(
   userId: string,
   profile: OAuthProfile,
 ): Promise<void> {
-  await (sql as any)`
+  await sql`
         INSERT INTO app.oauth_accounts (
             user_id, provider, provider_id, email, name, avatar_url, locale, raw_profile
         ) VALUES (
@@ -134,7 +138,7 @@ export async function syncProfileToLogin(
     locale?: string | null;
   },
 ): Promise<void> {
-  await (sql as any)`
+  await sql`
         UPDATE app.login SET
             display_name = COALESCE(display_name, ${profile.name ?? null}),
             avatar_url = COALESCE(avatar_url, ${profile.image ?? null}),
@@ -148,8 +152,8 @@ export async function syncProfileToLogin(
  */
 export async function getLinkedProviders(
   userId: string,
-): Promise<Array<{ provider: string; email: string | null }>> {
-  return await (sql as any)`
+): Promise<LinkedProviderRow[]> {
+  return sql<LinkedProviderRow[]>`
         SELECT provider, email
         FROM app.oauth_accounts
         WHERE user_id = ${userId}::uuid
@@ -189,7 +193,7 @@ export async function findOrCreateOAuthUser(
       locale: profile.locale,
     });
     if (isEmailVerifiedByProvider(profile.provider, providerProfile)) {
-      await (sql as any)`
+      await sql`
         UPDATE app.login SET email_verified = true
         WHERE user_id = ${existing.user_id}::uuid
       `;
@@ -199,7 +203,7 @@ export async function findOrCreateOAuthUser(
 
   // step 2: auto-link by email (only if verified)
   if (emailVerified && profile.email) {
-    const loginRows = await (sql as any)`
+    const loginRows = await sql<UserIdRow[]>`
             SELECT user_id FROM app.login
             WHERE email = ${profile.email}
               AND is_active = true
@@ -213,7 +217,7 @@ export async function findOrCreateOAuthUser(
         image: profile.image,
         locale: profile.locale,
       });
-      await (sql as any)`
+      await sql`
         UPDATE app.login SET email_verified = true
         WHERE user_id = ${userId}::uuid
       `;
@@ -231,7 +235,7 @@ export async function findOrCreateOAuthUser(
   const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
   // ON CONFLICT handles race condition: if another request just created the same email
-  const insertResult = await (sql as any)`
+  const insertResult = await sql<UserIdRow[]>`
         INSERT INTO app.login (email, hashed_password, display_name, avatar_url, locale, email_verified)
         VALUES (
             ${profile.email},
@@ -250,10 +254,14 @@ export async function findOrCreateOAuthUser(
     userId = insertResult[0].user_id;
   } else {
     // race: another request created it first, fetch the existing one
-    const existing = await (sql as any)`
+    const existing = await sql<UserIdRow[]>`
             SELECT user_id FROM app.login WHERE email = ${profile.email}
         `;
-    userId = existing[0].user_id;
+    const existingUser = existing[0];
+    if (!existingUser) {
+      throw new Error("OAuth user creation race did not yield an account");
+    }
+    userId = existingUser.user_id;
   }
 
   await linkOAuthAccount(userId, profile);

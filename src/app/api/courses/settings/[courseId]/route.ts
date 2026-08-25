@@ -5,8 +5,8 @@ import {
   withErrorHandler,
   tracedError,
 } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
-import { canvasIdForBigintColumn } from "@/lib/canvas/id.js";
+import sql from "@/database/pgsql";
+import { canvasIdForBigintColumn } from "@/lib/canvas/id";
 
 export const PATCH = withErrorHandler(
   async (

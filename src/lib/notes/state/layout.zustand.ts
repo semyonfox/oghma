@@ -15,6 +15,32 @@ interface PaneState {
   lastOpened?: number; // timestamp
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFileType(value: unknown): value is FileType {
+  return value === "note" || value === "pdf" || value === "image" || value === "video";
+}
+
+function isPaneState(value: unknown): value is PaneState {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.fileId === "string" &&
+    isFileType(value.fileType) &&
+    (value.title === undefined || typeof value.title === "string") &&
+    (value.sourcePath === undefined || typeof value.sourcePath === "string") &&
+    (value.editMode === undefined || typeof value.editMode === "boolean") &&
+    (value.lastOpened === undefined || typeof value.lastOpened === "number")
+  );
+}
+
+function stringSet(value: unknown, fallback: string[]): Set<string> {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? new Set(value)
+    : new Set(fallback);
+}
+
 export interface FileSpec extends PaneState {}
 
 interface LayoutState {
@@ -74,7 +100,7 @@ const useLayoutStore = create<LayoutState>()(
       paneB: null,
       activePane: "A",
       rightPanelOpen: false,
-      rightPanelTab: "meta" as RightPanelTab,
+      rightPanelTab: "meta",
       treeWidth: 240,
       rightPanelWidth: 280,
       splitPosition: 50,
@@ -225,14 +251,34 @@ const useLayoutStore = create<LayoutState>()(
         paneA: state.paneA,
         paneB: state.paneB,
       }),
-      merge: (persistedState: any, currentState) => ({
-        ...currentState,
-        ...(persistedState as any),
-        collapsedSections: new Set(persistedState?.collapsedSections || []),
-        expandedNodes: new Set(persistedState?.expandedNodes || ["root"]),
-        paneA: persistedState?.paneA ?? currentState.paneA,
-        paneB: persistedState?.paneB ?? null,
-      }),
+      merge: (persistedState, currentState) => {
+        if (!isRecord(persistedState)) return currentState;
+
+        return {
+          ...currentState,
+          treeWidth:
+            typeof persistedState.treeWidth === "number"
+              ? persistedState.treeWidth
+              : currentState.treeWidth,
+          rightPanelWidth:
+            typeof persistedState.rightPanelWidth === "number"
+              ? persistedState.rightPanelWidth
+              : currentState.rightPanelWidth,
+          splitPosition:
+            typeof persistedState.splitPosition === "number"
+              ? persistedState.splitPosition
+              : currentState.splitPosition,
+          collapsedSections: stringSet(persistedState.collapsedSections, []),
+          expandedNodes: stringSet(persistedState.expandedNodes, ["root"]),
+          paneA: isPaneState(persistedState.paneA)
+            ? persistedState.paneA
+            : currentState.paneA,
+          paneB:
+            persistedState.paneB === null || isPaneState(persistedState.paneB)
+              ? persistedState.paneB
+              : null,
+        };
+      },
     },
   ),
 );

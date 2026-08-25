@@ -8,10 +8,16 @@ import SidebarListItem from "./sidebar-list-item";
 import {
   ControlledTreeEnvironment,
   Tree,
+  type TreeItem,
   TreeItemIndex,
 } from "react-complex-tree";
 import "react-complex-tree/lib/style.css";
 import { NoteModel } from "@/lib/notes/types/note";
+import {
+  NOTE_DELETED,
+  NOTE_PINNED,
+  NOTE_SHARED,
+} from "@/lib/notes/types/meta";
 
 export const Favorites: FC = () => {
   const { t } = useI18n();
@@ -21,7 +27,7 @@ export const Favorites: FC = () => {
 
   // convert flat tree to react-complex-tree format
   const treeData = useMemo(() => {
-    const result: Record<string, any> = {};
+    const result: Record<TreeItemIndex, TreeItem<NoteModel | undefined>> = {};
 
     // Add root
     const root = pinnedTree.items["root"];
@@ -30,6 +36,7 @@ export const Favorites: FC = () => {
         index: "root",
         canMove: false,
         children: root.children,
+        data: undefined,
       };
     }
 
@@ -58,7 +65,7 @@ export const Favorites: FC = () => {
   const viewState = useMemo(
     () => ({
       "favorites-tree": {
-        expandedItems: Array.from(expandedIds) as TreeItemIndex[],
+        expandedItems: Array.from(expandedIds),
         selectedItems: [],
       },
     }),
@@ -66,7 +73,7 @@ export const Favorites: FC = () => {
   );
 
   const handleToggleExpanded = useCallback(
-    (item: any) => {
+    (item: TreeItem<NoteModel | undefined>) => {
       const itemId = item.index;
       if (typeof itemId === "string") {
         const newExpandedIds = new Set(expandedIds);
@@ -113,7 +120,7 @@ export const Favorites: FC = () => {
               rootItem="root"
               treeLabel={t("Favorites")}
               renderItem={({ item, children, arrow, context }) => {
-                const nodeData = item.data as any;
+                const nodeData = item.data;
                 const hasChildren = !!(
                   item.children && item.children.length > 0
                 );
@@ -130,18 +137,21 @@ export const Favorites: FC = () => {
                       {arrow}
                       <SidebarListItem
                         onToggle={() => handleToggleExpanded(item)}
-                        isExpanded={expandedIds.has(item.index as string)}
+                        isExpanded={
+                          typeof item.index === "string" &&
+                          expandedIds.has(item.index)
+                        }
                         innerRef={() => {}}
                         hasChildren={hasChildren}
                         item={
                           nodeData ??
                           ({
-                            id: item.index,
+                            id: String(item.index),
                             title: "Untitled",
-                            deleted: 0,
-                            shared: 0,
-                            pinned: 1,
-                          } as NoteModel)
+                            deleted: NOTE_DELETED.NORMAL,
+                            shared: NOTE_SHARED.PRIVATE,
+                            pinned: NOTE_PINNED.PINNED,
+                          })
                         }
                         snapshot={{
                           isDragging: false,

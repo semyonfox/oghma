@@ -37,7 +37,7 @@ interface TitleState {
 interface SettingsState {
   settings: Settings;
   setSettings: (settings: Settings) => void;
-  updateSettings: (body: Partial<Settings>) => Promise<void>;
+  updateSettings: (body: Partial<Settings>) => Promise<Settings>;
 }
 
 interface UIStoreData {

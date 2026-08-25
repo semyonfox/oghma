@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type postgres from "postgres";
 
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
@@ -11,7 +12,7 @@ describe("cancelActiveCanvasImportJobs", () => {
       .mockResolvedValue([]);
 
     const result = await cancelActiveCanvasImportJobs(
-      tx,
+      tx as unknown as postgres.TransactionSql,
       "22222222-2222-4222-8222-222222222222",
       "Cancelled by user",
     );

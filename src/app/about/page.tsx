@@ -1,0 +1,548 @@
+import Image from "next/image";
+import Link from "next/link";
+import Header from "@/components/header";
+import Footer from "@/components/footer";
+import { aboutBlogCards, authors } from "@/lib/blog-data";
+import { getServerI18n } from "@/lib/i18n/server";
+
+const academicImages = [
+  {
+    name: "University library",
+    src: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=600&h=400&q=80",
+  },
+  {
+    name: "Students studying together",
+    src: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&h=400&q=80",
+  },
+  {
+    name: "Lecture hall",
+    src: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=600&h=400&q=80",
+  },
+  {
+    name: "Campus walkway",
+    src: "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=600&h=400&q=80",
+  },
+  {
+    name: "Academic research",
+    src: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=600&h=400&q=80",
+  },
+];
+
+type Translate = (key: string, params?: Record<string, unknown>) => string;
+
+const getStats = (t: Translate) => [
+  { label: t("Launch focus"), value: "Canvas" },
+  { label: t("Current stage"), value: "Beta" },
+  { label: t("Built in"), value: "Galway" },
+];
+const blogPosts = aboutBlogCards;
+const getTeam = (t: Translate) => [
+  {
+    name: authors.samuel.name,
+    role: t("Full-Stack Developer"),
+    description: t(
+      "Full-stack engineer building scalable web applications with modern technologies.",
+    ),
+    imageUrl: authors.samuel.imageUrl,
+    github: "https://github.com/SamuelRegan-dev",
+    linkedin: authors.samuel.linkedin,
+  },
+  {
+    name: authors.semyon.name,
+    role: t("Full-Stack Developer & Infrastructure"),
+    description: t(
+      "Full-stack engineer leading technical strategy and infrastructure initiatives.",
+    ),
+    imageUrl: authors.semyon.imageUrl,
+    github: "https://github.com/semyonfox",
+    linkedin: authors.semyon.linkedin,
+  },
+  {
+    name: authors.shreyansh.name,
+    role: t("Full-Stack Developer"),
+    description: t(
+      "Full-stack engineer contributing across frontend and backend features.",
+    ),
+    imageUrl: authors.shreyansh.imageUrl,
+    github: "https://github.com/shreyanshSingh06",
+    linkedin: authors.shreyansh.linkedin,
+  },
+];
+export default async function About() {
+  const { t } = await getServerI18n();
+  const stats = getStats(t);
+  const team = getTeam(t);
+  return (
+    <div className="bg-landing">
+      <Header />
+
+      <main className="isolate">
+        {/* Hero section */}
+        <div className="relative isolate -z-10">
+          <svg
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 -z-10 h-256 w-full mask-[radial-gradient(32rem_32rem_at_center,white,transparent)] stroke-white/10"
+          >
+            <defs>
+              <pattern
+                x="50%"
+                y={-1}
+                id="1f932ae7-37de-4c0a-a8b0-a6e3b4d44b84"
+                width={200}
+                height={200}
+                patternUnits="userSpaceOnUse"
+              >
+                <path d="M.5 200V.5H200" fill="none" />
+              </pattern>
+            </defs>
+            <svg x="50%" y={-1} className="overflow-visible fill-surface">
+              <path
+                d="M-200 0h201v201h-201Z M600 0h201v201h-201Z M-400 600h201v201h-201Z M200 800h201v201h-201Z"
+                strokeWidth={0}
+              />
+            </svg>
+            <rect
+              fill="url(#1f932ae7-37de-4c0a-a8b0-a6e3b4d44b84)"
+              width="100%"
+              height="100%"
+              strokeWidth={0}
+            />
+          </svg>
+          <div
+            aria-hidden="true"
+            className="absolute top-0 right-0 left-1/2 -z-10 -ml-24 transform-gpu overflow-hidden blur-3xl lg:ml-24 xl:ml-48"
+          >
+            <div
+              style={{
+                clipPath:
+                  "polygon(63.1% 29.5%, 100% 17.1%, 76.6% 3%, 48.4% 0%, 44.6% 4.7%, 54.5% 25.3%, 59.8% 49%, 55.2% 57.8%, 44.4% 57.2%, 27.8% 47.9%, 35.1% 81.5%, 0% 97.7%, 39.2% 100%, 35.2% 81.4%, 97.2% 52.8%, 63.1% 29.5%)",
+              }}
+              className="aspect-801/1036 w-200.25 bg-linear-to-tr from-[#ff80b5] to-[#9089fc] opacity-30"
+            />
+          </div>
+          <div className="overflow-hidden">
+            <div className="mx-auto max-w-7xl px-6 pt-36 pb-32 sm:pt-60 lg:px-8 lg:pt-32">
+              <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
+                <div className="relative w-full lg:max-w-xl lg:shrink-0 xl:max-w-2xl">
+                  <h1 className="font-serif text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.035em] text-pretty text-text sm:text-6xl">
+                    {t("Built around the course you already have.")}
+                  </h1>
+                  <p className="mt-8 text-lg font-medium text-pretty text-text-tertiary sm:max-w-md sm:text-xl/8 lg:max-w-none">
+                    {t(
+                      "OghmaNotes began as a University of Galway student project. It is independent and connects supported Canvas course material and deadlines with notes, cited answers, flashcards, and planning.",
+                    )}
+                  </p>
+                </div>
+                <div className="mt-14 flex justify-end gap-8 sm:-mt-44 sm:justify-start sm:pl-20 lg:mt-0 lg:pl-0">
+                  <div className="ml-auto w-44 flex-none space-y-8 pt-32 sm:ml-0 sm:pt-80 lg:order-last lg:pt-36 xl:order-0 xl:pt-80">
+                    <div className="relative">
+                      <Image
+                        alt="Students collaborating on a group project"
+                        src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
+                        sizes="176px"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                    </div>
+                  </div>
+                  <div className="mr-auto w-44 flex-none space-y-8 sm:mr-0 sm:pt-52 lg:pt-36">
+                    <div className="relative">
+                      <Image
+                        alt="University lecture hall during a class"
+                        src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
+                        sizes="176px"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                    </div>
+                    <div className="relative">
+                      <Image
+                        alt="Teacher writing on a classroom whiteboard"
+                        src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
+                        sizes="176px"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                    </div>
+                  </div>
+                  <div className="w-44 flex-none space-y-8 pt-32 sm:pt-0">
+                    <div className="relative">
+                      <Image
+                        alt="Students studying together outdoors"
+                        src="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
+                        sizes="176px"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                    </div>
+                    <div className="relative">
+                      <Image
+                        alt="Graduates celebrating at commencement"
+                        src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=352&h=528&q=80"
+                        width={352}
+                        height={528}
+                        sizes="176px"
+                        className="aspect-2/3 w-full rounded-xl bg-subtle object-cover shadow-lg"
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-border-subtle ring-inset" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content section */}
+        <div className="mx-auto -mt-12 max-w-7xl px-6 sm:mt-0 lg:px-8 xl:-mt-8">
+          <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
+            <h2 className="text-4xl font-semibold tracking-tight text-pretty text-text sm:text-5xl">
+              {t("Our mission")}
+            </h2>
+            <div className="mt-6 flex flex-col gap-x-8 gap-y-20 lg:flex-row">
+              <div className="lg:w-full lg:max-w-2xl lg:flex-auto">
+                <p className="text-xl/8 text-text-secondary">
+                  {t(
+                    "OghmaNotes connects supported Canvas course material and deadlines with notes, cited answers, flashcards, and planning, so students do not have to rebuild the same semester across separate tools.",
+                  )}
+                </p>
+                <p className="mt-10 max-w-xl text-base/7 text-text-tertiary">
+                  {t(
+                    "Canvas access depends on the institution, account permissions, and available APIs. Imports and indexing may take time.",
+                  )}
+                </p>
+              </div>
+              <div className="lg:flex lg:flex-auto lg:justify-center">
+                <dl className="w-64 space-y-8 xl:w-80">
+                  {stats.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="flex flex-col-reverse gap-y-4"
+                    >
+                      <dt className="text-base/7 text-text-tertiary">
+                        {stat.label}
+                      </dt>
+                      <dd className="text-5xl font-semibold tracking-tight text-text">
+                        {stat.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Image section */}
+        <div className="mt-32 sm:mt-40 xl:mx-auto xl:max-w-7xl xl:px-8">
+          <Image
+            alt="Stack of books on a library desk"
+            src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1400&q=80"
+            width={1400}
+            height={560}
+            sizes="(max-width: 1280px) 100vw, 1280px"
+            className="aspect-5/2 w-full object-cover outline-1 -outline-offset-1 outline-white/10 xl:rounded-3xl"
+          />
+        </div>
+
+        {/* Features section */}
+        <div className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8">
+          <div className="mx-auto max-w-2xl lg:mx-0">
+            <h2 className="type-section-title text-text">
+              {t("Built around the real semester")}
+            </h2>
+            <p className="type-lead mt-6 text-text-secondary">
+              {t(
+                "The public launch focus is Canvas import, course-aware study, and honest beta limits.",
+              )}
+            </p>
+          </div>
+          <ol className="mt-16 grid grid-cols-1 border-t border-border-subtle sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                name: t("Cited course answers"),
+                description: t(
+                  "Ask questions from imported notes, slides, and course files, with answers grounded in available source material.",
+                ),
+              },
+              {
+                name: t("Canvas-first import"),
+                description: t(
+                  "Bring lectures, files, assignments, and deadlines into one study workspace, subject to Canvas permissions.",
+                ),
+              },
+              {
+                name: t("Study structure"),
+                description: t(
+                  "Keep modules, notes, imported files, flashcards, and revision work connected to the course they came from.",
+                ),
+              },
+              {
+                name: t("Export and account control"),
+                description: t(
+                  "Use export and account controls so your study material is not trapped in a beta product.",
+                ),
+              },
+            ].map((feature, index) => (
+              <li
+                key={feature.name}
+                className="border-b border-border-subtle py-8 sm:px-6 sm:first:pl-0 lg:border-r lg:last:border-r-0 lg:last:pr-0"
+              >
+                <span className="type-eyebrow text-primary-300">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3 className="type-card-title mt-5 text-text">
+                  {feature.name}
+                </h3>
+                <p className="mt-3 text-base/7 text-text-tertiary">
+                  {feature.description}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* Logo cloud */}
+        <div className="relative isolate -z-10 mt-32 sm:mt-48">
+          <div className="absolute inset-x-0 top-1/2 -z-10 flex -translate-y-1/2 justify-center overflow-hidden mask-[radial-gradient(50%_45%_at_50%_55%,white,transparent)]">
+            <svg
+              aria-hidden="true"
+              className="h-160 w-7xl flex-none stroke-white/10"
+            >
+              <defs>
+                <pattern
+                  x="50%"
+                  y="50%"
+                  id="e9033f3e-f665-41a6-84ef-756f6778e6fe"
+                  width={200}
+                  height={200}
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="translate(-100 0)"
+                >
+                  <path d="M.5 200V.5H200" fill="none" />
+                </pattern>
+              </defs>
+              <svg x="50%" y="50%" className="overflow-visible fill-surface">
+                <path
+                  d="M-300 0h201v201h-201Z M300 200h201v201h-201Z"
+                  strokeWidth={0}
+                />
+              </svg>
+              <rect
+                fill="url(#e9033f3e-f665-41a6-84ef-756f6778e6fe)"
+                width="100%"
+                height="100%"
+                strokeWidth={0}
+              />
+            </svg>
+          </div>
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <h2 className="text-center text-lg/8 font-semibold text-text">
+              {t("Built for academic excellence")}
+            </h2>
+            <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-center gap-x-6 gap-y-8 sm:max-w-2xl sm:grid-cols-3 sm:gap-x-8 lg:mx-0 lg:max-w-none lg:grid-cols-5 lg:gap-x-8 lg:gap-y-10">
+              {academicImages.map((img) => (
+                <div
+                  key={img.name}
+                  className="col-span-1 overflow-hidden rounded-xl"
+                >
+                  <Image
+                    alt={img.name}
+                    src={img.src}
+                    width={600}
+                    height={400}
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    className="aspect-3/2 w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Team section */}
+        <div className="py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-6 text-center lg:px-8">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+                {t("Meet our team")}
+              </h2>
+              <p className="mt-6 text-lg/8 text-text-tertiary">
+                {t(
+                  "We're a dynamic group of individuals who are passionate about what we do and dedicated to creating the best learning platform.",
+                )}
+              </p>
+            </div>
+            <ul
+              role="list"
+              className="mx-auto mt-20 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-8"
+            >
+              {team.map((person) => (
+                <li
+                  key={person.name}
+                  className="rounded-2xl bg-surface px-8 py-10"
+                >
+                  <a
+                    href={person.linkedin}
+                    className="inline-block"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Image
+                      alt={person.name}
+                      src={person.imageUrl}
+                      width={224}
+                      height={224}
+                      sizes="(min-width: 768px) 224px, 192px"
+                      className="mx-auto size-48 rounded-full outline-1 -outline-offset-1 outline-white/10 md:size-56"
+                    />
+                  </a>
+                  <h3 className="mt-6 text-base/7 font-semibold tracking-tight text-text">
+                    <a
+                      href={person.linkedin}
+                      className="hover:text-text-secondary"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {person.name}
+                    </a>
+                  </h3>
+                  <p className="text-sm/6 text-text-tertiary">{person.role}</p>
+                  <p className="mt-2 text-sm/6 text-text-secondary">
+                    {person.description}
+                  </p>
+                  <ul role="list" className="mt-6 flex justify-center gap-x-6">
+                    <li>
+                      <a
+                        href={person.github}
+                        className="text-text-tertiary hover:text-text-secondary"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="sr-only">GitHub</span>
+                        <svg
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                          aria-hidden="true"
+                          className="size-5"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 1.667c-4.597 0-8.333 3.736-8.333 8.333 0 3.682 2.386 6.813 5.698 7.916.417.083.583-.208.583-.417v-1.458c-2.292.5-2.917-1.208-2.917-1.208-.375-.958-1.042-1.208-1.042-1.208-.833-.583.083-.583.083-.583.917.083 1.458.958 1.458.958.833 1.458 2.25 1.042 2.791.833.083-.667.333-1.042.583-1.292-2.083-.25-4.292-1.042-4.292-4.583 0-1.042.375-1.875.958-2.542-.083-.25-.375-1.208.083-2.5 0 0 .792-.25 2.583.958.75-.208 1.542-.333 2.333-.333.792 0 1.583.125 2.333.333 1.792-1.208 2.583-.958 2.583-.958.458 1.292.167 2.25.083 2.5.583.667.958 1.5.958 2.542 0 3.542-2.208 4.333-4.292 4.583.333.292.625.875.625 1.792v2.667c0 .208.167.5.583.417 3.312-1.104 5.698-4.235 5.698-7.916 0-4.598-3.736-8.333-8.333-8.333z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href={person.linkedin}
+                        className="text-text-tertiary hover:text-text-secondary"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="sr-only">LinkedIn</span>
+                        <svg
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                          aria-hidden="true"
+                          className="size-5"
+                        >
+                          <path
+                            d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z"
+                            clipRule="evenodd"
+                            fillRule="evenodd"
+                          />
+                        </svg>
+                      </a>
+                    </li>
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Blog section */}
+        <div
+          id="blog"
+          className="mx-auto mt-32 max-w-7xl px-6 sm:mt-40 lg:px-8"
+        >
+          <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
+            <h2 className="text-4xl font-semibold tracking-tight text-balance text-text sm:text-5xl">
+              {t("From our blog")}
+            </h2>
+            <p className="mt-2 text-lg/8 text-text-tertiary">
+              {t(
+                "Notes from the team on Canvas import, connected study workflows, and the limits of an early product.",
+              )}
+            </p>
+          </div>
+          <div className="mx-auto mt-16 grid max-w-2xl auto-rows-fr grid-cols-1 gap-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3">
+            {blogPosts.map((post) => (
+              <article
+                key={post.slug}
+                className="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-surface px-8 pt-80 pb-8 sm:pt-48 lg:pt-80"
+              >
+                <Image
+                  alt={post.title}
+                  src={post.imageUrl}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 33vw"
+                  className="absolute inset-0 -z-10 object-cover"
+                />
+                <div className="absolute inset-0 -z-10 bg-linear-to-t from-black/80 via-black/40" />
+                <div className="absolute inset-0 -z-10 rounded-2xl inset-ring inset-ring-border-subtle" />
+
+                <div className="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm/6 text-text-secondary">
+                  <time dateTime={post.datetime} className="mr-8">
+                    {post.date}
+                  </time>
+                  <div className="-ml-4 flex items-center gap-x-4">
+                    <svg
+                      viewBox="0 0 2 2"
+                      className="-ml-0.5 size-0.5 flex-none fill-gray-300/50"
+                    >
+                      <circle r={1} cx={1} cy={1} />
+                    </svg>
+                    <a
+                      href={post.author.linkedin}
+                      className="flex items-center gap-x-2.5 text-text-secondary hover:text-text"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Image
+                        alt={post.author.name}
+                        src={post.author.imageUrl}
+                        width={24}
+                        height={24}
+                        className="size-6 flex-none rounded-full bg-surface-elevated"
+                      />
+                      <span>{post.author.name}</span>
+                    </a>
+                  </div>
+                </div>
+                <h3 className="mt-3 text-lg/6 font-semibold text-text">
+                  <Link href={`/blog/${post.slug}`}>
+                    <span className="absolute inset-0" />
+                    {t(post.title)}
+                  </Link>
+                </h3>
+              </article>
+            ))}
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-// Queue facade for canvas-import + extract-retry pipelines.
+// Queue facade for Canvas imports, extraction, chat generation, and Marker dispatch.
 // Defaults to BullMQ for local/current homelab compatibility. Set
 // QUEUE_PROVIDER=cloudflare to publish to Cloudflare Queues over HTTP.
 import { Queue, type JobsOptions } from "bullmq";
@@ -140,24 +140,39 @@ export async function enqueueChatGeneration(generationId: string): Promise<void>
   );
 }
 
-const DEFAULT_CANVAS_QUEUE_ATTEMPTS = Math.max(
-  1,
-  Number.parseInt(process.env.CANVAS_FILE_QUEUE_MAX_ATTEMPTS ?? "", 10) || 3,
-);
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Total deliveries allowed for Canvas discovery and per-file jobs. Consumers
+ * use the same value to decide whether a failed delivery should return to its
+ * durable pending state.
+ */
+export function getCanvasQueueAttemptLimit(): number {
+  return positiveIntegerEnv("CANVAS_FILE_QUEUE_MAX_ATTEMPTS", 3);
+}
+
+/** Total deliveries allowed while applying an already-produced Marker result. */
+export function getMarkerCompletionAttemptLimit(): number {
+  return positiveIntegerEnv("MARKER_COMPLETION_MAX_ATTEMPTS", 3);
+}
 
 // Bounded retries are safe for canvas-import (workers atomically reclaim a
-// pending row before mutating; see src/lib/canvas/import-extraction.js) and
+// pending row before mutating; see src/lib/canvas/import-extraction.ts) and
 // extract-retry.
-// Vault import is NOT yet retry-safe: `createNote()` mints fresh UUIDs per entry,
-// so a partial-failure retry would create duplicates. Vault enqueue sites override
-// attempts: 1 until import-worker is made idempotent (planned alongside cancellation).
-// keep the last 200 completed/failed jobs for observability; older are pruned
-const DEFAULT_OPTS: JobsOptions = {
-  removeOnComplete: { count: 200 },
-  removeOnFail: { count: 200 },
-  attempts: DEFAULT_CANVAS_QUEUE_ATTEMPTS,
-  backoff: { type: "exponential", delay: 1000 },
-};
+// Vault import is not retry-safe: a partial rerun generates new note IDs. Its
+// enqueue site therefore overrides attempts to 1. Other Canvas jobs use these
+// bounded defaults and retain a small history for operational visibility.
+function defaultCanvasJobOptions(): JobsOptions {
+  return {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 200 },
+    attempts: getCanvasQueueAttemptLimit(),
+    backoff: { type: "exponential", delay: 1000 },
+  };
+}
 
 function getCloudflareQueueConfig(): CloudflareQueueConfig {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? process.env.CF_ACCOUNT_ID;
@@ -181,7 +196,7 @@ function getCloudflareQueueConfig(): CloudflareQueueConfig {
   return { accountId: accountId!, apiToken: apiToken! };
 }
 
-// Each queue id is only required by deployments that actually publish to it.
+// A queue ID is only required by deployments that publish to or pull from it.
 const CLOUDFLARE_QUEUE_ID_VARS: Record<string, string> = {
   [CANVAS_IMPORT_QUEUE]: "CLOUDFLARE_CANVAS_IMPORT_QUEUE_ID",
   [EXTRACT_RETRY_QUEUE]: "CLOUDFLARE_EXTRACT_RETRY_QUEUE_ID",
@@ -262,7 +277,11 @@ export async function enqueueCanvasJob(
     return;
   }
 
-  await getCanvasImportQueue().add(type, { type, ...data }, { ...DEFAULT_OPTS, ...opts });
+  await getCanvasImportQueue().add(
+    type,
+    { type, ...data },
+    { ...defaultCanvasJobOptions(), ...opts },
+  );
 }
 
 export async function enqueueExtractRetryJob(
@@ -281,7 +300,7 @@ export async function enqueueExtractRetryJob(
   await getCanvasImportQueue().add(
     "extract-retry",
     { type: "extract-retry", ...data },
-    { ...DEFAULT_OPTS, delay: delaySeconds * 1000 },
+    { ...defaultCanvasJobOptions(), delay: delaySeconds * 1000 },
   );
 }
 
@@ -303,7 +322,7 @@ export async function enqueueMarkerDispatchJob(
   }
 
   await getMarkerDispatchQueue().add("marker-dispatch", data, {
-    ...DEFAULT_OPTS,
+    ...defaultCanvasJobOptions(),
     jobId: `marker-dispatch-${callbackId}`,
     attempts,
     removeOnComplete: true,
@@ -315,10 +334,6 @@ async function enqueueMarkerContinuationJob(
   type: "marker-complete" | "marker-failed",
   callbackId: string,
 ): Promise<void> {
-  const attempts = Math.max(
-    1,
-    Number.parseInt(process.env.MARKER_COMPLETION_MAX_ATTEMPTS ?? "", 10) || 3,
-  );
   const data = { type, markerJobId: callbackId };
 
   if (getQueueProvider() === "cloudflare") {
@@ -333,9 +348,9 @@ async function enqueueMarkerContinuationJob(
   // completed job so recovery can enqueue a new deterministic job ID after a
   // crash or an exhausted transient queue delivery.
   await getCanvasImportQueue().add(type, data, {
-    ...DEFAULT_OPTS,
+    ...defaultCanvasJobOptions(),
     jobId: `${type}-${callbackId}`,
-    attempts,
+    attempts: getMarkerCompletionAttemptLimit(),
     backoff: { type: "exponential", delay: 15_000 },
     removeOnComplete: true,
     removeOnFail: true,
@@ -361,7 +376,7 @@ export function getQueueConnection(): IORedis {
 export interface CloudflarePulledMessage {
   id: string;
   lease_id: string;
-  attempts: number;
+  attempts?: number;
   body: unknown;
   metadata?: Record<string, string>;
 }
@@ -398,23 +413,50 @@ export async function ackCloudflareQueueMessages(
 }
 
 export function parseCloudflareQueueBody(message: CloudflarePulledMessage): Record<string, unknown> {
-  if (message.body && typeof message.body === "object" && !Array.isArray(message.body)) {
-    return message.body as Record<string, unknown>;
+  if (isRecord(message.body)) {
+    return message.body;
   }
 
   if (typeof message.body !== "string") {
     throw new Error(`Unsupported Cloudflare queue body type for message ${message.id}`);
   }
 
-  const contentType = message.metadata?.["CF-Content-Type"] ?? message.metadata?.["content-type"];
+  const contentType =
+    message.metadata?.["CF-Content-Type"] ??
+    message.metadata?.["content-type"];
   if (contentType === "json" || contentType === "bytes") {
-    try {
-      return JSON.parse(message.body);
-    } catch {
-      const decoded = Buffer.from(message.body, "base64").toString("utf8");
-      return JSON.parse(decoded);
-    }
+    // HTTP pull encodes json/bytes bodies as base64. Accept raw JSON too so
+    // messages published by older tooling continue to drain safely.
+    const decoded = Buffer.from(message.body, "base64").toString("utf8");
+    const decodedBody = parseJsonRecord(decoded);
+    if (decodedBody) return decodedBody;
   }
 
-  return JSON.parse(message.body);
+  const body = parseJsonRecord(message.body);
+  if (!body) {
+    throw new Error(`Queue message ${message.id} body must be a JSON object`);
+  }
+  return body;
+}
+
+/** Convert Cloudflare's one-based delivery count to BullMQ's zero-based form. */
+export function cloudflareAttemptsMade(attempts: unknown): number {
+  return typeof attempts === "number" &&
+    Number.isInteger(attempts) &&
+    attempts > 0
+    ? attempts - 1
+    : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }

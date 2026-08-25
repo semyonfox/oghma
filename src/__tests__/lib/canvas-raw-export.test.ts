@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discoverCanvasRawExportEntries } from "@/lib/canvas/raw-export.js";
+import { discoverCanvasRawExportEntries } from "@/lib/canvas/raw-export";
 
 function result(data: unknown) {
   return { data, forbidden: false };

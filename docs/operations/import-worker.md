@@ -4,7 +4,7 @@
 >
 > Audience: OghmaNotes operators and import-pipeline maintainers
 >
-> Last verified: 2026-08-04 against the worker, queue facade, R2 browser upload,
+> Last verified: 2026-08-12 against the worker, queue facade, R2 browser upload,
 > Jenkinsfile, and tracked environment templates
 
 This runbook covers Canvas import, extraction retry, and vault import/export
@@ -304,7 +304,7 @@ Stop workload verification and use the homelab deployment guide. Do not edit
 - `Jenkinsfile`
 - `src/lib/queue.ts`
 - `src/lib/canvas/worker-entry.ts`
-- `src/lib/canvas/import-extraction.js`
-- `src/lib/canvas/import-embedding.js`
-- `scripts/worker-healthcheck.mjs`
+- `src/lib/canvas/import-extraction.ts`
+- `src/lib/canvas/import-embedding.ts`
+- `scripts/worker-healthcheck.ts`
 - [Vast Serverless Marker runbook](vast-marker.md)

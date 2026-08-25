@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { withErrorHandler, tracedError } from "@/lib/api-error";
-import sql from "@/database/pgsql.js";
+import sql from "@/database/pgsql";
 import { getChunkVector, searchChunkVectors } from "@/lib/qdrant";
 
 // distance threshold — lower = more similar
 const MAX_DISTANCE = 0.45;
+
+interface QuestionChunkRow {
+  chunk_id: string;
+}
+
+interface RelatedChunkRow {
+  id: string;
+  text: string;
+  title: string | null;
+}
 
 export const GET = withErrorHandler(
   async (
@@ -18,7 +28,7 @@ export const GET = withErrorHandler(
     const { id: questionId } = await params;
     const userId = user.user_id;
 
-    const [question] = await sql`
+    const [question] = await sql<QuestionChunkRow[]>`
       SELECT chunk_id FROM app.quiz_questions
       WHERE id = ${questionId}::uuid AND user_id = ${userId}::uuid
     `;
@@ -40,7 +50,7 @@ export const GET = withErrorHandler(
     const related =
       chunkIds.length === 0
         ? []
-        : await sql`
+        : await sql<RelatedChunkRow[]>`
             SELECT c.id, c.text, n.title
             FROM app.chunks c
             JOIN app.notes n ON n.note_id = c.document_id
@@ -48,8 +58,8 @@ export const GET = withErrorHandler(
               AND c.id = ANY(${chunkIds}::uuid[])
               AND n.deleted_at IS NULL
           `;
-    const byChunkId = new Map<string, any>(
-      related.map((row: any) => [row.id, row]),
+    const byChunkId = new Map<string, RelatedChunkRow>(
+      related.map((row) => [row.id, row]),
     );
 
     return NextResponse.json({

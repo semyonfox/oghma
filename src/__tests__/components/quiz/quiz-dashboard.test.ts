@@ -5,12 +5,17 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+const reactGlobals = globalThis as typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+reactGlobals.IS_REACT_ACT_ENVIRONMENT = true;
+
+type CourseListProps = { courses: unknown[] };
+type CourseVisibilityProps = {
+  onToggleCourse: (course: unknown, isActive: boolean) => Promise<void>;
+};
 
 const mocks = vi.hoisted(() => {
-  const setDashboard = vi.fn();
-  const setCourses = vi.fn();
-  const setDashboardLoading = vi.fn();
   const startSession = vi.fn();
   const archiveCourse = vi.fn().mockResolvedValue(undefined);
   const unarchiveCourse = vi.fn().mockResolvedValue(undefined);
@@ -18,28 +23,10 @@ const mocks = vi.hoisted(() => {
   const toggleShowArchived = vi.fn();
   let showArchived = false;
   const quizStoreState = {
-    dashboardData: {
-      dueCount: 2,
-      totalCards: 5,
-      mastery: 40,
-      reviewedToday: 1,
-      weekAccuracy: 50,
-      currentStreak: 3,
-      longestStreak: 4,
-      hasContent: true,
-    },
-    courses: [],
-    dashboardLoading: false,
-    setDashboard,
-    setCourses,
-    setDashboardLoading,
     startSession,
   };
 
   return {
-    setDashboard,
-    setCourses,
-    setDashboardLoading,
     startSession,
     archiveCourse,
     unarchiveCourse,
@@ -53,8 +40,8 @@ const mocks = vi.hoisted(() => {
       showArchived = value;
     },
     quizStoreState,
-    lastCourseListProps: null as any,
-    lastManagerProps: null as any,
+    lastCourseListProps: null as CourseListProps | null,
+    lastManagerProps: null as CourseVisibilityProps | null,
   };
 });
 
@@ -97,18 +84,18 @@ vi.mock("@/components/quiz/stats-row", () => ({
 }));
 
 vi.mock("@/components/quiz/course-list", () => ({
-  default: (props: any) => {
+  default: (props: CourseListProps) => {
     mocks.lastCourseListProps = props;
     return React.createElement("div");
   },
 }));
 
 vi.mock("@/components/course-visibility/course-visibility-manager", () => ({
-  CourseVisibilityDialog: (props: any) => {
+  CourseVisibilityDialog: (props: CourseVisibilityProps) => {
     mocks.lastManagerProps = props;
     return React.createElement("div");
   },
-  mergeCourseVisibilityItems: (items: any) => items,
+  mergeCourseVisibilityItems: (items: unknown[]) => items,
 }));
 
 import QuizDashboard from "@/components/quiz/quiz-dashboard";
@@ -178,7 +165,7 @@ describe("QuizDashboard archive refresh", () => {
     await renderDashboard();
 
     await act(async () => {
-      await mocks.lastManagerProps.onToggleCourse(
+      await mocks.lastManagerProps!.onToggleCourse(
         { courseId: "42", courseName: "Course A", isActive: true },
         false,
       );
@@ -188,7 +175,7 @@ describe("QuizDashboard archive refresh", () => {
     expect(mocks.fetchSettings).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/quiz/dashboard");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/quiz/dashboard/courses");
-    expect(mocks.setCourses).toHaveBeenLastCalledWith([
+    expect(mocks.lastCourseListProps!.courses).toEqual([
       {
         courseId: "42",
         courseName: "Course A",
@@ -221,8 +208,7 @@ describe("QuizDashboard archive refresh", () => {
     const { container } = await renderDashboard();
 
     expect(container.textContent).toContain("quiz.title");
-    expect(mocks.setDashboard).toHaveBeenCalledWith(initialDashboard);
-    expect(mocks.setCourses).toHaveBeenCalledWith(initialCourses);
+    expect(mocks.lastCourseListProps!.courses).toEqual(initialCourses);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

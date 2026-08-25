@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tool } from "ai";
+import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import {
   TOOL_CALL_LIMIT_TOOL_RESULT_MESSAGE,
@@ -11,10 +11,24 @@ import {
 } from "@/lib/chat/tool-budget";
 
 describe("tool budget controls", () => {
-  const toolOptions = {
+  const toolOptions: ToolExecutionOptions<unknown> = {
     toolCallId: "call-1",
     messages: [],
+    context: {},
   };
+
+  const executeLookup = async (
+    controls: ReturnType<typeof buildToolBudgetControls>,
+    input: unknown = {},
+  ): Promise<unknown> =>
+    (
+      controls.tools.lookup.execute as
+        | ((
+            input: unknown,
+            options: typeof toolOptions,
+          ) => PromiseLike<unknown>)
+        | undefined
+    )?.(input, toolOptions);
 
   it("returns real tool results while budget remains", async () => {
     const controls = buildToolBudgetControls(1, {
@@ -24,7 +38,7 @@ describe("tool budget controls", () => {
       }),
     });
 
-    const result = await controls.tools.lookup.execute?.({}, toolOptions);
+    const result = await executeLookup(controls);
 
     expect(result).toEqual({ ok: true });
   });
@@ -37,8 +51,8 @@ describe("tool budget controls", () => {
       }),
     });
 
-    await controls.tools.lookup.execute?.({}, toolOptions);
-    const result = await controls.tools.lookup.execute?.({}, toolOptions);
+    await executeLookup(controls);
+    const result = await executeLookup(controls);
 
     expect(result).toMatchObject({
       type: "tool-call-limit",
@@ -56,8 +70,13 @@ describe("tool budget controls", () => {
       >[0]["steps"],
       stepNumber: 1,
       model: {} as Parameters<typeof controls.prepareStep>[0]["model"],
+      instructions: undefined,
+      initialInstructions: undefined,
       messages: [],
-      experimental_context: undefined,
+      initialMessages: [],
+      responseMessages: [],
+      toolsContext: {},
+      runtimeContext: {},
     });
 
     expect(result).toBeUndefined();
@@ -70,7 +89,7 @@ describe("tool budget controls", () => {
         execute: async () => ({ ok: true }),
       }),
     });
-    await controls.tools.lookup.execute?.({}, toolOptions);
+    await executeLookup(controls);
 
     const result = await controls.prepareStep({
       steps: Array.from({ length: 1 }, () => ({})) as Parameters<
@@ -78,8 +97,13 @@ describe("tool budget controls", () => {
       >[0]["steps"],
       stepNumber: 1,
       model: {} as Parameters<typeof controls.prepareStep>[0]["model"],
+      instructions: undefined,
+      initialInstructions: undefined,
       messages: [{ role: "user", content: "summarise" }],
-      experimental_context: undefined,
+      initialMessages: [],
+      responseMessages: [],
+      toolsContext: {},
+      runtimeContext: {},
     });
 
     expect(result?.activeTools).toEqual([]);
@@ -99,7 +123,7 @@ describe("tool budget controls", () => {
       }),
     });
 
-    const result = await controls.tools.lookup.execute?.({}, toolOptions);
+    const result = await executeLookup(controls);
     const modelOutput = await controls.tools.lookup.toModelOutput?.({
       toolCallId: "call-2",
       input: {},

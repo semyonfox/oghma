@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
-  const sql = vi.fn() as any;
+  const sql = vi.fn() as ReturnType<typeof vi.fn> & {
+    begin: ReturnType<typeof vi.fn>;
+  };
   sql.begin = vi.fn(async (callback: (tx: typeof sql) => unknown) =>
     callback(sql),
   );

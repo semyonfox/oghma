@@ -30,6 +30,25 @@ export type LlmReasoningOptions =
   | { enabled: true; effort: LlmReasoningEffort }
   | { enabled: false; effort: "none" };
 
+/** The small environment surface consumed by the LLM configuration helpers. */
+export interface LlmEnvironment {
+  readonly [name: string]: string | undefined;
+  LLM_TIMEOUT_MS?: string;
+  LLM_MODEL?: string;
+  LLM_THINKING?: string;
+  LLM_REASONING_EFFORT?: string;
+  LLM_MAX_TOKENS?: string;
+  LLM_MAX_TOOL_STEPS?: string;
+  COHERE_TIMEOUT_MS?: string;
+  RERANK_TOP_N?: string;
+  RERANK_MIN_RELEVANCE?: string;
+  CHAT_MAX_DISTANCE?: string;
+  EMBEDDING_BATCH_SIZE?: string;
+  RAG_CHUNK_SIZE?: string;
+  LLM_API_KEY?: string;
+  LLM_API_URL?: string;
+}
+
 function readBoundedInt(
   value: string | undefined,
   fallback: number,
@@ -66,7 +85,7 @@ export function nextLlmThinkingMode(
   return current === "off" ? "auto" : "off";
 }
 
-export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+export function getLlmTimeoutMs(env: LlmEnvironment = process.env): number {
   return readBoundedInt(
     env.LLM_TIMEOUT_MS,
     DEFAULT_LLM_TIMEOUT_MS,
@@ -75,19 +94,19 @@ export function getLlmTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   );
 }
 
-export function getLlmModel(env: NodeJS.ProcessEnv = process.env): string {
+export function getLlmModel(env: LlmEnvironment = process.env): string {
   const trimmed = (env.LLM_MODEL ?? "").trim();
   return trimmed || DEFAULT_LLM_MODEL;
 }
 
 export function getLlmThinkingMode(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): LlmThinkingMode {
   return normalizeThinkingMode(env.LLM_THINKING);
 }
 
 export function getLlmReasoningEffort(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): LlmReasoningEffort {
   const normalized = (env.LLM_REASONING_EFFORT ?? "").trim().toLowerCase();
   if (
@@ -112,7 +131,7 @@ export function buildReasoningOptions(
   return { enabled: true, effort };
 }
 
-export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
+export function getLlmMaxTokens(env: LlmEnvironment = process.env): number {
   return readBoundedInt(
     env.LLM_MAX_TOKENS,
     DEFAULT_LLM_MAX_TOKENS,
@@ -122,7 +141,7 @@ export function getLlmMaxTokens(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 export function getLlmMaxToolSteps(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedInt(
     env.LLM_MAX_TOOL_STEPS,
@@ -133,7 +152,7 @@ export function getLlmMaxToolSteps(
 }
 
 export function getCohereTimeoutMs(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedInt(
     env.COHERE_TIMEOUT_MS,
@@ -143,12 +162,12 @@ export function getCohereTimeoutMs(
   );
 }
 
-export function getRerankTopN(env: NodeJS.ProcessEnv = process.env): number {
+export function getRerankTopN(env: LlmEnvironment = process.env): number {
   return readBoundedInt(env.RERANK_TOP_N, DEFAULT_RERANK_TOP_N, 1, 100);
 }
 
 export function getRerankMinRelevance(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedFloat(
     env.RERANK_MIN_RELEVANCE,
@@ -159,24 +178,24 @@ export function getRerankMinRelevance(
 }
 
 export function getChatMaxDistance(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedFloat(env.CHAT_MAX_DISTANCE, DEFAULT_CHAT_MAX_DISTANCE, 0, 1);
 }
 
 export function getEmbeddingBatchSize(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedInt(env.EMBEDDING_BATCH_SIZE, DEFAULT_EMBEDDING_BATCH_SIZE, 1, 500);
 }
 
 export function getRagChunkSize(
-  env: NodeJS.ProcessEnv = process.env,
+  env: LlmEnvironment = process.env,
 ): number {
   return readBoundedInt(env.RAG_CHUNK_SIZE, DEFAULT_RAG_CHUNK_SIZE, 50, 4_000);
 }
 
-export function createLlmProvider(env: NodeJS.ProcessEnv = process.env) {
+export function createLlmProvider(env: LlmEnvironment = process.env) {
   const apiKey = (env.LLM_API_KEY ?? "").trim();
   if (!apiKey) return null;
 
