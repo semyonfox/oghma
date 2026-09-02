@@ -14,6 +14,10 @@ import { toSseEvent } from "@/lib/chat/sse";
 const encoder = new TextEncoder();
 const REDIS_STREAM_ID = /^\d+-\d+$/;
 
+function isTerminalEvent(sse: string): boolean {
+  return /^event:\s*(?:done|error)\s*$/m.test(sse);
+}
+
 export const GET = withErrorHandler(
   async (
     request: NextRequest,
@@ -48,8 +52,16 @@ export const GET = withErrorHandler(
                   );
                 }
 
+                if (events.some((event) => isTerminalEvent(event.sse))) {
+                  break;
+                }
+
                 const latest = await loadOwnedChatGeneration(id, user.user_id);
-                if (!latest || latest.status === "completed" || latest.status === "cancelled") {
+                if (
+                  !latest ||
+                  (events.length === 0 &&
+                    (latest.status === "completed" || latest.status === "cancelled"))
+                ) {
                   break;
                 }
                 if (latest.status === "failed" && events.length === 0) {

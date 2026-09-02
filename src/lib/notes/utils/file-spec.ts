@@ -1,4 +1,11 @@
-import type { FileSpec, FileType } from '@/lib/notes/state/layout.zustand';
+import type { FileSpec, FileType, PaneId } from '@/lib/notes/state/layout.zustand';
+
+export const FILE_DRAG_MIME = 'application/x-oghmanotes-file';
+
+export interface FileDragPayload {
+  file: FileSpec;
+  sourcePane?: PaneId;
+}
 
 interface FileSource {
   id?: string;
@@ -48,6 +55,41 @@ export function buildFileSpec(source: FileSource): FileSpec {
     title: source.title || undefined,
     sourcePath,
   };
+}
+
+export function parseFileDragPayload(raw: string): FileDragPayload | null {
+  if (!raw) return null;
+
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== 'object' || value === null || !('file' in value)) return null;
+
+    const file = value.file;
+    if (typeof file !== 'object' || file === null) return null;
+
+    const candidate = file as Record<string, unknown>;
+    if (
+      typeof candidate.fileId !== 'string' ||
+      candidate.fileId.length === 0 ||
+      (candidate.fileType !== 'note' &&
+        candidate.fileType !== 'pdf' &&
+        candidate.fileType !== 'image' &&
+        candidate.fileType !== 'video') ||
+      (candidate.title !== undefined && typeof candidate.title !== 'string') ||
+      (candidate.sourcePath !== undefined && typeof candidate.sourcePath !== 'string') ||
+      (candidate.editMode !== undefined && typeof candidate.editMode !== 'boolean') ||
+      (candidate.lastOpened !== undefined && typeof candidate.lastOpened !== 'number')
+    ) {
+      return null;
+    }
+
+    const sourcePane = 'sourcePane' in value ? value.sourcePane : undefined;
+    if (sourcePane !== undefined && sourcePane !== 'A' && sourcePane !== 'B') return null;
+
+    return { file: file as FileSpec, sourcePane };
+  } catch {
+    return null;
+  }
 }
 
 export function extractTags(content?: string | null): string[] {
