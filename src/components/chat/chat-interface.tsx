@@ -29,7 +29,7 @@ export type {
  * Small pill toggle used above the chat input (RAG / thinking). Shares the
  * active/inactive styling and shows a rich hover card describing the option.
  */
-function TogglePill({
+export function TogglePill({
   active,
   onClick,
   icon,
@@ -54,7 +54,7 @@ function TogglePill({
         onClick={onClick}
         aria-pressed={active}
         aria-describedby={tooltipId}
-        className={`flex items-center rounded-radius-md border font-medium transition-colors ${
+        className={`peer flex items-center rounded-radius-md border font-medium transition-colors ${
           dense ? "gap-1 px-1.5 py-[3px] text-xs" : "gap-1.5 px-2.5 py-1 text-xs"
         } ${
           active
@@ -68,7 +68,7 @@ function TogglePill({
       <div
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 flex w-48 flex-col gap-0.5 rounded-radius-md border border-border-subtle bg-surface-elevated px-2 py-1.5 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 peer-focus-visible:opacity-100"
       >
         <span className="text-xs font-semibold text-text">{tooltipTitle}</span>
         <span className="text-[11px] leading-snug text-text-tertiary">
