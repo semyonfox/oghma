@@ -148,6 +148,12 @@ interface ConsumeStreamOptions {
   onSession: (sessionId: string | undefined, userText: string) => void;
   onEventId?: (id: string) => void;
   translate: (key: string) => string;
+  signal?: AbortSignal;
+  isActive?: () => boolean;
+}
+
+function abortError(): DOMException {
+  return new DOMException("Chat stream detached", "AbortError");
 }
 
 export async function consumeChatStream({
@@ -159,31 +165,62 @@ export async function consumeChatStream({
   onSession,
   onEventId,
   translate,
+  signal,
+  isActive = () => true,
 }: ConsumeStreamOptions): Promise<{ timeBlockChanged: boolean }> {
   let timeBlockChanged = false;
   let sawDone = false;
+  let completed = false;
   let frameCount = 0;
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const parseState = { buffer: "" };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    const chunk = done
-      ? decoder.decode()
-      : decoder.decode(value, { stream: true });
+  const detachReader = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener("abort", detachReader, { once: true });
 
-    if (chunk) {
-      for (const frame of parseSseBlocks(chunk, parseState)) {
-        if (frame.id) onEventId?.(frame.id);
-        frameCount += 1;
-        const update = parseSseFrame(frame);
-        if (!update) continue;
-        if (update.type === "done") {
-          sawDone = true;
-          continue;
-        }
-        if (update.type === "error") {
+  try {
+    while (true) {
+      if (signal?.aborted || !isActive()) throw abortError();
+      const { value, done } = await reader.read();
+      if (signal?.aborted || !isActive()) throw abortError();
+      const chunk = done
+        ? decoder.decode()
+        : decoder.decode(value, { stream: true });
+
+      if (chunk) {
+        for (const frame of parseSseBlocks(chunk, parseState)) {
+          if (signal?.aborted || !isActive()) throw abortError();
+          if (frame.id) onEventId?.(frame.id);
+          frameCount += 1;
+          const update = parseSseFrame(frame);
+          if (!update) continue;
+          if (update.type === "done") {
+            sawDone = true;
+            continue;
+          }
+          if (update.type === "error") {
+            setMessages((messages) =>
+              messages.map((message) =>
+                message.id === assistantId
+                  ? applyUpdate(message, update, thinkingStartRef)
+                  : message,
+              ),
+            );
+            throw new Error(
+              update.message || translate("error.something_went_wrong"),
+            );
+          }
+          if (update.type === "meta") onSession(update.sessionId, userText);
+          if (
+            update.type === "tool-call" &&
+            (update.toolName === "addTimeBlock" ||
+              update.toolName === "completeTimeBlock")
+          ) {
+            timeBlockChanged = true;
+          }
           setMessages((messages) =>
             messages.map((message) =>
               message.id === assistantId
@@ -191,41 +228,43 @@ export async function consumeChatStream({
                 : message,
             ),
           );
-          throw new Error(
-            update.message || translate("error.something_went_wrong"),
-          );
         }
-        if (update.type === "meta") onSession(update.sessionId, userText);
-        if (
-          update.type === "tool-call" &&
-          (update.toolName === "addTimeBlock" ||
-            update.toolName === "completeTimeBlock")
-        ) {
-          timeBlockChanged = true;
-        }
-        setMessages((messages) =>
-          messages.map((message) =>
-            message.id === assistantId
-              ? applyUpdate(message, update, thinkingStartRef)
-              : message,
-          ),
-        );
       }
+
+      if (done) break;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
-    if (done) break;
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (!sawDone) {
+      logChatStream("warn", "stream ended without done event", {
+        assistantId,
+        frameCount,
+        bufferedBytes: parseState.buffer.length,
+      });
+      throw new Error("Response stream ended before completion");
+    }
+    completed = true;
+    return { timeBlockChanged };
+  } finally {
+    signal?.removeEventListener("abort", detachReader);
+    if (!completed) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
+}
 
-  if (!sawDone) {
-    logChatStream("warn", "stream ended without done event", {
-      assistantId,
-      frameCount,
-      bufferedBytes: parseState.buffer.length,
-    });
-    throw new Error("Response stream ended before completion");
-  }
-  return { timeBlockChanged };
+function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export async function consumeBackgroundGeneration(input: {
@@ -267,9 +306,7 @@ export async function consumeBackgroundGeneration(input: {
         if (input.signal.aborted) throw error;
         attempts += 1;
         if (attempts >= 4) throw error;
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, attempts * 500),
-        );
+        await waitForRetry(attempts * 500, input.signal);
       }
     }
   } finally {

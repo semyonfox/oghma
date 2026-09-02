@@ -183,6 +183,14 @@ jobs:
           npm run e2e:reset
           npm run test:integration
 
+      - name: Start background worker
+        run: |
+          npm run e2e:worker > worker.log 2>&1 &
+          echo $! > worker.pid
+          sleep 2
+          kill -0 "$(cat worker.pid)"
+          npm run e2e:worker:healthcheck
+
       - name: Run smoke E2E
         # Integration contracts already run reset + seed + bucket setup. Skip
         # the Playwright setup step for those to avoid duplicate work.
@@ -196,12 +204,14 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            worker.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Stop S3-compatible storage
+      - name: Stop E2E processes and services
         if: always()
         run: |
+          if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
           docker rm -f oghma-e2e-minio 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true
@@ -310,10 +320,21 @@ jobs:
           cat fake-ai.log
           exit 1
 
+      - name: Prepare E2E state
+        run: npm run e2e:reset
+
+      - name: Start background worker
+        run: |
+          npm run e2e:worker > worker.log 2>&1 &
+          echo $! > worker.pid
+          sleep 2
+          kill -0 "$(cat worker.pid)"
+          npm run e2e:worker:healthcheck
+
       - name: Run full E2E
-        # The E2E script owns reset/migrate/seed so CI and local runs use the
-        # same deterministic setup instead of the deploy-only migration hook.
-        run: npm run e2e:full -- --workers=2
+        # State was prepared before worker startup so the worker never observes
+        # a database without the current schema.
+        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:full -- --workers=2
 
       - name: Upload Playwright artifacts
         if: always()
@@ -323,12 +344,14 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            worker.log
           if-no-files-found: ignore
           retention-days: 21
 
-      - name: Stop S3-compatible storage
+      - name: Stop E2E processes and services
         if: always()
         run: |
+          if [ -f worker.pid ]; then kill "$(cat worker.pid)" 2>/dev/null || true; fi
           if [ -f fake-ai.pid ]; then kill "$(cat fake-ai.pid)" 2>/dev/null || true; fi
           docker rm -f oghma-e2e-minio 2>/dev/null || true
           docker rm -f oghma-e2e-qdrant 2>/dev/null || true

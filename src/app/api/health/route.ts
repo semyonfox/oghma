@@ -23,6 +23,16 @@ interface HealthResponse {
     service?: string;
     database?: DatabaseHealth;
     rateLimiter?: { redisReady: boolean; status: string };
+    chat?: {
+        ready: boolean;
+        databaseReady: boolean;
+        redisReady: boolean;
+        queueProvider: string;
+    };
+}
+
+function configuredQueueProvider(): string {
+    return process.env.QUEUE_PROVIDER?.trim().toLowerCase() || 'bullmq';
 }
 
 function errorInfo(error: unknown): { message: string; code: string | null } {
@@ -70,8 +80,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // fallback protection for distributed rate limiting.
         const rateLimiterReady = await ensureRedisReady();
         const healthy = dbStatus.connected;
+        const queueProvider = configuredQueueProvider();
+        const chatReady = healthy && rateLimiterReady && queueProvider === 'bullmq';
+        const chatReadinessRequested =
+            request.nextUrl.searchParams.get('readiness') === 'chat';
         const response: HealthResponse = {
-            status: healthy && rateLimiterReady ? 'ok' : 'degraded',
+            status: chatReadinessRequested
+                ? chatReady ? 'ok' : 'unavailable'
+                : healthy && rateLimiterReady ? 'ok' : 'degraded',
             timestamp: new Date().toISOString(),
         };
 
@@ -84,9 +100,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 redisReady: rateLimiterReady,
                 status: rateLimiterReady ? 'ok' : 'degraded',
             };
+            response.chat = {
+                ready: chatReady,
+                databaseReady: healthy,
+                redisReady: rateLimiterReady,
+                queueProvider,
+            };
         }
 
-        return NextResponse.json(response, { status: healthy ? 200 : 503 });
+        const status = chatReadinessRequested
+            ? chatReady ? 200 : 503
+            : healthy ? 200 : 503;
+        return NextResponse.json(response, { status });
     } catch (error) {
         logger.error('health check error', { error });
         return NextResponse.json(

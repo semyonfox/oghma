@@ -34,6 +34,8 @@
     "e2e:smoke": "node --experimental-strip-types scripts/e2e/run-with-env.ts playwright test tests/e2e/smoke",
     "e2e:smoke:public": "node --experimental-strip-types scripts/e2e/run-with-env.ts playwright test tests/e2e/smoke/public.spec.ts",
     "e2e:full": "node --experimental-strip-types scripts/e2e/run-with-env.ts playwright test tests/e2e/full",
+    "e2e:worker": "node --experimental-strip-types scripts/e2e/run-with-env.ts npm run worker",
+    "e2e:worker:healthcheck": "node --experimental-strip-types scripts/e2e/run-with-env.ts npm run worker:healthcheck",
     "e2e:install": "playwright install --with-deps chromium",
     "e2e:services:up": "docker compose -f docker-compose.e2e.yml up -d --wait",
     "e2e:services:down": "docker compose -f docker-compose.e2e.yml down -v",
