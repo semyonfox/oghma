@@ -69,7 +69,7 @@ const NoteTreePanel: FC<NoteTreePanelProps> = ({ onOpenNote }) => {
           onClick={() => onOpenNote?.()}
           aria-current={isTrash ? "page" : undefined}
           aria-label={trashCount > 0 ? `${t("Trash")} (${trashCount})` : undefined}
-          className={`flex min-h-10 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
+          className={`flex min-h-11 items-center gap-2 rounded-radius-md px-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50 ${
             isTrash
               ? "bg-primary-500/10 text-primary-300"
               : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"

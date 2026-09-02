@@ -74,13 +74,11 @@ services:
       retries: 30
 
   fake-ai:
-    image: node:22-alpine
-    working_dir: /work
-    command: ["node", "--experimental-strip-types", "scripts/e2e/fake-ai-provider.ts"]
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e-fake-ai
     ports:
       - "58181:8081"
-    volumes:
-      - ./:/work:ro
     healthcheck:
       test:
         [
