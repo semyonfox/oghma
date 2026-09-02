@@ -3,7 +3,7 @@
 import { FC, memo, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { FileSpec } from "@/lib/notes/state/layout.zustand";
+import { FileSpec, PaneId } from "@/lib/notes/state/layout.zustand";
 import {
   ClipboardDocumentCheckIcon,
   DocumentIcon,
@@ -15,7 +15,11 @@ import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
-import { buildFileSpec } from "@/lib/notes/utils/file-spec";
+import {
+  buildFileSpec,
+  FILE_DRAG_MIME,
+  parseFileDragPayload,
+} from "@/lib/notes/utils/file-spec";
 import { toast } from "sonner";
 
 const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
@@ -24,6 +28,7 @@ interface EditorPaneProps {
   pane: "A" | "B";
   file?: FileSpec;
   splitInteractionsEnabled?: boolean;
+  hasSecondaryPane?: boolean;
 }
 
 /**
@@ -35,6 +40,7 @@ const EditorPane: FC<EditorPaneProps> = ({
   pane,
   file,
   splitInteractionsEnabled = true,
+  hasSecondaryPane = false,
 }) => {
   const { t } = useI18n();
   const router = useRouter();
@@ -44,6 +50,7 @@ const EditorPane: FC<EditorPaneProps> = ({
   const rightPanelTab = useLayoutStore((s) => s.rightPanelTab);
   const setPaneA = useLayoutStore((s) => s.setPaneA);
   const setPaneB = useLayoutStore((s) => s.setPaneB);
+  const placeFileInPane = useLayoutStore((s) => s.placeFileInPane);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
   const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
@@ -56,6 +63,7 @@ const EditorPane: FC<EditorPaneProps> = ({
 
   const paneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dropTarget, setDropTarget] = useState<PaneId | null>(null);
   const [isCreatingFirstNote, setIsCreatingFirstNote] = useState(false);
 
   // all hooks must be called before any early returns
@@ -74,15 +82,18 @@ const EditorPane: FC<EditorPaneProps> = ({
         return;
       }
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("application/json", JSON.stringify(file));
-      e.dataTransfer.setData("paneFile", JSON.stringify(file));
+      e.dataTransfer.setData(
+        FILE_DRAG_MIME,
+        JSON.stringify({ file, sourcePane: pane }),
+      );
       setIsDragging(true);
     },
-    [file, splitInteractionsEnabled],
+    [file, pane, splitInteractionsEnabled],
   );
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
+    setDropTarget(null);
   }, []);
 
   const handleDragOver = useCallback(
@@ -90,9 +101,23 @@ const EditorPane: FC<EditorPaneProps> = ({
       if (!splitInteractionsEnabled) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
+
+      if (hasSecondaryPane || pane === "B") {
+        setDropTarget(pane);
+        return;
+      }
+
+      const rect = paneRef.current?.getBoundingClientRect();
+      if (rect) setDropTarget(e.clientX >= rect.left + rect.width / 2 ? "B" : "A");
     },
-    [splitInteractionsEnabled],
+    [hasSecondaryPane, pane, splitInteractionsEnabled],
   );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const nextTarget = e.relatedTarget;
+    if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) return;
+    setDropTarget(null);
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -101,36 +126,14 @@ const EditorPane: FC<EditorPaneProps> = ({
       setIsDragging(false);
 
       try {
-        const jsonData = e.dataTransfer.getData("application/json");
-        const paneFileData = e.dataTransfer.getData("paneFile");
-        const rawData = jsonData || paneFileData;
-        if (!rawData) return;
-
-        const draggedFile: FileSpec = JSON.parse(rawData);
-        if (!draggedFile.fileId) return;
-
-        // read paneA at drop time (avoids subscribing to it in render)
-        const currentPaneA = useLayoutStore.getState().paneA;
-
-        const viewportWidth = window.innerWidth;
-        const dropX = e.clientX;
-        const rightThreshold = viewportWidth / 2;
-
-        if (dropX > rightThreshold) {
-          setPaneB(draggedFile);
-        } else {
-          if (pane === "A") {
-            setPaneA(draggedFile);
-          } else {
-            setPaneA(draggedFile);
-            setPaneB(currentPaneA);
-          }
-        }
-      } catch (error) {
-        console.error("Drop error:", error);
+        const payload = parseFileDragPayload(e.dataTransfer.getData(FILE_DRAG_MIME));
+        const target = dropTarget ?? pane;
+        if (payload) placeFileInPane(payload.file, target, payload.sourcePane);
+      } finally {
+        setDropTarget(null);
       }
     },
-    [pane, setPaneA, setPaneB, splitInteractionsEnabled],
+    [dropTarget, pane, placeFileInPane, splitInteractionsEnabled],
   );
 
   const handleCreateFirstNote = useCallback(async () => {
@@ -245,11 +248,24 @@ const EditorPane: FC<EditorPaneProps> = ({
   return (
     <div
       ref={paneRef}
-      className={`h-full flex flex-col bg-background transition-colors ${isDragging ? "opacity-60" : ""}`}
+      className={`relative h-full flex flex-col bg-background transition-opacity ${isDragging ? "opacity-60" : ""}`}
       onMouseDown={() => setActivePane(pane)}
       onDragOver={splitInteractionsEnabled ? handleDragOver : undefined}
+      onDragLeave={splitInteractionsEnabled ? handleDragLeave : undefined}
       onDrop={splitInteractionsEnabled ? handleDrop : undefined}
     >
+      {dropTarget && (
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-2 z-30 rounded-radius-md border border-primary-400/70 bg-primary-500/10 shadow-[inset_0_0_0_1px_rgb(96_165_250_/_0.14)] transition-[left,right] duration-100 ${
+            !hasSecondaryPane && dropTarget === "A"
+              ? "left-2 right-1/2"
+              : !hasSecondaryPane && dropTarget === "B"
+                ? "left-1/2 right-2"
+                : "left-2 right-2"
+          }`}
+        />
+      )}
       {/* Pane Header */}
       <div
         className={`flex h-12 flex-shrink-0 items-center justify-between border-b border-border-subtle px-3 md:h-9 ${
