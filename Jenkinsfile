@@ -86,6 +86,20 @@ pipeline {
                     try {
                         sh """
                             set -eu
+                            DEFAULT_GATEWAY_HEX=\$(awk '\$2 == "00000000" { print \$3; exit }' /proc/net/route)
+                            DOCKER_HOST_GATEWAY=\$(node -e 'const hex = process.argv[1]; if (!/^[0-9A-F]{8}\$/i.test(hex)) process.exit(1); console.log(hex.match(/../g).map((byte) => Number.parseInt(byte, 16)).reverse().join("."));' "\$DEFAULT_GATEWAY_HEX")
+                            echo "[e2e] Docker host gateway: \$DOCKER_HOST_GATEWAY"
+
+                            export DATABASE_URL="postgresql://oghma_e2e:oghma_e2e@\$DOCKER_HOST_GATEWAY:55433/oghma_e2e?search_path=app,public"
+                            export MIGRATION_DATABASE_URL="\$DATABASE_URL"
+                            export E2E_ALLOW_NONLOCAL_DB_RESET=1
+                            export STORAGE_ENDPOINT="http://\$DOCKER_HOST_GATEWAY:59100"
+                            export REDIS_HOST="\$DOCKER_HOST_GATEWAY"
+                            export LLM_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
+                            export EMBEDDING_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
+                            export RERANK_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
+                            export QDRANT_URL="http://\$DOCKER_HOST_GATEWAY:56333"
+
                             npm run e2e:services:up
 
                             for attempt in \$(seq 1 30); do
