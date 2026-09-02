@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-08-12 against `package.json`, Vitest configuration,
+> **Last verified:** 2026-09-02 against `package.json`, Vitest configuration,
 > and GitHub Actions workflows
 
 Use this page to choose a check that proves the change you made. It describes
@@ -47,21 +47,28 @@ cp .env.e2e.example .env.e2e
 npm run e2e:services:up
 npm run e2e:reset
 npm run test:integration
+# In a second terminal:
+npm run e2e:worker
 npm run e2e:smoke -- --workers=1
 npm run e2e:services:down
 ```
 
-`e2e:reset` intentionally clears the configured test database. Start the
-background worker separately when a scenario needs queued import or indexing
-work; see the [import-worker runbook](../operations/import-worker.md).
+`e2e:reset` intentionally clears the configured test database. The background
+worker is required for streamed chat and other queued work. `e2e:worker` loads
+the same `.env.e2e` files as Playwright, which keeps its database, Redis, queue
+prefix, provider, and storage configuration identical to the app.
+See the [chat runbook](../operations/chat.md) and
+[import-worker runbook](../operations/import-worker.md).
 
 ## CI scope
 
 The GitHub test workflow runs `npm run test:ci`, which executes the root and
 Canvas MCP Vitest suites. The build workflow installs with `npm ci`, runs
 ESLint and the i18n audit, then builds Next.js with placeholder local service
-configuration. Docker-backed integration and Playwright suites are deliberate
-local/release checks, not GitHub Actions defaults.
+configuration. The E2E workflow runs integration contracts and the Playwright
+smoke suite with disposable services and a real background worker on pull
+requests and pushes to `dev` or `main`. The larger Playwright suite runs nightly
+or by manual dispatch.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid

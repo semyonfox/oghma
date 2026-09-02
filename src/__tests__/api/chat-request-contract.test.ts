@@ -133,6 +133,7 @@ describe("POST /api/chat request contract", () => {
       undefined,
       "hello",
       [],
+      { persistUserMessage: false },
     );
   });
 });

@@ -53,6 +53,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Document | Owns |
 |---|---|
 | [Infrastructure index](../infra/README.md) | The owner map for current, target, retained, and historical infrastructure |
+| [Chat](operations/chat.md) | Chat queue, delivery, readiness, diagnosis, and release verification |
 | [Import worker](operations/import-worker.md) | Worker deployment, verification, tuning, and recovery |
 | [Vast Serverless Marker](operations/vast-marker.md) | Ready-to-provision GPU queue boundary, image, scaling, monitoring, launch gates, and rollback |
 | [RunPod Serverless Marker](operations/runpod-marker.md) | Ready-to-provision async GPU endpoint, baked image, telemetry, launch gates, and rollback |

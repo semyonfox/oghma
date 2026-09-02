@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { LlmThinkingMode } from "@/lib/ai-config";
 import { toFriendlyChatError } from "@/lib/friendly-errors";
 import type { Message, ChatContextItem } from "@/lib/chat/types";
@@ -12,6 +12,7 @@ import {
   logChatStream,
   resolveResumeAssistantId,
 } from "@/lib/chat/client-stream";
+import { fetchChatSessionSnapshot } from "@/lib/chat/hooks/use-chat-persistence";
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -27,9 +28,15 @@ interface UseChatStreamOptions {
   thinkingMode: LlmThinkingMode;
   /** whether to retrieve note context (RAG). Off = plain chat, saves tokens. */
   useRag: boolean;
+  /** Session selected by the URL. This remains authoritative over local state. */
+  controlledSessionId?: string;
+  /** Existing route sessions cannot send until their durable state is restored. */
+  sessionReady: boolean;
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** called when a stream completes — useful for refreshing session list order */
-  onStreamComplete?: () => void;
+  onStreamComplete?: (sessionId: string | null) => void;
+  /** Re-run route restoration after a terminal transport failure. */
+  onTerminalFailure?: (sessionId: string) => void;
 }
 
 interface UseChatStreamResult {
@@ -57,6 +64,28 @@ function clearDraft(sid: string | null): void {
   }
 }
 
+interface ChatOperation {
+  id: number;
+  routeSessionId: string | null;
+  createdSessionId: string | null;
+  controller: AbortController;
+}
+
+export function isChatOperationCurrent(
+  operation: Pick<ChatOperation, "id" | "routeSessionId" | "createdSessionId">,
+  activeOperationId: number | null,
+  routeSessionId: string | null,
+): boolean {
+  const ownsCreatedRoute =
+    operation.routeSessionId === null &&
+    operation.createdSessionId !== null &&
+    operation.createdSessionId === routeSessionId;
+  return (
+    operation.id === activeOperationId &&
+    (operation.routeSessionId === routeSessionId || ownsCreatedRoute)
+  );
+}
+
 export function useChatStream(
   options: UseChatStreamOptions,
 ): UseChatStreamResult {
@@ -68,8 +97,11 @@ export function useChatStream(
     selectedFolders,
     thinkingMode,
     useRag,
+    controlledSessionId,
+    sessionReady,
     onSessionCreated,
     onStreamComplete,
+    onTerminalFailure,
   } = options;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -79,9 +111,43 @@ export function useChatStream(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thinkingStartRef = useRef<number | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   // durable background generation being consumed — lets Stop cancel the worker
   const activeGenerationRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const operationIdRef = useRef(0);
+  const activeOperationRef = useRef<ChatOperation | null>(null);
+  const routeSessionIdRef = useRef<string | null>(controlledSessionId ?? null);
+  routeSessionIdRef.current = controlledSessionId ?? null;
+
+  const isCurrent = useCallback((operation: ChatOperation): boolean => {
+    return Boolean(
+      mountedRef.current &&
+        isChatOperationCurrent(
+          operation,
+          activeOperationRef.current?.id ?? null,
+          routeSessionIdRef.current,
+        ),
+    );
+  }, []);
+
+  const beginOperation = useCallback((): ChatOperation => {
+    activeOperationRef.current?.controller.abort();
+    const operation = {
+      id: ++operationIdRef.current,
+      routeSessionId: routeSessionIdRef.current,
+      createdSessionId: null,
+      controller: new AbortController(),
+    };
+    activeOperationRef.current = operation;
+    return operation;
+  }, []);
+
+  const detachOperation = useCallback((operation?: ChatOperation): void => {
+    const active = activeOperationRef.current;
+    if (!active || (operation && active.id !== operation.id)) return;
+    active.controller.abort();
+    activeOperationRef.current = null;
+  }, []);
 
   const cancel = useCallback(() => {
     const generationId = activeGenerationRef.current;
@@ -92,8 +158,8 @@ export function useChatStream(
         method: "POST",
       }).catch(() => {});
     }
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    detachOperation();
+    if (!mountedRef.current) return;
     setLoading(false);
     // trim trailing empty assistant message if nothing was streamed yet
     setMessages((prev) => {
@@ -103,24 +169,61 @@ export function useChatStream(
       }
       return prev;
     });
-  }, []);
+  }, [detachOperation]);
 
   // stable ref for sessionId so stream handlers see the latest value
   const sessionIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      detachOperation();
+    };
+  }, [detachOperation]);
+
+  useEffect(() => {
+    const nextSessionId = controlledSessionId ?? null;
+    const activeOperation = activeOperationRef.current;
+    const operationOwnsCreatedRoute = Boolean(
+      activeOperation &&
+        activeOperation.routeSessionId === null &&
+        activeOperation.createdSessionId === nextSessionId,
+    );
+    if (!operationOwnsCreatedRoute) {
+      detachOperation();
+      activeGenerationRef.current = null;
+      setMessages([]);
+      setLoading(false);
+      setError(null);
+    }
+    sessionIdRef.current = nextSessionId;
+    setSessionId(nextSessionId);
+  }, [controlledSessionId, detachOperation]);
+
   const handleNewSession = useCallback(
-    (newSessionId: string | undefined, userText: string): void => {
+    (
+      operation: ChatOperation,
+      newSessionId: string | undefined,
+      userText: string,
+    ): void => {
+      if (!isCurrent(operation)) return;
       if (newSessionId && newSessionId !== sessionIdRef.current) {
+        if (operation.routeSessionId === null) {
+          operation.createdSessionId = newSessionId;
+        }
+        sessionIdRef.current = newSessionId;
         setSessionId(newSessionId);
         onSessionCreated?.(newSessionId, userText.slice(0, 60));
       }
     },
-    [onSessionCreated],
+    [isCurrent, onSessionCreated],
   );
 
   const consumeStream = useCallback(
     (
+      operation: ChatOperation,
       body: ReadableStream<Uint8Array>,
       assistantId: string,
       userText: string,
@@ -131,35 +234,85 @@ export function useChatStream(
         assistantId,
         userText,
         thinkingStartRef,
-        setMessages,
-        onSession: handleNewSession,
+        setMessages: (update) => {
+          if (isCurrent(operation)) setMessages(update);
+        },
+        onSession: (newSessionId, text) =>
+          handleNewSession(operation, newSessionId, text),
         onEventId,
         translate: t,
+        signal: operation.controller.signal,
+        isActive: () => isCurrent(operation),
       }),
-    [handleNewSession, t],
+    [handleNewSession, isCurrent, t],
   );
 
   const consumeGeneration = useCallback(
     (
+      operation: ChatOperation,
       generationId: string,
       assistantId: string,
       userText: string,
-      signal: AbortSignal,
     ) =>
       consumeBackgroundGeneration({
         generationId,
         assistantId,
         userText,
-        signal,
+        signal: operation.controller.signal,
         activeGenerationRef,
-        consumeStream,
+        consumeStream: (body, targetAssistantId, text, onEventId) =>
+          consumeStream(
+            operation,
+            body,
+            targetAssistantId,
+            text,
+            onEventId,
+          ),
       }),
     [consumeStream],
   );
 
+  const reconcileDurableSession = useCallback(
+    async (operation: ChatOperation): Promise<void> => {
+      const durableSessionId = sessionIdRef.current;
+      if (!durableSessionId || !isCurrent(operation)) return;
+      try {
+        const snapshot = await fetchChatSessionSnapshot(
+          durableSessionId,
+          operation.controller.signal,
+        );
+        if (!isCurrent(operation)) return;
+        setMessages(snapshot.messages);
+        clearDraft(durableSessionId);
+      } catch (restoreFailure) {
+        if (!operation.controller.signal.aborted) {
+          logChatStream("warn", "durable session reconciliation failed", {
+            sessionId: durableSessionId,
+            error:
+              restoreFailure instanceof Error
+                ? restoreFailure.message
+                : String(restoreFailure),
+          });
+        }
+      }
+    },
+    [isCurrent],
+  );
+
   const send = useCallback(
     async (text: string, history: { role: string; content: string }[]) => {
-      if (!text || loading) return;
+      if (
+        !text ||
+        !sessionReady ||
+        loading ||
+        activeOperationRef.current
+      ) {
+        return;
+      }
+
+      const operation = beginOperation();
+      const requestSessionId =
+        operation.routeSessionId ?? sessionIdRef.current;
 
       setError(null);
       thinkingStartRef.current = null;
@@ -185,12 +338,10 @@ export function useChatStream(
       setLoading(true);
 
       try {
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
         logChatStream("info", "starting request", {
           endpoint: "/api/chat",
           assistantId,
-          hasSessionId: Boolean(sessionId),
+          hasSessionId: Boolean(requestSessionId),
           noteCount: selectedNotes.length,
           folderCount: selectedFolders.length,
           thinkingMode,
@@ -199,7 +350,7 @@ export function useChatStream(
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
+          signal: operation.controller.signal,
           body: JSON.stringify({
             message: text,
             noteId,
@@ -208,7 +359,7 @@ export function useChatStream(
             folderIds: selectedFolders.map((f) => f.id),
             selectedNotes,
             selectedFolders,
-            sessionId,
+            sessionId: requestSessionId,
             history,
             stream: true,
             background: true,
@@ -229,18 +380,20 @@ export function useChatStream(
         if (contentType.includes("application/json")) {
           const data = await res.json();
           if (typeof data.generationId === "string") {
-            handleNewSession(data.sessionId, text);
+            handleNewSession(operation, data.sessionId, text);
             await consumeGeneration(
+              operation,
               data.generationId,
               assistantId,
               text,
-              controller.signal,
             );
+            if (!isCurrent(operation)) return;
             clearDraft(data.sessionId || sessionIdRef.current);
-            onStreamComplete?.();
+            onStreamComplete?.(sessionIdRef.current);
             return;
           }
-          handleNewSession(data.sessionId, text);
+          handleNewSession(operation, data.sessionId, text);
+          if (!isCurrent(operation)) return;
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
@@ -266,7 +419,7 @@ export function useChatStream(
             ),
           );
           clearDraft(data.sessionId || sessionIdRef.current);
-          onStreamComplete?.();
+          onStreamComplete?.(sessionIdRef.current);
           return;
         }
 
@@ -274,7 +427,13 @@ export function useChatStream(
           throw new Error("Missing stream body");
         }
 
-        const { timeBlockChanged } = await consumeStream(res.body, assistantId, text);
+        const { timeBlockChanged } = await consumeStream(
+          operation,
+          res.body,
+          assistantId,
+          text,
+        );
+        if (!isCurrent(operation)) return;
         logChatStream("info", "stream completed", {
           assistantId,
           sessionId: sessionIdRef.current,
@@ -289,9 +448,12 @@ export function useChatStream(
           window.dispatchEvent(new CustomEvent("oghma:time-block-changed"));
         }
         clearDraft(sessionIdRef.current);
-        onStreamComplete?.();
+        onStreamComplete?.(sessionIdRef.current);
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
+        if (
+          !isCurrent(operation) ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
           logChatStream("warn", "request aborted by client", {
             assistantId,
             sessionId: sessionIdRef.current,
@@ -305,28 +467,46 @@ export function useChatStream(
           sessionId: sessionIdRef.current,
           error: errMsg,
         });
+        await reconcileDurableSession(operation);
+        if (!isCurrent(operation)) return;
         const friendlyMessage = toFriendlyChatError(errMsg);
         setError(
           friendlyMessage.includes("temporarily unavailable")
             ? t("error.ai_unavailable")
             : t("error.something_went_wrong"),
         );
+        const failedSessionId = sessionIdRef.current;
+        if (failedSessionId) {
+          if (operation.routeSessionId) {
+            onTerminalFailure?.(failedSessionId);
+          } else {
+            // A failed first reply still created a durable conversation. Move
+            // the page onto that route so its restore and retry UI own it.
+            onStreamComplete?.(failedSessionId);
+          }
+        }
       } finally {
-        abortControllerRef.current = null;
-        setLoading(false);
+        if (isCurrent(operation)) {
+          activeOperationRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [
+      beginOperation,
       consumeGeneration,
       consumeStream,
       handleNewSession,
+      isCurrent,
       loading,
       noteId,
       noteTitle,
       onStreamComplete,
+      onTerminalFailure,
+      reconcileDurableSession,
       selectedNotes,
       selectedFolders,
-      sessionId,
+      sessionReady,
       t,
       thinkingMode,
       useRag,
@@ -335,7 +515,15 @@ export function useChatStream(
 
   const resume = useCallback(
     async (generationId: string) => {
-      if (!generationId || loading) return;
+      if (
+        !generationId ||
+        !sessionReady ||
+        loading ||
+        activeOperationRef.current
+      ) {
+        return;
+      }
+      const operation = beginOperation();
       const proposedAssistantId = makeId();
       const assistantId = resolveResumeAssistantId(
         messagesRef.current,
@@ -355,21 +543,36 @@ export function useChatStream(
         ]);
       }
       setLoading(true);
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
       try {
-        await consumeGeneration(generationId, assistantId, "", controller.signal);
-        onStreamComplete?.();
+        await consumeGeneration(operation, generationId, assistantId, "");
+        if (!isCurrent(operation)) return;
+        onStreamComplete?.(sessionIdRef.current);
       } catch (error) {
-        if (!(error instanceof Error && error.name === "AbortError")) {
+        if (
+          isCurrent(operation) &&
+          !(error instanceof Error && error.name === "AbortError")
+        ) {
+          await reconcileDurableSession(operation);
+          if (!isCurrent(operation)) return;
           setError(t("error.something_went_wrong"));
         }
       } finally {
-        abortControllerRef.current = null;
-        setLoading(false);
+        if (isCurrent(operation)) {
+          activeOperationRef.current = null;
+          setLoading(false);
+        }
       }
     },
-    [consumeGeneration, loading, onStreamComplete, t],
+    [
+      beginOperation,
+      consumeGeneration,
+      isCurrent,
+      loading,
+      onStreamComplete,
+      reconcileDurableSession,
+      sessionReady,
+      t,
+    ],
   );
 
   return {

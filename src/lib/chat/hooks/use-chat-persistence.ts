@@ -43,6 +43,8 @@ interface UseChatPersistenceResult {
   toggleRag: () => void;
   restoredMessages: Message[] | null;
   restored: boolean;
+  restoreError: boolean;
+  retryRestore: () => void;
   /** true when the server still owns generation for a reopened session */
   backgroundLoading: boolean;
   backgroundGenerationId: string | null;
@@ -52,7 +54,7 @@ interface UseChatPersistenceResult {
 
 type StoredMessage = {
   id: string;
-  role: string;
+  role: "user" | "assistant";
   content: string;
   parts?: unknown;
   sources?: { id: string; title: string }[];
@@ -66,14 +68,93 @@ type StoredMessage = {
   rating?: number | null;
 };
 
-export function mapStoredChatMessages(messages: StoredMessage[]): Message[] {
-  return messages.map((m) => {
+export interface ChatSessionSnapshot {
+  messages: Message[];
+  generating: boolean;
+  activeGenerationId: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function storedMessageFrom(value: unknown): StoredMessage | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    (value.role !== "user" && value.role !== "assistant") ||
+    typeof value.content !== "string"
+  ) {
+    return null;
+  }
+
+  const metadata = isRecord(value.metadata) ? value.metadata : undefined;
+  const sources = Array.isArray(value.sources)
+    ? value.sources.flatMap((source) =>
+        isRecord(source) &&
+        typeof source.id === "string" &&
+        typeof source.title === "string"
+          ? [{ id: source.id, title: source.title }]
+          : [],
+      )
+    : undefined;
+
+  return {
+    id: value.id,
+    role: value.role,
+    content: value.content,
+    parts: value.parts,
+    sources,
+    metadata,
+    created_at:
+      typeof value.created_at === "string" ? value.created_at : undefined,
+    rating:
+      typeof value.rating === "number" || value.rating === null
+        ? value.rating
+        : undefined,
+  };
+}
+
+/** Fetch the durable PostgreSQL-backed view of a chat session. */
+export async function fetchChatSessionSnapshot(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<ChatSessionSnapshot> {
+  const response = await fetch(`/api/chat/sessions/${sessionId}`, {
+    signal,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Unable to restore conversation (${response.status})`);
+  }
+
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !Array.isArray(data.messages)) {
+    throw new Error("Invalid conversation response");
+  }
+
+  const session = isRecord(data.session) ? data.session : {};
+  const generating = session.generation_status === "generating";
+  return {
+    messages: mapStoredChatMessages(data.messages),
+    generating,
+    activeGenerationId:
+      generating && typeof session.active_generation_id === "string"
+        ? session.active_generation_id
+        : null,
+  };
+}
+
+export function mapStoredChatMessages(messages: unknown[]): Message[] {
+  return messages.flatMap((value) => {
+    const m = storedMessageFrom(value);
+    if (!m) return [];
     const parts = normalizeMessageParts(m.parts) ??
       (m.content ? [{ type: "text" as const, text: m.content }] : []);
     const metadata = m.metadata ?? {};
-    return {
+    return [{
       id: m.id,
-      role: m.role as "user" | "assistant",
+      role: m.role,
       content: m.content,
       parts,
       thinking:
@@ -87,7 +168,7 @@ export function mapStoredChatMessages(messages: StoredMessage[]): Message[] {
       sources: Array.isArray(m.sources) ? m.sources : [],
       timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
       rating: m.rating ?? null,
-    };
+    }];
   });
 }
 
@@ -146,11 +227,18 @@ export function useChatPersistence(
   const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState(false);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const retryRestore = useCallback(() => {
+    setRestoreAttempt((attempt) => attempt + 1);
+  }, []);
 
   useEffect(() => {
     if (!controlledSessionId) {
+      setRestoredMessages(null);
       setBackgroundLoading(false);
       setBackgroundGenerationId(null);
+      setRestoreError(false);
       setRestored(true);
       return;
     }
@@ -158,36 +246,39 @@ export function useChatPersistence(
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let firstLoad = true;
+    const controller = new AbortController();
+
+    setRestored(false);
+    setRestoreError(false);
+    setRestoredMessages(null);
+    setBackgroundLoading(false);
+    setBackgroundGenerationId(null);
 
     const restore = async (): Promise<void> => {
       try {
-        const res = await fetch(`/api/chat/sessions/${controlledSessionId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!Array.isArray(data.messages) || data.messages.length === 0) return;
-        const serverMessages = mapStoredChatMessages(data.messages);
-        const generating = data.session?.generation_status === "generating";
-        if (cancelled) return;
-        setBackgroundLoading(generating);
-        setBackgroundGenerationId(
-          generating && typeof data.session?.active_generation_id === "string"
-            ? data.session.active_generation_id
-            : null,
+        const snapshot = await fetchChatSessionSnapshot(
+          controlledSessionId,
+          controller.signal,
         );
+        if (cancelled) return;
+        setRestoreError(false);
+        setRestored(true);
+        setBackgroundLoading(snapshot.generating);
+        setBackgroundGenerationId(snapshot.activeGenerationId);
 
         // check sessionStorage for a partial assistant message saved on unload
         const draftKey = `chat-draft:${controlledSessionId}`;
         let draftMsg: Message | null = null;
         try {
           const raw = sessionStorage.getItem(draftKey);
-          if (firstLoad && !generating && raw) {
+          if (firstLoad && !snapshot.generating && raw) {
             const draft = JSON.parse(raw) as {
               content: string;
               thinking?: string;
               sources?: { id: string; title: string }[];
               timestamp: number;
             };
-            const alreadyHas = serverMessages.some(
+            const alreadyHas = snapshot.messages.some(
               (m) => m.role === "assistant" && m.timestamp >= draft.timestamp,
             );
             if (!alreadyHas && draft.content) {
@@ -207,25 +298,32 @@ export function useChatPersistence(
         }
 
         setRestoredMessages([
-          ...serverMessages,
+          ...snapshot.messages,
           ...(draftMsg ? [draftMsg] : []),
         ]);
         firstLoad = false;
-        if (generating) {
+        if (snapshot.generating) {
           pollTimer = setTimeout(() => void restore(), 1_500);
         }
-      } catch {
-        // fresh session is fine
-      } finally {
-        if (!cancelled) setRestored(true);
+      } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
+        logChatPersistence("session restore failed", {
+          sessionId: controlledSessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setRestored(false);
+        setRestoreError(true);
+        setBackgroundLoading(false);
+        setBackgroundGenerationId(null);
       }
     };
     void restore();
     return () => {
       cancelled = true;
+      controller.abort();
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [controlledSessionId]);
+  }, [controlledSessionId, restoreAttempt]);
 
   // refs for unload handlers (kept in sync by the consumer)
   const messagesRef = useRef<Message[]>([]);
@@ -311,6 +409,8 @@ export function useChatPersistence(
     toggleRag,
     restoredMessages,
     restored,
+    restoreError,
+    retryRestore,
     backgroundLoading,
     backgroundGenerationId,
     updateRefs,

@@ -17,6 +17,7 @@ import {
   ackCloudflareQueueMessages,
   cloudflareAttemptsMade,
   enqueueCanvasJob,
+  enqueueRecoveredChatGeneration,
   getQueueProvider,
   getQueueConnection,
   parseCloudflareQueueBody,
@@ -29,6 +30,7 @@ import {
 } from "../marker-serverless";
 import { markerDispatchConsumerEnabled } from "../marker-worker-config";
 import { processChatGeneration } from "../chat/generate-background";
+import { recoverStaleChatGenerations } from "../chat/generation-store";
 import {
   processImportJob,
   processDiscoverJob,
@@ -250,10 +252,26 @@ console.log(
   `[${new Date().toISOString()}] Canvas Import Worker started (${getQueueProvider()} + DB poll, concurrency=${MAX_CONCURRENT_JOBS}, marker-dispatch=${MARKER_DISPATCH_CONSUMER_ENABLED ? MAX_CONCURRENT_MARKER_DISPATCHES : "disabled"})`,
 );
 
+async function recoverChatGenerations(): Promise<void> {
+  if (getQueueProvider() !== "bullmq") return;
+  const staleChatGenerations = await recoverStaleChatGenerations();
+  await Promise.all(
+    staleChatGenerations.map((generationId) =>
+      enqueueRecoveredChatGeneration(generationId),
+    ),
+  );
+  if (staleChatGenerations.length > 0) {
+    console.log(
+      `[${new Date().toISOString()}] DB recovery: republished ${staleChatGenerations.length} chat generation(s)`,
+    );
+  }
+}
+
 await failStuckJobs();
 await runMarketingCleanup();
 await runImportCacheRetention();
 await runNoteLifecycleRetention();
+await recoverChatGenerations();
 setInterval(failStuckJobs, STUCK_JOB_CHECK_INTERVAL_MS);
 setInterval(runMarketingCleanup, MARKETING_CLEANUP_INTERVAL_MS);
 setInterval(runImportCacheRetention, IMPORT_CACHE_RETENTION_INTERVAL_MS);
@@ -261,6 +279,7 @@ setInterval(runNoteLifecycleRetention, NOTE_LIFECYCLE_RETENTION_INTERVAL_MS);
 setInterval(async () => {
   try {
     await claimOrphanedJobs();
+    await recoverChatGenerations();
     const recoveredExtractionRetries = await recoverPendingExtractionRetries();
     if (recoveredExtractionRetries > 0) {
       console.log(

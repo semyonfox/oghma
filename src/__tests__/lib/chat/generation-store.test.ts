@@ -20,13 +20,15 @@ import {
   appendChatGenerationEvent,
   cancelChatGeneration,
   claimChatGeneration,
-  completeChatGeneration,
   createChatGeneration,
   failChatGeneration,
+  finalizeChatGeneration,
+  heartbeatChatGeneration,
   isChatGenerationCancelRequested,
   loadChatGeneration,
   loadOwnedChatGeneration,
   readChatGenerationEvents,
+  recoverStaleChatGenerations,
   requeueChatGeneration,
   requestChatGenerationCancel,
 } from "@/lib/chat/generation-store";
@@ -61,6 +63,10 @@ describe("resumable chat generation store", () => {
 
     expect(id).toBe("11111111-1111-1111-1111-111111111111");
     expect(sqlMock).toHaveBeenCalledOnce();
+    const query = (sqlMock.mock.calls[0]?.[0] as readonly string[]).join("?");
+    expect(query).toContain("WITH user_message AS");
+    expect(query).toContain("INSERT INTO app.chat_generations");
+    expect(query).toContain("generation_status = 'generating'");
     expect(sqlMock.mock.calls[0]?.slice(1)).toEqual(
       expect.arrayContaining([
         expect.stringContaining('"message":"Explain streams"'),
@@ -147,11 +153,9 @@ describe("resumable chat generation store", () => {
 
   it("reads only events after the reconnect cursor", async () => {
     redisMock.call.mockResolvedValue([
+      "stream-key",
       [
-        "stream-key",
-        [
-          ["1720000000000-2", ["sse", 'event: token\ndata: {"text":"there"}\n\n']],
-        ],
+        ["1720000000000-2", ["sse", 'event: token\ndata: {"text":"there"}\n\n']],
       ],
     ]);
 
@@ -179,6 +183,26 @@ describe("resumable chat generation store", () => {
     );
   });
 
+  it("also accepts an untransformed Redis stream reply", async () => {
+    redisMock.call.mockResolvedValue([
+      [
+        "stream-key",
+        [
+          ["1720000000000-2", ["sse", 'event: done\ndata: {}\n\n']],
+        ],
+      ],
+    ]);
+
+    await expect(
+      readChatGenerationEvents(
+        "11111111-1111-1111-1111-111111111111",
+        "1720000000000-1",
+      ),
+    ).resolves.toEqual([
+      { id: "1720000000000-2", sse: "event: done\ndata: {}\n\n" },
+    ]);
+  });
+
   it("records and reads back a cancel request flag", async () => {
     redisMock.set.mockResolvedValue("OK");
     await requestChatGenerationCancel("11111111-1111-1111-1111-111111111111");
@@ -201,22 +225,53 @@ describe("resumable chat generation store", () => {
   });
 
   it("claims queued work atomically and never reclaims an active worker", async () => {
-    sqlMock.mockResolvedValueOnce([{ id: "11111111-1111-1111-1111-111111111111" }]);
+    sqlMock.mockResolvedValueOnce([{
+      id: "11111111-1111-1111-1111-111111111111",
+      session_id: "33333333-3333-3333-3333-333333333333",
+      user_id: "22222222-2222-2222-2222-222222222222",
+      status: "generating",
+      request_payload: { message: "hello" },
+      error_message: null,
+      lease_token: "11111111-1111-1111-1111-111111111111",
+      lease_expires_at: new Date(),
+    }]);
 
     await expect(
       claimChatGeneration("11111111-1111-1111-1111-111111111111"),
-    ).resolves.toBe(true);
+    ).resolves.toEqual(expect.objectContaining({
+      leaseToken: "11111111-1111-1111-1111-111111111111",
+      generation: expect.objectContaining({ status: "generating" }),
+    }));
 
     const [query] = sqlMock.mock.calls[0] as [readonly string[]];
     const text = query.join("?");
     expect(text).toContain("WITH claimed AS");
-    expect(text).toContain("status IN ('queued', 'failed')");
-    expect(text).not.toContain("'generating', 'failed'");
+    expect(text).toContain("status = 'queued'");
+    expect(text).not.toContain("status IN ('queued', 'failed')");
+    expect(text).toContain("lease_expires_at <= NOW()");
+    expect(text).toContain("lease_token =");
 
     sqlMock.mockResolvedValueOnce([]);
     await expect(
       claimChatGeneration("11111111-1111-1111-1111-111111111111"),
-    ).resolves.toBe(false);
+    ).resolves.toBeNull();
+  });
+
+  it("renews only a live lease owned by the caller", async () => {
+    sqlMock.mockResolvedValueOnce([{ id: "11111111-1111-1111-1111-111111111111" }]);
+
+    await expect(
+      heartbeatChatGeneration(
+        "11111111-1111-1111-1111-111111111111",
+        "44444444-4444-4444-4444-444444444444",
+      ),
+    ).resolves.toBe(true);
+
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    const text = query.join("?");
+    expect(text).toContain("lease_token =");
+    expect(text).toContain("lease_expires_at > NOW()");
+    expect(text).toContain("heartbeat_at = NOW()");
   });
 
   it("cancels the generation and returns the session to idle atomically", async () => {
@@ -225,22 +280,53 @@ describe("resumable chat generation store", () => {
     expect(sqlMock).toHaveBeenCalledOnce();
     const [query] = sqlMock.mock.calls[0] as [readonly string[]];
     expect(query.join("?")).toContain("status = 'cancelled'");
-    expect(query.join("?")).toContain("generation_status = 'idle'");
+    expect(query.join("?")).toContain("ELSE 'idle'");
+    expect(query.join("?")).toContain("active.status IN ('queued', 'generating')");
+    expect(query.join("?")).toContain("active.id <>");
   });
 
-  it("completes the generation and session status together", async () => {
-    await completeChatGeneration("11111111-1111-1111-1111-111111111111");
+  it("persists one assistant message and completes its generation atomically", async () => {
+    sqlMock.mockResolvedValueOnce([{ id: "33333333-3333-3333-3333-333333333333" }]);
+    await expect(finalizeChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+      "44444444-4444-4444-4444-444444444444",
+      "completed",
+      {
+        content: "Durable answer",
+        parts: [{ type: "text", text: "Durable answer" }],
+        metadata: { partial: false },
+      },
+    )).resolves.toBe(true);
 
     expect(sqlMock).toHaveBeenCalledOnce();
     const [query] = sqlMock.mock.calls[0] as [readonly string[]];
-    expect(query.join("?")).toContain("status = 'completed'");
-    expect(query.join("?")).toContain("generation_status = 'idle'");
+    const text = query.join("?");
+    expect(text).toContain("WITH owned AS MATERIALIZED");
+    expect(text).toContain("INSERT INTO app.chat_messages");
+    expect(text).toContain("generation_id");
+    expect(text).toContain("ON CONFLICT (generation_id) DO NOTHING");
+    expect(text).toContain("lease_token =");
+    expect(text).toContain("UPDATE app.chat_sessions");
+    expect(text).toContain("active.status IN ('queued', 'generating')");
+    expect(text).toContain("active.id <>");
+    expect(sqlMock.mock.calls[0]?.slice(1)).toContain("Durable answer");
+  });
+
+  it("reports a lost lease without inserting or completing", async () => {
+    sqlMock.mockResolvedValueOnce([]);
+    await expect(finalizeChatGeneration(
+      "11111111-1111-1111-1111-111111111111",
+      "44444444-4444-4444-4444-444444444444",
+      "completed",
+      { content: "stale", parts: [] },
+    )).resolves.toBe(false);
   });
 
   it("does not revive a cancelled generation during retry or failure handling", async () => {
     await requeueChatGeneration(
       "11111111-1111-1111-1111-111111111111",
       "provider error",
+      "44444444-4444-4444-4444-444444444444",
     );
     await failChatGeneration(
       "11111111-1111-1111-1111-111111111111",
@@ -254,8 +340,26 @@ describe("resumable chat generation store", () => {
       "?",
     );
     expect(requeueQuery).toContain("status = 'generating'");
-    expect(failureQuery).toContain("status IN ('queued', 'generating')");
-    expect(requeueQuery).not.toContain("status <> 'completed'");
+    expect(requeueQuery).toContain("lease_token =");
+    expect(failureQuery).toContain("status = 'queued'");
     expect(failureQuery).not.toContain("status <> 'completed'");
+  });
+
+  it("releases expired and abandoned queued rows for bounded recovery", async () => {
+    sqlMock.mockResolvedValueOnce([
+      { id: "11111111-1111-1111-1111-111111111111" },
+      { id: "22222222-2222-2222-2222-222222222222" },
+    ]);
+
+    await expect(recoverStaleChatGenerations(25)).resolves.toEqual([
+      "11111111-1111-1111-1111-111111111111",
+      "22222222-2222-2222-2222-222222222222",
+    ]);
+
+    const [query] = sqlMock.mock.calls[0] as [readonly string[]];
+    const text = query.join("?");
+    expect(text).toContain("lease_expires_at <= NOW()");
+    expect(text).toContain("FOR UPDATE SKIP LOCKED");
+    expect(text).toContain("SET status = 'queued'");
   });
 });

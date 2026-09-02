@@ -56,13 +56,15 @@ student.e2e@example.com
 E2ePassword123!
 ```
 
-The mock stack does not automatically start the background worker. Start it only when exercising imports, indexing or other queued work:
+The mock stack does not automatically start the background worker. Run it in a
+second terminal before using streamed chat, imports, indexing, or other queued
+work:
 
 ```bash
 # Second terminal
 node --experimental-strip-types scripts/dev/run-mock.ts npm run worker
 
-# Verify its queue dependencies
+# Verify its database and queue dependencies, including chat generation
 node --experimental-strip-types scripts/dev/run-mock.ts npm run worker:healthcheck
 ```
 

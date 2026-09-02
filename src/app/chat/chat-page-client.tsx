@@ -37,6 +37,24 @@ interface ContextItem {
   title: string;
 }
 
+interface PendingChatNavigation {
+  sessionId: string;
+  href: string;
+  originRouteSessionId: string | null;
+}
+
+export function shouldApplyPendingChatNavigation(
+  pending: PendingChatNavigation | null,
+  completedSessionId: string | null,
+  currentRouteSessionId: string | null,
+): boolean {
+  return Boolean(
+    pending &&
+      pending.sessionId === completedSessionId &&
+      pending.originRouteSessionId === currentRouteSessionId,
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -130,7 +148,9 @@ export default function ChatPageClient() {
   const paramFolderTitle = paramFolderTitles[0] ?? undefined;
   const hasRouteScope = paramNoteIds.length > 0 || paramFolderIds.length > 0;
 
-  const pendingNavRef = useRef<string | null>(null);
+  const routeSessionIdRef = useRef<string | null>(routeSessionId);
+  routeSessionIdRef.current = routeSessionId;
+  const pendingNavRef = useRef<PendingChatNavigation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(routeSessionId);
   const [loaded, setLoaded] = useState(false);
@@ -143,6 +163,14 @@ export default function ChatPageClient() {
 
   useEffect(() => {
     setActiveId(routeSessionId);
+    const pending = pendingNavRef.current;
+    if (
+      pending &&
+      routeSessionId !== pending.originRouteSessionId &&
+      routeSessionId !== pending.sessionId
+    ) {
+      pendingNavRef.current = null;
+    }
   }, [routeSessionId]);
 
   useEffect(() => {
@@ -267,6 +295,7 @@ export default function ChatPageClient() {
   }, [loadSessions]);
 
   const newConversation = useCallback(() => {
+    pendingNavRef.current = null;
     setHistoryOpen(false);
     setMountKey((prev) => prev + 1);
     setActiveId(null);
@@ -274,6 +303,7 @@ export default function ChatPageClient() {
   }, [draftHref, router]);
 
   const clearContextAndStartNewChat = useCallback(() => {
+    pendingNavRef.current = null;
     setMountKey((prev) => prev + 1);
     setSelectedNotes([]);
     setSelectedFolders([]);
@@ -312,7 +342,11 @@ export default function ChatPageClient() {
       });
       setActiveId(sessionId);
       // defer URL update to stream completion to avoid remounting mid-stream
-      pendingNavRef.current = buildChatSessionHref(sessionId, draftRouteContext);
+      pendingNavRef.current = {
+        sessionId,
+        href: buildChatSessionHref(sessionId, draftRouteContext),
+        originRouteSessionId: routeSessionIdRef.current,
+      };
     },
     [
       draftRouteContext,
@@ -323,10 +357,20 @@ export default function ChatPageClient() {
     ],
   );
 
-  const handleStreamComplete = useCallback(() => {
+  const handleStreamComplete = useCallback((completedSessionId: string | null) => {
     void loadSessions();
-    if (pendingNavRef.current) {
-      router.replace(pendingNavRef.current);
+    const pending = pendingNavRef.current;
+    if (
+      pending &&
+      shouldApplyPendingChatNavigation(
+        pending,
+        completedSessionId,
+        routeSessionIdRef.current,
+      )
+    ) {
+      router.replace(pending.href);
+      pendingNavRef.current = null;
+    } else if (pending?.sessionId === completedSessionId) {
       pendingNavRef.current = null;
     }
   }, [loadSessions, router]);
@@ -413,6 +457,7 @@ export default function ChatPageClient() {
       : t("chat.new_conversation"));
 
   const selectConversation = (id: string) => {
+    pendingNavRef.current = null;
     setHistoryOpen(false);
     setMountKey((prev) => prev + 1);
     setActiveId(id);
@@ -469,7 +514,7 @@ export default function ChatPageClient() {
 
           <ChatInterface
             key={mountKey}
-            sessionId={activeId ?? undefined}
+            sessionId={routeSessionId ?? undefined}
             noteId={
               selectedNotes.length === 1 && selectedFolders.length === 0
                 ? selectedNotes[0].id
