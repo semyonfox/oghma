@@ -28,6 +28,7 @@ const SplitEditorPane: FC = () => {
           pane="A"
           file={paneA}
           splitInteractionsEnabled={isDesktop === true}
+          hasSecondaryPane={false}
         />
       </div>
     );
@@ -38,7 +39,7 @@ const SplitEditorPane: FC = () => {
       <PanelGroup orientation="horizontal" className="flex-1">
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
           <div className="h-full w-full">
-            <EditorPane pane="A" file={paneA} />
+            <EditorPane pane="A" file={paneA} hasSecondaryPane />
           </div>
         </Panel>
 
@@ -46,7 +47,7 @@ const SplitEditorPane: FC = () => {
 
         <Panel defaultSize={50} minSize={20} className="flex min-w-0">
           <div className="h-full w-full">
-            <EditorPane pane="B" file={paneB ?? undefined} />
+            <EditorPane pane="B" file={paneB ?? undefined} hasSecondaryPane />
           </div>
         </Panel>
       </PanelGroup>

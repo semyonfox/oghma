@@ -83,4 +83,45 @@ describe("layout pane coordination", () => {
       rightPanelWidth: 600,
     });
   });
+
+  it("swaps open panes atomically when a pane is dropped on the other", () => {
+    let updates = 0;
+    const unsubscribe = useLayoutStore.subscribe(() => updates++);
+
+    useLayoutStore.getState().placeFileInPane(paneA, "B", "A");
+    unsubscribe();
+
+    expect(updates).toBe(1);
+    expect(useLayoutStore.getState()).toMatchObject({
+      paneA: paneB,
+      paneB: paneA,
+      activePane: "B",
+      selectedNode: paneA.fileId,
+    });
+  });
+
+  it("replaces only the targeted pane for a file dragged from the tree", () => {
+    const treeFile = {
+      fileId: "33333333-3333-4333-8333-333333333333",
+      fileType: "pdf" as const,
+      title: "Tree file",
+    };
+
+    useLayoutStore.getState().placeFileInPane(treeFile, "B");
+
+    expect(useLayoutStore.getState()).toMatchObject({
+      paneA,
+      paneB: treeFile,
+      activePane: "B",
+      selectedNode: treeFile.fileId,
+    });
+  });
+
+  it("does not duplicate a lone pane when it is dragged to the empty side", () => {
+    useLayoutStore.setState({ paneB: null });
+
+    useLayoutStore.getState().placeFileInPane(paneA, "B", "A");
+
+    expect(useLayoutStore.getState()).toMatchObject({ paneA, paneB: null });
+  });
 });

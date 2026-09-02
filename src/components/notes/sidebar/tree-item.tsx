@@ -2,7 +2,11 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { NoteModel } from "@/lib/notes/types/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
-import { inferFileType } from "@/lib/notes/utils/file-spec";
+import {
+  buildFileSpec,
+  FILE_DRAG_MIME,
+  inferFileType,
+} from "@/lib/notes/utils/file-spec";
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -157,6 +161,12 @@ const TreeItem: React.FC<TreeItemProps> = memo(
           onDragStart={(e: React.DragEvent) => {
             rctProps.onDragStart?.(e);
             interactiveProps.onDragStart?.(e);
+            if (!isFolder && nodeData) {
+              e.dataTransfer.setData(
+                FILE_DRAG_MIME,
+                JSON.stringify({ file: buildFileSpec(nodeData) }),
+              );
+            }
           }}
         >
           <span
