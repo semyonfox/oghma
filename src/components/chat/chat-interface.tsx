@@ -281,6 +281,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     setInput("");
     if (inputRef.current) {
       (inputRef.current as HTMLTextAreaElement).style.height = "20px";
+      inputRef.current.scrollTop = 0;
     }
 
     const history = messages
