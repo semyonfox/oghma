@@ -24,28 +24,16 @@ export function shouldSynthesizeFinalAnswer(
 
 export async function streamFinalAnswer(options: {
   model: LanguageModel;
+  instructions: string;
   messages: ModelMessage[];
   maxOutputTokens: number;
   onTextDelta: (text: string) => void;
   abortSignal?: AbortSignal;
 }): Promise<FinalAnswerResult> {
-  // ai sdk v7: system content must be passed via the instructions option,
-  // so pull the leading system message out of the list
-  const [firstMessage, ...remainingMessages] = options.messages;
-  let instructions: string;
-  let messages: ModelMessage[];
-  if (firstMessage?.role === "system") {
-    instructions = `${firstMessage.content}\n\n${FINAL_ANSWER_INSTRUCTION}`;
-    messages = remainingMessages;
-  } else {
-    instructions = FINAL_ANSWER_INSTRUCTION;
-    messages = options.messages;
-  }
-
   const result = streamText({
     model: options.model,
-    instructions,
-    messages,
+    instructions: `${options.instructions}\n\n${FINAL_ANSWER_INSTRUCTION}`,
+    messages: options.messages,
     maxOutputTokens: options.maxOutputTokens,
     abortSignal: options.abortSignal,
     providerOptions: {

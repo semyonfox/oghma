@@ -310,6 +310,7 @@ export async function processChatGeneration(
         const finalAnswer = await streamFinalAnswer({
           model: llm.model,
           abortSignal: abortController.signal,
+          instructions: llm.llmCallOptions.instructions,
           messages: [...llm.llmCallOptions.messages, ...responseMessages],
           maxOutputTokens: llm.llmCallOptions.maxOutputTokens,
           onTextDelta(text) {
