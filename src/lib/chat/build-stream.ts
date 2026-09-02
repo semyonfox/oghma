@@ -81,6 +81,7 @@ export interface LlmCallResult {
   model: LanguageModelV4 | null;
   llmAvailable: boolean;
   llmCallOptions: {
+    instructions: string;
     messages: ChatMessage[];
     maxOutputTokens: number;
     temperature?: number;
@@ -91,6 +92,34 @@ export interface LlmCallResult {
   };
   canvasMcpClient: MCPClient | null;
   maxToolSteps: number;
+}
+
+export function buildChatPrompt(params: {
+  systemPrompt: string;
+  sessionMemoryPrompt: string;
+  toolInstruction: string;
+  history: ChatMessage[];
+  message: string;
+}): { instructions: string; messages: ChatMessage[] } {
+  const recentHistory = params.history.slice(-20);
+  const historyInstructions = recentHistory
+    .filter((entry) => entry.role === "system")
+    .map((entry) => entry.content);
+
+  return {
+    instructions: [
+      params.systemPrompt,
+      params.sessionMemoryPrompt,
+      params.toolInstruction,
+      ...historyInstructions,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    messages: [
+      ...recentHistory.filter((entry) => entry.role !== "system"),
+      { role: "user", content: params.message },
+    ],
+  };
 }
 
 async function resolveParentFolderHint(
@@ -624,20 +653,13 @@ export async function buildLlmCall(
     params.clientDateTime,
   );
 
-  const chatMessages: ChatMessage[] = [
-    {
-      role: "system",
-      content: [
-        params.systemPrompt,
-        params.sessionMemoryPrompt,
-        toolInstruction,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-    },
-    ...params.history.slice(-20),
-    { role: "user", content: params.message },
-  ];
+  const prompt = buildChatPrompt({
+    systemPrompt: params.systemPrompt,
+    sessionMemoryPrompt: params.sessionMemoryPrompt,
+    toolInstruction,
+    history: params.history,
+    message: params.message,
+  });
 
   const provider = createLlmProvider();
   const model = provider ? provider(getLlmModel()) : null;
@@ -646,7 +668,8 @@ export async function buildLlmCall(
     model,
     llmAvailable: !!model,
     llmCallOptions: {
-      messages: chatMessages,
+      instructions: prompt.instructions,
+      messages: prompt.messages,
       maxOutputTokens: getLlmMaxTokens(),
       ...(params.thinkingMode !== "off" && { temperature: 1 }),
       stopWhen: toolBudget.stopWhen,

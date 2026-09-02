@@ -1,5 +1,4 @@
 import {
-  type ModelMessage,
   type PrepareStepFunction,
   type StopCondition,
   type Tool,
@@ -52,18 +51,30 @@ export function buildToolBudgetControls(
   return {
     tools: wrapToolsWithBudget(tools, budget),
     stopWhen: ({ steps }) => steps.length >= safetyStepLimit,
-    prepareStep: ({ messages }) => {
+    prepareStep: ({ instructions }) => {
       if (!budget.exhausted) return undefined;
 
-      const limitInstruction: ModelMessage = {
+      const limitInstruction = {
         role: "system",
         content: TOOL_CALL_LIMIT_MODEL_INSTRUCTION,
-      };
+      } as const;
+
+      const nextInstructions =
+        typeof instructions === "string"
+          ? `${instructions}\n\n${TOOL_CALL_LIMIT_MODEL_INSTRUCTION}`
+          : [
+              ...(Array.isArray(instructions)
+                ? instructions
+                : instructions
+                  ? [instructions]
+                  : []),
+              limitInstruction,
+            ];
 
       return {
         activeTools: [],
         toolChoice: "none",
-        messages: [...messages, limitInstruction],
+        instructions: nextInstructions,
       };
     },
   };
