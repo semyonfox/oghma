@@ -466,6 +466,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 const finalAnswer = await streamFinalAnswer({
                   model: model!,
                   abortSignal: inlineAbort.signal,
+                  instructions: llmCallOptions.instructions,
                   messages: [
                     ...llmCallOptions.messages,
                     ...responseMessages,
@@ -664,6 +665,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (finalization.kind === "synthesize-final-answer") {
       const finalAnswer = await streamFinalAnswer({
         model,
+        instructions: llmCallOptions.instructions,
         messages: [...llmCallOptions.messages, ...result.response.messages],
         maxOutputTokens: llmCallOptions.maxOutputTokens,
         onTextDelta(text) {

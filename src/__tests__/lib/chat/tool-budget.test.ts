@@ -97,8 +97,8 @@ describe("tool budget controls", () => {
       >[0]["steps"],
       stepNumber: 1,
       model: {} as Parameters<typeof controls.prepareStep>[0]["model"],
-      instructions: undefined,
-      initialInstructions: undefined,
+      instructions: "Base instructions",
+      initialInstructions: "Base instructions",
       messages: [{ role: "user", content: "summarise" }],
       initialMessages: [],
       responseMessages: [],
@@ -108,11 +108,13 @@ describe("tool budget controls", () => {
 
     expect(result?.activeTools).toEqual([]);
     expect(result?.toolChoice).toBe("none");
-    expect(result?.messages).toHaveLength(2);
-    expect(result?.messages?.[1]).toMatchObject({
-      role: "system",
-      content: expect.stringContaining("Continue the task"),
-    });
+    expect(result?.messages).toBeUndefined();
+    expect(result?.instructions).toEqual(
+      expect.stringContaining("Base instructions"),
+    );
+    expect(result?.instructions).toEqual(
+      expect.stringContaining("Continue the task"),
+    );
   });
 
   it("shows the limit result to the model as text", async () => {

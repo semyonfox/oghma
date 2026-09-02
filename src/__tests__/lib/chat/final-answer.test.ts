@@ -44,8 +44,8 @@ describe("streamFinalAnswer", () => {
 
     const result = await streamFinalAnswer({
       model,
+      instructions: "Use note tools when needed.",
       messages: [
-        { role: "system", content: "Use note tools when needed." },
         { role: "user", content: "Use the search result." },
         {
           role: "assistant",
@@ -117,6 +117,7 @@ describe("streamFinalAnswer", () => {
     await streamFinalAnswer({
       model,
       abortSignal: controller.signal,
+      instructions: "Answer the user.",
       messages: [{ role: "user", content: "hi" }],
       maxOutputTokens: 64,
       onTextDelta: vi.fn(),
