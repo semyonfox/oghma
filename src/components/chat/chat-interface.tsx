@@ -94,24 +94,19 @@ interface ChatInterfaceProps {
   /** Called when the user clears the current scope */
   onClearContext?: () => void;
   /** Called when a stream completes — useful for refreshing session list order */
-  onStreamComplete?: () => void;
+  onStreamComplete?: (sessionId: string | null) => void;
   onRemoveNote?: (id: string) => void;
   onRemoveFolder?: (id: string) => void;
   /** Optional extra class on the wrapper */
   className?: string;
 }
 
-export function shouldPreserveLiveSession(
+export function isChatComposerReady(
   controlledSessionId: string | undefined,
-  localSessionId: string | null,
-  messageCount: number,
-  ownsLiveStream = false,
+  restored: boolean,
+  busy: boolean,
 ): boolean {
-  return Boolean(
-    messageCount > 0 &&
-      (ownsLiveStream ||
-        (controlledSessionId && controlledSessionId === localSessionId)),
-  );
+  return !busy && (!controlledSessionId || restored);
 }
 
 const ChatInterface: FC<ChatInterfaceProps> = ({
@@ -135,6 +130,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     useRag,
     toggleRag,
     restoredMessages,
+    restored,
+    restoreError,
+    retryRestore,
     backgroundLoading,
     backgroundGenerationId,
     updateRefs,
@@ -161,10 +159,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     selectedFolders,
     thinkingMode,
     useRag,
+    controlledSessionId,
+    sessionReady: !controlledSessionId || restored,
     onSessionCreated,
     onStreamComplete,
+    onTerminalFailure: controlledSessionId ? retryRestore : undefined,
   });
   const busy = loading || backgroundLoading;
+  const composerDisabled = !isChatComposerReady(
+    controlledSessionId,
+    restored,
+    busy,
+  );
 
   // Stop must reach the worker even before the background resume attaches,
   // Use this state when the hook does not know the generation ID yet.
@@ -177,51 +183,27 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     cancel();
   };
   const resumedGenerationRef = useRef<string | null>(null);
-  const ownsLiveStreamRef = useRef(false);
 
-  // Latch ownership before the server-assigned session ID is reflected by the
-  // parent. React may render that controlled ID before the hook's local ID,
-  // so comparing IDs alone is not sufficient to protect optimistic messages.
-  if (loading && messages.length > 0) {
-    ownsLiveStreamRef.current = true;
-  }
+  useEffect(() => {
+    resumedGenerationRef.current = null;
+  }, [controlledSessionId]);
 
   // apply restored session messages when available
-  const restoredAppliedRef = useRef(false);
   useEffect(() => {
-    // A new chat receives its server ID while its first reply is still live.
-    // The parent then passes that ID back as controlledSessionId, which starts
-    // a restore request. Preserve the optimistic messages in this mounted
-    // instance: the restore snapshot can be older than the active stream and
-    // would remove the assistant message that incoming tokens target.
     if (
-      shouldPreserveLiveSession(
-        controlledSessionId,
-        sessionId,
-        messages.length,
-        ownsLiveStreamRef.current,
-      )
-    ) {
-      restoredAppliedRef.current = true;
-      return;
-    }
-    if (
+      !controlledSessionId ||
+      !restored ||
       !restoredMessages ||
-      (restoredAppliedRef.current && (backgroundLoading || loading))
+      loading
     ) {
       return;
     }
-    restoredAppliedRef.current = true;
-    if (controlledSessionId) {
-      setSessionId(controlledSessionId);
-    }
+    setSessionId(controlledSessionId);
     setMessages(restoredMessages);
   }, [
     restoredMessages,
+    restored,
     controlledSessionId,
-    sessionId,
-    messages.length,
-    backgroundLoading,
     loading,
     setMessages,
     setSessionId,
@@ -229,7 +211,9 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   useEffect(() => {
     if (
-      !restoredAppliedRef.current ||
+      !restored ||
+      !restoredMessages ||
+      messages !== restoredMessages ||
       !backgroundGenerationId ||
       resumedGenerationRef.current === backgroundGenerationId
     ) {
@@ -237,7 +221,13 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     }
     resumedGenerationRef.current = backgroundGenerationId;
     void resume(backgroundGenerationId);
-  }, [backgroundGenerationId, restoredMessages, resume]);
+  }, [
+    backgroundGenerationId,
+    messages,
+    restored,
+    restoredMessages,
+    resume,
+  ]);
 
   // keep persistence refs in sync for unload handlers
   useEffect(() => {
@@ -273,7 +263,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || composerDisabled) return;
 
     // sending a message always re-pins the view to the bottom
     pinnedToBottomRef.current = true;
@@ -314,6 +304,21 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             />
           ))}
 
+          {restoreError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-2 px-1 text-xs text-error-400"
+            >
+              <span>{t("error.something_went_wrong")}</span>
+              <button
+                type="button"
+                onClick={retryRestore}
+                className="font-medium text-primary-300 hover:text-primary-200"
+              >
+                {t("Try again")}
+              </button>
+            </div>
+          )}
           {error && <p className="text-xs text-error-400 px-1">{error}</p>}
           <div ref={bottomRef} />
         </div>
@@ -347,12 +352,12 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_about_note")}
-              disabled={busy}
+              disabled={composerDisabled}
               className="flex-1 min-w-0 bg-transparent text-xs text-text-secondary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={busy || !input.trim()}
+              disabled={composerDisabled || !input.trim()}
               className="p-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-text-on-primary rounded-radius-sm transition-colors flex-shrink-0"
             >
               <PaperAirplaneIcon className="w-3 h-3" />
@@ -400,6 +405,24 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <p className="text-xs text-error-400 bg-error-500/10 border border-error-500/20 px-3 py-2 rounded-radius-lg">
                 {error}
               </p>
+            </div>
+          )}
+
+          {restoreError && (
+            <div className="flex justify-center">
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-radius-lg border border-error-500/20 bg-error-500/10 px-3 py-2 text-xs text-error-400"
+              >
+                <span>{t("error.something_went_wrong")}</span>
+                <button
+                  type="button"
+                  onClick={retryRestore}
+                  className="font-medium text-primary-300 transition-colors hover:text-primary-200"
+                >
+                  {t("Try again")}
+                </button>
+              </div>
             </div>
           )}
 
@@ -490,7 +513,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("chat.ask_placeholder")}
-              disabled={busy}
+              disabled={composerDisabled}
               rows={1}
               className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-snug text-text placeholder:text-text-tertiary focus:outline-none disabled:opacity-50 md:py-0"
               style={{ minHeight: "20px", maxHeight: "96px" }}
@@ -510,7 +533,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             ) : (
               <button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={composerDisabled || !input.trim()}
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-radius-md bg-primary-600 text-text-on-primary transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-8 md:w-8"
                 aria-label={t("Send message")}
               >

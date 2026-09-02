@@ -147,7 +147,7 @@ Interactive `psql` and `redis-cli` sessions are privileged mutation surfaces,
 not read-only checks. Use them only through the private operations workflow.
 Do not include env-file contents in diagnostics.
 
-## Rate-limiter degradation
+## Health and chat readiness
 
 `GET /api/health` is the app liveness check: it remains HTTP 200 while the
 database is reachable, including when Redis is unavailable, but returns
@@ -156,6 +156,14 @@ database is reachable, including when Redis is unavailable, but returns
 `rateLimiter.redisReady` and `rateLimiter.status`. Alert on a degraded status
 or `redisReady: false`; do not treat a successful container liveness check as
 proof of distributed rate limiting.
+
+Background chat has a stricter readiness contract because Redis carries both
+its BullMQ job and replayable events. `GET /api/health?readiness=chat` returns
+HTTP 503 unless PostgreSQL and Redis are reachable and `QUEUE_PROVIDER` is
+`bullmq`. This does not prove that a worker process is consuming jobs, so run
+`npm run worker:healthcheck` in the worker container and complete an
+authenticated deterministic chat smoke test before promotion. See the
+[chat runbook](../docs/operations/chat.md).
 
 In homelab and launch-provider deployments, Redis loss makes sensitive public
 auth categories fail closed with HTTP 503 rather than use per-process memory

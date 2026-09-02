@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   loadGeneration: vi.fn(),
   readEvents: vi.fn(),
+  reader: { disconnect: vi.fn() },
 }));
 
 vi.mock("@/lib/api-error", () => ({
@@ -19,6 +20,10 @@ vi.mock("@/lib/api-error", () => ({
 vi.mock("@/lib/chat/generation-store", () => ({
   loadOwnedChatGeneration: mocks.loadGeneration,
   readChatGenerationEvents: mocks.readEvents,
+}));
+
+vi.mock("@/lib/redis", () => ({
+  createBlockingRedisConnection: () => mocks.reader,
 }));
 
 import { GET } from "@/app/api/chat/generations/[id]/stream/route";
@@ -55,7 +60,20 @@ describe("GET /api/chat/generations/[id]/stream", () => {
 
     expect(body).toContain("id: 1-0\nevent: token");
     expect(body).toContain("id: 2-0\nevent: done");
-    expect(mocks.readEvents).toHaveBeenNthCalledWith(1, generationId, "0-0");
-    expect(mocks.readEvents).toHaveBeenNthCalledWith(2, generationId, "1-0");
+    expect(mocks.readEvents).toHaveBeenNthCalledWith(
+      1,
+      generationId,
+      "0-0",
+      15_000,
+      mocks.reader,
+    );
+    expect(mocks.readEvents).toHaveBeenNthCalledWith(
+      2,
+      generationId,
+      "1-0",
+      15_000,
+      mocks.reader,
+    );
+    expect(mocks.reader.disconnect).toHaveBeenCalledWith(false);
   });
 });

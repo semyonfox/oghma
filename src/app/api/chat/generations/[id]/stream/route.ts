@@ -9,6 +9,10 @@ import {
   loadOwnedChatGeneration,
   readChatGenerationEvents,
 } from "@/lib/chat/generation-store";
+import {
+  createBlockingRedisConnection,
+  type RedisConnection,
+} from "@/lib/redis";
 import { toSseEvent } from "@/lib/chat/sse";
 
 const encoder = new TextEncoder();
@@ -35,6 +39,7 @@ export const GET = withErrorHandler(
     const initialAfter =
       requestedAfter && REDIS_STREAM_ID.test(requestedAfter) ? requestedAfter : "0-0";
     let cancelled = false;
+    let reader: RedisConnection | null = null;
 
     return new NextResponse(
       new ReadableStream({
@@ -42,9 +47,15 @@ export const GET = withErrorHandler(
           void (async () => {
             let afterId = initialAfter;
             try {
+              reader = createBlockingRedisConnection();
               controller.enqueue(encoder.encode(": connected\n\n"));
               while (!cancelled) {
-                const events = await readChatGenerationEvents(id, afterId);
+                const events = await readChatGenerationEvents(
+                  id,
+                  afterId,
+                  15_000,
+                  reader,
+                );
                 for (const event of events) {
                   afterId = event.id;
                   controller.enqueue(
@@ -81,11 +92,16 @@ export const GET = withErrorHandler(
               if (!cancelled) controller.close();
             } catch (error) {
               if (!cancelled) controller.error(error);
+            } finally {
+              reader?.disconnect(false);
+              reader = null;
             }
           })();
         },
         cancel() {
           cancelled = true;
+          reader?.disconnect(false);
+          reader = null;
         },
       }),
       {

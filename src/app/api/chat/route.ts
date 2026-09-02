@@ -111,6 +111,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       requestedSessionId,
       message,
       requestHistory,
+      { persistUserMessage: false },
     );
     const generationId = await createChatGeneration({
       userId,

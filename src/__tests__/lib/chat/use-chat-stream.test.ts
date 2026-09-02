@@ -1,11 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MutableRefObject } from "react";
 import {
   applyUpdate,
   consumeChatStream,
   resolveResumeAssistantId,
 } from "@/lib/chat/client-stream";
-import { mapStoredChatMessages } from "@/lib/chat/hooks/use-chat-persistence";
+import {
+  fetchChatSessionSnapshot,
+  mapStoredChatMessages,
+} from "@/lib/chat/hooks/use-chat-persistence";
+import { isChatOperationCurrent } from "@/lib/chat/hooks/use-chat-stream";
 import type { Message } from "@/lib/chat/types";
 
 function ref(): MutableRefObject<number | null> {
@@ -21,6 +25,33 @@ function baseMsg(content = "", parts: Message["parts"] = []): Message {
     timestamp: 0,
   };
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("chat operation ownership", () => {
+  const baseOperation = {
+    id: 4,
+    routeSessionId: "session-1",
+    createdSessionId: null,
+  };
+
+  it("rejects stale operations and route changes", () => {
+    expect(isChatOperationCurrent(baseOperation, 5, "session-1")).toBe(false);
+    expect(isChatOperationCurrent(baseOperation, 4, "session-2")).toBe(false);
+  });
+
+  it("accepts only the server-created route for a new-chat operation", () => {
+    const operation = {
+      id: 4,
+      routeSessionId: null,
+      createdSessionId: "session-created",
+    };
+    expect(isChatOperationCurrent(operation, 4, "session-created")).toBe(true);
+    expect(isChatOperationCurrent(operation, 4, "session-other")).toBe(false);
+  });
+});
 
 describe("applyUpdate — token + tool-call parts", () => {
   it("renders the initial RAG search with its query and matched note", () => {
@@ -209,6 +240,44 @@ describe("background chat restore", () => {
       }),
     ]);
   });
+
+  it("filters malformed persisted messages at the network boundary", () => {
+    expect(
+      mapStoredChatMessages([
+        { id: "bad", role: "system", content: "not supported" },
+        { id: "answer-1", role: "assistant", content: "Durable answer" },
+      ]),
+    ).toEqual([
+      expect.objectContaining({ id: "answer-1", content: "Durable answer" }),
+    ]);
+  });
+
+  it("loads an empty durable session and its active generation", async () => {
+    const signal = new AbortController().signal;
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session: {
+            generation_status: "generating",
+            active_generation_id: "generation-1",
+          },
+          messages: [],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchChatSessionSnapshot("session-1", signal)).resolves.toEqual({
+      messages: [],
+      generating: true,
+      activeGenerationId: "generation-1",
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/chat/sessions/session-1", {
+      signal,
+      cache: "no-store",
+    });
+  });
 });
 
 describe("chat event stream consumption", () => {
@@ -260,5 +329,31 @@ describe("chat event stream consumption", () => {
         translate: (key) => key,
       }),
     ).rejects.toThrow("before completion");
+  });
+
+  it("cancels the browser reader when its operation detaches", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        // Keep the read pending until AbortSignal detaches the consumer.
+      },
+      cancel,
+    });
+    const controller = new AbortController();
+    const consuming = consumeChatStream({
+      body,
+      assistantId: "msg-1",
+      userText: "Question",
+      thinkingStartRef: ref(),
+      setMessages: () => undefined,
+      onSession: () => undefined,
+      translate: (key) => key,
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });
