@@ -1096,7 +1096,9 @@ html.light .glass-card-active {
   min-height: 2.75rem;
   padding-inline: 0.5rem;
   flex-wrap: nowrap;
-  width: calc(100% - 5.5rem);
+  /* save affordance moved to the pane filename bar, so the toolbar gets the
+     full width and scrolls edge to edge instead of being clipped short */
+  width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
