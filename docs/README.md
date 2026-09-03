@@ -40,6 +40,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Import pipeline](engineering/import-pipeline.md) | Canvas/vault processing stages and tuning model |
 | [Canvas data emergency plan](engineering/canvas-data-emergency-plan.md) | Contingency modes for reducing or stopping retention of Canvas-originated content |
 | [Design system](engineering/design-system.md) | UI tokens and component conventions |
+| [Split-pane editor](engineering/split-pane-editor.md) | Pane drag/swap resolution, save-affordance placement, and the second-editor cost decision |
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
 | [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
 | [Performance](engineering/performance.md) | Repeatable performance-audit workflow and evidence rules |

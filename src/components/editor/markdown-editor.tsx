@@ -16,6 +16,9 @@ import useLayoutStore, {
 } from "@/lib/notes/state/layout.zustand";
 import useNoteStore from "@/lib/notes/state/note";
 import useSyncStatusStore from "@/lib/notes/state/sync-status";
+import useSaveIndicatorStore, {
+  SaveState,
+} from "@/lib/notes/state/save-indicator";
 import { useSettingsStore } from "@/lib/notes/state/ui/settings";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { toast } from "sonner";
@@ -360,47 +363,32 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({ pane, file }) => {
     [isDirty, handleSave],
   );
 
+  // publish save state to the pane header — the filename bar owns the button
+  const setIndicator = useSaveIndicatorStore((s) => s.setIndicator);
+  const clearIndicator = useSaveIndicatorStore((s) => s.clearIndicator);
+  const saveState: SaveState = isSaving
+    ? "saving"
+    : isDirty
+      ? "dirty"
+      : saveError
+        ? "error"
+        : "saved";
+
+  const requestSave = useCallback(() => {
+    saveLatest.current();
+  }, []);
+
+  useEffect(() => {
+    setIndicator(file.fileId, { state: saveState, save: requestSave });
+  }, [file.fileId, saveState, requestSave, setIndicator]);
+
+  useEffect(() => {
+    const fileId = file.fileId;
+    return () => clearIndicator(fileId);
+  }, [file.fileId, clearIndicator]);
+
   return (
     <div className="relative h-full flex flex-col bg-app-page" onBlur={handleEditorBlur}>
-      {/* Actions share the visual row owned by Crepe's formatting toolbar. */}
-      <div className="absolute right-3 top-0 z-30 flex h-11 items-center gap-1.5">
-          {isDirty && !isSaving ? (
-            <button
-              onClick={handleSave}
-              className="inline-flex h-7 items-center gap-1.5 rounded-radius-sm px-2 text-xs font-mono text-yellow-500 transition-colors hover:bg-yellow-500/10 hover:text-yellow-400"
-              title={t("Save (Ctrl+S)")}
-            >
-              <svg
-                className="w-3 h-3"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M5 3h8l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                <path d="M7 3v4h6V3M7 13h6" />
-              </svg>
-              {t("Unsaved")}
-            </button>
-          ) : (
-            <span
-              className={`inline-flex h-7 items-center rounded-radius-sm px-2 text-xs font-mono ${
-                isSaving
-                  ? "text-yellow-500"
-                  : saveError
-                    ? "text-error-400"
-                    : "text-success-500"
-              }`}
-            >
-              {isSaving
-                ? t("Saving...")
-                : saveError
-                  ? t("Save failed")
-                  : t("Saved")}
-            </span>
-          )}
-      </div>
-
       {/* Content Area */}
       <div
         className="flex-1 overflow-hidden bg-app-page"

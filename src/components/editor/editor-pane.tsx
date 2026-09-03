@@ -5,13 +5,20 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { FileSpec, PaneId } from "@/lib/notes/state/layout.zustand";
 import {
+  ArrowPathIcon,
+  CheckCircleIcon,
   ClipboardDocumentCheckIcon,
+  CloudArrowUpIcon,
   DocumentIcon,
+  ExclamationTriangleIcon,
   RectangleGroupIcon,
   XMarkIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
+import useSaveIndicatorStore, {
+  FileSaveIndicator,
+} from "@/lib/notes/state/save-indicator";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 import useNoteStore from "@/lib/notes/state/note";
@@ -52,6 +59,9 @@ const EditorPane: FC<EditorPaneProps> = ({
   const setPaneB = useLayoutStore((s) => s.setPaneB);
   const placeFileInPane = useLayoutStore((s) => s.placeFileInPane);
   const setActivePane = useLayoutStore((s) => s.setActivePane);
+  const saveIndicator = useSaveIndicatorStore((s) =>
+    file?.fileId ? s.files[file.fileId] : undefined,
+  );
   const openRightPanelTab = useLayoutStore((s) => s.openRightPanelTab);
   const initLoaded = useNoteTreeStore((s) => s.initLoaded);
   const rootChildCount = useNoteTreeStore(
@@ -275,10 +285,13 @@ const EditorPane: FC<EditorPaneProps> = ({
         onDragStart={splitInteractionsEnabled ? handleDragStart : undefined}
         onDragEnd={splitInteractionsEnabled ? handleDragEnd : undefined}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm text-text-secondary truncate">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm text-text-secondary">
             {file.title || file.fileId}
           </span>
+          {saveIndicator ? (
+            <SaveIndicatorButton indicator={saveIndicator} t={t} />
+          ) : null}
         </div>
 
         <div className="flex items-center gap-0.5">
@@ -341,6 +354,68 @@ const EditorPane: FC<EditorPaneProps> = ({
         <FileRenderer key={file.fileId} pane={pane} file={file} />
       </div>
     </div>
+  );
+};
+
+interface SaveIndicatorButtonProps {
+  indicator: FileSaveIndicator;
+  t: (key: string) => string;
+}
+
+// compact save affordance living in the filename bar. a settled note stays a
+// quiet glyph; anything the user can act on becomes a real button
+const SaveIndicatorButton: FC<SaveIndicatorButtonProps> = ({ indicator, t }) => {
+  const { state, save } = indicator;
+
+  if (state === "saved") {
+    return (
+      <span
+        className="flex h-6 w-6 items-center justify-center text-text-tertiary/50"
+        title={t("Saved")}
+        aria-label={t("Saved")}
+      >
+        <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (state === "saving") {
+    return (
+      <span
+        className="flex h-6 w-6 items-center justify-center text-text-tertiary"
+        title={t("Saving...")}
+        aria-label={t("Saving...")}
+        role="status"
+      >
+        <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  const isError = state === "error";
+  const label = isError ? t("Save failed") : t("Save (Ctrl+S)");
+
+  return (
+    <button
+      type="button"
+      onClick={save}
+      title={label}
+      aria-label={label}
+      className={`flex h-6 items-center gap-1 rounded-radius-sm px-1.5 text-[11px] font-medium transition-colors ${
+        isError
+          ? "text-error-400 hover:bg-error-500/10"
+          : "text-yellow-500 hover:bg-yellow-500/10"
+      }`}
+    >
+      {isError ? (
+        <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <CloudArrowUpIcon className="h-4 w-4" aria-hidden="true" />
+      )}
+      <span className="hidden md:inline">
+        {isError ? t("Save failed") : t("Unsaved")}
+      </span>
+    </button>
   );
 };
 
