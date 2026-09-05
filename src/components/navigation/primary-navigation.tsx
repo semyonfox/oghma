@@ -41,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "search",
-    labelKey: "Search",
+    labelKey: "Search OghmaNotes",
     icon: MagnifyingGlassIcon,
     href: "/notes",
     section: "search",
@@ -62,7 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "quiz",
-    labelKey: "Quiz",
+    labelKey: "quiz.title",
     icon: AcademicCapIcon,
     href: "/quiz",
     section: "quiz",

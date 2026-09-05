@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures";
 
 test.describe("calendar responsive smoke", () => {
-  test("uses a phone agenda and retains desktop calendar views", async ({
+  test("provides calendar views on phone and desktop", async ({
     loggedInPage: page,
   }) => {
     const today = new Date();
@@ -67,20 +67,22 @@ test.describe("calendar responsive smoke", () => {
     }
 
     if (width < 768) {
-      await expect(page.getByLabel("Month view")).toHaveCount(0);
-      await expect(page.getByLabel("Week view")).toHaveCount(0);
+      const monthView = page.getByLabel("Month view");
+      await expect(monthView).toBeVisible();
+      await expect(monthView.getByRole("button")).toHaveCount(42);
       await expect(page.getByRole("main", { name: "Calendar" }).getByText("Calendar smoke task")).toBeVisible();
       await expect(page.getByText("Revision block")).toBeVisible();
-      await expect(page.locator('input[type="date"]')).toHaveValue(dateKey);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,
         ),
       ).toBe(true);
       await page.getByRole("button", { name: "Previous period" }).click();
-      await expect(page.locator('input[type="date"]')).not.toHaveValue(dateKey);
+      await expect(monthView.getByRole("button", { pressed: true })).toHaveCount(1);
       await page.getByRole("button", { name: "Today" }).click();
-      await expect(page.locator('input[type="date"]')).toHaveValue(dateKey);
+      await expect(monthView.getByRole("button", { pressed: true })).toHaveCount(1);
+      await page.getByRole("tab", { name: "Week" }).click();
+      await expect(page.getByLabel("Week view")).toBeVisible();
       await page.getByRole("button", { name: "New Task" }).first().click();
       const taskDialog = page.getByRole("dialog").last();
       await expect(taskDialog.getByRole("heading", { name: "New Task" })).toBeVisible();
