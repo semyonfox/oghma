@@ -105,26 +105,31 @@ export default function CanvasImportIndicator({
       </PopoverButton>
       <PopoverPanel
         anchor={variant === "drawer" ? "top start" : "right end"}
-        className="z-[80] w-72 max-w-[calc(100vw-1rem)] rounded-radius-lg border border-border-subtle bg-surface p-4 text-sm text-text-secondary shadow-xl [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
+        className="z-[80] w-60 max-w-[calc(100vw-1rem)] rounded-radius-md border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-secondary shadow-lg [--anchor-gap:8px] [--anchor-padding:8px] focus:outline-none"
       >
         {({ close }) => (
           <>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-semibold">{t("Canvas course import")}</h2>
+            <div className="flex min-w-0 items-center gap-2">
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-medium text-text-primary">
+                  {t("Canvas course import")}
+                </h2>
+                {visible && (
+                  <p className="truncate text-[11px] leading-4" role="status">
+                    {label}
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 aria-label={t("Close")}
                 onClick={() => close()}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-radius-md hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-radius-sm hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
               >
-                <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
-            {visible && (
-              <p className="mt-2 text-xs leading-relaxed" role="status">
-                {label}
-              </p>
-            )}
             {isImporting && total > 0 && (
               <div
                 role="progressbar"
@@ -132,7 +137,7 @@ export default function CanvasImportIndicator({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={percent}
-                className="my-3 h-1 overflow-hidden rounded-full bg-subtle"
+                className="mt-2 h-1 overflow-hidden rounded-full bg-subtle"
               >
                 <div
                   className="h-full bg-primary-400 transition-[width] duration-300 motion-reduce:transition-none"
@@ -140,14 +145,14 @@ export default function CanvasImportIndicator({
                 />
               </div>
             )}
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-border-subtle pt-3">
+            <div className="mt-1.5 flex items-center gap-1">
               <Link
                 href="/settings#canvas"
                 onClick={() => {
                   close();
                   onNavigate?.();
                 }}
-                className="py-2 text-xs font-medium text-primary-400 hover:underline"
+                className="rounded-radius-sm px-1.5 py-1 font-medium text-primary-400 hover:bg-subtle"
               >
                 {t("canvas.import.view_logs")}
               </Link>
@@ -158,7 +163,7 @@ export default function CanvasImportIndicator({
                     onToastClose();
                     close();
                   }}
-                  className="rounded-radius-md px-2 py-2 text-xs hover:bg-subtle"
+                  className="ml-auto rounded-radius-sm px-1.5 py-1 hover:bg-subtle"
                 >
                   {t("Dismiss")}
                 </button>
