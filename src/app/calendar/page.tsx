@@ -24,7 +24,7 @@ import MobileDrawer from "@/components/navigation/mobile-drawer";
 import MonthView from "@/components/calendar/month-view";
 import WeekView from "@/components/calendar/week-view";
 import AssignmentTracker from "@/components/assignments/assignment-tracker";
-import MobileDayAgenda from "@/components/calendar/mobile-day-agenda";
+import MobileCalendar from "@/components/calendar/mobile-calendar";
 import DayAgendaDialog from "@/components/calendar/day-agenda-dialog";
 import NewTaskModal from "@/components/assignments/new-task-modal";
 import useAssignmentStore from "@/lib/notes/state/assignments.zustand";
@@ -87,10 +87,7 @@ export default function CalendarPage() {
     const anchor = new Date(currentDate);
     let startDateKey: string;
     let endDateKey: string;
-    if (isDesktop === false) {
-      startDateKey = addDaysToDateKey(selectedDate, -7);
-      endDateKey = addDaysToDateKey(selectedDate, 7);
-    } else if (view === "month") {
+    if (view === "month") {
       startDateKey = formatDateKey(
         new Date(anchor.getFullYear(), anchor.getMonth(), -6),
       );
@@ -291,7 +288,7 @@ export default function CalendarPage() {
 
               <div className="min-h-0 flex-1 overflow-hidden">
                 {isDesktop === false ? (
-                  <MobileDayAgenda
+                  <MobileCalendar
                     onAddTask={() => openNewTask(selectedDate)}
                     onRetry={() => {
                       void fetchAssignments();

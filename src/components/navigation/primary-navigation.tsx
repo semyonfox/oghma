@@ -3,6 +3,7 @@
 import { FC } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import CanvasImportIndicator from "@/components/canvas/canvas-import-indicator";
 import BrandLogo from "@/components/brand-logo";
 import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
@@ -41,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "search",
-    labelKey: "Search",
+    labelKey: "Search OghmaNotes",
     icon: MagnifyingGlassIcon,
     href: "/notes",
     section: "search",
@@ -62,7 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "quiz",
-    labelKey: "Quiz",
+    labelKey: "quiz.title",
     icon: AcademicCapIcon,
     href: "/quiz",
     section: "quiz",
@@ -197,6 +198,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         </div>
 
         <div className="mt-auto border-t border-border-subtle pt-3">
+          <CanvasImportIndicator variant="drawer" onNavigate={onNavigate} />
           <button
             type="button"
             onClick={() => handleNavClick(SETTINGS_ITEM)}
@@ -288,6 +290,8 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
           </div>
         </button>
       </div>
+
+      <CanvasImportIndicator />
 
       <button
         type="button"
