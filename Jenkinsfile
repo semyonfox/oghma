@@ -252,6 +252,26 @@ pipeline {
                           docker rm -f "\$CANDIDATE" >/dev/null 2>&1 || true
                         }
 
+                        wait_for_worker_health() {
+                          container="\$1"
+                          phase="\$2"
+                          for attempt in \$(seq 1 "\$LIVE_SMOKE_HEALTH_RETRIES"); do
+                            if [ "\$(docker inspect -f '{{.State.Running}}' "\$container" 2>/dev/null || true)" = "true" ] && \
+                              docker exec "\$container" npm run worker:healthcheck; then
+                              return 0
+                            fi
+
+                            if [ "\$attempt" -eq "\$LIVE_SMOKE_HEALTH_RETRIES" ]; then
+                              echo "[deploy worker] \$phase worker never became healthy"
+                              docker logs "\$container" || true
+                              return 1
+                            fi
+
+                            echo "[deploy worker] waiting for \$phase worker health (\${attempt}/\$LIVE_SMOKE_HEALTH_RETRIES)"
+                            sleep 2
+                          done
+                        }
+
                         rollback_worker() {
                           echo "[deploy worker] rolling back to previous worker container if available"
                           docker rm -f "\$WORKER" >/dev/null 2>&1 || true
@@ -280,15 +300,7 @@ pipeline {
                           -e QDRANT_COLLECTION=oghma_\${DEPLOY_ENV}_chunks \
                           --memory "\$WORKER_MEM" \
                           "\$WORKER_IMAGE"
-                        sleep 10
-                        if [ "\$(docker inspect -f '{{.State.Running}}' "\$CANDIDATE" 2>/dev/null || true)" != "true" ]; then
-                          echo "[deploy worker] candidate worker exited before swap"
-                          docker logs "\$CANDIDATE" || true
-                          exit 1
-                        fi
-                        if ! docker exec "\$CANDIDATE" npm run worker:healthcheck; then
-                          echo "[deploy worker] candidate worker healthcheck failed"
-                          docker logs "\$CANDIDATE" || true
+                        if ! wait_for_worker_health "\$CANDIDATE" candidate; then
                           exit 1
                         fi
 
@@ -318,16 +330,8 @@ pipeline {
                           exit 1
                         fi
 
-                        sleep 10
-                        if [ "\$(docker inspect -f '{{.State.Running}}' "\$WORKER" 2>/dev/null || true)" != "true" ]; then
-                          echo "[deploy worker] final worker exited after swap; rolling back"
-                          docker logs "\$WORKER" || true
-                          rollback_worker
-                          exit 1
-                        fi
-                        if ! docker exec "\$WORKER" npm run worker:healthcheck; then
+                        if ! wait_for_worker_health "\$WORKER" final; then
                           echo "[deploy worker] final worker healthcheck failed; rolling back"
-                          docker logs "\$WORKER" || true
                           rollback_worker
                           exit 1
                         fi
