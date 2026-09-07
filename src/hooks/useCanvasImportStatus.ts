@@ -12,6 +12,7 @@ type ImportProgress = {
   total?: number;
   percent?: number;
   completed?: number;
+  failed?: boolean;
   [key: string]: unknown;
 };
 type CanvasJobStatus = {
@@ -224,7 +225,16 @@ export function useCanvasImportStatus(
         }
 
         if (logs.length > 0) scheduleTreeSync(logs, true);
-        if (
+        if (data.latestJob?.status === "failed") {
+          setProgress({
+            ...data.progress,
+            jobType,
+            failed: true,
+            forbidden: data.issues?.forbidden ?? 0,
+            error: data.issues?.error ?? 0,
+          });
+          setShowToast(!dismissedRef.current);
+        } else if (
           data.latestJob?.status === "complete" &&
           (data.progress?.total ?? 0) > 0 &&
           data.progress?.percent === 100
@@ -289,6 +299,7 @@ export function useCanvasImportStatus(
           LS_ACTIVE_JOB,
           JSON.stringify({ jobId: syncData.jobId }),
         );
+        setProgress(null);
         setIsImporting(true);
         setShowToast(true);
       }

@@ -1,40 +1,26 @@
 "use client";
 
+import { createContext, useContext, type ReactNode } from "react";
 import { useCanvasImportStatus } from "@/hooks/useCanvasImportStatus";
-import CanvasImportStatusBar from "./canvas-import-status-bar";
-import { useRouter } from "next/navigation";
 
-/**
- * Wrapper component that manages Canvas import notifications globally
- *
- * Place this in your root layout or main app wrapper:
- *
- * export default function RootLayout({ children }) {
- *   return (
- *     <>
- *       <CanvasImportNotifications />
- *       {children}
- *     </>
- *   )
- * }
- */
-export default function CanvasImportNotifications() {
-  const router = useRouter();
-  const { progress, showToast, onToastClose } = useCanvasImportStatus({
-    autoCheckOnMount: true, // Check on component mount (app load)
-  });
+const CanvasImportContext = createContext<ReturnType<
+  typeof useCanvasImportStatus
+> | null>(null);
 
-  const handleViewLogs = () => {
-    // Navigate to settings page with Canvas import section
-    router.push("/settings?tab=canvas-imports");
-  };
+export function useCanvasImportNotification() {
+  return useContext(CanvasImportContext);
+}
 
+// Keep one poller for the workspace, shared by desktop and mobile navigation.
+export default function CanvasImportNotifications({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const status = useCanvasImportStatus({ autoCheckOnMount: true });
   return (
-    <CanvasImportStatusBar
-      show={showToast}
-      progress={progress}
-      onClose={onToastClose}
-      onViewLogs={handleViewLogs}
-    />
+    <CanvasImportContext.Provider value={status}>
+      {children}
+    </CanvasImportContext.Provider>
   );
 }

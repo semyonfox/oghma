@@ -57,6 +57,81 @@ describe("useCanvasImportStatus", () => {
     localStorage.clear();
   });
 
+  it("surfaces a failed parent job even when no files were discovered", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: { jobId: "job-1", status: "failed", jobType: "import" },
+            progress: { total: 0, completed: 0, percent: 0 },
+          }),
+      }),
+    );
+    const { result } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(result.current.isImporting).toBe(false);
+    expect(result.current.showToast).toBe(true);
+    expect(result.current.progress?.failed).toBe(true);
+    act(() => result.current.onToastClose());
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(result.current.showToast).toBe(false);
+  });
+
+  it("clears failed progress when automatic sync queues a replacement job", async () => {
+    let finishSync: (value: {
+      queued: boolean;
+      jobId: string;
+    }) => void = () => {
+      throw new Error("Sync response is not waiting");
+    };
+    const syncResponse = new Promise<{ queued: boolean; jobId: string }>(
+      (resolve) => {
+        finishSync = resolve;
+      },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/canvas/status") {
+          return {
+            ok: true,
+            json: async () =>
+              canvasStatus({
+                activeJob: null,
+                latestJob: {
+                  jobId: "failed-job",
+                  status: "failed",
+                  jobType: "import",
+                },
+              }),
+          };
+        }
+        return {
+          ok: true,
+          json: async () =>
+            init?.method === "POST" ? syncResponse : { available: true },
+        };
+      }),
+    );
+    const { result } = renderHook(() => useCanvasImportStatus());
+    await waitFor(() => expect(result.current.progress?.failed).toBe(true));
+    await act(async () => {
+      finishSync({ queued: true, jobId: "replacement-job" });
+    });
+    await waitFor(() => expect(result.current.isImporting).toBe(true));
+    expect(result.current.progress).toBeNull();
+    expect(result.current.showToast).toBe(true);
+  });
+
   it("recovers from a stale local job record before checking the current status", async () => {
     localStorage.setItem("canvas_active_job", "not-json");
     const fetchMock = vi.fn((url: string) => {
