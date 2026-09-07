@@ -299,6 +299,7 @@ export function useCanvasImportStatus(
           LS_ACTIVE_JOB,
           JSON.stringify({ jobId: syncData.jobId }),
         );
+        setProgress(null);
         setIsImporting(true);
         setShowToast(true);
       }
