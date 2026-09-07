@@ -57,6 +57,35 @@ describe("useCanvasImportStatus", () => {
     localStorage.clear();
   });
 
+  it("surfaces a failed parent job even when no files were discovered", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          canvasStatus({
+            activeJob: null,
+            latestJob: { jobId: "job-1", status: "failed", jobType: "import" },
+            progress: { total: 0, completed: 0, percent: 0 },
+          }),
+      }),
+    );
+    const { result } = renderHook(() =>
+      useCanvasImportStatus({ autoCheckOnMount: false }),
+    );
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(result.current.isImporting).toBe(false);
+    expect(result.current.showToast).toBe(true);
+    expect(result.current.progress?.failed).toBe(true);
+    act(() => result.current.onToastClose());
+    await act(async () => {
+      await result.current.checkStatus();
+    });
+    expect(result.current.showToast).toBe(false);
+  });
+
   it("recovers from a stale local job record before checking the current status", async () => {
     localStorage.setItem("canvas_active_job", "not-json");
     const fetchMock = vi.fn((url: string) => {
