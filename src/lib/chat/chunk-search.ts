@@ -101,7 +101,7 @@ export async function searchChatChunks({
 
   if (mode === "exact" || mode === "both") {
     const exactSearchStartedAt = Date.now();
-    const safe = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const safe = query.replace(/[\\%_]/g, (value) => `\\${value}`);
     const pattern = `%${safe}%`;
 
     const chunkRows = (scoped
@@ -111,6 +111,7 @@ export async function searchChatChunks({
           JOIN app.notes n ON n.note_id = c.document_id
           WHERE c.user_id = ${userId}::uuid
             AND n.note_id = ANY(${scopedNoteIds}::uuid[])
+            AND n.user_id = ${userId}::uuid
             AND n.is_folder = false
             AND n.deleted_at IS NULL
             AND c.text ILIKE ${pattern}
@@ -121,6 +122,7 @@ export async function searchChatChunks({
           FROM app.chunks c
           JOIN app.notes n ON n.note_id = c.document_id
           WHERE c.user_id = ${userId}::uuid
+            AND n.user_id = ${userId}::uuid
             AND n.is_folder = false
             AND n.deleted_at IS NULL
             AND c.text ILIKE ${pattern}

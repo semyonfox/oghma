@@ -57,7 +57,7 @@ describe("GET /api/search Canvas course contract", () => {
       { chunkId: "chunk-other", distance: 0.1 },
       { chunkId: "chunk-course", distance: 0.2 },
     ]);
-    mocks.sql.mockResolvedValue([
+    mocks.sql.mockResolvedValueOnce([{ note_id: "note-course" }]).mockResolvedValue([
       {
         note_id: "note-other",
         title: "Other course",
@@ -80,6 +80,9 @@ describe("GET /api/search Canvas course contract", () => {
       ),
     );
 
+    expect(mocks.searchChunkVectors).toHaveBeenCalledWith(expect.objectContaining({
+      documentIds: ["note-course"],
+    }));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       results: [

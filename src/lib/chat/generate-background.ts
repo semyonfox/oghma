@@ -57,6 +57,7 @@ export async function processChatGeneration(
 
   const { generation: claimedGeneration, leaseToken } = claim;
   const payload = claimedGeneration.request_payload;
+  if (!payload) throw new Error("Chat generation replay inputs have expired");
   const { userId, sessionId, message, useRag, thinkingMode } = payload;
   const scope = payload.scope;
   const writer = createBufferedSseWriter((sse) =>
