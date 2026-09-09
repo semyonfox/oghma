@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { withErrorHandler, requireAuth, ApiError } from "@/lib/api-error";
 import { generateUUID } from "@/lib/utils/uuid";
 import { filterNoteFields } from "@/lib/notes/utils/filter-fields";
 import {
   mapNoteFromDB,
   type DatabaseNoteRow,
-  type MappedNote,
 } from "@/lib/notes/utils/map-note";
-import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
+import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
@@ -44,21 +44,33 @@ export const GET = withErrorHandler(async (request) => {
       ? Math.min(Math.max(parsedLimit, 1), 200)
       : undefined;
 
-  // check cache for this page (before field filtering)
-  const listKey = cacheKeys.notesList(user.user_id, skip, limit);
-  const cachedList = query ? null : await cacheGet<MappedNote[]>(listKey);
-  if (!query && cachedList) {
-    const filtered = cachedList.map((note) => filterNoteFields(note, fields));
-    return NextResponse.json(filtered);
+  // List reads are bounded and indexed. Do not cache pages independently:
+  // a create, move, or delete changes pagination boundaries across all pages.
+  const after = url.searchParams.get("after");
+  let cursor: { createdAt: string; noteId: string } | null = null;
+  if (after) {
+    if (after.length > 512) throw new ApiError(400, "Invalid notes cursor");
+    try {
+      const value: unknown = JSON.parse(Buffer.from(after, "base64url").toString("utf8"));
+      cursor = z.object({
+        createdAt: z.iso.datetime({ precision: 6 }).refine(value => !value.startsWith("0000")),
+        noteId: z.uuid(),
+      }).parse(value);
+    } catch {
+      throw new ApiError(400, "Invalid notes cursor");
+    }
+    if (skip !== 0) throw new ApiError(400, "Use after or skip, not both");
   }
 
   // Get user's notes from PostgreSQL with SQL-level pagination
   // content is excluded from the list query — fetch individual notes for full content
   const sqlLimit = query ? 50 : (limit ?? 200);
-  const searchPattern = query ? `%${query}%` : null;
-  const notes = await sql<DatabaseNoteRow[]>`
+  const searchPattern = query ? `%${query.replace(/[\\%_]/g, (value) => `\\${value}`)}%` : null;
+  const queryStartedAt = performance.now();
+  const notes = await sql<(DatabaseNoteRow & { cursor_created_at: string })[]>`
     SELECT n.note_id, n.title, n.is_folder, n.s3_key, n.shared, n.pinned,
            n.created_at, n.updated_at,
+           to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at,
            (SELECT a.mime_type FROM app.attachments a
             WHERE a.note_id = n.note_id AND a.user_id = n.user_id AND a.s3_key = n.s3_key
             LIMIT 1) AS mime_type
@@ -66,18 +78,29 @@ export const GET = withErrorHandler(async (request) => {
     WHERE n.user_id = ${user.user_id}::uuid
       AND n.deleted_at IS NULL
       AND (${searchPattern}::text IS NULL OR n.title ILIKE ${searchPattern})
-    ORDER BY n.created_at DESC
+      AND (n.created_at, n.note_id) < (${cursor?.createdAt ?? 'infinity'}::text::timestamptz,
+        ${cursor?.noteId ?? 'ffffffff-ffff-ffff-ffff-ffffffffffff'}::uuid)
+    ORDER BY n.created_at DESC, n.note_id DESC
     LIMIT ${sqlLimit} OFFSET ${skip}
   `;
 
-  // Map to NoteModel format and cache full list (pre-field-filter)
+  // Map only the selected metadata to the public note shape.
+  const queryMs = performance.now() - queryStartedAt;
   const mapped = notes.map(mapNoteFromDB);
-  if (!query) await cacheSet(listKey, mapped, 120);
 
   // Filter fields if requested
   const filtered = mapped.map((note) => filterNoteFields(note, fields));
 
-  return NextResponse.json(filtered);
+  const last = notes.at(-1);
+  const response = NextResponse.json(filtered);
+  response.headers.set("Server-Timing", `db;dur=${queryMs.toFixed(2)}`);
+  if (last && notes.length === sqlLimit) {
+    response.headers.set("X-Next-Cursor", Buffer.from(JSON.stringify({
+      createdAt: last.cursor_created_at,
+      noteId: last.note_id,
+    })).toString("base64url"));
+  }
+  return response;
 });
 
 export const POST = withErrorHandler(async (request) => {

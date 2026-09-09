@@ -146,6 +146,18 @@ describe("replaceNoteEmbeddings", () => {
     expect(deleteChunkVectors).toHaveBeenCalledWith(["new-chunk"]);
   });
 
+  it("journals partial vector writes when rollback cleanup also fails", async () => {
+    txMock.mockResolvedValueOnce([{ note_id: "note-1" }])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "partial-chunk" }]);
+    vi.mocked(embedChunks).mockResolvedValueOnce([{ chunk: "alpha", vector: [0.1, 0.2] }]);
+    vi.mocked(upsertChunkVectors).mockRejectedValueOnce(new Error("write timed out"));
+    vi.mocked(deleteChunkVectors).mockRejectedValueOnce(new Error("delete timed out"));
+    await expect(replaceNoteEmbeddings("note-1", "user-1", ["alpha"])).rejects.toThrow("write timed out");
+    const journal = sqlMock.mock.calls.find(([strings]) =>
+      (strings as TemplateStringsArray).join(" ").includes("INSERT INTO app.note_deletion_cleanup_tasks"));
+    expect(journal?.slice(1)).toEqual(["user-1", ["partial-chunk"]]);
+  });
+
   it("deletes old chunk vectors when there is no replacement content", async () => {
     txMock
       .mockResolvedValueOnce([{ note_id: "note-1" }])

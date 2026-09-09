@@ -42,14 +42,13 @@ function getSQL(): PostgresClient {
             );
         }
         const requiresSSL = url.includes("sslmode=require");
-        const options: postgres.Options<Record<string, postgres.PostgresType>> &
-            Pick<
-                postgres.ConnectionParameters,
-                "idle_in_transaction_session_timeout" | "statement_timeout"
-            > = {
+        const options: postgres.Options<Record<string, postgres.PostgresType>> = {
             ssl: requiresSSL ? { rejectUnauthorized: false } : false,
-            idle_in_transaction_session_timeout: config.db.transactionTimeoutMs,
-            statement_timeout: config.db.statementTimeoutMs,
+            connection: {
+                application_name: process.env.DB_APPLICATION_NAME || (process.argv.some(arg => arg.endsWith("/worker-entry.ts")) ? "oghmanotes-worker" : "oghmanotes-app"),
+                idle_in_transaction_session_timeout: config.db.transactionTimeoutMs,
+                statement_timeout: config.db.statementTimeoutMs,
+            },
             max: config.db.maxConnections,
             idle_timeout: config.db.idleTimeoutSeconds,
             connect_timeout: config.db.connectTimeoutSeconds,

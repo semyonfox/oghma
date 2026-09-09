@@ -44,6 +44,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | [Markdown rendering](engineering/markdown-rendering.md) | Canonical Markdown, editor, renderer, highlighting, and sanitisation contract |
 | [Unified editor migration handover](engineering/markdown-editor-migration-handover.md) | Target Milkdown spike, implementation criteria, T3 Code visual reference, release gates, and research sources |
 | [Performance](engineering/performance.md) | Repeatable performance-audit workflow and evidence rules |
+| [Database performance and integrity](engineering/database-performance.md) | Database fixes, synthetic measurements, and rollout validation |
 | [Testing](engineering/testing.md) | Suite scopes, fast checks, and disposable-service verification |
 | [Demo flow](engineering/demo-flow.md) | Product walkthrough without duplicating architecture |
 | [Agent compatibility](engineering/agent-compatibility.md) | Verified discovery/action surfaces and agent-safety gaps |

@@ -43,6 +43,7 @@ import {
 } from "./import-worker";
 import { processVaultImport } from "../vault/import-worker";
 import { processVaultExport } from "../vault/export-worker";
+import { pruneChatGenerationPayloads } from "../chat/generation-store";
 import { cleanupMarketingData } from "../marketing/retention";
 import {
   processPendingNoteDeletionCleanup,
@@ -123,6 +124,7 @@ async function failStuckJobs(): Promise<void> {
 
 async function runMarketingCleanup(): Promise<void> {
   try {
+    await pruneChatGenerationPayloads();
     const result = await cleanupMarketingData();
     console.log(
       `[${new Date().toISOString()}] Marketing retention cleanup: ${result.eventsDeleted} event(s), ${result.leadsDeleted} lead(s) deleted`,

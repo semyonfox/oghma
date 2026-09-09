@@ -242,10 +242,17 @@ export async function moveNoteInTree(
       }
 
       const rows = await tx<TreeRelationshipRow[]>`
-        SELECT note_id, parent_id
-        FROM app.tree_items
-        WHERE user_id = ${userId}::uuid
-        FOR UPDATE
+        WITH RECURSIVE ancestors AS (
+          SELECT note_id, parent_id
+          FROM app.tree_items
+          WHERE user_id = ${userId}::uuid AND note_id = ${actualParentId}::uuid
+          UNION
+          SELECT parent.note_id, parent.parent_id
+          FROM app.tree_items parent
+          JOIN ancestors child ON parent.note_id = child.parent_id
+          WHERE parent.user_id = ${userId}::uuid
+        )
+        SELECT note_id, parent_id FROM ancestors
       `;
 
       assertValidTreeParent(rows, String(noteId), actualParentId && String(actualParentId));

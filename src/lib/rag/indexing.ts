@@ -35,10 +35,23 @@ export function normalizeChunksForIndexing(chunks: string[]): string[] {
   return normalized;
 }
 
-async function deleteChunkSet(chunkIds: string[]): Promise<void> {
+async function deleteVectorsOrJournal(chunkIds: string[], userId: string): Promise<void> {
+  try {
+    await deleteChunkVectors(chunkIds);
+  } catch {
+    // Keep exact vector IDs after relational rows disappear. The existing
+    // lifecycle collector retries these idempotent deletes after recovery.
+    await sql`
+      INSERT INTO app.note_deletion_cleanup_tasks (user_id, chunk_ids)
+      VALUES (${userId}::uuid, ${chunkIds}::uuid[])
+    `;
+  }
+}
+
+async function deleteChunkSet(chunkIds: string[], userId: string): Promise<void> {
   if (chunkIds.length === 0) return;
 
-  await deleteChunkVectors(chunkIds).catch(() => undefined);
+  await deleteVectorsOrJournal(chunkIds, userId);
   await deletePgEmbeddings(chunkIds);
   await sql`DELETE FROM app.chunks WHERE id = ANY(${chunkIds}::uuid[])`;
 }
@@ -66,7 +79,7 @@ export async function deleteNoteRagIndex(
   const chunkRows =
     await sql<ChunkRow[]>`SELECT id FROM app.chunks WHERE document_id = ${noteId}::uuid AND user_id = ${userId}::uuid`;
   const chunkIds = chunkRows.map((row) => row.id);
-  await deleteChunkSet(chunkIds);
+  await deleteChunkSet(chunkIds, userId);
   return chunkIds.length;
 }
 
@@ -80,7 +93,7 @@ export async function replaceNoteEmbeddings(
   if (normalizedChunks.length === 0) {
     const oldChunkIds = await getActiveNoteChunkIds(noteId, userId);
     if (!oldChunkIds) return 0;
-    await deleteChunkSet(oldChunkIds);
+    await deleteChunkSet(oldChunkIds, userId);
     return 0;
   }
 
@@ -88,7 +101,7 @@ export async function replaceNoteEmbeddings(
   if (embeddings.length === 0) {
     const oldChunkIds = await getActiveNoteChunkIds(noteId, userId);
     if (!oldChunkIds) return 0;
-    await deleteChunkSet(oldChunkIds);
+    await deleteChunkSet(oldChunkIds, userId);
     return 0;
   }
 
@@ -145,7 +158,7 @@ export async function replaceNoteEmbeddings(
     // A failed transaction rolls back Postgres, but Qdrant may have accepted
     // a partial write before the error reached us.
     if (insertedChunkIds.length > 0) {
-      await deleteChunkVectors(insertedChunkIds).catch((cleanupError) => {
+      await deleteVectorsOrJournal(insertedChunkIds, userId).catch((cleanupError) => {
         logger.warn("Qdrant rollback cleanup failed", {
           noteId,
           chunkIds: insertedChunkIds,
@@ -179,7 +192,7 @@ export async function replaceNoteEmbeddings(
     });
   }
 
-  await deleteChunkSet(inserted.oldChunkIds);
+  await deleteChunkSet(inserted.oldChunkIds, userId);
 
   return inserted.chunkIds.length;
 }

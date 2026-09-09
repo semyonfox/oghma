@@ -65,6 +65,7 @@ interface TrashRootRow {
 
 interface CleanupTaskRow {
   id: string;
+  lease_token: string;
   user_id: string;
   note_ids: string[] | null;
   chunk_ids: string[] | null;
@@ -865,69 +866,52 @@ export async function reconcileTrashedVectorVisibility(): Promise<number> {
 }
 
 async function processNoteDeletionCleanupTask(taskId: string): Promise<boolean> {
-  // Keep the row lock until both idempotent external deletes and the durable
-  // completion marker are done. Without the transaction, `FOR UPDATE` is
-  // released immediately and two worker replicas can process the same task.
-  return sql.begin(async (tx: TransactionSql) => {
-    const [task] = (await tx`
-      SELECT id, user_id, note_ids, chunk_ids, object_keys, object_prefixes
-      FROM app.note_deletion_cleanup_tasks
-      WHERE id = ${taskId}::uuid
-        AND completed_at IS NULL
-      FOR UPDATE SKIP LOCKED
-    `) as CleanupTaskRow[];
-    if (!task) return true;
+  // Claim in one short statement. Idempotent external deletes run without a
+  // database connection/lock; only the current lease holder can acknowledge.
+  const [task] = await sql<CleanupTaskRow[]>`
+    UPDATE app.note_deletion_cleanup_tasks
+    SET lease_token = gen_random_uuid(), lease_expires_at = NOW() + INTERVAL '5 minutes'
+    WHERE id = ${taskId}::uuid AND completed_at IS NULL
+      AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+    RETURNING id, user_id, note_ids, chunk_ids, object_keys, object_prefixes, lease_token
+  `;
+  if (!task) return false;
 
-    try {
-      const chunkIds = uniqueStrings(task.chunk_ids ?? []);
-      if (chunkIds.length > 0) await deleteChunkVectors(chunkIds);
-
+  try {
+    const chunkIds = uniqueStrings(task.chunk_ids ?? []);
+    if (chunkIds.length > 0) await deleteChunkVectors(chunkIds);
+    const objectKeys = uniqueStrings(task.object_keys ?? [])
+      .filter((key) => !isSharedImportedFileKey(key));
+    if (objectKeys.length || task.object_prefixes?.length || task.note_ids?.length) {
       const storage = getStorageProvider();
-      const objectKeys = uniqueStrings(task.object_keys ?? [])
-        .filter((key) => !isSharedImportedFileKey(key));
-      for (const key of objectKeys) {
-        await storage.deleteObject(key);
-      }
+      for (const key of objectKeys) await storage.deleteObject(key);
       for (const prefix of uniqueStrings(task.object_prefixes ?? [])) {
         if (!isSafeCleanupPrefix(task.user_id, prefix)) {
           throw new Error("Refusing to delete an unsafe lifecycle storage prefix");
         }
         await storage.deletePrefix(prefix);
       }
-      // Marker image keys are intentionally untracked because markdown is
-      // user-editable. Delete the exact note namespace as a separate durable,
-      // retryable operation instead of guessing from the remaining content.
       for (const noteId of uniqueStrings(task.note_ids ?? [])) {
         await storage.deletePrefix(markerAssetPrefix(task.user_id, noteId));
       }
-
-      // Do not keep a completed deletion journal indefinitely: it contains
-      // note/object identifiers solely so failed external deletion can retry.
-      await tx`
-        DELETE FROM app.note_deletion_cleanup_tasks
-        WHERE id = ${task.id}::uuid
-      `;
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      try {
-        await tx`
-          UPDATE app.note_deletion_cleanup_tasks
-          SET attempts = attempts + 1,
-              last_error = ${message.slice(0, 4000)},
-              updated_at = NOW()
-          WHERE id = ${task.id}::uuid
-        `;
-      } catch (updateError: unknown) {
-        logger.error("note deletion cleanup error state update failed", {
-          taskId,
-          error: updateError,
-        });
-      }
-      logger.warn("note deletion cleanup deferred for retry", { taskId, error });
-      return false;
     }
-  });
+    const removed = await sql`
+      DELETE FROM app.note_deletion_cleanup_tasks
+      WHERE id = ${task.id}::uuid AND lease_token = ${task.lease_token}::uuid
+      RETURNING id
+    `;
+    return removed.length > 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await sql`
+      UPDATE app.note_deletion_cleanup_tasks
+      SET attempts = attempts + 1, last_error = ${message.slice(0, 4000)},
+          updated_at = NOW(), lease_token = NULL, lease_expires_at = NULL
+      WHERE id = ${task.id}::uuid AND lease_token = ${task.lease_token}::uuid
+    `;
+    logger.warn("note deletion cleanup deferred for retry", { taskId, error });
+    return false;
+  }
 }
 
 /**
@@ -953,6 +937,7 @@ export async function processPendingNoteDeletionCleanup(): Promise<number> {
     SELECT id
     FROM app.note_deletion_cleanup_tasks
     WHERE completed_at IS NULL
+      AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
     ORDER BY created_at ASC
     LIMIT ${retentionBatchSize()}
   `) as Array<{ id: string }>;
