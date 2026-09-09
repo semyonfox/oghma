@@ -5,6 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import postgres from "postgres";
+import { assertLegacySchema } from "./legacy-schema-contract.ts";
 
 // migrations applied before the tracking system existed
 const LEGACY_MIGRATIONS = [
@@ -40,6 +41,7 @@ async function bootstrap(dbUrl: string): Promise<void> {
   });
 
   try {
+    await assertLegacySchema(sql);
     await sql`
       CREATE TABLE IF NOT EXISTS app.schema_migrations (
         version  TEXT PRIMARY KEY,
@@ -56,8 +58,6 @@ async function bootstrap(dbUrl: string): Promise<void> {
         ON CONFLICT (version) DO NOTHING
       `;
     }
-  } catch (err: unknown) {
-    console.warn("[prebuild-migrate] bootstrap failed:", errorMessage(err));
   } finally {
     await sql.end();
   }

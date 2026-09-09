@@ -33,7 +33,7 @@ export interface ChatGenerationRecord {
   session_id: string;
   user_id: string;
   status: "queued" | "generating" | "completed" | "failed" | "cancelled";
-  request_payload: ChatGenerationPayload;
+  request_payload: ChatGenerationPayload | null;
   error_message: string | null;
   lease_token: string | null;
   lease_expires_at: Date | string | null;
@@ -275,7 +275,7 @@ export async function failChatGeneration(
   const rows = await sql`
     WITH failed AS (
       UPDATE app.chat_generations
-      SET status = 'failed', error_message = ${message.slice(0, 1000)},
+      SET status = 'failed', completed_at = NOW(), error_message = ${message.slice(0, 1000)},
           lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
           updated_at = NOW()
       WHERE id = ${generationId}::uuid
@@ -503,4 +503,21 @@ export async function readChatGenerationEvents(
     afterId,
   );
   return parseRedisEvents(result);
+}
+
+/** Clear terminal replay inputs after seven days; retain messages and status. */
+export async function pruneChatGenerationPayloads(): Promise<number> {
+  const rows = await sql`
+    WITH expired AS (
+      SELECT id FROM app.chat_generations
+      WHERE status IN ('completed', 'failed', 'cancelled')
+        AND request_payload IS NOT NULL
+        AND updated_at < NOW() - INTERVAL '7 days'
+      ORDER BY updated_at, id LIMIT 500
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE app.chat_generations g SET request_payload = NULL
+    FROM expired WHERE g.id = expired.id RETURNING g.id
+  `;
+  return rows.length;
 }

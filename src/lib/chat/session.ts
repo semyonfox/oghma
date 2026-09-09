@@ -315,13 +315,13 @@ export async function loadHistory(
     const dbMessages = await sql<Array<{ role: string; content: string }>>`
       SELECT role, content
       FROM (
-        SELECT role, content, created_at
+        SELECT role, content, created_at, id
         FROM app.chat_messages
         WHERE session_id = ${sessionId}::uuid
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ${MAX_HISTORY_MESSAGES}
       ) recent
-      ORDER BY created_at ASC
+      ORDER BY created_at ASC, id ASC
     `;
     history = dbMessages
       .map((m) => ({

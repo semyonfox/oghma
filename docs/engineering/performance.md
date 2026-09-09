@@ -19,6 +19,9 @@ summaries as unverified.
 
 Do not publish baselines or regression thresholds from those fields yet. Page navigation and paint timings can still help locate candidates, but compare the generated waterfall with browser DevTools and inspect `full.json` before drawing conclusions.
 
+For database queries, schema guarantees, and the isolated benchmark, see
+[database performance and integrity](database-performance.md).
+
 ## Local lab run
 
 Use a production build on a separate port:

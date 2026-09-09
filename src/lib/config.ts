@@ -8,13 +8,23 @@ function intEnv(key: string, fallback: number): number {
     return Number.isNaN(n) ? fallback : n;
 }
 
+function positiveIntEnv(key: string, fallback: number): number {
+    const raw = process.env[key];
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value <= 0) {
+        throw new Error(`${key} must be a positive integer`);
+    }
+    return value;
+}
+
 export const config = {
     db: {
-        maxConnections: intEnv('DB_MAX_CONNECTIONS', 20),
-        idleTimeoutSeconds: intEnv('DB_IDLE_TIMEOUT', 10),
-        connectTimeoutSeconds: intEnv('DB_CONNECT_TIMEOUT', 10),
-        statementTimeoutMs: intEnv('DB_STATEMENT_TIMEOUT', 30000),
-        transactionTimeoutMs: intEnv('DB_TRANSACTION_TIMEOUT', 30000),
+        maxConnections: positiveIntEnv('DB_MAX_CONNECTIONS', 20),
+        idleTimeoutSeconds: positiveIntEnv('DB_IDLE_TIMEOUT', 10),
+        connectTimeoutSeconds: positiveIntEnv('DB_CONNECT_TIMEOUT', 10),
+        statementTimeoutMs: positiveIntEnv('DB_STATEMENT_TIMEOUT', 30000),
+        transactionTimeoutMs: positiveIntEnv('DB_TRANSACTION_TIMEOUT', 30000),
     },
     canvas: {
         fileTimeoutMs: intEnv('CANVAS_FILE_TIMEOUT_MS', 120000),

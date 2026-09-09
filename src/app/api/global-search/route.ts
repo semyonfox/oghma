@@ -66,7 +66,7 @@ async function recentNotes(
   limit = 5,
 ): Promise<GlobalSearchResult[]> {
   const rows = await sql<RecentNoteRow[]>`
-    SELECT note_id, title, content, updated_at
+    SELECT note_id, title, LEFT(content, 440) AS content, updated_at
     FROM app.notes
     WHERE user_id = ${userId}::uuid
       AND deleted_at IS NULL
