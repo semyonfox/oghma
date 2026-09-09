@@ -167,4 +167,3 @@ export async function applyCurrentSchemaPatch(sql: postgres.Sql): Promise<void> 
       ON app.time_blocks(user_id, starts_at, ends_at);
   `);
 }
-
