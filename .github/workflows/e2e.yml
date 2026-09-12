@@ -71,7 +71,7 @@ env:
   QDRANT_COLLECTION: oghma_e2e_chunks
   QDRANT_IMAGE: qdrant/qdrant:latest
   MARKER_API_URL: ""
-  MINIO_IMAGE: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  MINIO_IMAGE: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
 
 jobs:
   smoke:
