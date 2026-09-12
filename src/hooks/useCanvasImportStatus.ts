@@ -32,6 +32,7 @@ type StatusData = {
   activeJob?: CanvasJobStatus | null;
   latestJob?: CanvasJobStatus | null;
   recentLogs?: CanvasLog[];
+  publishedJobId?: string | null;
   publishedTreePaths?: string[][];
   progress?: ImportProgress;
   issues?: { forbidden?: number; error?: number };
@@ -52,10 +53,19 @@ function getStoredActiveJob(): StoredJob | null {
   }
 }
 
-function removeStoredActiveJob(jobId: string): void {
-  if (getStoredActiveJob()?.jobId === jobId) {
+function transitionStoredActiveJob(
+  expectedJobId: string,
+  nextJobId: string | null,
+): string | null {
+  const currentJobId = getStoredActiveJob()?.jobId ?? null;
+  if (currentJobId !== expectedJobId) return currentJobId;
+
+  if (nextJobId) {
+    localStorage.setItem(LS_ACTIVE_JOB, JSON.stringify({ jobId: nextJobId }));
+  } else {
     localStorage.removeItem(LS_ACTIVE_JOB);
   }
+  return nextJobId;
 }
 
 function isActiveCanvasStatus(status: string | undefined): boolean {
@@ -231,6 +241,55 @@ export function useCanvasImportStatus(
         const data = (await res.json()) as StatusData;
         if (!data.success || controller.signal.aborted || !mountedRef.current) return;
 
+        const logs = Array.isArray(data.recentLogs) ? data.recentLogs : [];
+        const activeJobId =
+          data.activeJob?.jobId && isActiveCanvasStatus(data.activeJob.status)
+            ? data.activeJob.jobId
+            : null;
+        const isTrackedTerminal =
+          requestedPublishJobId !== null &&
+          data.publishedJobId === requestedPublishJobId;
+        const publicationIsLatest =
+          isTrackedTerminal &&
+          data.latestJob?.jobId === requestedPublishJobId;
+
+        if (isTrackedTerminal) {
+          const publishedTreeLogs = Array.isArray(data.publishedTreePaths)
+            ? data.publishedTreePaths.map((treePath) => ({ treePath }))
+            : [];
+          const terminalTreeLogs =
+            publishedTreeLogs.length > 0
+              ? publishedTreeLogs
+              : publicationIsLatest
+                ? logs
+                : [];
+          if (
+            terminalTreeLogs.length > 0 &&
+            !(await refreshTerminalTree(terminalTreeLogs))
+          ) {
+            return;
+          }
+
+          // A newer job can begin before the previous terminal snapshot is
+          // consumed. Move the exact persisted token only after its branches
+          // are visible, without overwriting a job changed by another tab.
+          const successorJobId =
+            activeJobId && activeJobId !== requestedPublishJobId
+              ? activeJobId
+              : data.latestJob?.jobId &&
+                  data.latestJob.jobId !== requestedPublishJobId
+                ? data.latestJob.jobId
+                : null;
+          const storedJobAfterPublication = transitionStoredActiveJob(
+            requestedPublishJobId,
+            successorJobId,
+          );
+          if (trackedJobIdRef.current === requestedPublishJobId) {
+            trackedJobIdRef.current =
+              storedJobAfterPublication ?? successorJobId;
+          }
+        }
+
         const jobId = data.activeJob?.jobId ?? data.latestJob?.jobId ?? null;
         if (jobId && observedJobId.current !== jobId) {
           observedJobId.current = jobId;
@@ -238,18 +297,22 @@ export function useCanvasImportStatus(
           pendingTreePathsRef.current.clear();
         }
         if (
-          data.activeJob?.jobId &&
-          isActiveCanvasStatus(data.activeJob.status)
+          activeJobId &&
+          (trackedJobIdRef.current === null ||
+            trackedJobIdRef.current === activeJobId)
         ) {
-          trackedJobIdRef.current = data.activeJob.jobId;
+          trackedJobIdRef.current = activeJobId;
         }
 
         const active = isActiveCanvasStatus(data.activeJob?.status);
-        setIsImporting(active);
+        const awaitingNextPublication =
+          !active &&
+          trackedJobIdRef.current !== null &&
+          trackedJobIdRef.current !== requestedPublishJobId;
+        setIsImporting(active || awaitingNextPublication);
         if (active && !wasActiveRef.current) dismissedRef.current = false;
         wasActiveRef.current = active;
 
-        const logs = Array.isArray(data.recentLogs) ? data.recentLogs : [];
         const newNoteIds: string[] = [];
         const newlyVisibleLogs: CanvasLog[] = [];
         for (const log of logs) {
@@ -268,7 +331,7 @@ export function useCanvasImportStatus(
 
         if (newNoteIds.length > 0) {
           useSyncStatusStore.getState().markCanvasNew(newNoteIds);
-          scheduleTreeSync(newlyVisibleLogs);
+          if (!publicationIsLatest) scheduleTreeSync(newlyVisibleLogs);
         }
 
         // The Markdown companion can be created while the source row remains
@@ -276,7 +339,9 @@ export function useCanvasImportStatus(
         const activeBranches = logs.filter((log) =>
           isVisibleWhileProcessing(log.status),
         );
-        if (activeBranches.length > 0) scheduleTreeSync(activeBranches);
+        if (activeBranches.length > 0 && !publicationIsLatest) {
+          scheduleTreeSync(activeBranches);
+        }
 
         const jobType =
           data.activeJob?.jobType ?? data.latestJob?.jobType ?? "import";
@@ -291,24 +356,9 @@ export function useCanvasImportStatus(
           return;
         }
 
-        const isTrackedTerminal =
-          requestedPublishJobId !== null &&
-          data.latestJob?.jobId === requestedPublishJobId;
-        const publishedTreeLogs =
-          isTrackedTerminal && Array.isArray(data.publishedTreePaths)
-            ? data.publishedTreePaths.map((treePath) => ({ treePath }))
-            : [];
-        const terminalTreeLogs =
-          publishedTreeLogs.length > 0 ? publishedTreeLogs : logs;
-        let terminalTreePublished = true;
-        if (terminalTreeLogs.length > 0) {
-          if (isTrackedTerminal) {
-            terminalTreePublished = await refreshTerminalTree(terminalTreeLogs);
-          } else {
-            scheduleTreeSync(terminalTreeLogs, true);
-          }
+        if (!publicationIsLatest && logs.length > 0) {
+          scheduleTreeSync(logs, true);
         }
-        if (!terminalTreePublished) return;
         if (data.latestJob?.status === "failed") {
           setProgress({
             ...data.progress,
@@ -332,12 +382,6 @@ export function useCanvasImportStatus(
           setShowToast(!dismissedRef.current);
         } else {
           setShowToast(false);
-        }
-        if (isTrackedTerminal) {
-          removeStoredActiveJob(requestedPublishJobId);
-          if (trackedJobIdRef.current === requestedPublishJobId) {
-            trackedJobIdRef.current = null;
-          }
         }
       } catch (error: unknown) {
         if (
