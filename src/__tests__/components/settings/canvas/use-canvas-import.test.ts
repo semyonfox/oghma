@@ -8,6 +8,10 @@ const storeMocks = vi.hoisted(() => ({
   refreshTreePaths: vi.fn().mockResolvedValue(undefined),
   fetchNote: vi.fn().mockResolvedValue(undefined),
 }));
+const layoutState = vi.hoisted(() => ({
+  paneA: null as { fileId: string; fileType: "note" } | null,
+  paneB: null as { fileId: string; fileType: "note" } | null,
+}));
 
 vi.mock("@/lib/notes/state/tree", () => ({
   default: {
@@ -18,7 +22,7 @@ vi.mock("@/lib/notes/state/note", () => ({
   default: { getState: () => ({ fetchNote: storeMocks.fetchNote }) },
 }));
 vi.mock("@/lib/notes/state/layout.zustand", () => ({
-  default: { getState: () => ({ paneA: null, paneB: null }) },
+  default: { getState: () => layoutState },
 }));
 
 import useCanvasImport from "@/components/settings/canvas/use-canvas-import";
@@ -37,6 +41,8 @@ function statusResponse(forbiddenCourseId: string) {
 describe("useCanvasImport polling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    layoutState.paneA = null;
+    layoutState.paneB = null;
   });
 
   afterEach(() => {
@@ -46,6 +52,7 @@ describe("useCanvasImport polling", () => {
   });
 
   it("acknowledges a completed import only after every path refreshes", async () => {
+    layoutState.paneA = { fileId: "note-1", fileType: "note" };
     localStorage.setItem(
       "canvas_active_job",
       JSON.stringify({ jobId: "job-1" }),
@@ -65,6 +72,7 @@ describe("useCanvasImport polling", () => {
           recentLogs: [
             { status: "complete", treePath: ["course-1", "note-60"] },
           ],
+          publishedJobId: "job-1",
           publishedTreePaths: [
             ["course-1", "note-1"],
             ["course-1", "note-60"],
@@ -113,11 +121,13 @@ describe("useCanvasImport polling", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(localStorage.getItem("canvas_active_job")).not.toBeNull();
+    expect(storeMocks.fetchNote).not.toHaveBeenCalled();
 
     finishTreeRefresh?.();
     await waitFor(() => {
       expect(localStorage.getItem("canvas_active_job")).toBeNull();
     });
+    expect(storeMocks.fetchNote).toHaveBeenCalledWith("note-1");
     unmount();
   });
 
@@ -139,6 +149,7 @@ describe("useCanvasImport polling", () => {
           },
           progress: { percent: 99, completed: 1, total: 2 },
           recentLogs: [],
+          publishedJobId: "job-1",
           publishedTreePaths: [["course-1", "note-1"]],
           issues: { forbidden: 0, error: 1 },
         }),
@@ -179,6 +190,106 @@ describe("useCanvasImport polling", () => {
       ]);
       expect(localStorage.getItem("canvas_active_job")).toBeNull();
     });
+    unmount();
+  });
+
+  it("publishes a completed job before polling its active successor", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem(
+      "canvas_active_job",
+      JSON.stringify({ jobId: "job-a" }),
+    );
+    let finishTreeRefresh: (() => void) | undefined;
+    storeMocks.refreshTreePaths.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishTreeRefresh = resolve;
+      }),
+    );
+    const activeJob = {
+      jobId: "job-b",
+      phase: "processing",
+      status: "processing",
+      jobType: "sync",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          activeJob,
+          latestJob: activeJob,
+          progress: { percent: 25, completed: 1, total: 4 },
+          recentLogs: [],
+          publishedJobId: "job-a",
+          publishedTreePaths: [["course-a", "note-a"]],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          activeJob,
+          latestJob: activeJob,
+          progress: { percent: 50, completed: 2, total: 4 },
+          recentLogs: [],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, unmount } = renderHook(() => {
+      const [courseErrors, setCourseErrors] = React.useState<
+        Record<string, string>
+      >({});
+      const [forbiddenCourses, setForbiddenCourses] = React.useState<
+        Record<string, boolean>
+      >({});
+      const [syncedCourses, setSyncedCourses] = React.useState<
+        Record<string, boolean>
+      >({});
+      const [, setConnectionError] = React.useState<string | null>(null);
+
+      return useCanvasImport({
+        selectedCourseIds: [],
+        courses: [],
+        courseErrors,
+        setCourseErrors,
+        forbiddenCourses,
+        setForbiddenCourses,
+        syncedCourses,
+        setSyncedCourses,
+        setConnectionError,
+        t: (key) => key,
+      });
+    });
+
+    act(() => result.current.startPolling("job-a"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(storeMocks.refreshTreePaths).toHaveBeenCalledWith([
+      ["course-a", "note-a"],
+    ]);
+    expect(localStorage.getItem("canvas_active_job")).toBe(
+      JSON.stringify({ jobId: "job-a" }),
+    );
+
+    await act(async () => {
+      finishTreeRefresh?.();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(localStorage.getItem("canvas_active_job")).toBe(
+      JSON.stringify({ jobId: "job-b" }),
+    );
+    expect(result.current.isImporting).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/canvas/status?publishJobId=job-b",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(result.current.isImporting).toBe(true);
+    act(() => result.current.stopPolling());
     unmount();
   });
 

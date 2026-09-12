@@ -58,6 +58,7 @@ interface PublishedNoteRow {
  *   issues: { forbidden, error },
  *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
+ *   publishedJobId: string | null,
  *   publishedTreePaths: string[][],
  *   recentLogs: [{ filename, status, errorMessage, updatedAt, noteId, treePath }],
  * }
@@ -84,8 +85,6 @@ export const GET = withErrorHandler(async (request) => {
   const job = activeJobs?.[0] ?? null;
   const isActive =
     job && ["queued", "discovering", "processing"].includes(job.status);
-  const isTerminal =
-    job && ["complete", "failed", "cancelled"].includes(job.status);
   const latestJob = job
     ? {
         jobId: job.id,
@@ -212,17 +211,34 @@ export const GET = withErrorHandler(async (request) => {
   // Keep the visible log bounded, but publish every affected tree branch once
   // a job settles. Otherwise imports larger than the log limit can leave an
   // already-loaded folder stale until the next full page load.
+  let publicationJob: Pick<CanvasJobRow, "id" | "status"> | null =
+    publishJobId === job?.id ? job : null;
+  if (publishJobId && !publicationJob) {
+    const publicationJobs = await sql<
+      Pick<CanvasJobRow, "id" | "status">[]
+    >`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE id = ${publishJobId}::uuid
+        AND user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+      LIMIT 1
+    `;
+    publicationJob = publicationJobs[0] ?? null;
+  }
+  const publishedJobId =
+    publicationJob &&
+    ["complete", "failed", "cancelled"].includes(publicationJob.status)
+      ? publicationJob.id
+      : null;
   const publishedNotes =
-    job && isTerminal && publishJobId === job.id
+    publishedJobId
       ? await sql<PublishedNoteRow[]>`
           SELECT DISTINCT note_id
           FROM app.canvas_imports
           WHERE user_id = ${user.user_id}
             AND note_id IS NOT NULL
-            AND CASE
-              WHEN ${jobId}::uuid IS NOT NULL THEN job_id = ${jobId}::uuid
-              ELSE created_at >= ${since}
-            END
+            AND job_id = ${publishedJobId}::uuid
         `
       : [];
 
@@ -306,6 +322,7 @@ export const GET = withErrorHandler(async (request) => {
     // rather than showing a misleading warm-up warning.
     markerColdStarting: false,
     estimatedSecsRemaining,
+    publishedJobId,
     publishedTreePaths: publishedNotes.flatMap((row) => {
       const path = treePathByNoteId.get(row.note_id);
       return path?.length ? [path] : [];
