@@ -3,7 +3,6 @@ import useSyncStatusStore from "@/lib/notes/state/sync-status";
 import useNoteTreeStore from "@/lib/notes/state/tree";
 
 const LS_ACTIVE_JOB = "canvas_active_job";
-const AUTO_SYNC_INTERVAL = 6 * 60 * 60 * 1000;
 const STATUS_POLL_INTERVAL = 4_000;
 const TREE_SYNC_DELAY = 750;
 
@@ -33,6 +32,7 @@ type StatusData = {
   activeJob?: CanvasJobStatus | null;
   latestJob?: CanvasJobStatus | null;
   recentLogs?: CanvasLog[];
+  publishedTreePaths?: string[][];
   progress?: ImportProgress;
   issues?: { forbidden?: number; error?: number };
 };
@@ -49,6 +49,12 @@ function getStoredActiveJob(): StoredJob | null {
   } catch {
     localStorage.removeItem(LS_ACTIVE_JOB);
     return null;
+  }
+}
+
+function removeStoredActiveJob(jobId: string): void {
+  if (getStoredActiveJob()?.jobId === jobId) {
+    localStorage.removeItem(LS_ACTIVE_JOB);
   }
 }
 
@@ -87,17 +93,38 @@ export function useCanvasImportStatus(
   const autoSyncTriggered = useRef(false);
   const seenRecentLogNoteIds = useRef(new Set<string>());
   const observedJobId = useRef<string | null>(null);
+  const trackedJobIdRef = useRef<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const statusRequestRef = useRef<StatusRequest | null>(null);
   const treeSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const treeSyncInFlightRef = useRef(false);
+  const treeSyncInFlightRef = useRef<Promise<void> | null>(null);
   const pendingTreePathsRef = useRef(new Map<string, string[]>());
   const mountedRef = useRef(true);
 
   // Remember a manual dismissal so status polling does not reopen it.
   const dismissedRef = useRef(false);
   const wasActiveRef = useRef(false);
+
+  const runTreeSync = useCallback(async (paths: string[][]) => {
+    // A terminal refresh must run after any older snapshot. Rechecking in a
+    // loop also serializes multiple waiters that resume on the same promise.
+    while (treeSyncInFlightRef.current) {
+      await treeSyncInFlightRef.current;
+    }
+    if (!mountedRef.current) return false;
+
+    const refresh = useNoteTreeStore.getState().refreshTreePaths(paths);
+    treeSyncInFlightRef.current = refresh;
+    try {
+      await refresh;
+      return true;
+    } finally {
+      if (treeSyncInFlightRef.current === refresh) {
+        treeSyncInFlightRef.current = null;
+      }
+    }
+  }, []);
 
   const scheduleTreeSync = useCallback(
     (logs: CanvasLog[], immediate = false) => {
@@ -128,11 +155,11 @@ export function useCanvasImportStatus(
         pendingTreePathsRef.current.clear();
         if (paths.length === 0) return;
 
-        treeSyncInFlightRef.current = true;
         try {
-          await useNoteTreeStore.getState().refreshTreePaths(paths);
+          await runTreeSync(paths);
+        } catch (error) {
+          console.error("Failed to refresh Canvas note branches:", error);
         } finally {
-          treeSyncInFlightRef.current = false;
           if (
             mountedRef.current &&
             pendingTreePathsRef.current.size > 0 &&
@@ -150,7 +177,33 @@ export function useCanvasImportStatus(
         immediate ? 0 : TREE_SYNC_DELAY,
       );
     },
-    [],
+    [runTreeSync],
+  );
+
+  const refreshTerminalTree = useCallback(
+    async (logs: CanvasLog[]) => {
+      const pathsByKey = new Map<string, string[]>();
+      for (const log of logs) {
+        const treePath = Array.isArray(log.treePath)
+          ? log.treePath.filter(
+              (id) => typeof id === "string" && id.length > 0,
+            )
+          : [];
+        if (treePath.length > 0) pathsByKey.set(treePath.join("/"), treePath);
+      }
+      if (pathsByKey.size === 0) return true;
+
+      // A terminal publication is acknowledged only after the affected tree
+      // branches have actually been refreshed. Cancel any queued batch so the
+      // same paths are not replayed after the job token is cleared.
+      if (treeSyncTimerRef.current) {
+        clearTimeout(treeSyncTimerRef.current);
+        treeSyncTimerRef.current = null;
+      }
+      pendingTreePathsRef.current.clear();
+      return runTreeSync([...pathsByKey.values()]);
+    },
+    [runTreeSync],
   );
 
   const checkStatus = useCallback(async (): Promise<void> => {
@@ -163,7 +216,15 @@ export function useCanvasImportStatus(
     statusRequestRef.current = requestSlot;
     const request = (async (): Promise<void> => {
       try {
-        const res = await fetch("/api/canvas/status", {
+        const storedJobId = getStoredActiveJob()?.jobId;
+        if (storedJobId && storedJobId !== trackedJobIdRef.current) {
+          trackedJobIdRef.current = storedJobId;
+        }
+        const requestedPublishJobId = trackedJobIdRef.current;
+        const statusUrl = requestedPublishJobId
+          ? `/api/canvas/status?publishJobId=${encodeURIComponent(requestedPublishJobId)}`
+          : "/api/canvas/status";
+        const res = await fetch(statusUrl, {
           signal: controller.signal,
         });
         if (!res.ok) return;
@@ -175,6 +236,12 @@ export function useCanvasImportStatus(
           observedJobId.current = jobId;
           seenRecentLogNoteIds.current.clear();
           pendingTreePathsRef.current.clear();
+        }
+        if (
+          data.activeJob?.jobId &&
+          isActiveCanvasStatus(data.activeJob.status)
+        ) {
+          trackedJobIdRef.current = data.activeJob.jobId;
         }
 
         const active = isActiveCanvasStatus(data.activeJob?.status);
@@ -224,7 +291,24 @@ export function useCanvasImportStatus(
           return;
         }
 
-        if (logs.length > 0) scheduleTreeSync(logs, true);
+        const isTrackedTerminal =
+          requestedPublishJobId !== null &&
+          data.latestJob?.jobId === requestedPublishJobId;
+        const publishedTreeLogs =
+          isTrackedTerminal && Array.isArray(data.publishedTreePaths)
+            ? data.publishedTreePaths.map((treePath) => ({ treePath }))
+            : [];
+        const terminalTreeLogs =
+          publishedTreeLogs.length > 0 ? publishedTreeLogs : logs;
+        let terminalTreePublished = true;
+        if (terminalTreeLogs.length > 0) {
+          if (isTrackedTerminal) {
+            terminalTreePublished = await refreshTerminalTree(terminalTreeLogs);
+          } else {
+            scheduleTreeSync(terminalTreeLogs, true);
+          }
+        }
+        if (!terminalTreePublished) return;
         if (data.latestJob?.status === "failed") {
           setProgress({
             ...data.progress,
@@ -249,7 +333,12 @@ export function useCanvasImportStatus(
         } else {
           setShowToast(false);
         }
-        localStorage.removeItem(LS_ACTIVE_JOB);
+        if (isTrackedTerminal) {
+          removeStoredActiveJob(requestedPublishJobId);
+          if (trackedJobIdRef.current === requestedPublishJobId) {
+            trackedJobIdRef.current = null;
+          }
+        }
       } catch (error: unknown) {
         if (
           (error instanceof DOMException && error.name === "AbortError") ||
@@ -268,7 +357,7 @@ export function useCanvasImportStatus(
 
     requestSlot.promise = request;
     return request;
-  }, [scheduleTreeSync]);
+  }, [refreshTerminalTree, scheduleTreeSync]);
 
   const maybeAutoSync = useCallback(async () => {
     if (autoSyncTriggered.current) return;
@@ -276,28 +365,38 @@ export function useCanvasImportStatus(
       const res = await fetch("/api/canvas/sync");
       const data = (await res.json()) as {
         available?: boolean;
-        activeJob?: { created_at?: string };
+        activeJob?: { id?: string };
       };
       if (!data.available) return;
 
-      const lastSync = data.activeJob?.created_at;
-      if (
-        lastSync &&
-        Date.now() - new Date(lastSync).getTime() < AUTO_SYNC_INTERVAL
-      ) {
+      if (typeof data.activeJob?.id === "string") {
+        trackedJobIdRef.current = data.activeJob.id;
+        localStorage.setItem(
+          LS_ACTIVE_JOB,
+          JSON.stringify({ jobId: data.activeJob.id }),
+        );
+        setIsImporting(true);
+        setShowToast(true);
         return;
       }
 
       autoSyncTriggered.current = true;
-      const syncRes = await fetch("/api/canvas/sync", { method: "POST" });
+      const syncRes = await fetch("/api/canvas/sync?automatic=true", {
+        method: "POST",
+      });
       const syncData = (await syncRes.json()) as {
         queued?: boolean;
         jobId?: string;
+        activeJobId?: string;
       };
-      if (syncData.queued) {
+      const jobId = syncData.queued
+        ? syncData.jobId
+        : syncData.activeJobId;
+      if (typeof jobId === "string") {
+        trackedJobIdRef.current = jobId;
         localStorage.setItem(
           LS_ACTIVE_JOB,
-          JSON.stringify({ jobId: syncData.jobId }),
+          JSON.stringify({ jobId }),
         );
         setProgress(null);
         setIsImporting(true);
@@ -327,12 +426,18 @@ export function useCanvasImportStatus(
         setShowToast(true);
       });
     }
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      void checkStatus();
-      void maybeAutoSync();
+      void (async () => {
+        await checkStatus();
+        if (!cancelled) await maybeAutoSync();
+      })();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [autoCheckOnMount, checkStatus, maybeAutoSync]);
 
   // Poll again only once the current request settles. This avoids slow OCR

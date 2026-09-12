@@ -67,7 +67,33 @@ interface CanvasStatusResponse {
   markerColdStarting?: boolean;
   estimatedSecsRemaining?: number | null;
   recentLogs?: CanvasLog[];
+  publishedTreePaths?: string[][];
   issues?: { forbidden?: number; error?: number };
+}
+
+function getStoredActiveJobId(): string | null {
+  try {
+    const storedJob: unknown = JSON.parse(
+      localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
+    );
+    if (
+      typeof storedJob === "object" &&
+      storedJob !== null &&
+      "jobId" in storedJob &&
+      typeof storedJob.jobId === "string"
+    ) {
+      return storedJob.jobId;
+    }
+  } catch {
+    localStorage.removeItem(LS_ACTIVE_JOB);
+  }
+  return null;
+}
+
+function removeStoredActiveJob(jobId: string): void {
+  if (getStoredActiveJobId() === jobId) {
+    localStorage.removeItem(LS_ACTIVE_JOB);
+  }
 }
 
 export default function useCanvasImport({
@@ -104,6 +130,7 @@ export default function useCanvasImport({
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollRequestRef = useRef<AbortController | null>(null);
   const pollingRef = useRef(false);
+  const trackedJobIdRef = useRef<string | null>(null);
   const latestStateRef = useRef({
     courses,
     forbiddenCourses,
@@ -130,21 +157,32 @@ export default function useCanvasImport({
     pollRequestRef.current = null;
   }, []);
 
-  const startPolling = useCallback(() => {
+  const startPolling = useCallback((jobId?: string) => {
+    const nextJobId = jobId ?? getStoredActiveJobId();
+    if (nextJobId) trackedJobIdRef.current = nextJobId;
     if (pollingRef.current) return;
     pollingRef.current = true;
+    setIsImporting(true);
 
     const poll = async (): Promise<void> => {
       if (!pollingRef.current) return;
       const controller = new AbortController();
       pollRequestRef.current = controller;
       try {
-        const res = await fetch("/api/canvas/status", {
+        const requestedPublishJobId = trackedJobIdRef.current;
+        const statusUrl = requestedPublishJobId
+          ? `/api/canvas/status?publishJobId=${encodeURIComponent(requestedPublishJobId)}`
+          : "/api/canvas/status";
+        const res = await fetch(statusUrl, {
           signal: controller.signal,
         });
         if (!res.ok || controller.signal.aborted) return;
         const data = (await res.json()) as CanvasStatusResponse;
         if (controller.signal.aborted || !pollingRef.current) return;
+
+        if (data.activeJob?.jobId) {
+          trackedJobIdRef.current = data.activeJob.jobId;
+        }
 
         setIsDiscovering(data.activeJob?.phase === "discovering");
         setProgress(data.progress ?? null);
@@ -172,12 +210,56 @@ export default function useCanvasImport({
         }
 
         if (!data.activeJob) {
+          const isTrackedTerminal =
+            requestedPublishJobId !== null &&
+            data.latestJob?.jobId === requestedPublishJobId;
+          const publishedTreePaths =
+            isTrackedTerminal && Array.isArray(data.publishedTreePaths)
+              ? data.publishedTreePaths
+              : [];
+          const terminalTreePaths = (
+            publishedTreePaths.length > 0
+              ? publishedTreePaths
+              : logs.map((log) => log.treePath ?? [])
+          ).filter((path) => path.length > 0);
+
+          // Completed files remain useful even when the parent job failed or
+          // was cancelled. Publish every durable branch before acknowledging
+          // the job so navigation or a transient refresh failure can retry it.
+          if (terminalTreePaths.length > 0) {
+            await useNoteTreeStore
+              .getState()
+              .refreshTreePaths(terminalTreePaths);
+          }
+
+          if (data.latestJob) {
+            const noteStore = useNoteStore.getState();
+            const layoutStore = useLayoutStore.getState();
+            const refreshPromises = [];
+            if (
+              layoutStore.paneA?.fileId &&
+              layoutStore.paneA.fileType === "note"
+            ) {
+              refreshPromises.push(
+                noteStore.fetchNote(layoutStore.paneA.fileId),
+              );
+            }
+            if (
+              layoutStore.paneB?.fileId &&
+              layoutStore.paneB.fileType === "note"
+            ) {
+              refreshPromises.push(
+                noteStore.fetchNote(layoutStore.paneB.fileId),
+              );
+            }
+            await Promise.allSettled(refreshPromises);
+          }
+
           stopPolling();
           setIsImporting(false);
           setIsDiscovering(false);
           setMarkerColdStarting(false);
           setEstimatedSecsRemaining(null);
-          localStorage.removeItem(LS_ACTIVE_JOB);
           if (data.latestJob?.status === "complete" && data.progress) {
             setImportSummary({
               imported: data.progress.completed,
@@ -199,28 +281,6 @@ export default function useCanvasImport({
             latestStateRef.current.syncedCourses = newSynced;
             setSyncedCourses(newSynced);
             localStorage.setItem(LS_SYNCED, JSON.stringify(newSynced));
-
-            // Merge only published branches. A full tree rebuild discards
-            // lazy-loaded descendants while imports are still visible.
-            const treeStore = useNoteTreeStore.getState();
-            const noteStore = useNoteStore.getState();
-            const layoutStore = useLayoutStore.getState();
-
-            await treeStore.refreshTreePaths(
-              logs.map((log) => log.treePath ?? []),
-            );
-
-            // refresh any open notes in editor panes
-            const paneA = layoutStore.paneA;
-            const paneB = layoutStore.paneB;
-            const refreshPromises = [];
-            if (paneA?.fileId && paneA.fileType === "note") {
-              refreshPromises.push(noteStore.fetchNote(paneA.fileId));
-            }
-            if (paneB?.fileId && paneB.fileType === "note") {
-              refreshPromises.push(noteStore.fetchNote(paneB.fileId));
-            }
-            await Promise.allSettled(refreshPromises);
           } else {
             setProgress(null);
             setImportSummary(null);
@@ -230,6 +290,12 @@ export default function useCanvasImport({
               );
             } else if (data.latestJob?.status === "cancelled") {
               setConnectionError(t("Import cancelled."));
+            }
+          }
+          if (isTrackedTerminal) {
+            removeStoredActiveJob(requestedPublishJobId);
+            if (trackedJobIdRef.current === requestedPublishJobId) {
+              trackedJobIdRef.current = null;
             }
           }
         }
@@ -336,7 +402,7 @@ export default function useCanvasImport({
         }),
       );
 
-      startPolling();
+      startPolling(data.jobId);
     } catch {
       setConnectionError(toFriendlyCanvasError("network"));
       setIsImporting(false);
@@ -386,7 +452,7 @@ export default function useCanvasImport({
         downloading: 0,
         processing: 0,
       });
-      startPolling();
+      startPolling(data.jobId);
     } catch {
       setConnectionError(toFriendlyCanvasError("network"));
     } finally {
@@ -404,6 +470,7 @@ export default function useCanvasImport({
         setIsDiscovering(false);
         setMarkerColdStarting(false);
         localStorage.removeItem(LS_ACTIVE_JOB);
+        trackedJobIdRef.current = null;
         setImportSummary(null);
       }
     } catch {

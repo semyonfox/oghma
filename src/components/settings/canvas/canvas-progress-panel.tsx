@@ -39,6 +39,19 @@ export default function CanvasProgressPanel({
 
   if (!progress) return null;
 
+  const isTerminalFailure =
+    !isImporting &&
+    Boolean(
+      importSummary &&
+        importSummary.imported === 0 &&
+        importSummary.failed > 0,
+    );
+  const terminalBarColor = importSummary?.failed
+    ? "bg-red-500"
+    : importSummary?.forbidden
+      ? "bg-orange-500"
+      : "bg-green-500";
+
   const LogRow = ({ log }: { log: Log }) => (
     <div
       className={`flex items-start gap-2 px-4 py-1 border-b border-border-subtle last:border-0 ${
@@ -59,7 +72,7 @@ export default function CanvasProgressPanel({
       {log.errorMessage && (
         <span
           className="text-red-400/80 shrink-0 max-w-[10rem] truncate"
-          title={toFriendlyCanvasLogMessage(log.errorMessage)}
+          title={log.errorMessage}
         >
           {toFriendlyCanvasLogMessage(log.errorMessage)}
         </span>
@@ -96,7 +109,9 @@ export default function CanvasProgressPanel({
               ? isDiscovering
                 ? t("Discovering files...")
                 : `${isSyncing ? t("Checking for updates...") : t("Importing...")} (${progress.completed}/${progress.total || "?"})`
-              : t("Import complete")}
+              : isTerminalFailure
+                ? t("Import failed")
+                : t("Import complete")}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -141,7 +156,7 @@ export default function CanvasProgressPanel({
           <div className="h-full w-full bg-primary-500/50 animate-pulse" />
         ) : (
           <div
-            className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : "bg-green-500"}`}
+            className={`h-full transition-all duration-500 ${isImporting ? "bg-primary-500" : terminalBarColor}`}
             style={{ width: `${progress.percent ?? 0}%` }}
           />
         )}

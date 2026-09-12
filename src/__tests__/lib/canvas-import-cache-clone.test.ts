@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     getChunkVectors: vi.fn(),
     setChunkVectorsSearchable: vi.fn().mockResolvedValue(undefined),
     upsertChunkVectors: vi.fn().mockResolvedValue(undefined),
+    cacheInvalidate: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -22,6 +23,12 @@ vi.mock("@/lib/qdrant", () => ({
   upsertChunkVectors: mocks.upsertChunkVectors,
 }));
 vi.mock("@/lib/storage/init", () => ({ getStorageProvider: vi.fn() }));
+vi.mock("@/lib/cache", () => ({
+  cacheInvalidate: mocks.cacheInvalidate,
+  cacheKeys: {
+    note: (userId: string, noteId: string) => `note:${userId}:${noteId}`,
+  },
+}));
 vi.mock("@/lib/marker-output", () => ({
   markerAssetKey: vi.fn(),
   sanitizeMarkerAssetName: vi.fn(),
@@ -112,6 +119,7 @@ describe("cloning an imported PDF cache", () => {
         userId: "user-1",
       }),
     ]);
+    expect(mocks.cacheInvalidate).toHaveBeenCalledWith("note:user-1:note-1");
   });
 
   it("removes a late vector when permanent deletion wins after commit", async () => {

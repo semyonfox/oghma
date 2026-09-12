@@ -12,14 +12,7 @@ import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import sql from "@/database/pgsql";
-import { CanvasClient } from "@/lib/canvas/client";
-import {
-  buildCanvasSyncCourses,
-  discoverCanvasCourses,
-  isCanvasCourseAvailabilityUnresolved,
-} from "@/lib/canvas/sync-courses";
 import { validateAuthCredentials } from "@/lib/validation";
-import { generateUUID } from "@/lib/utils/uuid";
 import {
   createAuthSession,
   createErrorResponse,
@@ -34,12 +27,9 @@ import {
   getLockoutMinutesRemaining,
   isAuthLockoutStoreUnavailableError,
 } from "@/lib/loginLockout";
-import { enqueueCanvasJob } from "@/lib/queue";
 import logger from "@/lib/logger";
 import { withErrorHandler } from "@/lib/api-error";
 import { loginSchema, validateBody } from "@/lib/validations/schemas";
-import { loadCanvasCredentials } from "@/lib/canvas/credentials";
-import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
 interface LoginUserRow {
   user_id: string;
@@ -48,10 +38,6 @@ interface LoginUserRow {
   is_active: boolean;
   deleted_at: Date | string | null;
   email_verified: boolean;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -171,93 +157,5 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // 8. Create auth session (generates JWT, sets cookie, returns response)
   const sessionResponse = await createAuthSession(user, rememberMe ? 30 : 1);
 
-  // 9. Fire-and-forget Canvas resync if the user has credentials + prior imports.
-  //    Do not await this call. It must not delay login.
-  queueCanvasSync(user.user_id).catch((error: unknown) =>
-    logger.warn("canvas auto-sync queue failed", { error: errorMessage(error) }),
-  );
-
   return sessionResponse;
 });
-
-// ── Canvas auto-sync helper ───────────────────────────────────────────────────
-
-/**
- * Queues a background Canvas resync job for the user if:
- *   - They have canvas credentials stored
- *   - They have at least one prior import
- *
- * Called fire-and-forget after login — never throws to the caller.
- */
-async function queueCanvasSync(userId: string): Promise<void> {
-  const credentials = await loadCanvasCredentials(userId);
-  if (!credentials) return;
-
-  const prevCourseRows = await sql<{ canvas_course_id: string | number }[]>`
-    SELECT DISTINCT canvas_course_id
-    FROM app.canvas_imports
-    WHERE user_id = ${userId}
-      AND canvas_course_id IS NOT NULL
-  `;
-  if (prevCourseRows.length === 0) return;
-
-  const prevCourseIds = new Set(
-    prevCourseRows.map((r) => String(r.canvas_course_id)),
-  );
-
-  const client = new CanvasClient(credentials.domain, credentials.token);
-  const discovery = await discoverCanvasCourses(
-    client,
-    prevCourseIds,
-  );
-  if (discovery.error) {
-    logger.warn("canvas auto-sync course discovery failed", {
-      error: discovery.error,
-    });
-    return;
-  }
-  const unresolvedCourses = discovery.data.filter(
-    (course) =>
-      prevCourseIds.has(String(course.id)) &&
-      isCanvasCourseAvailabilityUnresolved(course),
-  );
-  if (unresolvedCourses.length > 0) {
-    logger.warn("canvas auto-sync deferred while course access is unresolved", {
-      courseCount: unresolvedCourses.length,
-    });
-    return;
-  }
-  const courses = buildCanvasSyncCourses(prevCourseIds, discovery.data);
-
-  if (courses.length === 0) return;
-
-  // cancel any existing queued/processing job before inserting
-  const job = await sql.begin(async (tx) => {
-    await cancelActiveCanvasImportJobs(
-      tx,
-      userId,
-      "Replaced by an automatic Canvas sync",
-    );
-    const [inserted] = await tx<{ id: string }[]>`
-      INSERT INTO app.canvas_import_jobs (id, user_id, course_ids, status, job_type)
-      VALUES (${generateUUID()}::uuid, ${userId}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
-      RETURNING id
-    `;
-    return inserted;
-  });
-
-  try {
-    await enqueueCanvasJob("canvas-discover", { jobId: job.id, userId });
-  } catch (queueErr) {
-    // non-fatal: worker DB safety-net poll will catch it
-    logger.warn(
-      "queue enqueue failed for login auto-sync (job still queued in DB)",
-      { error: errorMessage(queueErr) },
-    );
-  }
-
-  logger.info("canvas auto-sync job queued on login", {
-    jobId: job.id,
-    courseCount: courses.length,
-  });
-}
