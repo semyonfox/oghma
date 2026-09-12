@@ -502,6 +502,73 @@ describe("processExtractionRetry", () => {
   });
 });
 
+describe("ordinary Canvas document publication", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const sqlMock = sql as unknown as ReturnType<typeof vi.fn> & {
+      begin: ReturnType<typeof vi.fn>;
+    };
+    sqlMock.mockReset();
+    sqlMock.begin = vi.fn(
+      async (callback: (tx: typeof sqlMock) => unknown) => callback(sqlMock),
+    );
+    sqlMock.mockImplementation((parts: TemplateStringsArray) => {
+      const query = parts.join("");
+      if (query.includes("SELECT n.note_id FROM app.notes n")) {
+        return Promise.resolve([{ note_id: "binary-note" }]);
+      }
+      return Promise.resolve([]);
+    });
+  });
+
+  it("publishes the extracted Markdown note as the completed import", async () => {
+    const file = {
+      id: "42",
+      display_name: "lecture.docx",
+      filename: "lecture.docx",
+      content_type:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      url: "https://canvas.example/files/42/download",
+    };
+    const storage = {
+      hasObject: vi.fn(),
+      putObject: vi.fn().mockResolvedValue(undefined),
+    };
+    const client = {
+      baseUrl: "https://canvas.example/api/v1",
+      downloadFile: vi.fn().mockResolvedValue({
+        buffer: Buffer.from("docx bytes"),
+        forbidden: false,
+      }),
+    };
+    vi.mocked(processRagPipeline).mockResolvedValue({
+      noteId: "markdown-note",
+      chunksStored: 1,
+    } as never);
+
+    await downloadAndStoreFile(file, {
+      userId: "user-123",
+      courseId: "1",
+      moduleId: null,
+      parentFolderId: null,
+      client,
+      storage,
+      s3Prefix: "canvas/user-123",
+      jobId: "job-123",
+      alreadyClaimed: true,
+    });
+
+    const completionCall = vi
+      .mocked(sql)
+      .mock.calls.find(
+        (call) =>
+          queryText(call).includes("UPDATE app.canvas_imports") &&
+          call[1] === "complete",
+      );
+    expect(completionCall?.[2]).toBe("markdown-note");
+  });
+});
+
 describe("shared imported PDF cache integrity", () => {
   const file = {
     id: "42",

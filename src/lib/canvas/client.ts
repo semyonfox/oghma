@@ -47,6 +47,7 @@ export interface CanvasFile extends CanvasRecord {
   id: CanvasId;
   display_name: string;
   filename?: string;
+  "content-type"?: unknown;
   content_type?: string;
   url?: string;
   locked_for_user?: boolean;
@@ -128,6 +129,39 @@ function isCanvasCourse(value: unknown): value is CanvasCourse {
 
 function isCanvasFile(value: unknown): value is CanvasFile {
   return isRecord(value) && isCanvasId(value.id);
+}
+
+function normalizeCanvasFile(file: CanvasFile): CanvasFile {
+  // Canvas File responses use a hyphen; import consumers use content_type.
+  const mimeType = file["content-type"];
+  return typeof mimeType === "string" && mimeType.trim()
+    ? { ...file, content_type: mimeType.trim() }
+    : file;
+}
+
+function normalizeCanvasAssignmentFiles(
+  assignment: CanvasAssignment,
+): CanvasAssignment {
+  let normalized = assignment;
+
+  if (assignment.attachments) {
+    normalized = {
+      ...normalized,
+      attachments: assignment.attachments.map(normalizeCanvasFile),
+    };
+  }
+
+  if (assignment.submission?.attachments) {
+    normalized = {
+      ...normalized,
+      submission: {
+        ...assignment.submission,
+        attachments: assignment.submission.attachments.map(normalizeCanvasFile),
+      },
+    };
+  }
+
+  return normalized;
 }
 
 function isCanvasSubmission(value: unknown): value is CanvasSubmission {
@@ -514,10 +548,14 @@ export class CanvasClient {
    * include[]=submission pulls in the student's own submission attachments.
    */
   async getAssignments(courseId: string) {
-    return this.#getPaginated(
+    const result = await this.#getPaginated(
       `/courses/${courseId}/assignments?include[]=submission`,
       isCanvasAssignment,
     );
+    return {
+      ...result,
+      data: result.data.map(normalizeCanvasAssignmentFiles),
+    };
   }
 
   /**
@@ -573,14 +611,25 @@ export class CanvasClient {
    * not placed in a module or attached to an assignment.
    */
   async getCourseFiles(courseId: string) {
-    return this.#getPaginated(`/courses/${courseId}/files`, isCanvasFile);
+    const result = await this.#getPaginated(
+      `/courses/${courseId}/files`,
+      isCanvasFile,
+    );
+    return { ...result, data: result.data.map(normalizeCanvasFile) };
   }
 
   /**
    * Returns full metadata for a single file, including its download URL and MIME type. Called once per file item found in a module.
    */
   async getFile(courseId: string, fileId: CanvasId) {
-    return this.#get(`/courses/${courseId}/files/${fileId}`, isCanvasFile);
+    const result = await this.#get(
+      `/courses/${courseId}/files/${fileId}`,
+      isCanvasFile,
+    );
+    return {
+      ...result,
+      data: result.data ? normalizeCanvasFile(result.data) : null,
+    };
   }
 
   /**

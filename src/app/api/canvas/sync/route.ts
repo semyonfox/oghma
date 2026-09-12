@@ -12,8 +12,30 @@ import {
 } from "@/lib/canvas/sync-courses";
 import { cancelActiveCanvasImportJobs } from "@/lib/canvas/cancel-import-jobs";
 
+const ACTIVE_CANVAS_JOB_STATUSES = new Set([
+  "queued",
+  "discovering",
+  "processing",
+]);
+
+interface AutomaticSyncBlocker {
+  id: string;
+  status: string;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function automaticSyncBlocked(blocker: AutomaticSyncBlocker) {
+  const active = ACTIVE_CANVAS_JOB_STATUSES.has(blocker.status);
+  return NextResponse.json({
+    queued: false,
+    reason: active
+      ? "A Canvas import is already running"
+      : "Canvas was synced recently",
+    activeJobId: active ? blocker.id : undefined,
+  });
 }
 
 /**
@@ -22,12 +44,15 @@ function errorMessage(error: unknown): string {
  * Queues a resync job for all courses the user has previously imported from.
  * The import worker handles deduplication — only new files (canvas_file_id not
  * yet in canvas_imports with status='complete') will be downloaded.
+ * `?automatic=true` applies a six-hour server-side cooldown and never replaces
+ * active work. Manual requests retain the explicit replacement behavior.
  *
  * Returns { queued: true, jobId } or { queued: false, reason } if there is
  * nothing to sync (no prior imports or no canvas credentials).
  */
-export const POST = withErrorHandler(async () => {
+export const POST = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const automatic = request.nextUrl.searchParams.get("automatic") === "true";
 
   const credentials = await loadCanvasCredentials(user.user_id);
   if (!credentials) {
@@ -50,6 +75,22 @@ export const POST = withErrorHandler(async () => {
       queued: false,
       reason: "No previously imported courses",
     });
+  }
+
+  if (automatic) {
+    const blockers = await sql<AutomaticSyncBlocker[]>`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+        AND (
+          status IN ('queued', 'discovering', 'processing')
+          OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
+        )
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    if (blockers[0]) return automaticSyncBlocked(blockers[0]);
   }
 
   const prevCourseIds = new Set(
@@ -96,22 +137,48 @@ export const POST = withErrorHandler(async () => {
     });
   }
 
-  // cancel any in-flight job and insert the sync atomically
-  const job = await sql.begin(async (tx) => {
-    await cancelActiveCanvasImportJobs(
-      tx,
-      user.user_id,
-      "Replaced by a newer Canvas sync",
-    );
+  // Manual syncs intentionally replace the active job. Automatic syncs use
+  // the same per-user lock, then decline if another request won the race or a
+  // Canvas job completed recently.
+  const result = await sql.begin(async (tx) => {
+    if (automatic) {
+      await tx`
+        SELECT pg_advisory_xact_lock(
+          hashtext(${`oghma-canvas-import:${user.user_id}`})
+        )
+      `;
+      const blockers = await tx<AutomaticSyncBlocker[]>`
+        SELECT id, status
+        FROM app.canvas_import_jobs
+        WHERE user_id = ${user.user_id}::uuid
+          AND type = 'canvas'
+          AND (
+            status IN ('queued', 'discovering', 'processing')
+            OR COALESCE(completed_at, created_at) >= NOW() - INTERVAL '6 hours'
+          )
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      if (blockers[0]) return { blocker: blockers[0], job: null };
+    } else {
+      await cancelActiveCanvasImportJobs(
+        tx,
+        user.user_id,
+        "Replaced by a newer Canvas sync",
+      );
+    }
     const [inserted] = await tx<{ id: string }[]>`
       INSERT INTO app.canvas_import_jobs (user_id, course_ids, status, job_type)
       VALUES (${user.user_id}::uuid, ${JSON.stringify(courses)}::jsonb, 'queued', 'sync')
       RETURNING id
     `;
-    return inserted;
+    return { blocker: null, job: inserted };
   });
 
-  const jobId = job.id;
+  if (result.blocker) return automaticSyncBlocked(result.blocker);
+  if (!result.job) throw new ApiError(500, "Failed to create Canvas sync job");
+
+  const jobId = result.job.id;
 
   try {
     await enqueueCanvasJob("canvas-discover", { jobId, userId: user.user_id });

@@ -42,7 +42,10 @@ export const toFriendlyCanvasLogMessage = (value: unknown) => {
   if (
     message.includes("forbidden") ||
     message.includes("permission") ||
-    message.includes("access denied")
+    message.includes("access denied") ||
+    message.includes("restricted") ||
+    message.includes("locked") ||
+    message.includes("hidden")
   ) {
     return "Canvas says this file is restricted for your account.";
   }

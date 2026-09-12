@@ -16,6 +16,8 @@ import sql from "@/database/pgsql";
 import { requireAuth } from "@/lib/api-error";
 import { GET } from "@/app/api/canvas/status/route";
 
+const JOB_ID = "11111111-1111-4111-8111-111111111111";
+
 describe("GET /api/canvas/status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -26,7 +28,7 @@ describe("GET /api/canvas/status", () => {
     vi.mocked(sql)
       .mockResolvedValueOnce([
         {
-          id: "job-123",
+          id: JOB_ID,
           status: "processing",
           job_type: "import",
           created_at: "2026-04-20T12:00:00.000Z",
@@ -66,18 +68,20 @@ describe("GET /api/canvas/status", () => {
       ] as never);
 
     const response = await GET(
-      new NextRequest("http://localhost/api/canvas/status"),
+      new NextRequest(
+        `http://localhost/api/canvas/status?publishJobId=${JOB_ID}`,
+      ),
     );
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.activeJob).toMatchObject({
-      jobId: "job-123",
+      jobId: JOB_ID,
       status: "processing",
       phase: "processing",
     });
     expect(body.latestJob).toMatchObject({
-      jobId: "job-123",
+      jobId: JOB_ID,
       status: "processing",
       jobType: "import",
     });
@@ -170,5 +174,83 @@ describe("GET /api/canvas/status", () => {
 
     expect(body.activeJob).toBeNull();
     expect(body.progress).toMatchObject({ retrying: 1, percent: 0 });
+    expect(body.publishedTreePaths).toEqual([]);
+    expect(sql).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns every published tree path after a job exceeds the log limit", async () => {
+    const publishedNotes = Array.from({ length: 55 }, (_, index) => ({
+      note_id: `note-${index + 1}`,
+    }));
+    const recentLogs = publishedNotes.slice(5).map(({ note_id }) => ({
+      filename: `${note_id}.md`,
+      status: "complete",
+      error_message: null,
+      updated_at: "2026-04-20T12:10:00.000Z",
+      canvas_course_id: 42,
+      note_id,
+    }));
+    const treePaths = publishedNotes.map(({ note_id }) => ({
+      leaf_note_id: note_id,
+      tree_path: ["course-123", "module-123", note_id],
+    }));
+
+    vi.mocked(sql)
+      .mockResolvedValueOnce([
+        {
+          id: JOB_ID,
+          status: "complete",
+          job_type: "import",
+          created_at: "2026-04-20T12:00:00.000Z",
+          started_at: "2026-04-20T12:00:05.000Z",
+          completed_at: "2026-04-20T12:10:00.000Z",
+          expected_total: 55,
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          total: 55,
+          indexed: 55,
+          indexing: 0,
+          downloading: 0,
+          processing: 0,
+          pending_retry: 0,
+          pending_marker: 0,
+          forbidden: 0,
+          error: 0,
+        },
+      ] as never)
+      .mockResolvedValueOnce(recentLogs as never)
+      .mockResolvedValueOnce(publishedNotes as never)
+      .mockResolvedValueOnce(treePaths as never);
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/canvas/status?publishJobId=${JOB_ID}`,
+      ),
+    );
+    const body = await response.json();
+
+    expect(body.recentLogs).toHaveLength(50);
+    expect(body.publishedTreePaths).toHaveLength(55);
+    expect(body.publishedTreePaths).toContainEqual([
+      "course-123",
+      "module-123",
+      "note-1",
+    ]);
+  });
+
+  it("rejects an invalid publish job ID before querying import state", async () => {
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/canvas/status?publishJobId=not-a-uuid",
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Invalid Canvas import job ID",
+    });
+    expect(sql).not.toHaveBeenCalled();
   });
 });
