@@ -7,6 +7,7 @@ import {
   setChunkVectorsSearchable,
   upsertChunkVectors,
 } from "@/lib/qdrant";
+import { cacheInvalidate, cacheKeys } from "@/lib/cache";
 import { getStorageProvider } from "@/lib/storage/init";
 import { markerAssetKey, sanitizeMarkerAssetName } from "@/lib/marker-output";
 
@@ -457,6 +458,7 @@ export async function cloneImportedPdfCacheToNote(params: {
   );
   if (!prepared) return 0;
 
+  await cacheInvalidate(cacheKeys.note(params.userId, params.noteId));
   await deleteChunkVectors(prepared.oldChunkIds).catch(() => undefined);
   if (!prepared.cached.length) return 0;
 

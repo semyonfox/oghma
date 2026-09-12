@@ -18,6 +18,14 @@ describe("friendly error helpers", () => {
     );
   });
 
+  it("identifies locked and hidden Canvas files as restricted", () => {
+    expect(
+      toFriendlyCanvasLogMessage(
+        "File is locked or hidden for this Canvas user",
+      ),
+    ).toContain("restricted");
+  });
+
   it("maps backend chat config errors to unavailable message", () => {
     expect(toFriendlyChatError("LLM_API_KEY not configured")).toContain(
       "temporarily unavailable",

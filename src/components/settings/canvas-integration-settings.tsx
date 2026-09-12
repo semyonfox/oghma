@@ -78,7 +78,6 @@ export default function CanvasIntegrationSettings() {
   // import/polling state (custom hook)
   const {
     isImporting,
-    setIsImporting,
     isDiscovering,
     importSummary,
     setImportSummary,
@@ -183,55 +182,7 @@ export default function CanvasIntegrationSettings() {
             localStorage.getItem(LS_ACTIVE_JOB) ?? "null",
           );
           if (savedJob?.jobId) {
-            // ping status — if job is still active, resume polling
-            const statusRes = await fetch("/api/canvas/status");
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              if (statusData.activeJob) {
-                setIsImporting(true);
-                setProgress(statusData.progress);
-                setRecentLogs(statusData.recentLogs ?? []);
-                setMarkerColdStarting(Boolean(statusData.markerColdStarting));
-                setEstimatedSecsRemaining(statusData.estimatedSecsRemaining ?? null);
-                startPolling();
-              } else {
-                setMarkerColdStarting(false);
-                setEstimatedSecsRemaining(null);
-                // job already finished while away
-                localStorage.removeItem(LS_ACTIVE_JOB);
-                if (
-                  statusData.latestJob?.status === "complete" &&
-                  statusData.progress
-                ) {
-                  setImportSummary({
-                    imported: statusData.progress.completed,
-                    forbidden: statusData.issues?.forbidden ?? 0,
-                    failed: statusData.issues?.error ?? 0,
-                    skipped: 0,
-                  });
-                  setProgress(statusData.progress);
-                  const logs = statusData.recentLogs ?? [];
-                  setRecentLogs(logs);
-                  // backfill forbidden from returned logs
-                  const newForbidden: Record<string, boolean> = { ...serverForbidden };
-                  for (const log of logs) {
-                    if (log.status === "forbidden" && log.courseId)
-                      newForbidden[String(log.courseId)] = true;
-                  }
-                  setForbiddenCourses(newForbidden);
-                  localStorage.setItem(
-                    LS_FORBIDDEN,
-                    JSON.stringify(newForbidden),
-                  );
-                } else if (statusData.latestJob?.status === "failed") {
-                  setConnectionError(
-                    statusData.latestJob.errorMessage ?? t("Import failed"),
-                  );
-                } else if (statusData.latestJob?.status === "cancelled") {
-                  setConnectionError(t("Import cancelled."));
-                }
-              }
-            }
+            startPolling(savedJob.jobId);
           }
         } else if (res.ok && !data.connected) {
           setConnectionWarning(

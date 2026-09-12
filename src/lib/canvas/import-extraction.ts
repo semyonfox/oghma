@@ -969,7 +969,12 @@ async function _runFileImport(
     return;
   }
 
-  await setImportStatus(importRecordId, "complete", { noteId }, opts.jobId);
+  await setImportStatus(
+    importRecordId,
+    "complete",
+    { noteId: ragResult.noteId },
+    opts.jobId,
+  );
   console.log(`Processed: ${file.display_name}`);
 }
 

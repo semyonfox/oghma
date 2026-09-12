@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withErrorHandler, requireAuth } from "@/lib/api-error";
 import sql from "@/database/pgsql";
+import { isValidUUID } from "@/lib/utils/uuid";
 
 interface CanvasJobRow {
   id: string;
@@ -39,6 +40,10 @@ interface TreePathRow {
   tree_path: string[] | null;
 }
 
+interface PublishedNoteRow {
+  note_id: string;
+}
+
 /**
  * GET /api/canvas/status
  *
@@ -53,11 +58,20 @@ interface TreePathRow {
  *   issues: { forbidden, error },
  *   markerColdStarting: boolean,
  *   estimatedSecsRemaining: number | null,
+ *   publishedJobId: string | null,
+ *   publishedTreePaths: string[][],
  *   recentLogs: [{ filename, status, errorMessage, updatedAt, noteId, treePath }],
  * }
  */
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (request) => {
   const user = await requireAuth();
+  const publishJobId = request.nextUrl.searchParams.get("publishJobId");
+  if (publishJobId !== null && !isValidUUID(publishJobId)) {
+    return NextResponse.json(
+      { error: "Invalid Canvas import job ID" },
+      { status: 400 },
+    );
+  }
 
   // active or most-recently-completed job
   const activeJobs = await sql<CanvasJobRow[]>`
@@ -194,14 +208,50 @@ export const GET = withErrorHandler(async () => {
       ? Math.max(1, Math.ceil((elapsedSecs / etaCompleted) * (denominator - etaCompleted)))
       : null;
 
+  // Keep the visible log bounded, but publish every affected tree branch once
+  // a job settles. Otherwise imports larger than the log limit can leave an
+  // already-loaded folder stale until the next full page load.
+  let publicationJob: Pick<CanvasJobRow, "id" | "status"> | null =
+    publishJobId === job?.id ? job : null;
+  if (publishJobId && !publicationJob) {
+    const publicationJobs = await sql<
+      Pick<CanvasJobRow, "id" | "status">[]
+    >`
+      SELECT id, status
+      FROM app.canvas_import_jobs
+      WHERE id = ${publishJobId}::uuid
+        AND user_id = ${user.user_id}::uuid
+        AND type = 'canvas'
+      LIMIT 1
+    `;
+    publicationJob = publicationJobs[0] ?? null;
+  }
+  const publishedJobId =
+    publicationJob &&
+    ["complete", "failed", "cancelled"].includes(publicationJob.status)
+      ? publicationJob.id
+      : null;
+  const publishedNotes =
+    publishedJobId
+      ? await sql<PublishedNoteRow[]>`
+          SELECT DISTINCT note_id
+          FROM app.canvas_imports
+          WHERE user_id = ${user.user_id}
+            AND note_id IS NOT NULL
+            AND job_id = ${publishedJobId}::uuid
+        `
+      : [];
+
   // Notes become durable before OCR/embedding completes. Include each visible
   // note's path so the client can refresh only that branch rather than reset
   // its lazy-loaded tree. The traversal is bounded defensively against cycles.
   const noteIds = [
     ...new Set(
-      (recentLogs ?? [])
+      [...(recentLogs ?? []), ...publishedNotes]
         .map((row) => row.note_id)
-        .filter((noteId): noteId is string => typeof noteId === "string"),
+        .filter(
+          (noteId): noteId is string => typeof noteId === "string",
+        ),
     ),
   ];
   const treePaths =
@@ -272,6 +322,11 @@ export const GET = withErrorHandler(async () => {
     // rather than showing a misleading warm-up warning.
     markerColdStarting: false,
     estimatedSecsRemaining,
+    publishedJobId,
+    publishedTreePaths: publishedNotes.flatMap((row) => {
+      const path = treePathByNoteId.get(row.note_id);
+      return path?.length ? [path] : [];
+    }),
     recentLogs: (recentLogs ?? []).map((r) => ({
       filename: r.filename,
       status: r.status,
