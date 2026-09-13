@@ -2,7 +2,7 @@
 
 > **Status:** Active engineering workflow
 >
-> **Last verified:** 2026-09-02 against `package.json`, Vitest configuration,
+> **Last verified:** 2026-09-13 against `package.json`, Vitest configuration,
 > and GitHub Actions workflows
 
 Use this page to choose a check that proves the change you made. It describes
@@ -62,13 +62,14 @@ See the [chat runbook](../operations/chat.md) and
 
 ## CI scope
 
-The GitHub test workflow runs `npm run test:ci`, which executes the root and
-Canvas MCP Vitest suites. The build workflow installs with `npm ci`, runs
-ESLint and the i18n audit, then builds Next.js with placeholder local service
-configuration. The E2E workflow runs integration contracts and the Playwright
-smoke suite with disposable services and a real background worker on pull
-requests and pushes to `dev` or `main`. The larger Playwright suite runs nightly
-or by manual dispatch.
+The [test workflow](../../.github/workflows/test.yml) runs `npm run test:ci`,
+which executes the root and Canvas MCP Vitest suites. The build workflow
+installs with `npm ci`, runs ESLint and the i18n audit, then builds Next.js with
+placeholder local service configuration. PR CI also runs integration contracts
+and the Playwright smoke suite through the [E2E workflow](../../.github/workflows/e2e.yml),
+using disposable services and a real background worker.
+It runs for pull requests to `dev` or `main` and for pushes to `dev`. The larger
+Playwright suite runs nightly or by manual dispatch.
 
 Keep tests focused on observable contracts: response/status behavior, durable
 state, ownership, provider-boundary requests, or race/failure handling. Avoid
