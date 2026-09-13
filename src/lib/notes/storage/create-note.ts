@@ -156,8 +156,7 @@ export async function insertNoteWithTree(
 export async function createNoteWithTree(
   input: CreateNoteWithTreeInput,
 ): Promise<CreatedNote> {
-  const database = sql as postgres.Sql;
-  return database.begin((tx) => insertNoteWithTree(tx, input));
+  return sql.begin((tx) => insertNoteWithTree(tx, input));
 }
 
 /**

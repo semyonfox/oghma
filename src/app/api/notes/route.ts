@@ -12,6 +12,11 @@ import sql from "@/database/pgsql";
 import logger from "@/lib/logger";
 import { noteCreateSchema, validateBody } from "@/lib/validations/schemas";
 import { replaceNoteLinks } from "@/lib/notes/storage/note-links";
+import {
+  createNoteWithTree,
+  InvalidNoteParentError,
+  type CreatedNote,
+} from "@/lib/notes/storage/create-note";
 
 // Constants
 const MAX_TITLE_LENGTH = parseInt(process.env.MAX_TITLE_LENGTH ?? "500", 10);
@@ -133,46 +138,29 @@ export const POST = withErrorHandler(async (request) => {
   const parentId = body.pid || null;
 
   const isFolder = body.isFolder === true || body.is_folder === true;
-  const note = await sql.begin(async (tx) => {
-    // Serialize creation with a Trash transition. Otherwise a browser action
-    // already in flight could append a new active child just after its folder
-    // was moved to Trash, leaving that child unexpectedly visible at root.
-    await tx`
-      SELECT pg_advisory_xact_lock(hashtextextended(${user.user_id}::text, 0))
-    `;
-    if (parentId) {
-      const [parent] = await tx`
-        SELECT note_id
-        FROM app.notes
-        WHERE note_id = ${parentId}::uuid
-          AND user_id = ${user.user_id}::uuid
-          AND is_folder = TRUE
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `;
-      if (!parent) throw new ApiError(404, "Parent folder not found");
+  let note: CreatedNote;
+  try {
+    note = await createNoteWithTree({
+      noteId,
+      userId: user.user_id,
+      title: body.title || (isFolder ? "New Folder" : "Untitled"),
+      content: body.content || "\n",
+      isFolder,
+      parentId,
+    });
+  } catch (error) {
+    if (error instanceof InvalidNoteParentError) {
+      throw new ApiError(404, "Parent folder not found");
     }
-
-    const result = await tx`
-      INSERT INTO app.notes (note_id, user_id, title, content, is_folder, created_at, updated_at)
-      VALUES (${noteId}::uuid, ${user.user_id}::uuid, ${body.title || (isFolder ? "New Folder" : "Untitled")}, ${body.content || "\n"}, ${isFolder}, NOW(), NOW())
-      RETURNING note_id, user_id, title, content, is_folder, created_at, updated_at
-    `;
-    const created = result[0];
-    await tx`
-      INSERT INTO app.tree_items (user_id, note_id, parent_id)
-      VALUES (${user.user_id}::uuid, ${created.note_id}::uuid, ${parentId}::uuid)
-      ON CONFLICT (user_id, note_id) DO NOTHING
-    `;
-    return created;
-  });
+    throw error;
+  }
 
   if (body.content) {
     try {
-      await replaceNoteLinks(user.user_id, note.note_id, body.content);
+      await replaceNoteLinks(user.user_id, note.noteId, body.content);
     } catch (linkErr) {
       logger.error("note link index creation failed", {
-        noteId: note.note_id,
+        noteId: note.noteId,
         error: linkErr,
       });
     }
@@ -187,20 +175,20 @@ export const POST = withErrorHandler(async (request) => {
 
   return NextResponse.json(
     {
-      id: note.note_id,
+      id: note.noteId,
       title: note.title,
       content: note.content,
-      isFolder: note.is_folder,
+      isFolder: note.isFolder,
       pid: parentId || undefined,
       deleted: 0, // NOTE_DELETED.NORMAL
       shared: 0, // NOTE_SHARE.PRIVATE
       pinned: 0, // NOTE_PINNED.UNPINNED
       editorsize: null,
-      createdAt: note.created_at
-        ? new Date(note.created_at).toISOString()
+      createdAt: note.createdAt
+        ? new Date(note.createdAt).toISOString()
         : undefined,
-      updatedAt: note.updated_at
-        ? new Date(note.updated_at).toISOString()
+      updatedAt: note.updatedAt
+        ? new Date(note.updatedAt).toISOString()
         : undefined,
     },
     { status: 201 },
