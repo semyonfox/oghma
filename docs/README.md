@@ -1,7 +1,7 @@
 # Documentation
 
 > **Status:** Current navigation map
-> **Last reviewed:** 2026-08-12
+> **Last reviewed:** 2026-09-13
 > **Source of truth for:** Which document owns each kind of project information
 
 Use this page to find the owner of a fact. Link to that owner instead of copying its content into another checklist or handover.
@@ -77,6 +77,11 @@ These files are dated evidence. Recheck volatile provider facts before acting.
 [Historical records](history/README.md) explain completed implementation sessions, handovers, university artifacts, and retired deployment details. They provide provenance, not current instructions.
 
 ## Component documentation
+
+Feature-local maps cover [notes](../src/lib/notes/README.md),
+[chat](../src/lib/chat/README.md), and the
+[import and worker path](../src/lib/canvas/README.md). Use the architecture
+and operations documents above for cross-cutting or runtime changes.
 
 The vendored Canvas MCP has its own [README](../src/lib/canvas-mcp/README.md), [tool manifest](../src/lib/canvas-mcp/TOOL_MANIFEST.md), [contributor guide](../src/lib/canvas-mcp/CONTRIBUTING.md), [attribution record](../src/lib/canvas-mcp/ATTRIBUTION.md), and [license](../src/lib/canvas-mcp/LICENSE). Its standalone 129-tool surface is not the same as the filtered Canvas tool surface hosted by OghmaNotes.
 
