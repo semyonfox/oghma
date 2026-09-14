@@ -1,3 +1,4 @@
+import { AppUpdateLink } from "../components/AppUpdates";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image,
@@ -237,6 +238,7 @@ export function Login({
             <Text style={{ color: colors.accent }}>Create one</Text>
           </Text>
         </Pressable>
+        <AppUpdateLink />
       </ScrollView>
     </KeyboardAvoidingView>
   );
