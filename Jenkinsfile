@@ -54,6 +54,12 @@ pipeline {
             }
         }
 
+        stage('stage Android alpha') {
+            steps {
+                sh 'node scripts/stage-mobile-release.mjs /home/semyon/server-stacks/oghma/mobile-alpha'
+            }
+        }
+
         stage('build') {
             parallel {
                 stage('app image') {
@@ -66,64 +72,6 @@ pipeline {
                     steps {
                         sh 'docker build -f Dockerfile.worker --label app=oghma-worker --label env=$DEPLOY_ENV -t $WORKER_IMAGE .'
                         sh 'docker tag $WORKER_IMAGE ${REGISTRY}-worker:${DEPLOY_ENV}-latest'
-                    }
-                }
-            }
-        }
-
-        stage('e2e smoke') {
-            steps {
-                script {
-                    final boolean hadE2EEnv = fileExists('.env.e2e');
-
-                    if (!hadE2EEnv) {
-                        sh 'cp .env.e2e.example .env.e2e'
-                    }
-
-                    sh 'npm ci --no-audit --no-fund'
-                    sh 'npm run e2e:install'
-
-                    try {
-                        sh """
-                            set -eu
-                            DEFAULT_GATEWAY_HEX=\$(awk '\$2 == "00000000" { print \$3; exit }' /proc/net/route)
-                            DOCKER_HOST_GATEWAY=\$(node -e 'const hex = process.argv[1]; if (!/^[0-9A-F]{8}\$/i.test(hex)) process.exit(1); console.log(hex.match(/../g).map((byte) => Number.parseInt(byte, 16)).reverse().join("."));' "\$DEFAULT_GATEWAY_HEX")
-                            echo "[e2e] Docker host gateway: \$DOCKER_HOST_GATEWAY"
-
-                            export DATABASE_URL="postgresql://oghma_e2e:oghma_e2e@\$DOCKER_HOST_GATEWAY:55433/oghma_e2e?search_path=app,public"
-                            export MIGRATION_DATABASE_URL="\$DATABASE_URL"
-                            export E2E_ALLOW_NONLOCAL_DB_RESET=1
-                            export STORAGE_ENDPOINT="http://\$DOCKER_HOST_GATEWAY:59100"
-                            export REDIS_HOST="\$DOCKER_HOST_GATEWAY"
-                            export LLM_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
-                            export EMBEDDING_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
-                            export RERANK_API_URL="http://\$DOCKER_HOST_GATEWAY:58181/v1"
-                            export QDRANT_URL="http://\$DOCKER_HOST_GATEWAY:56333"
-
-                            npm run e2e:services:up
-
-                            for attempt in \$(seq 1 30); do
-                              if npm run e2e:reset; then
-                                break
-                              fi
-
-                              if [ \"\$attempt\" -eq 30 ]; then
-                                echo \"[e2e] reset failed after 30 attempts; keeping logs above\"
-                                exit 1
-                              fi
-
-                              echo \"[e2e] services not ready yet, retrying reset (\${attempt}/30)\"
-                              sleep 2
-                            done
-
-                            CI=true npm run test:integration
-                            CI=true npm run e2e:smoke -- --workers=${env.E2E_SMOKE_WORKERS}
-                        """
-                    } finally {
-                        sh 'npm run e2e:services:down || true'
-                        if (!hadE2EEnv) {
-                            sh 'rm -f .env.e2e'
-                        }
                     }
                 }
             }

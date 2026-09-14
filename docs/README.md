@@ -14,6 +14,7 @@ Use this page to find the owner of a fact. Link to that owner instead of copying
 | Run the app locally | [Local setup](../SETUP.md) |
 | Find current work | [Current-work pointers](../TODO.md) |
 | Understand the running code | [Architecture](engineering/architecture.md) |
+| Build or distribute the Android alpha | [Android alpha](engineering/mobile-alpha.md) |
 | Operate the current deployment | [Infrastructure index](../infra/README.md) and [homelab runbook](../infra/HOMELAB.md) |
 | Operate import and vault workers | [Import-worker runbook](operations/import-worker.md) |
 | Prepare a beta or paid launch | [Launch checklist](product/launch-checklist.md) |
