@@ -194,7 +194,20 @@ jobs:
       - name: Run smoke E2E
         # Integration contracts already run reset + seed + bucket setup. Skip
         # the Playwright setup step for those to avoid duplicate work.
-        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
+        run: |
+          # Keep resource evidence in the job log even if the runner dies before
+          # Playwright can upload its report.
+          (
+            while true; do
+              date -u
+              free -m
+              ps -eo pid,comm,rss --sort=-rss | head -12
+              sleep 30
+            done
+          ) &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+          E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
 
       - name: Upload Playwright artifacts
         if: always()

@@ -18,7 +18,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   globalSetup: "./tests/e2e/global-setup.ts",
   reporter: process.env.CI
-    ? [["dot"], ["html", { open: "never" }], ["json", { outputFile: "test-results/e2e-results.json" }]]
+    ? [["list"], ["html", { open: "never" }], ["json", { outputFile: "test-results/e2e-results.json" }]]
     : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,
