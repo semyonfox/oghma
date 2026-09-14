@@ -47,6 +47,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
   const treeWidthRef = useRef(treeWidth);
   const rightPanelWidthRef = useRef(rightPanelWidth);
   const isTrashView = view === "trash";
+  const showMobileLibrary = !isTrashView && pathname === "/notes";
 
   useEffect(() => {
     const route = resolveNoteRoute(pathname);
@@ -137,24 +138,27 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
     <div className="relative flex h-dvh w-screen flex-col bg-background">
       <MobileAppHeader
         title={isTrashView ? t("Trash") : t("Notes")}
-        actions={
+        actions={!showMobileLibrary &&
           <button
             type="button"
             onClick={() => {
               setRightPanelOpen(false);
               setTreeDrawerOpen(true);
             }}
-            className="flex h-11 w-11 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-radius-lg bg-subtle px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-subtle-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
             aria-label={t("Notes list")}
+            aria-haspopup="dialog"
+            aria-expanded={treeDrawerOpen}
           >
             <FolderOpenIcon className="h-5 w-5" aria-hidden="true" />
+            <span>{t("Notes")}</span>
           </button>
         }
       />
 
       {isDesktop === false && (
         <>
-          <MobileDrawer
+          {!showMobileLibrary && <MobileDrawer
             open={treeDrawerOpen}
             onClose={() => setTreeDrawerOpen(false)}
             title={t("Notes")}
@@ -162,7 +166,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
             className="md:hidden"
           >
             <NoteTreePanel onOpenNote={() => setTreeDrawerOpen(false)} />
-          </MobileDrawer>
+          </MobileDrawer>}
 
           {!isTrashView && <MobileDrawer
             open={rightPanelOpen}
@@ -267,7 +271,7 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
 
         {isDesktop !== true && (
           <main
-            aria-label={isTrashView ? t("Trash") : t("Note editor")}
+            aria-label={isTrashView ? t("Trash") : showMobileLibrary ? t("Notes") : t("Note editor")}
             className="h-full min-h-0 w-full overflow-hidden bg-background"
           >
             {isDesktop === null || !noteDependenciesReady ? (
@@ -276,6 +280,8 @@ export default function NotesWorkspace({ view = "notes" }: NotesWorkspaceProps) 
               </div>
             ) : isTrashView ? (
               <TrashPage />
+            ) : showMobileLibrary ? (
+              <NoteTreePanel />
             ) : (
               <SplitEditorPane />
             )}

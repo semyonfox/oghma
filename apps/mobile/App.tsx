@@ -17,6 +17,7 @@ import { navigationAction, parseWebMessage } from "./src/lib/web-navigation";
 import { oauthReturnUrl } from "./src/lib/oauth-contracts";
 import { AppUpdateLink, UpdateBanner, UpdatesProvider, useUpdates } from "./src/components/AppUpdates";
 import { Button, Loading, message } from "./src/ui";
+import { OfflineNotesProvider, useOfflineNotes } from "./src/components/OfflineNotes";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -28,7 +29,9 @@ export default function App() {
     <ThemeProvider>
       <SafeAreaProvider>
         <UpdatesProvider>
+          <OfflineNotesProvider>
           <AppShell ready={!!(fontsLoaded || fontError)} />
+          </OfflineNotesProvider>
         </UpdatesProvider>
       </SafeAreaProvider>
     </ThemeProvider>
@@ -52,6 +55,7 @@ function AppShell({ ready }: { ready: boolean }) {
 function Workspace() {
   const { colors, styles, setWebTheme } = useTheme();
   const { open: openUpdates } = useUpdates();
+  const offline = useOfflineNotes();
   const webView = useRef<WebView>(null);
   const canGoBack = useRef(false);
   const signingIn = useRef(false);
@@ -124,12 +128,16 @@ function Workspace() {
       case "oghma:oauth": void signIn(action.provider); break;
       case "oghma:updates": openUpdates(); break;
       case "oghma:theme": setWebTheme(action.theme); break;
+      case "oghma:offline-open": offline.open(); break;
+      case "oghma:offline-account": offline.setAccount(action.ownerId); break;
+      case "oghma:offline-save": offline.save(action.snapshot); break;
     }
   };
   const navigate = (url: string, newWindow = false) => {
     switch (navigationAction(url, origin)) {
       case "home": setSource({ uri: `${origin}/notes` }); return false;
       case "workspace":
+        if (["/login", "/register"].includes(new URL(url).pathname)) offline.setAccount(null);
         if (newWindow) setSource({ uri: url });
         return !newWindow;
       case "update": openUpdates(); return false;
@@ -145,11 +153,12 @@ function Workspace() {
         <Text style={styles.title}>Could not restore sign-in</Text>
         <Text style={styles.text}>{startupError}</Text>
         <Button title="Try again" onPress={() => void restore()} />
+        <Button quiet title="Read offline notes" onPress={offline.open} />
         <AppUpdateLink />
       </View>
     );
   }
-  if (!ready) return <Loading />;
+  if (!ready) return <View style={styles.screen}><Loading /><Button quiet title="Read offline notes" onPress={offline.open} /></View>;
   return (
     <View style={styles.screen}>
       <WebView
@@ -157,7 +166,7 @@ function Workspace() {
         ref={webView}
         source={source}
         style={{ flex: 1, backgroundColor: colors.background }}
-        applicationNameForUserAgent="OghmaNotesAndroid/0.1.3"
+        applicationNameForUserAgent="OghmaNotesAndroid/0.1.4 OghmaNotesOffline/1"
         originWhitelist={["*"]}
         onShouldStartLoadWithRequest={(request) => navigate(request.url)}
         onOpenWindow={(event) => { navigate(event.nativeEvent.targetUrl, true); }}
@@ -173,7 +182,7 @@ function Workspace() {
         javaScriptCanOpenWindowsAutomatically={false}
         setSupportMultipleWindows
         startInLoadingState
-        renderLoading={() => <View style={{ position: "absolute", inset: 0, backgroundColor: colors.background }}><Loading /></View>}
+        renderLoading={() => <View style={{ position: "absolute", inset: 0, backgroundColor: colors.background }}><Loading /><Button quiet title="Read offline notes" onPress={offline.open} /></View>}
         onLoadStart={() => setLoadError("")}
         onError={() => setLoadError("OghmaNotes could not load. Check your connection and try again.")}
         onHttpError={(event) => {
@@ -189,6 +198,7 @@ function Workspace() {
           <Text style={styles.title}>Could not load your workspace</Text>
           <Text style={styles.text}>{loadError}</Text>
           <Button title="Try again" onPress={() => { setLoadError(""); setWebViewVersion((value) => value + 1); }} />
+          <Button quiet title="Read offline notes" onPress={offline.open} />
           <AppUpdateLink />
         </View>
       ) : null}

@@ -1,6 +1,6 @@
 # OghmaNotes Android alpha
 
-Status: web workspace in an Android shell, version 0.1.3, 2026-09-14. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
+Status: Android alpha 0.1.4 release source, 2026-09-14. The tracked download manifest identifies the APK served by a website deployment. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
 
 This is a separate Expo application using React Native WebView to load the full existing OghmaNotes website, including its rich editor and PDF.js viewer. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
 
@@ -25,6 +25,10 @@ npm run build:apk --prefix apps/mobile
 The script creates a dedicated private alpha signing identity on first use under `$XDG_DATA_HOME/oghmanotes-mobile`, falling back to `$HOME/.local/share/oghmanotes-mobile`. Keep that directory private and preserve it for future updates. Override its location with `OGHMA_ANDROID_SIGNING_DIR`. The build fails instead of replacing an incomplete signing identity. Never commit signing files or credentials.
 
 Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundled JavaScript and does not need Metro. The package identifier is `ie.oghmanotes.alpha`. Increment `android.versionCode` and the version in `app.json` for each distributed update. Android native files are generated and ignored.
+
+## Offline notes
+
+Version 0.1.4 adds explicit read-only downloads for ordinary notes. Save a note with the download action in its editor header, then open Offline notes from navigation or the native loading/error screen. Refresh a copy by downloading it again. PDFs, images, attachments and offline editing are not included. Copies are removed on sign-out, arrival at login/register or an account change. No notifications are requested. See the [mobile engineering notes](../../docs/engineering/mobile-alpha.md#014-offline-notes-and-mobile-navigation) for limits and verification.
 
 ## In-app updates
 
