@@ -133,4 +133,3 @@ apps/mobile/ios/
 *.aab
 *.keystore
 *.jks
-public/downloads/android-alpha.json

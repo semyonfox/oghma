@@ -31,7 +31,7 @@ Local verification on 2026-09-14 passed root and mobile TypeScript checks, seven
 
 Device acceptance still requires testing email login, cold relaunch, nested folders, draft recovery, saving and observing the result on the website, file upload/viewer handoff, long Markdown notes, keyboard/back handling, streamed chat, stop and lock/resume. Use a test account before relying on the alpha for real editing. A successful build does not prove these interactions work on a physical phone.
 
-The APK and release metadata are build artifacts, not source files. `/downloads` is not private authentication. Do not put credentials in the bundle or use an obscure URL to protect sensitive data.
+The APK is a release artifact. Its version and checksum manifest are tracked so website images fetch a pinned, verified APK. `/downloads` is not private authentication. Do not put credentials in the bundle or use an obscure URL to protect sensitive data.
 
 ## References
 

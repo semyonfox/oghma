@@ -36,6 +36,8 @@ node scripts/stage-mobile-apk.mjs
 
 Run this command from the repository root. It stages the APK and its SHA-256 metadata under `public/downloads/`. The `/downloads` page only advertises the download when both files exist and their sizes match. It is linked only from the website footer and is noindex, not access-controlled. The APK contains no user credentials.
 
-The generated APK and metadata are ignored by Git. Jenkins stages the published pair from `/home/semyon/server-stacks/oghma/mobile-alpha` before building the website image, validating the size and SHA-256 first. Publish both files together in that directory when releasing a new APK. Preserve the previous pair for rollback. A missing release directory leaves the download unavailable; an incomplete or corrupt release fails the deployment. The same APK is served by dev and production and connects to the API origin it was built with.
+The APK is ignored by Git; its checksum manifest is tracked. Publish the APK as the `oghmanotes-alpha.apk` asset on the GitHub prerelease `android-alpha-v<version>`, then commit the manifest produced by the staging command. The website Docker build downloads this pinned release and verifies its size and SHA-256 before Next.js indexes public files. A missing or corrupt published artifact fails the build. This works with the existing server-managed Jenkins jobs without changing their definitions.
+
+The same APK is served by dev and production and connects to the API origin it was built with. The manifest and release tag pin each website image to its APK, including rollbacks. A local copy of the published pair is retained at `/home/semyon/server-stacks/oghma/mobile-alpha`.
 
 The template's original license is preserved in `LICENSE`. OghmaNotes code follows the repository's licensing.
