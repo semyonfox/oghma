@@ -2,10 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import {
-  offlineSnapshotSchema,
-  type OfflineSnapshot,
-} from "../../apps/mobile/src/lib/offline-state";
+
+// Validate the version-1 bridge contract at each app boundary independently.
+// A website-only checkout must not need the mobile app's Expo configuration.
+const offlineSnapshotSchema = z.object({
+  ownerId: z.string().uuid(),
+  note: z.object({
+    id: z.string().uuid(),
+    title: z.string().max(500),
+    content: z.string().max(200_000),
+    savedAt: z.string().datetime(),
+  }).strict(),
+}).strict();
+type OfflineSnapshot = z.infer<typeof offlineSnapshotSchema>;
 
 export type NativeOAuthProvider = "google" | "github";
 
