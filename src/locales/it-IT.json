@@ -211,7 +211,7 @@
   "chat.new_conversation": "Nuova conversazione",
   "chat.no_conversations": "Nessuna conversazione ancora",
   "chat.rag_title": "Cerca nei miei appunti — RAG",
-  "chat.rag_tooltip": "Generazione aumentata di recupero: cerca le tue note e aggiunge i passaggi più rilevanti come contesto per la tua domanda. Disattivalo per rispondere solo in base alla conoscenza generale: consente di risparmiare token.",
+  "chat.rag_tooltip": "Consenti all'assistente di cercare e leggere le tue note quando necessario. Le note non vengono cercate automaticamente prima di una risposta.",
   "chat.thinking_title": "Pensiero esteso",
   "chat.thinking_tooltip": "The model reasons step-by-step before answering, which helps on harder questions. Turn it off for a direct answer — saves tokens.",
   "chat.title": "Chat IA",

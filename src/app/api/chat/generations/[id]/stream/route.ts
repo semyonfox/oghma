@@ -8,6 +8,7 @@ import {
 import {
   loadOwnedChatGeneration,
   readChatGenerationEvents,
+  type ChatGenerationRecord,
 } from "@/lib/chat/generation-store";
 import {
   createBlockingRedisConnection,
@@ -17,9 +18,30 @@ import { toSseEvent } from "@/lib/chat/sse";
 
 const encoder = new TextEncoder();
 const REDIS_STREAM_ID = /^\d+-\d+$/;
+const ACTIVE_READ_BLOCK_MS = 15_000;
+// Redis treats BLOCK 0 as an indefinite wait. One millisecond gives terminal
+// generations an effectively non-blocking pass to drain any remaining replay.
+const TERMINAL_READ_BLOCK_MS = 1;
 
 function isTerminalEvent(sse: string): boolean {
   return /^event:\s*(?:done|error)\s*$/m.test(sse);
+}
+
+function isDurablyTerminal(generation: ChatGenerationRecord): boolean {
+  return (
+    generation.status === "completed" ||
+    generation.status === "cancelled" ||
+    generation.status === "failed"
+  );
+}
+
+function durableTerminalEvent(generation: ChatGenerationRecord): string {
+  if (generation.status === "failed") {
+    return toSseEvent("error", {
+      message: generation.error_message || "Failed to generate response",
+    });
+  }
+  return toSseEvent("done", {});
 }
 
 export const GET = withErrorHandler(
@@ -46,6 +68,7 @@ export const GET = withErrorHandler(
         start(controller) {
           void (async () => {
             let afterId = initialAfter;
+            let latest = generation;
             try {
               reader = createBlockingRedisConnection();
               controller.enqueue(encoder.encode(": connected\n\n"));
@@ -53,7 +76,9 @@ export const GET = withErrorHandler(
                 const events = await readChatGenerationEvents(
                   id,
                   afterId,
-                  15_000,
+                  isDurablyTerminal(latest)
+                    ? TERMINAL_READ_BLOCK_MS
+                    : ACTIVE_READ_BLOCK_MS,
                   reader,
                 );
                 for (const event of events) {
@@ -67,21 +92,15 @@ export const GET = withErrorHandler(
                   break;
                 }
 
-                const latest = await loadOwnedChatGeneration(id, user.user_id);
-                if (
-                  !latest ||
-                  (events.length === 0 &&
-                    (latest.status === "completed" || latest.status === "cancelled"))
-                ) {
+                const refreshed = await loadOwnedChatGeneration(id, user.user_id);
+                if (!refreshed) {
                   break;
                 }
-                if (latest.status === "failed" && events.length === 0) {
+                latest = refreshed;
+
+                if (events.length === 0 && isDurablyTerminal(latest)) {
                   controller.enqueue(
-                    encoder.encode(
-                      toSseEvent("error", {
-                        message: latest.error_message || "Failed to generate response",
-                      }),
-                    ),
+                    encoder.encode(durableTerminalEvent(latest)),
                   );
                   break;
                 }

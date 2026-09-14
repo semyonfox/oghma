@@ -12,10 +12,13 @@ import {
   logChatStream,
   resolveResumeAssistantId,
 } from "@/lib/chat/client-stream";
-import { fetchChatSessionSnapshot } from "@/lib/chat/hooks/use-chat-persistence";
+import {
+  fetchChatSessionSnapshot,
+  reconcileChatMessages,
+} from "@/lib/chat/hooks/use-chat-persistence";
 
 function makeId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 interface UseChatStreamOptions {
@@ -34,7 +37,7 @@ interface UseChatStreamOptions {
   sessionReady: boolean;
   onSessionCreated?: (sessionId: string, title: string) => void;
   /** called when a stream completes — useful for refreshing session list order */
-  onStreamComplete?: (sessionId: string | null) => void;
+  onStreamComplete?: (sessionId: string | null, generationId?: string) => void;
   /** Re-run route restoration after a terminal transport failure. */
   onTerminalFailure?: (sessionId: string) => void;
 }
@@ -113,9 +116,14 @@ export function useChatStream(
   const thinkingStartRef = useRef<number | null>(null);
   // durable background generation being consumed — lets Stop cancel the worker
   const activeGenerationRef = useRef<string | null>(null);
+  const generationCursorRef = useRef<{
+    generationId: string;
+    eventId: string;
+  } | null>(null);
   const mountedRef = useRef(true);
   const operationIdRef = useRef(0);
   const activeOperationRef = useRef<ChatOperation | null>(null);
+  const createdSessionRef = useRef<string | null>(null);
   const routeSessionIdRef = useRef<string | null>(controlledSessionId ?? null);
   routeSessionIdRef.current = controlledSessionId ?? null;
 
@@ -152,11 +160,11 @@ export function useChatStream(
   const cancel = useCallback(() => {
     const generationId = activeGenerationRef.current;
     if (generationId) {
-      // fire-and-forget: the worker watchdog aborts the LLM stream server-side
-      activeGenerationRef.current = null;
+      // Keep delivery attached until the worker saves the cancelled output.
       void fetch(`/api/chat/generations/${generationId}/cancel`, {
         method: "POST",
       }).catch(() => {});
+      return;
     }
     detachOperation();
     if (!mountedRef.current) return;
@@ -185,15 +193,13 @@ export function useChatStream(
 
   useEffect(() => {
     const nextSessionId = controlledSessionId ?? null;
-    const activeOperation = activeOperationRef.current;
-    const operationOwnsCreatedRoute = Boolean(
-      activeOperation &&
-        activeOperation.routeSessionId === null &&
-        activeOperation.createdSessionId === nextSessionId,
-    );
-    if (!operationOwnsCreatedRoute) {
+    const adoptingCreatedSession =
+      nextSessionId !== null && createdSessionRef.current === nextSessionId;
+    createdSessionRef.current = null;
+    if (!adoptingCreatedSession) {
       detachOperation();
       activeGenerationRef.current = null;
+      generationCursorRef.current = null;
       setMessages([]);
       setLoading(false);
       setError(null);
@@ -212,6 +218,7 @@ export function useChatStream(
       if (newSessionId && newSessionId !== sessionIdRef.current) {
         if (operation.routeSessionId === null) {
           operation.createdSessionId = newSessionId;
+          createdSessionRef.current = newSessionId;
         }
         sessionIdRef.current = newSessionId;
         setSessionId(newSessionId);
@@ -256,6 +263,15 @@ export function useChatStream(
     ) =>
       consumeBackgroundGeneration({
         generationId,
+        afterId:
+          generationCursorRef.current?.generationId === generationId
+            ? generationCursorRef.current.eventId
+            : "0-0",
+        onEventId: (eventId) => {
+          if (isCurrent(operation)) {
+            generationCursorRef.current = { generationId, eventId };
+          }
+        },
         assistantId,
         userText,
         signal: operation.controller.signal,
@@ -269,21 +285,27 @@ export function useChatStream(
             onEventId,
           ),
       }),
-    [consumeStream],
+    [consumeStream, isCurrent],
   );
 
   const reconcileDurableSession = useCallback(
-    async (operation: ChatOperation): Promise<void> => {
+    async (operation: ChatOperation): Promise<boolean> => {
       const durableSessionId = sessionIdRef.current;
-      if (!durableSessionId || !isCurrent(operation)) return;
+      if (!durableSessionId || !isCurrent(operation)) return false;
       try {
         const snapshot = await fetchChatSessionSnapshot(
           durableSessionId,
           operation.controller.signal,
         );
-        if (!isCurrent(operation)) return;
-        setMessages(snapshot.messages);
+        if (!isCurrent(operation)) return false;
+        // A failed connection can leave the worker running. Keep its visible
+        // partial output until a terminal snapshot can replace it.
+        if (snapshot.generating) return false;
+        setMessages((current) =>
+          reconcileChatMessages(current, snapshot.messages),
+        );
         clearDraft(durableSessionId);
+        return true;
       } catch (restoreFailure) {
         if (!operation.controller.signal.aborted) {
           logChatStream("warn", "durable session reconciliation failed", {
@@ -294,6 +316,7 @@ export function useChatStream(
                 : String(restoreFailure),
           });
         }
+        return false;
       }
     },
     [isCurrent],
@@ -388,8 +411,13 @@ export function useChatStream(
               text,
             );
             if (!isCurrent(operation)) return;
+            const reconciled = await reconcileDurableSession(operation);
+            if (!isCurrent(operation)) return;
+            if (!reconciled && sessionIdRef.current) {
+              onTerminalFailure?.(sessionIdRef.current);
+            }
             clearDraft(data.sessionId || sessionIdRef.current);
-            onStreamComplete?.(sessionIdRef.current);
+            onStreamComplete?.(sessionIdRef.current, data.generationId);
             return;
           }
           handleNewSession(operation, data.sessionId, text);
@@ -467,7 +495,7 @@ export function useChatStream(
           sessionId: sessionIdRef.current,
           error: errMsg,
         });
-        await reconcileDurableSession(operation);
+        const reconciled = await reconcileDurableSession(operation);
         if (!isCurrent(operation)) return;
         const friendlyMessage = toFriendlyChatError(errMsg);
         setError(
@@ -477,11 +505,11 @@ export function useChatStream(
         );
         const failedSessionId = sessionIdRef.current;
         if (failedSessionId) {
-          if (operation.routeSessionId) {
+          if (!reconciled) {
             onTerminalFailure?.(failedSessionId);
-          } else {
-            // A failed first reply still created a durable conversation. Move
-            // the page onto that route so its restore and retry UI own it.
+          }
+          if (!operation.routeSessionId || reconciled) {
+            // Even a failed reply may have settled a durable conversation.
             onStreamComplete?.(failedSessionId);
           }
         }
@@ -525,6 +553,7 @@ export function useChatStream(
       }
       const operation = beginOperation();
       const proposedAssistantId = makeId();
+      setError(null);
       const assistantId = resolveResumeAssistantId(
         messagesRef.current,
         proposedAssistantId,
@@ -546,15 +575,25 @@ export function useChatStream(
       try {
         await consumeGeneration(operation, generationId, assistantId, "");
         if (!isCurrent(operation)) return;
-        onStreamComplete?.(sessionIdRef.current);
+        const reconciled = await reconcileDurableSession(operation);
+        if (!isCurrent(operation)) return;
+        if (!reconciled && sessionIdRef.current) {
+          onTerminalFailure?.(sessionIdRef.current);
+        }
+        onStreamComplete?.(sessionIdRef.current, generationId);
       } catch (error) {
         if (
           isCurrent(operation) &&
           !(error instanceof Error && error.name === "AbortError")
         ) {
-          await reconcileDurableSession(operation);
+          const reconciled = await reconcileDurableSession(operation);
           if (!isCurrent(operation)) return;
           setError(t("error.something_went_wrong"));
+          if (reconciled) {
+            onStreamComplete?.(sessionIdRef.current, generationId);
+          } else if (sessionIdRef.current) {
+            onTerminalFailure?.(sessionIdRef.current);
+          }
         }
       } finally {
         if (isCurrent(operation)) {
@@ -569,6 +608,7 @@ export function useChatStream(
       isCurrent,
       loading,
       onStreamComplete,
+      onTerminalFailure,
       reconcileDurableSession,
       sessionReady,
       t,

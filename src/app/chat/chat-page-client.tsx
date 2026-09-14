@@ -297,19 +297,19 @@ export default function ChatPageClient() {
   const newConversation = useCallback(() => {
     pendingNavRef.current = null;
     setHistoryOpen(false);
-    setMountKey((prev) => prev + 1);
+    if (!routeSessionId) setMountKey((prev) => prev + 1);
     setActiveId(null);
     router.push(draftHref);
-  }, [draftHref, router]);
+  }, [draftHref, routeSessionId, router]);
 
   const clearContextAndStartNewChat = useCallback(() => {
     pendingNavRef.current = null;
-    setMountKey((prev) => prev + 1);
+    if (!routeSessionId) setMountKey((prev) => prev + 1);
     setSelectedNotes([]);
     setSelectedFolders([]);
     setActiveId(null);
     router.push("/chat");
-  }, [router]);
+  }, [routeSessionId, router]);
 
   const handleSessionCreated = useCallback(
     (sessionId: string, title: string) => {
@@ -341,7 +341,7 @@ export default function ChatPageClient() {
         ];
       });
       setActiveId(sessionId);
-      // defer URL update to stream completion to avoid remounting mid-stream
+      // Publish the permanent URL once the first reply has settled.
       pendingNavRef.current = {
         sessionId,
         href: buildChatSessionHref(sessionId, draftRouteContext),
@@ -382,7 +382,7 @@ export default function ChatPageClient() {
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeId === id) {
       setHistoryOpen(false);
-      setMountKey((prev) => prev + 1);
+      if (!routeSessionId) setMountKey((prev) => prev + 1);
       setActiveId(null);
       router.replace(draftHref);
     }
@@ -459,7 +459,7 @@ export default function ChatPageClient() {
   const selectConversation = (id: string) => {
     pendingNavRef.current = null;
     setHistoryOpen(false);
-    setMountKey((prev) => prev + 1);
+    if (id === routeSessionId) return;
     setActiveId(id);
   };
 

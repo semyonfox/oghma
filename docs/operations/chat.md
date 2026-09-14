@@ -2,7 +2,7 @@
 
 > **Status:** Active operations runbook
 >
-> **Last verified:** 2026-09-02 against the chat routes, BullMQ worker,
+> **Last verified:** 2026-09-14 against the chat routes, BullMQ worker,
 > PostgreSQL generation state, and Redis replay implementation
 >
 > **Source of truth:** `src/app/api/chat/`, `src/lib/chat/`,
@@ -21,6 +21,18 @@ The browser reads `/api/chat/generations/{id}/stream` and reconnects with the
 last Redis event ID when delivery breaks. PostgreSQL owns sessions, messages,
 request payloads, and terminal state. Redis owns queue transport, short-lived
 event replay, cancellation flags, and browser presence.
+
+The client reconciles each completed generation with the saved session while
+keeping message bubbles and work-log expansion mounted. Reconnects retain the
+last event cursor. If replay has no completion event but PostgreSQL has settled
+the generation, the stream route sends a terminal event so the client can read
+the saved result without waiting through repeated empty replay attempts.
+
+Chat does not run semantic search before calling the model. When note search is
+enabled, the model decides whether to call `getChunks` or `readNote`. The
+selected note and folder set remains the default session search scope passed to
+the tools. Only model-requested tool calls appear as search activity in the
+response work log.
 
 Both app and worker must use the same `DATABASE_URL`, `REDIS_HOST`,
 `REDIS_PORT`, `REDIS_TLS`, and `QUEUE_PREFIX`. Background chat currently
@@ -85,7 +97,7 @@ change generation rows or delete queue keys during diagnosis.
 | `POST /api/chat` does not return 202 | App logs, PostgreSQL, Redis, rate limiting, and queue prefix |
 | Request is accepted but no events arrive | Worker process, worker health check, chat queue, and matching prefixes |
 | Partial response stops | Worker generation failure and Redis connection logs |
-| Answer appears only after reload | Redis replay or stream completion failed after PostgreSQL persisted the answer |
+| Answer appears only after reload | Client history restoration overwrote live messages, or terminal replay/session reconciliation failed |
 | Session stays generating | Worker interruption, failed BullMQ redelivery, or stale PostgreSQL ownership |
 
 ## Release verification
@@ -107,7 +119,8 @@ worker, the fake AI provider, Redis replay, and final persistence. It reloads
 the session and checks that the answer remains present exactly once.
 
 Deploy to `dev` first. Verify generic liveness, chat readiness, worker health,
-one authenticated chat response without reloading, and the persisted response
-after reloading. Promote through the normal `dev` to `main` pull request only
+one authenticated chat response and a follow-up without reloading, work-log
+access after completion, and the persisted responses after reloading.
+Promote through the normal `dev` to `main` pull request only
 after those checks pass. Follow the homelab rollback procedure if any check
 regresses.

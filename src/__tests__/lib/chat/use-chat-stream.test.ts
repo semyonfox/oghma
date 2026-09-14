@@ -331,6 +331,26 @@ describe("chat event stream consumption", () => {
     ).rejects.toThrow("before completion");
   });
 
+  it("finishes at done even if the transport keeps the response open", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("event: done\ndata: {}\n\n"));
+      },
+      cancel,
+    });
+    await expect(consumeChatStream({
+      body,
+      assistantId: "msg-1",
+      userText: "Question",
+      thinkingStartRef: ref(),
+      setMessages: () => undefined,
+      onSession: () => undefined,
+      translate: (key) => key,
+    })).resolves.toEqual({ timeBlockChanged: false });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("cancels the browser reader when its operation detaches", async () => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({

@@ -169,8 +169,6 @@ export async function consumeChatStream({
   isActive = () => true,
 }: ConsumeStreamOptions): Promise<{ timeBlockChanged: boolean }> {
   let timeBlockChanged = false;
-  let sawDone = false;
-  let completed = false;
   let frameCount = 0;
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -198,8 +196,7 @@ export async function consumeChatStream({
           const update = parseSseFrame(frame);
           if (!update) continue;
           if (update.type === "done") {
-            sawDone = true;
-            continue;
+            return { timeBlockChanged };
           }
           if (update.type === "error") {
             setMessages((messages) =>
@@ -235,19 +232,15 @@ export async function consumeChatStream({
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
-    if (!sawDone) {
-      logChatStream("warn", "stream ended without done event", {
-        assistantId,
-        frameCount,
-        bufferedBytes: parseState.buffer.length,
-      });
-      throw new Error("Response stream ended before completion");
-    }
-    completed = true;
-    return { timeBlockChanged };
+    logChatStream("warn", "stream ended without done event", {
+      assistantId,
+      frameCount,
+      bufferedBytes: parseState.buffer.length,
+    });
+    throw new Error("Response stream ended before completion");
   } finally {
     signal?.removeEventListener("abort", detachReader);
-    if (!completed) await reader.cancel().catch(() => undefined);
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
@@ -269,6 +262,8 @@ function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
 
 export async function consumeBackgroundGeneration(input: {
   generationId: string;
+  afterId?: string;
+  onEventId?: (id: string) => void;
   assistantId: string;
   userText: string;
   signal: AbortSignal;
@@ -281,7 +276,7 @@ export async function consumeBackgroundGeneration(input: {
   ) => Promise<{ timeBlockChanged: boolean }>;
 }): Promise<void> {
   input.activeGenerationRef.current = input.generationId;
-  let afterId = "0-0";
+  let afterId = input.afterId ?? "0-0";
   let attempts = 0;
   try {
     while (!input.signal.aborted) {
@@ -299,6 +294,7 @@ export async function consumeBackgroundGeneration(input: {
           input.userText,
           (id) => {
             afterId = id;
+            input.onEventId?.(id);
           },
         );
         return;

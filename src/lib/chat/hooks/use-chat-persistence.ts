@@ -42,9 +42,11 @@ interface UseChatPersistenceResult {
   useRag: boolean;
   toggleRag: () => void;
   restoredMessages: Message[] | null;
+  restoredGenerating: boolean;
   restored: boolean;
   restoreError: boolean;
   retryRestore: () => void;
+  finishBackgroundGeneration: (generationId?: string) => void;
   /** true when the server still owns generation for a reopened session */
   backgroundLoading: boolean;
   backgroundGenerationId: string | null;
@@ -72,6 +74,29 @@ export interface ChatSessionSnapshot {
   messages: Message[];
   generating: boolean;
   activeGenerationId: string | null;
+}
+
+/** Session messages are append-only; only locally created rows need ID adoption. */
+export function reconcileChatMessages(
+  current: Message[],
+  saved: Message[],
+): Message[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  return saved.map((message, index) => {
+    const optimistic = current[index];
+    const previous = byId.get(message.id) ??
+      (optimistic?.id.startsWith("local-") && optimistic.role === message.role
+        ? optimistic
+        : undefined);
+    return previous
+      ? {
+          ...message,
+          renderKey: previous.renderKey ?? previous.id,
+          retrieval: message.retrieval ?? previous.retrieval,
+          searchContext: message.searchContext ?? previous.searchContext,
+        }
+      : message;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -224,17 +249,31 @@ export function useChatPersistence(
 
   // session restore
   const [restored, setRestored] = useState(false);
+  const [restoredSessionId, setRestoredSessionId] = useState<string | null>(null);
   const [restoredMessages, setRestoredMessages] = useState<Message[] | null>(null);
+  const [restoredGenerating, setRestoredGenerating] = useState(false);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [backgroundGenerationId, setBackgroundGenerationId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState(false);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const finishedGenerationRef = useRef<string | null>(null);
   const retryRestore = useCallback(() => {
+    setRestored(false);
     setRestoreAttempt((attempt) => attempt + 1);
   }, []);
+  const finishBackgroundGeneration = useCallback(
+    (generationId?: string) => {
+      finishedGenerationRef.current = generationId ?? backgroundGenerationId;
+      setBackgroundLoading(false);
+      setBackgroundGenerationId(null);
+    },
+    [backgroundGenerationId],
+  );
 
   useEffect(() => {
+    finishedGenerationRef.current = null;
     if (!controlledSessionId) {
+      setRestoredSessionId(null);
       setRestoredMessages(null);
       setBackgroundLoading(false);
       setBackgroundGenerationId(null);
@@ -249,6 +288,7 @@ export function useChatPersistence(
     const controller = new AbortController();
 
     setRestored(false);
+    setRestoredSessionId(controlledSessionId);
     setRestoreError(false);
     setRestoredMessages(null);
     setBackgroundLoading(false);
@@ -261,6 +301,12 @@ export function useChatPersistence(
           controller.signal,
         );
         if (cancelled) return;
+        if (
+          snapshot.activeGenerationId &&
+          snapshot.activeGenerationId === finishedGenerationRef.current
+        ) return;
+        setRestoredSessionId(controlledSessionId);
+        setRestoredGenerating(snapshot.generating);
         setRestoreError(false);
         setRestored(true);
         setBackgroundLoading(snapshot.generating);
@@ -402,17 +448,20 @@ export function useChatPersistence(
     };
   }, []);
 
+  const matchesRoute = restoredSessionId === (controlledSessionId ?? null);
   return {
     thinkingMode,
     toggleThinking,
     useRag,
     toggleRag,
-    restoredMessages,
-    restored,
-    restoreError,
+    restoredMessages: matchesRoute ? restoredMessages : null,
+    restoredGenerating: matchesRoute && restoredGenerating,
+    restored: matchesRoute && restored,
+    restoreError: matchesRoute && restoreError,
     retryRestore,
-    backgroundLoading,
-    backgroundGenerationId,
+    finishBackgroundGeneration,
+    backgroundLoading: matchesRoute && backgroundLoading,
+    backgroundGenerationId: matchesRoute ? backgroundGenerationId : null,
     updateRefs,
   };
 }

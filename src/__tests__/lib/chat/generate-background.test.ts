@@ -79,8 +79,8 @@ describe("background chat durability", () => {
     });
     mocks.heartbeat.mockResolvedValue(true);
     mocks.isCancelRequested.mockResolvedValue(false);
+    mocks.appendEvent.mockResolvedValue(undefined);
     mocks.prepare.mockResolvedValue({
-      ragResult: { ragFailed: false, searchResults: [] },
       systemPrompt: "system",
       sessionMemoryPrompt: "",
       uniqueSources: [],
@@ -117,5 +117,56 @@ describe("background chat durability", () => {
       "Durable chat answer completed but event delivery failed",
       expect.objectContaining({ error: "Redis unavailable" }),
     );
+  });
+
+  it("preserves scoped note tools without publishing an eager search event", async () => {
+    const scopedNoteId = "55555555-5555-5555-5555-555555555555";
+    mocks.claim.mockResolvedValue({
+      leaseToken: "44444444-4444-4444-4444-444444444444",
+      generation: {
+        request_payload: {
+          userId: "22222222-2222-2222-2222-222222222222",
+          sessionId: "33333333-3333-3333-3333-333333333333",
+          message: "use my notes",
+          scope: {
+            sessionContext: {
+              scope: {
+                notes: [{ id: scopedNoteId, title: "Networks" }],
+                folders: [],
+              },
+              recentAccesses: [],
+              lastFolder: null,
+            },
+            scopedNoteIds: [scopedNoteId],
+            scopedInputNoteIds: [scopedNoteId],
+            history: [],
+          },
+          useRag: true,
+          thinkingMode: "off",
+          requestOrigin: "http://localhost",
+          respectPrivacySignal: false,
+        },
+      },
+    });
+
+    await processChatGeneration("11111111-1111-1111-1111-111111111111");
+
+    expect(mocks.prepare).toHaveBeenCalledWith({
+      useRag: true,
+      scopedNoteIds: [scopedNoteId],
+      sessionContext: expect.any(Object),
+    });
+    expect(mocks.buildLlmCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        retrievalEnabled: true,
+        scopedNoteIds: [scopedNoteId],
+        scopedInputNoteIds: [scopedNoteId],
+      }),
+    );
+    expect(
+      mocks.appendEvent.mock.calls.some(([sse]) =>
+        String(sse).includes("event: search"),
+      ),
+    ).toBe(false);
   });
 });

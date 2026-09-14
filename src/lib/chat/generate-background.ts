@@ -19,7 +19,6 @@ import {
 import {
   sendConnected,
   sendMeta,
-  sendSearch,
   sendToken,
   sendThinking,
   sendToolCall,
@@ -192,7 +191,6 @@ export async function processChatGeneration(
     sendConnected(writer);
     const sessionContext = scope.sessionContext;
     const {
-      ragResult,
       systemPrompt,
       sessionMemoryPrompt,
       uniqueSources,
@@ -200,8 +198,6 @@ export async function processChatGeneration(
       initialParts,
       fallbackReply,
     } = await prepareChatGeneration({
-      userId,
-      message,
       useRag,
       scopedNoteIds: scope.scopedNoteIds,
       sessionContext,
@@ -225,8 +221,7 @@ export async function processChatGeneration(
     });
     canvasMcpClient = llm.canvasMcpClient;
 
-    sendMeta(writer, sessionId, uniqueSources, retrieval, !ragResult.ragFailed, llm.llmAvailable);
-    sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
+    sendMeta(writer, sessionId, uniqueSources, retrieval, useRag, llm.llmAvailable);
 
     if (!llm.model) {
       sendToken(writer, fallbackReply);
