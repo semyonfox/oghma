@@ -122,3 +122,15 @@ scripts/runpod-marker-tail.sh
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Android alpha
+apps/mobile/node_modules/
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/android/
+apps/mobile/ios/
+*.apk
+*.aab
+*.keystore
+*.jks
+public/downloads/android-alpha.json

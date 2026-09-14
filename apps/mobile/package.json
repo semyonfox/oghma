@@ -1,0 +1,44 @@
+{
+  "name": "oghma-mobile",
+  "description": "OghmaNotes Android alpha",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo-google-fonts/source-sans-3": "^0.4.1",
+    "@expo-google-fonts/source-serif-4": "^0.4.1",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "expo": "~57.0.22",
+    "expo-document-picker": "~57.0.2",
+    "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
+    "expo-intent-launcher": "~57.0.1",
+    "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.19",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-markdown-display": "^7.0.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.4",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "export:android": "expo export --platform android",
+    "test": "node --experimental-strip-types --test src/lib/*.test.ts",
+    "build:apk": "bash scripts/build-apk.sh"
+  },
+  "private": true,
+  "type": "module",
+  "overrides": {
+    "markdown-it": "15.0.2",
+    "linkify-it": "6.1.0"
+  }
+}

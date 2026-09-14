@@ -54,6 +54,12 @@ pipeline {
             }
         }
 
+        stage('stage Android alpha') {
+            steps {
+                sh 'node scripts/stage-mobile-release.mjs /home/semyon/server-stacks/oghma/mobile-alpha'
+            }
+        }
+
         stage('build') {
             parallel {
                 stage('app image') {

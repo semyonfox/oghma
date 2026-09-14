@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "OghmaNotes Alpha",
+    "slug": "oghmanotes-alpha",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "scheme": "oghmanotes-alpha",
+    "platforms": ["android"],
+    "android": {
+      "package": "ie.oghmanotes.alpha",
+      "versionCode": 1,
+      "allowBackup": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#182e27"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      "./plugins/with-release-signing.cjs"
+    ],
+    "icon": "./assets/icon.png"
+  }
+}
