@@ -30,16 +30,16 @@ env:
   CI: "true"
   NODE_ENV: test
   NEXT_TELEMETRY_DISABLED: "1"
-  # Leave room for Chromium and the services. A 4 GB heap makes Next's Webpack
-  # dev server restart midway through this many-route suite.
-  NODE_OPTIONS: "--max-old-space-size=6144"
-  E2E_BASE_URL: http://127.0.0.1:3310
-  PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_API_URL: http://127.0.0.1:3310
-  NEXTAUTH_URL: http://127.0.0.1:3310
-  APP_BASE_URL: http://127.0.0.1:3310
-  CORS_ORIGINS: http://127.0.0.1:3310
+  # Build and run the production server within the hosted runner's memory.
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  # Playwright permits production Secure cookies on localhost API requests.
+  E2E_BASE_URL: http://localhost:3310
+  PLAYWRIGHT_BASE_URL: http://localhost:3310
+  NEXT_PUBLIC_APP_URL: http://localhost:3310
+  NEXT_PUBLIC_API_URL: http://localhost:3310
+  NEXTAUTH_URL: http://localhost:3310
+  APP_BASE_URL: http://localhost:3310
+  CORS_ORIGINS: http://localhost:3310
   ENABLE_CREDENTIALS_AUTH: "true"
   JWT_SECRET: e2e-jwt-secret
   NEXTAUTH_SECRET: e2e-nextauth-secret

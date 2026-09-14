@@ -28,12 +28,15 @@ export default defineConfig({
   },
   webServer: shouldStartWebServer
     ? {
-        // Turbopack's native cache grows beyond the hosted runner's memory while
-        // this suite visits many routes. Production builds still use Turbopack.
-        command: `node --experimental-strip-types scripts/e2e/run-with-env.ts npm run dev --${process.env.CI ? " --webpack" : ""} --hostname ${base.hostname} --port ${base.port || 3310}`,
+        // Build once in CI: long dev sessions exhausted runner memory or
+        // restarted between assertions while compiling routes on demand.
+        command: process.env.CI
+          ? `npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && HOSTNAME=${base.hostname} PORT=${base.port || 3310} node .next/standalone/server.js`
+          : `node --experimental-strip-types scripts/e2e/run-with-env.ts npm run dev -- --hostname ${base.hostname} --port ${base.port || 3310}`,
+        env: process.env.CI ? { ...process.env, NODE_ENV: "production" } : undefined,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: process.env.CI ? 300_000 : 120_000,
       }
     : undefined,
   projects: [
