@@ -2,6 +2,7 @@ import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import "@fontsource-variable/strichpunkt-sans";
 import I18nRootProvider from "@/components/providers/i18n-root-provider";
 import ThemeProvider from "@/components/providers/theme-provider";
+import NativeAppBridge from "@/components/providers/native-app-bridge";
 import PomodoroTimerController from "@/components/pomodoro/pomodoro-timer-controller";
 import ChatPresenceController from "@/components/chat/chat-presence-controller";
 import GlobalSearchRoot from "@/components/search/global-search-root";
@@ -157,6 +158,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="font-sans antialiased bg-background text-text">
         <I18nRootProvider initialLocaleData={initialLocaleData}>
           <ThemeProvider>
+            <NativeAppBridge />
             <PomodoroTimerController />
             <ChatPresenceController />
             <GlobalSearchRoot />

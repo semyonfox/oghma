@@ -16,8 +16,10 @@ import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
+import { postNativeOAuth, useNativeAppBridge, type NativeOAuthProvider } from "@/lib/native-app";
 
 export default function RegisterPage() {
+  const nativeAppBridge = useNativeAppBridge();
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
@@ -154,7 +156,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSocialSignUp = (provider: string) => {
+  const handleSocialSignUp = (provider: NativeOAuthProvider) => {
     if (
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
@@ -195,7 +197,9 @@ export default function RegisterPage() {
         agentUserCode,
       );
     }
-    signIn(provider, buildOAuthSignInOptions(callbackUrl));
+    if (agentClaimToken || !postNativeOAuth(provider)) {
+      signIn(provider, buildOAuthSignInOptions(callbackUrl));
+    }
   };
 
   const trackFormStart = () => {
@@ -217,7 +221,7 @@ export default function RegisterPage() {
     <div className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link
-          href="/"
+          href={nativeAppBridge ? "/login" : "/"}
           className="flex items-center justify-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >

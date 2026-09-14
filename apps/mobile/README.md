@@ -1,8 +1,8 @@
 # OghmaNotes Android alpha
 
-Status: initial native alpha, 2026-09-14. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
+Status: web workspace in an Android shell, version 0.1.3, 2026-09-14. See [mobile engineering notes](../../docs/engineering/mobile-alpha.md) for supported flows, verification and release boundaries.
 
-This is a separate Expo application. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
+This is a separate Expo application using React Native WebView to load the full existing OghmaNotes website, including its rich editor and PDF.js viewer. The existing Next.js website stays at the repository root. It has its own npm lockfile so native dependency versions do not change the web application's React version.
 
 ```sh
 npm ci --prefix apps/mobile
@@ -12,7 +12,7 @@ npm run test --prefix apps/mobile
 npm run export:android --prefix apps/mobile
 ```
 
-The default API is `https://oghmanotes.ie`. Set `EXPO_PUBLIC_API_URL=https://dev.oghmanotes.ie` before bundling to target development. Only HTTPS origins are accepted. This public setting contains no credentials. Native requests reuse the existing email/password login and session cookie; no server authentication changes are required.
+The default API is `https://oghmanotes.ie`. Set `EXPO_PUBLIC_API_URL=https://dev.oghmanotes.ie` before bundling to target development. Only HTTPS origins are accepted. This public setting contains no credentials. Email/password sign-in runs in the website. Google and GitHub use the existing browser OAuth handoff, then install the session into Android’s private WebView cookie store. A native session from an earlier alpha is transferred once. Cookies are never injected through page JavaScript or URLs.
 
 ## Build an installable APK
 
@@ -28,7 +28,7 @@ Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundle
 
 ## In-app updates
 
-Version 0.1.2 adds App updates on the login screen and in Account. The shared update screen handles progress, cancellation, verification, Android install permission and retry. The local Expo module in `modules/oghma-updater` requires a native build; Expo Go cannot load it.
+Version 0.1.2 introduced the updater. Version 0.1.3 keeps it on the website login screen and in Settings inside the app, plus the shared update notice. The shared update screen handles progress, cancellation, verification, Android install permission and retry. The local Expo module in `modules/oghma-updater` requires a native build; Expo Go cannot load it.
 
 The updater checks `https://oghmanotes.ie/downloads/android-alpha.json` and downloads the fixed production APK endpoint. It compares Android versionCode, so a website rollback never offers a downgrade. APKs must match the installed package and signing identity as well as the release checksum. A process killed during download restarts the download next time. Silent installation and Play Store distribution are outside this alpha flow.
 

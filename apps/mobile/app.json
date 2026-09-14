@@ -2,7 +2,7 @@
   "expo": {
     "name": "OghmaNotes Alpha",
     "slug": "oghmanotes-alpha",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "ie.oghmanotes.alpha",
@@ -11,7 +11,7 @@
     ],
     "android": {
       "package": "ie.oghmanotes.alpha",
-      "versionCode": 3,
+      "versionCode": 4,
       "allowBackup": false,
       "softwareKeyboardLayoutMode": "resize",
       "blockedPermissions": [

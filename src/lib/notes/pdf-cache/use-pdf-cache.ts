@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { getCacheEntry, putCacheEntry } from "./store";
 import { runEviction } from "./evict";
 
 interface UsePdfCacheResult {
-  url: string;
+  data: Uint8Array<ArrayBuffer> | null;
   loading: boolean;
   error: string | null;
 }
@@ -37,10 +37,9 @@ export function usePdfCache(
   fileId?: string,
 ): UsePdfCacheResult {
   const hasSource = !!(sourcePath || fileId);
-  const [url, setUrl] = useState("");
+  const [data, setData] = useState<Uint8Array<ArrayBuffer> | null>(null);
   const [loading, setLoading] = useState(hasSource);
   const [error, setError] = useState<string | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
 
   // Use the UUIDv7 fileId as a stable cache key when sourcePath is unavailable.
   const cacheKey = sourcePath ?? fileId ?? null;
@@ -54,18 +53,15 @@ export function usePdfCache(
     const load = async () => {
       setLoading(true);
       setError(null);
+      setData(null);
 
       try {
-        // check cache before touching the network
-        const cached = await getCacheEntry(cacheKey);
+        // IndexedDB can be unavailable in an embedded browser. A cache failure
+        // must not prevent the authenticated network request from loading the PDF.
+        const cached = await getCacheEntry(cacheKey).catch(() => undefined);
         if (cached) {
           if (cancelled) return;
-          const blob = new Blob([cached.buffer], {
-            type: cached.contentType ?? "application/pdf",
-          });
-          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-          blobUrlRef.current = URL.createObjectURL(blob);
-          setUrl(blobUrlRef.current);
+          setData(new Uint8Array(cached.buffer));
           setLoading(false);
           return; // zero API calls on cache hit
         }
@@ -95,10 +91,9 @@ export function usePdfCache(
         const buffer = await res.arrayBuffer();
         if (cancelled) return;
 
-        const blob = new Blob([buffer], { type: contentType });
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = URL.createObjectURL(blob);
-        setUrl(blobUrlRef.current);
+        // PDF.js transfers typed arrays to its worker. Give it a copy so the
+        // buffer retained by IndexedDB cannot be detached during the cache write.
+        setData(new Uint8Array(buffer.slice(0)));
         setLoading(false);
 
         // write to cache in the background — non-fatal
@@ -125,15 +120,5 @@ export function usePdfCache(
     };
   }, [cacheKey, sourcePath, fileId]);
 
-  // revoke blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-    };
-  }, []);
-
-  return { url, loading, error };
+  return { data, loading, error };
 }

@@ -26,8 +26,8 @@ export default async function MobileAlphaPage() {
           in your pocket.
         </h1>
         <p className="max-w-lg text-lg leading-relaxed text-text-secondary">
-          A new mobile app for your existing OghmaNotes account. Browse your
-          notes, edit Markdown and pick up a conversation with Oghma.
+          Your full OghmaNotes workspace on Android. Edit notes with the same
+          rich editor, read PDFs inside the app and chat with Oghma.
         </p>
       </div>
       <section
@@ -79,10 +79,10 @@ export default async function MobileAlphaPage() {
           as the website.
         </p>
         <p>
-          Markdown editing, local drafts, file uploads and chat are included.
-          Files open through Android. Light, dark and system themes match the
-          website. Rich editing, calendar and quizzes are not yet included. An
-          internet connection is needed to load and sync your work.
+          The app includes the website’s editor, PDF viewer, file uploads, chat,
+          calendar and quizzes. PDFs render inside OghmaNotes. Your account and
+          light, dark or system theme are shared with the website. An internet
+          connection is needed to load and sync your work.
         </p>
       </div>
       <Link

@@ -29,7 +29,7 @@ const UpdatesContext = createContext<{
   controller: UpdateController;
   open: () => void;
 } | null>(null);
-function useUpdates() {
+export function useUpdates() {
   const value = useContext(UpdatesContext);
   if (!value) throw new Error("UpdatesProvider is missing.");
   const state = useSyncExternalStore(

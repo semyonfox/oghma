@@ -9,6 +9,7 @@ import useLayoutStore from "@/lib/notes/state/layout.zustand";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import useGlobalSearchStore from "@/lib/global-search/state";
 import usePomodoroStore from "@/lib/notes/state/pomodoro.zustand";
+import { useNativeAppBridge } from "@/lib/native-app";
 import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
@@ -83,6 +84,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
   onNavigate,
 }) => {
   const router = useRouter();
+  const nativeAppBridge = useNativeAppBridge();
   const pathname = usePathname();
   const activeNav = useLayoutStore((state) => state.activeNav);
   const setActiveNav = useLayoutStore((state) => state.setActiveNav);
@@ -145,7 +147,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
         aria-label={t("Main navigation")}
       >
         <Link
-          href="/"
+          href={nativeAppBridge ? "/notes" : "/"}
           onClick={onNavigate}
           className="mb-3 flex min-h-11 items-center gap-3 rounded-radius-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-subtle"
         >
@@ -227,7 +229,7 @@ const PrimaryNavigation: FC<PrimaryNavigationProps> = ({
       aria-label={t("Main navigation")}
     >
       <Link
-        href="/"
+        href={nativeAppBridge ? "/notes" : "/"}
         className="mb-4 flex h-10 min-h-[44px] w-10 min-w-[44px] items-center justify-center transition-opacity hover:opacity-70"
       >
         <BrandLogo size={24} alt="OghmaNotes Logo" className="h-6 w-6" />
