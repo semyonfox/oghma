@@ -49,8 +49,9 @@ export default async function MobileAlphaPage() {
             </p>
             <p className="text-sm leading-relaxed text-text-secondary">
               Open the downloaded file on your Android phone. If Android asks,
-              allow your browser to install this app. Future alpha APKs install
-              over the existing app.
+              allow your browser to install this app. Install over your existing
+              version to keep your data. After this, use App updates inside
+              OghmaNotes to download and install future versions.
             </p>
             <details className="text-xs text-text-tertiary">
               <summary className="cursor-pointer py-2">
@@ -74,13 +75,14 @@ export default async function MobileAlphaPage() {
         <h2 className="text-lg font-semibold text-text">What to expect</h2>
         <p>
           This is an early Android version. Sign in with your existing email and
-          password. Notes and chat connect to the same account as the website.
+          password, Google or GitHub. Notes and chat connect to the same account
+          as the website.
         </p>
         <p>
           Markdown editing, local drafts, file uploads and chat are included.
-          Files open through Android. Rich editing, calendar, quizzes and Google
-          or GitHub sign-in are not yet included. An internet connection is
-          needed to load and sync your work.
+          Files open through Android. Light, dark and system themes match the
+          website. Rich editing, calendar and quizzes are not yet included. An
+          internet connection is needed to load and sync your work.
         </p>
       </div>
       <Link

@@ -2,9 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   BackHandler,
-  KeyboardAvoidingView,
   Keyboard,
-  Platform,
   Linking,
   Pressable,
   ScrollView,
@@ -27,23 +25,20 @@ import {
   onSessionExpired,
   origin,
   restoreSession,
-  signIn,
 } from "./src/lib/api";
-import appConfig from "./app.json";
+import { ThemeProvider, useTheme } from "./src/lib/theme";
+import { Login } from "./src/screens/Login";
+import * as SystemUI from "expo-system-ui";
+import {
+  AppUpdateCard,
+  UpdateBanner,
+  UpdatesProvider,
+} from "./src/components/AppUpdates";
 import type { Note, TreeItem, User } from "./src/lib/contracts";
 import { Library } from "./src/screens/Library";
 import { Editor, draftPrefix } from "./src/screens/Editor";
 import { Chat } from "./src/screens/Chat";
-import {
-  Button,
-  colors,
-  ErrorBox,
-  Field,
-  IconButton,
-  Loading,
-  message,
-  styles,
-} from "./src/ui";
+import { Button, ErrorBox, IconButton, Loading, message } from "./src/ui";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -52,17 +47,45 @@ export default function App() {
     SourceSerif4_600SemiBold,
   });
   return (
+    <ThemeProvider>
+      <AppShell ready={!!(fontsLoaded || fontError)} />
+    </ThemeProvider>
+  );
+}
+
+function AppShell({ ready }: { ready: boolean }) {
+  const { styles, colors, isDark } = useTheme();
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(colors.background);
+  }, [colors.background]);
+  return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style="dark" />
-        {fontsLoaded || fontError ? <Workspace /> : <Loading />}
-      </SafeAreaView>
+      <UpdatesProvider>
+        <SafeAreaView style={styles.screen}>
+          <StatusBar style={isDark ? "light" : "dark"} />
+          {ready ? <Workspace /> : <Loading />}
+          {ready && <UpdateBanner />}
+        </SafeAreaView>
+      </UpdatesProvider>
     </SafeAreaProvider>
   );
 }
 
 function Workspace() {
+  const {
+    colors,
+    styles,
+    preference,
+    setPreference,
+    setAccountId,
+    syncError,
+    syncing,
+    saving,
+  } = useTheme();
   const [user, setUser] = useState<User | null>(null);
+  useEffect(() => {
+    setAccountId(user?.user_id ?? null);
+  }, [user?.user_id, setAccountId]);
   const [checking, setChecking] = useState(true);
   const [startupError, setStartupError] = useState("");
   const [tab, setTab] = useState<"notes" | "chat" | "account">("notes");
@@ -251,9 +274,61 @@ function Workspace() {
               </Text>
               <Text style={styles.muted}>{new URL(origin).hostname}</Text>
             </View>
-            <Text style={styles.heading}>
-              Android alpha · {appConfig.expo.version}
-            </Text>
+            <View style={styles.card}>
+              <Text style={styles.heading}>Appearance</Text>
+              <Text style={styles.muted}>
+                Uses the same theme preference as the website.
+              </Text>
+              <View style={styles.actions}>
+                {(["system", "light", "dark"] as const).map((value) => (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: preference === value,
+                      disabled: saving,
+                    }}
+                    disabled={saving}
+                    onPress={() => void setPreference(value)}
+                    style={{
+                      minHeight: 48,
+                      borderRadius: 6,
+                      padding: 12,
+                      backgroundColor:
+                        preference === value
+                          ? colors.accentSoft
+                          : colors.surfaceElevated,
+                      borderWidth: 1,
+                      borderColor:
+                        preference === value
+                          ? colors.accent
+                          : colors.borderSubtle,
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.text,
+                        {
+                          color:
+                            preference === value ? colors.accent : colors.text,
+                        },
+                      ]}
+                    >
+                      {value === "system"
+                        ? "System"
+                        : value === "light"
+                          ? "Light"
+                          : "Dark"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {syncing || saving ? (
+                <Text style={styles.muted}>Syncing appearance…</Text>
+              ) : null}
+              {syncError ? <ErrorBox message={syncError} /> : null}
+            </View>
+            <AppUpdateCard />
             <Text style={styles.text}>
               Notes and chat use the same account as the website. This first
               version supports Markdown editing and opens files through Android.
@@ -265,15 +340,6 @@ function Workspace() {
               onPress={() => {
                 void Linking.openURL(origin).catch((e) =>
                   Alert.alert("Could not open website", message(e)),
-                );
-              }}
-            />
-            <Button
-              quiet
-              title="Download the latest version"
-              onPress={() => {
-                void Linking.openURL(`${origin}/downloads`).catch((e) =>
-                  Alert.alert("Could not open downloads", message(e)),
                 );
               }}
             />
@@ -303,8 +369,8 @@ function Workspace() {
           display: keyboardVisible ? "none" : "flex",
           flexDirection: "row",
           borderTopWidth: 1,
-          borderColor: colors.line,
-          backgroundColor: colors.card,
+          borderColor: colors.borderSubtle,
+          backgroundColor: colors.surface,
         }}
       >
         {(
@@ -330,13 +396,13 @@ function Workspace() {
             <Ionicons
               name={item.icon}
               size={24}
-              color={tab === item.id ? colors.green : colors.muted}
+              color={tab === item.id ? colors.accent : colors.muted}
             />
             <Text
               style={[
                 styles.muted,
                 {
-                  color: tab === item.id ? colors.green : colors.muted,
+                  color: tab === item.id ? colors.accent : colors.muted,
                   fontFamily: "SourceSans3_600SemiBold",
                 },
               ]}
@@ -347,115 +413,5 @@ function Workspace() {
         ))}
       </View>
     </View>
-  );
-}
-
-function Login({
-  onLogin,
-  notice,
-}: {
-  onLogin: (user: User) => void;
-  notice: string;
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const user = await signIn(email, password);
-      setPassword("");
-      onLogin(user);
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.content,
-          { flexGrow: 1, justifyContent: "center", gap: 24 },
-        ]}
-      >
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 20,
-            backgroundColor: colors.green,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name="leaf-outline" size={32} color="#fff" />
-        </View>
-        <Text style={styles.label}>OGHMANOTES · ANDROID ALPHA</Text>
-        <Text style={[styles.title, { fontSize: 42 }]}>
-          A little space to think.
-        </Text>
-        <Text style={styles.text}>
-          Pick up your notes and course material, wherever you are.
-        </Text>
-        {notice ? (
-          <View style={styles.card}>
-            <Text accessibilityLiveRegion="polite" style={styles.text}>
-              {notice}
-            </Text>
-          </View>
-        ) : null}
-        <View style={{ gap: 12 }}>
-          <Field
-            accessibilityLabel="Email"
-            placeholder="Email address"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            autoComplete="email"
-            editable={!busy}
-          />
-          <Field
-            accessibilityLabel="Password"
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="current-password"
-            editable={!busy}
-            onSubmitEditing={() => void submit()}
-          />
-          {error ? <ErrorBox message={error} /> : null}
-          <Button
-            title={busy ? "Signing in…" : "Sign in"}
-            disabled={busy || !email.trim() || !password}
-            onPress={() => void submit()}
-          />
-        </View>
-        <Text style={styles.muted}>
-          Use your existing email and password. Google and GitHub sign-in are
-          not available in this alpha.
-        </Text>
-        <Button
-          quiet
-          title="Account help on the website"
-          onPress={() => {
-            void Linking.openURL(`${origin}/login`).catch((e) =>
-              setError(message(e)),
-            );
-          }}
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
   );
 }
