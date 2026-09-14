@@ -30,6 +30,9 @@ env:
   CI: "true"
   NODE_ENV: test
   NEXT_TELEMETRY_DISABLED: "1"
+  # Next dev otherwise reserves half the runner's RAM for its JS heap alone,
+  # leaving too little for Turbopack, Chromium, and the test services.
+  NODE_OPTIONS: "--max-old-space-size=4096"
   E2E_BASE_URL: http://127.0.0.1:3310
   PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
   NEXT_PUBLIC_APP_URL: http://127.0.0.1:3310
