@@ -9,6 +9,10 @@ export default [
   {
     ignores: [
       "node_modules/**",
+      "apps/mobile/node_modules/**",
+      "apps/mobile/android/**",
+      "apps/mobile/dist/**",
+      "apps/mobile/.expo/**",
       ".next/**",
       "out/**",
       "build/**",

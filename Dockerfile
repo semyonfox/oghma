@@ -8,6 +8,8 @@ RUN apt-get update \
 COPY package.json package-lock.json* .npmrc* ./
 RUN npm pkg delete scripts.prepare && npm ci
 COPY . .
+# Fetch the pinned Android release before Next.js indexes public files.
+RUN node scripts/fetch-mobile-apk.mjs
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Stub DATABASE_URL for build time (actual URL provided at runtime via env vars)

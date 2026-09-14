@@ -58,7 +58,11 @@
     "cache:reprocess": "node --import=tsx scripts/reprocess-import-cache-revisions.mjs",
     "cache:apply-revisions": "node --import=tsx scripts/apply-import-cache-revisions.mjs",
     "prepare": "husky",
-    "i18n:audit": "node --experimental-strip-types scripts/i18n-audit.ts"
+    "i18n:audit": "node --experimental-strip-types scripts/i18n-audit.ts",
+    "mobile:start": "npm --prefix apps/mobile run start",
+    "mobile:check": "npm --prefix apps/mobile run typecheck && npm --prefix apps/mobile run test",
+    "mobile:apk": "npm --prefix apps/mobile run build:apk",
+    "mobile:stage": "node scripts/stage-mobile-apk.mjs"
   },
   "dependencies": {
     "@ai-sdk/mcp": "2.0.35",
