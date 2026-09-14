@@ -11,7 +11,10 @@ export async function loginViaUi(page: Page) {
   await page.getByLabel("Password").fill(E2E_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/notes(?:\/.*)?$/);
-  await expect(page.getByRole("main", { name: "Note editor" })).toBeVisible();
+  const isMobile = (page.viewportSize()?.width ?? 1280) < 768;
+  await expect(
+    page.getByRole("main", { name: isMobile ? "Notes" : "Note editor", exact: true }),
+  ).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
 
