@@ -29,7 +29,11 @@ import {
 import { ThemeProvider, useTheme } from "./src/lib/theme";
 import { Login } from "./src/screens/Login";
 import * as SystemUI from "expo-system-ui";
-import appConfig from "./app.json";
+import {
+  AppUpdateCard,
+  UpdateBanner,
+  UpdatesProvider,
+} from "./src/components/AppUpdates";
 import type { Note, TreeItem, User } from "./src/lib/contracts";
 import { Library } from "./src/screens/Library";
 import { Editor, draftPrefix } from "./src/screens/Editor";
@@ -56,10 +60,13 @@ function AppShell({ ready }: { ready: boolean }) {
   }, [colors.background]);
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style={isDark ? "light" : "dark"} />
-        {ready ? <Workspace /> : <Loading />}
-      </SafeAreaView>
+      <UpdatesProvider>
+        <SafeAreaView style={styles.screen}>
+          <StatusBar style={isDark ? "light" : "dark"} />
+          {ready ? <Workspace /> : <Loading />}
+          {ready && <UpdateBanner />}
+        </SafeAreaView>
+      </UpdatesProvider>
     </SafeAreaProvider>
   );
 }
@@ -321,9 +328,7 @@ function Workspace() {
               ) : null}
               {syncError ? <ErrorBox message={syncError} /> : null}
             </View>
-            <Text style={styles.heading}>
-              Android alpha · {appConfig.expo.version}
-            </Text>
+            <AppUpdateCard />
             <Text style={styles.text}>
               Notes and chat use the same account as the website. This first
               version supports Markdown editing and opens files through Android.
@@ -335,15 +340,6 @@ function Workspace() {
               onPress={() => {
                 void Linking.openURL(origin).catch((e) =>
                   Alert.alert("Could not open website", message(e)),
-                );
-              }}
-            />
-            <Button
-              quiet
-              title="Download the latest version"
-              onPress={() => {
-                void Linking.openURL(`${origin}/downloads`).catch((e) =>
-                  Alert.alert("Could not open downloads", message(e)),
                 );
               }}
             />
