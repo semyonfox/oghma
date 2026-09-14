@@ -74,12 +74,12 @@ export default async function MobileAlphaPage() {
         <h2 className="text-lg font-semibold text-text">What to expect</h2>
         <p>
           This is an early Android version. Sign in with your existing email and
-          password. Notes and chat connect to the same account as the website.
+          password, Google or GitHub. Notes and chat connect to the same account as the website.
         </p>
         <p>
           Markdown editing, local drafts, file uploads and chat are included.
-          Files open through Android. Rich editing, calendar, quizzes and Google
-          or GitHub sign-in are not yet included. An internet connection is
+          Files open through Android. Light, dark and system themes match the website.
+          Rich editing, calendar and quizzes are not yet included. An internet connection is
           needed to load and sync your work.
         </p>
       </div>

@@ -18,16 +18,8 @@ import { getContentUriAsync } from "expo-file-system/legacy";
 import { z } from "zod";
 import { json, request } from "../lib/api";
 import { draftToPersist, noteSchema, type Note } from "../lib/contracts";
-import {
-  Button,
-  colors,
-  ErrorBox,
-  Field,
-  IconButton,
-  Loading,
-  message,
-  styles,
-} from "../ui";
+import { Button, ErrorBox, Field, IconButton, Loading, message } from "../ui";
+import { useTheme } from "../lib/theme";
 
 const draftSchema = z.object({ title: z.string(), content: z.string() });
 export const draftPrefix = "oghma.draft.";
@@ -45,6 +37,7 @@ export function Editor({
   onChat: (note: Note) => void;
   initialEditing?: boolean;
 }) {
+  const { colors, styles } = useTheme();
   const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -367,14 +360,44 @@ export function Editor({
           <Markdown
             style={{
               body: {
-                color: colors.ink,
+                color: colors.text,
                 fontFamily: "SourceSans3_400Regular",
                 fontSize: 18,
                 lineHeight: 28,
               },
-              link: { color: colors.green },
-              code_inline: { backgroundColor: colors.pale },
-              fence: { backgroundColor: colors.pale },
+              heading1: {
+                color: colors.markdown.heading1,
+                fontFamily: "SourceSerif4_600SemiBold",
+              },
+              heading2: {
+                color: colors.markdown.heading2,
+                fontFamily: "SourceSans3_600SemiBold",
+              },
+              heading3: {
+                color: colors.markdown.heading3,
+                fontFamily: "SourceSans3_600SemiBold",
+              },
+              link: { color: colors.markdown.link },
+              blockquote: {
+                color: colors.markdown.quoteText,
+                borderLeftColor: colors.markdown.quoteBorder,
+                backgroundColor: colors.markdown.quoteBackground,
+                paddingHorizontal: 12,
+              },
+              code_inline: {
+                color: colors.markdown.codeText,
+                backgroundColor: colors.markdown.codeBackground,
+                borderColor: colors.markdown.codeBorder,
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+              fence: {
+                color: colors.markdown.codeText,
+                backgroundColor: colors.markdown.codeBackground,
+                borderColor: colors.markdown.codeBorder,
+                borderWidth: 1,
+                borderRadius: 6,
+              },
             }}
             onLinkPress={(url) => {
               if (/^https?:\/\//i.test(url))

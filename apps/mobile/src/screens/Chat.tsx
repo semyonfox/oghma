@@ -23,15 +23,14 @@ import {
 } from "../lib/contracts";
 import {
   Button,
-  colors,
   Empty,
   ErrorBox,
   Field,
   IconButton,
   Loading,
   message,
-  styles,
 } from "../ui";
+import { useTheme } from "../lib/theme";
 
 type Session = z.infer<typeof sessionsSchema>["sessions"][number];
 export function Chat({
@@ -43,6 +42,7 @@ export function Chat({
   clearScope: () => void;
   onExit: () => void;
 }) {
+  const { colors, styles } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [composing, setComposing] = useState(!!scope);
@@ -243,7 +243,7 @@ export function Chat({
           <RefreshControl
             refreshing={listing}
             onRefresh={() => void list()}
-            tintColor={colors.green}
+            tintColor={colors.accent}
           />
         }
       >
@@ -347,7 +347,7 @@ export function Chat({
                 style={[
                   styles.card,
                   item.role === "user"
-                    ? { backgroundColor: colors.pale, marginLeft: 24 }
+                    ? { backgroundColor: colors.selected, marginLeft: 24 }
                     : { marginRight: 8 },
                 ]}
               >
@@ -360,7 +360,40 @@ export function Chat({
                       fontFamily: "SourceSans3_400Regular",
                       fontSize: 17,
                       lineHeight: 25,
-                      color: colors.ink,
+                      color: colors.text,
+                    },
+                    heading1: {
+                      color: colors.markdown.heading1,
+                      fontFamily: "SourceSerif4_600SemiBold",
+                    },
+                    heading2: {
+                      color: colors.markdown.heading2,
+                      fontFamily: "SourceSans3_600SemiBold",
+                    },
+                    heading3: {
+                      color: colors.markdown.heading3,
+                      fontFamily: "SourceSans3_600SemiBold",
+                    },
+                    link: { color: colors.markdown.link },
+                    blockquote: {
+                      color: colors.markdown.quoteText,
+                      borderLeftColor: colors.markdown.quoteBorder,
+                      backgroundColor: colors.markdown.quoteBackground,
+                      paddingHorizontal: 12,
+                    },
+                    code_inline: {
+                      color: colors.markdown.codeText,
+                      backgroundColor: colors.markdown.codeBackground,
+                      borderColor: colors.markdown.codeBorder,
+                      borderWidth: 1,
+                      borderRadius: 4,
+                    },
+                    fence: {
+                      color: colors.markdown.codeText,
+                      backgroundColor: colors.markdown.codeBackground,
+                      borderColor: colors.markdown.codeBorder,
+                      borderWidth: 1,
+                      borderRadius: 6,
                     },
                   }}
                   onLinkPress={(url) => {
@@ -388,7 +421,40 @@ export function Chat({
                     fontFamily: "SourceSans3_400Regular",
                     fontSize: 17,
                     lineHeight: 25,
-                    color: colors.ink,
+                    color: colors.text,
+                  },
+                  heading1: {
+                    color: colors.markdown.heading1,
+                    fontFamily: "SourceSerif4_600SemiBold",
+                  },
+                  heading2: {
+                    color: colors.markdown.heading2,
+                    fontFamily: "SourceSans3_600SemiBold",
+                  },
+                  heading3: {
+                    color: colors.markdown.heading3,
+                    fontFamily: "SourceSans3_600SemiBold",
+                  },
+                  link: { color: colors.markdown.link },
+                  blockquote: {
+                    color: colors.markdown.quoteText,
+                    borderLeftColor: colors.markdown.quoteBorder,
+                    backgroundColor: colors.markdown.quoteBackground,
+                    paddingHorizontal: 12,
+                  },
+                  code_inline: {
+                    color: colors.markdown.codeText,
+                    backgroundColor: colors.markdown.codeBackground,
+                    borderColor: colors.markdown.codeBorder,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                  },
+                  fence: {
+                    color: colors.markdown.codeText,
+                    backgroundColor: colors.markdown.codeBackground,
+                    borderColor: colors.markdown.codeBorder,
+                    borderWidth: 1,
+                    borderRadius: 6,
                   },
                 }}
                 onLinkPress={() => false}
@@ -414,7 +480,7 @@ export function Chat({
           styles.row,
           {
             borderTopWidth: 1,
-            borderColor: colors.line,
+            borderColor: colors.border,
             padding: 10,
             alignItems: "flex-end",
           },
