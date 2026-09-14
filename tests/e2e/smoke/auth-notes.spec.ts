@@ -9,12 +9,8 @@ test.describe("auth and notes smoke", () => {
     const note = await createNoteViaApi(page, title, content);
 
     await page.reload();
-    await expect(page.getByRole("main", { name: "Note editor" })).toBeVisible();
-
     const isMobile = (page.viewportSize()?.width ?? 1280) < 768;
-    if (isMobile) {
-      await page.getByRole("button", { name: "Notes list" }).click();
-    }
+    await expect(page.getByRole("main", { name: isMobile ? "Notes" : "Note editor", exact: true })).toBeVisible();
     const notesList = page.getByRole("region", { name: "Notes list" });
     await expect(notesList).toBeVisible();
     await notesList.getByText(title).click();
@@ -29,6 +25,11 @@ test.describe("auth and notes smoke", () => {
     await expect(editorContent).toContainText("Created by Playwright smoke.");
 
     if (isMobile) {
+      await page.getByRole("button", { name: "Notes list" }).click();
+      const library = page.getByRole("dialog", { name: "Notes", exact: true });
+      await expect(library.getByRole("region", { name: "Notes list" })).toBeVisible();
+      await library.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(library).not.toBeVisible();
       await page.getByTitle("Toggle metadata panel").click();
       const inspector = page.getByRole("dialog");
       await expect(inspector).toBeVisible();
@@ -76,4 +77,3 @@ test.describe("auth and notes smoke", () => {
     await expect(page).toHaveURL(/\/verify-email\?email=/);
   });
 });
-
