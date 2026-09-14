@@ -6,10 +6,12 @@ const mockRedis = vi.hoisted(() => ({
   set: vi.fn(),
   del: vi.fn(),
 }));
+const connection = vi.hoisted(() => ({ ready: true, ensureReady: vi.fn() }));
 
 vi.mock("@/lib/redis", () => ({
   redis: mockRedis,
-  redisReady: true,
+  get redisReady() { return connection.ready; },
+  ensureRedisReady: connection.ensureReady,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -20,6 +22,8 @@ import { cacheGet, cacheSet, cacheInvalidate, cacheKeys } from "@/lib/cache";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  connection.ready = true;
+  connection.ensureReady.mockResolvedValue(true);
 });
 
 // --- cacheGet ---
@@ -94,6 +98,24 @@ describe("cacheSet", () => {
 // --- cacheInvalidate ---
 
 describe("cacheInvalidate", () => {
+  it("connects before invalidating on the first request after a cold start", async () => {
+    connection.ready = false;
+    mockRedis.del.mockResolvedValue(1);
+
+    await cacheInvalidate("cached-tree");
+
+    expect(connection.ensureReady).toHaveBeenCalledOnce();
+    expect(mockRedis.del).toHaveBeenCalledWith("cached-tree");
+  });
+
+  it("keeps mutations available when Redis cannot connect", async () => {
+    connection.ready = false;
+    connection.ensureReady.mockResolvedValue(false);
+
+    await expect(cacheInvalidate("cached-tree")).resolves.toBeUndefined();
+    expect(mockRedis.del).not.toHaveBeenCalled();
+  });
+
   it("deletes a single key", async () => {
     mockRedis.del.mockResolvedValue(1);
 

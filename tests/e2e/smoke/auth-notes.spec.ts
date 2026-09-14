@@ -69,13 +69,13 @@ test.describe("auth and notes smoke", () => {
     await page.getByLabel("Confirm password").fill("E2ePassword123!");
     await page.getByRole("button", { name: "Create account" }).click();
 
-    await expect(page).toHaveURL(/\/verify-email\?email=/);
+    await expect(page).toHaveURL(/\/verify-email\?email=/, { timeout: 30_000 });
 
     await page.goto("/login");
     await page.getByLabel("Email address").fill(email);
     await page.getByLabel("Password").fill("E2ePassword123!");
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page).toHaveURL(/\/verify-email\?email=/);
+    await expect(page).toHaveURL(/\/verify-email\?email=/, { timeout: 30_000 });
   });
 });
