@@ -1094,5 +1094,11 @@
   "Expires today": "आज समाप्त होता है",
   "Expires tomorrow": "कल समाप्त होता है",
   "Failed to change language": "भाषा बदलने में विफल",
-  "Failed to save language preference": "भाषा प्राथमिकता सहेजने में विफल"
+  "Failed to save language preference": "भाषा प्राथमिकता सहेजने में विफल",
+  "Save offline": "Save offline",
+  "Offline notes": "Offline notes",
+  "Save your changes before downloading": "Save your changes before downloading",
+  "Could not save offline": "Could not save offline",
+  "Zoom in": "Zoom in",
+  "Zoom out": "Zoom out"
 }

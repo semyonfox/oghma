@@ -38,7 +38,7 @@ export default function MobileDrawer({
     >
       <DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition duration-200 data-closed:opacity-0"
+        className="fixed inset-0 bg-black/45 backdrop-blur-[1px] transition duration-200 data-closed:opacity-0 motion-reduce:transition-none"
       />
       <div className="fixed inset-0 overflow-hidden">
         <div
@@ -50,14 +50,14 @@ export default function MobileDrawer({
           <DialogPanel
             transition
             className={clsx(
-              "flex h-dvh w-[90vw] max-w-sm flex-col bg-background shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0",
+              "flex h-dvh w-[calc(100vw-1rem)] max-w-sm flex-col bg-background pb-[env(safe-area-inset-bottom)] shadow-2xl ring-1 ring-border-subtle transition duration-200 ease-out data-closed:opacity-0 motion-reduce:transition-none",
               side === "left"
-                ? "data-closed:-translate-x-full"
-                : "data-closed:translate-x-full",
+                ? "rounded-r-2xl data-closed:-translate-x-full"
+                : "rounded-l-2xl data-closed:translate-x-full",
               panelClassName,
             )}
           >
-            <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-3">
+            <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-2">
               <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary">
                 {title}
               </DialogTitle>

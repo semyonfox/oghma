@@ -1,9 +1,13 @@
 import { z } from "zod";
+import { offlineSnapshotSchema } from "./offline-state.ts";
 
 const bridgeMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("oghma:oauth"), provider: z.enum(["google", "github"]) }).strict(),
   z.object({ type: z.literal("oghma:updates") }).strict(),
   z.object({ type: z.literal("oghma:theme"), theme: z.enum(["dark", "light"]) }).strict(),
+  z.object({ type: z.literal("oghma:offline-open") }).strict(),
+  z.object({ type: z.literal("oghma:offline-account"), ownerId: z.string().uuid().nullable() }).strict(),
+  z.object({ type: z.literal("oghma:offline-save"), snapshot: offlineSnapshotSchema }).strict(),
 ]);
 
 export function isWorkspaceUrl(value: string, origin: string) {
@@ -16,10 +20,11 @@ export function isWorkspaceUrl(value: string, origin: string) {
 }
 
 export function parseWebMessage(data: string, source: string, origin: string) {
-  if (!isWorkspaceUrl(source, origin) || data.length > 512) return null;
+  if (!isWorkspaceUrl(source, origin) || data.length > 250_000) return null;
   try {
     const parsed = bridgeMessage.safeParse(JSON.parse(data));
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success || (parsed.data.type !== "oghma:offline-save" && data.length > 512)) return null;
+    return parsed.data;
   } catch {
     return null;
   }

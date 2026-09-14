@@ -40,6 +40,58 @@ Version 0.1.3 passed the signed Android build, mobile TypeScript and 24 mobile c
 
 The APK is a release artifact. Its checksum manifest is tracked and website images fetch the pinned, verified GitHub release. `/downloads` is noindex, not private authentication. Build, signing and hosting instructions are in the [mobile README](../../apps/mobile/README.md).
 
+## 0.1.4 offline notes and mobile navigation
+
+Status: release source for Android alpha 0.1.4. The tracked release manifest
+identifies the APK served by each website deployment. The APK and accompanying
+website changes are both required for offline notes; this does not enable Expo OTA.
+
+On phones, `/notes` opens the library directly. Note routes still open the
+editor, and the labelled Notes button opens the library drawer. Main navigation
+has a search action, larger destination tiles and a separate offline-notes
+entry. Desktop keeps its split workspace.
+
+Offline reading is explicit and read-only. Save an ordinary note with the
+download action in its editor header. Unsaved changes disable that action.
+The native reader shows the downloaded title, Markdown text and sync timestamp,
+supports title filtering and lets the user remove one or all downloaded copies.
+Refresh a copy by saving it offline again while connected. This is not background
+library sync or offline editing. PDFs, attachments and embedded images are not
+downloaded, and reader links do not open network resources. No notifications,
+permission prompts or study reminders were added.
+
+The loading and error screens can open the native reader without loading the
+website. Copies live in origin-specific private app storage, with Android backup
+still disabled. They are removed on sign-out, arrival at login or register,
+or account changes. A cold offline launch can read the previous account's saved
+copies until one of those events occurs. Removing a download does not delete the
+online note. Storage is bounded to 100 notes, 200,000 characters per note and
+500,000 characters for the serialized library; hitting a limit asks the user to
+remove downloads rather than silently evicting them.
+
+The app advertises `OghmaNotesOffline/1` in its user agent. Older APKs do not get
+offline controls. The bridge accepts bounded snapshots only from the configured
+origin. `GET /api/notes/:id/offline` binds the snapshot to the authenticated owner,
+excludes deleted notes, folders and attachments, and returns `private, no-store`.
+No session cookies or tokens cross the JavaScript bridge. Account checks and
+serialized storage writes prevent late downloads from restoring signed-out data.
+
+Verification on 2026-09-14: root/mobile type checks, 1,632 web/MCP tests, 32 mobile
+contract tests, full ESLint, translation audit and Android JavaScript export passed.
+The signed APK built successfully with package `ie.oghmanotes.alpha`, versionCode
+5 and the existing alpha signing certificate. Backup is disabled, the release is
+not debuggable, no notification permission is declared, and 16 KB ZIP alignment passed. Isolated
+browser fixtures exercised the real navigation components at 320px and 390px in
+both themes, including menu dismissal and overflow. These fixtures used synthetic
+state, not an authenticated workspace or native device. The repository i18n audit
+passes after adding the missing `Zoom in` and `Zoom out` labels. The new labels
+have English fallback values in the locale catalogs.
+
+Physical-device follow-up for this alpha: save a note, use airplane mode, force-close and reopen, read the saved copy,
+remove it, reconnect, sign out and switch accounts. Confirm that the native
+reader does not interrupt an open editor or make network requests for note
+images. Keyboard, OAuth-return and APK-installer behaviour remain unverified on a physical phone for this update.
+
 ## References
 
 - [React Native WebView guide](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Guide.md)

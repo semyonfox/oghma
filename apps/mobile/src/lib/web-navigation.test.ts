@@ -20,6 +20,17 @@ test("workspace links stay inside the app; APK links use the verified updater", 
   }
 });
 
+test("offline snapshots stay bounded and only arrive from the configured origin", () => {
+  const snapshot = { ownerId: "550e8400-e29b-41d4-a716-446655440000", note: {
+    id: "550e8400-e29b-41d4-a716-446655440001", title: "Synthetic note", content: "a".repeat(1_000), savedAt: "2026-09-14T12:00:00.000Z",
+  } };
+  const data = JSON.stringify({ type: "oghma:offline-save", snapshot });
+  assert.equal(parseWebMessage(data, origin, origin)?.type, "oghma:offline-save");
+  assert.equal(parseWebMessage(data, "https://evil.test", origin), null);
+  assert.equal(parseWebMessage(JSON.stringify({ type: "oghma:offline-save", snapshot: { ...snapshot, cookie: "not-allowed" } }), origin, origin), null);
+  assert.equal(parseWebMessage(" ".repeat(250_001), origin, origin), null);
+});
+
 test("only the configured website can send a known native action", () => {
   const oauth = JSON.stringify({ type: "oghma:oauth", provider: "google" });
   assert.deepEqual(parseWebMessage(oauth, `${origin}/login`, origin), { type: "oghma:oauth", provider: "google" });

@@ -10,9 +10,14 @@ export async function loginViaUi(page: Page) {
   await page.getByLabel("Email address").fill(E2E_USER.email);
   await page.getByLabel("Password").fill(E2E_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/notes(?:\/.*)?$/);
-  await expect(page.getByRole("main", { name: "Note editor" })).toBeVisible();
-  await page.waitForLoadState("networkidle");
+  // Allow the sign-in request and initial workspace navigation to finish.
+  await expect(page).toHaveURL(/\/notes(?:\/.*)?$/, { timeout: 30_000 });
+  const isMobile = (page.viewportSize()?.width ?? 1280) < 768;
+  await expect(
+    page.getByRole("main", { name: isMobile ? "Notes" : "Note editor", exact: true }),
+  ).toBeVisible();
+  // The app keeps background requests open; readiness is the rendered library.
+  await expect(page.getByRole("tree", { name: "Notes", exact: true })).toBeVisible();
 }
 
 export async function createNoteViaApi(

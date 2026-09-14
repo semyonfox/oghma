@@ -83,10 +83,10 @@ vi.mock("@/components/navigation/mobile-drawer", () => ({
   default: () => null,
 }));
 vi.mock("@/components/notes/note-tree-panel", () => ({
-  default: () => null,
+  default: () => React.createElement("div", null, "Library content"),
 }));
 vi.mock("@/components/editor/split-editor-pane", () => ({
-  default: () => null,
+  default: () => React.createElement("div", null, "Editor content"),
 }));
 vi.mock("@/components/notes/note-inspector-panel", () => ({
   default: () => null,
@@ -101,9 +101,27 @@ describe("NotesWorkspace note route synchronization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isDesktop = true;
+    mocks.pathname = "/notes/550e8400-e29b-41d4-a716-446655440000";
     layoutState.paneA.fileId = "";
     layoutState.rightPanelOpen = false;
     vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("opens the library at the mobile Notes root even with a remembered note", () => {
+    mocks.isDesktop = false;
+    mocks.pathname = "/notes";
+    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    render(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Library content")).toBeTruthy();
+    expect(screen.queryByText("Editor content")).toBeNull();
+  });
+
+  it("keeps a directly opened mobile note in the editor", () => {
+    mocks.isDesktop = false;
+    layoutState.paneA.fileId = "550e8400-e29b-41d4-a716-446655440000";
+    render(React.createElement(NotesWorkspace));
+    expect(screen.getByText("Editor content")).toBeTruthy();
+    expect(screen.queryByText("Library content")).toBeNull();
   });
 
   it("hydrates a direct PDF route before choosing its renderer", async () => {

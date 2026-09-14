@@ -30,13 +30,16 @@ env:
   CI: "true"
   NODE_ENV: test
   NEXT_TELEMETRY_DISABLED: "1"
-  E2E_BASE_URL: http://127.0.0.1:3310
-  PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3310
-  NEXT_PUBLIC_API_URL: http://127.0.0.1:3310
-  NEXTAUTH_URL: http://127.0.0.1:3310
-  APP_BASE_URL: http://127.0.0.1:3310
-  CORS_ORIGINS: http://127.0.0.1:3310
+  # Build and run the production server within the hosted runner's memory.
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  # Playwright permits production Secure cookies on localhost API requests.
+  E2E_BASE_URL: http://localhost:3310
+  PLAYWRIGHT_BASE_URL: http://localhost:3310
+  NEXT_PUBLIC_APP_URL: http://localhost:3310
+  NEXT_PUBLIC_API_URL: http://localhost:3310
+  NEXTAUTH_URL: http://localhost:3310
+  APP_BASE_URL: http://localhost:3310
+  CORS_ORIGINS: http://localhost:3310
   ENABLE_CREDENTIALS_AUTH: "true"
   JWT_SECRET: e2e-jwt-secret
   NEXTAUTH_SECRET: e2e-nextauth-secret
@@ -194,7 +197,20 @@ jobs:
       - name: Run smoke E2E
         # Integration contracts already run reset + seed + bucket setup. Skip
         # the Playwright setup step for those to avoid duplicate work.
-        run: E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
+        run: |
+          # Keep resource evidence in the job log even if the runner dies before
+          # Playwright can upload its report.
+          (
+            while true; do
+              date -u
+              free -m
+              ps -eo pid,comm,rss --sort=-rss | head -12
+              sleep 30
+            done
+          ) &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+          E2E_RESET_DB=0 E2E_CREATE_STORAGE_BUCKET=0 npm run e2e:smoke -- --workers=1
 
       - name: Upload Playwright artifacts
         if: always()
