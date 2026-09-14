@@ -26,6 +26,12 @@ The script creates a dedicated private alpha signing identity on first use under
 
 Output: `apps/mobile/dist/oghmanotes-alpha.apk`. It is a release APK with bundled JavaScript and does not need Metro. The package identifier is `ie.oghmanotes.alpha`. Increment `android.versionCode` and the version in `app.json` for each distributed update. Android native files are generated and ignored.
 
+## In-app updates
+
+Version 0.1.2 adds App updates on the login screen and in Account. The shared update screen handles progress, cancellation, verification, Android install permission and retry. The local Expo module in `modules/oghma-updater` requires a native build; Expo Go cannot load it.
+
+The updater checks `https://oghmanotes.ie/downloads/android-alpha.json` and downloads the fixed production APK endpoint. It compares Android versionCode, so a website rollback never offers a downgrade. APKs must match the installed package and signing identity as well as the release checksum. A process killed during download restarts the download next time. Silent installation and Play Store distribution are outside this alpha flow.
+
 ## Stage the website download
 
 After verifying the release APK:
