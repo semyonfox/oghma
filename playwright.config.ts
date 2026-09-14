@@ -28,7 +28,9 @@ export default defineConfig({
   },
   webServer: shouldStartWebServer
     ? {
-        command: `node --experimental-strip-types scripts/e2e/run-with-env.ts npm run dev -- --hostname ${base.hostname} --port ${base.port || 3310}`,
+        // Turbopack's native cache grows beyond the hosted runner's memory while
+        // this suite visits many routes. Production builds still use Turbopack.
+        command: `node --experimental-strip-types scripts/e2e/run-with-env.ts npm run dev --${process.env.CI ? " --webpack" : ""} --hostname ${base.hostname} --port ${base.port || 3310}`,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
