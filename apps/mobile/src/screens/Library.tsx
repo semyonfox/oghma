@@ -6,16 +6,8 @@ import { File } from "expo-file-system";
 import { z } from "zod";
 import { json } from "../lib/api";
 import { noteSchema, treeSchema, type TreeItem } from "../lib/contracts";
-import {
-  Button,
-  colors,
-  Empty,
-  ErrorBox,
-  Field,
-  Loading,
-  message,
-  styles,
-} from "../ui";
+import { Button, Empty, ErrorBox, Field, Loading, message } from "../ui";
+import { useTheme } from "../lib/theme";
 
 export function Library({
   parent,
@@ -24,6 +16,7 @@ export function Library({
   parent?: TreeItem;
   onOpen: (item: TreeItem, initialEditing?: boolean) => void;
 }) {
+  const { colors, styles } = useTheme();
   const [items, setItems] = useState<TreeItem[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -186,7 +179,7 @@ export function Library({
           <View
             style={{
               padding: 12,
-              backgroundColor: colors.pale,
+              backgroundColor: colors.accentSoft,
               borderRadius: 12,
             }}
           >
@@ -198,7 +191,7 @@ export function Library({
                     ? "document-attach-outline"
                     : "document-text-outline"
               }
-              color={colors.green}
+              color={colors.accent}
               size={24}
             />
           </View>

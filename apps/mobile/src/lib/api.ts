@@ -101,6 +101,18 @@ export async function signIn(email: string, password: string) {
     method: "POST",
     body: JSON.stringify({ email: email.trim(), password, rememberMe: true }),
   });
+  return acceptSession(response);
+}
+
+export async function completeOAuth(code: string, codeVerifier: string) {
+  const response = await request("/api/auth/mobile/exchange", {
+    method: "POST",
+    body: JSON.stringify({ code, codeVerifier }),
+  });
+  return acceptSession(response);
+}
+
+async function acceptSession(response: Response) {
   const user = profileSchema.parse(await response.json()).user;
   const nextCookie = sessionCookie(response.headers.get("set-cookie"));
   await SecureStore.setItemAsync(sessionKey, nextCookie);
