@@ -10,7 +10,8 @@ export async function loginViaUi(page: Page) {
   await page.getByLabel("Email address").fill(E2E_USER.email);
   await page.getByLabel("Password").fill(E2E_USER.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/notes(?:\/.*)?$/);
+  // The first sign-in also compiles the protected workspace in the dev server.
+  await expect(page).toHaveURL(/\/notes(?:\/.*)?$/, { timeout: 30_000 });
   const isMobile = (page.viewportSize()?.width ?? 1280) < 768;
   await expect(
     page.getByRole("main", { name: isMobile ? "Notes" : "Note editor", exact: true }),
