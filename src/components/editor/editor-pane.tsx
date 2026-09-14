@@ -28,6 +28,7 @@ import {
   parseFileDragPayload,
 } from "@/lib/notes/utils/file-spec";
 import { toast } from "sonner";
+import SaveOfflineButton from "@/components/notes/save-offline-button";
 
 const FileRenderer = dynamic(() => import("./file-renderer"), { ssr: false });
 
@@ -295,6 +296,7 @@ const EditorPane: FC<EditorPaneProps> = ({
         </div>
 
         <div className="flex items-center gap-0.5">
+          {file.fileType === "note" && <SaveOfflineButton noteId={file.fileId} />}
           <button
             type="button"
             onClick={() => openRightPanelTab("meta")}

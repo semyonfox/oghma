@@ -25,7 +25,7 @@ export default function MobileAppHeader({
     <>
       <header
         className={clsx(
-          "flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-background px-1.5 md:hidden",
+          "flex min-h-16 shrink-0 items-center gap-3 border-b border-border-subtle bg-background px-3 py-2 md:hidden",
           className,
         )}
       >
@@ -34,10 +34,12 @@ export default function MobileAppHeader({
           onClick={() => setNavigationOpen(true)}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-radius-md text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/50"
           aria-label={t("Open main menu")}
+          aria-haspopup="dialog"
+          aria-expanded={navigationOpen}
         >
           <Bars3Icon className="h-5 w-5" aria-hidden="true" />
         </button>
-        <div className="min-w-0 flex-1 truncate text-sm font-semibold text-text-secondary">
+        <div className="min-w-0 flex-1 truncate text-base font-semibold text-text-secondary">
           {title}
         </div>
         {actions && <div className="flex shrink-0 items-center">{actions}</div>}

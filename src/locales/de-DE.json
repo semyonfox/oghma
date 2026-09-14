@@ -1094,5 +1094,11 @@
   "Expires today": "Läuft heute ab",
   "Expires tomorrow": "Läuft morgen ab",
   "Failed to change language": "Sprache konnte nicht geändert werden",
-  "Failed to save language preference": "Spracheinstellung konnte nicht gespeichert werden"
+  "Failed to save language preference": "Spracheinstellung konnte nicht gespeichert werden",
+  "Save offline": "Save offline",
+  "Offline notes": "Offline notes",
+  "Save your changes before downloading": "Save your changes before downloading",
+  "Could not save offline": "Could not save offline",
+  "Zoom in": "Zoom in",
+  "Zoom out": "Zoom out"
 }

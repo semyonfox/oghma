@@ -13,6 +13,11 @@ vi.mock("@/lib/storage/init.ts", () => ({
   getStorageProvider: vi.fn(),
 }));
 
+vi.mock("@/lib/cache", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/cache")>(),
+  cacheInvalidate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/canvas/import-embedding", () => ({
   processRagPipeline: vi.fn(),
 }));

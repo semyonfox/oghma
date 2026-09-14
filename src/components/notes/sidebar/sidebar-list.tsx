@@ -219,7 +219,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
                 void refreshTree();
               }}
               disabled={loading}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 disabled:cursor-wait disabled:opacity-40 md:h-7 md:w-7"
               title={t("Refresh notes")}
               aria-label={t("Refresh notes")}
             >
@@ -231,7 +231,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewNote}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New note")}
               aria-label={t("New note")}
             >
@@ -240,7 +240,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={handleQuickNewFolder}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("New folder")}
               aria-label={t("New folder")}
             >
@@ -249,7 +249,7 @@ const SidebarList = ({ onOpenNote }: SidebarListProps) => {
             <button
               type="button"
               onClick={() => uploadInputRef.current?.click()}
-              className="flex h-10 w-10 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
+              className="flex h-11 w-11 items-center justify-center rounded-radius-sm text-text-tertiary transition-colors hover:bg-subtle hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-500/50 md:h-7 md:w-7"
               title={t("Upload")}
               aria-label={t("Upload")}
             >

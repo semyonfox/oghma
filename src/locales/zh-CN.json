@@ -1094,5 +1094,11 @@
   "Expires today": "今天到期",
   "Expires tomorrow": "明天到期",
   "Failed to change language": "无法切换语言",
-  "Failed to save language preference": "无法保存语言偏好设置"
+  "Failed to save language preference": "无法保存语言偏好设置",
+  "Save offline": "Save offline",
+  "Offline notes": "Offline notes",
+  "Save your changes before downloading": "Save your changes before downloading",
+  "Could not save offline": "Could not save offline",
+  "Zoom in": "Zoom in",
+  "Zoom out": "Zoom out"
 }

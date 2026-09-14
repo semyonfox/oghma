@@ -6,6 +6,11 @@ import {
   postNativeOAuth,
   postNativeTheme,
   postNativeUpdates,
+  supportsNativeOffline,
+  postNativeOfflineOpen,
+  postNativeOfflineAccount,
+  saveNativeOfflineNote,
+  syncNativeOfflineAccount,
 } from "@/lib/native-app";
 
 function setUserAgent(userAgent: string) {
@@ -16,8 +21,70 @@ function setUserAgent(userAgent: string) {
 }
 
 afterEach(() => {
+  postNativeOfflineAccount(null);
   Reflect.deleteProperty(window, "ReactNativeWebView");
   setUserAgent("Mozilla/5.0");
+  vi.unstubAllGlobals();
+});
+
+describe("offline bridge compatibility and account changes", () => {
+  const ownerId = "550e8400-e29b-41d4-a716-446655440000";
+  const snapshot = { ownerId, note: { id: "550e8400-e29b-41d4-a716-446655440001", title: "Synthetic note", content: "Saved", savedAt: "2026-09-14T12:00:00.000Z" } };
+
+  function setup() {
+    setUserAgent("Mozilla/5.0 OghmaNotesAndroid/0.1.4 OghmaNotesOffline/1");
+    const postMessage = vi.fn();
+    Reflect.set(window, "ReactNativeWebView", { postMessage });
+    return postMessage;
+  }
+
+  it("does not offer offline actions to existing APKs", () => {
+    const postMessage = setup();
+    setUserAgent("Mozilla/5.0 OghmaNotesAndroid/0.1.3");
+    expect(supportsNativeOffline()).toBe(false);
+    expect(postNativeOfflineOpen()).toBe(false);
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("sends a validated snapshot for the currently confirmed account", async () => {
+    const postMessage = setup();
+    postNativeOfflineAccount(ownerId);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(snapshot)));
+    await saveNativeOfflineNote(snapshot.note.id);
+    expect(JSON.parse(postMessage.mock.calls.at(-1)?.[0])).toEqual({ type: "oghma:offline-save", snapshot });
+  });
+
+  it("does not erase downloads just because an account check fails", async () => {
+    const postMessage = setup();
+    postNativeOfflineAccount(ownerId);
+    postMessage.mockClear();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "Unavailable" }, { status: 401 })));
+    await syncNativeOfflineAccount(new AbortController().signal);
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a download that finishes after sign-out", async () => {
+    const postMessage = setup();
+    postNativeOfflineAccount(ownerId);
+    let complete: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise<Response>((resolve) => { complete = resolve; })));
+    const saving = saveNativeOfflineNote(snapshot.note.id);
+    postNativeOfflineAccount(null);
+    complete(Response.json(snapshot));
+    await expect(saving).rejects.toThrow("account changed");
+    expect(postMessage.mock.calls.some(([value]) => JSON.parse(value).type === "oghma:offline-save")).toBe(false);
+  });
+
+  it("does not resurrect an account from a profile request started before sign-out", async () => {
+    const postMessage = setup();
+    let complete: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise<Response>((resolve) => { complete = resolve; })));
+    const checking = syncNativeOfflineAccount(new AbortController().signal);
+    postNativeOfflineAccount(null);
+    complete(Response.json({ user: { user_id: ownerId } }));
+    await checking;
+    expect(postMessage.mock.calls).toEqual([[JSON.stringify({ type: "oghma:offline-account", ownerId: null })]]);
+  });
 });
 
 describe("native app bridge", () => {

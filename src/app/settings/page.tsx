@@ -33,7 +33,7 @@ import CourseVisibilityManager, {
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
-import { postNativeUpdates, useNativeAppBridge } from "@/lib/native-app";
+import { postNativeUpdates, postNativeOfflineAccount, useNativeAppBridge } from "@/lib/native-app";
 
 const CanvasSection = dynamic(
   () => import("@/components/settings/canvas-section"),
@@ -290,6 +290,7 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
+    postNativeOfflineAccount(null);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       localStorage.removeItem("ogma-theme");
