@@ -13,6 +13,7 @@ import {
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
 import {
+  getNativeAppBridge,
   postNativeOAuth,
   postNativeUpdates,
   type NativeOAuthProvider,
@@ -37,7 +38,7 @@ export default function LoginPage() {
   // auth redirect is handled by middleware — no client-side check needed
 
   useEffect(() => {
-    userRef.current?.focus();
+    if (!getNativeAppBridge()) userRef.current?.focus();
     return () => {
       if (redirectFallbackRef.current !== null) {
         window.clearTimeout(redirectFallbackRef.current);
@@ -124,10 +125,10 @@ export default function LoginPage() {
     !isOAuthProviderConfigured(provider, oauthProviders);
 
   return (
-    <div className="flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page">
+    <div className={nativeAppBridge ? "flex min-h-dvh flex-col justify-center bg-app-page px-5 py-6" : "flex min-h-screen flex-col justify-center py-12 px-6 lg:px-8 bg-app-page"}>
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link
-          href="/"
+          href={nativeAppBridge ? "/login" : "/"}
           className="flex items-center justify-center gap-2.5"
           aria-label={t("OghmaNotes")}
         >
@@ -136,13 +137,13 @@ export default function LoginPage() {
             {t("OghmaNotes")}
           </span>
         </Link>
-        <h1 className="mt-8 text-center font-serif text-3xl font-semibold tracking-tight text-text">
+        <h1 className={`${nativeAppBridge ? "mt-5 text-2xl" : "mt-8 text-3xl"} text-center font-serif font-semibold tracking-tight text-text`}>
           {t("Sign in to your account")}
         </h1>
       </div>
 
-      <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[460px]">
-        <div className="glass-card rounded-radius-xl px-6 py-10 sm:px-10">
+      <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} sm:mx-auto sm:w-full sm:max-w-[460px]`}>
+        <div className={`glass-card rounded-radius-xl ${nativeAppBridge ? "px-5 py-6" : "px-6 py-10 sm:px-10"}`}>
           <form onSubmit={handleSubmit} method="POST" className="space-y-6">
             {errMsg && (
               <div ref={errRef}>
@@ -236,21 +237,9 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {nativeAppBridge && (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={postNativeUpdates}
-                className="flex w-full justify-center rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text"
-              >
-                {t("Check for updates")}
-              </button>
-            </div>
-          )}
-
           {/* Social login section */}
           <div>
-            <div className="mt-10 flex items-center gap-x-6">
+            <div className={`${nativeAppBridge ? "mt-6" : "mt-10"} flex items-center gap-x-6`}>
               <div className="w-full flex-1 border-t border-border-subtle" />
               <p className="text-sm/6 font-medium text-nowrap text-text-tertiary">
                 {t("Or continue with")}
@@ -321,6 +310,15 @@ export default function LoginPage() {
             {t("Create one")}
           </Link>
         </p>
+        {nativeAppBridge && (
+          <button
+            type="button"
+            onClick={postNativeUpdates}
+            className="mx-auto mt-2 block min-h-11 px-3 text-sm text-text-tertiary hover:text-text"
+          >
+            {t("Check for updates")}
+          </button>
+        )}
       </div>
     </div>
   );

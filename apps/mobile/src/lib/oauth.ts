@@ -7,12 +7,30 @@ import type { User } from "./contracts";
 import {
   oauthProvidersSchema,
   oauthReturnUrl,
+  isPendingOAuthCurrent,
   parseOAuthReturn,
   pendingOAuthSchema,
 } from "./oauth-contracts";
 
 const pendingKey = `oghma.oauth.${new URL(origin).hostname}`;
 let completing: Promise<User | null> | null = null;
+
+export async function hasPendingOAuth(): Promise<boolean> {
+  const saved = await SecureStore.getItemAsync(pendingKey);
+  if (!saved) return false;
+  let value: unknown;
+  try {
+    value = JSON.parse(saved);
+  } catch {
+    await SecureStore.deleteItemAsync(pendingKey);
+    return false;
+  }
+  if (!isPendingOAuthCurrent(value)) {
+    await SecureStore.deleteItemAsync(pendingKey);
+    return false;
+  }
+  return true;
+}
 
 export async function getOAuthProviders() {
   const providers = await json("/api/auth/providers", oauthProvidersSchema);
@@ -24,7 +42,14 @@ export async function getOAuthProviders() {
 async function finish(value: string): Promise<User | null> {
   const saved = await SecureStore.getItemAsync(pendingKey);
   if (!saved) return null;
-  const pending = pendingOAuthSchema.safeParse(JSON.parse(saved));
+  let valueToParse: unknown;
+  try {
+    valueToParse = JSON.parse(saved);
+  } catch {
+    await SecureStore.deleteItemAsync(pendingKey);
+    throw new Error("Sign-in expired. Please try again.");
+  }
+  const pending = pendingOAuthSchema.safeParse(valueToParse);
   if (!pending.success || Date.now() - pending.data.createdAt > 10 * 60_000) {
     await SecureStore.deleteItemAsync(pendingKey);
     throw new Error("Sign-in expired. Please try again.");
@@ -45,9 +70,9 @@ function finishOnce(value: string) {
   return completing;
 }
 
-export async function resumeOAuth() {
+export async function resumeOAuth(callbackUrl?: string) {
   // Android may recreate the process while the browser is signing in.
-  const url = await Linking.getInitialURL();
+  const url = callbackUrl ?? (await Linking.getInitialURL());
   if (!url || !url.startsWith(`${oauthReturnUrl}?`)) return null;
   return finishOnce(url);
 }

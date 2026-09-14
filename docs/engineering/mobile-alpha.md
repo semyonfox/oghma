@@ -8,7 +8,7 @@ The Android application lives in [`apps/mobile`](../../apps/mobile/README.md), w
 
 ## Workspace and themes
 
-The app opens `/notes` on `https://oghmanotes.ie`, or the development origin selected when bundling. Same-origin navigation remains inside the app. External web links open through Android. PDFs opened from the notes library render inside the existing viewer using authenticated bytes from the same-origin upload API; they do not launch a separate PDF application.
+The app opens `/notes` on `https://oghmanotes.ie`, or the development origin selected when bundling. The app opens directly into notes or sign-in. App logos return to notes or login, with no marketing homepage in the app flow. Workspace navigation remains inside the app. External web links open through Android. PDFs opened from the notes library render inside the existing viewer using authenticated bytes from the same-origin upload API; they do not launch a separate PDF application. The viewer mounts pages near the scroll position, releases offscreen canvases and caps canvas pixel density at 2.
 
 The website owns typography, appearance and account theme persistence. A small native bridge reports its resolved light/dark theme to the Android status bar, loading/error screens and update sheet. Outside the Android app, the bridge has no visible UI. The APK still needs updating when native capabilities change; web interface fixes arrive with website deployments.
 
@@ -35,6 +35,8 @@ Version 0.1.2 was the first build with the updater. Earlier installations need a
 The web workspace requires a connection for initial loading and sync. This does not add offline library sync, native notifications or silent installation. Rendering and keyboard behaviour depend on Android System WebView. Browser viewport tests cannot establish physical-device keyboard, OAuth return or APK installer behaviour.
 
 For a release, run mobile type checking and contract tests, root type checking and focused web tests, then build and inspect a signed non-debuggable APK. Verify editor input/save, inline PDF canvases, light/dark themes and phone-width overflow with rendered browser evidence. Check the APK package, version, signing certificate, declared permissions and 16 KB alignment before staging.
+
+Version 0.1.3 passed the signed Android build, mobile TypeScript and 24 mobile contract tests, root production build and focused authentication/PDF/bridge tests. Browser checks at 390 × 844 pixels verified real editor input and save requests, inline PDF rendering, zoom, theme messages, sign-in/update actions and no page overflow or marketing homepage links. A 24-page PDF retained three canvases near the beginning and end, releasing the first canvas after scrolling. APK package/version, existing signing certificate and 16 KB alignment passed. These tests used synthetic browser fixtures, not a physical Android device.
 
 The APK is a release artifact. Its checksum manifest is tracked and website images fetch the pinned, verified GitHub release. `/downloads` is noindex, not private authentication. Build, signing and hosting instructions are in the [mobile README](../../apps/mobile/README.md).
 

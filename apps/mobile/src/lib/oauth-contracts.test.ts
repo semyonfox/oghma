@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  isPendingOAuthCurrent,
   oauthProvidersSchema,
   parseOAuthReturn,
   oauthReturnUrl,
@@ -48,4 +49,19 @@ test("provider discovery accepts server configured OAuth providers and rejects u
       evil: { id: "../redirect", name: "x", type: "oauth" },
     }),
   );
+});
+
+test("cold-resume OAuth state expires after ten minutes", () => {
+  const now = 2_000_000;
+  const pending = {
+    state,
+    verifier: "c".repeat(64),
+    createdAt: now - 10 * 60_000,
+  };
+  assert.equal(isPendingOAuthCurrent(pending, now), true);
+  assert.equal(
+    isPendingOAuthCurrent({ ...pending, createdAt: pending.createdAt - 1 }, now),
+    false,
+  );
+  assert.equal(isPendingOAuthCurrent({ ...pending, verifier: "short" }, now), false);
 });

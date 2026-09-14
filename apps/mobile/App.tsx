@@ -14,6 +14,7 @@ import { origin } from "./src/lib/api";
 import { ThemeProvider, useTheme } from "./src/lib/theme";
 import { restoreWebSession, resumeWebSignIn, signInToWeb } from "./src/lib/web-session";
 import { navigationAction, parseWebMessage } from "./src/lib/web-navigation";
+import { oauthReturnUrl } from "./src/lib/oauth-contracts";
 import { AppUpdateLink, UpdateBanner, UpdatesProvider, useUpdates } from "./src/components/AppUpdates";
 import { Button, Loading, message } from "./src/ui";
 
@@ -72,6 +73,25 @@ function Workspace() {
   }, []);
   useEffect(() => { void restore(); }, [restore]);
   useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      // openAuthSessionAsync handles the callback while its original call lives.
+      if (signingIn.current || !url.startsWith(`${oauthReturnUrl}?`)) return;
+      signingIn.current = true;
+      void resumeWebSignIn(url)
+        .then((signedIn) => {
+          if (!signedIn) return;
+          setStartupError("");
+          setLoadError("");
+          setSource({ uri: `${origin}/notes` });
+          setWebViewVersion((value) => value + 1);
+          setReady(true);
+        })
+        .catch((error) => Alert.alert("Could not sign in", message(error)))
+        .finally(() => { signingIn.current = false; });
+    });
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       if (canGoBack.current && !loadError) {
         webView.current?.goBack();
@@ -108,6 +128,7 @@ function Workspace() {
   };
   const navigate = (url: string, newWindow = false) => {
     switch (navigationAction(url, origin)) {
+      case "home": setSource({ uri: `${origin}/notes` }); return false;
       case "workspace":
         if (newWindow) setSource({ uri: url });
         return !newWindow;

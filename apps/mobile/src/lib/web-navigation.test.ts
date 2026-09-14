@@ -9,6 +9,11 @@ test("workspace links stay inside the app; APK links use the verified updater", 
     assert.equal(navigationAction(`${origin}${path}`, origin), "workspace");
   }
   assert.equal(navigationAction(`${origin}/downloads/oghmanotes-alpha.apk`, origin), "update");
+  assert.equal(navigationAction(`${origin}/downloads`, origin), "update");
+  assert.equal(navigationAction(`${origin}/`, origin), "home");
+  for (const path of ["/pricing", "/about", "/blog/a-post"]) {
+    assert.equal(navigationAction(`${origin}${path}`, origin), "external");
+  }
   assert.equal(navigationAction("https://example.com/study", origin), "external");
   for (const url of ["javascript:alert(1)", "file:///private", "content://private", "intent://example", "https://user:pass@oghmanotes.ie/notes"]) {
     assert.equal(navigationAction(url, origin), "block");

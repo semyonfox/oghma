@@ -30,7 +30,10 @@ export function navigationAction(value: string, origin: string) {
     const url = new URL(value);
     if (url.username || url.password) return "block";
     if (isWorkspaceUrl(value, origin)) {
+      if (url.pathname === "/") return "home";
+      if (url.pathname === "/downloads") return "update";
       if (url.pathname === "/downloads/oghmanotes-alpha.apk") return "update";
+      if (/^\/(pricing|about|blog|info|ai)(\/|$)/.test(url.pathname)) return "external";
       return "workspace";
     }
     if (["https:", "http:", "mailto:", "tel:"].includes(url.protocol)) return "external";

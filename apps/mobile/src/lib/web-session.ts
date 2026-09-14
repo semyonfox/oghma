@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { origin, readStoredSessionCookie, clearStoredSessionCookie } from "./api";
-import { resumeOAuth, signInWithProvider } from "./oauth";
+import { hasPendingOAuth, resumeOAuth, signInWithProvider } from "./oauth";
 import {
   restoreStoredWebSession,
   transferOAuthSession,
@@ -79,7 +79,7 @@ export async function signInToWeb(
   return finishWebOAuth(() => signInWithProvider(provider));
 }
 
-export async function resumeWebSignIn(): Promise<boolean> {
+export async function resumeWebSignIn(callbackUrl?: string): Promise<boolean> {
   const state = await storage.readOAuthTransferState();
   if (state === "installed") {
     await restoreStoredWebSession(storage);
@@ -92,5 +92,25 @@ export async function resumeWebSignIn(): Promise<boolean> {
     await transferOAuthSession(storage, cookie);
     return true;
   }
-  return finishWebOAuth(resumeOAuth);
+
+  let user: unknown;
+  try {
+    user = await resumeOAuth(callbackUrl);
+  } catch (error) {
+    const exchangedCookie = await storage.readLegacySession();
+    if (exchangedCookie) {
+      await transferOAuthSession(storage, exchangedCookie);
+      return true;
+    }
+    await storage.clearOAuthTransferState();
+    throw error;
+  }
+  if (!user) {
+    // A process can resume before the browser redirects. Keep waiting while
+    // the verifier is valid; an expired or corrupt request is removed.
+    if (!(await hasPendingOAuth())) await storage.clearOAuthTransferState();
+    return false;
+  }
+  await transferOAuthSession(storage);
+  return true;
 }

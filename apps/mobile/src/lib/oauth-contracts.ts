@@ -16,6 +16,11 @@ export const pendingOAuthSchema = z.object({
   createdAt: z.number(),
 });
 
+export function isPendingOAuthCurrent(value: unknown, now = Date.now()) {
+  const pending = pendingOAuthSchema.safeParse(value);
+  return pending.success && now - pending.data.createdAt <= 10 * 60_000;
+}
+
 export function parseOAuthReturn(value: string, state: string) {
   const url = new URL(value);
   if (
