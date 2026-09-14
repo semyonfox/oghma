@@ -39,7 +39,6 @@ import {
   type SseWriter,
   sendConnected,
   sendMeta,
-  sendSearch,
   sendToken,
   sendThinking,
   sendToolCall,
@@ -47,7 +46,6 @@ import {
   sendDone,
   sendError,
   sendHeartbeat,
-  buildSearchContext,
 } from "@/lib/chat/stream-events";
 import {
   createChatGeneration,
@@ -231,14 +229,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
               activeSessionId = scope.sessionId;
 
               const prepared = await prepareChatGeneration({
-                userId,
-                message,
                 useRag,
                 scopedNoteIds: scope.scopedNoteIds,
                 sessionContext: scope.sessionContext,
               });
               const {
-                ragResult,
                 systemPrompt,
                 sessionMemoryPrompt,
                 uniqueSources,
@@ -275,12 +270,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
                 scope.sessionId,
                 uniqueSources,
                 retrieval,
-                !ragResult.ragFailed,
+                useRag,
                 llmAvailable,
               );
               lastEvent = "meta";
-              sendSearch(writer, useRag ? message : undefined, scope.scopedNoteIds, ragResult.searchResults);
-              lastEvent = "search";
 
               if (!llmAvailable) {
                 sendToken(writer, fallbackReply);
@@ -590,7 +583,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   );
 
   const {
-    ragResult,
     systemPrompt,
     sessionMemoryPrompt,
     uniqueSources,
@@ -598,8 +590,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     initialParts,
     fallbackReply,
   } = await prepareChatGeneration({
-    userId,
-    message,
     useRag,
     scopedNoteIds: scope.scopedNoteIds,
     sessionContext: scope.sessionContext,
@@ -623,12 +613,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       referer: request.headers.get("referer"),
     });
 
-  const searchContext = buildSearchContext(
-    useRag ? message : undefined,
-    scope.scopedNoteIds,
-    ragResult.searchResults,
-  );
-
   if (!model) {
     await canvasMcpClient?.close().catch(() => {});
     await persistMessage(scope.sessionId, "assistant", fallbackReply, {
@@ -641,7 +625,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       retrieval,
       llmAvailable: false,
       sessionId: scope.sessionId,
-      searchContext,
     });
   }
 
@@ -705,9 +688,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         sources: uniqueSources,
         retrieval,
         llmAvailable: true,
-        ragAvailable: !ragResult.ragFailed,
+        ragAvailable: useRag,
         sessionId: scope.sessionId,
-        searchContext,
         partial: true,
         error: TOOL_CALL_LIMIT_USER_MESSAGE,
         toolCallLimitHit: true,
@@ -730,9 +712,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       sources: uniqueSources,
       retrieval,
       llmAvailable: true,
-      ragAvailable: !ragResult.ragFailed,
+      ragAvailable: useRag,
       sessionId: scope.sessionId,
-      searchContext,
     });
   } catch (error) {
     void Metrics.llmError();

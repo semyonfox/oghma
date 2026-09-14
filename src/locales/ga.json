@@ -211,7 +211,7 @@
   "chat.new_conversation": "Comhrá nua",
   "chat.no_conversations": "Níl aon chomhráite fós",
   "chat.rag_title": "Cuardaigh mo nótaí — RAG",
-  "chat.rag_tooltip": "Glúin mhéadaithe aisghabhála: déanann tú cuardach ar do nótaí agus cuireann sé na sleachta is ábhartha leis mar chomhthéacs do do cheist. Múch é chun freagra a thabhairt ó eolas ginearálta amháin - sábhálann sé comharthaí.",
+  "chat.rag_tooltip": "Lig don chúntóir do chuid nótaí a chuardach agus a léamh nuair is gá. Ní chuardaítear nótaí go huathoibríoch roimh fhreagra.",
   "chat.thinking_title": "Smaointeoireacht leathnaithe",
   "chat.thinking_tooltip": "The model reasons step-by-step before answering, which helps on harder questions. Turn it off for a direct answer — saves tokens.",
   "chat.title": "Comhrá AI",

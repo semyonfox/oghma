@@ -39,6 +39,8 @@ export interface MessageMetadata {
 
 export interface Message {
   id: string;
+  /** Keep the mounted bubble when an optimistic message receives its saved ID. */
+  renderKey?: string;
   role: "user" | "assistant";
   content: string;
   parts?: MessagePart[];

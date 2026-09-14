@@ -211,7 +211,7 @@
   "chat.new_conversation": "新对话",
   "chat.no_conversations": "暂无对话",
   "chat.rag_title": "搜索我的笔记 — RAG",
-  "chat.rag_tooltip": "检索增强生成：搜索您的笔记并添加最相关的段落作为您问题的上下文。关闭它，仅根据常识来回答 - 节省令牌。",
+  "chat.rag_tooltip": "允许助手在需要时搜索和阅读你的笔记。回复前不会自动搜索笔记。",
   "chat.thinking_title": "延伸思考",
   "chat.thinking_tooltip": "模型会在回答前逐步推理，这有助于处理较难的问题。关闭此功能可直接获得答案并节省令牌。",
   "chat.title": "AI 聊天",
