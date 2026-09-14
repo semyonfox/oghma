@@ -211,7 +211,7 @@
   "chat.new_conversation": "Nieuw gesprek",
   "chat.no_conversations": "Nog geen gesprekken",
   "chat.rag_title": "Doorzoek mijn aantekeningen - RAG",
-  "chat.rag_tooltip": "Retrieval-augmented generatie: doorzoekt uw aantekeningen en voegt de meest relevante passages toe als context voor uw vraag. Schakel het uit om alleen op basis van algemene kennis te antwoorden - bespaart tokens.",
+  "chat.rag_tooltip": "Laat de assistent je notities doorzoeken en lezen wanneer dat nodig is. Notities worden niet automatisch doorzocht vóór een antwoord.",
   "chat.thinking_title": "Uitgebreid denken",
   "chat.thinking_tooltip": "Het model redeneert stap voor stap voordat het antwoordt, wat helpt bij moeilijkere vragen. Schakel dit uit voor een direct antwoord en om tokens te besparen.",
   "chat.title": "AI-chat",

@@ -91,7 +91,7 @@ export async function resolveScopedNoteIds(
 
 export function buildSystemPrompt(results: SearchResult[]): string {
   if (results.length === 0) {
-    return "You are a helpful study assistant. No relevant note content was retrieved for this question. You MUST use your tools (getChunks, readNote) to search before making any claims about what notes exist or what they contain — never invent note titles or content. Only after checking tools should you answer; if nothing is found, say so explicitly.";
+    return "You are a helpful study assistant with access to the user's notes. No note content is preloaded. Use getChunks or readNote when the question needs the user's notes, and ground claims about those notes in tool results. Never invent note titles or content. General questions do not require a note search.";
   }
 
   // group chunks by note for cleaner context

@@ -45,7 +45,7 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
   MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/oghma_e2e?search_path=app,public
   REDIS_HOST: 127.0.0.1
-  REDIS_PORT: "6379"
+  REDIS_PORT: "56380"
   REDIS_TLS: "false"
   STORAGE_ENDPOINT: http://127.0.0.1:9000
   STORAGE_BUCKET: oghma-e2e
@@ -97,7 +97,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 56380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -239,7 +239,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 56380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s

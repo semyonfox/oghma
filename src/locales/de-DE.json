@@ -211,7 +211,7 @@
   "chat.new_conversation": "Neue Konversation",
   "chat.no_conversations": "Noch keine Konversationen",
   "chat.rag_title": "Durchsuchen Sie meine Notizen – RAG",
-  "chat.rag_tooltip": "Abrufgestützte Generierung: Durchsucht Ihre Notizen und fügt die relevantesten Passagen als Kontext für Ihre Frage hinzu. Schalten Sie es aus, um nur aus Allgemeinwissen zu antworten – das spart Token.",
+  "chat.rag_tooltip": "Erlaube dem Assistenten, deine Notizen bei Bedarf zu durchsuchen und zu lesen. Vor einer Antwort werden Notizen nicht automatisch durchsucht.",
   "chat.thinking_title": "Erweitertes Denken",
   "chat.thinking_tooltip": "Das Modell denkt vor der Antwort Schritt für Schritt nach, was bei schwierigeren Fragen hilft. Deaktivieren Sie diese Option für eine direkte Antwort und um Token zu sparen.",
   "chat.title": "KI-Chat",

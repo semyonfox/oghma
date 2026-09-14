@@ -7,13 +7,18 @@ import {
   useState,
   useRef,
   useEffect,
+  useCallback,
   KeyboardEvent,
   FormEvent,
 } from "react";
 import { PaperAirplaneIcon, StopCircleIcon, DocumentTextIcon, FolderIcon } from "@heroicons/react/24/outline";
 import useI18n from "@/lib/notes/hooks/use-i18n";
 import { useChatStream } from "@/lib/chat/hooks/use-chat-stream";
-import { useChatPersistence } from "@/lib/chat/hooks/use-chat-persistence";
+import {
+  reconcileChatMessages,
+  useChatPersistence,
+} from "@/lib/chat/hooks/use-chat-persistence";
+import type { Message } from "@/lib/chat/types";
 import { CompactMessageBubble, FullMessageBubble } from "./message-bubble";
 import ChatSplash from "./chat-splash";
 
@@ -124,15 +129,23 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
 }) => {
   const { t } = useI18n();
 
+  const ownsMessagesRef = useRef(false);
+  const recoveringMessagesRef = useRef(false);
+  const resumedGenerationRef = useRef<string | null>(null);
+  const appliedSnapshotRef = useRef<Message[] | null>(null);
+  const appliedMessagesRef = useRef<Message[] | null>(null);
+
   const {
     thinkingMode,
     toggleThinking,
     useRag,
     toggleRag,
     restoredMessages,
+    restoredGenerating,
     restored,
     restoreError,
     retryRestore,
+    finishBackgroundGeneration,
     backgroundLoading,
     backgroundGenerationId,
     updateRefs,
@@ -140,6 +153,20 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     compact,
     controlledSessionId,
   });
+
+  const retryConversation = useCallback(() => {
+    recoveringMessagesRef.current = true;
+    resumedGenerationRef.current = null;
+    retryRestore();
+  }, [retryRestore]);
+
+  const handleStreamComplete = useCallback(
+    (completedSessionId: string | null, generationId?: string) => {
+      finishBackgroundGeneration(generationId);
+      onStreamComplete?.(completedSessionId);
+    },
+    [finishBackgroundGeneration, onStreamComplete],
+  );
 
   const {
     messages,
@@ -162,8 +189,8 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     controlledSessionId,
     sessionReady: !controlledSessionId || restored,
     onSessionCreated,
-    onStreamComplete,
-    onTerminalFailure: controlledSessionId ? retryRestore : undefined,
+    onStreamComplete: handleStreamComplete,
+    onTerminalFailure: retryConversation,
   });
   const busy = loading || backgroundLoading;
   const composerDisabled = !isChatComposerReady(
@@ -175,32 +202,51 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   // Stop must reach the worker even before the background resume attaches,
   // Use this state when the hook does not know the generation ID yet.
   const stopGenerating = () => {
-    if (backgroundGenerationId) {
+    if (backgroundGenerationId && !loading) {
       void fetch(`/api/chat/generations/${backgroundGenerationId}/cancel`, {
         method: "POST",
       }).catch(() => {});
     }
     cancel();
   };
-  const resumedGenerationRef = useRef<string | null>(null);
-
   useEffect(() => {
     resumedGenerationRef.current = null;
+    appliedSnapshotRef.current = null;
+    appliedMessagesRef.current = null;
+    // Adopting the URL of a newly created chat must keep its live reply.
+    ownsMessagesRef.current = Boolean(
+      controlledSessionId &&
+        sessionId === controlledSessionId &&
+        messages.length > 0,
+    );
+    if (!ownsMessagesRef.current) recoveringMessagesRef.current = false;
+    // This reset belongs to navigation, not token or session-state updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledSessionId]);
 
-  // apply restored session messages when available
+  // Hydrate once. After streaming starts, only an explicit recovery may adopt
+  // a new terminal snapshot; changing the spinner state cannot replay history.
   useEffect(() => {
     if (
       !controlledSessionId ||
       !restored ||
       !restoredMessages ||
+      appliedSnapshotRef.current === restoredMessages ||
+      (ownsMessagesRef.current &&
+        (!recoveringMessagesRef.current || restoredGenerating)) ||
       loading
     ) {
       return;
     }
+    const nextMessages = reconcileChatMessages(messages, restoredMessages);
+    recoveringMessagesRef.current = false;
+    appliedSnapshotRef.current = restoredMessages;
+    appliedMessagesRef.current = nextMessages;
     setSessionId(controlledSessionId);
-    setMessages(restoredMessages);
+    setMessages(nextMessages);
   }, [
+    restoredGenerating,
+    messages,
     restoredMessages,
     restored,
     controlledSessionId,
@@ -213,16 +259,19 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
     if (
       !restored ||
       !restoredMessages ||
-      messages !== restoredMessages ||
+      (!ownsMessagesRef.current && messages !== appliedMessagesRef.current) ||
+      loading ||
       !backgroundGenerationId ||
       resumedGenerationRef.current === backgroundGenerationId
     ) {
       return;
     }
     resumedGenerationRef.current = backgroundGenerationId;
+    ownsMessagesRef.current = true;
     void resume(backgroundGenerationId);
   }, [
     backgroundGenerationId,
+    loading,
     messages,
     restored,
     restoredMessages,
@@ -258,12 +307,18 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    setInput("");
+    pinnedToBottomRef.current = true;
+  }, [controlledSessionId]);
+
   const thinkingActive = thinkingMode !== "off";
   const thinkingLabel = thinkingActive ? t("Thinking on") : t("Thinking off");
 
   const handleSend = () => {
     const text = input.trim();
     if (!text || composerDisabled) return;
+    ownsMessagesRef.current = true;
 
     // sending a message always re-pins the view to the bottom
     pinnedToBottomRef.current = true;
@@ -298,7 +353,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
         >
           {messages.map((m, index) => (
             <CompactMessageBubble
-              key={m.id}
+              key={m.renderKey ?? m.id}
               message={m}
               isStreaming={busy && index === messages.length - 1}
             />
@@ -312,7 +367,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
               <span>{t("error.something_went_wrong")}</span>
               <button
                 type="button"
-                onClick={retryRestore}
+                onClick={retryConversation}
                 className="font-medium text-primary-300 hover:text-primary-200"
               >
                 {t("Try again")}
@@ -382,7 +437,19 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
             messages.length === 0 ? "min-h-full justify-center pb-12" : ""
           }`}
         >
-          {messages.length === 0 ? (
+          {controlledSessionId &&
+          (!restored || sessionId !== controlledSessionId) &&
+          (messages.length === 0 || sessionId !== controlledSessionId) ? (
+            restoreError ? null : (
+              <div
+                className="flex justify-center py-8"
+                role="status"
+                aria-label={t("Loading...")}
+              >
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
+              </div>
+            )
+          ) : messages.length === 0 ? (
             <ChatSplash
               onSelectPrompt={(prompt) => {
                 setInput(prompt);
@@ -392,7 +459,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
           ) : (
             messages.map((m, index) => (
               <FullMessageBubble
-                key={m.id}
+                key={m.renderKey ?? m.id}
                 message={m}
                 sessionId={sessionId}
                 isStreaming={busy && index === messages.length - 1}
@@ -417,7 +484,7 @@ const ChatInterface: FC<ChatInterfaceProps> = ({
                 <span>{t("error.something_went_wrong")}</span>
                 <button
                   type="button"
-                  onClick={retryRestore}
+                  onClick={retryConversation}
                   className="font-medium text-primary-300 transition-colors hover:text-primary-200"
                 >
                   {t("Try again")}

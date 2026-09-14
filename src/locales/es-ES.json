@@ -211,7 +211,7 @@
   "chat.new_conversation": "Nueva conversación",
   "chat.no_conversations": "No hay conversaciones aún",
   "chat.rag_title": "Buscar en mis notas — RAG",
-  "chat.rag_tooltip": "Generación de recuperación aumentada: busca sus notas y agrega los pasajes más relevantes como contexto para su pregunta. Desactívelo para responder solo desde conocimientos generales: ahorra tokens.",
+  "chat.rag_tooltip": "Permite que el asistente busque y lea tus notas cuando sea necesario. No se buscan notas automáticamente antes de responder.",
   "chat.thinking_title": "pensamiento extendido",
   "chat.thinking_tooltip": "The model reasons step-by-step before answering, which helps on harder questions. Turn it off for a direct answer — saves tokens.",
   "chat.title": "Chat IA",

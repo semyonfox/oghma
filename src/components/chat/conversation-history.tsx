@@ -261,7 +261,7 @@ export function ConversationHistory({
                       {editingId !== conv.id && (
                         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-14 items-center justify-end pr-2 md:flex">
                           <span
-                            className="text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+                            className="shrink-0 whitespace-nowrap text-right text-xs text-text-tertiary opacity-70 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
                             suppressHydrationWarning
                           >
                             {relativeDate(conv.createdAt, t)}

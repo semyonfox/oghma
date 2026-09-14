@@ -211,7 +211,7 @@
   "chat.new_conversation": "Ny konversation",
   "chat.no_conversations": "Inga konversationer ännu",
   "chat.rag_title": "Sök i mina anteckningar — RAG",
-  "chat.rag_tooltip": "Hämtningsförstärkt generation: söker igenom dina anteckningar och lägger till de mest relevanta avsnitten som sammanhang för din fråga. Stäng av den för att bara svara från allmän kunskap – sparar tokens.",
+  "chat.rag_tooltip": "Låt assistenten söka i och läsa dina anteckningar vid behov. Anteckningarna genomsöks inte automatiskt före ett svar.",
   "chat.thinking_title": "Utökat tänkande",
   "chat.thinking_tooltip": "Modellen resonerar steg för steg innan den svarar, vilket hjälper vid svårare frågor. Stäng av funktionen för ett direkt svar och för att spara tokens.",
   "chat.title": "AI-chatt",

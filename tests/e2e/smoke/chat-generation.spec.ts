@@ -31,8 +31,18 @@ test.describe("background chat generation", () => {
     });
     await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
 
+    // A follow-up used to disappear as soon as loading changed to false,
+    // because the initial history snapshot replaced the live messages.
+    await page.getByPlaceholder("Ask anything about your notes…").fill("Return a second deterministic E2E answer.");
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.getByRole("button", { name: "Stop generating" })).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByPlaceholder("Ask anything about your notes…")).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Send message" })).toBeVisible();
+    await expect(chat.getByText("Return a second deterministic E2E answer.", { exact: true })).toBeVisible();
+    await expect(chat.getByText("E2E fake answer.", { exact: true })).toHaveCount(2);
+
     await page.reload();
     await expect(chat.getByText(prompt, { exact: true }).last()).toBeVisible();
-    await expect(chat.getByText("E2E fake answer.", { exact: true })).toHaveCount(1);
+    await expect(chat.getByText("E2E fake answer.", { exact: true })).toHaveCount(2);
   });
 });
