@@ -16,6 +16,7 @@ import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
+import { postNativeOAuth, type NativeOAuthProvider } from "@/lib/native-app";
 
 export default function RegisterPage() {
   const { t } = useI18n();
@@ -154,7 +155,7 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSocialSignUp = (provider: string) => {
+  const handleSocialSignUp = (provider: NativeOAuthProvider) => {
     if (
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
@@ -195,7 +196,9 @@ export default function RegisterPage() {
         agentUserCode,
       );
     }
-    signIn(provider, buildOAuthSignInOptions(callbackUrl));
+    if (agentClaimToken || !postNativeOAuth(provider)) {
+      signIn(provider, buildOAuthSignInOptions(callbackUrl));
+    }
   };
 
   const trackFormStart = () => {

@@ -33,6 +33,7 @@ import CourseVisibilityManager, {
 import EditorThemeSection from "@/components/settings/editor-theme-section";
 import PasswordSection from "@/components/settings/password-section";
 import useCourseStore from "@/lib/notes/state/courses.zustand";
+import { postNativeUpdates, useNativeAppBridge } from "@/lib/native-app";
 
 const CanvasSection = dynamic(
   () => import("@/components/settings/canvas-section"),
@@ -103,6 +104,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const { t, activeLocale } = useI18n();
   const { setSettings } = useSettingsStore();
+  const nativeAppBridge = useNativeAppBridge();
   const {
     settings: courseSettings,
     fetchSettings,
@@ -432,6 +434,17 @@ export default function SettingsPage() {
               });
             }}
           />
+          {nativeAppBridge && (
+            <div className="pb-12 md:pl-[calc(33.333333%+1.333333rem)]">
+              <button
+                type="button"
+                onClick={postNativeUpdates}
+                className="glass-card-interactive rounded-radius-md px-3 py-2 text-sm font-semibold text-text"
+              >
+                {t("Check for updates")}
+              </button>
+            </div>
+          )}
           <EditorThemeSection
             formState={formState}
             setFormState={setFormState}

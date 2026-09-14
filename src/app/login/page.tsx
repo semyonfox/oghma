@@ -12,6 +12,12 @@ import {
   buildOAuthSignInOptions,
   isOAuthProviderConfigured,
 } from "@/lib/oauth-client";
+import {
+  postNativeOAuth,
+  postNativeUpdates,
+  type NativeOAuthProvider,
+  useNativeAppBridge,
+} from "@/lib/native-app";
 
 export default function LoginPage() {
   const { t } = useI18n();
@@ -19,6 +25,7 @@ export default function LoginPage() {
   const errRef = useRef<HTMLDivElement>(null);
   const redirectFallbackRef = useRef<number | null>(null);
   const router = useRouter();
+  const nativeAppBridge = useNativeAppBridge();
 
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
@@ -98,7 +105,7 @@ export default function LoginPage() {
   };
 
   // OAuth login handler - delegates to Auth.js
-  const handleSocialLogin = (provider: string) => {
+  const handleSocialLogin = (provider: NativeOAuthProvider) => {
     if (
       oauthProviders &&
       !isOAuthProviderConfigured(provider, oauthProviders)
@@ -107,7 +114,9 @@ export default function LoginPage() {
       return;
     }
 
-    signIn(provider, buildOAuthSignInOptions("/notes"));
+    if (!postNativeOAuth(provider)) {
+      signIn(provider, buildOAuthSignInOptions("/notes"));
+    }
   };
 
   const isProviderDisabled = (provider: string) =>
@@ -226,6 +235,18 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+
+          {nativeAppBridge && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={postNativeUpdates}
+                className="flex w-full justify-center rounded-radius-md glass-card-interactive px-3 py-2 text-sm font-semibold text-text"
+              >
+                {t("Check for updates")}
+              </button>
+            </div>
+          )}
 
           {/* Social login section */}
           <div>
