@@ -125,6 +125,24 @@ export async function clearSession() {
   await SecureStore.deleteItemAsync(sessionKey);
 }
 
+/**
+ * The WebView shell uses these only to move a session created by the old
+ * native client or the native OAuth exchange into Android's cookie jar.
+ */
+export async function readStoredSessionCookie(): Promise<string | null> {
+  return SecureStore.getItemAsync(sessionKey);
+}
+
+export async function clearStoredSessionCookie(
+  expected: string,
+): Promise<boolean> {
+  const stored = await SecureStore.getItemAsync(sessionKey);
+  if (stored !== expected) return false;
+  await SecureStore.deleteItemAsync(sessionKey);
+  if (cookie === expected) cookie = null;
+  return true;
+}
+
 export async function readStream(
   id: string,
   signal: AbortSignal,

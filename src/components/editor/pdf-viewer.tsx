@@ -1,6 +1,13 @@
 "use client";
 
-import { FC, useState, useCallback, useRef, useEffect } from "react";
+import {
+  FC,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "react";
 import { FileSpec } from "@/lib/notes/state/layout.zustand";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
@@ -25,9 +32,93 @@ interface PDFViewerProps {
   pane: "A" | "B";
 }
 
-// A4 at 96 DPI used by PDF.js as its reference width
+// A4 at 96 DPI used by PDF.js as its reference width.
 const A4_WIDTH_PX = 794;
-const SCROLL_PADDING = 32; // 16px each side
+const A4_ASPECT_RATIO = Math.SQRT2;
+const PAGE_OVERSCAN = "100% 0px";
+export const MAX_PDF_DEVICE_PIXEL_RATIO = 2;
+
+interface LazyPdfPageProps {
+  pageNumber: number;
+  fitMode: boolean;
+  scale: number;
+  containerWidth: number | null;
+  scrollRoot: HTMLDivElement | null;
+  devicePixelRatio: number;
+  onRenderError: (error: Error) => void;
+}
+
+const LazyPdfPage: FC<LazyPdfPageProps> = ({
+  pageNumber,
+  fitMode,
+  scale,
+  containerWidth,
+  scrollRoot,
+  devicePixelRatio,
+  onRenderError,
+}) => {
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [isNearViewport, setIsNearViewport] = useState(
+    pageNumber <= 2 || !("IntersectionObserver" in window),
+  );
+  const [originalSize, setOriginalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const slot = slotRef.current;
+    if (!slot) return;
+
+    if (!("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) setIsNearViewport(entry.isIntersecting);
+      },
+      { root: scrollRoot, rootMargin: PAGE_OVERSCAN },
+    );
+    observer.observe(slot);
+    return () => observer.disconnect();
+  }, [scrollRoot]);
+
+  const pageWidth =
+    fitMode && containerWidth
+      ? containerWidth
+      : (originalSize?.width ?? A4_WIDTH_PX) * scale;
+  const aspectRatio = originalSize
+    ? originalSize.height / originalSize.width
+    : A4_ASPECT_RATIO;
+
+  return (
+    <div
+      ref={slotRef}
+      data-pdf-page-number={pageNumber}
+      className="flex justify-center"
+      style={{ width: pageWidth, minHeight: pageWidth * aspectRatio }}
+    >
+      {isNearViewport ? (
+        <Page
+          pageNumber={pageNumber}
+          scale={fitMode ? undefined : scale}
+          width={fitMode && containerWidth ? containerWidth : undefined}
+          devicePixelRatio={devicePixelRatio}
+          renderTextLayer
+          renderAnnotationLayer
+          onLoadSuccess={(page) => {
+            if (page.originalWidth > 0 && page.originalHeight > 0) {
+              setOriginalSize({
+                width: page.originalWidth,
+                height: page.originalHeight,
+              });
+            }
+          }}
+          onRenderError={onRenderError}
+        />
+      ) : null}
+    </div>
+  );
+};
 
 const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   const { t } = useI18n();
@@ -37,10 +128,14 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
-    url: pdfPath,
+    data: pdfData,
     loading,
     error: urlError,
   } = usePdfCache(file.sourcePath, file.fileId);
+  const pdfSource = useMemo(
+    () => (pdfData ? { data: pdfData } : null),
+    [pdfData],
+  );
 
   // keep containerWidth in sync with pane resizes
   useEffect(() => {
@@ -55,7 +150,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   }, []);
 
   const fitScale = containerWidth
-    ? Math.max(0.3, (containerWidth - SCROLL_PADDING) / A4_WIDTH_PX)
+    ? Math.max(0.3, containerWidth / A4_WIDTH_PX)
     : 1;
 
   const onDocumentLoadSuccess = useCallback(
@@ -77,14 +172,18 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   }, []);
 
   const handleZoomIn = useCallback(() => {
+    setScale((current) =>
+      Math.min((fitMode ? fitScale : current) + 0.2, 3),
+    );
     setFitMode(false);
-    setScale((s) => Math.min(s + 0.2, 3));
-  }, []);
+  }, [fitMode, fitScale]);
 
   const handleZoomOut = useCallback(() => {
+    setScale((current) =>
+      Math.max((fitMode ? fitScale : current) - 0.2, 0.5),
+    );
     setFitMode(false);
-    setScale((s) => Math.max(s - 0.2, 0.5));
-  }, []);
+  }, [fitMode, fitScale]);
 
   // toggle fit: if already fitting, lock to current fit scale for manual zoom
   const handleFitToggle = useCallback(() => {
@@ -95,11 +194,15 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
   }, [fitScale]);
 
   const displayScale = fitMode ? fitScale : scale;
+  const devicePixelRatio = Math.min(
+    window.devicePixelRatio || 1,
+    MAX_PDF_DEVICE_PIXEL_RATIO,
+  );
 
   return (
     <div className="h-full flex flex-col bg-surface">
       {/* Controls */}
-      <div className="flex-shrink-0 px-4 py-2 bg-background border-b border-border-subtle flex items-center justify-between">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-border-subtle bg-background px-2 py-1 md:px-4 md:py-2">
         <div className="text-xs text-text-tertiary">
           {numPages
             ? t("pdf_viewer.page_count", { count: numPages })
@@ -108,9 +211,11 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
 
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={handleFitToggle}
             title={fitMode ? t("Switch to manual zoom") : t("Fit to pane")}
-            className={`p-1.5 rounded transition-colors ${
+            aria-label={fitMode ? t("Switch to manual zoom") : t("Fit to pane")}
+            className={`flex h-10 w-10 items-center justify-center rounded transition-colors md:h-7 md:w-7 ${
               fitMode
                 ? "bg-subtle text-text-secondary"
                 : "text-text-tertiary hover:bg-subtle hover:text-text-secondary"
@@ -122,8 +227,12 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
           <div className="w-px h-4 bg-border mx-0.5" />
 
           <button
+            type="button"
             onClick={handleZoomOut}
-            className="p-1.5 rounded hover:bg-subtle disabled:opacity-30 transition-colors"
+            disabled={displayScale <= 0.5}
+            title={t("Zoom out")}
+            aria-label={t("Zoom out")}
+            className="flex h-10 w-10 items-center justify-center rounded transition-colors hover:bg-subtle disabled:opacity-30 md:h-7 md:w-7"
           >
             <MagnifyingGlassMinusIcon className="w-4 h-4" />
           </button>
@@ -133,8 +242,12 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
           </span>
 
           <button
+            type="button"
             onClick={handleZoomIn}
-            className="p-1.5 rounded hover:bg-subtle disabled:opacity-30 transition-colors"
+            disabled={displayScale >= 3}
+            title={t("Zoom in")}
+            aria-label={t("Zoom in")}
+            className="flex h-10 w-10 items-center justify-center rounded transition-colors hover:bg-subtle disabled:opacity-30 md:h-7 md:w-7"
           >
             <MagnifyingGlassPlusIcon className="w-4 h-4" />
           </button>
@@ -144,7 +257,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
       {/* PDF canvas — scrollable */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto flex items-start justify-center bg-surface p-4"
+        className="flex-1 overflow-auto bg-surface p-4"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3 mt-16">
@@ -156,7 +269,7 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
               {t("pdf_viewer.loading")}
             </span>
           </div>
-        ) : !pdfPath ? (
+        ) : !pdfSource ? (
           <div className="flex flex-col items-center gap-3 mt-16 text-center px-6">
             <ExclamationTriangleIcon
               className="h-8 w-8 text-red-400/60"
@@ -173,8 +286,15 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
           </div>
         ) : (
           <Document
-            file={pdfPath}
+            key={file.fileId}
+            file={pdfSource}
+            className="mx-auto w-max min-w-full"
             onLoadSuccess={onDocumentLoadSuccess}
+            onItemClick={({ pageNumber }) => {
+              scrollRef.current
+                ?.querySelector(`[data-pdf-page-number="${pageNumber}"]`)
+                ?.scrollIntoView({ block: "start" });
+            }}
             loading={
               <div className="flex flex-col items-center gap-3 mt-16">
                 <ArrowPathIcon
@@ -190,24 +310,20 @@ const PDFViewer: FC<PDFViewerProps> = ({ file, pane: _pane }) => {
               <div className="text-red-500 mt-16">{t("pdf_viewer.error")}</div>
             }
           >
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col items-center gap-4">
               {numPages &&
                 Array.from({ length: numPages }, (_, i) => i + 1).map(
                   (pageNum) => (
-                    <div key={pageNum} className="flex justify-center">
-                      <Page
-                        pageNumber={pageNum}
-                        scale={fitMode ? undefined : scale}
-                        width={
-                          fitMode && containerWidth
-                            ? containerWidth - SCROLL_PADDING
-                            : undefined
-                        }
-                        renderTextLayer
-                        renderAnnotationLayer
-                        onRenderError={handlePageRenderError}
-                      />
-                    </div>
+                    <LazyPdfPage
+                      key={pageNum}
+                      pageNumber={pageNum}
+                      fitMode={fitMode}
+                      scale={scale}
+                      containerWidth={containerWidth}
+                      scrollRoot={scrollRef.current}
+                      devicePixelRatio={devicePixelRatio}
+                      onRenderError={handlePageRenderError}
+                    />
                   ),
                 )}
             </div>

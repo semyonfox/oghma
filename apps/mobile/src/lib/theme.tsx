@@ -32,6 +32,7 @@ type ThemeContextValue = {
   colors: Palette;
   styles: UiStyles;
   isDark: boolean;
+  setWebTheme: (theme: "light" | "dark") => void;
   preference: ThemePreference;
   setPreference: (preference: ThemePreference) => Promise<void>;
   accountId: string | null;
@@ -44,6 +45,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
+  const [webTheme, setWebTheme] = useState<"light" | "dark" | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [preference, setStoredPreference] = useState<ThemePreference>("system");
   const [syncError, setSyncError] = useState("");
@@ -188,9 +190,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setSyncing(false);
     }
   }, []);
-  const isDark =
-    preference === "dark" ||
-    (preference === "system" && systemScheme === "dark");
+  const isDark = webTheme !== null
+    ? webTheme === "dark"
+    : preference === "dark" ||
+      (preference === "system" && systemScheme === "dark");
   const colors = isDark ? darkPalette : lightPalette;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const value = useMemo(
@@ -198,6 +201,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       colors,
       styles,
       isDark,
+      setWebTheme,
       preference,
       setPreference,
       accountId,
