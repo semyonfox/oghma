@@ -2,6 +2,8 @@ import { expect, test } from "../fixtures";
 
 test.describe("public smoke", () => {
   test("key public pages render", async ({ page }) => {
+    // This single test visits twelve routes, compiling each on the first run.
+    test.setTimeout(90_000);
     await page.goto("/");
     await expect(
       page.getByRole("heading", {

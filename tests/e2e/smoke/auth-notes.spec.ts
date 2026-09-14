@@ -2,6 +2,8 @@ import { expect, test, createNoteViaApi, loginViaUi } from "../fixtures";
 
 test.describe("auth and notes smoke", () => {
   test("seeded user can sign in, open notes, and persist a note", async ({ page }) => {
+    // Includes cold workspace/editor compilation plus two reloads in CI.
+    test.setTimeout(90_000);
     await loginViaUi(page);
 
     const title = `E2E Note ${Date.now()}`;
